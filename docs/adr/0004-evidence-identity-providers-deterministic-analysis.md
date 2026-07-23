@@ -248,9 +248,12 @@ without pretending the project has a global security master.
   past results is not an upcoming-date source. Finnhub remains `provider-estimated` even when
   another provider agrees with it.
 - `exchange-confirmed` requires the same exact-date, future-language, identity, Source ID, and
-  retained-span contract from a direct official exchange URL on the checked-in exchange-host
-  allowlist. Provider calendar agreement, including Finnhub agreement, is never exchange
-  confirmation.
+  retained-span contract from a direct disclosure or announcement path on the checked-in exchange
+  host-and-path allowlist. Exchange-hosted calendars, quotes, symbol lookups, and other market-data
+  pages are explicitly ineligible because their event dates may remain provider estimates. The
+  exchange disclosure text must name the issuer or pair its ticker with issuer context; source
+  symbol equality alone is insufficient. Unknown exchange paths fail closed. Provider calendar
+  agreement, including Finnhub agreement, is never exchange confirmation.
 
 ## Current evidence limitations
 

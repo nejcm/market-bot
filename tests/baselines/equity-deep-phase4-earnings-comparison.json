@@ -66,18 +66,18 @@
     },
     {
       "fixture": "equity-analysis-comprehensive",
-      "eventDateStatus": "provider-estimated",
+      "eventDateStatus": "issuer-confirmed",
       "phase0EarningsSetupCount": 1,
       "phase4EarningsSetupCount": 1,
       "phase0EarningsPredictionCount": 2,
-      "phase4EarningsPredictionCount": 0,
-      "predictionCountDelta": -2,
+      "phase4EarningsPredictionCount": 2,
+      "predictionCountDelta": 0,
       "phase0CalibrationEligiblePredictionCount": 2,
-      "phase4CalibrationEligiblePredictionCount": 0,
-      "calibrationCoverageDelta": -2,
-      "grammarEligible": false,
-      "eligiblePredictionCount": 0,
-      "suppressedPredictionCount": 2
+      "phase4CalibrationEligiblePredictionCount": 2,
+      "calibrationCoverageDelta": 0,
+      "grammarEligible": true,
+      "eligiblePredictionCount": 2,
+      "suppressedPredictionCount": 0
     }
   ],
   "totals": {
@@ -88,15 +88,15 @@
     },
     "phase4": {
       "earningsSetupCount": 1,
-      "earningsPredictionCount": 0,
-      "calibrationEligiblePredictionCount": 0,
-      "eligiblePredictionCount": 0,
-      "suppressedPredictionCount": 2
+      "earningsPredictionCount": 2,
+      "calibrationEligiblePredictionCount": 2,
+      "eligiblePredictionCount": 2,
+      "suppressedPredictionCount": 0
     },
     "delta": {
       "earningsSetupCount": 0,
-      "earningsPredictionCount": -2,
-      "calibrationEligiblePredictionCount": -2
+      "earningsPredictionCount": 0,
+      "calibrationEligiblePredictionCount": 0
     }
   },
   "historicalPhase0Reference": {

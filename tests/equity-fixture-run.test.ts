@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseObservableExpression } from "../src/forecast/observable";
 import { isRecord } from "../src/guards";
+import type { ModelRequest } from "../src/model/types";
 import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
 import { readGoldenOutput, scrubbedRunArtifacts } from "./support/run-fixtures/artifacts";
 import {
@@ -12,6 +13,7 @@ import {
   type FixtureMeta,
   type RunFixtureResult,
 } from "./support/run-fixtures";
+import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 
 const FIXTURES = [
   "equity-aapl-brief",
@@ -230,15 +232,22 @@ async function assertNbisUnsupportedInputs(): Promise<void> {
   }
 }
 
-function assertComprehensiveAnalysisPath(result: RunFixtureResult): void {
+function assertComprehensiveAnalysisPath(
+  result: RunFixtureResult,
+  modelRequests: readonly ModelRequest[],
+): void {
   expect(populatedFinancialHistoryCount(result)).toBe(11);
   expect(result.collectedSources.valuationComps?.impliedPriceRange?.status).toBe("derived");
   expect(result.collectedSources.earningsSetup).toMatchObject({
     event: {
       symbol: "AAPL",
       date: "2026-07-10",
-      eventDateStatus: "provider-estimated",
-      dateStatus: "provider-estimated",
+      eventDateStatus: "issuer-confirmed",
+      dateConfirmation: {
+        sourceId: "news-equity-1",
+        sourceType: "issuer-press-release",
+        issuerIdentity: { symbol: "AAPL", matchedBy: "official-host" },
+      },
     },
     impliedMove: {
       expiration: "2026-07-17",
@@ -252,18 +261,35 @@ function assertComprehensiveAnalysisPath(result: RunFixtureResult): void {
     0.035_264_483_627_204_03,
     12,
   );
-  expect(result.report.predictions).toEqual([]);
-  expect(result.report.dataGaps).toContain(
+  expect(result.report.predictions).toEqual([
+    expect.objectContaining({
+      id: "aapl-earnings-direction",
+      kind: "earnings-direction",
+      eventDateStatus: "issuer-confirmed",
+      measurableAs: "earningsReturn(AAPL, 2026-07-10, +1) > 0",
+    }),
+    expect.objectContaining({
+      id: "aapl-earnings-move",
+      kind: "earnings-move",
+      eventDateStatus: "issuer-confirmed",
+      measurableAs: "abs(earningsReturn(AAPL, 2026-07-10, +1)) > 0.035",
+    }),
+  ]);
+  expect(result.report.dataGaps).not.toContain(
     "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
   );
   expect(result.analytics.earningsForecasts).toEqual({
-    eventDateStatus: "provider-estimated",
+    eventDateStatus: "issuer-confirmed",
     policy: "confirmed-only",
-    grammarEligible: false,
-    eligiblePredictionCount: 0,
-    suppressedPredictionCount: 2,
-    suppressionReason: "event-date-not-confirmed",
+    grammarEligible: true,
+    eligiblePredictionCount: 2,
+    suppressedPredictionCount: 0,
   });
+  const finalSynthesisPrompt = modelRequests
+    .find((request) => request.model === "fixture-synthesis")
+    ?.messages.findLast((message) => message.role === "user")?.content;
+  expect(finalSynthesisPrompt).toContain("earnings-direction");
+  expect(finalSynthesisPrompt).toContain("earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0");
   expect(result.collectedSources.extendedEvidence?.items.map((item) => item.category)).toEqual(
     expect.arrayContaining([
       "sec-edgar",
@@ -281,7 +307,22 @@ describe("static equity run fixtures", () => {
   for (const name of FIXTURES) {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
-      const result = await runFixture(name, { llm: "replay" });
+      const modelRequests: ModelRequest[] = [];
+      const replayProvider = makeReplayProvider(fixture.llmCassette);
+      const result = await runFixture(name, {
+        llm: "replay",
+        ...(name === "equity-analysis-comprehensive"
+          ? {
+              provider: {
+                name: replayProvider.name,
+                generate: async (request: ModelRequest) => {
+                  modelRequests.push(request);
+                  return replayProvider.generate(request);
+                },
+              },
+            }
+          : {}),
+      });
       runResults.push(result);
 
       assertInvariants(result, name, fixture.meta);
@@ -412,7 +453,7 @@ describe("static equity run fixtures", () => {
         );
       }
       if (name === "equity-analysis-comprehensive") {
-        assertComprehensiveAnalysisPath(result);
+        assertComprehensiveAnalysisPath(result, modelRequests);
         expect(result.report.equityAnalysisCompleteness).toMatchObject({
           financialCoreStatus: "complete",
           coverageLevel: "comprehensive",

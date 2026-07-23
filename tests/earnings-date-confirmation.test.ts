@@ -6,6 +6,7 @@ import { applyEarningsForecastPolicy } from "../src/forecast/earnings-eligibilit
 import { validateResearchReport } from "../src/report/schema";
 import {
   applyOfficialEarningsDateConfirmation,
+  assessOfficialExchangeDisclosureUrl,
   confirmEarningsDateFromOfficialSources,
   retainedEvidenceSpanForEarningsDate,
 } from "../src/sources/extended-evidence/earnings-date-confirmation";
@@ -41,17 +42,22 @@ function secSource(form: "8-K" | "6-K", summary: string): Source {
   };
 }
 
-function exchangeSource(host = "www.nasdaq.com"): Source {
+function exchangeSource(
+  url = "https://www.nasdaq.com/press-release/apple-announces-date-for-third-quarter-results-2026-07-18",
+): Source {
   return {
     id: "nasdaq-aapl-earnings",
     title: "Apple earnings date",
-    url: `https://${host}/market-activity/stocks/aapl/earnings`,
+    url,
     fetchedAt: "2026-07-18T09:00:00.000Z",
     kind: "web",
     assetClass: "equity",
     symbol: "AAPL",
     provider: "exa",
     summary: "Apple Inc. will release its quarterly financial results on July 30, 2026.",
+    identity: {
+      aliases: [{ provider: "nasdaq", idKind: "ticker", value: "AAPL" }],
+    },
   };
 }
 
@@ -164,7 +170,7 @@ describe("official earnings-date confirmation", () => {
     expect(result?.event.dateConfirmation).toMatchObject({
       sourceId: "nasdaq-aapl-earnings",
       sourceType: "official-exchange",
-      issuerIdentity: { symbol: "AAPL", matchedBy: "source-text" },
+      issuerIdentity: { symbol: "AAPL", matchedBy: "source-ticker-alias" },
     });
     expect(() =>
       validateResearchReport(
@@ -192,7 +198,51 @@ describe("official earnings-date confirmation", () => {
     const result = confirmEarningsDateFromOfficialSources({
       ...input,
       rawSnapshots: issuer.rawSnapshots,
-      sources: [exchangeSource("events.nasdaq.example.com")],
+      sources: [
+        exchangeSource(
+          "https://events.nasdaq.example.com/press-release/apple-announces-results-date",
+        ),
+      ],
+    });
+
+    expect(result?.event.eventDateStatus).toBe("provider-estimated");
+  });
+
+  test.each([
+    "https://www.nasdaq.com/market-activity/stocks/aapl/earnings",
+    "https://www.nasdaq.com/earnings-calendar",
+    "https://www.nasdaq.com/market-activity/stocks/aapl/quote",
+    "https://www.londonstockexchange.com/stock/AAPL/apple-inc/company-page",
+  ])("rejects exchange market-data or lookup URL %s", async (url) => {
+    const input = await fixture("provider-estimated");
+    const issuer = await fixture("issuer-confirmed");
+    const result = confirmEarningsDateFromOfficialSources({
+      ...input,
+      rawSnapshots: issuer.rawSnapshots,
+      sources: [exchangeSource(url)],
+    });
+
+    expect(result?.event.eventDateStatus).toBe("provider-estimated");
+    expect(assessOfficialExchangeDisclosureUrl(url)).toEqual({
+      eligible: false,
+      reason: "exchange-market-data-path",
+    });
+  });
+
+  test("requires issuer-name or symbol-context corroboration on exchange disclosures", async () => {
+    const input = await fixture("provider-estimated");
+    const source = {
+      ...exchangeSource(),
+      title: "ALL earnings date",
+      symbol: "ALL",
+      summary: "ALL will release quarterly financial results on July 30, 2026.",
+    };
+    const result = confirmEarningsDateFromOfficialSources({
+      ...input,
+      setup: { ...input.setup, event: { ...input.setup.event, symbol: "ALL" } },
+      rawSnapshots: [],
+      instrumentIdentity: { displayName: "Allstate" },
+      sources: [source],
     });
 
     expect(result?.event.eventDateStatus).toBe("provider-estimated");

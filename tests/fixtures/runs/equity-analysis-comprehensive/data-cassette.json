@@ -40,7 +40,7 @@
       "headers": {
         "content-type": "application/json"
       },
-      "body": "{\"sic\":\"3571\",\"sicDescription\":\"Electronic Computers\",\"filings\":{\"recent\":{\"form\":[\"8-K\"],\"filingDate\":[\"2026-05-01\"]}}}"
+      "body": "{\"name\":\"Apple Inc.\",\"tickers\":[\"AAPL\"],\"website\":\"https://www.apple.com\",\"investorWebsite\":\"https://investor.apple.com\",\"sic\":\"3571\",\"sicDescription\":\"Electronic Computers\",\"filings\":{\"recent\":{\"form\":[\"8-K\"],\"filingDate\":[\"2026-05-01\"]}}}"
     },
     "GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSFT%2CGOOGL%2CAMZN%2CMETA%2CDELL": {
       "status": 200,
@@ -131,7 +131,7 @@
       "headers": {
         "content-type": "application/json"
       },
-      "body": "[{\"id\":1,\"headline\":\"Apple fixture provider update\",\"source\":\"Fixture Wire\",\"summary\":\"Deterministic current provider evidence.\",\"url\":\"https://example.com/apple-provider-update\",\"datetime\":1781530200}]"
+      "body": "[{\"id\":1,\"headline\":\"Apple announces July 10, 2026 financial results webcast\",\"source\":\"Apple Newsroom\",\"summary\":\"Apple Inc. will release its quarterly financial results on July 10, 2026.\",\"url\":\"https://www.apple.com/newsroom/2026/06/apple-announces-third-quarter-results-date/\",\"datetime\":1781530200}]"
     },
     "GET  https://finnhub.io/api/v1/calendar/earnings?from=2026-03-17&symbol=AAPL&to=2026-09-13": {
       "status": 200,

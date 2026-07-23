@@ -5,7 +5,7 @@ import {
   readPhase4EarningsCoverageComparison,
 } from "./support/phase0-equity-baseline";
 
-test("Phase 4 reports earnings coverage loss against the immutable Phase 0 baseline", async () => {
+test("Phase 4 reports confirmed earnings coverage against the immutable Phase 0 baseline", async () => {
   const baseline = await readPhase0Baseline();
   const committedComparison = await readPhase4EarningsCoverageComparison();
   const measuredComparison = await measurePhase4EarningsCoverageComparison();
@@ -24,15 +24,15 @@ test("Phase 4 reports earnings coverage loss against the immutable Phase 0 basel
     },
     phase4: {
       earningsSetupCount: 1,
-      earningsPredictionCount: 0,
-      calibrationEligiblePredictionCount: 0,
-      eligiblePredictionCount: 0,
-      suppressedPredictionCount: 2,
+      earningsPredictionCount: 2,
+      calibrationEligiblePredictionCount: 2,
+      eligiblePredictionCount: 2,
+      suppressedPredictionCount: 0,
     },
     delta: {
       earningsSetupCount: 0,
-      earningsPredictionCount: -2,
-      calibrationEligiblePredictionCount: -2,
+      earningsPredictionCount: 0,
+      calibrationEligiblePredictionCount: 0,
     },
   });
   expect(
@@ -40,10 +40,10 @@ test("Phase 4 reports earnings coverage loss against the immutable Phase 0 basel
       (fixture) => fixture.fixture === "equity-analysis-comprehensive",
     ),
   ).toMatchObject({
-    eventDateStatus: "provider-estimated",
-    grammarEligible: false,
-    predictionCountDelta: -2,
-    calibrationCoverageDelta: -2,
-    suppressedPredictionCount: 2,
+    eventDateStatus: "issuer-confirmed",
+    grammarEligible: true,
+    predictionCountDelta: 0,
+    calibrationCoverageDelta: 0,
+    suppressedPredictionCount: 0,
   });
 });

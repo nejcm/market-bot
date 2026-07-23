@@ -16,7 +16,11 @@ export interface EarningsDateConfirmation {
   readonly evidenceSpan: string;
   readonly issuerIdentity: {
     readonly symbol: string;
-    readonly matchedBy: "official-host" | "sec-ticker-alias" | "source-text";
+    readonly matchedBy:
+      | "official-host"
+      | "sec-ticker-alias"
+      | "source-ticker-alias"
+      | "source-text";
   };
   readonly confirmedAt: string;
 }
@@ -42,25 +46,57 @@ const FUTURE_ANNOUNCEMENT_PATTERN =
 const EARNINGS_SUBJECT_PATTERN =
   /\b(?:earnings|financial\s+results|quarterly\s+results|annual\s+results|results\s+for\s+(?:the\s+)?(?:first|second|third|fourth|fiscal|quarter|year))\b/iu;
 const MAX_EVIDENCE_SPAN_CHARS = 600;
-const OFFICIAL_EXCHANGE_HOSTS = [
-  "asx.com.au",
-  "deutsche-boerse.com",
-  "euronext.com",
-  "hkex.com.hk",
-  "jpx.co.jp",
-  "londonstockexchange.com",
-  "nasdaq.com",
-  "nyse.com",
-  "six-group.com",
-  "tsx.com",
+const OFFICIAL_EXCHANGE_DISCLOSURE_PATHS = [
+  { host: "asx.com.au", path: /^\/asxpdf\//u },
+  { host: "londonstockexchange.com", path: /^\/news-article\//u },
+  { host: "nasdaq.com", path: /^\/press-release\//u },
 ] as const;
+const EXCHANGE_MARKET_DATA_PATH =
+  /\/(?:earnings-calendar|market-activity|market-data|quote|quotes|stock|stocks|symbol|symbols)(?:\/|$)/iu;
 
-function normalizedHost(value: string): string | undefined {
+export type OfficialExchangeUrlAssessment =
+  | { readonly eligible: true }
+  | {
+      readonly eligible: false;
+      readonly reason:
+        | "invalid-url"
+        | "not-official-exchange-host"
+        | "exchange-market-data-path"
+        | "not-direct-exchange-disclosure-path";
+    };
+
+function parsedUrl(value: string): URL | undefined {
   try {
-    return new URL(value).hostname.toLowerCase().replace(/^www\./u, "");
+    return new URL(value);
   } catch {
     return undefined;
   }
+}
+
+export function assessOfficialExchangeDisclosureUrl(url: string): OfficialExchangeUrlAssessment {
+  const parsed = parsedUrl(url);
+  if (parsed === undefined) {
+    return { eligible: false, reason: "invalid-url" };
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^www\./u, "");
+  const exchangeRules = OFFICIAL_EXCHANGE_DISCLOSURE_PATHS.filter((rule) =>
+    hostMatches(host, rule.host),
+  );
+  if (exchangeRules.length === 0) {
+    return { eligible: false, reason: "not-official-exchange-host" };
+  }
+  if (EXCHANGE_MARKET_DATA_PATH.test(parsed.pathname)) {
+    return { eligible: false, reason: "exchange-market-data-path" };
+  }
+  return exchangeRules.some((rule) => rule.path.test(parsed.pathname))
+    ? { eligible: true }
+    : { eligible: false, reason: "not-direct-exchange-disclosure-path" };
+}
+
+function normalizedHost(value: string): string | undefined {
+  return parsedUrl(value)
+    ?.hostname.toLowerCase()
+    .replace(/^www\./u, "");
 }
 
 function hostMatches(candidate: string, official: string): boolean {
@@ -181,19 +217,23 @@ function sourceHasTickerAlias(source: Source, symbol: string): boolean {
   );
 }
 
-function textMatchesIssuer(text: string, identity: OfficialIssuerIdentity): boolean {
-  if (
-    new RegExp(`\\b${identity.symbol.replaceAll(/[^A-Z0-9]/gu, String.raw`\$&`)}\\b`, "iu").test(
-      text,
-    )
-  ) {
-    return true;
-  }
+function textMatchesIssuerName(text: string, identity: OfficialIssuerIdentity): boolean {
   const normalizedText = normalizedName(text);
   return identity.names.some((name) => {
     const normalized = normalizedName(name);
     return normalized.length >= 4 && normalizedText.includes(normalized);
   });
+}
+
+function textMatchesSymbolWithIssuerContext(
+  text: string,
+  identity: OfficialIssuerIdentity,
+): boolean {
+  const escapedSymbol = identity.symbol.replaceAll(/[^A-Z0-9]/gu, String.raw`\$&`);
+  return (
+    new RegExp(`\\b${escapedSymbol}\\b`, "iu").test(text) &&
+    /\b(?:issuer|listed|shares?|stock|symbol|ticker)\b/iu.test(text)
+  );
 }
 
 function isFutureDate(date: string, analysisAsOf: string, source: Source): boolean {
@@ -229,7 +269,7 @@ function confirmationCandidate(input: {
   if (
     source.id.trim() === "" ||
     source.url === undefined ||
-    source.symbol?.toUpperCase() !== identity.symbol
+    (source.symbol !== undefined && source.symbol.toUpperCase() !== identity.symbol)
   ) {
     return undefined;
   }
@@ -268,14 +308,17 @@ function confirmationCandidate(input: {
   }
   if (
     host !== undefined &&
-    OFFICIAL_EXCHANGE_HOSTS.some((officialHost) => hostMatches(host, officialHost)) &&
-    (sourceHasTickerAlias(source, identity.symbol) || textMatchesIssuer(text, identity))
+    source.symbol?.toUpperCase() === identity.symbol &&
+    assessOfficialExchangeDisclosureUrl(source.url).eligible &&
+    (textMatchesIssuerName(text, identity) || textMatchesSymbolWithIssuerContext(text, identity))
   ) {
     return {
       source,
       sourceType: "official-exchange",
       evidenceSpan,
-      matchedBy: sourceHasTickerAlias(source, identity.symbol) ? "sec-ticker-alias" : "source-text",
+      matchedBy: sourceHasTickerAlias(source, identity.symbol)
+        ? "source-ticker-alias"
+        : "source-text",
       eventDateStatus: "exchange-confirmed",
     };
   }

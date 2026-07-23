@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "description": "Phase 4 earnings-date gating compared with the immutable Phase 0 deep-equity fixture baseline",
+  "calibrationCoverageDefinition": "Emitted observable earnings predictions eligible to enter scoring and calibration once resolved; replay fixtures contain no resolved outcomes.",
+  "phase0BaselinePath": "tests/baselines/equity-deep-phase0.json",
+  "fixtureRuns": [
+    {
+      "fixture": "equity-aapl-deep",
+      "eventDateStatus": "not-present",
+      "phase0EarningsSetupCount": 0,
+      "phase4EarningsSetupCount": 0,
+      "phase0EarningsPredictionCount": 0,
+      "phase4EarningsPredictionCount": 0,
+      "predictionCountDelta": 0,
+      "phase0CalibrationEligiblePredictionCount": 0,
+      "phase4CalibrationEligiblePredictionCount": 0,
+      "calibrationCoverageDelta": 0,
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0
+    },
+    {
+      "fixture": "equity-nbis-deep",
+      "eventDateStatus": "not-present",
+      "phase0EarningsSetupCount": 0,
+      "phase4EarningsSetupCount": 0,
+      "phase0EarningsPredictionCount": 0,
+      "phase4EarningsPredictionCount": 0,
+      "predictionCountDelta": 0,
+      "phase0CalibrationEligiblePredictionCount": 0,
+      "phase4CalibrationEligiblePredictionCount": 0,
+      "calibrationCoverageDelta": 0,
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0
+    },
+    {
+      "fixture": "equity-fpi-quarterly",
+      "eventDateStatus": "not-present",
+      "phase0EarningsSetupCount": 0,
+      "phase4EarningsSetupCount": 0,
+      "phase0EarningsPredictionCount": 0,
+      "phase4EarningsPredictionCount": 0,
+      "predictionCountDelta": 0,
+      "phase0CalibrationEligiblePredictionCount": 0,
+      "phase4CalibrationEligiblePredictionCount": 0,
+      "calibrationCoverageDelta": 0,
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0
+    },
+    {
+      "fixture": "equity-fpi-ifrs-semiannual",
+      "eventDateStatus": "not-present",
+      "phase0EarningsSetupCount": 0,
+      "phase4EarningsSetupCount": 0,
+      "phase0EarningsPredictionCount": 0,
+      "phase4EarningsPredictionCount": 0,
+      "predictionCountDelta": 0,
+      "phase0CalibrationEligiblePredictionCount": 0,
+      "phase4CalibrationEligiblePredictionCount": 0,
+      "calibrationCoverageDelta": 0,
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0
+    },
+    {
+      "fixture": "equity-analysis-comprehensive",
+      "eventDateStatus": "provider-estimated",
+      "phase0EarningsSetupCount": 1,
+      "phase4EarningsSetupCount": 1,
+      "phase0EarningsPredictionCount": 2,
+      "phase4EarningsPredictionCount": 0,
+      "predictionCountDelta": -2,
+      "phase0CalibrationEligiblePredictionCount": 2,
+      "phase4CalibrationEligiblePredictionCount": 0,
+      "calibrationCoverageDelta": -2,
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 2
+    }
+  ],
+  "totals": {
+    "phase0": {
+      "earningsSetupCount": 1,
+      "earningsPredictionCount": 2,
+      "calibrationEligiblePredictionCount": 2
+    },
+    "phase4": {
+      "earningsSetupCount": 1,
+      "earningsPredictionCount": 0,
+      "calibrationEligiblePredictionCount": 0,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 2
+    },
+    "delta": {
+      "earningsSetupCount": 0,
+      "earningsPredictionCount": -2,
+      "calibrationEligiblePredictionCount": -2
+    }
+  },
+  "historicalPhase0Reference": {
+    "status": "reference-only-not-replayed",
+    "deepEquityRunCount": 11,
+    "earningsSetupCount": 11,
+    "earningsPredictionCount": 10
+  }
+}

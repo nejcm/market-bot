@@ -489,11 +489,13 @@ function buildPrimaryPredictionInstruction(
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
-  const earningsPredictionInstruction = earningsForecastEligible
-    ? ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`
-    : (hasEarningsSetup
-      ? " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps."
-      : "");
+  let earningsPredictionInstruction = "";
+  if (earningsForecastEligible) {
+    earningsPredictionInstruction = ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`;
+  } else if (hasEarningsSetup) {
+    earningsPredictionInstruction =
+      " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps.";
+  }
   const businessFrameworkInstruction = hasBusinessFramework
     ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
     : "";

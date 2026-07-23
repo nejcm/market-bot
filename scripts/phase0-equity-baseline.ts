@@ -1,11 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
-  measureFixtureBaselines,
-  measureHistoricalArtifacts,
-  PHASE0_BASELINE_PATH,
-  readPhase0Baseline,
-  type Phase0EquityBaseline,
+  measurePhase4EarningsCoverageComparison,
+  PHASE4_EARNINGS_COMPARISON_PATH,
+  readPhase4EarningsCoverageComparison,
 } from "../tests/support/phase0-equity-baseline";
 
 const flag = process.argv[2] ?? "--check";
@@ -13,24 +11,23 @@ if (flag !== "--check" && flag !== "--write") {
   throw new Error("Usage: bun run scripts/phase0-equity-baseline.ts [--check|--write]");
 }
 
-const fixtureRuns = await measureFixtureBaselines();
+const comparison = await measurePhase4EarningsCoverageComparison();
 if (flag === "--write") {
-  const baseline: Phase0EquityBaseline = {
-    version: 1,
-    description:
-      "Phase 0 deep-equity coverage baseline before FPI normalization and earnings-date gating",
-    fixtureRuns,
-    historicalArtifacts: await measureHistoricalArtifacts(),
-  };
-  await mkdir(dirname(PHASE0_BASELINE_PATH), { recursive: true });
-  await writeFile(PHASE0_BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`, "utf8");
-  process.stdout.write(`${PHASE0_BASELINE_PATH}\n`);
+  await mkdir(dirname(PHASE4_EARNINGS_COMPARISON_PATH), { recursive: true });
+  await writeFile(
+    PHASE4_EARNINGS_COMPARISON_PATH,
+    `${JSON.stringify(comparison, null, 2)}\n`,
+    "utf8",
+  );
+  process.stdout.write(`${PHASE4_EARNINGS_COMPARISON_PATH}\n`);
 } else {
-  const baseline = await readPhase0Baseline();
-  if (JSON.stringify(fixtureRuns) !== JSON.stringify(baseline.fixtureRuns)) {
+  const committedComparison = await readPhase4EarningsCoverageComparison();
+  if (JSON.stringify(comparison) !== JSON.stringify(committedComparison)) {
     throw new Error(
-      `Phase 0 fixture baseline drifted; inspect and run bun run scripts/phase0-equity-baseline.ts --write if intentional`,
+      `Phase 4 earnings coverage comparison drifted; inspect and run bun run scripts/phase0-equity-baseline.ts --write if intentional`,
     );
   }
-  process.stdout.write("Phase 0 fixture baseline matches.\n");
+  process.stdout.write(
+    `Phase 4 vs Phase 0: earnings predictions ${String(comparison.totals.delta.earningsPredictionCount)}, calibration coverage ${String(comparison.totals.delta.calibrationEligiblePredictionCount)}.\n`,
+  );
 }

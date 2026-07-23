@@ -145,6 +145,23 @@ describe("violatesResearchOnly", () => {
     });
   }
 
+  test("allows the sanctioned rendered peer-implied reference-range label", () => {
+    expect(violatesResearchOnly("peer-implied price reference range")).toBeNull();
+  });
+
+  test("blocks a bare peer-implied point price", () => {
+    expect(violatesResearchOnly("The peer-implied price is 125 USD.")).not.toBeNull();
+  });
+
+  test("preserves valuation-certainty and descriptive valuation behavior", () => {
+    expect(violatesResearchOnly("The model states a fair value of 125 USD.")).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "The calculation stopped because one or more implied prices are not positive.",
+      ),
+    ).toBeNull();
+  });
+
   const terseImperatives = [
     "Buy now",
     "Sell immediately",

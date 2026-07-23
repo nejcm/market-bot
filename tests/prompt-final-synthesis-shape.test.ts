@@ -725,6 +725,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
             symbol: "AAPL",
             date: "2026-07-30",
             timing: "amc",
+            eventDateStatus: "issuer-confirmed",
             sourceIds: ["earnings-aapl"],
             fetchedAt: "2026-06-01T00:00:00.000Z",
           },

@@ -983,6 +983,14 @@
           }
         ]
       },
+      "earningsForecasts": {
+        "eventDateStatus": "not-present",
+        "policy": "confirmed-only",
+        "grammarEligible": false,
+        "eligiblePredictionCount": 0,
+        "suppressedPredictionCount": 0,
+        "suppressionReason": "earnings-setup-not-present"
+      },
       "depth": "deep",
       "depthProfile": {
         "depth": "deep",
@@ -1396,6 +1404,14 @@
       "informativeCount": 0,
       "signalTargetMet": true,
       "mixWarnings": []
+    },
+    "earningsForecasts": {
+      "eventDateStatus": "not-present",
+      "policy": "confirmed-only",
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0,
+      "suppressionReason": "earnings-setup-not-present"
     },
     "reportIntegrity": {
       "label": "high",

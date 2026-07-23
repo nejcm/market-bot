@@ -122,6 +122,22 @@ describe("run analytics console", () => {
     expect(output).toContain("Completion: improved · 2 accepted, 1 rejected");
   });
 
+  test("renders explicit earnings eligibility and suppression counts", () => {
+    const output = renderRunAnalyticsConsole({
+      ...baseAnalytics(),
+      earningsForecasts: {
+        eventDateStatus: "provider-estimated",
+        policy: "confirmed-only",
+        grammarEligible: false,
+        eligiblePredictionCount: 0,
+        suppressedPredictionCount: 2,
+        suppressionReason: "event-date-not-confirmed",
+      },
+    });
+
+    expect(output).toContain("Earnings forecasts: provider-estimated · 0 eligible, 2 suppressed");
+  });
+
   test("renders evidence lanes with a limiting-gap note", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({

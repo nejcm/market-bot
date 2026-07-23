@@ -36,6 +36,7 @@ import {
   type StageInput,
 } from "./stage-envelope";
 import { buildFreshWebSteering } from "./steering";
+import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
 const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
@@ -143,7 +144,7 @@ function buildForecastDiversityGuidance(
   if (hasCiteableOptionsIvEvidence(collectedSources)) {
     shapes.push("IV (iv(SUBJECT, +N) > T)");
   }
-  if (collectedSources.earningsSetup !== undefined) {
+  if (hasConfirmedEarningsDate(collectedSources.earningsSetup)) {
     shapes.push("earnings-direction or earnings-move (event-anchored)");
   }
   shapes.push("conditional (if-then when evidence supports a setup)");
@@ -253,8 +254,12 @@ function buildCompletionKindGrammar(
   collectedSources: CollectedSources,
 ): string {
   const clauses: string[] = [];
-  if (isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined) {
+  if (isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup)) {
     clauses.push(`For an earnings-anchored forecast, use ${earningsForecastGrammar()}`);
+  } else if (isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined) {
+    clauses.push(
+      "The Earnings Setup date is provider-estimated and contextual only; do not emit earnings-direction, earnings-move, or earningsReturn grammar.",
+    );
   }
   if (command.depth === "deep") {
     clauses.push(`For a conditional forecast, use ${conditionalForecastGrammar()}`);
@@ -342,6 +347,12 @@ function completionEarningsSetup(
       timing: setup.event.timing,
       sourceIds: setup.event.sourceIds,
       fetchedAt: setup.event.fetchedAt,
+      ...(setup.event.eventDateStatus !== undefined
+        ? { eventDateStatus: setup.event.eventDateStatus }
+        : {}),
+      ...(setup.event.dateConfirmation !== undefined
+        ? { dateConfirmation: setup.event.dateConfirmation }
+        : {}),
       ...(setup.event.epsEstimate !== undefined ? { epsEstimate: setup.event.epsEstimate } : {}),
       ...(setup.event.revenueEstimate !== undefined
         ? { revenueEstimate: setup.event.revenueEstimate }
@@ -473,12 +484,16 @@ function buildPrimaryPredictionInstruction(
       : "";
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
+  const earningsForecastEligible =
+    isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup);
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
-  const earningsPredictionInstruction = hasEarningsSetup
+  const earningsPredictionInstruction = earningsForecastEligible
     ? ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`
-    : "";
+    : (hasEarningsSetup
+      ? " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps."
+      : "");
   const businessFrameworkInstruction = hasBusinessFramework
     ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
     : "";

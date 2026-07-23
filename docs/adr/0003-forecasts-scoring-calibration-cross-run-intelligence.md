@@ -11,7 +11,7 @@ split-adjusted equity closes, provider-window anchor validation, and calibration
 amended 2026-07-06: primary Near-Base-Rate prompt steering;
 amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range after the first
 resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58;
-consolidated 2026-07-15)
+consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility)
 
 ## Context
 
@@ -33,6 +33,12 @@ be mistaken for current market evidence.
   forecasts mean `P(B | A)`; a false antecedent produces a terminal `voided` result excluded from
   Brier and reliability metrics.
 - Earnings forecasts anchor their origin and due date to the declared earnings event and timing.
+- New earnings-return grammar is eligible only when the Earnings Setup event date is
+  `issuer-confirmed` or `exchange-confirmed` under ADR 0004. A `provider-estimated` event remains
+  visible contextual evidence but cannot produce `earnings-direction`, `earnings-move`, or
+  `earningsReturn` output. New earnings Predictions persist the event-date status, and report,
+  trace, and analytics telemetry record eligible and suppressed counts so the coverage change is
+  explicit against the Phase 0 baseline.
 - Prediction count is a soft `targetPredictions`, not a quota. After a high- or medium-evidence
   report is valid but below target, one best-effort, predictions-only Forecast Completion Pass may
   add candidates. It preserves the accepted report and Predictions, never retries itself, and
@@ -78,6 +84,10 @@ be mistaken for current market evidence.
   historical forecasts and already-resolved scores are never rewritten, and each score result
   persists the policy version that produced it. `horizonTradingDays` keeps its legacy name; under
   policy v3 it is the horizon count whose clock the policy defines per forecast family.
+- Confirmed-date eligibility changes which new earnings forecasts may be emitted, not how a
+  persisted earnings forecast resolves. It therefore does not create a new scoring-policy version;
+  historical provider-estimated forecasts remain readable and resolve under their persisted or
+  legacy policy.
 - Policy v3 clocks: equity close forecasts resolve on the Nth provider-observed session after the
   applicable anchor; crypto close forecasts resolve on the target UTC calendar date, are attempted
   only after that date has fully elapsed (a partial-day price is never graded), and keep the full
@@ -156,6 +166,8 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 - `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and
   analytics.
 - `src/research/forecast-disagreement.ts` keeps challenger output separate from canonical scores.
+- `src/forecast/earnings-eligibility.ts` and the primary/completion prompt builders enforce
+  confirmed-date eligibility and persist suppression telemetry.
 - `src/research/historical-context.ts`, `prior-forecast-errors.ts`, and `spotlights.ts` implement
   artifact-backed context, scoped correction, and current-evidence candidate constraints.
 - `src/history/` owns derived search, timelines, and thesis deltas.

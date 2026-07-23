@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Source } from "../src/domain/types";
+import { applyEarningsForecastPolicy } from "../src/forecast/earnings-eligibility";
 import { validateResearchReport } from "../src/report/schema";
 import {
   applyOfficialEarningsDateConfirmation,
@@ -9,7 +10,7 @@ import {
   retainedEvidenceSpanForEarningsDate,
 } from "../src/sources/extended-evidence/earnings-date-confirmation";
 import type { EarningsSetupCollected, RawSourceSnapshot } from "../src/sources/types";
-import { collectedSources, researchReport } from "./support/fixtures";
+import { collectedSources, prediction, researchReport } from "./support/fixtures";
 
 interface ConfirmationFixture {
   readonly analysisAsOf: string;
@@ -68,6 +69,25 @@ describe("official earnings-date confirmation", () => {
     });
     expect(result?.event.dateConfirmation?.evidenceSpan).toContain("July 30, 2026");
     expect(result?.event.sourceIds).toContain("web-aapl-ir-earnings");
+    const gated = applyEarningsForecastPolicy({
+      setup: result,
+      predictions: [
+        prediction({
+          id: "confirmed-earnings-direction",
+          kind: "earnings-direction",
+          subject: "AAPL",
+          measurableAs: "earningsReturn(AAPL, 2026-07-30, +1) > 0",
+          horizonTradingDays: 1,
+        }),
+      ],
+      policy: "confirmed-only",
+    });
+    expect(gated.predictions[0]?.eventDateStatus).toBe("issuer-confirmed");
+    expect(gated.telemetry).toMatchObject({
+      grammarEligible: true,
+      eligiblePredictionCount: 1,
+      suppressedPredictionCount: 0,
+    });
   });
 
   test("applies confirmation to the collected-source bundle after official web gathering", async () => {

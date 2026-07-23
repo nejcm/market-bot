@@ -747,6 +747,8 @@
           "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
+            "sic": "3571",
+            "sicDescription": "Electronic Computers",
             "revenue": 210000000000,
             "revenuePeriodEnd": "2026-03-31",
             "revenuePeriodMonths": 6,
@@ -772,8 +774,6 @@
             "dilutedEpsPeriodMonths": 6,
             "dilutedEpsPrior": 3.2,
             "dilutedEpsDeltaPercent": 18.74999999999999,
-            "cash": 60000000000,
-            "cashPeriodEnd": "2026-03-31",
             "operatingCashFlow": 65000000000,
             "operatingCashFlowPeriodEnd": "2026-03-31",
             "operatingCashFlowPeriodMonths": 6,
@@ -784,10 +784,10 @@
             "capexPeriodMonths": 6,
             "capexPrior": 6000000000,
             "capexDeltaPercent": 16.666666666666664,
+            "cash": 60000000000,
+            "cashPeriodEnd": "2026-03-31",
             "debt": 100000000000,
-            "debtPeriodEnd": "2026-03-31",
-            "sic": "3571",
-            "sicDescription": "Electronic Computers"
+            "debtPeriodEnd": "2026-03-31"
           },
           "identity": {
             "displayName": "Apple Inc.",
@@ -1622,6 +1622,14 @@
           }
         ]
       },
+      "earningsForecasts": {
+        "eventDateStatus": "not-present",
+        "policy": "confirmed-only",
+        "grammarEligible": false,
+        "eligiblePredictionCount": 0,
+        "suppressedPredictionCount": 0,
+        "suppressionReason": "earnings-setup-not-present"
+      },
       "depth": "deep",
       "depthProfile": {
         "depth": "deep",
@@ -2022,6 +2030,14 @@
       "informativeCount": 0,
       "signalTargetMet": true,
       "mixWarnings": []
+    },
+    "earningsForecasts": {
+      "eventDateStatus": "not-present",
+      "policy": "confirmed-only",
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0,
+      "suppressionReason": "earnings-setup-not-present"
     },
     "postSynthesisAudit": {
       "warningCount": 1,
@@ -2781,6 +2797,8 @@
           "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
+            "sic": "3571",
+            "sicDescription": "Electronic Computers",
             "revenue": 210000000000,
             "revenuePeriodEnd": "2026-03-31",
             "revenuePeriodMonths": 6,
@@ -2806,8 +2824,6 @@
             "dilutedEpsPeriodMonths": 6,
             "dilutedEpsPrior": 3.2,
             "dilutedEpsDeltaPercent": 18.74999999999999,
-            "cash": 60000000000,
-            "cashPeriodEnd": "2026-03-31",
             "operatingCashFlow": 65000000000,
             "operatingCashFlowPeriodEnd": "2026-03-31",
             "operatingCashFlowPeriodMonths": 6,
@@ -2818,10 +2834,10 @@
             "capexPeriodMonths": 6,
             "capexPrior": 6000000000,
             "capexDeltaPercent": 16.666666666666664,
+            "cash": 60000000000,
+            "cashPeriodEnd": "2026-03-31",
             "debt": 100000000000,
-            "debtPeriodEnd": "2026-03-31",
-            "sic": "3571",
-            "sicDescription": "Electronic Computers"
+            "debtPeriodEnd": "2026-03-31"
           },
           "identity": {
             "displayName": "Apple Inc.",

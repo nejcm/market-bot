@@ -348,6 +348,17 @@ function validateEarningsForecastCertainty(report: ResearchReport): void {
   if (telemetry.eligiblePredictionCount !== earningsPredictions.length) {
     throw new Error("Earnings forecast telemetry eligible count conflicts with report predictions");
   }
+  const confirmedStatus =
+    telemetry.eventDateStatus === "issuer-confirmed" ||
+    telemetry.eventDateStatus === "exchange-confirmed";
+  if (telemetry.policy === "confirmed-only") {
+    if (telemetry.grammarEligible !== confirmedStatus) {
+      throw new Error("Earnings forecast telemetry eligibility conflicts with event-date status");
+    }
+    if (!confirmedStatus && earningsPredictions.length > 0) {
+      throw new Error("Unconfirmed earnings dates cannot anchor earnings predictions");
+    }
+  }
   if (telemetry.eventDateStatus === "not-present") {
     return;
   }

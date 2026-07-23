@@ -21,6 +21,11 @@ export function earningsEventDateStatus(
   return isEarningsEventDateStatus(status) ? status : undefined;
 }
 
+export function hasConfirmedEarningsDate(setup: EarningsSetupCollected | undefined): boolean {
+  const status = earningsEventDateStatus(setup);
+  return status === "issuer-confirmed" || status === "exchange-confirmed";
+}
+
 export function applyEarningsForecastPolicy(input: {
   readonly predictions: readonly Prediction[];
   readonly setup: EarningsSetupCollected | undefined;
@@ -34,7 +39,7 @@ export function applyEarningsForecastPolicy(input: {
   const grammarEligible =
     input.policy === "legacy-ungated"
       ? input.setup !== undefined
-      : status === "issuer-confirmed" || status === "exchange-confirmed";
+      : hasConfirmedEarningsDate(input.setup);
   const suppressEarnings = input.policy === "confirmed-only" && !grammarEligible;
   const earningsCandidates = input.predictions.filter(isEarningsPrediction);
   const predictions = suppressEarnings
@@ -76,12 +81,12 @@ export function readEarningsForecastTelemetry(
   if (!isRecord(value)) {
     return undefined;
   }
-  const {eventDateStatus} = value;
-  const {policy} = value;
-  const {grammarEligible} = value;
+  const { eventDateStatus } = value;
+  const { policy } = value;
+  const { grammarEligible } = value;
   const eligiblePredictionCount = readNonNegativeInteger(value.eligiblePredictionCount);
   const suppressedPredictionCount = readNonNegativeInteger(value.suppressedPredictionCount);
-  const {suppressionReason} = value;
+  const { suppressionReason } = value;
   if (
     (eventDateStatus !== "not-present" && !isEarningsEventDateStatus(eventDateStatus)) ||
     (policy !== "legacy-ungated" && policy !== "confirmed-only") ||

@@ -1,6 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { Prediction, PredictionKind } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
+import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 
 // A run may advertise `iv` forecast candidates only when it carries citeable options-IV
 // Evidence — an extended-evidence item with at least one sourceId. Source gaps (e.g. a missing
@@ -59,7 +60,7 @@ export function supportedPredictionKinds(
     "range",
     "macro",
     ...(command.depth === "deep" ? (["conditional"] as const) : []),
-    ...(isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined
+    ...(isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup)
       ? (["earnings-direction", "earnings-move"] as const)
       : []),
   ];

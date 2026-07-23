@@ -5,6 +5,7 @@ import {
   readEarningsForecastTelemetry,
 } from "../src/forecast/earnings-eligibility";
 import type { EarningsSetupCollected } from "../src/sources/types";
+import { validateResearchReport } from "../src/report/schema";
 import { prediction, researchReport } from "./support/fixtures";
 
 function earningsPrediction(kind: "earnings-direction" | "earnings-move"): Prediction {
@@ -67,5 +68,65 @@ describe("earnings forecast eligibility telemetry", () => {
     }) satisfies ResearchReport;
 
     expect(readEarningsForecastTelemetry(historical)).toBeUndefined();
+  });
+
+  test("suppresses provider-estimated earnings forecasts under the confirmed-only policy", () => {
+    const result = applyEarningsForecastPolicy({
+      predictions: [earningsPrediction("earnings-direction"), earningsPrediction("earnings-move")],
+      setup: setup(),
+      policy: "confirmed-only",
+    });
+
+    expect(result.predictions).toEqual([]);
+    expect(result.telemetry).toEqual({
+      eventDateStatus: "provider-estimated",
+      policy: "confirmed-only",
+      grammarEligible: false,
+      eligiblePredictionCount: 0,
+      suppressedPredictionCount: 2,
+      suppressionReason: "event-date-not-confirmed",
+    });
+  });
+
+  test("keeps issuer-confirmed earnings forecasts and stamps their provenance", () => {
+    const result = applyEarningsForecastPolicy({
+      predictions: [earningsPrediction("earnings-direction")],
+      setup: setup("issuer-confirmed"),
+      policy: "confirmed-only",
+    });
+
+    expect(result.predictions).toHaveLength(1);
+    expect(result.predictions[0]?.eventDateStatus).toBe("issuer-confirmed");
+    expect(result.telemetry).toMatchObject({
+      eventDateStatus: "issuer-confirmed",
+      policy: "confirmed-only",
+      grammarEligible: true,
+      eligiblePredictionCount: 1,
+      suppressedPredictionCount: 0,
+    });
+  });
+
+  test("report validation rejects provider-estimated earnings under confirmed-only telemetry", () => {
+    const estimatedPrediction = {
+      ...earningsPrediction("earnings-direction"),
+      eventDateStatus: "provider-estimated" as const,
+    };
+    const report = researchReport({
+      predictions: [estimatedPrediction],
+      extras: {
+        earningsForecasts: {
+          eventDateStatus: "provider-estimated",
+          policy: "confirmed-only",
+          grammarEligible: false,
+          eligiblePredictionCount: 1,
+          suppressedPredictionCount: 0,
+          suppressionReason: "event-date-not-confirmed",
+        },
+      },
+    });
+
+    expect(() => validateResearchReport(report)).toThrow(
+      "Unconfirmed earnings dates cannot anchor earnings predictions",
+    );
   });
 });

@@ -16,7 +16,10 @@ import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
-import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";
+import {
+  applyEarningsForecastPolicy,
+  hasConfirmedEarningsDate,
+} from "../forecast/earnings-eligibility";
 import { deriveEquityAnalysisCompleteness } from "../sources/extended-evidence/equity-analysis-completeness";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
@@ -778,6 +781,7 @@ export interface AssembleResearchReportInput {
   readonly depthProfile: DepthProfile;
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
+  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 export function assembleResearchReport(input: AssembleResearchReportInput): ResearchReport {
@@ -791,17 +795,18 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     depthProfile,
     context,
     sources,
+    suppressedEarningsPredictionCountOffset = 0,
   } = input;
 
+  const earningsGatedPredictions = applyEarningsForecastPolicy({
+    predictions: predResult.predictions,
+    setup: collectedSources.earningsSetup,
+    policy: "confirmed-only",
+  });
   const researchGatedPredictions = researchPredictionGate({
     command,
-    predictions: predResult.predictions,
+    predictions: earningsGatedPredictions.predictions,
     collectedSources,
-  });
-  const gatedPredictions = applyEarningsForecastPolicy({
-    predictions: researchGatedPredictions.predictions,
-    setup: collectedSources.earningsSetup,
-    policy: "legacy-ungated",
   });
   const deterministicGapEntries = deterministicSourceGapEntries(command, collectedSources);
   const deterministicGapTexts = deterministicGapEntries.map((gap) => gap.text);
@@ -817,19 +822,27 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...modelGapEntries,
       ...deterministicGapEntries,
       ...researchGatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
+      ...(collectedSources.earningsSetup !== undefined &&
+      !hasConfirmedEarningsDate(collectedSources.earningsSetup)
+        ? [
+            reportDataGapEntry(
+              "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+            ),
+          ]
+        : []),
     ]),
   ).map((gap) => gap.text);
   // Stamp the current scoring policy on every accepted Prediction. The stamp
   // Is deterministic: model-provided policy metadata never survives assembly.
-  const stampedPredictions = gatedPredictions.predictions.map((candidate) => ({
+  const stampedPredictions = researchGatedPredictions.predictions.map((candidate) => ({
     ...candidate,
     scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
   }));
-  const shortfall = gatedPredictions.predictions.length < depthProfile.targetPredictions;
+  const shortfall = researchGatedPredictions.predictions.length < depthProfile.targetPredictions;
   const dataGaps = shortfall
     ? [
         ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(gatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
+        `predictionShortfall: emitted ${String(researchGatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
       ]
     : dataGapsRaw;
 
@@ -941,7 +954,16 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
       ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
       ...extendedEvidenceExtras,
-      ...(command.jobType === "equity" ? { earningsForecasts: gatedPredictions.telemetry } : {}),
+      ...(command.jobType === "equity"
+        ? {
+            earningsForecasts: {
+              ...earningsGatedPredictions.telemetry,
+              suppressedPredictionCount:
+                earningsGatedPredictions.telemetry.suppressedPredictionCount +
+                suppressedEarningsPredictionCountOffset,
+            },
+          }
+        : {}),
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),

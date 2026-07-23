@@ -252,20 +252,17 @@ function assertComprehensiveAnalysisPath(result: RunFixtureResult): void {
     0.035_264_483_627_204_03,
     12,
   );
-  expect(result.report.predictions.map((prediction) => prediction.kind)).toEqual([
-    "earnings-direction",
-    "earnings-move",
-  ]);
-  expect(result.report.predictions.map((prediction) => prediction.eventDateStatus)).toEqual([
-    "provider-estimated",
-    "provider-estimated",
-  ]);
+  expect(result.report.predictions).toEqual([]);
+  expect(result.report.dataGaps).toContain(
+    "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+  );
   expect(result.analytics.earningsForecasts).toEqual({
     eventDateStatus: "provider-estimated",
-    policy: "legacy-ungated",
-    grammarEligible: true,
-    eligiblePredictionCount: 2,
-    suppressedPredictionCount: 0,
+    policy: "confirmed-only",
+    grammarEligible: false,
+    eligiblePredictionCount: 0,
+    suppressedPredictionCount: 2,
+    suppressionReason: "event-date-not-confirmed",
   });
   expect(result.collectedSources.extendedEvidence?.items.map((item) => item.category)).toEqual(
     expect.arrayContaining([

@@ -22,6 +22,10 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
   return `  Predictions: ${target} · ${signal}`;
 }
 
+function earningsForecastLine(earnings: NonNullable<RunAnalytics["earningsForecasts"]>): string {
+  return `  Earnings forecasts: ${earnings.eventDateStatus} · ${String(earnings.eligiblePredictionCount)} eligible, ${String(earnings.suppressedPredictionCount)} suppressed`;
+}
+
 function evidenceLaneLine(lanes: NonNullable<RunAnalytics["evidenceLanes"]>): string {
   const limitingGapCount = lanes.coreGapLaneCount + lanes.materialGapLaneCount;
   const gapNote = limitingGapCount > 0 ? ` · ${String(limitingGapCount)} limiting gap(s)` : "";
@@ -106,6 +110,9 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
     `Run quality — ${analytics.jobType}${subjectLabel(analytics)} (${analytics.runId})`,
     predictionLine(predictions),
   ];
+  if (analytics.earningsForecasts !== undefined) {
+    lines.push(earningsForecastLine(analytics.earningsForecasts));
+  }
   if (predictions.completion !== undefined) {
     lines.push(
       `  Completion: ${predictions.completion.outcome} · ${String(predictions.completion.acceptedCount)} accepted, ${String(predictions.completion.rejectedCount)} rejected`,

@@ -2009,9 +2009,8 @@
         "evidence": ["tradier-options"]
       },
       "tradierEarningsImpliedMove": {
-        "status": "unmeasured",
-        "evidence": [],
-        "reason": "No request or normalized availability gap for earnings-setup-implied-move, tradier-options"
+        "status": "available",
+        "evidence": ["earningsSetup.impliedMove"]
       },
       "fredMacro": {
         "status": "missing-credential",

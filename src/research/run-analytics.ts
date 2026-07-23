@@ -705,6 +705,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           providerEndpointAvailability: deriveProviderEndpointAvailability(
             collectedSources.rawSnapshots,
             gaps,
+            collectedSources.earningsSetup?.impliedMove !== undefined,
           ),
         }
       : {}),

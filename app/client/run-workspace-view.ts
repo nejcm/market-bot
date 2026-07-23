@@ -15,6 +15,7 @@ import type {
   ValuationMetricResult,
   ValuationWorkbenchArtifact,
 } from "../../src/sources/extended-evidence/valuation-workbench-contract";
+import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import {
   CURRENCY_SYMBOLS,
   formatLensValue,
@@ -251,6 +252,25 @@ export interface RunWorkspaceValuationWorkbenchView {
   readonly peerRows: readonly RunWorkspaceValuationPeerRow[];
 }
 
+export type RunWorkspaceReverseDcfView =
+  | {
+      readonly status: "computed";
+      readonly startingFcf: string;
+      readonly startingFcfDates: string;
+      readonly enterpriseValue: string;
+      readonly enterpriseValueDate: string;
+      readonly horizonYears: number;
+      readonly terminalGrowthRatesPct: readonly number[];
+      readonly rows: readonly {
+        readonly discountRatePct: number;
+        readonly cells: readonly string[];
+      }[];
+    }
+  | {
+      readonly status: "suppressed";
+      readonly message: string;
+    };
+
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
@@ -261,6 +281,7 @@ export interface RunWorkspaceView {
   readonly equityCompleteness?: RunWorkspaceEquityCompletenessView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
+  readonly reverseDcf?: RunWorkspaceReverseDcfView;
   readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
   readonly report: RunWorkspaceReportView;
   readonly forecasts: RunWorkspaceForecastsView;
@@ -480,6 +501,46 @@ export function valuationWorkbenchView(
       ? { peerSuppression: artifact.peerComparison.detail }
       : {}),
     peerRows: valuationPeerRows(artifact),
+  };
+}
+
+function formatReverseDcfAmount(value: number, currency: string): string {
+  return `${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value)} ${currency}`;
+}
+
+export function reverseDcfView(detail: RunDetail): RunWorkspaceReverseDcfView | undefined {
+  const artifact: ReverseDcfArtifact | undefined = detail.reverseDcf;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  if (artifact.status === "suppressed") {
+    return {
+      status: "suppressed",
+      message: `${artifact.reason}: ${artifact.detail}`,
+    };
+  }
+  return {
+    status: "computed",
+    startingFcf: formatReverseDcfAmount(
+      artifact.assumptions.startingFcf.value,
+      artifact.assumptions.startingFcf.currency,
+    ),
+    startingFcfDates: `period ${artifact.assumptions.startingFcf.periodEnd} · public ${artifact.assumptions.startingFcf.publicAt}`,
+    enterpriseValue: formatReverseDcfAmount(
+      artifact.assumptions.enterpriseValue.value,
+      artifact.assumptions.enterpriseValue.currency,
+    ),
+    enterpriseValueDate: artifact.assumptions.enterpriseValue.observedAt,
+    horizonYears: artifact.assumptions.horizonYears,
+    terminalGrowthRatesPct: artifact.assumptions.terminalGrowthRatesPct,
+    rows: artifact.grid.rows.map((row) => ({
+      discountRatePct: row.discountRatePct,
+      cells: row.cells.map((cell) =>
+        cell.status === "solved" ? `${cell.solvedFiveYearFcfGrowthPct.toFixed(2)}%` : "not solved",
+      ),
+    })),
   };
 }
 
@@ -748,6 +809,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const equityCompleteness = equityCompletenessView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
   const valuationWorkbench = valuationWorkbenchView(detail);
+  const reverseDcf = reverseDcfView(detail);
   const peerImpliedRange = peerImpliedRangeView(detail);
   const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
 
@@ -776,6 +838,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       key: "valuationWorkbench",
       label: "Valuation workbench",
       visible: valuationWorkbench !== undefined,
+    },
+    {
+      key: "reverseDcf",
+      label: "Reverse DCF input sensitivity",
+      visible: reverseDcf !== undefined,
     },
     {
       key: "peerImpliedRange",
@@ -809,6 +876,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     ...(equityCompleteness !== undefined ? { equityCompleteness } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
     ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
+    ...(reverseDcf !== undefined ? { reverseDcf } : {}),
     ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
     report: {
       summary,

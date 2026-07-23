@@ -14,6 +14,7 @@ import {
 } from "../domain/types";
 import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
 import { renderValuationWorkbenchMarkdown } from "../report/valuation-workbench-markdown";
+import { renderReverseDcfMarkdown } from "../report/reverse-dcf-markdown";
 import type { ModelProvider } from "../model/types";
 import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
@@ -764,7 +765,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     report,
     markdown:
       renderMarkdownReport(report) +
-      renderValuationWorkbenchMarkdown(collectedSources.valuationWorkbench),
+      renderValuationWorkbenchMarkdown(collectedSources.valuationWorkbench) +
+      renderReverseDcfMarkdown(collectedSources.reverseDcf),
     trace,
     analytics,
     stageOutputs,

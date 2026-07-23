@@ -14,6 +14,7 @@ import {
   prediction,
   predictionScore,
   researchReport,
+  reverseDcfArtifact,
   valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
@@ -157,6 +158,7 @@ describe("loadRunArtifact", () => {
     expect(artifact?.report.equityAnalysisCompleteness).toBeUndefined();
     expect(artifact?.financialStatements).toBeUndefined();
     expect(artifact?.valuationWorkbench).toBeUndefined();
+    expect(artifact?.reverseDcf).toBeUndefined();
   });
 
   test("round-trips a validated valuation-workbench sidecar", async () => {
@@ -169,6 +171,18 @@ describe("loadRunArtifact", () => {
     const { artifact } = await loadRunArtifact(runDir);
 
     expect(artifact?.valuationWorkbench).toEqual(workbench);
+  });
+
+  test("round-trips a validated reverse-DCF sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "reverse-dcf");
+    const sensitivity = reverseDcfArtifact();
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "reverse-dcf" }));
+    await writeJson(join(runDir, "normalized", "reverse-dcf.json"), sensitivity);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.reverseDcf).toEqual(sensitivity);
   });
 
   test("round-trips a validated fundamental-history sidecar", async () => {

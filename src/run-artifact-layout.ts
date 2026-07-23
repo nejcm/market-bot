@@ -43,6 +43,7 @@ export const RUN_ARTIFACT_FILES = {
   instrumentIdentity: `${NORMALIZED_DIR}/instrument-identity.json`,
   valuationComps: `${NORMALIZED_DIR}/valuation-comps.json`,
   valuationWorkbench: `${NORMALIZED_DIR}/valuation-workbench.json`,
+  reverseDcf: `${NORMALIZED_DIR}/reverse-dcf.json`,
   financialLenses: `${NORMALIZED_DIR}/financial-lenses.json`,
   fundamentalHistory: `${NORMALIZED_DIR}/fundamental-history.json`,
   financialStatements: `${NORMALIZED_DIR}/financial-statements.json`,

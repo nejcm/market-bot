@@ -8,6 +8,7 @@ import type { BusinessFrameworkArtifact } from "./extended-evidence/business-fra
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
+import type { ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 import type {
   AssetClass,
@@ -163,6 +164,7 @@ export interface CollectedSources {
   readonly earningsSetup?: EarningsSetupCollected;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  readonly reverseDcf?: ReverseDcfArtifact;
   readonly financialLenses?: FinancialLensArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;

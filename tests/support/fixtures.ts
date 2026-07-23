@@ -11,6 +11,10 @@ import type {
   ValuationMetricResult,
   ValuationWorkbenchArtifact,
 } from "../../src/sources/extended-evidence/valuation-workbench-contract";
+import {
+  buildReverseDcf,
+  type ReverseDcfArtifact,
+} from "../../src/sources/extended-evidence/reverse-dcf";
 
 const DEFAULT_OBSERVED_AT = "2026-05-19T00:00:00.000Z";
 
@@ -215,6 +219,66 @@ export function valuationWorkbench(
     sourceIds: ["sec-fixture", "verified-snapshot-AAPL"],
     ...overrides,
   };
+}
+
+export function reverseDcfWorkbench(): ValuationWorkbenchArtifact {
+  const base = valuationWorkbench();
+  const [observation] = base.historicalMultiples.observations;
+  if (observation === undefined) {
+    throw new Error("valuation workbench fixture observation missing");
+  }
+  return {
+    ...base,
+    historicalMultiples: {
+      ...base.historicalMultiples,
+      observations: [{ ...observation, basis: "ttm" }],
+      trailingBasis: {
+        status: "available",
+        periodEnd: observation.periodEnd,
+        publicAt: observation.publicAt,
+        sourceIds: observation.sourceIds,
+      },
+    },
+    peerComparison: {
+      status: "available",
+      valuationComps: {
+        version: 1,
+        generatedAt: DEFAULT_OBSERVED_AT,
+        target: {
+          symbol: "AAPL",
+          enterpriseValue: 1000,
+          quoteCurrency: "USD",
+          quoteObservedAt: "2026-02-02",
+          sourceIds: ["verified-snapshot-AAPL"],
+          usable: true,
+        },
+        peers: [],
+        excludedPeers: [],
+        peerUniverseSourceIds: [],
+        summary: {
+          corePeerCount: 0,
+          secondaryPeerCount: 0,
+          usablePeerCount: 0,
+          valuationSupportability: "screening-only",
+        },
+        sourceIds: ["verified-snapshot-AAPL"],
+        freshnessFlags: {
+          targetQuoteFresh: true,
+          targetSecFresh: true,
+          peerQuoteFresh: false,
+          peerSecFresh: false,
+        },
+      },
+    },
+  };
+}
+
+export function reverseDcfArtifact(): ReverseDcfArtifact {
+  return buildReverseDcf({
+    generatedAt: DEFAULT_OBSERVED_AT,
+    symbol: "AAPL",
+    valuationWorkbench: reverseDcfWorkbench(),
+  });
 }
 
 export function predictionScore(

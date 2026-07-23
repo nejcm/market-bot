@@ -6,6 +6,7 @@ import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-
 import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidence/fundamental-history";
 import type { PeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
+import type { ReverseDcfArtifact } from "../src/sources/extended-evidence/reverse-dcf";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 
 export interface RunSummary {
@@ -39,6 +40,7 @@ export interface RunDetail {
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  readonly reverseDcf?: ReverseDcfArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;

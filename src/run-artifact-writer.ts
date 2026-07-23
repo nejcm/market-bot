@@ -113,6 +113,10 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     value: (result) => result.collectedSources.valuationWorkbench ?? null,
   },
   {
+    file: RUN_ARTIFACT_FILES.reverseDcf,
+    value: (result) => result.collectedSources.reverseDcf ?? null,
+  },
+  {
     file: RUN_ARTIFACT_FILES.financialLenses,
     value: (result) => result.collectedSources.financialLenses ?? null,
   },

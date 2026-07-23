@@ -338,6 +338,10 @@ Deterministic Extended Evidence combining market cap, fundamentals, and, for `eq
 
 Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF with N/M and suppression reasons, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value.
 
+## Reverse DCF Input Sensitivity
+
+An isolated versioned equity sidecar that solves the five-year FCF growth input across 8%–16% discount rates and 0%–4% terminal-growth assumptions. It discloses reconciled-TTM starting FCF, observed enterprise value, input dates, currencies, sources, and the five-year horizon. Missing, non-positive, or currency-incompatible inputs suppress the artifact. Its research-only boundary is defined by [ADR 0001](./docs/adr/0001-research-only-boundary.md).
+
 ## Financial Lens Evidence
 
 Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).

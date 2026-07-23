@@ -285,6 +285,9 @@ export async function readRunDetail(
     ...(artifact.artifact?.valuationWorkbench !== undefined
       ? { valuationWorkbench: artifact.artifact.valuationWorkbench }
       : {}),
+    ...(artifact.artifact?.reverseDcf !== undefined
+      ? { reverseDcf: artifact.artifact.reverseDcf }
+      : {}),
     ...(artifact.artifact?.fundamentalHistory !== undefined
       ? { fundamentalHistory: artifact.artifact.fundamentalHistory }
       : {}),

@@ -52,6 +52,7 @@ import {
 } from "./extended-evidence/valuation-comps";
 import { buildValuationWorkbench } from "./extended-evidence/valuation-workbench";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
+import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
 import {
   makePeerUniverseCacheReader,
@@ -512,6 +513,9 @@ export async function collectSources(
     ...(enrichmentResult.valuationWorkbench !== undefined
       ? { valuationWorkbench: enrichmentResult.valuationWorkbench }
       : {}),
+    ...(enrichmentResult.reverseDcf !== undefined
+      ? { reverseDcf: enrichmentResult.reverseDcf }
+      : {}),
     ...(enrichmentResult.financialLensResult.artifact !== undefined
       ? { financialLenses: enrichmentResult.financialLensResult.artifact }
       : {}),
@@ -575,6 +579,7 @@ interface EquityEnrichmentResult {
   readonly valuationCompsResult: ValuationCompsResult | undefined;
   readonly valuationCompsSkippedGaps: readonly SourceGap[];
   readonly valuationWorkbench: ValuationWorkbenchArtifact | undefined;
+  readonly reverseDcf: ReverseDcfArtifact | undefined;
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
@@ -731,6 +736,11 @@ async function collectEquityEnrichment(
       ? { quoteCurrency: identityResult.identity.quoteCurrency }
       : {}),
   });
+  const reverseDcf = buildReverseDcf({
+    generatedAt: input.fetchedAt,
+    symbol: input.command.symbol,
+    valuationWorkbench,
+  });
 
   return {
     identityResult,
@@ -738,6 +748,7 @@ async function collectEquityEnrichment(
     valuationCompsResult,
     valuationCompsSkippedGaps,
     valuationWorkbench,
+    reverseDcf,
     fundamentalHistory,
     financialStatements,
     subsequentFinancing,
@@ -760,6 +771,7 @@ function noEquityEnrichment(
     valuationCompsResult: undefined,
     valuationCompsSkippedGaps: [],
     valuationWorkbench: undefined,
+    reverseDcf: undefined,
     fundamentalHistory: undefined,
     financialStatements: undefined,
     subsequentFinancing: undefined,

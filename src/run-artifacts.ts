@@ -62,6 +62,10 @@ import {
   readValuationWorkbenchArtifact,
   type ValuationWorkbenchArtifact,
 } from "./sources/extended-evidence/valuation-workbench-contract";
+import {
+  readReverseDcfArtifact,
+  type ReverseDcfArtifact,
+} from "./sources/extended-evidence/reverse-dcf";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistorySeriesKey,
@@ -141,6 +145,7 @@ export interface RunArtifact {
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  readonly reverseDcf?: ReverseDcfArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
@@ -1609,6 +1614,7 @@ const FINANCIAL_STATEMENTS_FILE = RUN_ARTIFACT_FILES.financialStatements;
 const SUBSEQUENT_FINANCING_FILE = RUN_ARTIFACT_FILES.subsequentFinancing;
 const VALUATION_COMPS_FILE = RUN_ARTIFACT_FILES.valuationComps;
 const VALUATION_WORKBENCH_FILE = RUN_ARTIFACT_FILES.valuationWorkbench;
+const REVERSE_DCF_FILE = RUN_ARTIFACT_FILES.reverseDcf;
 const FUNDAMENTAL_HISTORY_FILE = RUN_ARTIFACT_FILES.fundamentalHistory;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
 const WEB_SUBJECT_PROFILE_FILE = RUN_ARTIFACT_FILES.webSubjectProfile;
@@ -1644,6 +1650,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const subsequentFinancingFile = await readJsonFile(join(runDir, SUBSEQUENT_FINANCING_FILE));
   const valuationCompsFile = await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
   const valuationWorkbenchFile = await readJsonFile(join(runDir, VALUATION_WORKBENCH_FILE));
+  const reverseDcfFile = await readJsonFile(join(runDir, REVERSE_DCF_FILE));
   const fundamentalHistoryFile = await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
   const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
   const webSubjectProfileFile = await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
@@ -1685,6 +1692,8 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     valuationWorkbenchFile.status === "ok"
       ? readValuationWorkbenchArtifact(valuationWorkbenchFile.value)
       : undefined;
+  const reverseDcf =
+    reverseDcfFile.status === "ok" ? readReverseDcfArtifact(reverseDcfFile.value) : undefined;
   const fundamentalHistory =
     fundamentalHistoryFile.status === "ok"
       ? readFundamentalHistoryArtifact(fundamentalHistoryFile.value)
@@ -1716,6 +1725,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(subsequentFinancing !== undefined ? { subsequentFinancing } : {}),
       ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
       ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
+      ...(reverseDcf !== undefined ? { reverseDcf } : {}),
       ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
       ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),

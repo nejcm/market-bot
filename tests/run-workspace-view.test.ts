@@ -5,6 +5,7 @@ import {
   equityCompletenessView,
   peerImpliedRangeView,
   valuationWorkbenchView,
+  reverseDcfView,
   type RunWorkspaceView,
 } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
@@ -12,7 +13,7 @@ import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { valuationWorkbench } from "./support/fixtures";
+import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
 
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -806,6 +807,28 @@ describe("run workspace view", () => {
       ],
     });
     expect(tocKeys(workspace)).toEqual(["valuationWorkbench"]);
+  });
+
+  test("projects the solved-input matrix and disclosed assumptions", () => {
+    const artifact = reverseDcfArtifact();
+    const detail = { summary: summary(), reverseDcf: artifact };
+    const view = reverseDcfView(detail);
+    const workspace = buildRunWorkspaceView(detail);
+
+    expect(view).toMatchObject({
+      status: "computed",
+      startingFcf: "8 USD",
+      startingFcfDates: "period 2025-12-31 · public 2026-02-01",
+      enterpriseValue: "1,000 USD",
+      enterpriseValueDate: "2026-02-02",
+      horizonYears: 5,
+      terminalGrowthRatesPct: [0, 1, 2, 3, 4],
+    });
+    expect(view?.status === "computed" ? view.rows : []).toHaveLength(9);
+    expect(view?.status === "computed" && view.rows.every((row) => row.cells.length === 5)).toBe(
+      true,
+    );
+    expect(tocKeys(workspace)).toEqual(["reverseDcf"]);
   });
 
   test("scales large peer-implied range disclosure inputs", () => {

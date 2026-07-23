@@ -50,6 +50,10 @@ function assertInvariants(result: RunFixtureResult, name: string, meta: FixtureM
     version: 1,
     symbol: report.symbol,
   });
+  expect(result.collectedSources.reverseDcf).toMatchObject({
+    version: 1,
+    symbol: report.symbol,
+  });
   expect(result.stageOutputs.every((output) => (output.durationMs ?? 0) > 0)).toBe(true);
   expect(result.trace.stageRecords?.every((record) => (record.durationMs ?? 0) > 0)).toBe(true);
   expect(result.analytics.runShape.stages.every((stage) => (stage.durationMs ?? 0) > 0)).toBe(true);
@@ -170,6 +174,34 @@ function assertAaplPopulatedPath(result: RunFixtureResult): void {
       priceToFreeCashFlow: { status: "populated", display: "28.02x" },
     },
   });
+  expect(result.collectedSources.reverseDcf).toMatchObject({
+    status: "computed",
+    assumptions: {
+      startingFcf: {
+        value: 118_000_000_000,
+        currency: "USD",
+        periodEnd: "2026-03-31",
+        publicAt: "2026-05-01",
+      },
+      enterpriseValue: {
+        value: 3_040_000_000_000,
+        currency: "USD",
+        observedAt: "2026-06-15T14:30:00.000Z",
+      },
+      horizonYears: 5,
+      discountRatesPct: [8, 9, 10, 11, 12, 13, 14, 15, 16],
+      terminalGrowthRatesPct: [0, 1, 2, 3, 4],
+    },
+    grid: {
+      value: "solved five-year FCF growth",
+      unit: "percent",
+    },
+  });
+  expect(
+    result.collectedSources.reverseDcf?.status === "computed"
+      ? result.collectedSources.reverseDcf.grid.rows
+      : [],
+  ).toHaveLength(9);
 }
 
 function assertStatementCapsAndParity(result: RunFixtureResult): void {
@@ -544,6 +576,10 @@ describe("static equity run fixtures", () => {
           status: "suppressed",
           reason: "canonical-ttm-unavailable",
           detail: expect.stringContaining("not combined into an unreconciled TTM"),
+        });
+        expect(result.collectedSources.reverseDcf).toMatchObject({
+          status: "suppressed",
+          reason: "reconciled-ttm-fcf-unavailable",
         });
         expect(result.report.equityAnalysisCompleteness?.financialCoreStatus).toBe("complete");
         expect(

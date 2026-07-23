@@ -27,6 +27,7 @@ import {
   collectedSources,
   marketSnapshot,
   researchReport,
+  reverseDcfArtifact,
   valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
@@ -215,6 +216,7 @@ const instrumentFiles = [
   RUN_ARTIFACT_FILES.instrumentIdentity,
   RUN_ARTIFACT_FILES.valuationComps,
   RUN_ARTIFACT_FILES.valuationWorkbench,
+  RUN_ARTIFACT_FILES.reverseDcf,
   RUN_ARTIFACT_FILES.financialLenses,
   RUN_ARTIFACT_FILES.fundamentalHistory,
   RUN_ARTIFACT_FILES.financialStatements,
@@ -248,6 +250,7 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.instrumentIdentity)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationComps)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.reverseDcf)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialLenses)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialStatements)).toBeNull();
@@ -263,6 +266,17 @@ describe("run artifact writer manifests", () => {
     );
 
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toEqual(workbench);
+  });
+
+  test("writes the collected reverse-DCF sidecar", () => {
+    const artifact = reverseDcfArtifact();
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ reverseDcf: artifact }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.reverseDcf)).toEqual(artifact);
   });
 
   test("writes the collected fundamental-history sidecar", () => {

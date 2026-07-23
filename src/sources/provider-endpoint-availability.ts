@@ -58,7 +58,7 @@ function deriveEndpoint(
     ),
   ].toSorted();
   if (observedAdapters.length > 0) {
-    return availableEndpoint(definition.availableEvidence ?? observedAdapters);
+    return availableEndpoint(observedAdapters);
   }
 
   const gaps = sourceGaps.filter((gap) => definition.gapSources.includes(gap.source));
@@ -83,11 +83,14 @@ function deriveEndpoint(
 export function deriveProviderEndpointAvailability(
   rawSnapshots: readonly RawSourceSnapshot[],
   sourceGaps: readonly SourceGap[],
+  hasTradierEarningsImpliedMove = false,
 ): Readonly<Record<string, ProviderEndpointAvailability>> {
   return Object.fromEntries(
     Object.entries(ENDPOINTS).map(([endpoint, definition]) => [
       endpoint,
-      deriveEndpoint(rawSnapshots, sourceGaps, definition),
+      endpoint === "tradierEarningsImpliedMove" && hasTradierEarningsImpliedMove
+        ? availableEndpoint(definition.availableEvidence ?? [])
+        : deriveEndpoint(rawSnapshots, sourceGaps, definition),
     ]),
   );
 }

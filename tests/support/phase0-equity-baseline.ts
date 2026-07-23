@@ -152,6 +152,7 @@ function measureFixtureResult(fixture: string, result: RunFixtureResult): Fixtur
     providerEndpointAvailability: deriveProviderEndpointAvailability(
       result.collectedSources.rawSnapshots,
       result.collectedSources.sourceGaps,
+      setup?.impliedMove !== undefined,
     ),
   };
 }

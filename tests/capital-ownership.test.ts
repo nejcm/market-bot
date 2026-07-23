@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { deriveCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
+import {
+  deriveCapitalOwnershipArtifact,
+  readCapitalOwnershipArtifact,
+} from "../src/sources/extended-evidence/capital-ownership";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
@@ -84,6 +87,46 @@ function statements(payload: unknown) {
 }
 
 describe("capital ownership artifact", () => {
+  test("returns undefined without throwing for malformed artifacts", () => {
+    const artifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "TEST",
+      dilutedShares: [],
+      stockBasedCompensation: [],
+      buybacks: [],
+      dividendsPaid: [],
+      omissions: [],
+    };
+    const malformedArtifacts = [
+      {
+        ...artifact,
+        dilutedShares: [
+          {
+            value: "not-numeric",
+            periodStart: "2025-01-01",
+            periodEnd: "2025-12-31",
+            filedAt: "2026-02-15",
+            form: "10-K",
+            taxonomy: "us-gaap",
+            concept: "WeightedAverageNumberOfDilutedSharesOutstanding",
+            unit: "shares",
+            sourceIds: [SOURCE_ID],
+          },
+        ],
+      },
+      { ...artifact, omissions: ["garbage"] },
+    ];
+
+    for (const malformed of malformedArtifacts) {
+      let result: ReturnType<typeof readCapitalOwnershipArtifact> | "not-called" = "not-called";
+      expect(() => {
+        result = readCapitalOwnershipArtifact(malformed);
+      }).not.toThrow();
+      expect(result).toBeUndefined();
+    }
+  });
+
   test("derives filed annual histories and debt maturity buckets", () => {
     const payload = companyfacts();
 

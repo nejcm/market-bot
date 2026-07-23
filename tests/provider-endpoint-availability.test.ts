@@ -76,11 +76,8 @@ describe("provider endpoint availability", () => {
     });
   });
 
-  test("preserves the phase0 implied-move evidence label", () => {
-    const result = deriveProviderEndpointAvailability(
-      [snapshot("tradier-earnings-expirations"), snapshot("tradier-earnings-chain")],
-      [],
-    );
+  test("preserves the phase0 implied-move evidence label when the value is present", () => {
+    const result = deriveProviderEndpointAvailability([], [], true);
 
     expect(result.tradierEarningsImpliedMove).toEqual({
       status: "available",

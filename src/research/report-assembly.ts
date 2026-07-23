@@ -903,6 +903,8 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     command.jobType === "equity"
       ? deriveEquityAnalysisCompleteness({
           asOf: generatedAt,
+          assetClass: command.assetClass,
+          ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
           ...(collectedSources.financialStatements !== undefined
             ? { financialStatements: collectedSources.financialStatements }
             : {}),

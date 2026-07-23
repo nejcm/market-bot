@@ -106,10 +106,10 @@
           "sourceIds": ["market-yahoo-equity-aapl"]
         },
         "operatingKpis": {
-          "status": "complete",
-          "reasonCodes": [],
+          "status": "partial",
+          "reasonCodes": ["operating-kpi-registry-unconfigured"],
           "asOf": "2026-06-15T14:30:00.000Z",
-          "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"]
+          "sourceIds": []
         }
       }
     },

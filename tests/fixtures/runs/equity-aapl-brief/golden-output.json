@@ -84,7 +84,7 @@
         },
         "operatingKpis": {
           "status": "partial",
-          "reasonCodes": ["operating-kpi-evidence-missing"],
+          "reasonCodes": ["operating-kpi-registry-unconfigured"],
           "asOf": "2026-06-15T14:30:00.000Z",
           "sourceIds": []
         }

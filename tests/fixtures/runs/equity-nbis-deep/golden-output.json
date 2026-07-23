@@ -61,9 +61,12 @@
         },
         "operatingKpis": {
           "status": "partial",
-          "reasonCodes": ["operating-kpi-inputs-incomplete"],
+          "reasonCodes": [
+            "operating-kpi-unverified:nbis-gpu-capacity",
+            "operating-kpi-unverified:nbis-gpu-utilization"
+          ],
           "asOf": "2026-07-22T16:16:13.510Z",
-          "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+          "sourceIds": []
         }
       }
     },

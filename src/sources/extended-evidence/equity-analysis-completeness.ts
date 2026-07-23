@@ -1,4 +1,5 @@
 import type {
+  AssetClass,
   EquityAnalysisCompleteness,
   EquityAnalysisCompletenessDimension,
   ExtendedEvidence,
@@ -15,6 +16,11 @@ import {
   financialStatementPeriodsYearAligned,
 } from "./financial-statement-periods";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
+import {
+  DEFAULT_OPERATING_KPI_REGISTRY,
+  lookupOperatingKpiRegistry,
+  type OperatingKpiRegistryEntry,
+} from "./operating-kpi-registry";
 
 const DAY_MS = 86_400_000;
 const CURRENT_ANNUAL_MAX_AGE_DAYS = 550;
@@ -26,6 +32,8 @@ const MIN_QUARTER_ONLY_PERIODS = 4;
 
 export interface EquityAnalysisCompletenessInput {
   readonly asOf: string;
+  readonly symbol?: string;
+  readonly assetClass: AssetClass;
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly extendedEvidence?: ExtendedEvidence;
   readonly earningsSetup?: EarningsSetupCollected;
@@ -464,13 +472,62 @@ function capitalOwnershipDimension(
   };
 }
 
+export function operatingKpisDimension(
+  input: Pick<
+    EquityAnalysisCompletenessInput,
+    "symbol" | "assetClass" | "extendedEvidence" | "asOf"
+  >,
+  registry: readonly OperatingKpiRegistryEntry[] = DEFAULT_OPERATING_KPI_REGISTRY,
+): EquityAnalysisCompletenessDimension {
+  const entry =
+    input.symbol === undefined
+      ? undefined
+      : lookupOperatingKpiRegistry(input.symbol, input.assetClass, registry);
+  if (entry === undefined) {
+    return {
+      status: "partial",
+      reasonCodes: ["operating-kpi-registry-unconfigured"],
+      asOf: input.asOf,
+      sourceIds: [],
+    };
+  }
+
+  if (entry.applicability === "kpi-declared") {
+    return {
+      status: "partial",
+      reasonCodes: entry.kpis.map(
+        (kpi) => `operating-kpi-unverified:${entry.symbol.toLowerCase()}-${kpi.key}`,
+      ),
+      asOf: input.asOf,
+      sourceIds: [],
+    };
+  }
+
+  const evidenceCategories = new Set(entry.notApplicable?.evidenceCategories);
+  const evidenceItems =
+    input.extendedEvidence?.items.filter((item) => evidenceCategories.has(item.category)) ?? [];
+  const sourceIds = unique(evidenceItems.flatMap((item) => item.sourceIds));
+  if (sourceIds.length === 0) {
+    return {
+      status: "partial",
+      reasonCodes: ["operating-kpi-not-applicable-evidence-missing"],
+      asOf: input.asOf,
+      sourceIds: [],
+    };
+  }
+
+  return {
+    status: "not-applicable",
+    reasonCodes: [entry.notApplicable?.reasonCode ?? "operating-kpi-not-applicable"],
+    asOf: evidenceItems[0]?.observedAt ?? input.asOf,
+    sourceIds,
+  };
+}
+
 function nonCoreDimensions(
   input: EquityAnalysisCompletenessInput,
 ): Omit<EquityAnalysisCompleteness["dimensions"], "primaryFinancials"> {
   const valuation = itemByCategory(input.extendedEvidence, "valuation");
-  const sec = input.extendedEvidence?.items.find(
-    (item) => item.category === "sec-edgar" && item.metrics !== undefined,
-  );
   const yahoo = itemByCategory(input.extendedEvidence, "yahoo-fundamentals");
   const expectationsSourceIds = input.earningsSetup?.event.sourceIds ?? [];
   return {
@@ -493,13 +550,7 @@ function nonCoreDimensions(
       sourceIds: expectationsSourceIds,
     }),
     capitalOwnership: capitalOwnershipDimension(input.capitalOwnership, yahoo, input.asOf),
-    operatingKpis: evidenceDimension({
-      complete: hasNumericMetrics(sec, ["revenue", "grossProfit", "operatingIncome", "netIncome"]),
-      partialReason:
-        sec === undefined ? "operating-kpi-evidence-missing" : "operating-kpi-inputs-incomplete",
-      asOf: sec?.observedAt ?? input.asOf,
-      ...(sec !== undefined ? { sourceIds: sec.sourceIds } : {}),
-    }),
+    operatingKpis: operatingKpisDimension(input),
   };
 }
 

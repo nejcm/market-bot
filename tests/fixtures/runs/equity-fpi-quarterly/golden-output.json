@@ -32,7 +32,7 @@
     "equityAnalysisCompleteness": {
       "version": 1,
       "financialCoreStatus": "complete",
-      "coverageLevel": "substantial",
+      "coverageLevel": "limited",
       "asOf": "2026-06-15T14:30:00.000Z",
       "dimensions": {
         "primaryFinancials": {
@@ -64,10 +64,10 @@
           "sourceIds": ["market-yahoo-equity-fpiq"]
         },
         "operatingKpis": {
-          "status": "complete",
-          "reasonCodes": [],
+          "status": "partial",
+          "reasonCodes": ["operating-kpi-registry-unconfigured"],
           "asOf": "2026-06-15T14:30:00.000Z",
-          "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"]
+          "sourceIds": []
         }
       }
     },

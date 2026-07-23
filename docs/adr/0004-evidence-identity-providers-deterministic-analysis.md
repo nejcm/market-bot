@@ -18,7 +18,8 @@ amended 2026-07-22: current-report ingestion and financial scope/date-basis disc
 equity completeness contract and incremental consumer migration; amended 2026-07-23: canonical
 consumer completion and subsequent-financing bridge; amended 2026-07-23: official issuer earnings-
 date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date authority; amended
-2026-07-23: Phase 6 equity dimension evidence contracts)
+2026-07-23: Phase 6 equity dimension evidence contracts; amended 2026-07-23: operating-KPI issuer
+registry)
 
 ## Context
 
@@ -199,6 +200,14 @@ without pretending the project has a global security master.
   `financialCoreStatus`. Filed statement balances remain separate from unaudited post-period
   events; those events are not aggregated into filed balances. In later slices, provider price
   targets may appear only as attributed external context.
+- The operating-KPI completeness dimension is driven by the checked-in per-issuer registry in
+  `src/sources/extended-evidence/operating-kpi-registry.ts`, initially covering ASTS and NBIS.
+  Issuers absent from the registry remain `partial` with
+  `operating-kpi-registry-unconfigured`; generic income-statement facts never make the dimension
+  `complete`. `not-applicable` requires an explicit registry declaration whose referenced evidence
+  categories resolve to run-present Sources, and credential or entitlement absence never
+  qualifies. KPI-value verification and the `complete` path are deferred to a later extraction
+  slice; registry concept aliases and source-section rules remain declarative until then.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -309,6 +318,8 @@ without pretending the project has a global security master.
 - `src/sources/extended-evidence/` implements lenses, valuation, framework, and reconciliation.
 - `src/sources/extended-evidence/financial-statement*.ts` implements the canonical structured
   financial contract, normalization, cadence/TTM derivation, and shadow parity telemetry.
+- `src/sources/extended-evidence/operating-kpi-registry.ts` implements checked-in issuer KPI
+  applicability and declarative extraction metadata.
 - `src/research/peer-universe*.ts` implements deterministic, learned, and proposed peer tiers.
 - `src/domain/instrument.ts`, `src/sources/instrument-identity.ts`,
   `src/research/subject-registry.ts`, and `research-subject-identity.ts` implement identity.

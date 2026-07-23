@@ -1,13 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence, ResearchReport } from "../src/domain/types";
 import { validateResearchReport } from "../src/report/schema";
-import { deriveEquityAnalysisCompleteness } from "../src/sources/extended-evidence/equity-analysis-completeness";
+import {
+  deriveEquityAnalysisCompleteness,
+  operatingKpisDimension,
+} from "../src/sources/extended-evidence/equity-analysis-completeness";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import type {
   FinancialStatementSeries,
   FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
+import type { OperatingKpiRegistryEntry } from "../src/sources/extended-evidence/operating-kpi-registry";
 
 const AS_OF = "2026-06-15T14:30:00.000Z";
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
@@ -289,8 +293,11 @@ function withDilutedEps(
 }
 
 function primaryReasons(artifact: FinancialStatementsArtifact, asOf = AS_OF): readonly string[] {
-  return deriveEquityAnalysisCompleteness({ asOf, financialStatements: artifact }).dimensions
-    .primaryFinancials.reasonCodes;
+  return deriveEquityAnalysisCompleteness({
+    asOf,
+    assetClass: "equity",
+    financialStatements: artifact,
+  }).dimensions.primaryFinancials.reasonCodes;
 }
 
 function withoutTtm(series: FinancialStatementSeries): FinancialStatementSeries {
@@ -357,10 +364,12 @@ describe("equity analysis completeness", () => {
   test("completes domestic and foreign quarterly profiles", () => {
     const domestic = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       financialStatements: statements({ cadence: "quarterly" }),
     });
     const foreign = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       financialStatements: statements({
         annualForm: "20-F",
         interimForm: "6-K",
@@ -375,6 +384,7 @@ describe("equity analysis completeness", () => {
   test("completes semiannual IFRS while the next half-year is not yet due", () => {
     const result = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       financialStatements: statements({
         taxonomy: "ifrs-full",
         annualForm: "20-F",
@@ -390,6 +400,7 @@ describe("equity analysis completeness", () => {
   test("accepts 20-F annual evidence but keeps untagged interim evidence partial", () => {
     const result = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       financialStatements: statements({
         annualForm: "20-F",
         cadence: "annual-only",
@@ -425,12 +436,16 @@ describe("equity analysis completeness", () => {
     const artifact = statements({ cadence: "quarterly", fourQuarters: true, analysisAsOf: asOf });
 
     expect(artifact.statements.incomeStatement.revenue.ttm).toBeUndefined();
-    expect(deriveEquityAnalysisCompleteness({ asOf, financialStatements: artifact })).toMatchObject(
-      {
-        financialCoreStatus: "complete",
-        dimensions: { primaryFinancials: { reasonCodes: [] } },
-      },
-    );
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf,
+        assetClass: "equity",
+        financialStatements: artifact,
+      }),
+    ).toMatchObject({
+      financialCoreStatus: "complete",
+      dimensions: { primaryFinancials: { reasonCodes: [] } },
+    });
   });
 
   test("covers semiannual comparison gaps and the reconciled H1 complete path", () => {
@@ -452,12 +467,16 @@ describe("equity analysis completeness", () => {
     expect(primaryReasons(withoutComparison, asOf)).toEqual(
       expect.arrayContaining(["semiannual-comparison-missing", "ttm-unreconciled"]),
     );
-    expect(deriveEquityAnalysisCompleteness({ asOf, financialStatements: complete })).toMatchObject(
-      {
-        financialCoreStatus: "complete",
-        dimensions: { primaryFinancials: { reasonCodes: [] } },
-      },
-    );
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf,
+        assetClass: "equity",
+        financialStatements: complete,
+      }),
+    ).toMatchObject({
+      financialCoreStatus: "complete",
+      dimensions: { primaryFinancials: { reasonCodes: [] } },
+    });
   });
 
   test("covers irregular comparison and TTM reasons", () => {
@@ -531,6 +550,7 @@ describe("equity analysis completeness", () => {
   test("blocks a stale annual basis older than 550 days", () => {
     const result = deriveEquityAnalysisCompleteness({
       asOf: "2027-08-01T00:00:00.000Z",
+      assetClass: "equity",
       financialStatements: statements({ cadence: "quarterly" }),
     });
 
@@ -544,6 +564,8 @@ describe("equity analysis completeness", () => {
     const financialStatements = statements({ cadence: "quarterly" });
     const comprehensive = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "TEST",
       financialStatements,
       extendedEvidence: comprehensiveEvidence(),
       earningsSetup,
@@ -551,6 +573,8 @@ describe("equity analysis completeness", () => {
     });
     const substantial = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "TEST",
       financialStatements,
       extendedEvidence: {
         ...comprehensiveEvidence(),
@@ -561,15 +585,19 @@ describe("equity analysis completeness", () => {
     });
     const limited = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "TEST",
       financialStatements,
     });
     const blocked = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "TEST",
       extendedEvidence: comprehensiveEvidence(),
       earningsSetup,
     });
 
-    expect(comprehensive.coverageLevel).toBe("comprehensive");
+    expect(comprehensive.coverageLevel).toBe("substantial");
     expect(substantial.coverageLevel).toBe("substantial");
     expect(limited.coverageLevel).toBe("limited");
     expect(blocked.financialCoreStatus).toBe("blocked");
@@ -579,10 +607,12 @@ describe("equity analysis completeness", () => {
   test("grades capital ownership from filed histories and precise reasons", () => {
     const complete = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       capitalOwnership: capitalOwnership(),
     });
     const partial = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       capitalOwnership: capitalOwnership({
         stockBasedCompensation: [],
         buybacks: [],
@@ -610,9 +640,78 @@ describe("equity analysis completeness", () => {
     expect(partial.financialCoreStatus).toBe("blocked");
   });
 
+  test("keeps unconfigured issuer operating KPIs partial", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "AAPL",
+      extendedEvidence: comprehensiveEvidence(),
+    });
+
+    expect(result.dimensions.operatingKpis).toEqual({
+      status: "partial",
+      reasonCodes: ["operating-kpi-registry-unconfigured"],
+      asOf: AS_OF,
+      sourceIds: [],
+    });
+  });
+
+  test("enumerates declared but unverified ASTS operating KPIs", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "asts",
+    });
+
+    expect(result.dimensions.operatingKpis).toEqual({
+      status: "partial",
+      reasonCodes: [
+        "operating-kpi-unverified:asts-satellites-launched",
+        "operating-kpi-unverified:asts-satellites-operational",
+      ],
+      asOf: AS_OF,
+      sourceIds: [],
+    });
+  });
+
+  test("requires run-present evidence for declared operating-KPI non-applicability", () => {
+    const registry: readonly OperatingKpiRegistryEntry[] = [
+      {
+        symbol: "TEST",
+        assetClass: "equity",
+        applicability: "not-applicable",
+        kpis: [],
+        notApplicable: {
+          reasonCode: "issuer-has-no-material-operating-kpis",
+          evidenceCategories: ["sec-edgar"],
+        },
+      },
+    ];
+    const input = {
+      asOf: AS_OF,
+      assetClass: "equity" as const,
+      symbol: "TEST",
+    };
+
+    expect(operatingKpisDimension(input, registry)).toMatchObject({
+      status: "partial",
+      reasonCodes: ["operating-kpi-not-applicable-evidence-missing"],
+      sourceIds: [],
+    });
+    expect(
+      operatingKpisDimension({ ...input, extendedEvidence: comprehensiveEvidence() }, registry),
+    ).toEqual({
+      status: "not-applicable",
+      reasonCodes: ["issuer-has-no-material-operating-kpis"],
+      asOf: AS_OF,
+      sourceIds: [SOURCE_ID],
+    });
+  });
+
   test("validates the public contract and rejects credential-based non-applicability", () => {
     const completeness = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
+      assetClass: "equity",
       financialStatements: statements({ cadence: "quarterly" }),
     });
     const report: ResearchReport = {

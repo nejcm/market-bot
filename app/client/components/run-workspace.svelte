@@ -11,7 +11,11 @@
     valuationMetricTiles,
     type FinancialLensStatTone,
   } from "../view-model";
-  import { buildRunWorkspaceView, type RunWorkspaceCaseKey } from "../run-workspace-view";
+  import {
+    buildRunWorkspaceView,
+    completenessReasonCodeLabel,
+    type RunWorkspaceCaseKey,
+  } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
   import SparklineBars from "./sparkline-bars.svelte";
@@ -381,16 +385,18 @@
                     {#if dimension.reasonCodes.length > 0}
                       <div class="mt-2 space-y-0.5 text-[10px] leading-snug text-muted-foreground">
                         {#each dimension.reasonCodes as reason}
-                          <div>{reason.replaceAll("-", " ")}</div>
+                          <div>{completenessReasonCodeLabel(reason)}</div>
                         {/each}
                       </div>
                     {/if}
                     <div class="mt-2 font-mono text-[9px] leading-snug text-[#8a8f96]">
                       {dimension.asOf}
-                      {#if dimension.sourceIds.length > 0}
-                        · {dimension.sourceIds.join(", ")}
-                      {/if}
                     </div>
+                    {#if dimension.sourceIds.length > 0}
+                      <div class="mt-1 flex flex-wrap gap-y-1">
+                        {@render citeChips(dimension.sourceIds)}
+                      </div>
+                    {/if}
                   </div>
                 {/each}
               </div>

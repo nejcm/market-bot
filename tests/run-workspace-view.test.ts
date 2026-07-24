@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
 import {
   buildRunWorkspaceView,
   equityCompletenessView,
+  equitySnapshotView,
   peerImpliedRangeView,
   valuationWorkbenchView,
   reverseDcfView,
@@ -10,7 +12,12 @@ import {
 } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import {
+  deriveFundamentalHistory,
+  type FundamentalHistoryArtifact,
+  type FundamentalHistoryPoint,
+  type FundamentalHistorySeriesKey,
+} from "../src/sources/extended-evidence/fundamental-history";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
@@ -117,6 +124,13 @@ function renderedStrings(value: unknown): readonly string[] {
   return [];
 }
 
+const BANNED_SNAPSHOT_CONSOLE_TOKENS =
+  /\b(?:buy|sell|hold|price target|target price|fair value|intrinsic value|margin of safety|undervalued|overvalued|sizing|allocation|execution)\b|\bimplied price\b/iu;
+
+function withoutPermittedPeerPhrase(text: string): string {
+  return text.replaceAll(/peer-implied price reference range/giu, "");
+}
+
 function fundamentalHistoryAnnualFacts(values: readonly number[]) {
   return values.map((val, index) => {
     const fy = 2022 + index;
@@ -201,6 +215,118 @@ function fundamentalHistoryWithEpsTtm() {
       sourceId: "extended-sec-edgar-aapl-fundamentals",
     },
   );
+}
+
+function snapshotHistoryPoint(
+  base: FundamentalHistoryPoint,
+  value: number,
+): FundamentalHistoryPoint {
+  return {
+    ...base,
+    value,
+    form: "TTM",
+    fp: "TTM",
+    periodStart: "2024-07-01",
+    periodEnd: "2025-06-30",
+    periodMonths: 12,
+    filedAt: "2025-08-01",
+  };
+}
+
+function snapshotFundamentalHistory(
+  overrides: Partial<Record<FundamentalHistorySeriesKey, readonly number[]>> = {},
+  ttmOverrides: Partial<Record<FundamentalHistorySeriesKey, number>> = {},
+): FundamentalHistoryArtifact {
+  const artifact = fundamentalHistoryFixture();
+  const keys: readonly FundamentalHistorySeriesKey[] = [
+    "revenue",
+    "freeCashFlowProxy",
+    "dilutedEps",
+    "operatingMargin",
+  ];
+  const series = { ...artifact.series };
+  for (const key of keys) {
+    const original = artifact.series[key];
+    const annualValues = overrides[key] ?? original.annual.map((point) => point.value);
+    const annual = original.annual.map((point, index) => ({
+      ...point,
+      value: annualValues[index] ?? point.value,
+    }));
+    const latest = annual.at(-1);
+    if (latest === undefined) {
+      continue;
+    }
+    series[key] = {
+      ...original,
+      annual,
+      ttm: snapshotHistoryPoint(latest, ttmOverrides[key] ?? latest.value),
+    };
+  }
+  return { ...artifact, series };
+}
+
+function completenessReport() {
+  const dimension = {
+    status: "complete",
+    reasonCodes: ["annual-as-current"],
+    asOf: "2026-07-04T12:00:00.000Z",
+    sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+  };
+  return {
+    summary: "Equity summary.",
+    equityAnalysisCompleteness: {
+      version: 1,
+      financialCoreStatus: "complete",
+      coverageLevel: "comprehensive",
+      asOf: "2026-07-04T12:00:00.000Z",
+      dimensions: {
+        primaryFinancials: dimension,
+        valuation: dimension,
+        expectations: dimension,
+        capitalOwnership: dimension,
+        operatingKpis: dimension,
+      },
+    },
+    bullCase: [{ text: "Revenue growth persists.", sourceIds: ["source-bull"] }],
+    bearCase: [{ text: "Operating costs rise.", sourceIds: ["source-bear"] }],
+    sources: [
+      {
+        id: "market-yahoo-equity-aapl",
+        title: "Yahoo quote",
+        kind: "market-data",
+        provider: "yahoo",
+        url: "https://example.com/yahoo",
+      },
+      {
+        id: "extended-sec-edgar-aapl-fundamentals",
+        title: "SEC fundamentals",
+        kind: "filing",
+        provider: "sec-edgar",
+        url: "https://example.com/sec",
+      },
+      {
+        id: "verified-snapshot-AAPL",
+        title: "Verified snapshot",
+        kind: "market-data",
+        provider: "yahoo",
+        url: "https://example.com/snapshot",
+      },
+      {
+        id: "source-bull",
+        title: "Bull evidence",
+        kind: "filing",
+        provider: "sec-edgar",
+        url: "https://example.com/bull",
+      },
+      {
+        id: "source-bear",
+        title: "Bear evidence",
+        kind: "filing",
+        provider: "sec-edgar",
+        url: "https://example.com/bear",
+      },
+    ],
+  };
 }
 
 function tocKeys(view: RunWorkspaceView): readonly string[] {
@@ -485,37 +611,43 @@ describe("run workspace view", () => {
       quoteCurrency: "USD",
       dailyChange: "+1.4%",
       changeDirection: "positive",
-      asOf: "Yahoo quote · 2026-07-04T12:00:00.000Z",
+      observedAt: "2026-07-04T12:00:00.000Z",
+      sourceIds: ["market-yahoo-equity-aapl"],
       financials: [
         {
           key: "marketCap",
           label: "Market cap",
           value: "$3000.0B",
           caption: "Yahoo quote · point in time · 2026-07-04T12:00:00.000Z",
+          sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "trailingPE",
           label: "Trailing P/E",
           value: "31.00x",
           caption: "Yahoo quote · trailing 12M · 2026-07-04T12:00:00.000Z",
+          sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "forwardPE",
           label: "Forward P/E",
           value: "28.00x",
           caption: "Yahoo quote · forward · 2026-07-04T12:00:00.000Z",
+          sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "dividendYield",
           label: "Dividend yield",
           value: "0.4%",
           caption: "Yahoo quote · quote snapshot · 2026-07-04T12:00:00.000Z",
+          sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "sharesOutstanding",
           label: "Shares outstanding",
           value: "15.0B",
           caption: "Yahoo quote · point in time · 2026-07-04T12:00:00.000Z",
+          sourceIds: ["market-yahoo-equity-aapl"],
         },
       ],
     });
@@ -540,6 +672,7 @@ describe("run workspace view", () => {
       expect.objectContaining({ key: "marketCap" }),
       expect.objectContaining({ key: "trailingPE", value: "-40.00x (negative earnings)" }),
       expect.objectContaining({ key: "forwardPE", value: "-222.14x (negative earnings)" }),
+      expect.objectContaining({ key: "forwardEPS", value: "$-0.47" }),
     ]);
   });
 
@@ -652,11 +785,13 @@ describe("run workspace view", () => {
       {
         lens: "Quality",
         posture: "criteria-supported",
+        sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
         tiles: [expect.objectContaining({ key: "grossMargin", lens: "Quality", tone: "strong" })],
       },
       {
         lens: "Momentum",
         posture: "criteria-mixed",
+        sourceIds: ["verified-snapshot-AAPL"],
         tiles: [expect.objectContaining({ key: "rsi14", lens: "Momentum", tone: "strong" })],
       },
     ]);
@@ -878,6 +1013,8 @@ describe("run workspace view", () => {
     ).toEqual({
       status: "suppressed",
       label: "peer-implied price reference range",
+      sourceIds: [],
+      suppressionReason: "peer supportability is not supported",
       message: "Reference range suppressed: peer supportability is not supported.",
     });
     expect(buildRunWorkspaceView({ summary: summary() }).peerImpliedRange).toBeUndefined();
@@ -926,5 +1063,386 @@ describe("run workspace view", () => {
     for (const text of renderedStrings([...derivedViews, ...suppressedViews])) {
       expect(violatesResearchOnly(text)).toBeNull();
     }
+  });
+
+  test("builds the six-section equity snapshot from existing projections", () => {
+    const detail: RunDetail = {
+      summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH] }),
+      report: completenessReport(),
+      marketSnapshots: [
+        marketSnapshot({
+          fundamentals: {
+            trailingPE: 31,
+            forwardPE: 28,
+            epsForward: 7.25,
+            dividendYield: 0.36,
+            sharesOutstanding: 15_000_000_000,
+          },
+        }),
+      ],
+      verifiedMarketSnapshot: snapshot(),
+      fundamentalHistory: snapshotFundamentalHistory(
+        {
+          revenue: [100, 120, 150],
+          freeCashFlowProxy: [-10, -5, -2],
+          operatingMargin: [-0.1, 0, 0.2],
+          dilutedEps: [2, 2.5, 6.13],
+        },
+        {
+          revenue: 170,
+          freeCashFlowProxy: -1,
+          operatingMargin: 0.25,
+          dilutedEps: 6.5,
+        },
+      ),
+      peerImpliedRange: peerImpliedRange(),
+      financialLenses: {
+        version: 1,
+        generatedAt: "2026-07-04T12:00:00.000Z",
+        symbol: "AAPL",
+        lenses: [
+          {
+            name: "Quality",
+            posture: "criteria-supported",
+            metrics: [],
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          },
+          {
+            name: "Growth",
+            posture: "criteria-mixed",
+            metrics: [],
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          },
+          {
+            name: "Financial Strength",
+            posture: "criteria-not-supported",
+            metrics: [],
+            sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          },
+          {
+            name: "Value",
+            posture: "insufficient-data",
+            metrics: [],
+            sourceIds: [],
+          },
+          {
+            name: "Momentum",
+            posture: "criteria-supported",
+            metrics: [],
+            sourceIds: ["verified-snapshot-AAPL"],
+          },
+        ],
+        sourceIds: ["extended-sec-edgar-aapl-fundamentals", "verified-snapshot-AAPL"],
+      },
+    };
+
+    const view = equitySnapshotView(detail);
+
+    expect(view?.sectionOrder).toEqual([
+      "pricePerformance",
+      "analysisCompleteness",
+      "peerReferenceRange",
+      "keyDatedMetrics",
+      "miniCharts",
+      "financialLensDrivers",
+    ]);
+    expect(view?.pricePerformance).toMatchObject({
+      state: "available",
+      detailSectionKey: "snapshot",
+      detailSectionMounted: true,
+      price: "$211",
+      change24h: "+1.4%",
+      quoteCurrency: "USD",
+      observedAt: "2026-07-04T12:00:00.000Z",
+      sourceIds: ["market-yahoo-equity-aapl"],
+    });
+    expect(view?.analysisCompleteness).toMatchObject({
+      detailSectionKey: "equityCompleteness",
+      detailSectionMounted: true,
+      financialCoreStatus: "complete",
+      coverageLevel: "comprehensive",
+    });
+    expect(view?.analysisCompleteness.dimensions).toHaveLength(5);
+    expect(view?.analysisCompleteness.dimensions[0]?.reasons).toEqual([
+      "Annual statement remains current",
+    ]);
+    expect(view?.peerReferenceRange).toMatchObject({
+      state: "available",
+      detailSectionKey: "peerImpliedRange",
+      display: "Low $39.00 · Mid $79.00 · High $119.00",
+      positionLabel: "Within range",
+    });
+    expect(view?.keyDatedMetrics.detailSectionKey).toBe("fundamentalHistory");
+    expect(view?.keyDatedMetrics.metrics.map((metric) => metric.key)).toEqual([
+      "ttmRevenue",
+      "ttmFreeCashFlowProxy",
+      "ttmDilutedEps",
+      "ttmOperatingMargin",
+      "forwardPE",
+      "forwardEPS",
+    ]);
+    expect(view?.keyDatedMetrics.metrics.slice(0, 4)).toEqual([
+      expect.objectContaining({
+        value: "$170",
+        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+      }),
+      expect.objectContaining({
+        value: "$-1",
+        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+      }),
+      expect.objectContaining({
+        value: "$6.50",
+        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+      }),
+      expect.objectContaining({
+        value: "25.0%",
+        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+      }),
+    ]);
+    expect(view?.keyDatedMetrics.metrics.slice(4)).toEqual([
+      expect.objectContaining({
+        value: "28.00x",
+        dateBasis: "observed 2026-07-04T12:00:00.000Z",
+      }),
+      expect.objectContaining({
+        value: "$7.25",
+        dateBasis: "observed 2026-07-04T12:00:00.000Z",
+      }),
+    ]);
+    expect(view?.keyDatedMetrics.foldedYahooMetrics.map((metric) => metric.key)).toEqual([
+      "marketCap",
+      "trailingPE",
+      "dividendYield",
+      "sharesOutstanding",
+    ]);
+    expect(view?.miniCharts.charts.map((chart) => chart.key)).toEqual([
+      "revenue",
+      "freeCashFlowProxy",
+      "operatingMargin",
+      "dilutedEps",
+    ]);
+    expect(view?.miniCharts.charts[0]?.geometry?.baseline).toBe(1);
+    expect(view?.miniCharts.charts[1]?.geometry?.baseline).toBe(0);
+    expect(view?.miniCharts.charts[2]?.geometry?.baseline).toBeCloseTo(5 / 7);
+    expect(view?.miniCharts.charts.every((chart) => chart.geometry?.bars.length === 4)).toBeTrue();
+    expect(view?.financialLensDrivers.postures.items.map((posture) => posture.posture)).toEqual([
+      "criteria-supported",
+      "criteria-mixed",
+      "criteria-not-supported",
+      "insufficient-data",
+      "criteria-supported",
+    ]);
+    expect(view?.financialLensDrivers.postures.detailSectionKey).toBe("financialLensStats");
+    expect(view?.financialLensDrivers.bullCase).toMatchObject({
+      detailSectionKey: "cases",
+      detailSectionMounted: true,
+      items: [{ text: "Revenue growth persists.", sourceIds: ["source-bull"] }],
+    });
+    expect(view?.financialLensDrivers.bearCase).toMatchObject({
+      detailSectionKey: "cases",
+      detailSectionMounted: true,
+      items: [{ text: "Operating costs rise.", sourceIds: ["source-bear"] }],
+    });
+  });
+
+  test("preserves GBp price formatting in the snapshot", () => {
+    const view = equitySnapshotView({
+      summary: summary({ symbol: "RR.L" }),
+      marketSnapshots: [
+        marketSnapshot({
+          symbol: "rr.l",
+          identity: { displayName: "Rolls-Royce Holdings", quoteCurrency: "GBp" },
+          price: 912.4,
+          changePercent24h: -1.25,
+        }),
+      ],
+    });
+
+    expect(view?.pricePerformance).toMatchObject({
+      price: "912.4p",
+      quoteCurrency: "GBp",
+      change24h: "-1.3%",
+      observedAt: "2026-07-04T12:00:00.000Z",
+      sourceIds: ["market-yahoo-equity-aapl"],
+    });
+  });
+
+  test("does not substitute zero for a missing 24h change", () => {
+    const view = equitySnapshotView({
+      summary: summary(),
+      marketSnapshots: [
+        marketSnapshot({
+          changePercent24h: undefined as never,
+        }),
+      ],
+    });
+
+    expect(view?.pricePerformance).toMatchObject({
+      state: "partial",
+      price: "$211",
+    });
+    expect(view?.pricePerformance.change24h).toBeUndefined();
+    expect(view?.pricePerformance.changeDirection).toBeUndefined();
+  });
+
+  test("keeps the first two cited case drivers in report order", () => {
+    const view = equitySnapshotView({
+      summary: summary(),
+      report: {
+        bullCase: [
+          { text: "Uncited.", sourceIds: [] },
+          { text: "First cited.", sourceIds: ["source-1"] },
+          { text: "Second cited.", sourceIds: ["source-2"] },
+          { text: "Third cited.", sourceIds: ["source-3"] },
+        ],
+        bearCase: [],
+      },
+    });
+
+    expect(view?.financialLensDrivers.bullCase.items).toEqual([
+      { text: "First cited.", sourceIds: ["source-1"] },
+      { text: "Second cited.", sourceIds: ["source-2"] },
+    ]);
+    expect(view?.financialLensDrivers.bearCase).toMatchObject({
+      state: "unavailable",
+      items: [],
+    });
+  });
+
+  test("requires reconciled TTM metrics while preserving legitimate zero and negative values", () => {
+    const annualOnly = equitySnapshotView({
+      summary: summary(),
+      fundamentalHistory: fundamentalHistoryFixture(),
+    });
+    const populated = equitySnapshotView({
+      summary: summary(),
+      fundamentalHistory: snapshotFundamentalHistory({}, { dilutedEps: -0.5, operatingMargin: 0 }),
+    });
+
+    for (const metric of annualOnly?.keyDatedMetrics.metrics.slice(0, 4) ?? []) {
+      expect(metric).toMatchObject({ state: "unavailable", sourceIds: [] });
+      expect(metric.value).toBeUndefined();
+      expect(metric.dateBasis).toBeUndefined();
+    }
+    expect(populated?.keyDatedMetrics.metrics[2]).toMatchObject({
+      state: "available",
+      value: "$-0.50",
+    });
+    expect(populated?.keyDatedMetrics.metrics[3]).toMatchObject({
+      state: "available",
+      value: "0.0%",
+    });
+  });
+
+  test("keeps the operating-margin chart slot unavailable without substituting another margin", () => {
+    const artifact = snapshotFundamentalHistory();
+    const { ttm: _ttm, ...operatingMargin } = artifact.series.operatingMargin;
+    const view = equitySnapshotView({
+      summary: summary(),
+      fundamentalHistory: {
+        ...artifact,
+        series: {
+          ...artifact.series,
+          operatingMargin: { ...operatingMargin, annual: [] },
+        },
+      },
+    });
+
+    expect(view?.miniCharts.charts).toHaveLength(4);
+    expect(view?.miniCharts.charts[2]).toEqual({
+      key: "operatingMargin",
+      label: "Operating margin",
+      state: "unavailable",
+      detailSectionKey: "fundamentalHistory",
+      detailSectionMounted: true,
+      sourceIds: [],
+    });
+    expect(view?.keyDatedMetrics.metrics[3]).toMatchObject({
+      key: "ttmOperatingMargin",
+      state: "unavailable",
+    });
+  });
+
+  test("renders explicit unavailable states and no dangling detail links for historical equity runs", () => {
+    const view = equitySnapshotView({
+      summary: summary(),
+      report: {
+        bullCase: [{ text: "Uncited report text.", sourceIds: [] }],
+      },
+    });
+
+    expect(view).toBeDefined();
+    expect(view?.pricePerformance).toMatchObject({
+      state: "unavailable",
+      detailSectionMounted: false,
+      sourceIds: [],
+    });
+    expect(view?.analysisCompleteness).toMatchObject({
+      state: "unavailable",
+      detailSectionMounted: false,
+      dimensions: [],
+    });
+    expect(view?.peerReferenceRange).toMatchObject({
+      state: "unavailable",
+      detailSectionMounted: false,
+      display: "N/M — peer evidence unavailable: reference range is unavailable",
+    });
+    expect(
+      view?.keyDatedMetrics.metrics.every((metric) => metric.state === "unavailable"),
+    ).toBeTrue();
+    expect(view?.miniCharts.charts.every((chart) => chart.state === "unavailable")).toBeTrue();
+    expect(view?.financialLensDrivers.postures.detailSectionMounted).toBe(false);
+    expect(view?.financialLensDrivers.bullCase).toMatchObject({
+      state: "unavailable",
+      detailSectionMounted: true,
+      items: [],
+    });
+    expect(view?.financialLensDrivers.bearCase).toMatchObject({
+      state: "unavailable",
+      detailSectionMounted: true,
+      items: [],
+    });
+
+    const withoutCases = equitySnapshotView({ summary: summary() });
+    expect(withoutCases?.financialLensDrivers.bullCase.detailSectionMounted).toBe(false);
+    expect(withoutCases?.financialLensDrivers.bearCase.detailSectionMounted).toBe(false);
+  });
+
+  test("does not add the equity snapshot to non-equity workspaces", () => {
+    const detail: RunDetail = {
+      summary: summary({ jobType: "crypto", assetClass: "crypto", symbol: "BTC" }),
+      report: { summary: "Crypto summary." },
+    };
+    const workspace = buildRunWorkspaceView(detail);
+
+    expect(equitySnapshotView(detail)).toBeUndefined();
+    expect(workspace.equitySnapshot).toBeUndefined();
+    expect(workspace.report.summary).toBe("Crypto summary.");
+    expect(tocKeys(workspace)).toEqual(["summary"]);
+  });
+
+  test("keeps deterministic snapshot and Console copy inside the research-only boundary", () => {
+    const snapshotView = equitySnapshotView({
+      summary: summary(),
+      report: completenessReport(),
+      marketSnapshots: [marketSnapshot({ fundamentals: { forwardPE: 28, epsForward: 7.25 } })],
+      fundamentalHistory: snapshotFundamentalHistory(),
+      peerImpliedRange: peerImpliedRange(),
+    });
+    for (const text of renderedStrings(snapshotView)) {
+      expect(violatesResearchOnly(text), text).toBeNull();
+      expect(
+        withoutPermittedPeerPhrase(text).match(BANNED_SNAPSHOT_CONSOLE_TOKENS),
+        text,
+      ).toBeNull();
+    }
+
+    const consoleSource = readFileSync(
+      new URL("../app/client/components/run-workspace.svelte", import.meta.url),
+      "utf8",
+    );
+    expect(
+      withoutPermittedPeerPhrase(consoleSource).match(BANNED_SNAPSHOT_CONSOLE_TOKENS),
+    ).toBeNull();
   });
 });

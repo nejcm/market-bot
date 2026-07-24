@@ -14,6 +14,7 @@ import type {
   CollectContext,
   CollectedSources,
   EarningsSetupCollected,
+  ExtendedEvidenceCollectionResult,
   FetchLike,
   RawSourceSnapshot,
   NewsRelevanceTarget,
@@ -32,19 +33,25 @@ import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
 import { withCanonicalFinancialLensInputs } from "./extended-evidence/financial-lens-canonical";
 import {
   collectSubsequentFinancingBridge,
+  deriveSubsequentFinancingBridge,
   withSubsequentFinancingEvidence,
   type SubsequentFinancingBridgeArtifact,
 } from "./extended-evidence/subsequent-financing";
 import {
   collectCapitalOwnershipArtifact,
+  deriveCapitalOwnershipArtifact,
   type CapitalOwnershipArtifact,
 } from "./extended-evidence/capital-ownership";
 import {
   collectFundamentalHistory,
+  deriveFundamentalHistory,
   type FundamentalHistoryArtifact,
 } from "./extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "./extended-evidence/fundamental-history-canonical";
-import { collectFinancialStatements } from "./extended-evidence/financial-statements";
+import {
+  collectFinancialStatements,
+  deriveFinancialStatements,
+} from "./extended-evidence/financial-statements";
 import { attachFinancialStatementParity } from "./extended-evidence/financial-statements-parity";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
@@ -74,6 +81,70 @@ import {
   sanitizeInstrumentIdentityMetadata,
   sanitizeMarketSnapshotMetadata,
 } from "./metadata-sanitization";
+import {
+  analystExpectationsExtendedEvidenceAdapter,
+  createMultiExtendedEvidenceAdapter,
+  finnhubEventsExtendedEvidenceAdapter,
+  fredExtendedEvidenceAdapter,
+  institutionalOwnershipExtendedEvidenceAdapter,
+  providerResultToExtendedEvidence,
+} from "./extended-evidence";
+import {
+  collectSecTargetPacketBase,
+  finalizeSecTargetPacket,
+  type SecTargetPacket,
+} from "./sec-target-packet";
+import {
+  collectTradierPacket,
+  deriveTradierImpliedMove,
+  earningsEventFromExtendedSnapshots,
+  type TradierPacket,
+} from "./tradier-packet";
+import { sourceGap } from "../domain/source-gaps";
+import { hasDeepEquityAcquisitionTask } from "../deep-equity/acquisition-recipe";
+
+const DEEP_EQUITY_PROVIDER_ADAPTER = createMultiExtendedEvidenceAdapter("equity", [
+  finnhubEventsExtendedEvidenceAdapter,
+  analystExpectationsExtendedEvidenceAdapter,
+  institutionalOwnershipExtendedEvidenceAdapter,
+  fredExtendedEvidenceAdapter,
+]);
+
+function mergeDeepEquityProviderResults(
+  context: CollectContext,
+  sec: SecTargetPacket,
+  providers: ExtendedEvidenceCollectionResult,
+  tradier: TradierPacket,
+): ExtendedEvidenceCollectionResult {
+  const secEvidence = providerResultToExtendedEvidence(context, "equity", sec.providerResult);
+  const tradierEvidence = providerResultToExtendedEvidence(
+    context,
+    "equity",
+    tradier.providerResult,
+  );
+  return {
+    rawSnapshots: [
+      ...(sec.companyFactsResult?.rawSnapshots ?? sec.providerResult.rawSnapshots),
+      ...providers.rawSnapshots,
+      ...tradier.providerResult.rawSnapshots,
+    ],
+    sources: [...secEvidence.sources, ...providers.sources, ...tradierEvidence.sources],
+    extendedEvidence: {
+      instrument: { symbol: sec.symbol, assetClass: "equity" },
+      items: [
+        ...(secEvidence.extendedEvidence?.items ?? []),
+        ...(providers.extendedEvidence?.items ?? []),
+        ...(tradierEvidence.extendedEvidence?.items ?? []),
+      ],
+      gaps: [
+        ...(secEvidence.extendedEvidence?.gaps ?? []),
+        ...(providers.extendedEvidence?.gaps ?? []),
+        ...(tradierEvidence.extendedEvidence?.gaps ?? []),
+      ],
+    },
+    sourceGaps: [...secEvidence.sourceGaps, ...providers.sourceGaps, ...tradierEvidence.sourceGaps],
+  };
+}
 
 function buildImpliedMoveSource(
   command: ResearchCommand,
@@ -279,6 +350,7 @@ export interface CollectSourcesRuntimeOptions {
   readonly retryDelaysMs?: readonly number[];
   readonly peerUniverse?: PeerUniverseSeam;
   readonly resolvedSubject?: ResolvedResearchSubject;
+  readonly collectTradierTermStructure?: boolean;
 }
 
 function peerUniverseFallbackFor(
@@ -333,12 +405,16 @@ export async function collectSources(
   const marketAdapter = registry.marketDataFor(command.assetClass);
   const supplementalMarketAdapters = registry.supplementalMarketDataFor(command.assetClass);
   const newsAdapter = registry.newsFor(command.assetClass);
-  const extendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
+  const registryExtendedEvidenceAdapter = registry.extendedEvidenceFor(command.assetClass);
   const marketContextAdapter = registry.marketContextFor(command.assetClass);
 
   // Verified Market Snapshot: equity ticker only (ADR 0004); joins the parallel batch
   const isEquityTicker = isInstrumentCommand(command) && command.assetClass === "equity";
   const isTicker = isInstrumentCommand(command);
+  const isDeepEquity = isEquityTicker && command.depth === "deep";
+  const extendedEvidenceAdapter = isDeepEquity
+    ? DEEP_EQUITY_PROVIDER_ADAPTER
+    : registryExtendedEvidenceAdapter;
 
   // Market updates and ticker runs sequence market first so current ranked movers or resolved
   // Instrument identity can steer news selection.
@@ -382,6 +458,7 @@ export async function collectSources(
     marketContextResult,
     verifiedSnapshotResult,
     representativeVerifiedSnapshotResults,
+    secTargetPacketBase,
   ] = await Promise.all([
     marketResult ?? marketAdapter.collect(marketCtx),
     newsAdapter.collect(newsContext),
@@ -403,7 +480,34 @@ export async function collectSources(
           })),
         )
       : [],
+    isDeepEquity && hasDeepEquityAcquisitionTask("sec-target-packet")
+      ? collectSecTargetPacketBase(identityCtx, command)
+      : undefined,
   ]);
+  const earningsEvent = isDeepEquity
+    ? earningsEventFromExtendedSnapshots(command.symbol, extendedResult.rawSnapshots)
+    : undefined;
+  const packetContext =
+    earningsEvent === undefined
+      ? identityCtx
+      : { ...identityCtx, earningsEventDate: earningsEvent.date };
+  const [secTargetPacket, tradierPacket] = isDeepEquity
+    ? await Promise.all([
+        finalizeSecTargetPacket(packetContext, secTargetPacketBase as SecTargetPacket),
+        hasDeepEquityAcquisitionTask("tradier-packet")
+          ? collectTradierPacket(
+              identityCtx,
+              command,
+              earningsEvent,
+              runtime.collectTradierTermStructure === true,
+            )
+          : undefined,
+      ])
+    : [undefined, undefined];
+  const deepExtendedResult =
+    isDeepEquity && secTargetPacket !== undefined && tradierPacket !== undefined
+      ? mergeDeepEquityProviderResults(identityCtx, secTargetPacket, extendedResult, tradierPacket)
+      : extendedResult;
   const supplementalMarketResults = await Promise.all(
     supplementalMarketAdapters.map((adapter) =>
       adapter.collect(marketCtx, resolvedMarketResult.marketSnapshots),
@@ -447,8 +551,8 @@ export async function collectSources(
   const enrichmentResult = await collectEquityEnrichment({
     command,
     marketSnapshots: resolvedMarketResult.marketSnapshots,
-    extendedEvidence: extendedResult.extendedEvidence,
-    extendedRawSnapshots: extendedResult.rawSnapshots,
+    extendedEvidence: deepExtendedResult.extendedEvidence,
+    extendedRawSnapshots: deepExtendedResult.rawSnapshots,
     verifiedMarketSnapshot: verifiedSnapshotResult?.snapshot,
     verifiedPriceHistory: verifiedSnapshotResult?.priceHistory ?? [],
     fetchedAt: ctx.fetchedAt,
@@ -457,14 +561,16 @@ export async function collectSources(
     preliminaryIdentityResult,
     now,
     peerUniverse: peerUniverseSeam,
+    secTargetPacket,
+    tradierPacket,
   });
   const analystExpectationsResult =
     isEquityTicker && command.depth === "deep"
       ? deriveAnalystExpectations(
           command.symbol,
           ctx.fetchedAt,
-          extendedResult.rawSnapshots,
-          extendedResult.sourceGaps,
+          deepExtendedResult.rawSnapshots,
+          deepExtendedResult.sourceGaps,
         )
       : undefined;
   const institutionalOwnershipResult =
@@ -472,8 +578,8 @@ export async function collectSources(
       ? deriveInstitutionalOwnership(
           command.symbol,
           ctx.fetchedAt,
-          extendedResult.rawSnapshots,
-          extendedResult.sourceGaps,
+          deepExtendedResult.rawSnapshots,
+          deepExtendedResult.sourceGaps,
         )
       : undefined;
   staleFallbackGaps.push(...enrichmentResult.earningsSourceGaps);
@@ -488,7 +594,7 @@ export async function collectSources(
     rawSnapshots: [
       ...resolvedMarketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
-      ...extendedResult.rawSnapshots,
+      ...deepExtendedResult.rawSnapshots,
       ...(enrichmentResult.valuationCompsResult?.rawSnapshots ?? []),
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
@@ -503,7 +609,7 @@ export async function collectSources(
     supplementalMarketSnapshots: sanitizedSupplemental.map((result) => result.snapshot),
     newsSources: newsResult.newsSources,
     extendedSources: [
-      ...extendedResult.sources,
+      ...deepExtendedResult.sources,
       ...(enrichmentResult.valuationCompsResult?.sources ?? []),
       ...enrichmentResult.earningsExtraSources,
     ],
@@ -528,6 +634,8 @@ export async function collectSources(
     ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
     ...(resolvedInstrumentIdentity !== undefined ? { resolvedInstrumentIdentity } : {}),
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
+    ...(secTargetPacket !== undefined ? { secTargetPacket } : {}),
+    ...(tradierPacket !== undefined ? { tradierPacket } : {}),
     ...(enrichmentResult.earningsSetup !== undefined
       ? { earningsSetup: enrichmentResult.earningsSetup }
       : {}),
@@ -573,12 +681,13 @@ export async function collectSources(
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
-      ...extendedResult.sourceGaps,
+      ...deepExtendedResult.sourceGaps,
       ...enrichmentResult.valuationResult.sourceGaps,
       ...(enrichmentResult.valuationCompsResult?.gaps ?? []),
       ...enrichmentResult.valuationCompsSkippedGaps,
       ...enrichmentResult.financialLensResult.sourceGaps,
       ...enrichmentResult.businessFrameworkResult.sourceGaps,
+      ...enrichmentResult.packetFailureGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),
@@ -610,6 +719,8 @@ interface EquityEnrichmentInput {
   readonly preliminaryIdentityResult: InstrumentIdentityResult | undefined;
   readonly now: Date;
   readonly peerUniverse: PeerUniverseSeam | undefined;
+  readonly secTargetPacket: SecTargetPacket | undefined;
+  readonly tradierPacket: TradierPacket | undefined;
 }
 
 interface EquityEnrichmentResult {
@@ -628,6 +739,7 @@ interface EquityEnrichmentResult {
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
   readonly earningsSourceGaps: readonly SourceGap[];
+  readonly packetFailureGaps: readonly SourceGap[];
 }
 
 async function collectEquityEnrichment(
@@ -649,37 +761,83 @@ async function collectEquityEnrichment(
     input.command.symbol,
     input.identityContext.instrumentIdentity,
   );
-  const [legacyFundamentalHistory, financialStatementsWithoutParity]: readonly [
-    FundamentalHistoryArtifact | undefined,
-    FinancialStatementsArtifact | undefined,
-  ] = collectStructuredSec
-    ? await Promise.all([
-        collectFundamentalHistory(input.identityContext, input.command.symbol),
-        collectFinancialStatements(input.identityContext, input.command.symbol),
-      ])
-    : [undefined, undefined];
+  const earningsResult =
+    input.command.depth === "deep"
+      ? await collectEarningsSetup(
+          input.command,
+          input.marketSnapshots,
+          input.extendedRawSnapshots,
+          input.context,
+          input.tradierPacket,
+        )
+      : { earningsSetup: undefined, earningsExtraSources: [], earningsSourceGaps: [] };
+  if (collectStructuredSec && input.secTargetPacket?.status === "failed") {
+    return {
+      ...noEquityEnrichment(identityResult, input.extendedEvidence),
+      ...earningsResult,
+      packetFailureGaps: secPacketDependencyGaps(input.command.symbol),
+    };
+  }
+  const secFacts = input.secTargetPacket?.companyFacts;
+  let legacyFundamentalHistory: FundamentalHistoryArtifact | undefined = undefined;
+  let financialStatementsWithoutParity: FinancialStatementsArtifact | undefined = undefined;
+  if (collectStructuredSec && secFacts !== undefined) {
+    legacyFundamentalHistory = deriveFundamentalHistory(secFacts.payload, {
+      symbol: input.command.symbol,
+      generatedAt: input.fetchedAt,
+      analysisAsOf: input.fetchedAt,
+      sourceId: secFacts.sourceId,
+      ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
+    });
+    financialStatementsWithoutParity = deriveFinancialStatements(secFacts.payload, {
+      symbol: input.command.symbol,
+      generatedAt: input.fetchedAt,
+      analysisAsOf: input.fetchedAt,
+      sourceId: secFacts.sourceId,
+      ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
+      ...(input.secTargetPacket?.submissions !== undefined
+        ? {
+            submissionsPayload: input.secTargetPacket.submissions.payload,
+            submissionsSourceId: input.secTargetPacket.submissions.sourceId,
+          }
+        : {}),
+    });
+  } else if (collectStructuredSec) {
+    [legacyFundamentalHistory, financialStatementsWithoutParity] = await Promise.all([
+      collectFundamentalHistory(input.identityContext, input.command.symbol),
+      collectFinancialStatements(input.identityContext, input.command.symbol),
+    ]);
+  }
   const legacyValuationResult = addValuationEvidence(
     input.command,
     input.marketSnapshots,
     input.extendedEvidence,
   );
-  const subsequentFinancing =
-    financialStatementsWithoutParity === undefined
-      ? undefined
-      : await collectSubsequentFinancingBridge(
-          input.identityContext,
-          input.command.symbol,
-          financialStatementsWithoutParity,
-        );
-  const capitalOwnership =
-    financialStatementsWithoutParity === undefined
-      ? undefined
-      : await collectCapitalOwnershipArtifact(
-          input.identityContext,
-          input.command.symbol,
-          financialStatementsWithoutParity,
-          subsequentFinancing,
-        );
+  let subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined = undefined;
+  let capitalOwnership: CapitalOwnershipArtifact | undefined = undefined;
+  if (financialStatementsWithoutParity !== undefined) {
+    subsequentFinancing =
+      secFacts === undefined
+        ? await collectSubsequentFinancingBridge(
+            input.identityContext,
+            input.command.symbol,
+            financialStatementsWithoutParity,
+          )
+        : deriveSubsequentFinancingBridge(secFacts.payload, financialStatementsWithoutParity);
+    capitalOwnership =
+      secFacts === undefined
+        ? await collectCapitalOwnershipArtifact(
+            input.identityContext,
+            input.command.symbol,
+            financialStatementsWithoutParity,
+            subsequentFinancing,
+          )
+        : deriveCapitalOwnershipArtifact(
+            secFacts.payload,
+            financialStatementsWithoutParity,
+            subsequentFinancing,
+          );
+  }
   const valuationResult =
     financialStatementsWithoutParity === undefined
       ? legacyValuationResult
@@ -703,7 +861,12 @@ async function collectEquityEnrichment(
           input.command,
           input.marketSnapshots,
           valuationResult.extendedEvidence,
-          peerUniverseFallback !== undefined ? { peerUniverseFallback } : undefined,
+          {
+            ...(peerUniverseFallback !== undefined ? { peerUniverseFallback } : {}),
+            ...(input.secTargetPacket?.cikMapping !== undefined
+              ? { secTickerPayload: input.secTargetPacket.cikMapping.payload }
+              : {}),
+          },
         )
       : undefined;
   const valuationCompsSkippedGaps =
@@ -761,15 +924,6 @@ async function collectEquityEnrichment(
     input.verifiedMarketSnapshot,
     input.fetchedAt,
   );
-  const earningsResult =
-    input.command.depth === "deep"
-      ? await collectEarningsSetup(
-          input.command,
-          input.marketSnapshots,
-          input.extendedRawSnapshots,
-          input.context,
-        )
-      : { earningsSetup: undefined, earningsExtraSources: [], earningsSourceGaps: [] };
   const valuationWorkbench = buildValuationWorkbench({
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
@@ -805,6 +959,7 @@ async function collectEquityEnrichment(
     financialLensResult,
     businessFrameworkResult,
     ...earningsResult,
+    packetFailureGaps: [],
   };
 }
 
@@ -831,7 +986,30 @@ function noEquityEnrichment(
     earningsSetup: undefined,
     earningsExtraSources: [],
     earningsSourceGaps: [],
+    packetFailureGaps: [],
   };
+}
+
+function secPacketDependencyGaps(symbol: string): readonly SourceGap[] {
+  return [
+    "financial-statements",
+    "fundamental-history",
+    "financial-lenses",
+    "subsequent-financing",
+    "capital-ownership",
+    "valuation",
+    "business-framework",
+  ].map((derivation) =>
+    sourceGap({
+      source: `sec-target-packet:${derivation}`,
+      message: `${derivation} suppressed for ${symbol}: target SEC packet is unavailable`,
+      provider: "sec-edgar",
+      capability: "extended-evidence",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+      symbol: symbol.toUpperCase(),
+    }),
+  );
 }
 
 function passthroughValuationResult(
@@ -877,6 +1055,7 @@ async function collectEarningsSetup(
   marketSnapshots: readonly MarketSnapshot[],
   extendedRawSnapshots: readonly RawSourceSnapshot[],
   context: CollectContext,
+  tradierPacket?: TradierPacket,
 ): Promise<{
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
@@ -912,7 +1091,10 @@ async function collectEarningsSetup(
     };
   }
 
-  const moveResult = await computeImpliedMove(context, event, spot);
+  const moveResult =
+    tradierPacket === undefined
+      ? await computeImpliedMove(context, event, spot)
+      : deriveTradierImpliedMove(tradierPacket, event, spot);
   const impliedMoveSource = buildImpliedMoveSource(command, moveResult.impliedMove);
   return {
     earningsSetup: {

@@ -5,6 +5,8 @@ import type { FinancialStatementsArtifact } from "./extended-evidence/financial-
 import type { SubsequentFinancingBridgeArtifact } from "./extended-evidence/subsequent-financing";
 import type { CapitalOwnershipArtifact } from "./extended-evidence/capital-ownership";
 import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/untagged-financial-tables-contract";
+import type { SecTargetPacket } from "./sec-target-packet";
+import type { TradierPacket } from "./tradier-packet";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
@@ -190,6 +192,8 @@ export interface CollectedSources {
     readonly runDirName: string;
     readonly generatedAt: string;
   };
+  readonly secTargetPacket?: SecTargetPacket;
+  readonly tradierPacket?: TradierPacket;
 }
 
 export interface ExtendedEvidenceCollectionResult {

@@ -741,13 +741,13 @@
           "provider": "api.tradier.com",
           "method": "GET",
           "urlShape": "/v1/markets/options/chains?expiration&greeks&symbol",
-          "count": 2
+          "count": 1
         },
         {
           "provider": "api.tradier.com",
           "method": "GET",
           "urlShape": "/v1/markets/options/expirations?includeAllRoots&symbol",
-          "count": 2
+          "count": 1
         },
         {
           "provider": "data.sec.gov",
@@ -955,13 +955,13 @@
           "provider": "api.tradier.com",
           "method": "GET",
           "urlShape": "/v1/markets/options/chains?expiration&greeks&symbol",
-          "count": 2
+          "count": 1
         },
         {
           "provider": "api.tradier.com",
           "method": "GET",
           "urlShape": "/v1/markets/options/expirations?includeAllRoots&symbol",
-          "count": 2
+          "count": 1
         },
         {
           "provider": "data.sec.gov",

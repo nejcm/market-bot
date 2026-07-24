@@ -10,7 +10,11 @@ import type {
 import { sourceGap } from "../domain/source-gaps";
 import { isRecord, readNumber, stringArrayValue } from "../guards";
 import { isUsListing } from "./instrument-capability";
-import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
+import {
+  findSecTicker,
+  secRequestInit,
+  type SecCompanyFactsResult,
+} from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
 import {
@@ -91,7 +95,7 @@ export async function executeEvidenceRequestTool(
   ctx: CollectContext,
 ): Promise<EvidenceRequestToolOutput> {
   if (tool === "sec_latest_filing") {
-    return collectSecLatestFiling(ctx);
+    return collectSecFilingEvidence(ctx);
   }
   return collectTradierIvTermStructure(ctx);
 }
@@ -613,7 +617,10 @@ async function collectSecFiling(
   };
 }
 
-async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
+export async function collectSecFilingEvidence(
+  ctx: CollectContext,
+  companyFacts?: SecCompanyFactsResult,
+): Promise<EvidenceRequestToolOutput> {
   const { command } = ctx;
   if (!isInstrumentCommand(command)) {
     return emptyOutput([
@@ -630,49 +637,65 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return emptyOutput([unsupportedInstrumentGap("sec-edgar", "SEC EDGAR", command.symbol)]);
   }
-  const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-  const tickers = await ctx.request.json({
-    url: tickersUrl,
-    adapter: "sec-tickers",
-    init: secRequestInit(ctx.secUserAgent),
-  });
-  if (!isFetchJsonResult(tickers)) {
-    return emptyOutput([tickers]);
+  const prefetchedMatch =
+    companyFacts?.cik === undefined
+      ? undefined
+      : {
+          cik: companyFacts.cik,
+          ticker: companyFacts.symbol,
+          ...(companyFacts.identity?.displayName !== undefined
+            ? { name: companyFacts.identity.displayName }
+            : {}),
+        };
+  const prefetchedSubmissions = companyFacts?.submissionsPayload;
+  let match = prefetchedMatch;
+  let submissionsPayload = prefetchedSubmissions;
+  let sharedRawSnapshots: readonly RawSourceSnapshot[] = [];
+  if (match === undefined || submissionsPayload === undefined) {
+    const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
+    const tickers = await ctx.request.json({
+      url: tickersUrl,
+      adapter: "sec-tickers",
+      init: secRequestInit(ctx.secUserAgent),
+    });
+    if (!isFetchJsonResult(tickers)) {
+      return emptyOutput([tickers]);
+    }
+    match = findSecTicker(tickers.payload, command.symbol);
+    if (match === undefined) {
+      return emptyOutput(
+        [
+          sourceGap({
+            source: "sec-edgar",
+            message: `No SEC CIK match for ${command.symbol}`,
+            provider: "sec-edgar",
+            capability: "evidence-request",
+            cause: "unsupported-coverage",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+        [tickers.rawSnapshot],
+      );
+    }
+    const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
+    const submissions = await ctx.request.json({
+      url: submissionsUrl,
+      adapter: "sec-submissions",
+      init: secRequestInit(ctx.secUserAgent),
+    });
+    if (!isFetchJsonResult(submissions)) {
+      return emptyOutput([submissions], [tickers.rawSnapshot]);
+    }
+    submissionsPayload = submissions.payload;
+    sharedRawSnapshots = [tickers.rawSnapshot, submissions.rawSnapshot];
   }
 
-  const match = findSecTicker(tickers.payload, command.symbol);
-  if (match === undefined) {
-    return emptyOutput(
-      [
-        sourceGap({
-          source: "sec-edgar",
-          message: `No SEC CIK match for ${command.symbol}`,
-          provider: "sec-edgar",
-          capability: "evidence-request",
-          cause: "unsupported-coverage",
-          evidenceQualityImpact: "extended-evidence-cap",
-        }),
-      ],
-      [tickers.rawSnapshot],
-    );
-  }
-
-  const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
-  const submissions = await ctx.request.json({
-    url: submissionsUrl,
-    adapter: "sec-submissions",
-    init: secRequestInit(ctx.secUserAgent),
-  });
-  if (!isFetchJsonResult(submissions)) {
-    return emptyOutput([submissions], [tickers.rawSnapshot]);
-  }
-
-  const tenK = selectLatestFilingByForm(submissions.payload, "10-K");
-  const tenQ = selectCurrentQuarterlyFiling(submissions.payload, tenK);
-  const fpiForms = detectForeignPrivateIssuerForms(submissions.payload);
+  const tenK = selectLatestFilingByForm(submissionsPayload, "10-K");
+  const tenQ = selectCurrentQuarterlyFiling(submissionsPayload, tenK);
+  const fpiForms = detectForeignPrivateIssuerForms(submissionsPayload);
   const sixKs =
     tenK === undefined && tenQ === undefined && ctx.earningsEventDate !== undefined
-      ? selectRecentEarningsSixKs(submissions.payload, ctx.fetchedAt)
+      ? selectRecentEarningsSixKs(submissionsPayload, ctx.fetchedAt)
       : [];
 
   if (tenK === undefined && tenQ === undefined && sixKs.length === 0) {
@@ -690,14 +713,10 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
           evidenceQualityImpact: "core-cap",
         }),
       ],
-      [tickers.rawSnapshot, submissions.rawSnapshot],
+      sharedRawSnapshots,
     );
   }
 
-  const sharedRawSnapshots: readonly RawSourceSnapshot[] = [
-    tickers.rawSnapshot,
-    submissions.rawSnapshot,
-  ];
   const sources: Source[] = [];
   const items: ExtendedEvidenceItem[] = [];
   const gaps: SourceGap[] =
@@ -723,7 +742,7 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const eightKs =
     newestPeriodicFilingDate === undefined
       ? []
-      : selectRecentMaterialEightKs(submissions.payload, newestPeriodicFilingDate, ctx.fetchedAt);
+      : selectRecentMaterialEightKs(submissionsPayload, newestPeriodicFilingDate, ctx.fetchedAt);
 
   const filingResults = await Promise.all(
     [tenK, tenQ, ...eightKs, ...sixKs].flatMap((filing) =>

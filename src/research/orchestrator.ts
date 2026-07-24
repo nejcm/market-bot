@@ -92,6 +92,8 @@ import {
 } from "./financial-table-extraction-phase";
 import type { FinancialTablePacket } from "../sources/extended-evidence/untagged-financial-tables-contract";
 import { FINANCIAL_TABLE_SEMANTIC_FIELDS } from "../sources/extended-evidence/untagged-financial-table-validation";
+import { buildDeepEquityEvidenceBundle, buildDeepEquityModelPacket } from "../deep-equity/evidence";
+import type { DeepEquityEvidenceBundleV1, DeepEquityModelPacket } from "../deep-equity/types";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -126,6 +128,8 @@ export interface RunResearchJobResult {
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly marketUpdateMovers?: readonly Mover[];
+  readonly deepEquityEvidenceBundle?: DeepEquityEvidenceBundleV1;
+  readonly deepEquityModelPacket?: DeepEquityModelPacket;
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
@@ -615,6 +619,22 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const sourcePlanning = assessSourcePlan(frozenSourcePlan, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };
+  const deepEquityEvidenceBundle =
+    isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep"
+      ? buildDeepEquityEvidenceBundle({
+          symbol: command.symbol,
+          analysisAsOf: generatedAt,
+          collectedSources,
+          historicalContext,
+          sourcePlan: sourcePlanning.sourcePlan,
+          evidenceLanes: sourcePlanning.evidenceLanes,
+          sourceLedger: sourcePlanning.sourceLedger,
+        })
+      : undefined;
+  const deepEquityModelPacket =
+    deepEquityEvidenceBundle === undefined
+      ? undefined
+      : buildDeepEquityModelPacket(deepEquityEvidenceBundle);
   const plannedStages = plannedResearchStages(command);
   const playbookSelection = await runPlaybookSelection(
     jobInput,
@@ -779,6 +799,8 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(spotlightCandidates !== undefined ? { spotlightCandidates } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
     ...(marketUpdateMovers !== undefined ? { marketUpdateMovers } : {}),
+    ...(deepEquityEvidenceBundle !== undefined ? { deepEquityEvidenceBundle } : {}),
+    ...(deepEquityModelPacket !== undefined ? { deepEquityModelPacket } : {}),
   };
 }
 

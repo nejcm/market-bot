@@ -19,16 +19,15 @@ function emptyExtendedEvidence(): ExtendedEvidenceCollectionResult {
   return { rawSnapshots: [], sources: [], sourceGaps: [] };
 }
 
-async function collectProviderEvidence(
+export function providerResultToExtendedEvidence(
   ctx: CollectContext,
   assetClass: AssetClass,
-  provider: ProviderCollector,
-): Promise<ExtendedEvidenceCollectionResult> {
+  result: Awaited<ReturnType<ProviderCollector>>,
+): ExtendedEvidenceCollectionResult {
   if (!isInstrumentCommand(ctx.command)) {
     return emptyExtendedEvidence();
   }
 
-  const result = await provider(ctx);
   const gaps = result.gaps.map(extendedEvidenceGap);
   const extendedEvidence: ExtendedEvidence = {
     instrument: { symbol: ctx.command.symbol, assetClass },
@@ -41,6 +40,14 @@ async function collectProviderEvidence(
     extendedEvidence,
     sourceGaps: gaps,
   };
+}
+
+async function collectProviderEvidence(
+  ctx: CollectContext,
+  assetClass: AssetClass,
+  provider: ProviderCollector,
+): Promise<ExtendedEvidenceCollectionResult> {
+  return providerResultToExtendedEvidence(ctx, assetClass, await provider(ctx));
 }
 
 export function createProviderExtendedEvidenceAdapter(

@@ -1851,12 +1851,12 @@
     },
     "sourceFunnel": {
       "rawSnapshots": {
-        "total": 23,
+        "total": 18,
         "byAdapter": {
           "yahoo-ticker": 1,
           "yahoo-regime": 1,
           "yahoo-news": 1,
-          "sec-tickers": 6,
+          "sec-tickers": 1,
           "sec-companyfacts": 6,
           "sec-submissions": 6,
           "yahoo-valuation-peers": 1,

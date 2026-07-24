@@ -13,6 +13,7 @@ import {
   resolveResearchSubject,
   type ResolvedResearchSubject,
 } from "./research-subject-identity";
+import { deepEquityRecipeLanes } from "../deep-equity/acquisition-recipe";
 
 function normalizedSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
@@ -630,8 +631,16 @@ export function buildSourcePlan(
 ): SourcePlanArtifactV2 {
   const normalizedCommand = normalizeResearchCommandDepth(command);
   const subject = resolvedSubject ?? resolveResearchSubject(normalizedCommand);
-  const planned = LANE_DEFINITIONS.filter((definition) =>
-    definition.applies(normalizedCommand, subject),
+  const deepEquityLanes =
+    isInstrumentCommand(normalizedCommand) &&
+    normalizedCommand.assetClass === "equity" &&
+    normalizedCommand.depth === "deep"
+      ? deepEquityRecipeLanes()
+      : undefined;
+  const planned = LANE_DEFINITIONS.filter(
+    (definition) =>
+      (deepEquityLanes === undefined || deepEquityLanes.has(definition.lane)) &&
+      definition.applies(normalizedCommand, subject),
   );
   return {
     version: 2,

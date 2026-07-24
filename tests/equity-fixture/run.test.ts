@@ -78,6 +78,35 @@ describe("static equity run fixtures", () => {
       if (name === "equity-analysis-estimated-suppressed") {
         assertEstimatedEarningsSuppressionPath(result, modelRequests, modelOutputs);
       }
+      if (fixture.meta.argv.includes("--deep")) {
+        expect(result.deepEquityEvidenceBundle).toMatchObject({
+          schemaVersion: 1,
+          run: { symbol: expect.any(String), analysisAsOf: fixture.meta.now },
+          evidence: {
+            marketSnapshots: expect.any(Array),
+            supplementalMarketSnapshots: expect.any(Array),
+            newsSources: expect.any(Array),
+            extendedSources: expect.any(Array),
+          },
+          derived: expect.any(Object),
+          governance: {
+            sourceGaps: expect.any(Array),
+            sourcePlan: expect.any(Object),
+            evidenceLanes: expect.any(Object),
+            sourceLedger: expect.any(Object),
+          },
+          context: { historicalContext: expect.any(Object) },
+        });
+        expect(result.deepEquityModelPacket).toMatchObject({
+          schemaVersion: 1,
+          canonicalFacts: expect.any(Object),
+          evidenceItems: expect.any(Array),
+          sources: expect.any(Array),
+          gaps: expect.any(Array),
+        });
+        expect(JSON.stringify(result.deepEquityEvidenceBundle)).not.toContain("rawSnapshots");
+        expect(JSON.stringify(result.deepEquityModelPacket)).not.toContain("rawSnapshots");
+      }
       expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(
         await readGoldenOutput(name),
       );

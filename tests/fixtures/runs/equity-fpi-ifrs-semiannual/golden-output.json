@@ -1057,14 +1057,14 @@
     },
     "sourceFunnel": {
       "rawSnapshots": {
-        "total": 9,
+        "total": 7,
         "byAdapter": {
           "yahoo-ticker": 1,
           "yahoo-regime": 1,
           "yahoo-news": 1,
-          "sec-tickers": 2,
+          "sec-tickers": 1,
           "sec-companyfacts": 1,
-          "sec-submissions": 2,
+          "sec-submissions": 1,
           "yahoo-verified-chart": 1
         }
       },

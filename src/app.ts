@@ -28,12 +28,14 @@ import {
 } from "./history/artifacts";
 import { rebuildRunArtifactIndex, writeThroughRunArtifactIndex } from "./run-artifact-index";
 import { rebuildRunArtifactIndexIfStale } from "./run-artifact-index-repair";
+import { runDeepEquity } from "./deep-equity";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
   readonly runAlphaSearchWorkflow?: typeof runAlphaSearchWorkflow;
   readonly collectSources?: typeof collectSources;
   readonly persistResearchJob?: typeof persistResearchJob;
+  readonly runDeepEquity?: typeof runDeepEquity;
   readonly runScorePass?: typeof runScorePass;
   readonly buildAndWriteCalibration?: typeof buildAndWriteCalibration;
   readonly rebuildHistoryArtifacts?: typeof rebuildHistoryArtifacts;
@@ -282,38 +284,31 @@ export async function runCli(
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
   emitUnresolvedResearchSubjectGuidance(resolvedSubject);
   const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
-  // Freeze the Source Plan before this run's source collection begins so it
-  // Records pre-collection intent (ADR 0004); collection outcomes cannot
-  // Change it. The pre-run score pass above is scoring-subsystem I/O, not
-  // This run's collection.
-  const sourcePlan = buildSourcePlan(researchCommand, now().toISOString(), resolvedSubject);
-  const collectedSources = await (dependencies.collectSources ?? collectSources)(
-    researchCommand,
-    config.sourceOptions,
-    {
-      ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
-      peerUniverse: {
-        provider,
-        model: config.quickModel,
-        cachePath:
-          config.sourceOptions.peerUniverseLearnedPath ??
-          `${config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
-        ...(config.sourceOptions.peerUniverseTtlDays !== undefined
-          ? { ttlDays: config.sourceOptions.peerUniverseTtlDays }
-          : {}),
-      },
-    },
-  );
-
   const invokedAt = now();
-  const result = await (dependencies.persistResearchJob ?? persistResearchJob)({
-    command: researchCommand,
-    config,
-    provider,
-    collectedSources,
-    sourcePlan,
-    now: invokedAt,
-  });
+  const result =
+    researchCommand.jobType === "equity" &&
+    researchCommand.assetClass === "equity" &&
+    researchCommand.depth === "deep"
+      ? await (dependencies.runDeepEquity ?? runDeepEquity)(
+          { command: researchCommand, config, now: invokedAt },
+          {
+            provider,
+            ...(dependencies.collectSources !== undefined
+              ? { collectSources: dependencies.collectSources }
+              : {}),
+            ...(dependencies.persistResearchJob !== undefined
+              ? { persistResearchJob: dependencies.persistResearchJob }
+              : {}),
+          },
+        )
+      : await runStandardResearch({
+          command: researchCommand,
+          config,
+          provider,
+          ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
+          invokedAt,
+          dependencies,
+        });
 
   const scoreResult = await runScore(
     config.dataDir,
@@ -341,6 +336,46 @@ export async function runCli(
   emitRunQualitySummary(() => renderRunAnalyticsConsole(result.analytics));
 
   return result.artifacts.runDir;
+}
+
+async function runStandardResearch(input: {
+  readonly command: ResearchCommand;
+  readonly config: AppConfig;
+  readonly provider: ModelProvider;
+  readonly resolvedSubject?: ResolvedResearchSubject;
+  readonly invokedAt: Date;
+  readonly dependencies: RunCliDependencies;
+}) {
+  const sourcePlan = buildSourcePlan(
+    input.command,
+    input.invokedAt.toISOString(),
+    input.resolvedSubject,
+  );
+  const collectedSources = await (input.dependencies.collectSources ?? collectSources)(
+    input.command,
+    input.config.sourceOptions,
+    {
+      ...(input.resolvedSubject !== undefined ? { resolvedSubject: input.resolvedSubject } : {}),
+      peerUniverse: {
+        provider: input.provider,
+        model: input.config.quickModel,
+        cachePath:
+          input.config.sourceOptions.peerUniverseLearnedPath ??
+          `${input.config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
+        ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
+          ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
+          : {}),
+      },
+    },
+  );
+  return (input.dependencies.persistResearchJob ?? persistResearchJob)({
+    command: input.command,
+    config: input.config,
+    provider: input.provider,
+    collectedSources,
+    sourcePlan,
+    now: input.invokedAt,
+  });
 }
 
 function asResearchCommand(command: ReturnType<typeof parseArgs>): ResearchCommand {

@@ -20,7 +20,8 @@ consumer completion and subsequent-financing bridge; amended 2026-07-23: officia
 date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date authority; amended
 2026-07-23: Phase 6 equity dimension evidence contracts; amended 2026-07-23: operating-KPI issuer
 registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended 2026-07-24:
-entitlement-adaptive institutional-ownership context)
+entitlement-adaptive institutional-ownership context; amended 2026-07-24: deterministic deep-equity
+acquisition recipe and provider packets)
 
 ## Context
 
@@ -118,9 +119,29 @@ without pretending the project has a global security master.
 - Instrument runs may add normalized Extended Evidence without changing the core report schema.
   Current categories include regulatory filings, events, macro, options IV, on-chain metrics,
   financial lenses, business framework, valuation, earnings setup, and Web Subject Profile.
-- Deep US-equity runs may execute a bounded Evidence Request Loop before analysis. Requests use
-  enumerated tools, subject validation, source-unit budgets, and the shared source request seam;
-  they do not use provider-native model tools.
+- Deep equity acquisition follows one explicit recipe: Yahoo target quote and identity, parallel
+  provider packets, dependent peer and web acquisition, deterministic derivations, then one
+  finalized in-memory `DeepEquityEvidenceBundleV1`. The same recipe supplies the frozen Source Plan
+  lanes and executable acquisition task keys; it is not a generic task graph.
+- A deep US-equity `SecTargetPacket` fetches target CIK mapping, company facts, and submissions once,
+  then retains SIC plus eligible 10-K, newer 10-Q, and recent 8-K/6-K filing packets. Statement,
+  history, lens, financing, ownership, valuation, and framework derivations consume the shared
+  packet without independent target retries. Base-packet failure suppresses those dependents with
+  typed gaps; the shared request executor still owns SEC retries.
+- A configured deep-equity `TradierPacket` fetches expirations once, unions event and
+  7/30/60/90-day expirations, and fetches each unique chain once. Thirty-day IV, earnings implied
+  move, and term structure derive from that packet deterministically; no model decides whether to
+  request term structure.
+- Each valuation peer is collected as one packet containing its Yahoo quote and SEC facts,
+  submissions, and SIC. All peer packets reuse the target packet's SEC ticker map.
+- Adaptive deep-equity web acquisition uses one planning model call followed by one parallel
+  search/fetch batch. Exa/Firecrawl fallback, sanitization, relevance, dedupe, profile reuse and
+  extraction, and Business Framework reconciliation retain their existing authority.
+- The external deep-equity workflow projects one `DeepEquityModelPacket` from the finalized bundle.
+  It carries canonical facts, derived views, source IDs and metadata, dates, units, and gaps; raw
+  snapshots and duplicated narrative projections remain excluded. Phase 2 does not change the
+  legacy reasoning-stage sequence or prompt projections; that model-pipeline cutover remains gated
+  to Phase 4.
 - Every equity instrument run attempts a Verified Market Snapshot from Yahoo OHLCV through the
   cached request seam. It computes the locked indicator set, adds a citeable source, and persists
   the normalized snapshot. Failure emits a core evidence gap; Massive closes are not an acceptable
@@ -328,7 +349,12 @@ without pretending the project has a global security master.
 ## Implementation validation
 
 - `src/research/evidence-request-loop.ts` and `src/sources/evidence-request-tools.ts` enforce the
-  bounded tool flow.
+  compatibility audit/merge boundary for deterministic SEC/Tradier packet outputs.
+- `src/deep-equity/index.ts`, `acquisition-recipe.ts`, and `evidence.ts` implement the external
+  workflow, explicit recipe, in-memory bundle, and
+  single model packet.
+- `src/sources/sec-target-packet.ts`, `tradier-packet.ts`, and
+  `extended-evidence/valuation-comps.ts` implement target, options, and peer packet acquisition.
 - `src/sources/verified-market-snapshot.ts` and `src/sources/indicators.ts` implement snapshots.
 - `src/sources/extended-evidence/` implements lenses, valuation, framework, and reconciliation.
 - `src/sources/extended-evidence/financial-statement*.ts` implements the canonical structured

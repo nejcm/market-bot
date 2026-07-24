@@ -227,8 +227,10 @@ describe("collectSources", () => {
       VRT: 5,
     };
     let nvdaCompanyFactsRequests = 0;
+    const recordedRequests: string[] = [];
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
+      recordedRequests.push(url);
       if (url.includes("/v7/finance/quote")) {
         const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
         return jsonResponse({
@@ -299,6 +301,20 @@ describe("collectSources", () => {
       sourceId: "extended-sec-edgar-nvda-fundamentals",
     });
     expect(nvdaCompanyFactsRequests).toBe(1);
+    expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(1);
+    for (const cik of Object.values(cikBySymbol)) {
+      const paddedCik = String(cik).padStart(10, "0");
+      expect(
+        recordedRequests.filter((url) => url.includes(`/companyfacts/CIK${paddedCik}.json`)),
+      ).toHaveLength(1);
+      expect(
+        recordedRequests.filter((url) => url.includes(`/submissions/CIK${paddedCik}.json`)),
+      ).toHaveLength(1);
+    }
+    const peerQuoteRequests = recordedRequests.filter((url) =>
+      url.includes("/v7/finance/quote?symbols=AMD%2CAVGO%2CANET%2CVRT"),
+    );
+    expect(peerQuoteRequests).toHaveLength(1);
     expect(
       result.rawSnapshots.filter((snapshot) => snapshot.adapter === "sec-companyfacts"),
     ).toHaveLength(5);

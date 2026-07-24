@@ -2110,13 +2110,13 @@
     },
     "sourceFunnel": {
       "rawSnapshots": {
-        "total": 35,
+        "total": 30,
         "byAdapter": {
           "yahoo-ticker": 1,
           "yahoo-regime": 1,
           "finnhub-news": 1,
           "yahoo-news": 1,
-          "sec-tickers": 6,
+          "sec-tickers": 1,
           "sec-companyfacts": 6,
           "sec-submissions": 6,
           "finnhub-events-1": 1,

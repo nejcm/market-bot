@@ -13,15 +13,15 @@ legacy `daily` and `weekly` for artifact/history compatibility, but the public
 CLI parser normalizes new `daily` / `weekly` invocations into canonical
 `market-overview` commands with a `legacyAlias`.
 
-| Run Type          | Asset Handling         | Depth Flag | Instrument | Web Gather | Evidence Request | Synthesis Report |
-| ----------------- | ---------------------- | ---------- | ---------- | ---------- | ---------------- | ---------------- |
-| `market-overview` | `--asset` required     | yes        | no         | no         | no               | yes              |
-| `daily`           | legacy alias           | yes        | no         | no         | no               | yes              |
-| `weekly`          | legacy alias           | yes        | no         | no         | no               | yes              |
-| `equity`          | implied equity         | yes        | yes        | yes        | yes              | yes              |
-| `crypto`          | implied crypto         | yes        | yes        | yes        | no               | yes              |
-| `alpha-search`    | fixed `--asset equity` | yes        | no         | no         | no               | no               |
-| `research`        | implied equity         | yes        | no         | yes        | no               | yes              |
+| Run Type          | Asset Handling         | Depth Flag | Instrument | Web Gather | Deep Packets | Synthesis Report |
+| ----------------- | ---------------------- | ---------- | ---------- | ---------- | ------------ | ---------------- |
+| `market-overview` | `--asset` required     | yes        | no         | no         | no           | yes              |
+| `daily`           | legacy alias           | yes        | no         | no         | no           | yes              |
+| `weekly`          | legacy alias           | yes        | no         | no         | no           | yes              |
+| `equity`          | implied equity         | yes        | yes        | yes        | yes          | yes              |
+| `crypto`          | implied crypto         | yes        | yes        | yes        | no           | yes              |
+| `alpha-search`    | fixed `--asset equity` | yes        | no         | no         | no           | no               |
+| `research`        | implied equity         | yes        | no         | yes        | no           | yes              |
 
 Operational commands (`score`, `calibration`, `cache-prune`, `provider-health`,
 `history-*`, `index-rebuild`) are not research run types.
@@ -76,7 +76,7 @@ For synthesis-report runs, `runResearchJob` in
 1. Build initial `ResearchContext` (market regime, depth profile, calibration
    context).
 2. Load historical context.
-3. Run the **evidence-request loop** (deep US equity tickers only).
+3. Merge deterministic **SEC and Tradier packets** (deep equity tickers only).
 4. Run the **web-gather loop** (all thematic research runs, plus deep runs whose
    run type supports web gather, Exa key present, budgets positive).
 5. Run **web-subject-profile extraction** on gathered web sources.
@@ -255,19 +255,22 @@ Run key `equity` &rarr; `INSTRUMENT_RUN_PARAMS` profile in
 - Verified market snapshot (Yahoo OHLCV + indicators) for equity tickers.
 - Canonical instrument identity.
 - Earnings setup + implied move (deep only).
-- Deep equity tickers also enable the **evidence-request loop** and
-  **peer-universe fallback** for valuation comps.
+- Deep equity tickers also enable deterministic **target SEC**, **Tradier**, and
+  **peer packets**, plus peer-universe fallback for valuation comps.
 
-### Evidence-Request Loop
+### Deterministic Deep-Equity Packets
 
-Enabled only for deep `equity` runs when budgets are positive. SEC filing
-retrieval (latest 10-K and, when metadata lists one after the 10-K, latest
-10-Q) is deterministic and runs before the model-driven loop. The optional
-model-requested tool is:
+Enabled only for deep `equity` runs. The target SEC packet fetches the CIK map,
+company facts, and submissions once, then retrieves the latest 10-K, a newer
+10-Q, and eligible recent 8-K/6-K filings. Dependent statement, history, lens,
+financing, ownership, valuation, and framework derivations consume that shared
+packet and are suppressed with typed gaps when it fails.
 
-- `tradier_iv_term_structure`
-
-Only available for US listings. Requests must match the run symbol.
+When Tradier and the retained evidence-request compatibility limits are
+configured, one Tradier packet fetches expirations once, fetches each unique
+event/7/30/60/90-day chain once, and derives 30-day IV, event implied move, and
+term structure without a model decision. One Yahoo/SEC packet is collected per
+valuation peer. US-only packets short-circuit for international listings.
 
 ### Web-Gather Loop
 

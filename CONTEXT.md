@@ -224,7 +224,7 @@ Market-level evidence that enriches a Market Overview without targeting an Instr
 
 ## Domain Playbook
 
-Checked-in guidance selected after collection and the Evidence Request Loop. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
+Checked-in guidance selected after collection and any deterministic deep-equity packet merge. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
 
 ## Mover
 
@@ -284,7 +284,7 @@ Optional citeable provider that does not drive mover ranking, regime labels, or 
 
 ## Source Gap
 
-Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and `evidence-request` gaps remain separate because their loops differ, while both flow through Source Plan lanes.
+Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
 
 ## Source Plan
 

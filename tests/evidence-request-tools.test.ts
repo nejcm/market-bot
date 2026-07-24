@@ -223,6 +223,45 @@ describe("SEC latest filing evidence tool", () => {
     ]);
   });
 
+  test("retains recent 6-K text for an upcoming provider event", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        earningsEventDate: "2026-05-15",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(
+                  adapter,
+                  secSubmissionsPayload(["20-F", "6-K"], ["a20f.htm", "a6k.htm"]),
+                ),
+          text: async ({ adapter }) =>
+            textResult(
+              adapter,
+              "Apple Inc. will release its quarterly financial results after market close on May 15, 2026. Additional filing context follows for the announced event.",
+            ),
+        }),
+      }),
+    );
+
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]).toMatchObject({
+      title: "AAPL SEC 6-K",
+      provider: "sec-edgar",
+      symbol: "AAPL",
+    });
+    expect(result.sources[0]?.snippet).toContain("May 15, 2026");
+    expect(result.items[0]?.metrics).toMatchObject({ form: "6-K" });
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("recent 6-K text is retained for event-date confirmation"),
+        cause: "unsupported-coverage",
+        evidenceQualityImpact: "core-cap",
+      }),
+    ]);
+  });
+
   test("identifies amended foreign private issuer forms", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",

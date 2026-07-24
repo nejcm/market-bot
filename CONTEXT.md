@@ -224,7 +224,7 @@ Market-level evidence that enriches a Market Overview without targeting an Instr
 
 ## Domain Playbook
 
-Checked-in guidance selected after collection and the Evidence Request Loop. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
+Checked-in guidance selected after collection and any deterministic deep-equity packet merge. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
 
 ## Mover
 
@@ -284,7 +284,7 @@ Optional citeable provider that does not drive mover ranking, regime labels, or 
 
 ## Source Gap
 
-Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and `evidence-request` gaps remain separate because their loops differ, while both flow through Source Plan lanes.
+Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
 
 ## Source Plan
 
@@ -334,6 +334,14 @@ Sourced issuer operating and financial facts used as Extended Evidence.
 
 Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, and supportability. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
 
+## Valuation Workbench
+
+Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF with N/M and suppression reasons, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value.
+
+## Reverse DCF Input Sensitivity
+
+An isolated versioned equity sidecar that solves the five-year FCF growth input across 8%–16% discount rates and 0%–4% terminal-growth assumptions. It discloses reconciled-TTM starting FCF, observed enterprise value, input dates, currencies, sources, and the five-year horizon. Missing, non-positive, or currency-incompatible inputs suppress the artifact. Its research-only boundary is defined by [ADR 0001](./docs/adr/0001-research-only-boundary.md).
+
 ## Financial Lens Evidence
 
 Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
@@ -352,7 +360,7 @@ Typed fundamentals captured once from normalized Yahoo quotes and emitted as `ya
 
 ## Earnings Setup
 
-For `equity --deep`, deterministic event context when Finnhub reports earnings within 30 days: metadata, optional Tradier implied move, sourced analytical bullets, and gaps. Earnings Predictions use post-event trading-day horizons and `earningsReturn`; IV crush is deferred.
+For `equity --deep`, deterministic event context when Finnhub reports earnings within 30 days: metadata, event-date certainty, optional Tradier implied move, sourced analytical bullets, and gaps. Finnhub dates remain `provider-estimated`; direct issuer IR/press-release or explicit-future SEC 8-K/6-K evidence can establish `issuer-confirmed`, and only a direct official exchange source can establish `exchange-confirmed`. Earnings Predictions use post-event trading-day horizons and `earningsReturn` only for confirmed dates; estimated setups remain contextual. IV crush is deferred.
 
 ## Scored Catalyst
 

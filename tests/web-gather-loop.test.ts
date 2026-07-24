@@ -15,6 +15,22 @@ const command: ResearchCommand = {
   depth: "deep",
 };
 
+const lowPriorAcceptancePolicy = {
+  version: 1,
+  mode: "reused-profile-after-low-utilization",
+  sourceRunDirName: "prior-aapl",
+  priorUtilizationLevel: "low",
+  priorUtilizationRatio: 0.2,
+  implicitPerQueryAcceptanceCap: 2,
+} as const;
+
+const defaultReuseAcceptancePolicy = {
+  version: 1,
+  mode: "reused-profile-default",
+  sourceRunDirName: "prior-aapl",
+  implicitPerQueryAcceptanceCap: 3,
+} as const;
+
 const config: AppConfig = {
   provider: "openai",
   quickModel: "quick-test",
@@ -564,6 +580,7 @@ describe("runWebGatherLoop", () => {
       collectedSources: collectedSources(),
       context,
       reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: recorded.fetch,
       retryDelaysMs: [],
@@ -590,15 +607,16 @@ describe("runWebGatherLoop", () => {
         }),
     });
 
-    expect(recorded.searchNumResults).toEqual([8, 3]);
+    expect(recorded.searchNumResults).toEqual([8, 2]);
     expect(result.audit?.acceptedRequests).toEqual([
       expect.objectContaining({
         args: expect.objectContaining({ numResults: 8 }),
       }),
       expect.objectContaining({
-        args: expect.objectContaining({ numResults: 3 }),
+        args: expect.objectContaining({ numResults: 2 }),
       }),
     ]);
+    expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
   });
 
   test("widens thematic list research without explicit equity words", async () => {
@@ -1024,8 +1042,7 @@ describe("runWebGatherLoop", () => {
     ]);
   });
 
-  test("allows web fetch only for URLs surfaced by prior search", async () => {
-    let round = 0;
+  test("runs deep-equity web acquisition as one planning call and one batch", async () => {
     const contexts: ResearchContext[] = [];
     const result = await runWebGatherLoop({
       command,
@@ -1038,48 +1055,43 @@ describe("runWebGatherLoop", () => {
       fetchImpl: exaFetch,
       retryDelaysMs: [],
       generateRound: async (_sources, roundContext) => {
-        round += 1;
         contexts.push(roundContext);
         return stage({
-          requests:
-            round === 1
-              ? [
-                  {
-                    tool: "web_search",
-                    args: { query: "AAPL business model", searchType: "background" },
-                    rationale: "find relevant urls",
-                  },
-                ]
-              : [
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://example.com/aapl-business" },
-                    rationale: "fetch full result",
-                  },
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://evil.example/not-surfaced" },
-                    rationale: "bad url",
-                  },
-                ],
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL business model", searchType: "background" },
+              rationale: "find relevant urls",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business" },
+              rationale: "fetch full result",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://evil.example/not-surfaced" },
+              rationale: "bad url",
+            },
+          ],
         });
       },
     });
 
-    expect(contexts[1]?.webGather?.surfacedUrls).toContain("https://example.com/aapl-business");
-    expect(result.audit?.acceptedRequests).toHaveLength(2);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]?.webGather?.maxRounds).toBe(1);
+    expect(result.stageOutputs).toHaveLength(1);
+    expect(result.audit?.rounds).toBe(1);
+    expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual([
+      "web_search",
+      "web_fetch",
+    ]);
     expect(result.audit?.rejectedRequests).toEqual([
       expect.objectContaining({
         tool: "web_fetch",
         reason: "web_fetch url was not returned by web_search in this run",
       }),
     ]);
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        source: "web-gather",
-        message: "a model web fetch was rejected because the site is not on the fetch allowlist",
-      }),
-    );
     expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toEqual([
       "exa-search",
       "exa-contents",
@@ -1087,7 +1099,6 @@ describe("runWebGatherLoop", () => {
   });
 
   test("rejects duplicate web gather requests after normalization", async () => {
-    let round = 0;
     const result = await runWebGatherLoop({
       command,
       config,
@@ -1098,40 +1109,34 @@ describe("runWebGatherLoop", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: exaFetch,
       retryDelaysMs: [],
-      generateRound: async () => {
-        round += 1;
-        return stage({
-          requests:
-            round === 1
-              ? [
-                  {
-                    tool: "web_search",
-                    args: { query: "Apple business model", searchType: "background" },
-                    rationale: "find relevant urls",
-                  },
-                  {
-                    tool: "web_search",
-                    args: {
-                      query: "  apple   BUSINESS   model  ",
-                      searchType: "background",
-                    },
-                    rationale: "duplicate query",
-                  },
-                ]
-              : [
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://example.com/aapl-business" },
-                    rationale: "fetch surfaced url",
-                  },
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://example.com/aapl-business?utm_source=feed" },
-                    rationale: "duplicate canonical url",
-                  },
-                ],
-        });
-      },
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model", searchType: "background" },
+              rationale: "find relevant urls",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "  apple   BUSINESS   model  ",
+                searchType: "background",
+              },
+              rationale: "duplicate query",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business" },
+              rationale: "fetch surfaced url",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business?utm_source=feed" },
+              rationale: "duplicate canonical url",
+            },
+          ],
+        }),
     });
 
     expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual([
@@ -1148,18 +1153,11 @@ describe("runWebGatherLoop", () => {
         reason: "duplicate web gather request",
       }),
     ]);
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        source: "web-gather",
-        message: "a repeated model web request was skipped",
-      }),
-    );
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        source: "web-gather",
-        message: "a repeated model web request was skipped",
-      }),
-    );
+    expect(
+      result.collectedSources.sourceGaps.filter(
+        (gap) => gap.message === "a repeated model web request was skipped",
+      ),
+    ).toHaveLength(2);
   });
 
   test("rejects web search when asymmetric source budget is exhausted", async () => {
@@ -1599,6 +1597,7 @@ describe("runWebGatherLoop", () => {
         }),
         context,
         reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        acceptancePolicy: defaultReuseAcceptancePolicy,
         now: new Date("2026-05-19T00:00:00.000Z"),
         fetchImpl: recording.fetch,
         retryDelaysMs: [],
@@ -1622,6 +1621,48 @@ describe("runWebGatherLoop", () => {
           args: expect.objectContaining({ searchType, numResults: 3 }),
         }),
       ]);
+      expect(result.audit?.acceptancePolicy).toEqual(defaultReuseAcceptancePolicy);
+    });
+  }
+
+  for (const searchType of narrowedSearchTypes) {
+    test(`narrows the default ingestion to 2 after low prior utilization for ${searchType} searches`, async () => {
+      const recording = recordingExaFetch();
+      const result = await runWebGatherLoop({
+        command,
+        config: {
+          ...config,
+          webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+        },
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        }),
+        context,
+        reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        acceptancePolicy: lowPriorAcceptancePolicy,
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        fetchImpl: recording.fetch,
+        retryDelaysMs: [],
+        generateRound: async () =>
+          stage({
+            requests: [
+              {
+                tool: "web_search",
+                args: { query: "AAPL Apple recent product news", searchType },
+                rationale: "recent material developments",
+              },
+            ],
+          }),
+      });
+
+      expect(recording.searchNumResults).toEqual([2]);
+      expect(result.audit?.acceptedRequests).toEqual([
+        expect.objectContaining({
+          tool: "web_search",
+          args: expect.objectContaining({ searchType, numResults: 2 }),
+        }),
+      ]);
+      expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
     });
   }
 
@@ -1635,6 +1676,7 @@ describe("runWebGatherLoop", () => {
       }),
       context,
       reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: recording.fetch,
       retryDelaysMs: [],
@@ -1657,6 +1699,7 @@ describe("runWebGatherLoop", () => {
         args: expect.objectContaining({ numResults: 6 }),
       }),
     ]);
+    expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
   });
 
   test("leaves the default ingestion at 5 without reused profile coverage", async () => {

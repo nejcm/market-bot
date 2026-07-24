@@ -1,4 +1,4 @@
-import type { SourceGap } from "../../domain/types";
+import type { EarningsEventDateStatus, SourceGap } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../../guards";
 import { tradierRequestInit } from "../tradier";
@@ -15,6 +15,8 @@ export interface EarningsEvent {
   readonly symbol: string;
   readonly date: string;
   readonly timing: EarningsEventTiming;
+  readonly eventDateStatus?: EarningsEventDateStatus;
+  /** Legacy alias retained while Phase 0 artifacts remain the comparison baseline. */
   readonly dateStatus: "provider-estimated";
   readonly epsEstimate?: number;
   readonly revenueEstimate?: number;
@@ -80,6 +82,7 @@ export function parseNearEarningsEvent(
         symbol,
         date,
         timing: parseFinnhubTiming(record.hour),
+        eventDateStatus: "provider-estimated",
         dateStatus: "provider-estimated",
         ...(epsEstimate !== undefined ? { epsEstimate } : {}),
         ...(revenueEstimate !== undefined ? { revenueEstimate } : {}),

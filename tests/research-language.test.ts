@@ -122,11 +122,45 @@ describe("violatesResearchOnly", () => {
     "target prices",
     "price target",
     "price targets",
+    "implied price",
+    "implied prices",
+    "intrinsic value",
+    "percentage gap",
+    "% gap",
+    "valuation gap",
+    "implied fair value",
   ]) {
     test(`blocks valuation-certainty wording: "${phrase}"`, () => {
       expect(violatesResearchOnly(phrase)).not.toBeNull();
     });
   }
+
+  for (const text of [
+    "The peer-implied price reference range is a descriptive peer interval.",
+    "The source coverage gap remains open and the observed value is 12.",
+    "The calculation stopped because one or more implied prices are not positive.",
+  ]) {
+    test(`allows descriptive valuation prose: "${text}"`, () => {
+      expect(violatesResearchOnly(text)).toBeNull();
+    });
+  }
+
+  test("allows the sanctioned rendered peer-implied reference-range label", () => {
+    expect(violatesResearchOnly("peer-implied price reference range")).toBeNull();
+  });
+
+  test("blocks a bare peer-implied point price", () => {
+    expect(violatesResearchOnly("The peer-implied price is 125 USD.")).not.toBeNull();
+  });
+
+  test("preserves valuation-certainty and descriptive valuation behavior", () => {
+    expect(violatesResearchOnly("The model states a fair value of 125 USD.")).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "The calculation stopped because one or more implied prices are not positive.",
+      ),
+    ).toBeNull();
+  });
 
   const terseImperatives = [
     "Buy now",

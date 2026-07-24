@@ -27,13 +27,18 @@ orchestration, report assembly, and schema validation.
 Run the focused fixture suite:
 
 ```sh
-bun test tests/equity-fixture-run.test.ts
+bun test tests/equity-fixture/run.test.ts
 ```
 
 Current checked-in fixtures:
 
 - `tests/fixtures/runs/equity-aapl-brief/`
 - `tests/fixtures/runs/equity-aapl-deep/`
+- `tests/fixtures/runs/equity-nbis-deep/`
+- `tests/fixtures/runs/equity-fpi-quarterly/`
+- `tests/fixtures/runs/equity-fpi-ifrs-semiannual/`
+- `tests/fixtures/runs/equity-analysis-comprehensive/`
+- `tests/fixtures/runs/equity-analysis-estimated-suppressed/`
 
 Each fixture contains:
 
@@ -50,7 +55,7 @@ output from the existing cassettes:
 ```sh
 bun run scripts/replay-fixture-run.ts equity-aapl-brief --write-golden
 bun run scripts/replay-fixture-run.ts equity-aapl-deep --write-golden
-bun test tests/equity-fixture-run.test.ts
+bun test tests/equity-fixture/run.test.ts
 ```
 
 `--write-golden` uses replayed data and replayed model output. It should not require live provider
@@ -79,6 +84,33 @@ This writes a run under `data/runs/` and costs live model usage. It requires the
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
+Deep-equity paired eval collects the fixed evidence once, then executes the named `legacy` and
+`simplified` variants:
+
+```sh
+bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired
+bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired --judge-model <model>
+```
+
+The judge defaults to the configured quick model and must differ from every synthesis model. Report
+labels are blinded and randomized before judging. Results are written under `data/evaluations/`.
+Until the simplified pipeline is implemented, paired output records its typed
+`not-implemented` status and does not invoke the judge.
+
+## Deep-equity legacy pipeline baseline
+
+The checked-in `tests/baselines/deep-equity-legacy-pipeline.json` snapshot records model-stage order,
+prompt and provider token estimates, provider URL-shape request counts, normalized files, integrity
+pruning, and valid prediction/citation counts from the unchanged deep-equity fixture cassettes.
+
+```sh
+bun run scripts/deep-equity-pipeline-baseline.ts --check
+bun run scripts/deep-equity-pipeline-baseline.ts --write
+```
+
+Use `--write` only after inspecting an intentional pipeline change. It replays existing cassettes
+and never records provider data.
+
 ## Recording fixtures
 
 Recording creates or replaces fixture cassettes and golden output from a live run:
@@ -96,8 +128,12 @@ fixture until the recorder's secret scan passes and `bun run check` is green.
 ## Fixture maintenance rules
 
 - Keep harness helpers in `tests/support/run-fixtures/`.
-- Keep test assertions in `tests/equity-fixture-run.test.ts`; do not mix test-only behavior into
-  production pipeline code.
+- Treat each fixture's `golden-output.json` as its value coverage. Assertions cover only
+  non-golden checks such as raw snapshots, separate-file hashes, prompt/model behavior, fields
+  without normalized sidecars, and cross-cutting invariants.
+- Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in
+  `tests/support/run-fixtures/assertions.ts`; do not mix test-only behavior into production
+  pipeline code.
 - Do not hand-edit cassettes unless you are removing an obvious secret and will re-record afterward.
 - If `golden-output.json` changes, inspect the diff for real behavior changes before committing.
 - CI should use regression mode only; live eval and recording are manual developer workflows.

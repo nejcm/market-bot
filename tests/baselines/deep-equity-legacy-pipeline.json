@@ -1,0 +1,1102 @@
+{
+  "version": 1,
+  "description": "Regenerable legacy deep-equity pipeline baseline from unchanged fixed-data and LLM cassettes.",
+  "pipelineVariant": "legacy",
+  "fixtures": [
+    {
+      "fixture": "equity-aapl-deep",
+      "modelStages": [
+        {
+          "order": 1,
+          "stage": "playbook-selection",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 6525,
+          "promptTokenEstimate": 1632,
+          "providerTokenEstimate": 10
+        },
+        {
+          "order": 2,
+          "stage": "specialist-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 36627,
+          "promptTokenEstimate": 9157,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 3,
+          "stage": "instrument-evidence-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 36832,
+          "promptTokenEstimate": 9208,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 4,
+          "stage": "market-behavior-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 36830,
+          "promptTokenEstimate": 9208,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 5,
+          "stage": "critique",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 37071,
+          "promptTokenEstimate": 9268,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 6,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 47310,
+          "promptTokenEstimate": 11828,
+          "providerTokenEstimate": 50
+        },
+        {
+          "order": 7,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 17624,
+          "promptTokenEstimate": 4406,
+          "providerTokenEstimate": 50
+        }
+      ],
+      "modelCallTotals": {
+        "callCount": 7,
+        "promptCharacterEstimate": 218819,
+        "promptTokenEstimate": 54707,
+        "providerTokenEstimate": 190
+      },
+      "requestCounts": [
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/api/xbrl/companyfacts/:cik.json",
+          "count": 6
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/submissions/:cik.json",
+          "count": 6
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/finance/search?newsCount&q",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?symbols",
+          "count": 3
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v8/finance/chart/:symbol?events&interval&period1&period2",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/files/company_tickers.json",
+          "count": 1
+        }
+      ],
+      "normalizedFiles": [
+        "business-framework.json",
+        "capital-ownership.json",
+        "evidence-lanes.json",
+        "extended-evidence.json",
+        "extended-sources.json",
+        "financial-lenses.json",
+        "financial-statements.json",
+        "fundamental-history.json",
+        "historical-context.json",
+        "instrument-identity.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "reverse-dcf.json",
+        "source-gaps.json",
+        "source-ledger.json",
+        "source-plan.json",
+        "supplemental-market-snapshots.json",
+        "valuation-comps.json",
+        "valuation-workbench.json",
+        "verified-market-snapshot.json",
+        "web-subject-profile.json"
+      ],
+      "integrityPruning": {
+        "reportIntegrity": "high",
+        "researchQuality": "medium",
+        "prunedItemCount": 0,
+        "advisoryWarningCount": 1,
+        "prunedLocations": []
+      },
+      "validation": {
+        "validPredictionCount": 0,
+        "validCitationReferenceCount": 218,
+        "distinctValidCitedSourceCount": 26,
+        "reportSourceCount": 26
+      }
+    },
+    {
+      "fixture": "equity-nbis-deep",
+      "modelStages": [
+        {
+          "order": 1,
+          "stage": "financial-table-mapping",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 105511,
+          "promptTokenEstimate": 26378,
+          "providerTokenEstimate": 250
+        },
+        {
+          "order": 2,
+          "stage": "playbook-selection",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 5558,
+          "promptTokenEstimate": 1390,
+          "providerTokenEstimate": 10
+        },
+        {
+          "order": 3,
+          "stage": "specialist-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 35578,
+          "promptTokenEstimate": 8895,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 4,
+          "stage": "instrument-evidence-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 35751,
+          "promptTokenEstimate": 8938,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 5,
+          "stage": "market-behavior-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 35749,
+          "promptTokenEstimate": 8938,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 6,
+          "stage": "critique",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 35926,
+          "promptTokenEstimate": 8982,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 7,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 45791,
+          "promptTokenEstimate": 11448,
+          "providerTokenEstimate": 50
+        },
+        {
+          "order": 8,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 16046,
+          "promptTokenEstimate": 4012,
+          "providerTokenEstimate": 50
+        }
+      ],
+      "modelCallTotals": {
+        "callCount": 8,
+        "promptCharacterEstimate": 315910,
+        "promptTokenEstimate": 78981,
+        "providerTokenEstimate": 440
+      },
+      "requestCounts": [
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/api/xbrl/companyfacts/:cik.json",
+          "count": 1
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/submissions/:cik.json",
+          "count": 1
+        },
+        {
+          "provider": "fc.yahoo.com",
+          "method": "GET",
+          "urlShape": "/",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/finance/search?newsCount&q",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/test/getcrumb",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?crumb&symbols",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?symbols",
+          "count": 2
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v8/finance/chart/:symbol?events&interval&period1&period2",
+          "count": 1
+        },
+        {
+          "provider": "www.cboe.com",
+          "method": "GET",
+          "urlShape": "/us/equities/market_statistics/listed_symbols/csv/",
+          "count": 1
+        },
+        {
+          "provider": "www.nasdaqtrader.com",
+          "method": "GET",
+          "urlShape": "/dynamic/SymDir/nasdaqlisted.txt",
+          "count": 1
+        },
+        {
+          "provider": "www.nasdaqtrader.com",
+          "method": "GET",
+          "urlShape": "/dynamic/SymDir/otherlisted.txt",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/Archives/edgar/data/:id/:id/0001104659-26-064092-index.html",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/Archives/edgar/data/:id/:id/nbis-20260331xex99d1.htm",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/Archives/edgar/data/:id/:id/nbis-20260331xex99d2.htm",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/files/company_tickers.json",
+          "count": 1
+        }
+      ],
+      "normalizedFiles": [
+        "business-framework.json",
+        "capital-ownership.json",
+        "evidence-lanes.json",
+        "extended-evidence.json",
+        "extended-sources.json",
+        "financial-lenses.json",
+        "financial-statements.json",
+        "fundamental-history.json",
+        "historical-context.json",
+        "instrument-identity.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "reverse-dcf.json",
+        "source-gaps.json",
+        "source-ledger.json",
+        "source-plan.json",
+        "supplemental-market-snapshots.json",
+        "untagged-financial-statements.json",
+        "valuation-comps.json",
+        "valuation-workbench.json",
+        "verified-market-snapshot.json",
+        "web-subject-profile.json"
+      ],
+      "integrityPruning": {
+        "reportIntegrity": "high",
+        "researchQuality": "medium",
+        "prunedItemCount": 0,
+        "advisoryWarningCount": 0,
+        "prunedLocations": []
+      },
+      "validation": {
+        "validPredictionCount": 0,
+        "validCitationReferenceCount": 60,
+        "distinctValidCitedSourceCount": 10,
+        "reportSourceCount": 19
+      }
+    },
+    {
+      "fixture": "equity-fpi-quarterly",
+      "modelStages": [
+        {
+          "order": 1,
+          "stage": "playbook-selection",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 5283,
+          "promptTokenEstimate": 1321,
+          "providerTokenEstimate": 10
+        },
+        {
+          "order": 2,
+          "stage": "specialist-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27435,
+          "promptTokenEstimate": 6859,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 3,
+          "stage": "instrument-evidence-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27608,
+          "promptTokenEstimate": 6902,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 4,
+          "stage": "market-behavior-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27606,
+          "promptTokenEstimate": 6902,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 5,
+          "stage": "critique",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27783,
+          "promptTokenEstimate": 6946,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 6,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 37453,
+          "promptTokenEstimate": 9364,
+          "providerTokenEstimate": 50
+        },
+        {
+          "order": 7,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 12925,
+          "promptTokenEstimate": 3232,
+          "providerTokenEstimate": 50
+        }
+      ],
+      "modelCallTotals": {
+        "callCount": 7,
+        "promptCharacterEstimate": 166093,
+        "promptTokenEstimate": 41526,
+        "providerTokenEstimate": 190
+      },
+      "requestCounts": [
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/api/xbrl/companyfacts/:cik.json",
+          "count": 1
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/submissions/:cik.json",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/finance/search?newsCount&q",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?symbols",
+          "count": 2
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v8/finance/chart/:symbol?events&interval&period1&period2",
+          "count": 1
+        },
+        {
+          "provider": "www.cboe.com",
+          "method": "GET",
+          "urlShape": "/us/equities/market_statistics/listed_symbols/csv/",
+          "count": 1
+        },
+        {
+          "provider": "www.nasdaqtrader.com",
+          "method": "GET",
+          "urlShape": "/dynamic/SymDir/nasdaqlisted.txt",
+          "count": 1
+        },
+        {
+          "provider": "www.nasdaqtrader.com",
+          "method": "GET",
+          "urlShape": "/dynamic/SymDir/otherlisted.txt",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/files/company_tickers.json",
+          "count": 1
+        }
+      ],
+      "normalizedFiles": [
+        "business-framework.json",
+        "capital-ownership.json",
+        "evidence-lanes.json",
+        "extended-evidence.json",
+        "extended-sources.json",
+        "financial-lenses.json",
+        "financial-statements.json",
+        "fundamental-history.json",
+        "historical-context.json",
+        "instrument-identity.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "reverse-dcf.json",
+        "source-gaps.json",
+        "source-ledger.json",
+        "source-plan.json",
+        "supplemental-market-snapshots.json",
+        "valuation-comps.json",
+        "valuation-workbench.json",
+        "verified-market-snapshot.json",
+        "web-subject-profile.json"
+      ],
+      "integrityPruning": {
+        "reportIntegrity": "high",
+        "researchQuality": "medium",
+        "prunedItemCount": 0,
+        "advisoryWarningCount": 0,
+        "prunedLocations": []
+      },
+      "validation": {
+        "validPredictionCount": 0,
+        "validCitationReferenceCount": 55,
+        "distinctValidCitedSourceCount": 9,
+        "reportSourceCount": 10
+      }
+    },
+    {
+      "fixture": "equity-fpi-ifrs-semiannual",
+      "modelStages": [
+        {
+          "order": 1,
+          "stage": "playbook-selection",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 5297,
+          "promptTokenEstimate": 1325,
+          "providerTokenEstimate": 10
+        },
+        {
+          "order": 2,
+          "stage": "specialist-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27719,
+          "promptTokenEstimate": 6930,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 3,
+          "stage": "instrument-evidence-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27894,
+          "promptTokenEstimate": 6974,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 4,
+          "stage": "market-behavior-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 27892,
+          "promptTokenEstimate": 6973,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 5,
+          "stage": "critique",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 28073,
+          "promptTokenEstimate": 7019,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 6,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 37757,
+          "promptTokenEstimate": 9440,
+          "providerTokenEstimate": 50
+        },
+        {
+          "order": 7,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 12987,
+          "promptTokenEstimate": 3247,
+          "providerTokenEstimate": 50
+        }
+      ],
+      "modelCallTotals": {
+        "callCount": 7,
+        "promptCharacterEstimate": 167619,
+        "promptTokenEstimate": 41908,
+        "providerTokenEstimate": 190
+      },
+      "requestCounts": [
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/api/xbrl/companyfacts/:cik.json",
+          "count": 1
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/submissions/:cik.json",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/finance/search?newsCount&q",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?symbols",
+          "count": 2
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v8/finance/chart/:symbol?events&interval&period1&period2",
+          "count": 1
+        },
+        {
+          "provider": "www.cboe.com",
+          "method": "GET",
+          "urlShape": "/us/equities/market_statistics/listed_symbols/csv/",
+          "count": 1
+        },
+        {
+          "provider": "www.nasdaqtrader.com",
+          "method": "GET",
+          "urlShape": "/dynamic/SymDir/nasdaqlisted.txt",
+          "count": 1
+        },
+        {
+          "provider": "www.nasdaqtrader.com",
+          "method": "GET",
+          "urlShape": "/dynamic/SymDir/otherlisted.txt",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/files/company_tickers.json",
+          "count": 1
+        }
+      ],
+      "normalizedFiles": [
+        "business-framework.json",
+        "capital-ownership.json",
+        "evidence-lanes.json",
+        "extended-evidence.json",
+        "extended-sources.json",
+        "financial-lenses.json",
+        "financial-statements.json",
+        "fundamental-history.json",
+        "historical-context.json",
+        "instrument-identity.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "reverse-dcf.json",
+        "source-gaps.json",
+        "source-ledger.json",
+        "source-plan.json",
+        "supplemental-market-snapshots.json",
+        "valuation-comps.json",
+        "valuation-workbench.json",
+        "verified-market-snapshot.json",
+        "web-subject-profile.json"
+      ],
+      "integrityPruning": {
+        "reportIntegrity": "high",
+        "researchQuality": "medium",
+        "prunedItemCount": 0,
+        "advisoryWarningCount": 0,
+        "prunedLocations": []
+      },
+      "validation": {
+        "validPredictionCount": 0,
+        "validCitationReferenceCount": 55,
+        "distinctValidCitedSourceCount": 9,
+        "reportSourceCount": 10
+      }
+    },
+    {
+      "fixture": "equity-analysis-comprehensive",
+      "modelStages": [
+        {
+          "order": 1,
+          "stage": "playbook-selection",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 5782,
+          "promptTokenEstimate": 1446,
+          "providerTokenEstimate": 10
+        },
+        {
+          "order": 2,
+          "stage": "specialist-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 37911,
+          "promptTokenEstimate": 9478,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 3,
+          "stage": "instrument-evidence-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 38116,
+          "promptTokenEstimate": 9529,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 4,
+          "stage": "market-behavior-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 38114,
+          "promptTokenEstimate": 9529,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 5,
+          "stage": "critique",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 38355,
+          "promptTokenEstimate": 9589,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 6,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 50146,
+          "promptTokenEstimate": 12537,
+          "providerTokenEstimate": 70
+        },
+        {
+          "order": 7,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 21503,
+          "promptTokenEstimate": 5376,
+          "providerTokenEstimate": 10
+        }
+      ],
+      "modelCallTotals": {
+        "callCount": 7,
+        "promptCharacterEstimate": 229927,
+        "promptTokenEstimate": 57484,
+        "providerTokenEstimate": 170
+      },
+      "requestCounts": [
+        {
+          "provider": "api.tradier.com",
+          "method": "GET",
+          "urlShape": "/v1/markets/options/chains?expiration&greeks&symbol",
+          "count": 1
+        },
+        {
+          "provider": "api.tradier.com",
+          "method": "GET",
+          "urlShape": "/v1/markets/options/expirations?includeAllRoots&symbol",
+          "count": 1
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/api/xbrl/companyfacts/:cik.json",
+          "count": 6
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/submissions/:cik.json",
+          "count": 6
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/calendar/earnings?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/company-news?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/dividend?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/ebitda-estimate?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/eps-estimate?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/insider-transactions?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/ownership?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/price-target?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/revenue-estimate?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/split?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/finance/search?newsCount&q",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?symbols",
+          "count": 3
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v8/finance/chart/:symbol?events&interval&period1&period2",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/files/company_tickers.json",
+          "count": 1
+        }
+      ],
+      "normalizedFiles": [
+        "business-framework.json",
+        "capital-ownership.json",
+        "evidence-lanes.json",
+        "extended-evidence.json",
+        "extended-sources.json",
+        "financial-lenses.json",
+        "financial-statements.json",
+        "fundamental-history.json",
+        "historical-context.json",
+        "instrument-identity.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "reverse-dcf.json",
+        "source-gaps.json",
+        "source-ledger.json",
+        "source-plan.json",
+        "supplemental-market-snapshots.json",
+        "valuation-comps.json",
+        "valuation-workbench.json",
+        "verified-market-snapshot.json",
+        "web-subject-profile.json"
+      ],
+      "integrityPruning": {
+        "reportIntegrity": "high",
+        "researchQuality": "medium",
+        "prunedItemCount": 0,
+        "advisoryWarningCount": 1,
+        "prunedLocations": []
+      },
+      "validation": {
+        "validPredictionCount": 2,
+        "validCitationReferenceCount": 244,
+        "distinctValidCitedSourceCount": 35,
+        "reportSourceCount": 36
+      }
+    },
+    {
+      "fixture": "equity-analysis-estimated-suppressed",
+      "modelStages": [
+        {
+          "order": 1,
+          "stage": "playbook-selection",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 6414,
+          "promptTokenEstimate": 1604,
+          "providerTokenEstimate": 10
+        },
+        {
+          "order": 2,
+          "stage": "specialist-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 37464,
+          "promptTokenEstimate": 9366,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 3,
+          "stage": "instrument-evidence-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 37669,
+          "promptTokenEstimate": 9418,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 4,
+          "stage": "market-behavior-analysis",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 37667,
+          "promptTokenEstimate": 9417,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 5,
+          "stage": "critique",
+          "model": "fixture-quick",
+          "promptCharacterEstimate": 37908,
+          "promptTokenEstimate": 9477,
+          "providerTokenEstimate": 20
+        },
+        {
+          "order": 6,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 48844,
+          "promptTokenEstimate": 12211,
+          "providerTokenEstimate": 70
+        },
+        {
+          "order": 7,
+          "stage": "final-synthesis",
+          "model": "fixture-synthesis",
+          "promptCharacterEstimate": 19410,
+          "promptTokenEstimate": 4853,
+          "providerTokenEstimate": 10
+        }
+      ],
+      "modelCallTotals": {
+        "callCount": 7,
+        "promptCharacterEstimate": 225376,
+        "promptTokenEstimate": 56346,
+        "providerTokenEstimate": 170
+      },
+      "requestCounts": [
+        {
+          "provider": "api.tradier.com",
+          "method": "GET",
+          "urlShape": "/v1/markets/options/chains?expiration&greeks&symbol",
+          "count": 1
+        },
+        {
+          "provider": "api.tradier.com",
+          "method": "GET",
+          "urlShape": "/v1/markets/options/expirations?includeAllRoots&symbol",
+          "count": 1
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/api/xbrl/companyfacts/:cik.json",
+          "count": 6
+        },
+        {
+          "provider": "data.sec.gov",
+          "method": "GET",
+          "urlShape": "/submissions/:cik.json",
+          "count": 6
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/calendar/earnings?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/company-news?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/dividend?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/ebitda-estimate?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/eps-estimate?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/insider-transactions?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/ownership?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/price-target?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/revenue-estimate?symbol&token",
+          "count": 1
+        },
+        {
+          "provider": "finnhub.io",
+          "method": "GET",
+          "urlShape": "/api/v1/stock/split?from&symbol&to&token",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v1/finance/search?newsCount&q",
+          "count": 1
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v7/finance/quote?symbols",
+          "count": 3
+        },
+        {
+          "provider": "query1.finance.yahoo.com",
+          "method": "GET",
+          "urlShape": "/v8/finance/chart/:symbol?events&interval&period1&period2",
+          "count": 1
+        },
+        {
+          "provider": "www.sec.gov",
+          "method": "GET",
+          "urlShape": "/files/company_tickers.json",
+          "count": 1
+        }
+      ],
+      "normalizedFiles": [
+        "business-framework.json",
+        "capital-ownership.json",
+        "evidence-lanes.json",
+        "extended-evidence.json",
+        "extended-sources.json",
+        "financial-lenses.json",
+        "financial-statements.json",
+        "fundamental-history.json",
+        "historical-context.json",
+        "instrument-identity.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "reverse-dcf.json",
+        "source-gaps.json",
+        "source-ledger.json",
+        "source-plan.json",
+        "supplemental-market-snapshots.json",
+        "valuation-comps.json",
+        "valuation-workbench.json",
+        "verified-market-snapshot.json",
+        "web-subject-profile.json"
+      ],
+      "integrityPruning": {
+        "reportIntegrity": "high",
+        "researchQuality": "medium",
+        "prunedItemCount": 0,
+        "advisoryWarningCount": 1,
+        "prunedLocations": []
+      },
+      "validation": {
+        "validPredictionCount": 0,
+        "validCitationReferenceCount": 226,
+        "distinctValidCitedSourceCount": 29,
+        "reportSourceCount": 30
+      }
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence } from "../src/domain/types";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { marketSnapshot } from "./support/fixtures";
 
@@ -36,6 +38,91 @@ const baseExtendedEvidence: ExtendedEvidence = secEvidence({
 });
 
 describe("addValuationEvidence", () => {
+  test("preserves populated valuation values at the canonical input seam", () => {
+    const facts = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                {
+                  val: 100,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  start: "2026-01-01",
+                  end: "2026-03-31",
+                },
+              ],
+            },
+          },
+          CashAndCashEquivalentsAtCarryingValue: {
+            units: {
+              USD: [
+                {
+                  val: 30,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  end: "2026-03-31",
+                },
+              ],
+            },
+          },
+          LongTermDebt: {
+            units: {
+              USD: [
+                {
+                  val: 50,
+                  form: "10-Q",
+                  fp: "Q1",
+                  fy: 2026,
+                  filed: "2026-05-01",
+                  end: "2026-03-31",
+                },
+              ],
+            },
+          },
+        },
+      },
+    };
+    const artifact = deriveFinancialStatements(facts, {
+      symbol: "AAPL",
+      generatedAt: "2026-05-18T00:00:00.000Z",
+      analysisAsOf: "2026-05-18T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    });
+    const snapshots = [
+      marketSnapshot({
+        sourceId: "market-yahoo-equity-aapl",
+        symbol: "AAPL",
+        marketCap: 1000,
+        observedAt: "2026-05-19T00:00:00.000Z",
+      }),
+    ];
+    const legacyInputs = secEvidence({
+      revenue: 100,
+      revenuePeriodMonths: 3,
+      revenuePeriodEnd: "2026-03-31",
+      cash: 30,
+      cashPeriodEnd: "2026-03-31",
+      debt: 50,
+      debtPeriodEnd: "2026-03-31",
+    });
+    const legacy = addValuationEvidence(command, snapshots, legacyInputs);
+    const canonical = addValuationEvidence(
+      command,
+      snapshots,
+      withCanonicalFinancialLensInputs(legacyInputs, artifact),
+    );
+
+    expect(canonical.extendedEvidence?.items.find((item) => item.category === "valuation")).toEqual(
+      legacy.extendedEvidence?.items.find((item) => item.category === "valuation"),
+    );
+  });
+
   test("derives supplemental valuation metrics from market cap and SEC fundamentals", () => {
     const result = addValuationEvidence(
       command,

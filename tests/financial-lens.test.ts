@@ -9,7 +9,9 @@ import type {
 } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import {
   MIXED_PERIOD_METRIC,
@@ -689,6 +691,164 @@ function metricByKey(
 }
 
 describe("financial lens artifact compatibility", () => {
+  test("preserves populated lens values at the canonical input seam", () => {
+    const facts = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                {
+                  val: 100,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-15",
+                  start: "2025-01-01",
+                  end: "2025-12-31",
+                },
+                {
+                  val: 90,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2024,
+                  filed: "2025-02-15",
+                  start: "2024-01-01",
+                  end: "2024-12-31",
+                },
+              ],
+            },
+          },
+          GrossProfit: {
+            units: {
+              USD: [
+                {
+                  val: 42,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-15",
+                  start: "2025-01-01",
+                  end: "2025-12-31",
+                },
+                {
+                  val: 36,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2024,
+                  filed: "2025-02-15",
+                  start: "2024-01-01",
+                  end: "2024-12-31",
+                },
+              ],
+            },
+          },
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                {
+                  val: 18,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-15",
+                  start: "2025-01-01",
+                  end: "2025-12-31",
+                },
+                {
+                  val: 15,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2024,
+                  filed: "2025-02-15",
+                  start: "2024-01-01",
+                  end: "2024-12-31",
+                },
+              ],
+            },
+          },
+          CashAndCashEquivalentsAtCarryingValue: {
+            units: {
+              USD: [
+                {
+                  val: 35,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-15",
+                  end: "2025-12-31",
+                },
+              ],
+            },
+          },
+          LongTermDebt: {
+            units: {
+              USD: [
+                {
+                  val: 20,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2025,
+                  filed: "2026-02-15",
+                  end: "2025-12-31",
+                },
+              ],
+            },
+          },
+        },
+      },
+    };
+    const legacySummary = summarizeSecFundamentals(facts);
+    expect(legacySummary).toBeDefined();
+    const legacyEvidence: ExtendedEvidence = {
+      instrument: { symbol: "AAPL", assetClass: "equity" },
+      items: [
+        {
+          category: "sec-edgar",
+          title: "AAPL SEC Fundamental Evidence",
+          summary: legacySummary!.summary,
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          observedAt: "2026-06-22T00:00:00.000Z",
+          metrics: legacySummary!.metrics,
+        },
+        valuationEvidence(),
+      ],
+      gaps: [],
+    };
+    const artifact = deriveFinancialStatements(facts, {
+      symbol: "AAPL",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      analysisAsOf: "2026-06-22T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    });
+
+    const legacy = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      legacyEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+    const canonical = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      withCanonicalFinancialLensInputs(legacyEvidence, artifact),
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    for (const [lens, metric] of [
+      ["Quality", "grossMargin"],
+      ["Quality", "netMargin"],
+      ["Growth", "revenueDeltaPercent"],
+      ["Growth", "netIncomeDeltaPercent"],
+      ["Financial Strength", "cash"],
+      ["Financial Strength", "debt"],
+    ]) {
+      expect(metricByKey(canonical, lens!, metric!)).toEqual(metricByKey(legacy, lens!, metric!));
+    }
+  });
+
   test("loads persisted metrics without optional period fields", async () => {
     const runDir = join(
       tmpdir(),

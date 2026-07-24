@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "evaluatedAt": "2026-07-23T00:00:00.000Z",
+  "caseCount": 10,
+  "layoutFamilies": [
+    "html-image-wrapper",
+    "inline-xhtml",
+    "issuer-native-grid",
+    "merrill-spacer-grid",
+    "toppan-spacer-grid"
+  ],
+  "supportedFullStatementCount": 8,
+  "acceptedFullStatementCount": 7,
+  "acceptanceRate": 0.875,
+  "insufficientCoverageCount": 1,
+  "unsupportedLayoutCount": 1,
+  "silentlyWrongValueCount": 0,
+  "sourceCellMismatchCount": 0,
+  "passed": true,
+  "cases": [
+    {
+      "id": "nbis-2026-q1",
+      "symbol": "NBIS",
+      "layoutFamily": "toppan-spacer-grid",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "se-2026-q1",
+      "symbol": "SE",
+      "layoutFamily": "merrill-spacer-grid",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "pdd-2026-q1",
+      "symbol": "PDD",
+      "layoutFamily": "toppan-spacer-grid",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "spot-2026-q1",
+      "symbol": "SPOT",
+      "layoutFamily": "inline-xhtml",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "arm-2026-fy",
+      "symbol": "ARM",
+      "layoutFamily": "issuer-native-grid",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "tsm-2026-q2",
+      "symbol": "TSM",
+      "layoutFamily": "issuer-native-grid",
+      "evaluationClass": "insufficient-statement-coverage",
+      "outcome": "excluded",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "nvo-2026-q1",
+      "symbol": "NVO",
+      "layoutFamily": "inline-xhtml",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "baba-2026-fy",
+      "symbol": "BABA",
+      "layoutFamily": "toppan-spacer-grid",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "rejected",
+      "validationIssues": [
+        {
+          "code": "balance-sheet-identity-failed",
+          "message": "assets do not equal liabilities plus equity for 2026-03-31",
+          "periodEnd": "2026-03-31"
+        },
+        {
+          "code": "incomplete-balance-sheet",
+          "message": "current balance sheet is incomplete for 2026-03-31"
+        },
+        {
+          "code": "incomplete-cash-flow-statement",
+          "message": "current cash-flow statement is incomplete for 2026-03-31"
+        }
+      ],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "grab-2026-q1",
+      "symbol": "GRAB",
+      "layoutFamily": "inline-xhtml",
+      "evaluationClass": "supported-full-statement",
+      "outcome": "accepted",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0
+    },
+    {
+      "id": "asml-2026-q2-image",
+      "symbol": "ASML",
+      "layoutFamily": "html-image-wrapper",
+      "evaluationClass": "unsupported-layout",
+      "outcome": "unsupported",
+      "validationIssues": [],
+      "silentlyWrongValueCount": 0,
+      "sourceCellMismatchCount": 0,
+      "unsupportedReason": "image-only"
+    }
+  ]
+}

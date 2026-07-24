@@ -1,11 +1,14 @@
 import {
   NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
+  type EarningsForecastTelemetry,
   type ReportIntegrity,
   type ResearchReport,
   type RunTrace,
   type Source,
   type SourceGap,
+  type WebEvidenceUtilization,
+  type WebGatherAcceptancePolicy,
 } from "../domain/types";
 import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
 import { isRecord } from "../guards";
@@ -24,7 +27,16 @@ import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
-import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
+import {
+  buildWebEvidenceUtilization,
+  computeWebSourceUsage,
+  roundWebSubjectProfileAgeDays,
+} from "../web-evidence";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import {
+  deriveProviderEndpointAvailability,
+  type ProviderEndpointAvailability,
+} from "../sources/provider-endpoint-availability";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -84,6 +96,7 @@ export interface RunAnalytics {
       readonly total: number;
     };
   };
+  readonly providerEndpointAvailability?: Readonly<Record<string, ProviderEndpointAvailability>>;
   readonly newsDedupe: NewsCollectionAnalytics;
   readonly evidenceQuality: {
     readonly label?: ResearchReport["evidenceQuality"];
@@ -156,6 +169,7 @@ export interface RunAnalytics {
     /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
     readonly mixWarnings: readonly string[];
   };
+  readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly byCode: Readonly<Record<string, number>>;
@@ -229,6 +243,8 @@ export interface RunAnalytics {
     readonly ageDays: number;
     readonly runDirName: string;
   };
+  readonly webEvidenceUtilization?: WebEvidenceUtilization;
+  readonly webGatherAcceptancePolicy?: WebGatherAcceptancePolicy;
   readonly runShape: {
     readonly traceStages: readonly string[];
     readonly stages: readonly {
@@ -658,6 +674,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           warningCount: trace.postSynthesisAudit.warningCount,
           byCode: countBy(trace.postSynthesisAudit.warnings, (warning) => warning.code),
         };
+  const earningsForecasts = trace.earningsForecasts ?? readEarningsForecastTelemetry(report);
+  const webEvidenceUtilization =
+    trace.webEvidenceUtilization ??
+    buildWebEvidenceUtilization(report, collectedSources, trace.webGatherLoop !== undefined);
 
   return {
     version: 2,
@@ -691,6 +711,15 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         total: report.dataGaps.length,
       },
     },
+    ...(report.jobType === "equity"
+      ? {
+          providerEndpointAvailability: deriveProviderEndpointAvailability(
+            collectedSources.rawSnapshots,
+            gaps,
+            collectedSources.earningsSetup?.impliedMove !== undefined,
+          ),
+        }
+      : {}),
     newsDedupe: newsDedupe(input),
     evidenceQuality: {
       label: researchReportEvidenceQuality(report),
@@ -744,6 +773,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       signalTargetMet,
       mixWarnings,
     },
+    ...(earningsForecasts !== undefined ? { earningsForecasts } : {}),
     ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
     ...(trace.reportIntegrityAudit !== undefined
       ? {
@@ -784,6 +814,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     ...webSourceRoles(report, collectedSources, trace),
+    ...(webEvidenceUtilization !== undefined ? { webEvidenceUtilization } : {}),
+    ...(trace.webGatherLoop?.acceptancePolicy !== undefined
+      ? { webGatherAcceptancePolicy: trace.webGatherLoop.acceptancePolicy }
+      : {}),
     runShape: {
       traceStages: trace.stages,
       stages: input.stageOutputs.map((output) => ({

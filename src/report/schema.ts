@@ -1,4 +1,5 @@
 import {
+  isEarningsEventDateStatus,
   isReportIntegrity,
   SOURCE_KINDS,
   type EvidenceQuality,
@@ -7,6 +8,8 @@ import {
   type ResearchReport,
   type Scenario,
 } from "../domain/types";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import { retainedEvidenceSpanForEarningsDate } from "../sources/extended-evidence/earnings-date-confirmation";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
@@ -91,6 +94,18 @@ function validateScenarios(
   }
 }
 
+function extendedEvidenceLanguageText(report: ResearchReport): readonly {
+  readonly title: string;
+  readonly summary: string;
+}[] {
+  return (
+    report.extendedEvidence?.items.map((item) => ({
+      title: item.title,
+      summary: item.summary,
+    })) ?? []
+  );
+}
+
 export function assertSafeReportLanguage(report: ResearchReport): void {
   const text = JSON.stringify({
     summary: report.summary,
@@ -101,6 +116,7 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     catalysts: report.catalysts,
     scenarios: report.scenarios,
     researchQualityDriver: report.researchQualityDriver,
+    extendedEvidence: extendedEvidenceLanguageText(report),
     renderedExtras: researchOnlyExtraText(report.extras),
   });
 
@@ -244,12 +260,53 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
   // Validate source IDs on event.
   const event = isRecord(extra.event) ? extra.event : undefined;
   if (event !== undefined) {
+    if (event.eventDateStatus !== undefined && !isEarningsEventDateStatus(event.eventDateStatus)) {
+      throw new Error("Earnings Setup eventDateStatus is invalid");
+    }
     validateKnownSourceIds(
       "Earnings Setup event",
       readStringArray(event.sourceIds),
       knownSourceIds,
       false,
     );
+    const confirmation = isRecord(event.dateConfirmation) ? event.dateConfirmation : undefined;
+    if (event.eventDateStatus === "provider-estimated" && confirmation !== undefined) {
+      throw new Error("Provider-estimated Earnings Setup cannot carry date confirmation");
+    }
+    if (
+      event.eventDateStatus === "issuer-confirmed" ||
+      event.eventDateStatus === "exchange-confirmed"
+    ) {
+      const sourceId = confirmation?.sourceId;
+      const sourceType = confirmation?.sourceType;
+      const evidenceSpan = confirmation?.evidenceSpan;
+      const sourceUrl = confirmation?.sourceUrl;
+      const confirmedAt = confirmation?.confirmedAt;
+      const identity = isRecord(confirmation?.issuerIdentity)
+        ? confirmation.issuerIdentity
+        : undefined;
+      if (
+        typeof sourceId !== "string" ||
+        !knownSourceIds.has(sourceId) ||
+        !readStringArray(event.sourceIds).includes(sourceId) ||
+        (event.eventDateStatus === "issuer-confirmed"
+          ? sourceType !== "issuer-ir-event" &&
+            sourceType !== "issuer-press-release" &&
+            sourceType !== "sec-8-k" &&
+            sourceType !== "sec-6-k"
+          : sourceType !== "official-exchange") ||
+        typeof evidenceSpan !== "string" ||
+        typeof event.date !== "string" ||
+        retainedEvidenceSpanForEarningsDate(evidenceSpan, event.date) === undefined ||
+        typeof sourceUrl !== "string" ||
+        sourceUrl.trim() === "" ||
+        typeof confirmedAt !== "string" ||
+        confirmedAt.trim() === "" ||
+        identity?.symbol !== event.symbol
+      ) {
+        throw new Error("Confirmed Earnings Setup requires complete official evidence");
+      }
+    }
   }
   // Validate source IDs on the deterministic implied move.
   const impliedMove = isRecord(extra.impliedMove) ? extra.impliedMove : undefined;
@@ -276,6 +333,51 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
           typeof bullet.text === "string",
         );
       }
+    }
+  }
+}
+
+function validateEarningsForecastCertainty(report: ResearchReport): void {
+  const earningsPredictions = report.predictions.filter(
+    (prediction) => prediction.kind === "earnings-direction" || prediction.kind === "earnings-move",
+  );
+  for (const prediction of earningsPredictions) {
+    if (
+      prediction.eventDateStatus !== undefined &&
+      !isEarningsEventDateStatus(prediction.eventDateStatus)
+    ) {
+      throw new Error(`Prediction ${prediction.id} has invalid eventDateStatus`);
+    }
+  }
+
+  const rawTelemetry = report.extras?.earningsForecasts;
+  const telemetry = readEarningsForecastTelemetry(report);
+  if (rawTelemetry !== undefined && telemetry === undefined) {
+    throw new Error("Earnings forecast telemetry is invalid");
+  }
+  if (telemetry === undefined) {
+    return;
+  }
+  if (telemetry.eligiblePredictionCount !== earningsPredictions.length) {
+    throw new Error("Earnings forecast telemetry eligible count conflicts with report predictions");
+  }
+  const confirmedStatus =
+    telemetry.eventDateStatus === "issuer-confirmed" ||
+    telemetry.eventDateStatus === "exchange-confirmed";
+  if (telemetry.policy === "confirmed-only") {
+    if (telemetry.grammarEligible !== confirmedStatus) {
+      throw new Error("Earnings forecast telemetry eligibility conflicts with event-date status");
+    }
+    if (!confirmedStatus && earningsPredictions.length > 0) {
+      throw new Error("Unconfirmed earnings dates cannot anchor earnings predictions");
+    }
+  }
+  if (telemetry.eventDateStatus === "not-present") {
+    return;
+  }
+  for (const prediction of earningsPredictions) {
+    if (prediction.eventDateStatus !== telemetry.eventDateStatus) {
+      throw new Error(`Prediction ${prediction.id} eventDateStatus conflicts with telemetry`);
     }
   }
 }
@@ -470,6 +572,91 @@ function validateRenderedExtras(
   validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds);
 }
 
+const COMPLETENESS_DIMENSION_KEYS = [
+  "primaryFinancials",
+  "valuation",
+  "expectations",
+  "capitalOwnership",
+  "operatingKpis",
+] as const;
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+}
+
+function validateEquityAnalysisCompleteness(
+  report: ResearchReport,
+  knownSourceIds: ReadonlySet<string>,
+): void {
+  const completeness = report.equityAnalysisCompleteness;
+  if (completeness === undefined) {
+    return;
+  }
+  if (report.jobType !== "equity" || report.assetClass !== "equity") {
+    throw new Error("Equity analysis completeness is allowed only on equity reports");
+  }
+  if (completeness.version !== 1 || !isIsoTimestamp(completeness.asOf)) {
+    throw new Error("Equity analysis completeness requires version 1 and an ISO asOf timestamp");
+  }
+  const primaryStatus = completeness.dimensions.primaryFinancials.status;
+  if (primaryStatus !== "complete" && primaryStatus !== "partial" && primaryStatus !== "blocked") {
+    throw new Error("Primary financial completeness status is invalid");
+  }
+  if (completeness.financialCoreStatus !== primaryStatus) {
+    throw new Error("Financial core status must equal the primaryFinancials status");
+  }
+  for (const key of COMPLETENESS_DIMENSION_KEYS) {
+    const dimension = completeness.dimensions[key];
+    if (
+      dimension.status !== "complete" &&
+      dimension.status !== "partial" &&
+      dimension.status !== "blocked" &&
+      dimension.status !== "not-applicable"
+    ) {
+      throw new Error(`Equity analysis completeness ${key} status is invalid`);
+    }
+    if (!isIsoTimestamp(dimension.asOf)) {
+      throw new Error(`Equity analysis completeness ${key} asOf must be an ISO timestamp`);
+    }
+    if (dimension.reasonCodes.some((code) => code.trim() === "")) {
+      throw new Error(`Equity analysis completeness ${key} reason codes must be non-empty`);
+    }
+    validateKnownSourceIds(
+      `equityAnalysisCompleteness.${key}`,
+      dimension.sourceIds,
+      knownSourceIds,
+      false,
+    );
+    if (
+      dimension.status === "not-applicable" &&
+      (dimension.sourceIds.length === 0 ||
+        dimension.reasonCodes.length === 0 ||
+        dimension.reasonCodes.some((code) => /credential|entitlement/iu.test(code)))
+    ) {
+      throw new Error(
+        `Equity analysis completeness ${key} not-applicable status requires affirmative evidence`,
+      );
+    }
+  }
+  const completeOrNotApplicable = [
+    completeness.dimensions.valuation,
+    completeness.dimensions.expectations,
+    completeness.dimensions.capitalOwnership,
+    completeness.dimensions.operatingKpis,
+  ].filter(
+    (dimension) => dimension.status === "complete" || dimension.status === "not-applicable",
+  ).length;
+  let expectedCoverage: "comprehensive" | "substantial" | "limited" = "substantial";
+  if (primaryStatus !== "complete" || completeOrNotApplicable <= 1) {
+    expectedCoverage = "limited";
+  } else if (completeOrNotApplicable === 4) {
+    expectedCoverage = "comprehensive";
+  }
+  if (completeness.coverageLevel !== expectedCoverage) {
+    throw new Error("Equity analysis completeness coverageLevel conflicts with dimension statuses");
+  }
+}
+
 export function validatePredictions(
   candidates: readonly unknown[],
   knownSourceIds: ReadonlySet<string>,
@@ -526,7 +713,9 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   validateFindings(report.risks, knownSourceIds);
   validateFindings(report.catalysts, knownSourceIds);
   validateScenarios(report.scenarios, knownSourceIds);
+  validateEquityAnalysisCompleteness(report, knownSourceIds);
   validateRenderedExtras(report.extras, knownSourceIds);
+  validateEarningsForecastCertainty(report);
   assertSafeReportLanguage(report);
 
   return report;

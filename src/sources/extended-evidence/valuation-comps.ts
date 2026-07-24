@@ -185,9 +185,10 @@ export interface ValuationCompsOptions {
   readonly peerUniverseMappings?: PeerUniverseMapping;
   readonly subjectRegistry?: readonly ResearchSubjectRegistryEntry[];
   readonly peerUniverseFallback?: PeerUniverseFallbackContext;
+  readonly secTickerPayload?: unknown;
 }
 
-interface PeerCollection {
+export interface PeerPacket {
   readonly peer: PeerUniversePeer;
   readonly provenance: PeerUniverse["provenance"];
   readonly quote: MarketSnapshot | undefined;
@@ -282,7 +283,7 @@ export async function collectValuationComps(
       peer,
       provenance: universe.provenance,
       quote: quoteBySymbol.get(peer.symbol),
-      sec: await fetchSecCompanyFactsForSymbol(ctx, peer.symbol),
+      sec: await fetchSecCompanyFactsForSymbol(ctx, peer.symbol, options.secTickerPayload),
     })),
   );
   const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
@@ -652,7 +653,7 @@ function comparabilityFailure(
 }
 
 function peerRow(
-  entry: PeerCollection,
+  entry: PeerPacket,
   generatedAt: string,
   target: ValuationCompsRow,
 ): ValuationCompsRow {
@@ -1063,7 +1064,7 @@ function replaceValuationItem(
   };
 }
 
-function sourcesForPeer(command: InstrumentCommand, entry: PeerCollection): readonly Source[] {
+function sourcesForPeer(command: InstrumentCommand, entry: PeerPacket): readonly Source[] {
   const quoteSource =
     entry.quote === undefined
       ? undefined

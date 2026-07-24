@@ -90,6 +90,46 @@ const MAX_RATIONALE_TRACE_LENGTH = 500;
 export async function runEvidenceRequestLoop(
   input: EvidenceRequestLoopInput,
 ): Promise<EvidenceRequestLoopResult> {
+  if (input.collectedSources.secTargetPacket !== undefined) {
+    const sec = input.collectedSources.secTargetPacket.filingEvidence;
+    const tradier = input.collectedSources.tradierPacket?.termStructure;
+    const deterministicAcquisitionRan =
+      sec.sources.length > 0 ||
+      sec.gaps.length > 0 ||
+      sec.rawSnapshots.length > 0 ||
+      (tradier !== undefined &&
+        (tradier.sources.length > 0 || tradier.gaps.length > 0 || tradier.rawSnapshots.length > 0));
+    if (!deterministicAcquisitionRan) {
+      return { collectedSources: input.collectedSources, stageOutputs: [] };
+    }
+    let {collectedSources} = input;
+    if (sec.sources.length > 0 || sec.gaps.length > 0 || sec.rawSnapshots.length > 0) {
+      collectedSources = mergeToolOutput(input.command, collectedSources, sec);
+    }
+    if (
+      tradier !== undefined &&
+      (tradier.sources.length > 0 || tradier.gaps.length > 0 || tradier.rawSnapshots.length > 0)
+    ) {
+      collectedSources = mergeToolOutput(input.command, collectedSources, tradier);
+    }
+    return {
+      collectedSources,
+      stageOutputs: [],
+      audit: {
+        rounds: 0,
+        acceptedRequests: [],
+        rejectedRequests: [],
+        sourceUnitsUsed: 0,
+        executedTools: [
+          ...(sec.sources.length > 0 ? (["sec_latest_filing"] as const) : []),
+          ...(tradier !== undefined && tradier.sources.length > 0
+            ? (["tradier_iv_term_structure"] as const)
+            : []),
+        ],
+        emittedGaps: [...sec.gaps, ...(tradier?.gaps ?? [])],
+      },
+    };
+  }
   if (!isRequiredEvidenceRequestEnabled(input.command, input.config)) {
     return { collectedSources: input.collectedSources, stageOutputs: [] };
   }
@@ -102,13 +142,15 @@ export async function runEvidenceRequestLoop(
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
-  const toolContext =
-    input.collectedSources.resolvedInstrumentIdentity !== undefined
-      ? {
-          ...collectContext.context,
-          instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
-        }
-      : collectContext.context;
+  const toolContext = {
+    ...collectContext.context,
+    ...(input.collectedSources.resolvedInstrumentIdentity !== undefined
+      ? { instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity }
+      : {}),
+    ...(input.collectedSources.earningsSetup?.event.date !== undefined
+      ? { earningsEventDate: input.collectedSources.earningsSetup.event.date }
+      : {}),
+  };
 
   // Deterministic SEC filing retrieval. Mandatory 10-K (and 10-Q when metadata
   // Lists one after the 10-K) retrieval is not at model discretion; it runs

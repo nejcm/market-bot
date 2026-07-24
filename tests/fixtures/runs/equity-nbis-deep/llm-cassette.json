@@ -1,0 +1,50 @@
+{
+  "entries": {
+    "playbook-selection|fixture-quick": [
+      {
+        "content": "{\"selections\":[]}",
+        "tokenEstimate": 10
+      }
+    ],
+    "specialist-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"NBIS specialist analysis\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "critique|fixture-quick": [
+      {
+        "content": "{\"critique\":\"NBIS critique\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "final-synthesis|fixture-synthesis": [
+      {
+        "content": "{\"summary\":\"Nebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\",\"keyFindings\":[{\"text\":\"NBIS has deterministic market and verified close evidence.\",\"sourceIds\":[\"market-yahoo-equity-nbis\",\"verified-snapshot-NBIS\"]}],\"bullCase\":[],\"bearCase\":[],\"risks\":[{\"text\":\"Current structured SEC normalization does not support the fixture filing forms.\",\"sourceIds\":[\"market-yahoo-equity-nbis\"]}],\"catalysts\":[],\"scenarios\":[{\"name\":\"Reference\",\"description\":\"NBIS remains within the deterministic fixture evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-nbis\"]}],\"dataGaps\":[\"Synthetic FPI inputs exercise unsupported current filing forms.\"],\"predictions\":[]}",
+        "tokenEstimate": 50
+      },
+      {
+        "content": "{\"summary\":\"Nebius Group N.V. synthetic FPI fixture replayed through current equity research stages.\",\"keyFindings\":[{\"text\":\"NBIS has deterministic market and verified close evidence.\",\"sourceIds\":[\"market-yahoo-equity-nbis\",\"verified-snapshot-NBIS\"]}],\"bullCase\":[],\"bearCase\":[],\"risks\":[{\"text\":\"Current structured SEC normalization does not support the fixture filing forms.\",\"sourceIds\":[\"market-yahoo-equity-nbis\"]}],\"catalysts\":[],\"scenarios\":[{\"name\":\"Reference\",\"description\":\"NBIS remains within the deterministic fixture evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-nbis\"]}],\"dataGaps\":[\"Synthetic FPI inputs exercise unsupported current filing forms.\"],\"predictions\":[]}",
+        "tokenEstimate": 50
+      }
+    ],
+    "instrument-evidence-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"NBIS instrument evidence\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "market-behavior-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"NBIS market behavior\"}",
+        "tokenEstimate": 20
+      }
+    ],
+    "financial-table-mapping|fixture-quick": [
+      {
+        "content": "{\"version\":1,\"mappings\":[{\"field\":\"cash\",\"labelCellRef\":\"t002:r006:c001\",\"valueCellRef\":\"t002:r006:c007\",\"periodHeaderCellRefs\":[\"t002:r002:c005\",\"t002:r003:c007\",\"t002:r004:c007\"]},{\"field\":\"totalAssets\",\"labelCellRef\":\"t002:r021:c001\",\"valueCellRef\":\"t002:r021:c007\",\"periodHeaderCellRefs\":[\"t002:r002:c005\",\"t002:r003:c007\",\"t002:r004:c007\"]},{\"field\":\"totalLiabilities\",\"labelCellRef\":\"t002:r033:c001\",\"valueCellRef\":\"t002:r033:c007\",\"periodHeaderCellRefs\":[\"t002:r002:c005\",\"t002:r003:c007\",\"t002:r004:c007\"]},{\"field\":\"stockholdersEquity\",\"labelCellRef\":\"t002:r043:c001\",\"valueCellRef\":\"t002:r043:c007\",\"periodHeaderCellRefs\":[\"t002:r002:c005\",\"t002:r003:c007\",\"t002:r004:c007\"]},{\"field\":\"revenue\",\"labelCellRef\":\"t003:r004:c001\",\"valueCellRef\":\"t003:r004:c007\",\"periodHeaderCellRefs\":[\"t003:r002:c005\",\"t003:r003:c007\"]},{\"field\":\"operatingIncome\",\"labelCellRef\":\"t003:r011:c001\",\"valueCellRef\":\"t003:r011:c007\",\"periodHeaderCellRefs\":[\"t003:r002:c005\",\"t003:r003:c007\"]},{\"field\":\"netIncome\",\"labelCellRef\":\"t003:r021:c001\",\"valueCellRef\":\"t003:r021:c007\",\"periodHeaderCellRefs\":[\"t003:r002:c005\",\"t003:r003:c007\"]},{\"field\":\"operatingCashFlow\",\"labelCellRef\":\"t005:r027:c001\",\"valueCellRef\":\"t005:r027:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]},{\"field\":\"investingCashFlow\",\"labelCellRef\":\"t005:r033:c001\",\"valueCellRef\":\"t005:r033:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]},{\"field\":\"financingCashFlow\",\"labelCellRef\":\"t005:r042:c001\",\"valueCellRef\":\"t005:r042:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]},{\"field\":\"foreignExchangeEffect\",\"labelCellRef\":\"t005:r043:c001\",\"valueCellRef\":\"t005:r043:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]},{\"field\":\"netCashChange\",\"labelCellRef\":\"t005:r044:c001\",\"valueCellRef\":\"t005:r044:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]},{\"field\":\"cashBeginning\",\"labelCellRef\":\"t005:r045:c001\",\"valueCellRef\":\"t005:r045:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]},{\"field\":\"cashEnding\",\"labelCellRef\":\"t005:r046:c001\",\"valueCellRef\":\"t005:r046:c007\",\"periodHeaderCellRefs\":[\"t005:r002:c005\",\"t005:r003:c007\"]}]}",
+        "tokenEstimate": 250
+      }
+    ]
+  }
+}

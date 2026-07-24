@@ -273,8 +273,20 @@ export async function readRunDetail(
     ...(artifact.artifact?.financialLenses !== undefined
       ? { financialLenses: artifact.artifact.financialLenses }
       : {}),
+    ...(artifact.artifact?.financialStatements !== undefined
+      ? { financialStatements: artifact.artifact.financialStatements }
+      : {}),
+    ...(artifact.artifact?.subsequentFinancing !== undefined
+      ? { subsequentFinancing: artifact.artifact.subsequentFinancing }
+      : {}),
     ...(artifact.artifact?.peerImpliedRange !== undefined
       ? { peerImpliedRange: artifact.artifact.peerImpliedRange }
+      : {}),
+    ...(artifact.artifact?.valuationWorkbench !== undefined
+      ? { valuationWorkbench: artifact.artifact.valuationWorkbench }
+      : {}),
+    ...(artifact.artifact?.reverseDcf !== undefined
+      ? { reverseDcf: artifact.artifact.reverseDcf }
       : {}),
     ...(artifact.artifact?.fundamentalHistory !== undefined
       ? { fundamentalHistory: artifact.artifact.fundamentalHistory }

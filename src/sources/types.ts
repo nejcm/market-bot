@@ -1,12 +1,21 @@
 import type { ResearchCommand } from "../cli/args";
 import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
+import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
+import type { SubsequentFinancingBridgeArtifact } from "./extended-evidence/subsequent-financing";
+import type { CapitalOwnershipArtifact } from "./extended-evidence/capital-ownership";
+import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/untagged-financial-tables-contract";
+import type { SecTargetPacket } from "./sec-target-packet";
+import type { TradierPacket } from "./tradier-packet";
 import type { BusinessFrameworkArtifact } from "./extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence/contract";
 import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps";
+import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
+import type { ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
 import type {
   AssetClass,
+  EarningsEventDateStatus,
   ExtendedEvidence,
   InstrumentIdentity,
   MarketContext,
@@ -16,6 +25,15 @@ import type {
   VerifiedMarketSnapshot,
 } from "../domain/types";
 import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
+import type { EarningsDateConfirmation } from "./extended-evidence/earnings-date-confirmation";
+import type {
+  AnalystExpectationsArtifact,
+  AnalystExpectationsSignal,
+} from "./extended-evidence/analyst-expectations";
+import type {
+  InstitutionalOwnershipArtifact,
+  InstitutionalOwnershipSignal,
+} from "./extended-evidence/institutional-ownership";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -54,6 +72,7 @@ export interface CollectContext {
   readonly secUserAgent?: string;
   readonly newsSeenPath?: string;
   readonly newsSeenRetentionDays?: number;
+  readonly earningsEventDate?: string;
   // Resolved canonical identity (exchange/quoteCurrency), when known before source collection.
   // US-only collectors use it as the primary instrument-capability signal (see isUsListing).
   readonly instrumentIdentity?: InstrumentIdentity;
@@ -116,10 +135,14 @@ export interface EarningsSetupCollected {
     readonly symbol: string;
     readonly date: string;
     readonly timing: "bmo" | "amc" | "unknown";
+    readonly eventDateStatus?: EarningsEventDateStatus;
+    /** Legacy Phase 0 alias; optional on future confirmed events. */
+    readonly dateStatus?: "provider-estimated";
     readonly epsEstimate?: number;
     readonly revenueEstimate?: number;
     readonly sourceIds: readonly string[];
     readonly fetchedAt: string;
+    readonly dateConfirmation?: EarningsDateConfirmation;
   };
   readonly impliedMove?: {
     readonly expiration: string;
@@ -150,15 +173,27 @@ export interface CollectedSources {
   readonly resolvedInstrumentIdentity?: InstrumentIdentity;
   readonly resolvedSubject?: ResolvedResearchSubject;
   readonly earningsSetup?: EarningsSetupCollected;
+  readonly analystExpectations?: AnalystExpectationsArtifact;
+  readonly analystExpectationsSignal?: AnalystExpectationsSignal;
+  readonly institutionalOwnership?: InstitutionalOwnershipArtifact;
+  readonly institutionalOwnershipSignal?: InstitutionalOwnershipSignal;
   readonly valuationComps?: ValuationCompsArtifact;
+  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  readonly reverseDcf?: ReverseDcfArtifact;
   readonly financialLenses?: FinancialLensArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
+  readonly financialStatements?: FinancialStatementsArtifact;
+  readonly untaggedFinancialStatements?: UntaggedFinancialStatementsArtifact;
+  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
+  readonly capitalOwnership?: CapitalOwnershipArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
   readonly webSubjectProfileReuse?: {
     readonly runDirName: string;
     readonly generatedAt: string;
   };
+  readonly secTargetPacket?: SecTargetPacket;
+  readonly tradierPacket?: TradierPacket;
 }
 
 export interface ExtendedEvidenceCollectionResult {

@@ -1,0 +1,74 @@
+{
+  "values": [
+    {
+      "field": "revenue",
+      "displayedValue": 96823,
+      "valueCellRef": "t003:r009:c004"
+    },
+    {
+      "field": "operatingIncome",
+      "displayedValue": 59618,
+      "valueCellRef": "t003:r021:c004"
+    },
+    {
+      "field": "netIncome",
+      "displayedValue": 48557,
+      "valueCellRef": "t003:r032:c004"
+    },
+    {
+      "field": "cash",
+      "displayedValue": 21127,
+      "valueCellRef": "t007:r025:c004"
+    },
+    {
+      "field": "totalAssets",
+      "displayedValue": 559221,
+      "valueCellRef": "t007:r028:c004"
+    },
+    {
+      "field": "totalLiabilities",
+      "displayedValue": 356156,
+      "valueCellRef": "t007:r061:c004"
+    },
+    {
+      "field": "stockholdersEquity",
+      "displayedValue": 203065,
+      "valueCellRef": "t007:r038:c004"
+    },
+    {
+      "field": "operatingCashFlow",
+      "displayedValue": 24084,
+      "valueCellRef": "t005:r018:c004"
+    },
+    {
+      "field": "investingCashFlow",
+      "displayedValue": -11712,
+      "valueCellRef": "t005:r034:c004"
+    },
+    {
+      "field": "financingCashFlow",
+      "displayedValue": -17433,
+      "valueCellRef": "t005:r046:c004"
+    },
+    {
+      "field": "netCashChange",
+      "displayedValue": -5061,
+      "valueCellRef": "t005:r049:c004"
+    },
+    {
+      "field": "cashBeginning",
+      "displayedValue": 26464,
+      "valueCellRef": "t005:r051:c004"
+    },
+    {
+      "field": "foreignExchangeEffect",
+      "displayedValue": -276,
+      "valueCellRef": "t005:r052:c004"
+    },
+    {
+      "field": "cashEnding",
+      "displayedValue": 21127,
+      "valueCellRef": "t005:r055:c004"
+    }
+  ]
+}

@@ -8,11 +8,14 @@ import {
   scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   marketSnapshot,
   prediction,
   predictionScore,
   researchReport,
+  reverseDcfArtifact,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 
@@ -67,6 +70,136 @@ function webSubjectProfile(symbol: string): unknown {
 }
 
 describe("loadRunArtifact", () => {
+  test("round-trips canonical statements and equity completeness", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "canonical-financials");
+    const sourceId = "extended-sec-edgar-fpi-fundamentals";
+    const financialStatements = deriveFinancialStatements(
+      {
+        facts: {
+          "ifrs-full": {
+            Revenue: {
+              units: {
+                USD: [
+                  {
+                    val: 100,
+                    form: "20-F",
+                    fp: "FY",
+                    fy: 2025,
+                    filed: "2026-03-01",
+                    start: "2025-01-01",
+                    end: "2025-12-31",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "FPI",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        analysisAsOf: "2026-06-01T00:00:00.000Z",
+        sourceId,
+      },
+    );
+    const dimension = {
+      status: "partial" as const,
+      reasonCodes: ["fixture-partial"],
+      asOf: "2026-06-01T00:00:00.000Z",
+      sourceIds: [sourceId],
+    };
+    const equityAnalysisCompleteness = {
+      version: 1 as const,
+      financialCoreStatus: "partial" as const,
+      coverageLevel: "limited" as const,
+      asOf: "2026-06-01T00:00:00.000Z",
+      dimensions: {
+        primaryFinancials: dimension,
+        valuation: dimension,
+        expectations: dimension,
+        capitalOwnership: dimension,
+        operatingKpis: dimension,
+      },
+    };
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "canonical-financials",
+        jobType: "equity",
+        symbol: "FPI",
+        sources: [
+          {
+            id: sourceId,
+            title: "FPI canonical statements",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "market-data",
+          },
+        ],
+        equityAnalysisCompleteness,
+      }),
+    );
+    await writeJson(join(runDir, "normalized", "financial-statements.json"), financialStatements);
+    const capitalOwnership = {
+      version: 1 as const,
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      symbol: "FPI",
+      dilutedShares: [],
+      stockBasedCompensation: [],
+      buybacks: [],
+      dividendsPaid: [],
+      omissions: [
+        { code: "diluted-share-history-missing", message: "Diluted-share history is missing" },
+      ],
+    };
+    await writeJson(join(runDir, "normalized", "capital-ownership.json"), capitalOwnership);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.financialStatements).toEqual(financialStatements);
+    expect(artifact?.capitalOwnership).toEqual(capitalOwnership);
+    expect(artifact?.report.equityAnalysisCompleteness).toEqual(equityAnalysisCompleteness);
+  });
+
+  test("keeps historical reports readable without Phase 2 fields", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "historical-report");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "historical-report" }));
+
+    const { artifact, status } = await loadRunArtifact(runDir);
+
+    expect(status.report).toBe("ok");
+    expect(artifact?.report.equityAnalysisCompleteness).toBeUndefined();
+    expect(artifact?.financialStatements).toBeUndefined();
+    expect(artifact?.capitalOwnership).toBeUndefined();
+    expect(artifact?.valuationWorkbench).toBeUndefined();
+    expect(artifact?.reverseDcf).toBeUndefined();
+  });
+
+  test("round-trips a validated valuation-workbench sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "valuation-workbench");
+    const workbench = valuationWorkbench();
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "valuation-workbench" }));
+    await writeJson(join(runDir, "normalized", "valuation-workbench.json"), workbench);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.valuationWorkbench).toEqual(workbench);
+  });
+
+  test("round-trips a validated reverse-DCF sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "reverse-dcf");
+    const sensitivity = reverseDcfArtifact();
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "reverse-dcf" }));
+    await writeJson(join(runDir, "normalized", "reverse-dcf.json"), sensitivity);
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.reverseDcf).toEqual(sensitivity);
+  });
+
   test("round-trips a validated fundamental-history sidecar", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "fundamental-history");
@@ -611,6 +744,30 @@ describe("loadRunArtifact", () => {
               observedAt: "2026-05-19T00:00:00.000Z",
               identity: { displayName: "Apple Inc.", exchange: "NASDAQ" },
             },
+            {
+              category: "analyst-estimates",
+              title: "External EPS consensus",
+              summary: "Finnhub returned one EPS consensus record.",
+              sourceIds: ["analyst-aapl-eps"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              metrics: { mean: 1.72, count: 28 },
+            },
+            {
+              category: "analyst-estimate-context",
+              title: "External analyst range context",
+              summary: "External analyst estimate range from Finnhub.",
+              sourceIds: ["analyst-aapl-context"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              metrics: { mean: 240, median: 235, high: 280, low: 190 },
+            },
+            {
+              category: "institutional-ownership",
+              title: "External institutional ownership context",
+              summary: "External institutional ownership data from Finnhub.",
+              sourceIds: ["ownership-aapl-institutional"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              metrics: { provider: "finnhub", holderCount: 2, reportedShares: 3500 },
+            },
           ],
           gaps: [
             {
@@ -639,6 +796,11 @@ describe("loadRunArtifact", () => {
       displayName: "Apple Inc.",
       exchange: "NASDAQ",
     });
+    expect(artifact?.report.extendedEvidence?.items.slice(1).map((item) => item.category)).toEqual([
+      "analyst-estimates",
+      "analyst-estimate-context",
+      "institutional-ownership",
+    ]);
     expect(artifact?.report.extendedEvidence?.gaps[0]).toEqual({
       source: "tradier-options",
       message: "No options data available",

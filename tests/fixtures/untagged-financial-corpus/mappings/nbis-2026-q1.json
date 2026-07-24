@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "field": "cash",
+      "labelCellRef": "t002:r006:c001",
+      "valueCellRef": "t002:r006:c007",
+      "periodHeaderCellRefs": ["t002:r002:c005", "t002:r003:c007", "t002:r004:c007"]
+    },
+    {
+      "field": "totalAssets",
+      "labelCellRef": "t002:r021:c001",
+      "valueCellRef": "t002:r021:c007",
+      "periodHeaderCellRefs": ["t002:r002:c005", "t002:r003:c007", "t002:r004:c007"]
+    },
+    {
+      "field": "totalLiabilities",
+      "labelCellRef": "t002:r033:c001",
+      "valueCellRef": "t002:r033:c007",
+      "periodHeaderCellRefs": ["t002:r002:c005", "t002:r003:c007", "t002:r004:c007"]
+    },
+    {
+      "field": "stockholdersEquity",
+      "labelCellRef": "t002:r043:c001",
+      "valueCellRef": "t002:r043:c007",
+      "periodHeaderCellRefs": ["t002:r002:c005", "t002:r003:c007", "t002:r004:c007"]
+    },
+    {
+      "field": "revenue",
+      "labelCellRef": "t003:r004:c001",
+      "valueCellRef": "t003:r004:c007",
+      "periodHeaderCellRefs": ["t003:r002:c005", "t003:r003:c007"]
+    },
+    {
+      "field": "operatingIncome",
+      "labelCellRef": "t003:r011:c001",
+      "valueCellRef": "t003:r011:c007",
+      "periodHeaderCellRefs": ["t003:r002:c005", "t003:r003:c007"]
+    },
+    {
+      "field": "netIncome",
+      "labelCellRef": "t003:r021:c001",
+      "valueCellRef": "t003:r021:c007",
+      "periodHeaderCellRefs": ["t003:r002:c005", "t003:r003:c007"]
+    },
+    {
+      "field": "operatingCashFlow",
+      "labelCellRef": "t005:r027:c001",
+      "valueCellRef": "t005:r027:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    },
+    {
+      "field": "investingCashFlow",
+      "labelCellRef": "t005:r033:c001",
+      "valueCellRef": "t005:r033:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    },
+    {
+      "field": "financingCashFlow",
+      "labelCellRef": "t005:r042:c001",
+      "valueCellRef": "t005:r042:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    },
+    {
+      "field": "foreignExchangeEffect",
+      "labelCellRef": "t005:r043:c001",
+      "valueCellRef": "t005:r043:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    },
+    {
+      "field": "netCashChange",
+      "labelCellRef": "t005:r044:c001",
+      "valueCellRef": "t005:r044:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    },
+    {
+      "field": "cashBeginning",
+      "labelCellRef": "t005:r045:c001",
+      "valueCellRef": "t005:r045:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    },
+    {
+      "field": "cashEnding",
+      "labelCellRef": "t005:r046:c001",
+      "valueCellRef": "t005:r046:c007",
+      "periodHeaderCellRefs": ["t005:r002:c005", "t005:r003:c007"]
+    }
+  ]
+}

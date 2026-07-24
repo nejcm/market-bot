@@ -22,10 +22,14 @@ import type {
 } from "../src/research/source-plan";
 import type { RawSourceSnapshot } from "../src/sources/types";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
+import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import {
   collectedSources,
   marketSnapshot,
   researchReport,
+  reverseDcfArtifact,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 
@@ -212,8 +216,11 @@ const instrumentFiles = [
   RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
   RUN_ARTIFACT_FILES.instrumentIdentity,
   RUN_ARTIFACT_FILES.valuationComps,
+  RUN_ARTIFACT_FILES.valuationWorkbench,
+  RUN_ARTIFACT_FILES.reverseDcf,
   RUN_ARTIFACT_FILES.financialLenses,
   RUN_ARTIFACT_FILES.fundamentalHistory,
+  RUN_ARTIFACT_FILES.financialStatements,
   RUN_ARTIFACT_FILES.businessFramework,
 ] as const;
 
@@ -243,9 +250,34 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.verifiedMarketSnapshot)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.instrumentIdentity)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationComps)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.reverseDcf)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialLenses)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.financialStatements)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.businessFramework)).toBeNull();
+  });
+
+  test("writes the collected valuation-workbench sidecar", () => {
+    const workbench = valuationWorkbench();
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ valuationWorkbench: workbench }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toEqual(workbench);
+  });
+
+  test("writes the collected reverse-DCF sidecar", () => {
+    const artifact = reverseDcfArtifact();
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ reverseDcf: artifact }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.reverseDcf)).toEqual(artifact);
   });
 
   test("writes the collected fundamental-history sidecar", () => {
@@ -264,6 +296,58 @@ describe("run artifact writer manifests", () => {
     );
 
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toEqual(fundamentalHistory);
+  });
+
+  test("writes the financing bridge only when events are present", () => {
+    const subsequentFinancing: SubsequentFinancingBridgeArtifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "AAPL",
+      statementPeriodEnd: "2026-03-31",
+      events: [
+        {
+          disclosureDate: "2026-05-16",
+          eventDate: "2026-05-15",
+          instrument: "debt",
+          proceeds: { amount: 100, currency: "USD", basis: "gross" },
+          costs: null,
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          reconciled: false,
+        },
+      ],
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    };
+    const absent = buildResearchRunManifest(equityCommand, config, result());
+    const present = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ subsequentFinancing }) }),
+    );
+
+    expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.subsequentFinancing);
+    expect(valueFor(present, RUN_ARTIFACT_FILES.subsequentFinancing)).toEqual(subsequentFinancing);
+  });
+
+  test("writes capital ownership only when collected", () => {
+    const capitalOwnership: CapitalOwnershipArtifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "AAPL",
+      dilutedShares: [],
+      stockBasedCompensation: [],
+      buybacks: [],
+      dividendsPaid: [],
+      omissions: [],
+    };
+    const absent = buildResearchRunManifest(equityCommand, config, result());
+    const present = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ capitalOwnership }) }),
+    );
+
+    expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.capitalOwnership);
+    expect(valueFor(present, RUN_ARTIFACT_FILES.capitalOwnership)).toEqual(capitalOwnership);
   });
 
   test("research deep instrument manifest includes conditional audit artifacts", () => {

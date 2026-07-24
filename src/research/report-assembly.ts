@@ -16,6 +16,11 @@ import { dedupeSourceGaps } from "../domain/source-gaps";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
+import {
+  applyEarningsForecastPolicy,
+  hasConfirmedEarningsDate,
+} from "../forecast/earnings-eligibility";
+import { deriveEquityAnalysisCompleteness } from "../sources/extended-evidence/equity-analysis-completeness";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { extractCatalystDate } from "./catalyst-date";
@@ -238,6 +243,52 @@ export function buildSourceList(
           fetchedAt ?? missingRegistryProvenanceFetchedAt(command),
         )
       : [];
+  const financialStatementsSource =
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    collectedSources.financialStatements !== undefined &&
+    !collectedSources.extendedSources.some(
+      (source) => source.id === collectedSources.financialStatements?.sourceId,
+    )
+      ? {
+          id: collectedSources.financialStatements.sourceId,
+          title: `${command.symbol} canonical financial statements`,
+          fetchedAt: collectedSources.financialStatements.analysisAsOf,
+          kind: "extended-evidence" as const,
+          assetClass: "equity" as const,
+          symbol: command.symbol,
+          provider: "sec-edgar",
+          ...(collectedSources.financialStatements.sourceUrl !== undefined
+            ? { url: collectedSources.financialStatements.sourceUrl }
+            : {}),
+        }
+      : undefined;
+  const existingSourceIds = new Set([
+    ...collectedSources.extendedSources.map((source) => source.id),
+    ...(financialStatementsSource !== undefined ? [financialStatementsSource.id] : []),
+  ]);
+  const structuredFinancialGapSources =
+    isInstrumentCommand(command) && collectedSources.financialStatements !== undefined
+      ? [
+          ...new Set(
+            collectedSources.financialStatements.structuredFinancialGaps.flatMap(
+              (gap) => gap.sourceIds,
+            ),
+          ),
+        ]
+          .filter((sourceId) => !existingSourceIds.has(sourceId))
+          .map(
+            (sourceId): Source => ({
+              id: sourceId,
+              title: `${command.symbol} structured financial filing evidence`,
+              fetchedAt: collectedSources.financialStatements!.analysisAsOf,
+              kind: "extended-evidence",
+              assetClass: "equity",
+              symbol: command.symbol,
+              provider: "sec-edgar",
+            }),
+          )
+      : [];
 
   return [
     ...marketSources,
@@ -249,6 +300,8 @@ export function buildSourceList(
     ...(isInstrumentCommand(command) || command.jobType === "research"
       ? collectedSources.extendedSources
       : []),
+    ...(financialStatementsSource !== undefined ? [financialStatementsSource] : []),
+    ...structuredFinancialGapSources,
     ...(historicalContext?.sources ?? []),
     ...registrySources,
   ];
@@ -728,6 +781,7 @@ export interface AssembleResearchReportInput {
   readonly depthProfile: DepthProfile;
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
+  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 export function assembleResearchReport(input: AssembleResearchReportInput): ResearchReport {
@@ -741,11 +795,17 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     depthProfile,
     context,
     sources,
+    suppressedEarningsPredictionCountOffset = 0,
   } = input;
 
-  const gatedPredictions = researchPredictionGate({
-    command,
+  const earningsGatedPredictions = applyEarningsForecastPolicy({
     predictions: predResult.predictions,
+    setup: collectedSources.earningsSetup,
+    policy: "confirmed-only",
+  });
+  const researchGatedPredictions = researchPredictionGate({
+    command,
+    predictions: earningsGatedPredictions.predictions,
     collectedSources,
   });
   const deterministicGapEntries = deterministicSourceGapEntries(command, collectedSources);
@@ -761,20 +821,28 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     uniqueDataGapEntries([
       ...modelGapEntries,
       ...deterministicGapEntries,
-      ...gatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
+      ...researchGatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
+      ...(collectedSources.earningsSetup !== undefined &&
+      !hasConfirmedEarningsDate(collectedSources.earningsSetup)
+        ? [
+            reportDataGapEntry(
+              "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+            ),
+          ]
+        : []),
     ]),
   ).map((gap) => gap.text);
   // Stamp the current scoring policy on every accepted Prediction. The stamp
   // Is deterministic: model-provided policy metadata never survives assembly.
-  const stampedPredictions = gatedPredictions.predictions.map((candidate) => ({
+  const stampedPredictions = researchGatedPredictions.predictions.map((candidate) => ({
     ...candidate,
     scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
   }));
-  const shortfall = gatedPredictions.predictions.length < depthProfile.targetPredictions;
+  const shortfall = researchGatedPredictions.predictions.length < depthProfile.targetPredictions;
   const dataGaps = shortfall
     ? [
         ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(gatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
+        `predictionShortfall: emitted ${String(researchGatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
       ]
     : dataGapsRaw;
 
@@ -831,6 +899,38 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
           collectedSources,
         })
       : undefined;
+  const equityAnalysisCompleteness =
+    command.jobType === "equity"
+      ? deriveEquityAnalysisCompleteness({
+          asOf: generatedAt,
+          assetClass: command.assetClass,
+          ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
+          ...(collectedSources.financialStatements !== undefined
+            ? { financialStatements: collectedSources.financialStatements }
+            : {}),
+          ...(collectedSources.extendedEvidence !== undefined
+            ? { extendedEvidence: collectedSources.extendedEvidence }
+            : {}),
+          ...(collectedSources.earningsSetup !== undefined
+            ? { earningsSetup: collectedSources.earningsSetup }
+            : {}),
+          ...(collectedSources.analystExpectations !== undefined
+            ? { analystExpectations: collectedSources.analystExpectations }
+            : {}),
+          ...(collectedSources.analystExpectationsSignal !== undefined
+            ? { analystExpectationsSignal: collectedSources.analystExpectationsSignal }
+            : {}),
+          ...(collectedSources.institutionalOwnership !== undefined
+            ? { institutionalOwnership: collectedSources.institutionalOwnership }
+            : {}),
+          ...(collectedSources.institutionalOwnershipSignal !== undefined
+            ? { institutionalOwnershipSignal: collectedSources.institutionalOwnershipSignal }
+            : {}),
+          ...(collectedSources.capitalOwnership !== undefined
+            ? { capitalOwnership: collectedSources.capitalOwnership }
+            : {}),
+        })
+      : undefined;
 
   return validateResearchReport({
     runId,
@@ -849,6 +949,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     catalysts,
     scenarios,
     evidenceQuality,
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     dataGaps,
     predictions: stampedPredictions,
     sources,
@@ -870,6 +971,16 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
       ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
       ...extendedEvidenceExtras,
+      ...(command.jobType === "equity"
+        ? {
+            earningsForecasts: {
+              ...earningsGatedPredictions.telemetry,
+              suppressedPredictionCount:
+                earningsGatedPredictions.telemetry.suppressedPredictionCount +
+                suppressedEarningsPredictionCountOffset,
+            },
+          }
+        : {}),
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),

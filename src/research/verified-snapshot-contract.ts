@@ -8,6 +8,7 @@
  */
 
 import type { IndicatorMap, Source, VerifiedMarketSnapshot } from "../domain/types";
+import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 
 /** Locked indicator key schema (ADR 0019). Phase A.2 matches these keys by name. */
 export const INDICATOR_KEYS = [
@@ -27,7 +28,7 @@ export const INDICATOR_KEYS = [
 // Single construction point for the citeable report Source ID. Used by the
 // Report source list, the evidence payload, and (later) Phase A.2 verification.
 export function verifiedSnapshotSourceId(symbol: string): string {
-  return `verified-snapshot-${symbol}`;
+  return verifiedMarketSnapshotSourceId(symbol);
 }
 
 // Citeable report Source for exact numeric technical claims.

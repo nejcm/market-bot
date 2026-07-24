@@ -26,7 +26,7 @@ export type FundamentalHistorySeriesKey =
 
 export interface FundamentalHistoryPoint {
   readonly value: number;
-  readonly form: "10-K" | "TTM";
+  readonly form: "10-K" | "20-F" | "TTM";
   readonly fy: number;
   readonly fp: string;
   readonly periodStart: string;
@@ -341,7 +341,7 @@ function ttmPoint(
   };
 }
 
-function cagr(
+export function fundamentalHistoryCagr(
   annual: readonly FundamentalHistoryPoint[],
   notes: string[],
 ): FundamentalHistoryCagr | undefined {
@@ -393,7 +393,7 @@ function rawSeries(
     notes.push("annual:missing-concept: no SEC facts found for the ordered concept list");
     const annual: readonly FundamentalHistoryPoint[] = [];
     ttmPoint(annual, [], "", notes);
-    const growth = cagr(annual, notes);
+    const growth = fundamentalHistoryCagr(annual, notes);
     return {
       ...definition,
       annual,
@@ -447,7 +447,7 @@ function rawSeries(
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
   }
-  const growth = cagr(annual, notes);
+  const growth = fundamentalHistoryCagr(annual, notes);
   return {
     ...definition,
     concept: selected.concept,
@@ -533,7 +533,7 @@ function pairSeries(
   }
 
   if (key === "freeCashFlowProxy") {
-    const growth = cagr(annual, notes);
+    const growth = fundamentalHistoryCagr(annual, notes);
     return {
       key,
       label,
@@ -586,6 +586,23 @@ export function deriveFundamentalHistory(
       rawSeries(payload, definition, input.analysisAsOf),
     ]),
   ) as Record<RawSeriesDefinition["key"], FundamentalHistorySeries>;
+  return {
+    version: 1,
+    generatedAt: input.generatedAt,
+    symbol: input.symbol.toUpperCase(),
+    sourceId: input.sourceId,
+    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
+    series: buildFundamentalHistorySeries(raw),
+  };
+}
+
+export type FundamentalHistoryRawSeries = Readonly<
+  Record<RawSeriesDefinition["key"], FundamentalHistorySeries>
+>;
+
+export function buildFundamentalHistorySeries(
+  raw: FundamentalHistoryRawSeries,
+): FundamentalHistoryArtifact["series"] {
   const freeCashFlowProxy = pairSeries(
     "freeCashFlowProxy",
     "Free cash flow proxy",
@@ -616,24 +633,17 @@ export function deriveFundamentalHistory(
   );
 
   return {
-    version: 1,
-    generatedAt: input.generatedAt,
-    symbol: input.symbol.toUpperCase(),
-    sourceId: input.sourceId,
-    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
-    series: {
-      revenue: raw.revenue,
-      grossProfit: raw.grossProfit,
-      operatingIncome: raw.operatingIncome,
-      netIncome: raw.netIncome,
-      dilutedEps: raw.dilutedEps,
-      operatingCashFlow: raw.operatingCashFlow,
-      capex: raw.capex,
-      freeCashFlowProxy,
-      grossMargin,
-      operatingMargin,
-      netMargin,
-    },
+    revenue: raw.revenue,
+    grossProfit: raw.grossProfit,
+    operatingIncome: raw.operatingIncome,
+    netIncome: raw.netIncome,
+    dilutedEps: raw.dilutedEps,
+    operatingCashFlow: raw.operatingCashFlow,
+    capex: raw.capex,
+    freeCashFlowProxy,
+    grossMargin,
+    operatingMargin,
+    netMargin,
   };
 }
 

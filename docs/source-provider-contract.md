@@ -54,17 +54,21 @@ Massive satisfies this contract as a supplemental-only equity Source Provider:
 - Massive does not replace Yahoo, run for crypto, affect mover ranking or market regime, or contribute scoring Observations.
 - Existing seam tests cover Massive normalization, registry wiring, missing-key silence, equity-only routing, supplemental snapshot collection, news round-robin inclusion, and configured failure gaps.
 
-## Evidence Request tools
+## Deterministic deep-equity packet tools
 
-Evidence Request tools are Source Provider consumers, not model-provider native tools. They must:
+Deep-equity packet tools are Source Provider consumers, not model-provider native tools. They must:
 
 - be enumerated by name and validated before execution;
 - use only public-data providers and never account, order, portfolio, private, or trading endpoints;
-- declare source-unit cost before execution;
 - run through `ctx.request.json` or `ctx.request.text`;
 - emit normal `Source`, `ExtendedEvidence`, raw snapshots, and `SourceGap`s.
 
-V1 tools are `sec_latest_filing` (latest 10-K and latest 10-Q filing text, 5 units; retrieved deterministically before the model-driven loop) and `tradier_iv_term_structure` (5 units, model-requested), scoped to deep equity ticker research.
+The compatibility tool identifiers are `sec_latest_filing` and
+`tradier_iv_term_structure`, scoped to deep equity ticker research. The target
+SEC packet and Tradier packet execute deterministically; no model selects either
+tool. The SEC packet retrieves the latest 10-K, a newer 10-Q, and eligible
+recent 8-K/6-K filings. The Tradier packet unions event and
+7/30/60/90-day expirations before fetching each unique chain once.
 
 ## Verified Market Snapshot
 

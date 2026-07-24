@@ -1,7 +1,15 @@
 import { type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
-import type { ExtendedEvidence, Source, SourceGap, SubjectKind } from "../domain/types";
+import type {
+  ExtendedEvidence,
+  Source,
+  SourceGap,
+  SubjectKind,
+  WebEvidenceUtilizationLevel,
+  WebGatherAcceptancePolicy,
+} from "../domain/types";
+import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import {
   buildWebSubjectProfileReuseEvidence,
@@ -10,15 +18,23 @@ import {
 } from "./web-subject-profile";
 import type { CollectedSources } from "../sources/types";
 import { roundWebSubjectProfileAgeDays } from "./web-subject-profile-age";
+import { classifyWebEvidenceUtilization } from "./web-source-usage";
 
 export interface WebSubjectProfileReuse {
   readonly profile: WebSubjectProfileArtifact;
   readonly sources: readonly Source[];
   readonly gap: SourceGap;
   readonly runDirName: string;
+  readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
+  readonly priorUtilizationRatio?: number;
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
+
+interface PriorWebEvidenceUtilization {
+  readonly level: WebEvidenceUtilizationLevel;
+  readonly ratio: number;
+}
 
 export function latestSecFilingDate(evidence: ExtendedEvidence | undefined): string | undefined {
   const filingDates = (evidence?.items ?? [])
@@ -86,6 +102,10 @@ export async function findReusableWebSubjectProfile(input: {
       profile.subjectKind === "company" && input.currentSecFilingDate !== undefined
         ? `; latest SEC filing basis ${input.currentSecFilingDate}`
         : "";
+    const priorUtilization = readPriorWebEvidenceUtilization(
+      artifact.analytics,
+      artifact.report.runId,
+    );
     return {
       profile,
       sources,
@@ -98,8 +118,32 @@ export async function findReusableWebSubjectProfile(input: {
         evidenceQualityImpact: "extended-evidence-cap",
       }),
       runDirName: artifact.runDirName,
+      ...(priorUtilization !== undefined
+        ? {
+            priorUtilizationLevel: priorUtilization.level,
+            priorUtilizationRatio: priorUtilization.ratio,
+          }
+        : {}),
     };
   }
+}
+
+export function webGatherAcceptancePolicyForReuse(
+  reuse: WebSubjectProfileReuse,
+): WebGatherAcceptancePolicy {
+  const afterLowUtilization = reuse.priorUtilizationLevel === "low";
+  return {
+    version: 1,
+    mode: afterLowUtilization ? "reused-profile-after-low-utilization" : "reused-profile-default",
+    sourceRunDirName: reuse.runDirName,
+    ...(reuse.priorUtilizationLevel !== undefined
+      ? { priorUtilizationLevel: reuse.priorUtilizationLevel }
+      : {}),
+    ...(reuse.priorUtilizationRatio !== undefined
+      ? { priorUtilizationRatio: reuse.priorUtilizationRatio }
+      : {}),
+    implicitPerQueryAcceptanceCap: afterLowUtilization ? 2 : 3,
+  };
 }
 
 export function attachReusableWebSubjectProfile(input: {
@@ -179,4 +223,83 @@ function mergeSources(existing: readonly Source[], reused: readonly Source[]): r
     byId.set(source.id, source);
   }
   return [...byId.values()];
+}
+
+function readPriorWebEvidenceUtilization(
+  analytics: unknown,
+  expectedRunId: string,
+): PriorWebEvidenceUtilization | undefined {
+  if (!isRecord(analytics) || analytics.runId !== expectedRunId) {
+    return undefined;
+  }
+  if (analytics.version !== undefined && analytics.version !== 1 && analytics.version !== 2) {
+    return undefined;
+  }
+  if ("webEvidenceUtilization" in analytics) {
+    return readVersionedWebEvidenceUtilization(analytics.webEvidenceUtilization);
+  }
+  return readLegacyWebEvidenceUtilization(analytics.webSources);
+}
+
+function readVersionedWebEvidenceUtilization(
+  value: unknown,
+): PriorWebEvidenceUtilization | undefined {
+  if (!isRecord(value) || value.version !== 1) {
+    return undefined;
+  }
+  const countKeys = [
+    "acceptedCurrentRun",
+    "usedCurrentRun",
+    "profileUsed",
+    "primaryReportCited",
+    "structuredExtraCited",
+    "unusedCurrentRun",
+  ] as const;
+  if (
+    countKeys.some((key) => !Number.isSafeInteger(value[key]) || (value[key] as number) < 0) ||
+    typeof value.ratio !== "number" ||
+    !Number.isFinite(value.ratio) ||
+    value.ratio < 0 ||
+    value.ratio > 1
+  ) {
+    return undefined;
+  }
+  const accepted = value.acceptedCurrentRun as number;
+  const used = value.usedCurrentRun as number;
+  const profileUsed = value.profileUsed as number;
+  const primaryReportCited = value.primaryReportCited as number;
+  const structuredExtraCited = value.structuredExtraCited as number;
+  const unusedCurrentRun = value.unusedCurrentRun as number;
+  const expectedRatio = accepted === 0 ? 0 : used / accepted;
+  const expectedLevel = classifyWebEvidenceUtilization(accepted, expectedRatio);
+  if (
+    used > accepted ||
+    profileUsed > used ||
+    primaryReportCited > used ||
+    structuredExtraCited > used ||
+    unusedCurrentRun !== accepted - used ||
+    value.ratio !== expectedRatio ||
+    value.level !== expectedLevel
+  ) {
+    return undefined;
+  }
+  return { level: expectedLevel, ratio: expectedRatio };
+}
+
+function readLegacyWebEvidenceUtilization(value: unknown): PriorWebEvidenceUtilization | undefined {
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.accepted) ||
+    (value.accepted as number) < 0 ||
+    typeof value.usageRatio !== "number" ||
+    !Number.isFinite(value.usageRatio) ||
+    value.usageRatio < 0 ||
+    value.usageRatio > 1
+  ) {
+    return undefined;
+  }
+  return {
+    level: classifyWebEvidenceUtilization(value.accepted as number, value.usageRatio),
+    ratio: value.usageRatio,
+  };
 }

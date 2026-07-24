@@ -6,6 +6,15 @@ import { resolveConfig, type AppConfig } from "../../../src/config";
 import { createProvider } from "../../../src/model/factory";
 import type { ModelProvider } from "../../../src/model/types";
 import { collectSources } from "../../../src/sources/collector";
+import type { CollectedSources, FetchLike } from "../../../src/sources/types";
+import {
+  DEEP_EQUITY_PIPELINE_VARIANTS,
+  judgeDeepEquityPair,
+  runDeepEquityPipelineVariant,
+  SimplifiedPipelineNotImplementedError,
+  type DeepEquityPipelineVariant,
+  type PairwiseJudgeResult,
+} from "../deep-equity-evaluation";
 import {
   persistResearchJob,
   type PersistedResearchJobResult,
@@ -24,6 +33,7 @@ export interface FixtureMeta {
   readonly quickModel?: string;
   readonly synthesisModel?: string;
   readonly challengerModels?: readonly string[];
+  readonly configuredProviders?: readonly ("finnhub" | "tradier")[];
   readonly secUserAgent?: string;
   readonly webGatherDisabled?: boolean;
   readonly evidenceRequestOptions?: {
@@ -40,6 +50,7 @@ export interface FixtureMeta {
 
 export interface LoadedFixture {
   readonly name: string;
+  readonly dir: string;
   readonly dataCassette: DataCassette;
   readonly llmCassette: LlmCassette;
   readonly meta: FixtureMeta;
@@ -50,10 +61,43 @@ export interface RunFixtureOptions {
   readonly keepDataDir?: boolean;
   readonly dataDir?: string;
   readonly provider?: ModelProvider;
+  readonly onDataRequest?: (request: FixtureDataRequest) => void;
 }
 
 export interface RunFixtureResult extends PersistedResearchJobResult {
   readonly dataDir: string;
+  readonly cleanup: () => Promise<void>;
+}
+
+export interface FixtureDataRequest {
+  readonly method: string;
+  readonly url: string;
+}
+
+export interface RunFixturePairOptions extends RunFixtureOptions {
+  readonly judgeModel?: string;
+  readonly random?: () => number;
+}
+
+export type RunFixtureVariantOutcome =
+  | {
+      readonly status: "success";
+      readonly result: PersistedResearchJobResult;
+    }
+  | {
+      readonly status: "not-implemented";
+      readonly error: SimplifiedPipelineNotImplementedError;
+    }
+  | {
+      readonly status: "error";
+      readonly error: Error;
+    };
+
+export interface RunFixturePairResult {
+  readonly dataDir: string;
+  readonly collectedSources: CollectedSources;
+  readonly variants: Readonly<Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>>;
+  readonly judge?: PairwiseJudgeResult;
   readonly cleanup: () => Promise<void>;
 }
 
@@ -85,6 +129,7 @@ export async function loadFixture(name: string): Promise<LoadedFixture> {
   const dir = join(FIXTURE_ROOT, name);
   return {
     name,
+    dir,
     dataCassette: await readJson<DataCassette>(join(dir, "data-cassette.json")),
     llmCassette: await readJson<LlmCassette>(join(dir, "llm-cassette.json")),
     meta: await readJson<FixtureMeta>(join(dir, "meta.json")),
@@ -122,9 +167,14 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
     meta.secUserAgent === undefined
       ? (({ secUserAgent: _secUserAgent, ...rest }) => rest)(config.sourceOptions)
       : config.sourceOptions;
+  const configuredProviders = new Set(meta.configuredProviders);
   return {
     ...config,
-    sourceOptions,
+    sourceOptions: {
+      ...sourceOptions,
+      ...(configuredProviders.has("finnhub") ? { finnhubApiToken: "fixture-token" } : {}),
+      ...(configuredProviders.has("tradier") ? { tradierApiToken: "fixture-token" } : {}),
+    },
     evidenceRequestOptions: meta.evidenceRequestOptions ?? {
       maxRounds: 0,
       maxToolCalls: 0,
@@ -145,6 +195,54 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
   };
 }
 
+function createLiveFixtureConfig(meta: FixtureMeta, dataDir: string): AppConfig {
+  const baseFixtureConfig = createFixtureConfig(meta, dataDir);
+  const liveConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+  return {
+    ...baseFixtureConfig,
+    provider: liveConfig.provider,
+    quickModel: liveConfig.quickModel,
+    synthesisModel: liveConfig.synthesisModel,
+    modelTimeoutMs: liveConfig.modelTimeoutMs,
+    ...(liveConfig.apiKey !== undefined ? { apiKey: liveConfig.apiKey } : {}),
+    ...(liveConfig.baseUrl !== undefined ? { baseUrl: liveConfig.baseUrl } : {}),
+    ...(liveConfig.codexQuickModel !== undefined
+      ? { codexQuickModel: liveConfig.codexQuickModel }
+      : {}),
+    ...(liveConfig.codexSynthesisModel !== undefined
+      ? { codexSynthesisModel: liveConfig.codexSynthesisModel }
+      : {}),
+    ...(liveConfig.modelParams !== undefined ? { modelParams: liveConfig.modelParams } : {}),
+  };
+}
+
+function fixtureConfig(meta: FixtureMeta, dataDir: string, llm: "replay" | "live"): AppConfig {
+  return llm === "live"
+    ? createLiveFixtureConfig(meta, dataDir)
+    : createFixtureConfig(meta, dataDir);
+}
+
+function observedFetch(
+  inner: FetchLike,
+  observer: ((request: FixtureDataRequest) => void) | undefined,
+): FetchLike {
+  if (observer === undefined) {
+    return inner;
+  }
+  return async (input, init) => {
+    if (typeof input === "string") {
+      observer({ method: (init?.method ?? "GET").toUpperCase(), url: input });
+      return inner(input, init);
+    }
+    const { url } = input instanceof URL ? { url: input.href } : input;
+    observer({
+      method: (init?.method ?? "GET").toUpperCase(),
+      url,
+    });
+    return inner(input, init);
+  };
+}
+
 export async function runFixture(
   name: string,
   options?: RunFixtureOptions,
@@ -153,8 +251,11 @@ export async function runFixture(
   const fixture = await loadFixture(name);
   const { dataDir: requestedDataDir } = resolvedOptions;
   const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
-  const config = createFixtureConfig(fixture.meta, dataDir);
-  const fetchImpl = makeReplayFetch(fixture.dataCassette);
+  const config = fixtureConfig(fixture.meta, dataDir, resolvedOptions.llm);
+  const fetchImpl = observedFetch(
+    makeReplayFetch(fixture.dataCassette, fixture.dir),
+    resolvedOptions.onDataRequest,
+  );
   const provider =
     resolvedOptions.provider ??
     (resolvedOptions.llm === "replay"
@@ -193,6 +294,115 @@ export async function runFixture(
     dataDir,
     cleanup: async () => {
       if (resolvedOptions.keepDataDir !== true && tempRoot !== undefined) {
+        await rm(tempRoot, { recursive: true, force: true });
+      }
+    },
+  };
+}
+
+function variantConfig(config: AppConfig, pairDataDir: string, variant: DeepEquityPipelineVariant) {
+  const dataDir = join(pairDataDir, variant);
+  return {
+    ...config,
+    dataDir,
+    sourceOptions: {
+      ...config.sourceOptions,
+      cacheDir: join(dataDir, "..", "cache"),
+      newsSeenPath: join(dataDir, "..", "news-seen.json"),
+      peerUniverseLearnedPath: join(dataDir, "..", "peer-universe-learned.json"),
+    },
+  };
+}
+
+function outcomeError(error: unknown): RunFixtureVariantOutcome {
+  if (error instanceof SimplifiedPipelineNotImplementedError) {
+    return { status: "not-implemented", error };
+  }
+  return {
+    status: "error",
+    error: error instanceof Error ? error : new Error(String(error)),
+  };
+}
+
+export async function runFixturePair(
+  name: string,
+  options: RunFixturePairOptions,
+): Promise<RunFixturePairResult> {
+  const fixture = await loadFixture(name);
+  const { dataDir: requestedDataDir } = options;
+  const { dataDir, tempRoot } = await fixtureDataDir(`${name}-pair`, requestedDataDir);
+  const config = fixtureConfig(fixture.meta, dataDir, options.llm);
+  const fetchImpl = observedFetch(
+    makeReplayFetch(fixture.dataCassette, fixture.dir),
+    options.onDataRequest,
+  );
+  const provider =
+    options.provider ??
+    (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : createProvider(config));
+  const rawCommand = researchCommand(fixture.meta.argv);
+  const resolvedSubject = resolveResearchSubject(rawCommand);
+  const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
+  const now = new Date(fixture.meta.now);
+  const sourcePlan = buildSourcePlan(command, now.toISOString(), resolvedSubject);
+  const collectedSources = await collectSources(command, config.sourceOptions, {
+    now,
+    fetchImpl,
+    retryDelaysMs: [],
+    ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
+    peerUniverse: {
+      provider,
+      model: config.quickModel,
+      cachePath:
+        config.sourceOptions.peerUniverseLearnedPath ?? join(dataDir, "..", "peer-universe.json"),
+    },
+  });
+  const outcomes = {} as Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>;
+  for (const variant of DEEP_EQUITY_PIPELINE_VARIANTS) {
+    try {
+      const currentConfig = variantConfig(config, dataDir, variant);
+      outcomes[variant] = {
+        status: "success",
+        result: await runDeepEquityPipelineVariant(variant, {
+          command,
+          config: currentConfig,
+          provider,
+          collectedSources,
+          sourcePlan,
+          now,
+          endClock: () => now,
+          sourceFetchImpl: fetchImpl,
+          sourceRetryDelaysMs: [],
+        }),
+      };
+    } catch (error) {
+      outcomes[variant] = outcomeError(error);
+    }
+  }
+  const { legacy, simplified } = outcomes;
+  const judgeModel = options.judgeModel ?? config.quickModel;
+  const judge =
+    legacy.status === "success" && simplified.status === "success"
+      ? await judgeDeepEquityPair({
+          provider,
+          judgeModel,
+          synthesisModels: [
+            legacy.result.trace.synthesisModel,
+            simplified.result.trace.synthesisModel,
+          ],
+          reports: {
+            legacy: legacy.result.report,
+            simplified: simplified.result.report,
+          },
+          ...(options.random !== undefined ? { random: options.random } : {}),
+        })
+      : undefined;
+  return {
+    dataDir,
+    collectedSources,
+    variants: outcomes,
+    ...(judge !== undefined ? { judge } : {}),
+    cleanup: async () => {
+      if (options.keepDataDir !== true && tempRoot !== undefined) {
         await rm(tempRoot, { recursive: true, force: true });
       }
     },

@@ -229,6 +229,29 @@ export interface WebGatherSanitizerAudit {
   readonly removedChromeHtmlCount: number;
 }
 
+export type WebEvidenceUtilizationLevel = "insufficient-sample" | "low" | "medium" | "high";
+
+export interface WebEvidenceUtilization {
+  readonly version: 1;
+  readonly acceptedCurrentRun: number;
+  readonly usedCurrentRun: number;
+  readonly profileUsed: number;
+  readonly primaryReportCited: number;
+  readonly structuredExtraCited: number;
+  readonly unusedCurrentRun: number;
+  readonly ratio: number;
+  readonly level: WebEvidenceUtilizationLevel;
+}
+
+export interface WebGatherAcceptancePolicy {
+  readonly version: 1;
+  readonly mode: "reused-profile-default" | "reused-profile-after-low-utilization";
+  readonly sourceRunDirName: string;
+  readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
+  readonly priorUtilizationRatio?: number;
+  readonly implicitPerQueryAcceptanceCap: 2 | 3;
+}
+
 export type ModelInputSanitizerProfile =
   | "open-web"
   | "news"
@@ -295,6 +318,7 @@ export interface WebGatherFallbackAudit {
 
 export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherAuditEntry> & {
   readonly sanitizer: WebGatherSanitizerAudit;
+  readonly acceptancePolicy?: WebGatherAcceptancePolicy;
 };
 
 export interface DomainPlaybookSelectionAudit {
@@ -420,9 +444,13 @@ export type ExtendedEvidenceCategory =
   | "sec-edgar"
   | "valuation"
   | "financial-lens"
+  | "subsequent-events"
   | "business-framework"
   | "web-subject-profile"
   | "yahoo-fundamentals"
+  | "analyst-estimates"
+  | "analyst-estimate-context"
+  | "institutional-ownership"
   | "equity-events"
   | "fred-macro"
   | "options-iv"
@@ -522,6 +550,27 @@ export type PredictionKind =
   | "earnings-move"
   | "conditional";
 
+export const EARNINGS_EVENT_DATE_STATUSES = [
+  "provider-estimated",
+  "issuer-confirmed",
+  "exchange-confirmed",
+] as const;
+
+export type EarningsEventDateStatus = (typeof EARNINGS_EVENT_DATE_STATUSES)[number];
+
+export function isEarningsEventDateStatus(value: unknown): value is EarningsEventDateStatus {
+  return EARNINGS_EVENT_DATE_STATUSES.includes(value as EarningsEventDateStatus);
+}
+
+export interface EarningsForecastTelemetry {
+  readonly eventDateStatus: EarningsEventDateStatus | "not-present";
+  readonly policy: "legacy-ungated" | "confirmed-only";
+  readonly grammarEligible: boolean;
+  readonly eligiblePredictionCount: number;
+  readonly suppressedPredictionCount: number;
+  readonly suppressionReason?: "event-date-not-confirmed" | "earnings-setup-not-present";
+}
+
 /** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
 export const NEAR_BASE_RATE_BAND = 0.1;
 
@@ -536,6 +585,9 @@ export interface Prediction {
   readonly horizonTradingDays: number;
   readonly probability: number;
   readonly sourceIds: readonly string[];
+  // Code-owned certainty of the event anchor for earnings forecasts. Optional
+  // So historical artifacts remain readable.
+  readonly eventDateStatus?: EarningsEventDateStatus;
   // Stamped deterministically during report assembly; model-provided values
   // Are never trusted. Absent on historical forecasts, which resolve
   // Permanently under scoring policy v2.
@@ -580,6 +632,29 @@ export interface Scenario {
   readonly sourceIds: readonly string[];
 }
 
+export type EquityAnalysisDimensionStatus = "complete" | "partial" | "blocked" | "not-applicable";
+
+export interface EquityAnalysisCompletenessDimension {
+  readonly status: EquityAnalysisDimensionStatus;
+  readonly reasonCodes: readonly string[];
+  readonly asOf: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface EquityAnalysisCompleteness {
+  readonly version: 1;
+  readonly financialCoreStatus: "complete" | "partial" | "blocked";
+  readonly coverageLevel: "comprehensive" | "substantial" | "limited";
+  readonly asOf: string;
+  readonly dimensions: {
+    readonly primaryFinancials: EquityAnalysisCompletenessDimension;
+    readonly valuation: EquityAnalysisCompletenessDimension;
+    readonly expectations: EquityAnalysisCompletenessDimension;
+    readonly capitalOwnership: EquityAnalysisCompletenessDimension;
+    readonly operatingKpis: EquityAnalysisCompletenessDimension;
+  };
+}
+
 // Report Integrity grades the deterministic post-synthesis pruning outcome;
 // Research Quality is the worse of Evidence Quality and Report Integrity.
 // Both are optional at tolerant read boundaries (historical reports predate
@@ -609,6 +684,7 @@ export interface ResearchReport {
   readonly reportIntegrity?: ReportIntegrity;
   readonly researchQuality?: ReportIntegrity;
   readonly researchQualityDriver?: string;
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
@@ -706,6 +782,7 @@ export interface RunTrace {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
+  readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
@@ -722,6 +799,7 @@ export interface RunTrace {
   /** Legacy artifacts only. New runs write predictionCompletion. */
   readonly predictionReplacementAttempted?: boolean;
   readonly predictionErrors?: readonly string[];
+  readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly reportValidationRetryErrors?: readonly string[];
   readonly postSynthesisAudit?: {
     readonly warningCount: number;

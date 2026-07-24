@@ -13,7 +13,15 @@ amended 2026-07-12: near-duplicate web headline dedupe; consolidated 2026-07-15;
 present-but-unsupportable material target valuation caps Evidence Quality at medium, emitted as
 rubric version 2; amended 2026-07-20: pre-commercial revenue-multiple applicability; amended
 2026-07-21: normalized fundamental history; amended 2026-07-21: peer-implied price reference range;
-amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures)
+amended 2026-07-22: current-report ingestion and financial scope/date-basis disclosures; amended
+2026-07-23: canonical financial-statements shadow artifact; amended 2026-07-23: cadence-aware
+equity completeness contract and incremental consumer migration; amended 2026-07-23: canonical
+consumer completion and subsequent-financing bridge; amended 2026-07-23: official issuer earnings-
+date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date authority; amended
+2026-07-23: Phase 6 equity dimension evidence contracts; amended 2026-07-23: operating-KPI issuer
+registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended 2026-07-24:
+entitlement-adaptive institutional-ownership context; amended 2026-07-24: deterministic deep-equity
+acquisition recipe and provider packets)
 
 ## Context
 
@@ -111,9 +119,29 @@ without pretending the project has a global security master.
 - Instrument runs may add normalized Extended Evidence without changing the core report schema.
   Current categories include regulatory filings, events, macro, options IV, on-chain metrics,
   financial lenses, business framework, valuation, earnings setup, and Web Subject Profile.
-- Deep US-equity runs may execute a bounded Evidence Request Loop before analysis. Requests use
-  enumerated tools, subject validation, source-unit budgets, and the shared source request seam;
-  they do not use provider-native model tools.
+- Deep equity acquisition follows one explicit recipe: Yahoo target quote and identity, parallel
+  provider packets, dependent peer and web acquisition, deterministic derivations, then one
+  finalized in-memory `DeepEquityEvidenceBundleV1`. The same recipe supplies the frozen Source Plan
+  lanes and executable acquisition task keys; it is not a generic task graph.
+- A deep US-equity `SecTargetPacket` fetches target CIK mapping, company facts, and submissions once,
+  then retains SIC plus eligible 10-K, newer 10-Q, and recent 8-K/6-K filing packets. Statement,
+  history, lens, financing, ownership, valuation, and framework derivations consume the shared
+  packet without independent target retries. Base-packet failure suppresses those dependents with
+  typed gaps; the shared request executor still owns SEC retries.
+- A configured deep-equity `TradierPacket` fetches expirations once, unions event and
+  7/30/60/90-day expirations, and fetches each unique chain once. Thirty-day IV, earnings implied
+  move, and term structure derive from that packet deterministically; no model decides whether to
+  request term structure.
+- Each valuation peer is collected as one packet containing its Yahoo quote and SEC facts,
+  submissions, and SIC. All peer packets reuse the target packet's SEC ticker map.
+- Adaptive deep-equity web acquisition uses one planning model call followed by one parallel
+  search/fetch batch. Exa/Firecrawl fallback, sanitization, relevance, dedupe, profile reuse and
+  extraction, and Business Framework reconciliation retain their existing authority.
+- The external deep-equity workflow projects one `DeepEquityModelPacket` from the finalized bundle.
+  It carries canonical facts, derived views, source IDs and metadata, dates, units, and gaps; raw
+  snapshots and duplicated narrative projections remain excluded. Phase 2 does not change the
+  legacy reasoning-stage sequence or prompt projections; that model-pipeline cutover remains gated
+  to Phase 4.
 - Every equity instrument run attempts a Verified Market Snapshot from Yahoo OHLCV through the
   cached request seam. It computes the locked indicator set, adds a citeable source, and persists
   the normalized snapshot. Failure emits a core evidence gap; Massive closes are not an acceptable
@@ -137,6 +165,85 @@ without pretending the project has a global security master.
   explicitly labeled an approximation because per-share periods are added without reweighting
   diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
   matched periods and compatible units.
+- Equity runs also persist versioned `normalized/financial-statements.json` as the canonical
+  structured-financial artifact. It accepts standard `us-gaap` and `ifrs-full` companyfacts from
+  `10-K`, `10-Q`, `20-F`, and `6-K`, including amended forms. Fundamental History, Financial
+  Lenses, valuation inputs, Run Artifact/API projections, and Console completeness views consume
+  the artifact through separately tested seams; legacy selectors remain available for parity and
+  tolerant historical reads.
+- Canonical financial series apply the run analysis cutoff before selection, use one standard
+  taxonomy and one reporting currency, and exclude issuer-extension concepts from primary statement
+  totals. Matching period keys resolve by filed date, amendment status, and accession number; a
+  later valid amendment supersedes only its matching period. Selected facts preserve form,
+  canonical form, accession, filing and period metadata, fiscal identifiers, taxonomy, unit/currency,
+  unit scale, extraction method, and source IDs.
+- The artifact retains a shared roster of at most ten annual and twelve interim exact start/end
+  period keys and projects every series onto that roster, detects
+  `quarterly`, `semiannual`, `irregular`, `annual-only`, or `unknown` cadence, and derives TTM only
+  from an exactly reconciled FY plus latest-YTD less aligned prior-YTD basis with all three component
+  facts retained. Validation/omission notes disclose duplicate, mixed-period, mixed-currency,
+  incomplete-statement, cutoff, history-cap, and unreconciled-TTM conditions. An untagged `6-K`
+  remains filing evidence and produces an explicit structured-financial gap; model table extraction
+  is outside this artifact's Phase 1 trust boundary.
+- Shadow parity telemetry compares overlapping canonical periods, values, TTM derivations, and
+  currency/unit basis with current fundamental-history and Financial Lens outputs. Differences are
+  either matched, assigned a deterministic explanation (including the legacy `10-K`/`10-Q` form
+  boundary), or marked unexplained; fixture gates require zero unexplained differences before a
+  consumer migration.
+- Equity reports optionally expose versioned `equityAnalysisCompleteness`. Its
+  `financialCoreStatus` is determined only by canonical primary financials; valuation,
+  expectations, capital/ownership, and operating-KPI dimensions affect only `coverageLevel`.
+  Missing credentials or entitlements never establish non-applicability.
+- Primary-financial completeness requires a usable current annual basis, three comparable annual
+  periods, one reporting currency, applicable per-share evidence, and either a reconciled TTM or an
+  annual-as-current state before the next cadence-specific interim is due. Quarterly, semiannual,
+  irregular, annual-only, and unknown cadences are evaluated separately; missing history or
+  interim reconciliation is partial, while only the absence of a usable current annual basis is
+  blocked. Exact FY plus aligned current/prior YTD TTM components establish trailing-year coverage
+  when four retained quarter-only facts are unavailable.
+  Missing per-share facts remain missing unless checked-in evidence establishes non-issuance.
+  Materially incomplete current balance-sheet or cash-flow validation notes make the primary
+  dimension partial; historical statement omissions do not. Complete annual-as-current results
+  retain an explicit informational reason code, and four retained quarter-only periods remain a
+  valid alternative to reconciled TTM coverage.
+- Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
+  fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
+  Historical artifacts without the sidecar or completeness field remain readable.
+- Standard-taxonomy proceeds facts disclosed on a post-period `8-K` or `6-K` may produce a
+  separate `normalized/subsequent-financing.json` bridge. Each event retains disclosure and event
+  dates, instrument class, gross/net proceeds, separately disclosed costs, and source IDs. The
+  latest filed cash, debt, equity, ratios, and valuation inputs remain unchanged. Events later
+  covered by a canonical statement period are omitted; otherwise `reconciled` remains false and
+  Financial Strength carries an explicit partial current-status marker. Missing costs remain null,
+  and the bridge never derives a pro-forma cash balance.
+- Phase 6 equity dimension evidence contracts add coverage through reason codes and normalized
+  sidecars without changing completeness version 1. Credential or entitlement absence remains
+  missing coverage, never `not-applicable`, and non-core dimensions never affect
+  `financialCoreStatus`. Filed statement balances remain separate from unaudited post-period
+  events; those events are not aggregated into filed balances. In later slices, provider price
+  targets may appear only as attributed external context.
+- Slice C1 observes Finnhub analyst-estimate and price-target entitlement per endpoint at runtime.
+  A `200` response is consumed without a code or configuration change; a `403` response or missing
+  credential does not fail the run and makes `expectations` `partial` with an entitlement or
+  credential reason code, never `not-applicable`. EPS and revenue consensus can complete the
+  dimension, while the existing earnings-calendar EPS and revenue values remain a complete
+  fallback. Provider price-target values remain structured, attributed external context and never
+  drive completeness or market-bot-authored valuation.
+- Slice C2 observes Finnhub institutional-ownership and insider-transaction entitlement per
+  endpoint at runtime. A `200` response is consumed by the same code and appends supplementary,
+  attributed numeric context plus `ownership-external-context-available`; a `403` response or
+  missing credential appends an informational entitlement or credential reason without failing the
+  run. SEC-derived diluted-share, stock-based-compensation, payout, and debt evidence remains
+  authoritative for `capitalOwnership`: Finnhub context cannot change its status, complete it on
+  its own, or produce `not-applicable`.
+- The operating-KPI completeness dimension is driven by the checked-in per-issuer registry in
+  `src/sources/extended-evidence/operating-kpi-registry.ts`, initially covering ASTS and NBIS.
+  Issuers absent from the registry remain `partial` with
+  `operating-kpi-registry-unconfigured`; generic income-statement facts never make the dimension
+  `complete`. `not-applicable` requires an explicit registry declaration whose referenced evidence
+  categories resolve to run-present Sources, and credential or entitlement absence never
+  qualifies. KPI-value verification and the `complete` path are deferred to a later extraction
+  slice; registry concept aliases and source-section rules remain declarative until then.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
@@ -185,6 +292,20 @@ without pretending the project has a global security master.
   their reasons are retained as screening context.
 - Web Subject Profile answers may deterministically clear matching atomic Business Framework gaps.
   Reconciliation uses structured cited fields only and does not alter postures or Evidence Quality.
+- An upcoming earnings date becomes `issuer-confirmed` only when deterministic code matches the
+  issuer identity and exact future date to a direct issuer IR/event or press-release URL whose host
+  is established by the issuer's SEC submissions metadata, or to direct SEC `8-K`/`6-K` text. The
+  event retains the official Source ID, URL, matched identity basis, and exact evidence span.
+  Current-report text must use explicit future announcement language; an `8-K` Item 2.02 reporting
+  past results is not an upcoming-date source. Finnhub remains `provider-estimated` even when
+  another provider agrees with it.
+- `exchange-confirmed` requires the same exact-date, future-language, identity, Source ID, and
+  retained-span contract from a direct disclosure or announcement path on the checked-in exchange
+  host-and-path allowlist. Exchange-hosted calendars, quotes, symbol lookups, and other market-data
+  pages are explicitly ineligible because their event dates may remain provider estimates. The
+  exchange disclosure text must name the issuer or pair its ticker with issuer context; source
+  symbol equality alone is insufficient. Unknown exchange paths fail closed. Provider calendar
+  agreement, including Finnhub agreement, is never exchange confirmation.
 
 ## Current evidence limitations
 
@@ -198,6 +319,11 @@ without pretending the project has a global security master.
   share counts vary across component periods. Because each period independently selects its
   latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
   was not restated in the same filing.
+- The canonical financial-statements artifact drives the optional equity completeness contract and
+  its Phase 2 consumers. Companyfacts current-report financing coverage is limited to explicitly
+  tagged standard-taxonomy proceeds and cost facts; untagged narrative disclosures remain outside
+  this deterministic bridge. Companyfacts without accession metadata retain an explicit null and
+  omission note rather than inventing provenance.
 - Peer comparability gates enforce SIC industry group and size similarity deterministically; for
   revenue-exempt targets, size similarity is market-cap-only. Finer economic comparability
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.
@@ -223,9 +349,18 @@ without pretending the project has a global security master.
 ## Implementation validation
 
 - `src/research/evidence-request-loop.ts` and `src/sources/evidence-request-tools.ts` enforce the
-  bounded tool flow.
+  compatibility audit/merge boundary for deterministic SEC/Tradier packet outputs.
+- `src/deep-equity/index.ts`, `acquisition-recipe.ts`, and `evidence.ts` implement the external
+  workflow, explicit recipe, in-memory bundle, and
+  single model packet.
+- `src/sources/sec-target-packet.ts`, `tradier-packet.ts`, and
+  `extended-evidence/valuation-comps.ts` implement target, options, and peer packet acquisition.
 - `src/sources/verified-market-snapshot.ts` and `src/sources/indicators.ts` implement snapshots.
 - `src/sources/extended-evidence/` implements lenses, valuation, framework, and reconciliation.
+- `src/sources/extended-evidence/financial-statement*.ts` implements the canonical structured
+  financial contract, normalization, cadence/TTM derivation, and shadow parity telemetry.
+- `src/sources/extended-evidence/operating-kpi-registry.ts` implements checked-in issuer KPI
+  applicability and declarative extraction metadata.
 - `src/research/peer-universe*.ts` implements deterministic, learned, and proposed peer tiers.
 - `src/domain/instrument.ts`, `src/sources/instrument-identity.ts`,
   `src/research/subject-registry.ts`, and `research-subject-identity.ts` implement identity.
@@ -241,3 +376,5 @@ without pretending the project has a global security master.
 - `src/web-evidence/contract.ts` is the dependency-neutral Web Subject Profile contract entry point.
 - `src/web-evidence/web-subject-profile-reuse.ts` implements reuse.
 - `src/reproducibility.ts` implements configuration and source-state fingerprints.
+- `src/sources/extended-evidence/earnings-date-confirmation.ts` implements official issuer and SEC
+  future-date confirmation with retained evidence spans.

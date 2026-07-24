@@ -77,6 +77,7 @@ export interface AlphaSearchManifestInput {
 interface CollectedSourceSidecar {
   readonly file: RunArtifactFileName;
   readonly value: (result: ResearchRunManifestResult) => unknown;
+  readonly omitWhenUndefined?: boolean;
 }
 
 const COMMON_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = [
@@ -108,12 +109,39 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     value: (result) => result.collectedSources.valuationComps ?? null,
   },
   {
+    file: RUN_ARTIFACT_FILES.valuationWorkbench,
+    value: (result) => result.collectedSources.valuationWorkbench ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.reverseDcf,
+    value: (result) => result.collectedSources.reverseDcf ?? null,
+  },
+  {
     file: RUN_ARTIFACT_FILES.financialLenses,
     value: (result) => result.collectedSources.financialLenses ?? null,
   },
   {
     file: RUN_ARTIFACT_FILES.fundamentalHistory,
     value: (result) => result.collectedSources.fundamentalHistory ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.financialStatements,
+    value: (result) => result.collectedSources.financialStatements ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.untaggedFinancialStatements,
+    value: (result) => result.collectedSources.untaggedFinancialStatements,
+    omitWhenUndefined: true,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.subsequentFinancing,
+    value: (result) => result.collectedSources.subsequentFinancing,
+    omitWhenUndefined: true,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.capitalOwnership,
+    value: (result) => result.collectedSources.capitalOwnership,
+    omitWhenUndefined: true,
   },
   {
     file: RUN_ARTIFACT_FILES.businessFramework,
@@ -125,11 +153,12 @@ function sidecarWrites(
   result: ResearchRunManifestResult,
   sidecars: readonly CollectedSourceSidecar[],
 ): readonly RunArtifactWrite[] {
-  return sidecars.map((sidecar) => ({
-    file: sidecar.file,
-    kind: "json",
-    value: sidecar.value(result),
-  }));
+  return sidecars.flatMap((sidecar): readonly RunArtifactWrite[] => {
+    const value = sidecar.value(result);
+    return sidecar.omitWhenUndefined === true && value === undefined
+      ? []
+      : [{ file: sidecar.file, kind: "json", value }];
+  });
 }
 
 // The Theme Catalyst Calendar items assembled onto the report extras, persisted

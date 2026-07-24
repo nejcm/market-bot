@@ -11,7 +11,12 @@
     valuationMetricTiles,
     type FinancialLensStatTone,
   } from "../view-model";
-  import { buildRunWorkspaceView, type RunWorkspaceCaseKey } from "../run-workspace-view";
+  import {
+    buildRunWorkspaceView,
+    completenessReasonCodeLabel,
+    type RunWorkspaceCaseKey,
+    type RunWorkspaceEquitySnapshotCard,
+  } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
   import SparklineBars from "./sparkline-bars.svelte";
@@ -87,8 +92,11 @@
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
   const financialLensGroups = $derived(workspace?.report.financialLensGroups ?? []);
   const fundamentalHistory = $derived(workspace?.fundamentalHistory);
+  const valuationWorkbench = $derived(workspace?.valuationWorkbench);
+  const reverseDcf = $derived(workspace?.reverseDcf);
+  const equityCompleteness = $derived(workspace?.equityCompleteness);
   const peerImpliedRange = $derived(workspace?.peerImpliedRange);
-  const equityHeader = $derived(workspace?.equityHeader);
+  const equitySnapshot = $derived(workspace?.equitySnapshot);
   const targetHealth = $derived(workspace?.forecasts.targetHealth);
   const historicalAudit = $derived(workspace?.evidence.historicalContext);
   const showForecastsSection = $derived(workspace?.forecasts.visible ?? false);
@@ -137,6 +145,12 @@
     watch: "bg-[#f7ebcd]",
     weak: "bg-[#f2dfdc]",
     neutral: "bg-secondary",
+  };
+  const COMPLETENESS_STATUS_CLASSES: Record<string, string> = {
+    complete: "border-[#b9ddc7] bg-[#e9f6ee] text-[#17653a]",
+    partial: "border-[#d9c89a] bg-[#f8f1df] text-[#8a6116]",
+    blocked: "border-[#dfb9b5] bg-[#faecea] text-[#8c2720]",
+    "not-applicable": "border-border bg-secondary text-muted-foreground",
   };
   const FINANCIAL_LENS_VALUE_CLASSES: Record<FinancialLensStatTone, string> = {
     strong: "text-[#0F7E48]",
@@ -221,6 +235,23 @@
   </div>
 {/snippet}
 
+{#snippet snapshotCardActions(card: RunWorkspaceEquitySnapshotCard)}
+  <div class="flex shrink-0 items-center gap-2">
+    <span class="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+      {card.state}
+    </span>
+    {#if card.detailSectionMounted}
+      <button
+        class="font-mono text-[9px] uppercase tracking-wider text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        type="button"
+        onclick={() => scrollToSection(card.detailSectionKey)}
+      >
+        View evidence
+      </button>
+    {/if}
+  </div>
+{/snippet}
+
 {#if loadingDetail}
   <div class="space-y-4" data-screen-label="Run loading">
     <Skeleton class="h-8 w-72" />
@@ -275,42 +306,6 @@
       </div>
     </div>
 
-    {#if equityHeader !== undefined && equityHeader.financials.length > 0}
-      <div class="mt-4 grid grid-cols-2 gap-2 border-y border-border py-3 sm:grid-cols-3 xl:grid-cols-5">
-        <div class="min-w-0 px-2 first:pl-0 last:pr-0">
-          <div class="flex items-baseline gap-2 font-mono">
-            <span class="text-[15px] font-medium">{equityHeader.price}</span>
-            <span
-              class="text-[12px] font-medium {equityHeader.changeDirection === 'positive'
-                ? 'text-[#0F9D58]'
-                : equityHeader.changeDirection === 'negative'
-                  ? 'text-[#9B0F06]'
-                  : 'text-muted-foreground'}"
-            >
-              {equityHeader.dailyChange}
-            </span>
-          </div>
-          <div class="mt-0.5 text-[11px] uppercase tracking-wider text-[#5c6066]">
-            Price · {equityHeader.quoteCurrency}
-          </div>
-          <div class="mt-1 font-mono text-[10px] leading-snug text-[#8a8f96]">
-            {equityHeader.asOf}
-          </div>
-        </div>
-        {#each equityHeader.financials as financial}
-          <div class="min-w-0 px-2 first:pl-0 last:pr-0">
-            <div class="font-mono text-[15px] font-medium">{financial.value}</div>
-            <div class="mt-0.5 text-[11px] uppercase tracking-wider text-[#5c6066]">
-              {financial.label}
-            </div>
-            <div class="mt-1 font-mono text-[10px] leading-snug text-[#8a8f96]">
-              {financial.caption}
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
-
     <div class="mt-5 flex gap-0.5 border-b border-border" role="tablist">
       {#each TABS as tab}
         <button
@@ -331,6 +326,245 @@
     {#if activeTab === "report"}
       <div class="mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]">
         <article class="min-w-0">
+          {#if equitySnapshot !== undefined}
+            <section class="mb-6">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
+                  Equity snapshot
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]"> neutral evidence summary </span>
+              </div>
+
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                      {equitySnapshot.pricePerformance.label}
+                    </div>
+                    {@render snapshotCardActions(equitySnapshot.pricePerformance)}
+                  </div>
+                  <div class="mt-2 flex items-baseline gap-2 font-mono">
+                    <span class="text-[18px] font-semibold">
+                      {equitySnapshot.pricePerformance.price ?? "Unavailable"}
+                    </span>
+                    <span
+                      class="text-[12px] font-medium {equitySnapshot.pricePerformance
+                        .changeDirection === 'positive'
+                        ? 'text-[#0F9D58]'
+                        : equitySnapshot.pricePerformance.changeDirection === 'negative'
+                          ? 'text-[#9B0F06]'
+                          : 'text-muted-foreground'}"
+                    >
+                      {equitySnapshot.pricePerformance.change24h ?? "24h unavailable"}
+                    </span>
+                  </div>
+                  <div class="mt-1 text-[10px] text-muted-foreground">
+                    Quote currency · {equitySnapshot.pricePerformance.quoteCurrency ?? "unavailable"}
+                  </div>
+                  <div class="mt-1 font-mono text-[9px] text-[#8a8f96]">
+                    Yahoo observation · {equitySnapshot.pricePerformance.observedAt ?? "unavailable"}
+                  </div>
+                  {#if equitySnapshot.pricePerformance.sourceIds.length > 0}
+                    <div class="mt-1.5 flex flex-wrap gap-y-1">
+                      {@render citeChips(equitySnapshot.pricePerformance.sourceIds)}
+                    </div>
+                  {/if}
+                </div>
+
+                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                      {equitySnapshot.peerReferenceRange.label}
+                    </div>
+                    {@render snapshotCardActions(equitySnapshot.peerReferenceRange)}
+                  </div>
+                  <div class="mt-2 font-mono text-[13px] font-medium">
+                    {equitySnapshot.peerReferenceRange.display}
+                  </div>
+                  {#if equitySnapshot.peerReferenceRange.positionLabel !== undefined}
+                    <div class="mt-1 text-[10px] text-primary">
+                      {equitySnapshot.peerReferenceRange.positionLabel}
+                    </div>
+                  {/if}
+                  {#if equitySnapshot.peerReferenceRange.sourceIds.length > 0}
+                    <div class="mt-1.5 flex flex-wrap gap-y-1">
+                      {@render citeChips(equitySnapshot.peerReferenceRange.sourceIds)}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                    {equitySnapshot.analysisCompleteness.label}
+                  </div>
+                  {@render snapshotCardActions(equitySnapshot.analysisCompleteness)}
+                </div>
+                {#if equitySnapshot.analysisCompleteness.state === "unavailable"}
+                  <div class="mt-2 text-sm text-muted-foreground">Unavailable</div>
+                {:else}
+                  <div class="mt-2 flex flex-wrap gap-2 font-mono text-[10px]">
+                    <span
+                      class="rounded border px-2 py-1 {COMPLETENESS_STATUS_CLASSES[
+                        equitySnapshot.analysisCompleteness.financialCoreStatus ?? 'partial'
+                      ]}"
+                    >
+                      financial core · {equitySnapshot.analysisCompleteness.financialCoreStatus}
+                    </span>
+                    <span class="rounded border border-border bg-secondary px-2 py-1">
+                      coverage · {equitySnapshot.analysisCompleteness.coverageLevel}
+                    </span>
+                  </div>
+                  <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {#each equitySnapshot.analysisCompleteness.dimensions as dimension}
+                      <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                        <div class="flex items-start justify-between gap-2">
+                          <span class="text-[9px] font-semibold uppercase tracking-wider">
+                            {dimension.label}
+                          </span>
+                          <span
+                            class="rounded border px-1.5 py-0.5 font-mono text-[8px] {COMPLETENESS_STATUS_CLASSES[
+                              dimension.status
+                            ]}"
+                          >
+                            {dimension.status.replaceAll("-", " ")}
+                          </span>
+                        </div>
+                        <div class="mt-1 text-[9px] leading-snug text-muted-foreground">
+                          {dimension.reasons.join(" · ") || "No additional reason"}
+                        </div>
+                        {#if dimension.sourceIds.length > 0}
+                          <div class="mt-1 flex flex-wrap gap-y-1">
+                            {@render citeChips(dimension.sourceIds)}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                    {equitySnapshot.keyDatedMetrics.label}
+                  </div>
+                  {@render snapshotCardActions(equitySnapshot.keyDatedMetrics)}
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+                  {#each [...equitySnapshot.keyDatedMetrics.metrics, ...equitySnapshot.keyDatedMetrics.foldedYahooMetrics] as metric}
+                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                      <div class="font-mono text-[13px] font-semibold">
+                        {metric.value ?? "Unavailable"}
+                      </div>
+                      <div class="mt-0.5 flex items-center justify-between gap-2 text-[9px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                        <span>{metric.label}</span>
+                        <span class="font-mono text-[8px] font-normal text-muted-foreground">
+                          {metric.state}
+                        </span>
+                      </div>
+                      <div class="mt-1 font-mono text-[8px] leading-snug text-[#8a8f96]">
+                        {metric.dateBasis ?? "Date unavailable"}
+                      </div>
+                      {#if metric.sourceIds.length > 0}
+                        <div class="mt-1 flex flex-wrap gap-y-1">
+                          {@render citeChips(metric.sourceIds)}
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  {equitySnapshot.miniCharts.label}
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                  {#each equitySnapshot.miniCharts.charts as chart}
+                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                      <div class="flex items-start justify-between gap-2">
+                        <span class="text-[9px] font-semibold uppercase tracking-wider">
+                          {chart.label}
+                        </span>
+                        {@render snapshotCardActions(chart)}
+                      </div>
+                      {#if chart.geometry === undefined}
+                        <div class="mt-3 text-xs text-muted-foreground">Unavailable</div>
+                      {:else}
+                        <div class="mt-1 flex items-baseline justify-between gap-2">
+                          <span class="font-mono text-[12px] font-semibold">{chart.value}</span>
+                          <span class="font-mono text-[8px] text-[#8a8f96]">{chart.state}</span>
+                        </div>
+                        <SparklineBars geometry={chart.geometry} label={`${chart.label} history`} />
+                        <div class="font-mono text-[8px] text-[#8a8f96]">{chart.period}</div>
+                        {#if chart.sourceIds.length > 0}
+                          <div class="mt-1 flex flex-wrap gap-y-1">
+                            {@render citeChips(chart.sourceIds)}
+                          </div>
+                        {/if}
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  {equitySnapshot.financialLensDrivers.label}
+                </div>
+                <div class="mt-2 grid gap-2 sm:grid-cols-3">
+                  <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                    <div class="flex items-start justify-between gap-2">
+                      <span class="text-[9px] font-semibold uppercase tracking-wider">
+                        {equitySnapshot.financialLensDrivers.postures.label}
+                      </span>
+                      {@render snapshotCardActions(equitySnapshot.financialLensDrivers.postures)}
+                    </div>
+                    {#if equitySnapshot.financialLensDrivers.postures.items.length === 0}
+                      <div class="mt-2 text-xs text-muted-foreground">Unavailable</div>
+                    {:else}
+                      <div class="mt-2 space-y-1.5">
+                        {#each equitySnapshot.financialLensDrivers.postures.items as posture}
+                          <div>
+                            <span class="text-[10px] font-medium">{posture.lens}</span>
+                            <span class="font-mono text-[9px] text-muted-foreground">
+                              · {posture.postureLabel}
+                            </span>
+                            {@render citeChips(posture.sourceIds)}
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                  {#each [equitySnapshot.financialLensDrivers.bullCase, equitySnapshot.financialLensDrivers.bearCase] as driverCard}
+                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                      <div class="flex items-start justify-between gap-2">
+                        <span class="text-[9px] font-semibold uppercase tracking-wider">
+                          {driverCard.label}
+                        </span>
+                        {@render snapshotCardActions(driverCard)}
+                      </div>
+                      {#if driverCard.items.length === 0}
+                        <div class="mt-2 text-xs text-muted-foreground">Unavailable</div>
+                      {:else}
+                        <div class="mt-2 space-y-2">
+                          {#each driverCard.items as item}
+                            <div class="font-serif text-[12px] leading-snug">
+                              {item.text}
+                              {@render citeChips(item.sourceIds)}
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            </section>
+          {/if}
+
           {#if reportSummary !== ""}
             <div
               {@attach bindSection("summary")}
@@ -338,6 +572,56 @@
             >
               {reportSummary}
             </div>
+          {/if}
+
+          {#if equityCompleteness !== undefined}
+            <section {@attach bindSection("equityCompleteness")} class="mt-5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
+                  Analysis completeness
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]">
+                  as of {equityCompleteness.asOf}
+                </span>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2 font-mono text-[10px]">
+                <span class="rounded border px-2 py-1 {COMPLETENESS_STATUS_CLASSES[equityCompleteness.financialCoreStatus]}">
+                  financial core · {equityCompleteness.financialCoreStatus}
+                </span>
+                <span class="rounded border border-border bg-secondary px-2 py-1 text-foreground">
+                  coverage · {equityCompleteness.coverageLevel}
+                </span>
+              </div>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {#each equityCompleteness.dimensions as dimension}
+                  <div class="rounded-lg border border-border bg-card px-3 py-2.5">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                        {dimension.label}
+                      </div>
+                      <span class="rounded border px-1.5 py-0.5 font-mono text-[9px] {COMPLETENESS_STATUS_CLASSES[dimension.status]}">
+                        {dimension.status.replaceAll("-", " ")}
+                      </span>
+                    </div>
+                    {#if dimension.reasonCodes.length > 0}
+                      <div class="mt-2 space-y-0.5 text-[10px] leading-snug text-muted-foreground">
+                        {#each dimension.reasonCodes as reason}
+                          <div>{completenessReasonCodeLabel(reason)}</div>
+                        {/each}
+                      </div>
+                    {/if}
+                    <div class="mt-2 font-mono text-[9px] leading-snug text-[#8a8f96]">
+                      {dimension.asOf}
+                    </div>
+                    {#if dimension.sourceIds.length > 0}
+                      <div class="mt-1 flex flex-wrap gap-y-1">
+                        {@render citeChips(dimension.sourceIds)}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </section>
           {/if}
 
           {#if financialLensGroups.length > 0}
@@ -439,6 +723,161 @@
                   </div>
                 {/each}
               </div>
+            </section>
+          {/if}
+
+          {#if valuationWorkbench !== undefined}
+            <section {@attach bindSection("valuationWorkbench")} class="mt-8.5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                  Valuation workbench
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]">
+                  {valuationWorkbench.reportingCurrency} reporting · {valuationWorkbench.quoteCurrency} quote
+                </span>
+              </div>
+              <div class="mt-2 text-[10px] leading-snug text-muted-foreground">
+                {valuationWorkbench.priceSelectionRule}. {valuationWorkbench.trailingDisclosure}.
+              </div>
+              {#if valuationWorkbench.rows.length > 0}
+                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
+                  <table class="w-full min-w-[700px] border-collapse text-left">
+                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th class="px-2.5 py-2 font-semibold">Basis</th>
+                        <th class="px-2.5 py-2 font-semibold">Period</th>
+                        <th class="px-2.5 py-2 font-semibold">Public</th>
+                        <th class="px-2.5 py-2 font-semibold">Eligible close</th>
+                        <th class="px-2.5 py-2 text-right font-semibold">P/E</th>
+                        <th class="px-2.5 py-2 text-right font-semibold">P/S</th>
+                        <th class="px-2.5 py-2 text-right font-semibold">EV/revenue</th>
+                        <th class="px-2.5 py-2 text-right font-semibold">P/FCF</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border font-mono text-[10px]">
+                      {#each valuationWorkbench.rows as row}
+                        <tr>
+                          <td class="px-2.5 py-2">{row.basis}</td>
+                          <td class="px-2.5 py-2">{row.periodEnd}</td>
+                          <td class="px-2.5 py-2">{row.publicAt}</td>
+                          <td class="px-2.5 py-2">{row.price}</td>
+                          {#each [row.priceToEarnings, row.priceToSales, row.enterpriseValueToRevenue, row.priceToFreeCashFlow] as metric}
+                            <td
+                              class="px-2.5 py-2 text-right {metric.status === 'populated'
+                                ? 'text-foreground'
+                                : metric.status === 'not-meaningful'
+                                  ? 'text-[#8a6116]'
+                                  : 'text-muted-foreground'}"
+                              title={metric.detail}
+                            >
+                              {metric.display}
+                            </td>
+                          {/each}
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {:else}
+                <div class="mt-3 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                  Historical multiples suppressed: {valuationWorkbench.suppressionReasons.join("; ") || "no compatible inputs"}.
+                </div>
+              {/if}
+              <div class="mt-4 flex flex-wrap items-baseline justify-between gap-2">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  Peer table
+                </div>
+                <div class="font-mono text-[10px] text-primary">
+                  supportability · {valuationWorkbench.peerSupportability}
+                </div>
+              </div>
+              {#if valuationWorkbench.peerRows.length > 0}
+                <div class="mt-2 overflow-x-auto rounded-lg border border-border">
+                  <table class="w-full min-w-[620px] border-collapse text-left">
+                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th class="px-2.5 py-2 font-semibold">Symbol</th>
+                        <th class="px-2.5 py-2 font-semibold">Role</th>
+                        <th class="px-2.5 py-2 font-semibold">Screen</th>
+                        <th class="px-2.5 py-2 text-right font-semibold">EV/revenue</th>
+                        <th class="px-2.5 py-2 font-semibold">Currency</th>
+                        <th class="px-2.5 py-2 font-semibold">Input dates</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border font-mono text-[10px]">
+                      {#each valuationWorkbench.peerRows as row}
+                        <tr>
+                          <td class="px-2.5 py-2 font-semibold">{row.symbol}</td>
+                          <td class="px-2.5 py-2">{row.role}</td>
+                          <td class="px-2.5 py-2">{row.status}</td>
+                          <td class="px-2.5 py-2 text-right">{row.multiple}</td>
+                          <td class="px-2.5 py-2">{row.currency}</td>
+                          <td class="px-2.5 py-2">{row.inputDates}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {:else if valuationWorkbench.peerSuppression !== undefined}
+                <div class="mt-2 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                  {valuationWorkbench.peerSuppression}
+                </div>
+              {/if}
+            </section>
+          {/if}
+
+          {#if reverseDcf !== undefined}
+            <section {@attach bindSection("reverseDcf")} class="mt-8.5 scroll-mt-5">
+              <div class="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                Reverse DCF input sensitivity
+              </div>
+              {#if reverseDcf.status === "suppressed"}
+                <div class="mt-3 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                  Suppressed: {reverseDcf.message}
+                </div>
+              {:else}
+                <div class="mt-3 grid gap-2 text-[10px] text-muted-foreground sm:grid-cols-3">
+                  <div>
+                    <span class="font-semibold text-foreground">Starting FCF</span><br />
+                    <span class="font-mono">{reverseDcf.startingFcf}</span><br />
+                    {reverseDcf.startingFcfDates}
+                  </div>
+                  <div>
+                    <span class="font-semibold text-foreground">Enterprise value</span><br />
+                    <span class="font-mono">{reverseDcf.enterpriseValue}</span><br />
+                    observed {reverseDcf.enterpriseValueDate}
+                  </div>
+                  <div>
+                    <span class="font-semibold text-foreground">Horizon</span><br />
+                    <span class="font-mono">{reverseDcf.horizonYears} years</span>
+                  </div>
+                </div>
+                <div class="mt-3 text-[10px] leading-snug text-muted-foreground">
+                  Each cell is the five-year FCF growth input that reconciles the row discount rate and column terminal growth assumption.
+                </div>
+                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
+                  <table class="w-full min-w-[560px] border-collapse text-right">
+                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th class="px-2.5 py-2 text-left font-semibold">Discount rate</th>
+                        {#each reverseDcf.terminalGrowthRatesPct as rate}
+                          <th class="px-2.5 py-2 font-semibold">{rate}% terminal</th>
+                        {/each}
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border font-mono text-[10px]">
+                      {#each reverseDcf.rows as row}
+                        <tr>
+                          <td class="px-2.5 py-2 text-left font-semibold">{row.discountRatePct}%</td>
+                          {#each row.cells as cell}
+                            <td class="px-2.5 py-2">{cell}</td>
+                          {/each}
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
             </section>
           {/if}
 

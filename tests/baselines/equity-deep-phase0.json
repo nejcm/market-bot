@@ -1,0 +1,320 @@
+{
+  "version": 1,
+  "description": "Phase 0 deep-equity coverage baseline before FPI normalization and earnings-date gating",
+  "fixtureRuns": [
+    {
+      "fixture": "equity-aapl-deep",
+      "earningsSetupCount": 0,
+      "earningsPredictionCount": 0,
+      "eventDateStatus": "not-present",
+      "populatedFinancialHistoryCount": 11,
+      "providerEndpointAvailability": {
+        "yahooQuote": {
+          "status": "available",
+          "evidence": ["yahoo-ticker"]
+        },
+        "yahooNews": {
+          "status": "available",
+          "evidence": ["yahoo-news"]
+        },
+        "secCompanyTickers": {
+          "status": "available",
+          "evidence": ["sec-tickers"]
+        },
+        "secCompanyFacts": {
+          "status": "available",
+          "evidence": ["sec-companyfacts"]
+        },
+        "secSubmissions": {
+          "status": "available",
+          "evidence": ["sec-submissions"]
+        },
+        "finnhubNews": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-news"],
+          "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+        },
+        "finnhubEvents": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-events"],
+          "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+        },
+        "tradierOptions": {
+          "status": "missing-credential",
+          "evidence": ["tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "tradierEarningsImpliedMove": {
+          "status": "missing-credential",
+          "evidence": ["earnings-setup-implied-move", "tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "fredMacro": {
+          "status": "missing-credential",
+          "evidence": ["fred-macro"],
+          "reason": "MARKET_BOT_FRED_API_KEY is not set"
+        },
+        "marketauxNews": {
+          "status": "missing-credential",
+          "evidence": ["marketaux-news"],
+          "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+        }
+      }
+    },
+    {
+      "fixture": "equity-nbis-deep",
+      "earningsSetupCount": 0,
+      "earningsPredictionCount": 0,
+      "eventDateStatus": "not-present",
+      "populatedFinancialHistoryCount": 9,
+      "providerEndpointAvailability": {
+        "yahooQuote": {
+          "status": "available",
+          "evidence": ["yahoo-ticker"]
+        },
+        "yahooNews": {
+          "status": "available",
+          "evidence": ["yahoo-news"]
+        },
+        "secCompanyTickers": {
+          "status": "available",
+          "evidence": ["sec-tickers"]
+        },
+        "secCompanyFacts": {
+          "status": "available",
+          "evidence": ["sec-companyfacts"]
+        },
+        "secSubmissions": {
+          "status": "available",
+          "evidence": ["sec-submissions"]
+        },
+        "finnhubNews": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-news"],
+          "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+        },
+        "finnhubEvents": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-events"],
+          "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+        },
+        "tradierOptions": {
+          "status": "missing-credential",
+          "evidence": ["tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "tradierEarningsImpliedMove": {
+          "status": "missing-credential",
+          "evidence": ["earnings-setup-implied-move", "tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "fredMacro": {
+          "status": "missing-credential",
+          "evidence": ["fred-macro"],
+          "reason": "MARKET_BOT_FRED_API_KEY is not set"
+        },
+        "marketauxNews": {
+          "status": "missing-credential",
+          "evidence": ["marketaux-news"],
+          "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+        }
+      }
+    },
+    {
+      "fixture": "equity-fpi-quarterly",
+      "earningsSetupCount": 0,
+      "earningsPredictionCount": 0,
+      "eventDateStatus": "not-present",
+      "populatedFinancialHistoryCount": 9,
+      "providerEndpointAvailability": {
+        "yahooQuote": {
+          "status": "available",
+          "evidence": ["yahoo-ticker"]
+        },
+        "yahooNews": {
+          "status": "available",
+          "evidence": ["yahoo-news"]
+        },
+        "secCompanyTickers": {
+          "status": "available",
+          "evidence": ["sec-tickers"]
+        },
+        "secCompanyFacts": {
+          "status": "available",
+          "evidence": ["sec-companyfacts"]
+        },
+        "secSubmissions": {
+          "status": "available",
+          "evidence": ["sec-submissions"]
+        },
+        "finnhubNews": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-news"],
+          "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+        },
+        "finnhubEvents": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-events"],
+          "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+        },
+        "tradierOptions": {
+          "status": "missing-credential",
+          "evidence": ["tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "tradierEarningsImpliedMove": {
+          "status": "missing-credential",
+          "evidence": ["earnings-setup-implied-move", "tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "fredMacro": {
+          "status": "missing-credential",
+          "evidence": ["fred-macro"],
+          "reason": "MARKET_BOT_FRED_API_KEY is not set"
+        },
+        "marketauxNews": {
+          "status": "missing-credential",
+          "evidence": ["marketaux-news"],
+          "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+        }
+      }
+    },
+    {
+      "fixture": "equity-fpi-ifrs-semiannual",
+      "earningsSetupCount": 0,
+      "earningsPredictionCount": 0,
+      "eventDateStatus": "not-present",
+      "populatedFinancialHistoryCount": 9,
+      "providerEndpointAvailability": {
+        "yahooQuote": {
+          "status": "available",
+          "evidence": ["yahoo-ticker"]
+        },
+        "yahooNews": {
+          "status": "available",
+          "evidence": ["yahoo-news"]
+        },
+        "secCompanyTickers": {
+          "status": "available",
+          "evidence": ["sec-tickers"]
+        },
+        "secCompanyFacts": {
+          "status": "available",
+          "evidence": ["sec-companyfacts"]
+        },
+        "secSubmissions": {
+          "status": "available",
+          "evidence": ["sec-submissions"]
+        },
+        "finnhubNews": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-news"],
+          "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+        },
+        "finnhubEvents": {
+          "status": "missing-credential",
+          "evidence": ["finnhub-events"],
+          "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+        },
+        "tradierOptions": {
+          "status": "missing-credential",
+          "evidence": ["tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "tradierEarningsImpliedMove": {
+          "status": "missing-credential",
+          "evidence": ["earnings-setup-implied-move", "tradier-options"],
+          "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+        },
+        "fredMacro": {
+          "status": "missing-credential",
+          "evidence": ["fred-macro"],
+          "reason": "MARKET_BOT_FRED_API_KEY is not set"
+        },
+        "marketauxNews": {
+          "status": "missing-credential",
+          "evidence": ["marketaux-news"],
+          "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+        }
+      }
+    },
+    {
+      "fixture": "equity-analysis-comprehensive",
+      "earningsSetupCount": 1,
+      "earningsPredictionCount": 2,
+      "eventDateStatus": "provider-estimated",
+      "populatedFinancialHistoryCount": 11,
+      "providerEndpointAvailability": {
+        "yahooQuote": {
+          "status": "available",
+          "evidence": ["yahoo-ticker"]
+        },
+        "yahooNews": {
+          "status": "available",
+          "evidence": ["yahoo-news"]
+        },
+        "secCompanyTickers": {
+          "status": "available",
+          "evidence": ["sec-tickers"]
+        },
+        "secCompanyFacts": {
+          "status": "available",
+          "evidence": ["sec-companyfacts"]
+        },
+        "secSubmissions": {
+          "status": "available",
+          "evidence": ["sec-submissions"]
+        },
+        "finnhubNews": {
+          "status": "available",
+          "evidence": ["finnhub-news"]
+        },
+        "finnhubEvents": {
+          "status": "available",
+          "evidence": ["finnhub-events-1", "finnhub-events-2", "finnhub-events-3"]
+        },
+        "tradierOptions": {
+          "status": "available",
+          "evidence": ["tradier-options"]
+        },
+        "tradierEarningsImpliedMove": {
+          "status": "available",
+          "evidence": ["earningsSetup.impliedMove"]
+        },
+        "fredMacro": {
+          "status": "missing-credential",
+          "evidence": ["fred-macro"],
+          "reason": "MARKET_BOT_FRED_API_KEY is not set"
+        },
+        "marketauxNews": {
+          "status": "missing-credential",
+          "evidence": ["marketaux-news"],
+          "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+        }
+      }
+    }
+  ],
+  "historicalArtifacts": {
+    "status": "measured",
+    "source": "local gitignored data/runs snapshot",
+    "inspectedRunCount": 12,
+    "deepEquityRunCount": 11,
+    "earningsSetupCount": 11,
+    "earningsPredictionCount": 10,
+    "eventDateStatus": {
+      "providerEstimated": 2,
+      "legacyUnstamped": 9,
+      "notPresent": 0
+    },
+    "financialHistory": {
+      "measuredRunCount": 2,
+      "unmeasuredRunCount": 9,
+      "populatedSeriesCount": 16
+    },
+    "providerEndpointAvailability": {
+      "status": "unmeasured",
+      "evidence": [],
+      "reason": "Historical report artifacts do not persist a stable endpoint availability matrix"
+    }
+  }
+}

@@ -239,6 +239,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
           symbol: "AAPL",
           date: "2026-07-30",
           timing: "amc",
+          eventDateStatus: "issuer-confirmed",
           sourceIds: ["earnings-aapl"],
           fetchedAt: "2026-06-01T00:00:00.000Z",
         },
@@ -250,7 +251,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).not.toContain("earnings-move");
   });
 
-  test("includes earnings shapes when earningsSetup is present", () => {
+  test("includes earnings shapes when earningsSetup is issuer-confirmed", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -263,6 +264,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
           symbol: "AAPL",
           date: "2026-07-30",
           timing: "amc",
+          eventDateStatus: "issuer-confirmed",
           sourceIds: ["earnings-aapl"],
           fetchedAt: "2026-06-01T00:00:00.000Z",
         },
@@ -271,6 +273,32 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     });
 
     expect(instruction).toContain("earnings-direction or earnings-move");
+  });
+
+  test("keeps provider-estimated setup contextual without earnings grammar", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command, {
+      earningsSetup: {
+        event: {
+          symbol: "AAPL",
+          date: "2026-07-30",
+          timing: "amc",
+          eventDateStatus: "provider-estimated",
+          sourceIds: ["earnings-aapl"],
+          fetchedAt: "2026-06-01T00:00:00.000Z",
+        },
+        gaps: [],
+      },
+    });
+
+    expect(instruction).toContain("provider-estimated and unconfirmed");
+    expect(instruction).toContain("Do not emit earnings-direction");
+    expect(instruction).not.toContain("earningsSetup.event.date as YYYY-MM-DD");
   });
 
   test("uses on-subject IV guidance instead of VIX volatility for instrument options evidence", () => {
@@ -491,6 +519,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
             symbol: "AAPL",
             date: "2026-07-28",
             timing: "amc",
+            eventDateStatus: "issuer-confirmed",
             sourceIds: ["earnings-aapl"],
             fetchedAt: "2026-07-07T20:00:00.000Z",
           },

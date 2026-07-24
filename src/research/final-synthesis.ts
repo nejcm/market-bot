@@ -8,6 +8,7 @@ import {
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import type { PredictionCompletionPrompt } from "./prompts";
 import type { ResearchContext } from "./research-context-types";
@@ -54,6 +55,7 @@ interface FinalSynthesisState {
   readonly output: StageOutput;
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
+  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 interface SynthesisProgress {
@@ -464,6 +466,8 @@ async function runPredictionCompletion(
       knownSourceIds: input.knownSourceIds,
       allowedSubjects,
     });
+    const suppressedEarningsPredictionCountOffset =
+      readEarningsForecastTelemetry(report)?.suppressedPredictionCount ?? 0;
     const state: FinalSynthesisState = {
       output,
       payload: progress.state.payload,
@@ -472,6 +476,9 @@ async function runPredictionCompletion(
         errors: progress.state.predResult.errors,
         issues: progress.state.predResult.issues,
       },
+      ...(suppressedEarningsPredictionCountOffset > 0
+        ? { suppressedEarningsPredictionCountOffset }
+        : {}),
     };
     return {
       progress: {
@@ -523,6 +530,11 @@ function buildReport(
     depthProfile: input.context.depthProfile,
     context: input.context,
     sources: input.sources,
+    ...(state.suppressedEarningsPredictionCountOffset !== undefined
+      ? {
+          suppressedEarningsPredictionCountOffset: state.suppressedEarningsPredictionCountOffset,
+        }
+      : {}),
   });
 }
 

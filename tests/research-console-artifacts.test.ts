@@ -14,6 +14,7 @@ import {
 } from "../app/artifacts";
 import { researchReport } from "./support/fixtures";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 
 function writeJson(path: string, value: unknown): void {
@@ -21,6 +22,32 @@ function writeJson(path: string, value: unknown): void {
 }
 
 describe("research console app artifacts", () => {
+  test("projects canonical statements while tolerating historical runs", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const canonicalDir = join(dataDir, "canonical");
+    const historicalDir = join(dataDir, "historical");
+    mkdirSync(join(canonicalDir, "normalized"), { recursive: true });
+    mkdirSync(historicalDir, { recursive: true });
+    const artifact = deriveFinancialStatements(
+      {},
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        analysisAsOf: "2026-06-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    writeJson(join(canonicalDir, "report.json"), researchReport({ runId: "canonical" }));
+    writeJson(join(canonicalDir, "normalized", "financial-statements.json"), artifact);
+    writeJson(join(historicalDir, "report.json"), researchReport({ runId: "historical" }));
+
+    const canonical = await readRunDetail(dataDir, "canonical");
+    const historical = await readRunDetail(dataDir, "historical");
+
+    expect(canonical?.financialStatements).toEqual(artifact);
+    expect(historical?.financialStatements).toBeUndefined();
+  });
+
   test("indexes run summaries from report artifacts", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-a");

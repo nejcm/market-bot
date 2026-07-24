@@ -10,7 +10,11 @@ import type {
 import { sourceGap } from "../domain/source-gaps";
 import { isRecord, readNumber, stringArrayValue } from "../guards";
 import { isUsListing } from "./instrument-capability";
-import { findSecTicker, secRequestInit } from "./extended-evidence/sec-edgar";
+import {
+  findSecTicker,
+  secRequestInit,
+  type SecCompanyFactsResult,
+} from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { tradierRequestInit } from "./tradier";
 import {
@@ -29,6 +33,7 @@ import {
   type FetchTextResult,
   type RawSourceSnapshot,
 } from "./types";
+import { retainedEvidenceSpanForEarningsDate } from "./extended-evidence/earnings-date-confirmation";
 
 export const EVIDENCE_REQUEST_TOOL_UNITS: Record<EvidenceRequestToolName, number> = {
   sec_latest_filing: 5,
@@ -44,7 +49,7 @@ export interface EvidenceRequestToolOutput {
 }
 
 interface SecFiling {
-  readonly form: "10-K" | "10-Q" | "8-K";
+  readonly form: "10-K" | "10-Q" | "8-K" | "6-K";
   readonly filingDate: string;
   readonly reportDate?: string;
   readonly accessionNumber: string;
@@ -68,6 +73,7 @@ const SEC_SECTION_MIN_ALPHA_CHARS = 40;
 const SEC_8K_PACKET_BUDGET = 3000;
 const SEC_8K_LOOKBACK_DAYS = 120;
 const SEC_8K_LIMIT = 2;
+const SEC_6K_LIMIT = 2;
 
 export function availableEvidenceRequestTools(
   ctx: CollectContext,
@@ -89,7 +95,7 @@ export async function executeEvidenceRequestTool(
   ctx: CollectContext,
 ): Promise<EvidenceRequestToolOutput> {
   if (tool === "sec_latest_filing") {
-    return collectSecLatestFiling(ctx);
+    return collectSecFilingEvidence(ctx);
   }
   return collectTradierIvTermStructure(ctx);
 }
@@ -163,7 +169,7 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
   const primaryDocuments = stringArrayValue(recent.primaryDocument);
 
   return forms.flatMap((f, index): SecFiling[] => {
-    if (f !== "10-K" && f !== "10-Q" && f !== "8-K") {
+    if (f !== "10-K" && f !== "10-Q" && f !== "8-K" && f !== "6-K") {
       return [];
     }
     const filingDate = filingDates[index];
@@ -235,6 +241,29 @@ function selectRecentMaterialEightKs(
         right.accessionNumber.localeCompare(left.accessionNumber),
     )
     .slice(0, SEC_8K_LIMIT);
+}
+
+function selectRecentEarningsSixKs(payload: unknown, fetchedAt: string): readonly SecFiling[] {
+  const fetchedAtMs = Date.parse(fetchedAt);
+  if (!Number.isFinite(fetchedAtMs)) {
+    return [];
+  }
+  return recentSecFilingRows(payload)
+    .filter((filing) => filing.form === "6-K")
+    .filter((filing) => {
+      const filingDateMs = Date.parse(`${filing.filingDate}T00:00:00.000Z`);
+      if (!Number.isFinite(filingDateMs)) {
+        return false;
+      }
+      const ageDays = (fetchedAtMs - filingDateMs) / DAY_MS;
+      return ageDays >= 0 && ageDays <= SEC_8K_LOOKBACK_DAYS;
+    })
+    .toSorted(
+      (left, right) =>
+        right.filingDate.localeCompare(left.filingDate) ||
+        right.accessionNumber.localeCompare(left.accessionNumber),
+    )
+    .slice(0, SEC_6K_LIMIT);
 }
 
 function filingUrl(cik: string, filing: SecFiling): string {
@@ -322,13 +351,24 @@ function selectSection(text: string, pattern: RegExp, maxChars: number): string 
 }
 
 // Builds a deterministic bounded section packet from a normalized SEC HTML filing.
-function secFilingSectionPacket(normalized: string, form: SecFiling["form"]): string | undefined {
+function secFilingSectionPacket(
+  normalized: string,
+  form: SecFiling["form"],
+  earningsEventDate?: string,
+): string | undefined {
   if (normalized.length < SEC_PACKET_MIN_CHARS) {
     return undefined;
   }
-  if (form === "8-K") {
+  if (form === "8-K" || form === "6-K") {
     const firstItem = /ITEM\s+\d+\.\d{2}/iu.exec(normalized);
-    return truncateText(normalized.slice(firstItem?.index ?? 0), SEC_8K_PACKET_BUDGET);
+    const base = truncateText(normalized.slice(firstItem?.index ?? 0), SEC_8K_PACKET_BUDGET);
+    const earningsSpan =
+      earningsEventDate === undefined
+        ? undefined
+        : retainedEvidenceSpanForEarningsDate(normalized, earningsEventDate);
+    return earningsSpan === undefined
+      ? base
+      : truncateText(`${earningsSpan}\n\n${base}`, SEC_8K_PACKET_BUDGET);
   }
   const parts: string[] = [];
   const business = selectSection(
@@ -397,6 +437,9 @@ function secFilingKey(filing: SecFiling): string {
   if (filing.form === "10-Q") {
     return "10q";
   }
+  if (filing.form === "6-K") {
+    return `6k-${filing.accessionNumber}`;
+  }
   return `8k-${filing.accessionNumber}`;
 }
 
@@ -406,10 +449,11 @@ function buildSecFilingSourceItem(
   filing: SecFiling,
   url: string,
   filingText: FetchTextResult,
+  earningsEventDate?: string,
 ): SecFilingSourceItem {
   const formKey = secFilingKey(filing);
   const normalized = normalizeFilingText(filingText.payload);
-  const packet = secFilingSectionPacket(normalized, filing.form);
+  const packet = secFilingSectionPacket(normalized, filing.form, earningsEventDate);
   if (packet === undefined) {
     return { kind: "missing" };
   }
@@ -453,8 +497,8 @@ function buildSecFilingSourceItem(
   const summaryExcerpt = truncateText(sanitizedPacket.text, SEC_FILING_SUMMARY_EXCERPT_CHARS);
   const title = `${command.symbol} SEC ${filing.form}`;
   const summary =
-    filing.form === "8-K"
-      ? `8-K filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for event date ${filing.reportDate}` : ""} (material current report).`
+    filing.form === "8-K" || filing.form === "6-K"
+      ? `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for event date ${filing.reportDate}` : ""} (material current report).`
       : `${filing.form} filed ${filing.filingDate}${filing.reportDate !== undefined ? ` for period ${filing.reportDate}` : ""}.`;
   const source: Source = {
     id: `extended-sec-edgar-${command.symbol.toLowerCase()}-${formKey}`,
@@ -535,7 +579,14 @@ async function collectSecFiling(
       droppedItemCount: 0,
     };
   }
-  const built = buildSecFilingSourceItem(command, match, filing, url, result);
+  const built = buildSecFilingSourceItem(
+    command,
+    match,
+    filing,
+    url,
+    result,
+    ctx.earningsEventDate,
+  );
   if (built.kind === "missing") {
     return {
       rawSnapshots: [result.rawSnapshot],
@@ -566,7 +617,10 @@ async function collectSecFiling(
   };
 }
 
-async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequestToolOutput> {
+export async function collectSecFilingEvidence(
+  ctx: CollectContext,
+  companyFacts?: SecCompanyFactsResult,
+): Promise<EvidenceRequestToolOutput> {
   const { command } = ctx;
   if (!isInstrumentCommand(command)) {
     return emptyOutput([
@@ -583,48 +637,68 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return emptyOutput([unsupportedInstrumentGap("sec-edgar", "SEC EDGAR", command.symbol)]);
   }
-  const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-  const tickers = await ctx.request.json({
-    url: tickersUrl,
-    adapter: "sec-tickers",
-    init: secRequestInit(ctx.secUserAgent),
-  });
-  if (!isFetchJsonResult(tickers)) {
-    return emptyOutput([tickers]);
+  const prefetchedMatch =
+    companyFacts?.cik === undefined
+      ? undefined
+      : {
+          cik: companyFacts.cik,
+          ticker: companyFacts.symbol,
+          ...(companyFacts.identity?.displayName !== undefined
+            ? { name: companyFacts.identity.displayName }
+            : {}),
+        };
+  const prefetchedSubmissions = companyFacts?.submissionsPayload;
+  let match = prefetchedMatch;
+  let submissionsPayload = prefetchedSubmissions;
+  let sharedRawSnapshots: readonly RawSourceSnapshot[] = [];
+  if (match === undefined || submissionsPayload === undefined) {
+    const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
+    const tickers = await ctx.request.json({
+      url: tickersUrl,
+      adapter: "sec-tickers",
+      init: secRequestInit(ctx.secUserAgent),
+    });
+    if (!isFetchJsonResult(tickers)) {
+      return emptyOutput([tickers]);
+    }
+    match = findSecTicker(tickers.payload, command.symbol);
+    if (match === undefined) {
+      return emptyOutput(
+        [
+          sourceGap({
+            source: "sec-edgar",
+            message: `No SEC CIK match for ${command.symbol}`,
+            provider: "sec-edgar",
+            capability: "evidence-request",
+            cause: "unsupported-coverage",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+        ],
+        [tickers.rawSnapshot],
+      );
+    }
+    const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
+    const submissions = await ctx.request.json({
+      url: submissionsUrl,
+      adapter: "sec-submissions",
+      init: secRequestInit(ctx.secUserAgent),
+    });
+    if (!isFetchJsonResult(submissions)) {
+      return emptyOutput([submissions], [tickers.rawSnapshot]);
+    }
+    submissionsPayload = submissions.payload;
+    sharedRawSnapshots = [tickers.rawSnapshot, submissions.rawSnapshot];
   }
 
-  const match = findSecTicker(tickers.payload, command.symbol);
-  if (match === undefined) {
-    return emptyOutput(
-      [
-        sourceGap({
-          source: "sec-edgar",
-          message: `No SEC CIK match for ${command.symbol}`,
-          provider: "sec-edgar",
-          capability: "evidence-request",
-          cause: "unsupported-coverage",
-          evidenceQualityImpact: "extended-evidence-cap",
-        }),
-      ],
-      [tickers.rawSnapshot],
-    );
-  }
+  const tenK = selectLatestFilingByForm(submissionsPayload, "10-K");
+  const tenQ = selectCurrentQuarterlyFiling(submissionsPayload, tenK);
+  const fpiForms = detectForeignPrivateIssuerForms(submissionsPayload);
+  const sixKs =
+    tenK === undefined && tenQ === undefined && ctx.earningsEventDate !== undefined
+      ? selectRecentEarningsSixKs(submissionsPayload, ctx.fetchedAt)
+      : [];
 
-  const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;
-  const submissions = await ctx.request.json({
-    url: submissionsUrl,
-    adapter: "sec-submissions",
-    init: secRequestInit(ctx.secUserAgent),
-  });
-  if (!isFetchJsonResult(submissions)) {
-    return emptyOutput([submissions], [tickers.rawSnapshot]);
-  }
-
-  const tenK = selectLatestFilingByForm(submissions.payload, "10-K");
-  const tenQ = selectCurrentQuarterlyFiling(submissions.payload, tenK);
-
-  if (tenK === undefined && tenQ === undefined) {
-    const fpiForms = detectForeignPrivateIssuerForms(submissions.payload);
+  if (tenK === undefined && tenQ === undefined && sixKs.length === 0) {
     return emptyOutput(
       [
         sourceGap({
@@ -639,17 +713,25 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
           evidenceQualityImpact: "core-cap",
         }),
       ],
-      [tickers.rawSnapshot, submissions.rawSnapshot],
+      sharedRawSnapshots,
     );
   }
 
-  const sharedRawSnapshots: readonly RawSourceSnapshot[] = [
-    tickers.rawSnapshot,
-    submissions.rawSnapshot,
-  ];
   const sources: Source[] = [];
   const items: ExtendedEvidenceItem[] = [];
-  const gaps: SourceGap[] = [];
+  const gaps: SourceGap[] =
+    tenK === undefined && tenQ === undefined
+      ? [
+          sourceGap({
+            source: "sec-edgar",
+            message: `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); periodic profile forms remain unsupported while recent 6-K text is retained for event-date confirmation`,
+            provider: "sec-edgar",
+            capability: "evidence-request",
+            cause: "unsupported-coverage",
+            evidenceQualityImpact: "core-cap",
+          }),
+        ]
+      : [];
   const rawSnapshots: RawSourceSnapshot[] = [...sharedRawSnapshots];
   const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
   let droppedItemCount = 0;
@@ -660,10 +742,10 @@ async function collectSecLatestFiling(ctx: CollectContext): Promise<EvidenceRequ
   const eightKs =
     newestPeriodicFilingDate === undefined
       ? []
-      : selectRecentMaterialEightKs(submissions.payload, newestPeriodicFilingDate, ctx.fetchedAt);
+      : selectRecentMaterialEightKs(submissionsPayload, newestPeriodicFilingDate, ctx.fetchedAt);
 
   const filingResults = await Promise.all(
-    [tenK, tenQ, ...eightKs].flatMap((filing) =>
+    [tenK, tenQ, ...eightKs, ...sixKs].flatMap((filing) =>
       filing === undefined ? [] : [collectSecFiling(ctx, command, match, filing)],
     ),
   );

@@ -84,6 +84,33 @@ This writes a run under `data/runs/` and costs live model usage. It requires the
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
+Deep-equity paired eval collects the fixed evidence once, then executes the named `legacy` and
+`simplified` variants:
+
+```sh
+bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired
+bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired --judge-model <model>
+```
+
+The judge defaults to the configured quick model and must differ from every synthesis model. Report
+labels are blinded and randomized before judging. Results are written under `data/evaluations/`.
+Until the simplified pipeline is implemented, paired output records its typed
+`not-implemented` status and does not invoke the judge.
+
+## Deep-equity legacy pipeline baseline
+
+The checked-in `tests/baselines/deep-equity-legacy-pipeline.json` snapshot records model-stage order,
+prompt and provider token estimates, provider URL-shape request counts, normalized files, integrity
+pruning, and valid prediction/citation counts from the unchanged deep-equity fixture cassettes.
+
+```sh
+bun run scripts/deep-equity-pipeline-baseline.ts --check
+bun run scripts/deep-equity-pipeline-baseline.ts --write
+```
+
+Use `--write` only after inspecting an intentional pipeline change. It replays existing cassettes
+and never records provider data.
+
 ## Recording fixtures
 
 Recording creates or replaces fixture cassettes and golden output from a live run:

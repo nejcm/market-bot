@@ -65,6 +65,7 @@ import {
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
 import { deriveAnalystExpectations } from "./extended-evidence/analyst-expectations";
+import { deriveInstitutionalOwnership } from "./extended-evidence/institutional-ownership";
 import type { ModelProvider } from "../model/types";
 import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
@@ -466,6 +467,15 @@ export async function collectSources(
           extendedResult.sourceGaps,
         )
       : undefined;
+  const institutionalOwnershipResult =
+    isEquityTicker && command.depth === "deep"
+      ? deriveInstitutionalOwnership(
+          command.symbol,
+          ctx.fetchedAt,
+          extendedResult.rawSnapshots,
+          extendedResult.sourceGaps,
+        )
+      : undefined;
   staleFallbackGaps.push(...enrichmentResult.earningsSourceGaps);
   const rawIdentity = enrichmentResult.identityResult?.identity;
   const sanitizedIdentity =
@@ -526,6 +536,12 @@ export async function collectSources(
       : {}),
     ...(analystExpectationsResult !== undefined
       ? { analystExpectationsSignal: analystExpectationsResult.signal }
+      : {}),
+    ...(institutionalOwnershipResult?.artifact !== undefined
+      ? { institutionalOwnership: institutionalOwnershipResult.artifact }
+      : {}),
+    ...(institutionalOwnershipResult !== undefined
+      ? { institutionalOwnershipSignal: institutionalOwnershipResult.signal }
       : {}),
     ...(enrichmentResult.valuationCompsResult?.artifact !== undefined
       ? { valuationComps: enrichmentResult.valuationCompsResult.artifact }

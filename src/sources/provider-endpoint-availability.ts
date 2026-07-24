@@ -37,6 +37,14 @@ const ENDPOINTS: Readonly<Record<string, EndpointDefinition>> = {
     adapters: ["finnhub-analyst-range"],
     gapSources: ["finnhub-analyst-range"],
   },
+  finnhubInstitutionalOwnership: {
+    adapters: ["finnhub-institutional-ownership"],
+    gapSources: ["finnhub-institutional-ownership"],
+  },
+  finnhubInsiderTransactions: {
+    adapters: ["finnhub-insider-transactions"],
+    gapSources: ["finnhub-insider-transactions"],
+  },
   tradierOptions: { adapters: ["tradier-options"], gapSources: ["tradier-options"] },
   tradierEarningsImpliedMove: {
     adapters: ["tradier-earnings"],

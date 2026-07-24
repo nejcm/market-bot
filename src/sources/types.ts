@@ -28,6 +28,10 @@ import type {
   AnalystExpectationsArtifact,
   AnalystExpectationsSignal,
 } from "./extended-evidence/analyst-expectations";
+import type {
+  InstitutionalOwnershipArtifact,
+  InstitutionalOwnershipSignal,
+} from "./extended-evidence/institutional-ownership";
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -169,6 +173,8 @@ export interface CollectedSources {
   readonly earningsSetup?: EarningsSetupCollected;
   readonly analystExpectations?: AnalystExpectationsArtifact;
   readonly analystExpectationsSignal?: AnalystExpectationsSignal;
+  readonly institutionalOwnership?: InstitutionalOwnershipArtifact;
+  readonly institutionalOwnershipSignal?: InstitutionalOwnershipSignal;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   readonly reverseDcf?: ReverseDcfArtifact;

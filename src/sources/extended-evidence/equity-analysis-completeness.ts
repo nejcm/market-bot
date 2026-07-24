@@ -20,6 +20,10 @@ import type {
   AnalystExpectationsArtifact,
   AnalystExpectationsSignal,
 } from "./analyst-expectations";
+import type {
+  InstitutionalOwnershipArtifact,
+  InstitutionalOwnershipSignal,
+} from "./institutional-ownership";
 import {
   DEFAULT_OPERATING_KPI_REGISTRY,
   lookupOperatingKpiRegistry,
@@ -43,6 +47,8 @@ export interface EquityAnalysisCompletenessInput {
   readonly earningsSetup?: EarningsSetupCollected;
   readonly analystExpectations?: AnalystExpectationsArtifact;
   readonly analystExpectationsSignal?: AnalystExpectationsSignal;
+  readonly institutionalOwnership?: InstitutionalOwnershipArtifact;
+  readonly institutionalOwnershipSignal?: InstitutionalOwnershipSignal;
   readonly capitalOwnership?: CapitalOwnershipArtifact;
 }
 
@@ -439,9 +445,24 @@ function evidenceDimension(input: {
   };
 }
 
+function ownershipInformationalReasons(
+  signal: InstitutionalOwnershipSignal | undefined,
+): readonly string[] {
+  if (signal?.status === "forbidden") {
+    return ["ownership-provider-entitlement-blocked"];
+  }
+  if (signal?.status === "missing-credential") {
+    return ["ownership-provider-credential-missing"];
+  }
+  return signal?.status === "available" && signal.sourceIds.length > 0
+    ? ["ownership-external-context-available"]
+    : [];
+}
+
 function capitalOwnershipDimension(
   artifact: CapitalOwnershipArtifact | undefined,
   yahoo: ExtendedEvidenceItem | undefined,
+  ownershipSignal: InstitutionalOwnershipSignal | undefined,
   asOf: string,
 ): EquityAnalysisCompletenessDimension {
   const reasons = [
@@ -460,6 +481,7 @@ function capitalOwnershipDimension(
       : []),
     ...(artifact?.subsequentFinancing !== undefined ? ["subsequent-financing-unreconciled"] : []),
   ];
+  const informationalReasons = ownershipInformationalReasons(ownershipSignal);
   const sourceIds = unique([
     ...(artifact?.dilutedShares.flatMap((fact) => fact.sourceIds) ?? []),
     ...(artifact?.stockBasedCompensation.flatMap((fact) => fact.sourceIds) ?? []),
@@ -469,10 +491,11 @@ function capitalOwnershipDimension(
     ...(artifact?.debtPrincipal?.noncurrent?.sourceIds ?? []),
     ...(artifact?.subsequentFinancing?.sourceIds ?? []),
     ...(yahoo?.sourceIds ?? []),
+    ...(ownershipSignal?.status === "available" ? ownershipSignal.sourceIds : []),
   ]);
   return {
     status: reasons.length === 0 ? "complete" : "partial",
-    reasonCodes: unique(reasons),
+    reasonCodes: unique([...reasons, ...informationalReasons]),
     asOf: artifact?.generatedAt ?? yahoo?.observedAt ?? asOf,
     sourceIds,
   };
@@ -613,7 +636,12 @@ function nonCoreDimensions(
       ...(valuation !== undefined ? { sourceIds: valuation.sourceIds } : {}),
     }),
     expectations: expectationsDimension(input),
-    capitalOwnership: capitalOwnershipDimension(input.capitalOwnership, yahoo, input.asOf),
+    capitalOwnership: capitalOwnershipDimension(
+      input.capitalOwnership,
+      yahoo,
+      input.institutionalOwnershipSignal,
+      input.asOf,
+    ),
     operatingKpis: operatingKpisDimension(input),
   };
 }

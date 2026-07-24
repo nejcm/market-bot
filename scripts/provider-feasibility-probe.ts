@@ -33,6 +33,9 @@ const candidates: readonly CandidateEndpoint[] = [
   { endpoint: "/stock/ebitda-estimate", params: { symbol: SYMBOL, freq: "quarterly" } },
   { endpoint: "/stock/earnings", params: { symbol: SYMBOL, limit: "1" } },
   { endpoint: "/stock/price-target", params: { symbol: SYMBOL } },
+  { endpoint: "/stock/ownership", params: { symbol: SYMBOL } },
+  { endpoint: "/stock/insider-transactions", params: { symbol: SYMBOL } },
+  { endpoint: "/stock/insider-sentiment", params: { symbol: SYMBOL, from, to } },
 ];
 
 const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });

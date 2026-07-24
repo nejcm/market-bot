@@ -966,6 +966,16 @@
         "evidence": [],
         "reason": "No request or normalized availability gap for finnhub-analyst-range"
       },
+      "finnhubInstitutionalOwnership": {
+        "status": "unmeasured",
+        "evidence": [],
+        "reason": "No request or normalized availability gap for finnhub-institutional-ownership"
+      },
+      "finnhubInsiderTransactions": {
+        "status": "unmeasured",
+        "evidence": [],
+        "reason": "No request or normalized availability gap for finnhub-insider-transactions"
+      },
       "tradierOptions": {
         "status": "missing-credential",
         "evidence": ["tradier-options"],

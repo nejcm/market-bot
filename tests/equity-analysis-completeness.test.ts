@@ -693,6 +693,42 @@ describe("equity analysis completeness", () => {
     expect(partial.financialCoreStatus).toBe("blocked");
   });
 
+  test("adds ownership context without changing the SEC-governed capital status", () => {
+    const secComplete = capitalOwnership();
+    const baseline = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      capitalOwnership: secComplete,
+    });
+    const available = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      capitalOwnership: secComplete,
+      institutionalOwnershipSignal: {
+        status: "available",
+        sourceIds: ["ownership-source"],
+      },
+    });
+    const forbidden = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      capitalOwnership: secComplete,
+      institutionalOwnershipSignal: { status: "forbidden", sourceIds: [] },
+    });
+
+    expect(available.dimensions.capitalOwnership).toEqual({
+      ...baseline.dimensions.capitalOwnership,
+      reasonCodes: ["ownership-external-context-available"],
+      sourceIds: [...baseline.dimensions.capitalOwnership.sourceIds, "ownership-source"],
+    });
+    expect(forbidden.dimensions.capitalOwnership).toEqual({
+      ...baseline.dimensions.capitalOwnership,
+      reasonCodes: ["ownership-provider-entitlement-blocked"],
+    });
+    expect(available.coverageLevel).toBe(baseline.coverageLevel);
+    expect(forbidden.coverageLevel).toBe(baseline.coverageLevel);
+  });
+
   test("keeps unconfigured issuer operating KPIs partial", () => {
     const result = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,

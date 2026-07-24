@@ -426,6 +426,7 @@ export type ExtendedEvidenceCategory =
   | "yahoo-fundamentals"
   | "analyst-estimates"
   | "analyst-estimate-context"
+  | "institutional-ownership"
   | "equity-events"
   | "fred-macro"
   | "options-iv"

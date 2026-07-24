@@ -203,7 +203,7 @@ function renderExtendedEvidence(report: ResearchReport): string {
       return `- **${markdownText(item.title)}:** ${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`;
     })
     .join("\n");
-  return `${renderAnalystEstimateContext(report)}## Extended Evidence\n\n${rows}\n`;
+  return `${renderAnalystEstimateContext(report)}${renderInstitutionalOwnershipContext(report)}## Extended Evidence\n\n${rows}\n`;
 }
 
 function renderAnalystEstimateContext(report: ResearchReport): string {
@@ -235,6 +235,38 @@ function renderAnalystEstimateContext(report: ResearchReport): string {
     return [`${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`, ...distribution];
   });
   return rows.length === 0 ? "" : `## External Analyst Estimate Context\n\n${rows.join("\n")}\n`;
+}
+
+function renderInstitutionalOwnershipContext(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType)) {
+    return "";
+  }
+  const items =
+    report.extendedEvidence?.items.filter((item) => item.category === "institutional-ownership") ??
+    [];
+  const rows = items.flatMap((item) => {
+    const { metrics } = item;
+    if (metrics === undefined) {
+      return [];
+    }
+    const values = [
+      ["Institutional holders", metrics.holderCount],
+      ["Reported shares", metrics.reportedShares],
+      ["Reported ownership percent", metrics.reportedOwnershipPercent],
+      ["Insider transactions", metrics.transactionCount],
+      ["Purchases", metrics.purchaseCount],
+      ["Sales", metrics.saleCount],
+      ["Net share change", metrics.netShareChange],
+    ].flatMap(([label, value]) =>
+      typeof value === "number" ? [`- **${String(label)}:** ${String(value)}`] : [],
+    );
+    if (values.length === 0) {
+      return [];
+    }
+    const refs = sourceRefs(item.sourceIds);
+    return [`${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`, ...values];
+  });
+  return rows.length === 0 ? "" : `## External Ownership Context\n\n${rows.join("\n")}\n`;
 }
 
 function renderHistoricalContext(report: ResearchReport): string {

@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { collectFinnhubEvents } from "./extended-evidence/finnhub-events";
 import { collectAnalystExpectations } from "./extended-evidence/analyst-expectations";
+import { collectInstitutionalOwnership } from "./extended-evidence/institutional-ownership";
 import { collectFred } from "./extended-evidence/fred-macro";
 import { collectGlassnode } from "./extended-evidence/glassnode-on-chain";
 import { collectSec } from "./extended-evidence/sec-edgar";
@@ -99,6 +100,12 @@ export const analystExpectationsExtendedEvidenceAdapter = createProviderExtended
   collectAnalystExpectations,
 );
 
+export const institutionalOwnershipExtendedEvidenceAdapter = createProviderExtendedEvidenceAdapter(
+  "extended-evidence-institutional-ownership",
+  "equity",
+  collectInstitutionalOwnership,
+);
+
 export const fredExtendedEvidenceAdapter = createProviderExtendedEvidenceAdapter(
   "extended-evidence-fred-macro",
   "equity",
@@ -121,6 +128,7 @@ export const equityExtendedEvidenceAdapter = createMultiExtendedEvidenceAdapter(
   secEdgarExtendedEvidenceAdapter,
   finnhubEventsExtendedEvidenceAdapter,
   analystExpectationsExtendedEvidenceAdapter,
+  institutionalOwnershipExtendedEvidenceAdapter,
   fredExtendedEvidenceAdapter,
   tradierExtendedEvidenceAdapter,
 ]);

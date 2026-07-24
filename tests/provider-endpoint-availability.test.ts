@@ -31,6 +31,8 @@ describe("provider endpoint availability", () => {
         snapshot("finnhub-revenue-estimate"),
         snapshot("finnhub-ebitda-estimate"),
         snapshot("finnhub-analyst-range"),
+        snapshot("finnhub-institutional-ownership"),
+        snapshot("finnhub-insider-transactions"),
       ],
       [],
     );
@@ -55,6 +57,14 @@ describe("provider endpoint availability", () => {
       status: "available",
       evidence: ["finnhub-analyst-range"],
     });
+    expect(result.finnhubInstitutionalOwnership).toEqual({
+      status: "available",
+      evidence: ["finnhub-institutional-ownership"],
+    });
+    expect(result.finnhubInsiderTransactions).toEqual({
+      status: "available",
+      evidence: ["finnhub-insider-transactions"],
+    });
   });
 
   test("prefers observed requests over availability gaps", () => {
@@ -76,6 +86,8 @@ describe("provider endpoint availability", () => {
         gap("finnhub-events", "missing-credential", "token absent"),
         gap("finnhub-eps-estimate", "unsupported-coverage", "plan unavailable"),
         gap("finnhub-revenue-estimate", "missing-credential", "token absent"),
+        gap("finnhub-institutional-ownership", "unsupported-coverage", "plan unavailable"),
+        gap("finnhub-insider-transactions", "missing-credential", "token absent"),
         gap("tradier-options", "unsupported-coverage", "listing unsupported"),
       ],
     );
@@ -98,6 +110,16 @@ describe("provider endpoint availability", () => {
     expect(result.finnhubRevenueEstimate).toEqual({
       status: "missing-credential",
       evidence: ["finnhub-revenue-estimate"],
+      reason: "token absent",
+    });
+    expect(result.finnhubInstitutionalOwnership).toEqual({
+      status: "unsupported",
+      evidence: ["finnhub-institutional-ownership"],
+      reason: "plan unavailable",
+    });
+    expect(result.finnhubInsiderTransactions).toEqual({
+      status: "missing-credential",
+      evidence: ["finnhub-insider-transactions"],
       reason: "token absent",
     });
   });

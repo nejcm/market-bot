@@ -94,6 +94,18 @@ function validateScenarios(
   }
 }
 
+function extendedEvidenceLanguageText(report: ResearchReport): readonly {
+  readonly title: string;
+  readonly summary: string;
+}[] {
+  return (
+    report.extendedEvidence?.items.map((item) => ({
+      title: item.title,
+      summary: item.summary,
+    })) ?? []
+  );
+}
+
 export function assertSafeReportLanguage(report: ResearchReport): void {
   const text = JSON.stringify({
     summary: report.summary,
@@ -104,10 +116,7 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     catalysts: report.catalysts,
     scenarios: report.scenarios,
     researchQualityDriver: report.researchQualityDriver,
-    extendedEvidence: report.extendedEvidence?.items.map((item) => ({
-      title: item.title,
-      summary: item.summary,
-    })),
+    extendedEvidence: extendedEvidenceLanguageText(report),
     renderedExtras: researchOnlyExtraText(report.extras),
   });
 

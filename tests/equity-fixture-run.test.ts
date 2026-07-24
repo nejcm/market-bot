@@ -377,6 +377,7 @@ function assertComprehensiveAnalysisPath(
       "business-framework",
       "analyst-estimates",
       "analyst-estimate-context",
+      "institutional-ownership",
     ]),
   );
   expect(result.collectedSources.analystExpectations).toMatchObject({
@@ -397,10 +398,37 @@ function assertComprehensiveAnalysisPath(
     },
   });
   expect(result.collectedSources.analystExpectationsSignal?.status).toBe("available");
+  expect(result.collectedSources.institutionalOwnership).toMatchObject({
+    version: 1,
+    symbol: "AAPL",
+    institutionalHolders: {
+      provider: "finnhub",
+      holderCount: 2,
+      reportedShares: 2_230_000_000,
+    },
+    insiderTransactions: {
+      provider: "finnhub",
+      transactionCount: 2,
+      purchaseCount: 1,
+      saleCount: 1,
+      netShareChange: 7000,
+    },
+  });
+  expect(
+    result.collectedSources.institutionalOwnership?.institutionalHolders?.reportedOwnershipPercent,
+  ).toBeCloseTo(0.148, 12);
+  expect(result.collectedSources.institutionalOwnershipSignal).toEqual({
+    status: "available",
+    sourceIds: [
+      "extended-finnhub-ownership-aapl-institutional",
+      "extended-finnhub-ownership-aapl-insider-transactions",
+    ],
+  });
   for (const sourceId of [
     ...(result.report.equityAnalysisCompleteness?.dimensions.expectations.sourceIds ?? []),
     ...(result.collectedSources.analystExpectationsSignal?.sourceIds ?? []),
     ...(result.collectedSources.analystExpectations?.externalContext?.sourceIds ?? []),
+    ...(result.collectedSources.institutionalOwnershipSignal?.sourceIds ?? []),
   ]) {
     expect(result.report.sources.some((source) => source.id === sourceId)).toBe(true);
   }
@@ -416,14 +444,45 @@ function assertComprehensiveAnalysisPath(
   expect(result.analytics.providerEndpointAvailability?.finnhubPriceTarget?.status).toBe(
     "available",
   );
+  expect(result.analytics.providerEndpointAvailability?.finnhubInstitutionalOwnership?.status).toBe(
+    "available",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubInsiderTransactions?.status).toBe(
+    "available",
+  );
+  expect(result.report.equityAnalysisCompleteness?.dimensions.capitalOwnership).toMatchObject({
+    status: "partial",
+    reasonCodes: [
+      "diluted-share-history-missing",
+      "sbc-history-missing",
+      "payout-evidence-missing",
+      "ownership-external-context-available",
+    ],
+    sourceIds: expect.arrayContaining([
+      "extended-finnhub-ownership-aapl-institutional",
+      "extended-finnhub-ownership-aapl-insider-transactions",
+    ]),
+  });
   expect(result.markdown).toContain("## External Analyst Estimate Context");
   expect(result.markdown).toContain("External analyst estimate range from Finnhub");
   expect(result.markdown).toContain("**Mean:** 240");
+  expect(result.markdown).toContain("## External Ownership Context");
+  expect(result.markdown).toContain("External institutional ownership data from Finnhub");
+  expect(result.markdown).toContain("**Institutional holders:** 2");
   expect(
     violatesResearchOnly(
       JSON.stringify(
         result.report.extendedEvidence?.items.find(
           (item) => item.category === "analyst-estimate-context",
+        ),
+      ),
+    ),
+  ).toBeNull();
+  expect(
+    violatesResearchOnly(
+      JSON.stringify(
+        result.report.extendedEvidence?.items.filter(
+          (item) => item.category === "institutional-ownership",
         ),
       ),
     ),
@@ -499,6 +558,30 @@ function assertEstimatedEarningsSuppressionPath(
     "unsupported",
   );
   expect(result.analytics.providerEndpointAvailability?.finnhubPriceTarget?.status).toBe(
+    "unsupported",
+  );
+  expect(result.collectedSources.institutionalOwnershipSignal).toEqual({
+    status: "forbidden",
+    sourceIds: [],
+  });
+  expect(result.report.equityAnalysisCompleteness?.dimensions.capitalOwnership).toEqual({
+    status: "partial",
+    reasonCodes: [
+      "diluted-share-history-missing",
+      "sbc-history-missing",
+      "payout-evidence-missing",
+      "ownership-provider-entitlement-blocked",
+    ],
+    asOf: "2026-06-15T14:30:00.000Z",
+    sourceIds: ["market-yahoo-equity-aapl"],
+  });
+  expect(result.report.equityAnalysisCompleteness?.dimensions.capitalOwnership.status).not.toBe(
+    "not-applicable",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubInstitutionalOwnership?.status).toBe(
+    "unsupported",
+  );
+  expect(result.analytics.providerEndpointAvailability?.finnhubInsiderTransactions?.status).toBe(
     "unsupported",
   );
 }
@@ -678,6 +761,7 @@ describe("static equity run fixtures", () => {
                 "diluted-share-history-missing",
                 "sbc-history-missing",
                 "payout-evidence-missing",
+                "ownership-external-context-available",
               ],
             },
           },

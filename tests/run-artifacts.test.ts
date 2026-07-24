@@ -760,6 +760,14 @@ describe("loadRunArtifact", () => {
               observedAt: "2026-05-19T00:00:00.000Z",
               metrics: { mean: 240, median: 235, high: 280, low: 190 },
             },
+            {
+              category: "institutional-ownership",
+              title: "External institutional ownership context",
+              summary: "External institutional ownership data from Finnhub.",
+              sourceIds: ["ownership-aapl-institutional"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+              metrics: { provider: "finnhub", holderCount: 2, reportedShares: 3500 },
+            },
           ],
           gaps: [
             {
@@ -791,6 +799,7 @@ describe("loadRunArtifact", () => {
     expect(artifact?.report.extendedEvidence?.items.slice(1).map((item) => item.category)).toEqual([
       "analyst-estimates",
       "analyst-estimate-context",
+      "institutional-ownership",
     ]);
     expect(artifact?.report.extendedEvidence?.gaps[0]).toEqual({
       source: "tradier-options",

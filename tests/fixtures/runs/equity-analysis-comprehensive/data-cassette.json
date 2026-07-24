@@ -182,6 +182,20 @@
       },
       "body": "{\"symbol\":\"AAPL\",\"lastUpdated\":\"2026-06-14\",\"targetMean\":240,\"targetMedian\":235,\"targetHigh\":280,\"targetLow\":190,\"numberAnalysts\":42}"
     },
+    "GET  https://finnhub.io/api/v1/stock/ownership?symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"symbol\":\"AAPL\",\"ownership\":[{\"investorName\":\"Fixture Holder A\",\"share\":1250000000,\"ownership\":0.083},{\"investorName\":\"Fixture Holder B\",\"share\":980000000,\"ownership\":0.065}]}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/insider-transactions?symbol=AAPL": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"symbol\":\"AAPL\",\"data\":[{\"name\":\"Fixture Officer A\",\"change\":12000,\"transactionPrice\":198.5},{\"name\":\"Fixture Officer B\",\"change\":-5000,\"transactionPrice\":201.25}]}"
+    },
     "GET  https://api.tradier.com/v1/markets/options/expirations?includeAllRoots=true&symbol=AAPL": {
       "status": 200,
       "headers": {

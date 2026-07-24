@@ -19,7 +19,8 @@ equity completeness contract and incremental consumer migration; amended 2026-07
 consumer completion and subsequent-financing bridge; amended 2026-07-23: official issuer earnings-
 date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date authority; amended
 2026-07-23: Phase 6 equity dimension evidence contracts; amended 2026-07-23: operating-KPI issuer
-registry; amended 2026-07-23: entitlement-adaptive analyst expectations)
+registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended 2026-07-24:
+entitlement-adaptive institutional-ownership context)
 
 ## Context
 
@@ -207,6 +208,13 @@ without pretending the project has a global security master.
   dimension, while the existing earnings-calendar EPS and revenue values remain a complete
   fallback. Provider price-target values remain structured, attributed external context and never
   drive completeness or market-bot-authored valuation.
+- Slice C2 observes Finnhub institutional-ownership and insider-transaction entitlement per
+  endpoint at runtime. A `200` response is consumed by the same code and appends supplementary,
+  attributed numeric context plus `ownership-external-context-available`; a `403` response or
+  missing credential appends an informational entitlement or credential reason without failing the
+  run. SEC-derived diluted-share, stock-based-compensation, payout, and debt evidence remains
+  authoritative for `capitalOwnership`: Finnhub context cannot change its status, complete it on
+  its own, or produce `not-applicable`.
 - The operating-KPI completeness dimension is driven by the checked-in per-issuer registry in
   `src/sources/extended-evidence/operating-kpi-registry.ts`, initially covering ASTS and NBIS.
   Issuers absent from the registry remain `partial` with

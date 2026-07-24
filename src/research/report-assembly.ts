@@ -920,6 +920,12 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
           ...(collectedSources.analystExpectationsSignal !== undefined
             ? { analystExpectationsSignal: collectedSources.analystExpectationsSignal }
             : {}),
+          ...(collectedSources.institutionalOwnership !== undefined
+            ? { institutionalOwnership: collectedSources.institutionalOwnership }
+            : {}),
+          ...(collectedSources.institutionalOwnershipSignal !== undefined
+            ? { institutionalOwnershipSignal: collectedSources.institutionalOwnershipSignal }
+            : {}),
           ...(collectedSources.capitalOwnership !== undefined
             ? { capitalOwnership: collectedSources.capitalOwnership }
             : {}),

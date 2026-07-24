@@ -45,6 +45,11 @@ export const ANALYST_EXPECTATION_ENDPOINT_KEYS = [
   "finnhubPriceTarget",
 ] as const;
 
+export const OWNERSHIP_ENDPOINT_KEYS = [
+  "finnhubInstitutionalOwnership",
+  "finnhubInsiderTransactions",
+] as const;
+
 interface FixtureBaseline {
   readonly fixture: string;
   readonly earningsSetupCount: number;
@@ -151,7 +156,7 @@ function measureFixtureResult(fixture: string, result: RunFixtureResult): Fixtur
     result.collectedSources.sourceGaps,
     setup?.impliedMove !== undefined,
   );
-  for (const endpoint of ANALYST_EXPECTATION_ENDPOINT_KEYS) {
+  for (const endpoint of [...ANALYST_EXPECTATION_ENDPOINT_KEYS, ...OWNERSHIP_ENDPOINT_KEYS]) {
     if (providerEndpointAvailability[endpoint] === undefined) {
       throw new Error(`${fixture}: ${endpoint} availability is missing`);
     }

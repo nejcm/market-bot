@@ -182,6 +182,20 @@
       },
       "body": "{\"error\":\"Forbidden\"}"
     },
+    "GET  https://finnhub.io/api/v1/stock/ownership?symbol=AAPL": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Forbidden\"}"
+    },
+    "GET  https://finnhub.io/api/v1/stock/insider-transactions?symbol=AAPL": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": "{\"error\":\"Forbidden\"}"
+    },
     "GET  https://api.tradier.com/v1/markets/options/expirations?includeAllRoots=true&symbol=AAPL": {
       "status": 200,
       "headers": {

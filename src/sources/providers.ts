@@ -4,6 +4,7 @@ import {
   finnhubEventsExtendedEvidenceAdapter,
   fredExtendedEvidenceAdapter,
   glassnodeExtendedEvidenceAdapter,
+  institutionalOwnershipExtendedEvidenceAdapter,
   secEdgarExtendedEvidenceAdapter,
   tradierExtendedEvidenceAdapter,
 } from "./extended-evidence";
@@ -49,6 +50,10 @@ export const sourceProviders: readonly SourceProviderModule[] = [
   {
     name: "finnhub-analyst-expectations",
     extendedEvidence: { equity: analystExpectationsExtendedEvidenceAdapter },
+  },
+  {
+    name: "finnhub-institutional-ownership",
+    extendedEvidence: { equity: institutionalOwnershipExtendedEvidenceAdapter },
   },
   {
     name: "fred",

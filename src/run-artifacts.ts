@@ -215,6 +215,7 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "yahoo-fundamentals",
   "analyst-estimates",
   "analyst-estimate-context",
+  "institutional-ownership",
 ]);
 const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set([
   ...EVIDENCE_LANES,

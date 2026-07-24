@@ -21,6 +21,7 @@ import type { ResolvedRunParams } from "../config/runs";
 import type { BuildSourcePlanResult } from "./source-plan";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import { buildWebEvidenceUtilization } from "../web-evidence";
 
 interface TraceJobInput {
   readonly command: ResearchCommand;
@@ -65,6 +66,11 @@ export function buildRunTrace(input: {
 }): RunTrace {
   const { command, config, provider } = input.jobInput;
   const webSourceSynthesisInputs = buildWebSourceSynthesisInputs(command, input.collectedSources);
+  const webEvidenceUtilization = buildWebEvidenceUtilization(
+    input.report,
+    input.collectedSources,
+    input.webGatherLoop !== undefined,
+  );
   const earningsForecasts = readEarningsForecastTelemetry(input.report);
   return {
     schemaVersion: 2,
@@ -101,6 +107,7 @@ export function buildRunTrace(input: {
       ? { evidenceRequestLoop: input.evidenceRequestLoop }
       : {}),
     ...(input.webGatherLoop !== undefined ? { webGatherLoop: input.webGatherLoop } : {}),
+    ...(webEvidenceUtilization !== undefined ? { webEvidenceUtilization } : {}),
     ...(webSourceSynthesisInputs !== undefined ? { webSourceSynthesisInputs } : {}),
     historicalContext: input.historicalContext.audit,
     ...(input.spotlightSelection !== undefined

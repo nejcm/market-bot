@@ -175,6 +175,7 @@ export interface WebSubjectProfileRunArtifact {
   readonly runDirName: string;
   readonly report: ResearchReport;
   readonly webSubjectProfile: WebSubjectProfileArtifact;
+  readonly analytics?: unknown;
 }
 
 export interface LoadedRunArtifact {
@@ -1824,6 +1825,9 @@ export async function scanWebSubjectProfileRunArtifacts(
               const profileFile = await readJsonFile(
                 join(candidate.runDir, WEB_SUBJECT_PROFILE_FILE),
               );
+              const analyticsFile = await readJsonFile(
+                join(candidate.runDir, RUN_ARTIFACT_FILES.analytics),
+              );
               const webSubjectProfile =
                 profileFile.status === "ok"
                   ? readWebSubjectProfileArtifact(profileFile.value)
@@ -1836,6 +1840,7 @@ export async function scanWebSubjectProfileRunArtifacts(
                     runDirName: candidate.runDirName,
                     report: candidate.report,
                     webSubjectProfile,
+                    ...(analyticsFile.status === "ok" ? { analytics: analyticsFile.value } : {}),
                   };
             })(),
           ],

@@ -229,6 +229,29 @@ export interface WebGatherSanitizerAudit {
   readonly removedChromeHtmlCount: number;
 }
 
+export type WebEvidenceUtilizationLevel = "insufficient-sample" | "low" | "medium" | "high";
+
+export interface WebEvidenceUtilization {
+  readonly version: 1;
+  readonly acceptedCurrentRun: number;
+  readonly usedCurrentRun: number;
+  readonly profileUsed: number;
+  readonly primaryReportCited: number;
+  readonly structuredExtraCited: number;
+  readonly unusedCurrentRun: number;
+  readonly ratio: number;
+  readonly level: WebEvidenceUtilizationLevel;
+}
+
+export interface WebGatherAcceptancePolicy {
+  readonly version: 1;
+  readonly mode: "reused-profile-default" | "reused-profile-after-low-utilization";
+  readonly sourceRunDirName: string;
+  readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
+  readonly priorUtilizationRatio?: number;
+  readonly implicitPerQueryAcceptanceCap: 2 | 3;
+}
+
 export type ModelInputSanitizerProfile =
   | "open-web"
   | "news"
@@ -295,6 +318,7 @@ export interface WebGatherFallbackAudit {
 
 export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherAuditEntry> & {
   readonly sanitizer: WebGatherSanitizerAudit;
+  readonly acceptancePolicy?: WebGatherAcceptancePolicy;
 };
 
 export interface DomainPlaybookSelectionAudit {
@@ -758,6 +782,7 @@ export interface RunTrace {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
+  readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {

@@ -17,6 +17,7 @@ import {
   attachReusableWebSubjectProfile,
   findReusableWebSubjectProfile,
   latestSecFilingDate,
+  webGatherAcceptancePolicyForReuse,
   type WebSubjectProfileReuse,
 } from "./web-subject-profile-reuse";
 
@@ -207,6 +208,7 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
         context: input.context,
         now: input.now,
         reusedProfileCoverage: reusedProfileCoverage(reusableWebSubjectProfile),
+        acceptancePolicy: webGatherAcceptancePolicyForReuse(reusableWebSubjectProfile),
         ...(input.fetchImpl !== undefined ? { fetchImpl: input.fetchImpl } : {}),
         ...(input.retryDelaysMs !== undefined ? { retryDelaysMs: input.retryDelaysMs } : {}),
         generateRound: (currentSources, roundContext, priorStages) =>

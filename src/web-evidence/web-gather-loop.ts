@@ -11,6 +11,7 @@ import type {
   WebGatherLoopAudit,
   WebGatherDuplicateResultAudit,
   WebGatherToolName,
+  WebGatherAcceptancePolicy,
   WebSearchType,
   JsonToolLoopAuditEntry,
 } from "../domain/types";
@@ -82,6 +83,7 @@ interface WebGatherLoopInput {
   readonly fetchImpl?: FetchLike;
   readonly retryDelaysMs?: readonly number[];
   readonly reusedProfileCoverage?: WebGatherContext["reusedProfileCoverage"];
+  readonly acceptancePolicy?: WebGatherAcceptancePolicy;
   readonly generateRound: (
     collectedSources: CollectedSources,
     context: ResearchContext,
@@ -114,6 +116,7 @@ interface ValidationState {
   readonly command: ResearchCommand;
   readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
   readonly reusedProfileCoverage: WebGatherContext["reusedProfileCoverage"];
+  readonly acceptancePolicy: WebGatherAcceptancePolicy | undefined;
   readonly config: AppConfig;
   readonly round: number;
 }
@@ -284,6 +287,7 @@ function withDefaultSearchNumResults(
   },
   command: ResearchCommand,
   coverage: WebGatherContext["reusedProfileCoverage"],
+  acceptancePolicy: WebGatherAcceptancePolicy | undefined,
   thematicListSearchWidened: boolean,
 ): { readonly query: string; readonly searchType: WebSearchType; readonly numResults?: number } {
   if (parsedArgs.numResults !== undefined) {
@@ -293,7 +297,11 @@ function withDefaultSearchNumResults(
     return { ...parsedArgs, numResults: MAX_WEB_GATHER_SEARCH_RESULTS };
   }
   if (coverage?.present === true) {
-    return { ...parsedArgs, numResults: REUSED_PROFILE_DEFAULT_SEARCH_RESULTS };
+    return {
+      ...parsedArgs,
+      numResults:
+        acceptancePolicy?.implicitPerQueryAcceptanceCap ?? REUSED_PROFILE_DEFAULT_SEARCH_RESULTS,
+    };
   }
   return parsedArgs;
 }
@@ -405,6 +413,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           command,
           secFilingCoverage,
           reusedProfileCoverage: input.reusedProfileCoverage,
+          acceptancePolicy: input.acceptancePolicy,
           config,
           round: roundState.round,
         },
@@ -472,6 +481,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         })),
       ],
       sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
+      ...(input.acceptancePolicy !== undefined ? { acceptancePolicy: input.acceptancePolicy } : {}),
     },
   };
 }
@@ -653,6 +663,7 @@ function validateRequest(
       parsedArgs,
       state.command,
       state.reusedProfileCoverage,
+      state.acceptancePolicy,
       state.thematicListSearchWidened.value,
     );
     const acceptedRequest = validateAcceptedRequest(

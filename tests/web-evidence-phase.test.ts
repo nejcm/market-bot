@@ -162,6 +162,21 @@ describe("Web Evidence phase", () => {
       openGaps: [],
       sourceIds: [source.id],
     });
+    await writeJson(join(runDir, "analytics.json"), {
+      version: 2,
+      runId: "prior-btc",
+      webEvidenceUtilization: {
+        version: 1,
+        acceptedCurrentRun: 5,
+        usedCurrentRun: 1,
+        profileUsed: 0,
+        primaryReportCited: 1,
+        structuredExtraCited: 0,
+        unusedCurrentRun: 4,
+        ratio: 0.2,
+        level: "low",
+      },
+    });
 
     const stages: StageOutput[] = [];
     const result = await runWebEvidencePhase({
@@ -204,6 +219,14 @@ describe("Web Evidence phase", () => {
       symbol: "BTC",
     });
     expect(result.collectedSources.extendedSources).toContainEqual(source);
+    expect(result.webGatherLoop.audit?.acceptancePolicy).toEqual({
+      version: 1,
+      mode: "reused-profile-after-low-utilization",
+      sourceRunDirName: "prior-btc",
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+      implicitPerQueryAcceptanceCap: 2,
+    });
   });
 
   test("reuses deep theme profile using resolved subject identity", async () => {
@@ -308,5 +331,11 @@ describe("Web Evidence phase", () => {
       subjectId: "biotech",
     });
     expect(result.collectedSources.extendedSources).toContainEqual(source);
+    expect(result.webGatherLoop.audit?.acceptancePolicy).toEqual({
+      version: 1,
+      mode: "reused-profile-default",
+      sourceRunDirName: "prior-biotech",
+      implicitPerQueryAcceptanceCap: 3,
+    });
   });
 });

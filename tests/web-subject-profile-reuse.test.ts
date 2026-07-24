@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { InstrumentCommand, ResearchCommand } from "../src/cli/args";
@@ -7,6 +7,7 @@ import {
   attachReusableWebSubjectProfile,
   findReusableWebSubjectProfile,
   latestSecFilingDate,
+  webGatherAcceptancePolicyForReuse,
 } from "../src/web-evidence/web-subject-profile-reuse";
 import {
   normalizedSubjectId,
@@ -165,6 +166,7 @@ async function writePriorRun(input: {
   readonly sources?: readonly Source[];
   readonly generatedAt?: string;
   readonly version?: 2 | 3;
+  readonly analytics?: unknown;
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
   const isCrypto = input.subjectKind === "crypto-asset";
@@ -206,6 +208,9 @@ async function writePriorRun(input: {
       ...(input.subjectKind !== undefined ? { subjectKind: input.subjectKind } : {}),
     }),
   );
+  if (input.analytics !== undefined) {
+    await writeJson(join(runDir, "analytics.json"), input.analytics);
+  }
 }
 
 describe("Web Subject Profile reuse", () => {
@@ -231,6 +236,231 @@ describe("Web Subject Profile reuse", () => {
     expect(reuse?.profile).toMatchObject({ subjectKind: "company", companyName: "AAPL Inc." });
     expect(reuse?.sources.map((source) => source.id)).toEqual([webSource.id]);
     expect(reuse?.gap.message).toContain("2.5 days old");
+  });
+
+  test("reads versioned low utilization from the exact reused-profile run without rewriting it", async () => {
+    const dataDir = tempRunsDir();
+    const analytics = {
+      version: 2,
+      runId: "prior-aapl",
+      webEvidenceUtilization: {
+        version: 1,
+        acceptedCurrentRun: 5,
+        usedCurrentRun: 1,
+        profileUsed: 0,
+        primaryReportCited: 1,
+        structuredExtraCited: 0,
+        unusedCurrentRun: 4,
+        ratio: 0.2,
+        level: "low",
+      },
+      webSources: { accepted: 5, usageRatio: 1 },
+    };
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      analytics,
+    });
+    await writePriorRun({
+      dataDir,
+      runId: "newer-msft",
+      symbol: "MSFT",
+      generatedAt: "2026-05-10T00:00:00.000Z",
+      analytics: {
+        version: 2,
+        runId: "newer-msft",
+        webEvidenceUtilization: {
+          version: 1,
+          acceptedCurrentRun: 4,
+          usedCurrentRun: 4,
+          profileUsed: 0,
+          primaryReportCited: 4,
+          structuredExtraCited: 0,
+          unusedCurrentRun: 0,
+          ratio: 1,
+          level: "high",
+        },
+      },
+    });
+    const priorRunDir = join(dataDir, "prior-aapl");
+    const before = await Promise.all([
+      readFile(join(priorRunDir, "report.json"), "utf8"),
+      readFile(join(priorRunDir, "normalized", "web-subject-profile.json"), "utf8"),
+      readFile(join(priorRunDir, "analytics.json"), "utf8"),
+    ]);
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toMatchObject({
+      runDirName: "prior-aapl",
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+    });
+    expect(webGatherAcceptancePolicyForReuse(reuse!)).toEqual({
+      version: 1,
+      mode: "reused-profile-after-low-utilization",
+      sourceRunDirName: "prior-aapl",
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+      implicitPerQueryAcceptanceCap: 2,
+    });
+    await expect(
+      Promise.all([
+        readFile(join(priorRunDir, "report.json"), "utf8"),
+        readFile(join(priorRunDir, "normalized", "web-subject-profile.json"), "utf8"),
+        readFile(join(priorRunDir, "analytics.json"), "utf8"),
+      ]),
+    ).resolves.toEqual(before);
+  });
+
+  test("derives low utilization from legacy web-source analytics", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      analytics: {
+        version: 2,
+        runId: "prior-aapl",
+        webSources: { accepted: 5, usageRatio: 0.2 },
+      },
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toMatchObject({
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+    });
+    expect(webGatherAcceptancePolicyForReuse(reuse!).implicitPerQueryAcceptanceCap).toBe(2);
+  });
+
+  test("does not reduce the cap for an insufficient legacy sample", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      analytics: {
+        version: 2,
+        runId: "prior-aapl",
+        webSources: { accepted: 3, usageRatio: 0 },
+      },
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.priorUtilizationLevel).toBe("insufficient-sample");
+    expect(webGatherAcceptancePolicyForReuse(reuse!)).toMatchObject({
+      mode: "reused-profile-default",
+      implicitPerQueryAcceptanceCap: 3,
+    });
+  });
+
+  test.each([
+    { name: "missing", analytics: undefined },
+    {
+      name: "future-version",
+      analytics: {
+        version: 2,
+        runId: "prior-aapl",
+        webEvidenceUtilization: { version: 2 },
+      },
+    },
+    {
+      name: "future-analytics-version",
+      analytics: {
+        version: 3,
+        runId: "prior-aapl",
+        webSources: { accepted: 5, usageRatio: 0.2 },
+      },
+    },
+    {
+      name: "mismatched-level",
+      analytics: {
+        version: 2,
+        runId: "prior-aapl",
+        webEvidenceUtilization: {
+          version: 1,
+          acceptedCurrentRun: 5,
+          usedCurrentRun: 1,
+          profileUsed: 0,
+          primaryReportCited: 1,
+          structuredExtraCited: 0,
+          unusedCurrentRun: 4,
+          ratio: 0.2,
+          level: "high",
+        },
+      },
+    },
+    {
+      name: "mismatched-run",
+      analytics: {
+        version: 2,
+        runId: "different-run",
+        webSources: { accepted: 5, usageRatio: 0.2 },
+      },
+    },
+  ])("treats $name analytics as unknown", async ({ analytics }) => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      ...(analytics !== undefined ? { analytics } : {}),
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.priorUtilizationLevel).toBeUndefined();
+    expect(webGatherAcceptancePolicyForReuse(reuse!)).toEqual({
+      version: 1,
+      mode: "reused-profile-default",
+      sourceRunDirName: "prior-aapl",
+      implicitPerQueryAcceptanceCap: 3,
+    });
+  });
+
+  test("treats malformed analytics JSON as unknown", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
+    await writeFile(join(dataDir, "prior-aapl", "analytics.json"), "{not-json", "utf8");
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.priorUtilizationLevel).toBeUndefined();
+    expect(webGatherAcceptancePolicyForReuse(reuse!).implicitPerQueryAcceptanceCap).toBe(3);
   });
 
   test("rejects reuse when a newer current SEC filing exists", async () => {

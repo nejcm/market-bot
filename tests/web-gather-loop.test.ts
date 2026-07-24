@@ -15,6 +15,22 @@ const command: ResearchCommand = {
   depth: "deep",
 };
 
+const lowPriorAcceptancePolicy = {
+  version: 1,
+  mode: "reused-profile-after-low-utilization",
+  sourceRunDirName: "prior-aapl",
+  priorUtilizationLevel: "low",
+  priorUtilizationRatio: 0.2,
+  implicitPerQueryAcceptanceCap: 2,
+} as const;
+
+const defaultReuseAcceptancePolicy = {
+  version: 1,
+  mode: "reused-profile-default",
+  sourceRunDirName: "prior-aapl",
+  implicitPerQueryAcceptanceCap: 3,
+} as const;
+
 const config: AppConfig = {
   provider: "openai",
   quickModel: "quick-test",
@@ -564,6 +580,7 @@ describe("runWebGatherLoop", () => {
       collectedSources: collectedSources(),
       context,
       reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: recorded.fetch,
       retryDelaysMs: [],
@@ -590,15 +607,16 @@ describe("runWebGatherLoop", () => {
         }),
     });
 
-    expect(recorded.searchNumResults).toEqual([8, 3]);
+    expect(recorded.searchNumResults).toEqual([8, 2]);
     expect(result.audit?.acceptedRequests).toEqual([
       expect.objectContaining({
         args: expect.objectContaining({ numResults: 8 }),
       }),
       expect.objectContaining({
-        args: expect.objectContaining({ numResults: 3 }),
+        args: expect.objectContaining({ numResults: 2 }),
       }),
     ]);
+    expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
   });
 
   test("widens thematic list research without explicit equity words", async () => {
@@ -1599,6 +1617,7 @@ describe("runWebGatherLoop", () => {
         }),
         context,
         reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        acceptancePolicy: defaultReuseAcceptancePolicy,
         now: new Date("2026-05-19T00:00:00.000Z"),
         fetchImpl: recording.fetch,
         retryDelaysMs: [],
@@ -1622,6 +1641,48 @@ describe("runWebGatherLoop", () => {
           args: expect.objectContaining({ searchType, numResults: 3 }),
         }),
       ]);
+      expect(result.audit?.acceptancePolicy).toEqual(defaultReuseAcceptancePolicy);
+    });
+  }
+
+  for (const searchType of narrowedSearchTypes) {
+    test(`narrows the default ingestion to 2 after low prior utilization for ${searchType} searches`, async () => {
+      const recording = recordingExaFetch();
+      const result = await runWebGatherLoop({
+        command,
+        config: {
+          ...config,
+          webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+        },
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        }),
+        context,
+        reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        acceptancePolicy: lowPriorAcceptancePolicy,
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        fetchImpl: recording.fetch,
+        retryDelaysMs: [],
+        generateRound: async () =>
+          stage({
+            requests: [
+              {
+                tool: "web_search",
+                args: { query: "AAPL Apple recent product news", searchType },
+                rationale: "recent material developments",
+              },
+            ],
+          }),
+      });
+
+      expect(recording.searchNumResults).toEqual([2]);
+      expect(result.audit?.acceptedRequests).toEqual([
+        expect.objectContaining({
+          tool: "web_search",
+          args: expect.objectContaining({ searchType, numResults: 2 }),
+        }),
+      ]);
+      expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
     });
   }
 
@@ -1635,6 +1696,7 @@ describe("runWebGatherLoop", () => {
       }),
       context,
       reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: recording.fetch,
       retryDelaysMs: [],
@@ -1657,6 +1719,7 @@ describe("runWebGatherLoop", () => {
         args: expect.objectContaining({ numResults: 6 }),
       }),
     ]);
+    expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
   });
 
   test("leaves the default ingestion at 5 without reused profile coverage", async () => {

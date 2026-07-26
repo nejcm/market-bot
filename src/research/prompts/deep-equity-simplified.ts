@@ -148,9 +148,9 @@ function compactDerivedViews(
   critique: boolean,
 ): Record<string, unknown> {
   const views = packet.derivedViews;
-  const {valuationComps} = views;
+  const { valuationComps } = views;
   const workbench = views.valuationWorkbench;
-  const {businessFramework} = views;
+  const { businessFramework } = views;
   const emittedViews: Record<string, unknown> = {
     ...(!critique && views.capitalOwnership !== undefined
       ? { capitalOwnership: views.capitalOwnership }
@@ -280,8 +280,8 @@ function distilledPriorStages(
     ) {
       return [];
     }
-    const {stage} = (entry as { readonly stage: string });
-    const {content} = (entry as { readonly content?: unknown });
+    const { stage } = entry as { readonly stage: string };
+    const { content } = entry as { readonly content?: unknown };
     return [{ stage, content: typeof content === "string" ? content : "" }];
   });
 }

@@ -94,8 +94,21 @@ bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired --judge-m
 
 The judge defaults to the configured quick model and must differ from every synthesis model. Report
 labels are blinded and randomized before judging. Results are written under `data/evaluations/`.
-Until the simplified pipeline is implemented, paired output records its typed
-`not-implemented` status and does not invoke the judge.
+Replay mode runs both variants from independent cassette cursors and leaves judging disabled by
+default.
+
+The Phase 4 replay measurement covers six deep-equity fixtures. Its plan gate is median model-token
+improvement of at least 30%; the measured prompt-token reduction passes at 38.05%. Every fixture
+uses three core stages (`equity-analysis`, `critique`, `final-synthesis`) and four total calls.
+After restoring prior-calibration, prior-forecast-error, and `resolvedInstrumentIdentity` evidence,
+`equity-nbis-deep` is the per-fixture outlier at 26.58%, not a gate failure; the evaluation test
+retains it as Phase 5 regression input with a 25% floor.
+
+These figures estimate cassette replay, not live-model behavior. `equity-analysis` has no cassette
+entry and falls back to an empty response, while legacy analysis-stage entries are approximately
+50-character stubs. The measured reduction is therefore driven almost entirely by evidence-payload
+size, and the prior-stage-transcript axis is not exercised. Do not interpret the NBIS percentage as
+a precise live-model prediction in either direction.
 
 ## Deep-equity legacy pipeline baseline
 

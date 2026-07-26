@@ -163,6 +163,14 @@ Domain Playbooks are checked-in markdown guidance snippets under `prompts/playbo
 
 Deep runs use a fixed Coverage Panel after `specialist-analysis` and before `critique` ([ADR 0005](./adr/0005-research-workflows-model-stage-pipeline.md)). Market overviews run `regime-context-analysis` and `mover-theme-analysis`; instrument runs run `instrument-evidence-analysis` and `market-behavior-analysis`. The two role stages use the quick model, see the specialist output as their only prior stage, run concurrently, and are persisted in deterministic stage order. `critique` sees the specialist plus both role outputs, and `final-synthesis` sees all analyses plus critique. After final synthesis, a deterministic warning-only audit records unsupported numeric/technical claims and weak evidence posture omissions in trace and analytics; it does not mutate the report or reject Predictions. A separate deterministic Report Integrity Audit (`src/research/report-integrity-audit.ts`) then prunes numeric/technical findings, scenarios, and predictions without an eligible supporting source before forecast disagreement, stamps `reportIntegrity` and `researchQuality` (the worse of Evidence Quality and Report Integrity) on every new report, and persists pruned-item/advisory counts plus advisory codes and locations in trace and analytics; pruned predictions never enter scoring. The panel does not add other report schema fields.
 
+Phase 4 adds a test-only simplified deep-equity reasoning variant driven by the persisted evidence
+bundle/model packet. It statically assigns playbooks and runs `equity-analysis`, `critique`, then
+`final-synthesis`; the evaluation harness reaches it through the test-only `reasoningVariant` input
+seam. No environment or application configuration selects it: production deep equity retains the
+legacy specialist/Coverage Panel path. Prediction repair on either path must return a complete
+parseable report through `buildPredictionRepairInstruction`; patch-only output is incompatible
+with the reprompt reader and can silently yield an empty report while consuming both retries.
+
 After final synthesis, the source-plan layer records compact `sourcePlan` and `evidenceLanes` summaries in `trace.json` and `analytics.json`. Full detail stays in the three normalized sidecars; no report schema fields are added.
 
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)

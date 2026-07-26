@@ -102,7 +102,7 @@ export async function runEvidenceRequestLoop(
     if (!deterministicAcquisitionRan) {
       return { collectedSources: input.collectedSources, stageOutputs: [] };
     }
-    let {collectedSources} = input;
+    let { collectedSources } = input;
     if (sec.sources.length > 0 || sec.gaps.length > 0 || sec.rawSnapshots.length > 0) {
       collectedSources = mergeToolOutput(input.command, collectedSources, sec);
     }

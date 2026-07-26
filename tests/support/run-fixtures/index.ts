@@ -77,7 +77,8 @@ export interface FixtureDataRequest {
 export interface RunFixturePairOptions extends RunFixtureOptions {
   readonly judge?: boolean;
   readonly judgeModel?: string;
-  readonly random?: () => number;
+  readonly variantOrderRandom?: () => number;
+  readonly blindLabelRandom?: () => number;
 }
 
 export type RunFixtureVariantOutcome =
@@ -354,7 +355,11 @@ export async function runFixturePair(
     },
   });
   const outcomes = {} as Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>;
-  for (const variant of DEEP_EQUITY_PIPELINE_VARIANTS) {
+  const variants =
+    options.variantOrderRandom !== undefined && options.variantOrderRandom() >= 0.5
+      ? DEEP_EQUITY_PIPELINE_VARIANTS.toReversed()
+      : DEEP_EQUITY_PIPELINE_VARIANTS;
+  for (const variant of variants) {
     try {
       const currentConfig = variantConfig(config, dataDir, variant);
       const variantProvider =
@@ -393,7 +398,7 @@ export async function runFixturePair(
             legacy: legacy.result.report,
             simplified: simplified.result.report,
           },
-          ...(options.random !== undefined ? { random: options.random } : {}),
+          ...(options.blindLabelRandom !== undefined ? { random: options.blindLabelRandom } : {}),
         })
       : undefined;
   return {

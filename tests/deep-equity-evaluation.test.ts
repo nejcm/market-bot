@@ -1,5 +1,22 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { judgeDeepEquityPair, PAIRWISE_JUDGE_DIMENSIONS } from "./support/deep-equity-evaluation";
+import {
+  aggregateDeepEquityEvaluation,
+  createSeededEvaluationRandom,
+  deepEquityVariantEvaluationMetrics,
+  evaluateDeepEquityGates,
+  judgeDeepEquityPair,
+  PAIRWISE_JUDGE_DIMENSIONS,
+  type DeepEquityEvaluationAggregate,
+  type DeepEquityEvaluationRunRecord,
+  type DeepEquityGateName,
+  type DeepEquityHardGateInputs,
+  type DeepEquityVariantEvaluationMetrics,
+  type PairwiseJudgeResult,
+} from "./support/deep-equity-evaluation";
+import {
+  deriveEvaluationStreamSeed,
+  type EvaluationRandomStreamName,
+} from "./support/evaluation-random";
 import type { ModelRequest } from "../src/model/types";
 import {
   measureDeepEquityLegacyBaseline,
@@ -52,18 +69,43 @@ describe("deep-equity pipeline evaluation", () => {
 
   test("collects once and runs both pipeline variants in paired replay mode", async () => {
     const requests: string[] = [];
+    let variantOrderDraws = 0;
+    let blindLabelDraws = 0;
     const result = await runFixturePair("equity-aapl-deep", {
       llm: "replay",
       onDataRequest: (request) => requests.push(request.url),
+      variantOrderRandom: () => {
+        variantOrderDraws += 1;
+        return 0.75;
+      },
+      blindLabelRandom: () => {
+        blindLabelDraws += 1;
+        return 0.25;
+      },
     });
     pairResults.push(result);
 
     expect(result.variants.legacy.status).toBe("success");
     expect(result.variants.simplified.status).toBe("success");
+    if (result.variants.simplified.status !== "success") {
+      throw new Error("simplified replay must succeed");
+    }
+    expect(deepEquityVariantEvaluationMetrics(result.variants.simplified.result)).toMatchObject({
+      researchOnlyBoundaryPassed: true,
+      persistedPredictionsValidate: true,
+      validPredictionCount: 0,
+      citedSourceUtilization: 1,
+      allCitedSourceIdsResolve: true,
+      coreReasoningCallCount: 3,
+      totalReasoningCallCount: 4,
+      reportIntegrity: "high",
+    });
     expect(
       requests.filter((url) => new URL(url).searchParams.get("symbols") === "AAPL"),
     ).toHaveLength(1);
     expect(result.judge).toBeUndefined();
+    expect(variantOrderDraws).toBe(1);
+    expect(blindLabelDraws).toBe(0);
   });
 
   test("measures the simplified deep-equity call and prompt-token budgets", async () => {
@@ -256,5 +298,310 @@ describe("deep-equity pipeline evaluation", () => {
       }),
     ).rejects.toThrow('judge model "same-model" must differ from synthesis model(s): same-model');
     expect(called).toBe(false);
+  });
+});
+
+const passingHardGates: DeepEquityHardGateInputs = {
+  allReportsValidate: true,
+  allCitedSourceIdsResolve: true,
+  zeroResearchOnlyBoundaryViolations: true,
+  zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: true,
+  noAdditionalLowIntegrityReports: true,
+  noDeterministicEvidenceCoverageRegression: true,
+  noInvalidPredictionsPersist: true,
+  humanReviewApproved: true,
+  liveSmokePassed: true,
+};
+
+function evaluationMetrics(
+  overrides: Partial<DeepEquityVariantEvaluationMetrics> = {},
+): DeepEquityVariantEvaluationMetrics {
+  return {
+    researchOnlyBoundaryPassed: true,
+    persistedPredictionsValidate: true,
+    validPredictionCount: 5,
+    citedSourceUtilization: 0.5,
+    allCitedSourceIdsResolve: true,
+    modelTokenEstimate: 100,
+    coreReasoningCallCount: 3,
+    totalReasoningCallCount: 4,
+    reportIntegrity: "high",
+    deterministicEvidenceCoverageRatio: 1,
+    ...overrides,
+  };
+}
+
+function syntheticJudge(
+  decision: PairwiseJudgeResult["decision"] = "simplified",
+  rubricDifference = 0,
+): PairwiseJudgeResult {
+  return {
+    version: 1,
+    judgeModel: "synthetic-independent-judge",
+    blindOrder: ["A", "B"],
+    blindLabels: { legacy: "A", simplified: "B" },
+    dimensions: PAIRWISE_JUDGE_DIMENSIONS.map((dimension) => ({
+      dimension,
+      legacyScore: 3,
+      simplifiedScore: 3 + rubricDifference,
+      rationale: "synthetic rubric fixture",
+    })),
+    decision,
+    rationale: "synthetic pairwise fixture",
+    criticalMaterialEvidenceOmissions: { legacy: [], simplified: [] },
+    tokenEstimate: 10,
+  };
+}
+
+function passingEvaluationRecords(
+  judge: (scenario: string, repetition: number) => PairwiseJudgeResult = () => syntheticJudge(),
+): readonly DeepEquityEvaluationRunRecord[] {
+  return ["scenario-a", "scenario-b", "scenario-c", "scenario-d"].flatMap((scenario) =>
+    [1, 2, 3].map((repetition) => ({
+      scenario,
+      repetition,
+      variants: {
+        legacy: evaluationMetrics(),
+        simplified: evaluationMetrics({
+          validPredictionCount: 4,
+          citedSourceUtilization: 0.46,
+          modelTokenEstimate: 70,
+        }),
+      },
+      judge: judge(scenario, repetition),
+    })),
+  );
+}
+
+function failingGateNames(aggregate: DeepEquityEvaluationAggregate): readonly DeepEquityGateName[] {
+  return evaluateDeepEquityGates(aggregate, passingHardGates).failingGates;
+}
+
+describe("deep-equity evaluation aggregation and gates", () => {
+  test("aggregates rubric, pairwise, scenario, prediction, utilization, token, and call metrics", () => {
+    const aggregate = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      bootstrapIterations: 200,
+      random: createSeededEvaluationRandom(42),
+    });
+
+    expect(aggregate.rubric).toEqual({
+      evaluatedPairCount: 12,
+      meanDifference: 0,
+      pairedBootstrap95PercentCi: {
+        lowerBound: 0,
+        upperBound: 0,
+        iterations: 200,
+      },
+    });
+    expect(aggregate.pairwise).toMatchObject({
+      evaluatedPairCount: 12,
+      unevaluatedPairCount: 0,
+      simplifiedWins: 12,
+      simplifiedLosses: 0,
+      ties: 0,
+      simplifiedWinRate: 1,
+      simplifiedLossRate: 0,
+      tieRate: 0,
+    });
+    expect(aggregate.scenarios[0]).toMatchObject({
+      repetitions: [1, 2, 3],
+      simplifiedWins: 3,
+      simplifiedLosses: 0,
+      ties: 0,
+      legacyMedianValidPredictionCount: 5,
+      simplifiedMedianValidPredictionCount: 4,
+      validPredictionMedianDifference: -1,
+    });
+    expect(aggregate.citedSourceUtilizationDelta).toBeCloseTo(-0.04);
+    expect(aggregate.medianModelTokenImprovement).toBeCloseTo(0.3);
+    expect(aggregate.reasoningCalls).toEqual({
+      allRunsUseThreeCoreCalls: true,
+      allRunsUseAtMostFiveTotalCalls: true,
+      maximumCoreCallCount: 3,
+      maximumTotalCallCount: 4,
+    });
+  });
+
+  test("returns a clean pass when every hard and non-inferiority gate passes", () => {
+    const aggregate = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      bootstrapIterations: 100,
+      random: createSeededEvaluationRandom(7),
+    });
+
+    expect(evaluateDeepEquityGates(aggregate, passingHardGates)).toMatchObject({
+      status: "pass",
+      passed: true,
+      failingGates: [],
+    });
+  });
+
+  test("fails each non-inferiority gate individually", () => {
+    const passing = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      bootstrapIterations: 100,
+      random: createSeededEvaluationRandom(9),
+    });
+    const cases: readonly {
+      readonly name: DeepEquityGateName;
+      readonly aggregate: DeepEquityEvaluationAggregate;
+    }[] = [
+      {
+        name: "rubric-non-inferiority",
+        aggregate: {
+          ...passing,
+          rubric: {
+            ...passing.rubric,
+            pairedBootstrap95PercentCi: {
+              ...passing.rubric.pairedBootstrap95PercentCi,
+              lowerBound: -0.250_001,
+            },
+          },
+        },
+      },
+      {
+        name: "pairwise-loss-rate",
+        aggregate: {
+          ...passing,
+          pairwise: {
+            ...passing.pairwise,
+            simplifiedWins: 8,
+            simplifiedLosses: 4,
+            simplifiedWinRate: 8 / 12,
+            simplifiedLossRate: 4 / 12,
+          },
+        },
+      },
+      {
+        name: "scenario-repetition-losses",
+        aggregate: {
+          ...passing,
+          scenarios: passing.scenarios.map((scenario, index) =>
+            index === 0 ? { ...scenario, simplifiedWins: 1, simplifiedLosses: 2 } : scenario,
+          ),
+        },
+      },
+      {
+        name: "valid-prediction-count",
+        aggregate: {
+          ...passing,
+          scenarios: passing.scenarios.map((scenario, index) =>
+            index === 0
+              ? {
+                  ...scenario,
+                  simplifiedMedianValidPredictionCount: 3,
+                  validPredictionMedianDifference: -2,
+                }
+              : scenario,
+          ),
+        },
+      },
+      {
+        name: "cited-source-utilization",
+        aggregate: { ...passing, citedSourceUtilizationDelta: -0.050_001 },
+      },
+      {
+        name: "model-token-improvement",
+        aggregate: { ...passing, medianModelTokenImprovement: 0.299_999 },
+      },
+      {
+        name: "reasoning-call-budget",
+        aggregate: {
+          ...passing,
+          reasoningCalls: { ...passing.reasoningCalls, allRunsUseThreeCoreCalls: false },
+        },
+      },
+    ];
+
+    for (const fixture of cases) {
+      expect(failingGateNames(fixture.aggregate)).toEqual([fixture.name]);
+    }
+  });
+
+  test("counts ties without treating them as wins or losses", () => {
+    const aggregate = aggregateDeepEquityEvaluation(
+      passingEvaluationRecords(() => syntheticJudge("tie")),
+      { bootstrapIterations: 100, random: createSeededEvaluationRandom(11) },
+    );
+
+    expect(aggregate.pairwise).toMatchObject({
+      simplifiedWins: 0,
+      simplifiedLosses: 0,
+      ties: 12,
+      simplifiedWinRate: 0,
+      simplifiedLossRate: 0,
+      tieRate: 1,
+    });
+    expect(aggregate.scenarios.every((scenario) => scenario.ties === 3)).toBe(true);
+  });
+
+  test("passes when the paired-bootstrap lower bound is exactly -0.25", () => {
+    const aggregate = aggregateDeepEquityEvaluation(
+      passingEvaluationRecords(() => syntheticJudge("simplified", -0.25)),
+      { bootstrapIterations: 100, random: createSeededEvaluationRandom(13) },
+    );
+
+    expect(aggregate.rubric.pairedBootstrap95PercentCi.lowerBound).toBe(-0.25);
+    expect(failingGateNames(aggregate)).toEqual([]);
+  });
+
+  test("derives evaluation random streams without adjacent-seed correlation", () => {
+    const streamPairs: readonly (readonly [
+      EvaluationRandomStreamName,
+      EvaluationRandomStreamName,
+    ])[] = [
+      ["variantOrder", "blindLabels"],
+      ["variantOrder", "pairedBootstrap"],
+      ["blindLabels", "pairedBootstrap"],
+    ];
+    const measuredDrawIndices = new Set([1, 2, 4, 8]);
+    const seedCount = 20_000;
+
+    for (const [leftStream, rightStream] of streamPairs) {
+      const sameSideCounts = new Map<number, number>();
+      for (let seed = 1; seed <= seedCount; seed += 1) {
+        const leftRandom = createSeededEvaluationRandom(
+          deriveEvaluationStreamSeed(seed, leftStream),
+        );
+        const rightRandom = createSeededEvaluationRandom(
+          deriveEvaluationStreamSeed(seed, rightStream),
+        );
+        for (let drawIndex = 1; drawIndex <= 8; drawIndex += 1) {
+          const sameSide = leftRandom() >= 0.5 === rightRandom() >= 0.5;
+          if (sameSide && measuredDrawIndices.has(drawIndex)) {
+            sameSideCounts.set(drawIndex, (sameSideCounts.get(drawIndex) ?? 0) + 1);
+          }
+        }
+      }
+
+      for (const drawIndex of measuredDrawIndices) {
+        const sameSideRate = (sameSideCounts.get(drawIndex) ?? 0) / seedCount;
+        expect(sameSideRate).toBeGreaterThan(0.48);
+        expect(sameSideRate).toBeLessThan(0.52);
+      }
+    }
+  });
+
+  test("rejects invalid deterministic aggregation inputs", () => {
+    const records = passingEvaluationRecords();
+    const firstRecord = records[0];
+    const judge = firstRecord?.judge;
+    if (firstRecord === undefined || judge === undefined) {
+      throw new Error("synthetic evaluation record must contain a judge result");
+    }
+
+    expect(() => createSeededEvaluationRandom(1.5)).toThrow("evaluation seed must be an integer");
+    expect(() => aggregateDeepEquityEvaluation(records, { bootstrapIterations: 0 })).toThrow(
+      "bootstrap iterations must be a positive integer",
+    );
+    expect(() =>
+      aggregateDeepEquityEvaluation(records, {
+        bootstrapIterations: 1,
+        random: () => 1,
+      }),
+    ).toThrow("evaluation RNG must return a finite value in [0, 1)");
+    expect(() =>
+      aggregateDeepEquityEvaluation([{ ...firstRecord, judge: { ...judge, dimensions: [] } }], {
+        bootstrapIterations: 1,
+      }),
+    ).toThrow("pairwise judge result must contain rubric dimensions");
   });
 });

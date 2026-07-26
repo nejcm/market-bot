@@ -12,6 +12,12 @@
         "tokenEstimate": 20
       }
     ],
+    "equity-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"NBIS equity analysis\"}",
+        "tokenEstimate": 20
+      }
+    ],
     "critique|fixture-quick": [
       {
         "content": "{\"critique\":\"NBIS critique\"}",

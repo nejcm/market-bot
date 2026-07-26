@@ -14,6 +14,13 @@
         "costEstimateUsd": 0
       }
     ],
+    "equity-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-analysis-comprehensive equity analysis\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
     "critique|fixture-quick": [
       {
         "content": "{\"critique\":\"equity-aapl-deep critique\"}",

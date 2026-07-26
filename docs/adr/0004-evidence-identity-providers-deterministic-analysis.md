@@ -21,7 +21,8 @@ date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date au
 2026-07-23: Phase 6 equity dimension evidence contracts; amended 2026-07-23: operating-KPI issuer
 registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended 2026-07-24:
 entitlement-adaptive institutional-ownership context; amended 2026-07-24: deterministic deep-equity
-acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence)
+acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence;
+amended 2026-07-27: clarified deep-equity model-pipeline cutover gate)
 
 ## Context
 
@@ -146,7 +147,9 @@ without pretending the project has a global security master.
   snapshots and duplicated narrative projections remain excluded. The same finalized bundle is the
   sole normalized deep-equity evidence artifact and production read authority. This persistence
   cutover does not change the legacy reasoning-stage sequence or prompt projections; that
-  model-pipeline cutover remains gated to Phase 4.
+  model-pipeline cutover remains gated behind the paired non-inferiority evaluation and human
+  approval. Phase 4 shipped a test-only reasoning variant reachable solely through the
+  `reasoningVariant` input seam.
 - Every equity instrument run attempts a Verified Market Snapshot from Yahoo OHLCV through the
   cached request seam. It computes the locked indicator set and adds a citeable source. Deep-equity
   runs persist it inside the evidence bundle; other equity runs retain the normalized snapshot

@@ -90,25 +90,36 @@ Deep-equity paired eval collects the fixed evidence once, then executes the name
 ```sh
 bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired
 bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --paired --judge-model <model>
+bun run scripts/replay-fixture-run.ts equity-aapl-deep equity-nbis-deep --paired --repetitions 3
 ```
 
-The judge defaults to the configured quick model and must differ from every synthesis model. Report
-labels are blinded and randomized before judging. Results are written under `data/evaluations/`.
-Replay mode runs both variants from independent cassette cursors and leaves judging disabled by
-default.
+`--repetitions` applies to every named fixture; `--seed <integer>` makes variant order and
+aggregation bootstrap sampling reproducible. Supplying `--judge-model` enables blind pairwise
+judging, and that model must differ from every synthesis model. The command writes one
+`evaluation.json` comparison artifact under `data/evaluations/` containing per-run records, the
+aggregate, and a typed verdict for every hard, non-inferiority, human-review, and live-smoke gate.
+Replay mode runs both variants from independent cassette cursors, leaves judging disabled by
+default, and labels its stub-cassette numbers as having no gate-evidence weight.
 
-The Phase 4 replay measurement covers six deep-equity fixtures. Its plan gate is median model-token
-improvement of at least 30%; the measured prompt-token reduction passes at 38.05%. Every fixture
-uses three core stages (`equity-analysis`, `critique`, `final-synthesis`) and four total calls.
-After restoring prior-calibration, prior-forecast-error, and `resolvedInstrumentIdentity` evidence,
-`equity-nbis-deep` is the per-fixture outlier at 26.58%, not a gate failure; the evaluation test
+The Phase 4 replay measurement covers six deep-equity fixtures. Its **reasoning-prompt token
+estimate reduction** sums `ceil(stable prompt characters / 4)` across captured model-stage prompts,
+then takes the six-fixture median. The current cassette result is 38.0023%. Every fixture uses three
+core stages (`equity-analysis`, `critique`, `final-synthesis`) and four total calls. After restoring
+prior-calibration, prior-forecast-error, and `resolvedInstrumentIdentity` evidence,
+`equity-nbis-deep` is the per-fixture outlier at 26.5596%, not a gate failure; the evaluation test
 retains it as Phase 5 regression input with a 25% floor.
 
-These figures estimate cassette replay, not live-model behavior. `equity-analysis` has no cassette
-entry and falls back to an empty response, while legacy analysis-stage entries are approximately
-50-character stubs. The measured reduction is therefore driven almost entirely by evidence-payload
-size, and the prior-stage-transcript axis is not exercised. Do not interpret the NBIS percentage as
-a precise live-model prediction in either direction.
+That Phase 4 prompt-size metric is not the Phase 5 gate artifact's **whole-run trace-token
+improvement**. `aggregate.medianModelTokenImprovement` computes
+`(legacy.trace.tokenEstimate - simplified.trace.tokenEstimate) / legacy.trace.tokenEstimate` per
+pair and then takes the median. The one-fixture stub replay currently reports 26.3158% from 190
+versus 140 trace tokens. It is neither a six-fixture median nor comparable to the 38.0023%
+reasoning-prompt estimate.
+
+These figures estimate cassette replay, not live-model behavior. Both legacy and `equity-analysis`
+entries are short hand-authored stubs, so the measured reduction is driven almost entirely by
+evidence-payload size and the prior-stage-transcript axis is not representative. Do not interpret
+the NBIS percentage as a precise live-model prediction in either direction.
 
 ## Deep-equity legacy pipeline baseline
 

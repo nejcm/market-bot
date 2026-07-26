@@ -15,6 +15,7 @@ export type StageLabel =
   | "mover-theme-analysis"
   | "instrument-evidence-analysis"
   | "market-behavior-analysis"
+  | "equity-analysis"
   | "critique"
   | "final-synthesis"
   | "forecast-disagreement";

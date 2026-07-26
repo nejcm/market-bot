@@ -11,7 +11,6 @@ import {
   DEEP_EQUITY_PIPELINE_VARIANTS,
   judgeDeepEquityPair,
   runDeepEquityPipelineVariant,
-  SimplifiedPipelineNotImplementedError,
   type DeepEquityPipelineVariant,
   type PairwiseJudgeResult,
 } from "../deep-equity-evaluation";
@@ -62,6 +61,7 @@ export interface RunFixtureOptions {
   readonly dataDir?: string;
   readonly provider?: ModelProvider;
   readonly onDataRequest?: (request: FixtureDataRequest) => void;
+  readonly reasoningVariant?: "legacy" | "simplified";
 }
 
 export interface RunFixtureResult extends PersistedResearchJobResult {
@@ -75,6 +75,7 @@ export interface FixtureDataRequest {
 }
 
 export interface RunFixturePairOptions extends RunFixtureOptions {
+  readonly judge?: boolean;
   readonly judgeModel?: string;
   readonly random?: () => number;
 }
@@ -83,10 +84,6 @@ export type RunFixtureVariantOutcome =
   | {
       readonly status: "success";
       readonly result: PersistedResearchJobResult;
-    }
-  | {
-      readonly status: "not-implemented";
-      readonly error: SimplifiedPipelineNotImplementedError;
     }
   | {
       readonly status: "error";
@@ -288,6 +285,9 @@ export async function runFixture(
     endClock: () => now,
     sourceFetchImpl: fetchImpl,
     sourceRetryDelaysMs: [],
+    ...(resolvedOptions.reasoningVariant !== undefined
+      ? { reasoningVariant: resolvedOptions.reasoningVariant }
+      : {}),
   });
   return {
     ...result,
@@ -315,9 +315,6 @@ function variantConfig(config: AppConfig, pairDataDir: string, variant: DeepEqui
 }
 
 function outcomeError(error: unknown): RunFixtureVariantOutcome {
-  if (error instanceof SimplifiedPipelineNotImplementedError) {
-    return { status: "not-implemented", error };
-  }
   return {
     status: "error",
     error: error instanceof Error ? error : new Error(String(error)),
@@ -336,7 +333,7 @@ export async function runFixturePair(
     makeReplayFetch(fixture.dataCassette, fixture.dir),
     options.onDataRequest,
   );
-  const provider =
+  const collectionProvider =
     options.provider ??
     (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : createProvider(config));
   const rawCommand = researchCommand(fixture.meta.argv);
@@ -350,7 +347,7 @@ export async function runFixturePair(
     retryDelaysMs: [],
     ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
     peerUniverse: {
-      provider,
+      provider: collectionProvider,
       model: config.quickModel,
       cachePath:
         config.sourceOptions.peerUniverseLearnedPath ?? join(dataDir, "..", "peer-universe.json"),
@@ -360,12 +357,15 @@ export async function runFixturePair(
   for (const variant of DEEP_EQUITY_PIPELINE_VARIANTS) {
     try {
       const currentConfig = variantConfig(config, dataDir, variant);
+      const variantProvider =
+        options.provider ??
+        (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : collectionProvider);
       outcomes[variant] = {
         status: "success",
         result: await runDeepEquityPipelineVariant(variant, {
           command,
           config: currentConfig,
-          provider,
+          provider: variantProvider,
           collectedSources,
           sourcePlan,
           now,
@@ -381,9 +381,9 @@ export async function runFixturePair(
   const { legacy, simplified } = outcomes;
   const judgeModel = options.judgeModel ?? config.quickModel;
   const judge =
-    legacy.status === "success" && simplified.status === "success"
+    options.judge === true && legacy.status === "success" && simplified.status === "success"
       ? await judgeDeepEquityPair({
-          provider,
+          provider: collectionProvider,
           judgeModel,
           synthesisModels: [
             legacy.result.trace.synthesisModel,

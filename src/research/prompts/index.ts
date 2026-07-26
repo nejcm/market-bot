@@ -1,5 +1,10 @@
 import type { StageLabel } from "../prompt-loader";
 import { buildAnalysisStagePrompt } from "./analysis-stages";
+import {
+  buildEquityAnalysisStagePrompt,
+  buildSimplifiedCritiqueStagePrompt,
+  buildSimplifiedFinalSynthesisStagePrompt,
+} from "./deep-equity-simplified";
 import { buildEvidenceRequestStagePrompt } from "./evidence-request";
 import { buildFinalSynthesisStagePrompt } from "./final-synthesis";
 import type { StageInput } from "./stage-envelope";
@@ -10,6 +15,17 @@ import { buildWebSubjectProfileStagePrompt } from "./web-subject-profile";
 // The seven generic-path analysis stages share one assembly.
 // Stage-specific logic lives in stage modules, never in shared segment modules.
 export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
+  if (input.deepEquityModelPacket !== undefined) {
+    if (stage === "equity-analysis") {
+      return buildEquityAnalysisStagePrompt(input);
+    }
+    if (stage === "critique") {
+      return buildSimplifiedCritiqueStagePrompt(input);
+    }
+    if (stage === "final-synthesis") {
+      return buildSimplifiedFinalSynthesisStagePrompt(input);
+    }
+  }
   if (stage === "evidence-request") {
     return buildEvidenceRequestStagePrompt(input);
   }

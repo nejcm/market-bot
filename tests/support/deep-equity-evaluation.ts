@@ -24,15 +24,6 @@ export type PairwiseJudgeDimension = (typeof PAIRWISE_JUDGE_DIMENSIONS)[number];
 
 type BlindLabel = "A" | "B";
 
-export class SimplifiedPipelineNotImplementedError extends Error {
-  readonly variant = "simplified";
-
-  constructor() {
-    super("simplified pipeline not yet implemented");
-    this.name = "SimplifiedPipelineNotImplementedError";
-  }
-}
-
 export async function runDeepEquityPipelineVariant(
   variant: DeepEquityPipelineVariant,
   input: RunResearchJobInput,
@@ -44,10 +35,7 @@ export async function runDeepEquityPipelineVariant(
   ) {
     throw new Error("deep-equity evaluation requires an equity <symbol> --deep command");
   }
-  if (variant === "simplified") {
-    throw new SimplifiedPipelineNotImplementedError();
-  }
-  return persistResearchJob(input);
+  return persistResearchJob({ ...input, reasoningVariant: variant });
 }
 
 interface BlindDimensionScore {

@@ -43,7 +43,7 @@ const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
 
 const NEAR_BASE_RATE_PROBABILITY_RULE = `probability outside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band. A probability inside that band signals an uninformative claim: either commit to the probability the cited evidence actually supports, or choose a different observable claim with more resolving power. Never inflate a probability beyond the evidence just to leave the band`;
 
-function finalReportShape(
+export function finalReportShape(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   depthProfile: DepthProfile,
@@ -221,7 +221,7 @@ function describeOccupiedBroadIndexSlots(predictions: readonly Prediction[]): st
     : "";
 }
 
-function buildPredictionRepairInstruction(context: ResearchContext): string {
+export function buildPredictionRepairInstruction(context: ResearchContext): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
   const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
   return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
@@ -394,7 +394,7 @@ function completionOptionsIv(
 // Enough context to author sourced forecasts without replaying the full evidence payload. Web
 // Sources stay under `webSources` so the completion instruction's fresh-web steering reference
 // Still resolves; `allowedSourceIds` remains the citation authority.
-function buildCompletionEvidencePayload(
+export function buildCompletionEvidencePayload(
   report: ResearchReport,
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -422,7 +422,7 @@ function buildCompletionEvidencePayload(
 // Narrative-only projection of the first-attempt report so the completion pass can see what has
 // Already been written without the raw evidence or prior-stage transcript. Predictions and sources
 // Are omitted: existingPredictions and the compact source index already carry them.
-function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
+export function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
   return {
     summary: report.summary,
     keyFindings: report.keyFindings,
@@ -437,7 +437,7 @@ function buildCompletionReportDraft(report: ResearchReport): Record<string, unkn
 
 // The critique stage output from the prior-stage transcript, projected to stage + content only.
 // The completion pass keeps just this stage instead of the full analysis transcript.
-function completionCritiqueStage(
+export function completionCritiqueStage(
   priorStages: readonly unknown[],
 ): { readonly stage: string; readonly content: string } | undefined {
   for (const entry of priorStages) {
@@ -454,7 +454,7 @@ function completionCritiqueStage(
   return undefined;
 }
 
-function buildPredictionCompletionInstruction(
+export function buildPredictionCompletionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
@@ -473,7 +473,7 @@ function buildPredictionCompletionInstruction(
   return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildCompletionKindGrammar(command, collectedSources)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
 }
 
-function buildPrimaryPredictionInstruction(
+export function buildPrimaryPredictionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
@@ -542,7 +542,7 @@ export function buildStageSteeringSegment(
   return steering.length > 0 ? steering : undefined;
 }
 
-function postSynthesisAuditGuidance(): Record<string, string> {
+export function postSynthesisAuditGuidance(): Record<string, string> {
   return {
     status: "warning-only telemetry; do not retry or omit supported findings solely for this audit",
     unsupportedNumericClaims:
@@ -558,7 +558,7 @@ function postSynthesisAuditGuidance(): Record<string, string> {
 // Recommendation-shaped subjects ("promising stocks", rankings) draw reader-directed advice even
 // Though the base prompt forbids it, so the retry must name the exact violation and the neutral
 // Phrasing that replaces it.
-function buildReportLanguageRepairInstruction(
+export function buildReportLanguageRepairInstruction(
   reportValidationErrors: readonly string[],
 ): string | undefined {
   const languageErrors = reportValidationErrors.filter((error) =>

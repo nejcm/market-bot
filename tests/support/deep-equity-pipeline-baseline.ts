@@ -26,7 +26,7 @@ export const DEEP_EQUITY_BASELINE_FIXTURES = [
   "equity-analysis-estimated-suppressed",
 ] as const;
 
-interface CapturedModelCall {
+export interface CapturedModelCall {
   readonly order: number;
   readonly stage: string;
   readonly model: string;
@@ -42,7 +42,7 @@ interface RequestCount {
   readonly count: number;
 }
 
-interface ModelCallTotals {
+export interface ModelCallTotals {
   readonly callCount: number;
   readonly promptCharacterEstimate: number;
   readonly promptTokenEstimate: number;
@@ -90,7 +90,10 @@ function requestStage(request: ModelRequest): string {
   }
 }
 
-function captureProvider(provider: ModelProvider, captured: CapturedModelCall[]): ModelProvider {
+export function captureProvider(
+  provider: ModelProvider,
+  captured: CapturedModelCall[],
+): ModelProvider {
   let order = 0;
   return {
     name: provider.name,
@@ -227,7 +230,7 @@ function validationBaseline(report: ResearchReport): DeepEquityFixtureBaseline["
   };
 }
 
-function orderedModelStages(
+export function orderedModelStages(
   result: RunFixtureResult,
   captured: readonly CapturedModelCall[],
 ): readonly CapturedModelCall[] {
@@ -245,7 +248,7 @@ function orderedModelStages(
   });
 }
 
-function modelCallTotals(captured: readonly CapturedModelCall[]): ModelCallTotals {
+export function modelCallTotals(captured: readonly CapturedModelCall[]): ModelCallTotals {
   return captured.reduce<ModelCallTotals>(
     (totals, call) => ({
       callCount: totals.callCount + 1,
@@ -304,4 +307,89 @@ export async function measureDeepEquityLegacyBaseline(): Promise<DeepEquityLegac
 export async function readDeepEquityLegacyBaseline(): Promise<DeepEquityLegacyBaseline> {
   const content = await readFile(DEEP_EQUITY_LEGACY_BASELINE_PATH, "utf8");
   return JSON.parse(content) as DeepEquityLegacyBaseline;
+}
+
+export interface DeepEquitySimplifiedCallBudget {
+  readonly fixture: string;
+  readonly coreStages: readonly string[];
+  readonly totalCallCount: number;
+  readonly promptTokenEstimate: number;
+  readonly legacyPromptTokenEstimate: number;
+  readonly promptTokenReductionPercent: number;
+}
+
+function isExcludedBudgetStage(output: RunFixtureResult["stageOutputs"][number]): boolean {
+  if (output.stage === "financial-table-mapping" || output.stage === "forecast-disagreement") {
+    return true;
+  }
+  return (
+    output.stage === "final-synthesis" &&
+    output.repromptReason !== undefined &&
+    output.repromptReason.predictionCompletion === undefined
+  );
+}
+
+async function measureSimplifiedFixture(
+  fixtureName: string,
+  legacyPromptTokenEstimate: number,
+): Promise<DeepEquitySimplifiedCallBudget> {
+  const fixture = await loadFixture(fixtureName);
+  const modelCalls: CapturedModelCall[] = [];
+  const result = await runFixture(fixtureName, {
+    llm: "replay",
+    reasoningVariant: "simplified",
+    provider: captureProvider(makeReplayProvider(fixture.llmCassette), modelCalls),
+  });
+  try {
+    const ordered = orderedModelStages(result, modelCalls);
+    const budgeted = ordered.filter(
+      (_call, index) => !isExcludedBudgetStage(result.stageOutputs[index]!),
+    );
+    const coreStages = ordered.flatMap((call, index) => {
+      const output = result.stageOutputs[index]!;
+      if (
+        output.repromptReason !== undefined ||
+        (call.stage !== "equity-analysis" &&
+          call.stage !== "critique" &&
+          call.stage !== "final-synthesis")
+      ) {
+        return [];
+      }
+      return [call.stage];
+    });
+    const totals = modelCallTotals(modelCalls);
+    return {
+      fixture: fixtureName,
+      coreStages,
+      totalCallCount: budgeted.length,
+      promptTokenEstimate: totals.promptTokenEstimate,
+      legacyPromptTokenEstimate,
+      promptTokenReductionPercent:
+        ((legacyPromptTokenEstimate - totals.promptTokenEstimate) / legacyPromptTokenEstimate) *
+        100,
+    };
+  } finally {
+    await result.cleanup();
+  }
+}
+
+export async function measureDeepEquitySimplifiedCallBudgets(): Promise<
+  readonly DeepEquitySimplifiedCallBudget[]
+> {
+  const legacy = await readDeepEquityLegacyBaseline();
+  const legacyByFixture = new Map(
+    legacy.fixtures.map((fixture) => [
+      fixture.fixture,
+      fixture.modelCallTotals.promptTokenEstimate,
+    ]),
+  );
+  const budgets: DeepEquitySimplifiedCallBudget[] = [];
+  for (const fixtureName of DEEP_EQUITY_BASELINE_FIXTURES) {
+    const legacyPromptTokenEstimate = legacyByFixture.get(fixtureName);
+    if (legacyPromptTokenEstimate === undefined) {
+      throw new Error(`legacy deep-equity baseline missing fixture ${fixtureName}`);
+    }
+    budgets.push(await measureSimplifiedFixture(fixtureName, legacyPromptTokenEstimate));
+  }
+  return budgets;
 }

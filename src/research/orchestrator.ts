@@ -84,6 +84,11 @@ import {
 } from "./source-plan";
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
+import {
+  loadSimplifiedDeepEquityPlaybookContext,
+  runDeepEquityReasoning,
+  staticPlaybookAudit,
+} from "./deep-equity-reasoning";
 import { buildRunTrace } from "./run-trace";
 import { createSourceRequestContext } from "../sources/source-request";
 import {
@@ -111,6 +116,7 @@ export interface RunResearchJobInput {
   readonly endClock?: () => Date;
   readonly sourceFetchImpl?: FetchLike;
   readonly sourceRetryDelaysMs?: readonly number[];
+  readonly reasoningVariant?: "legacy" | "simplified";
 }
 
 export interface RunResearchJobResult {
@@ -170,6 +176,8 @@ interface ModelStageInput {
   readonly context: ResearchContext;
   readonly priorStages?: readonly StageOutput[];
   readonly reprompt?: StageReprompt;
+  readonly deepEquityModelPacket?: DeepEquityModelPacket;
+  readonly canonicalSources?: ResearchReport["sources"];
 }
 
 async function runModelStage(
@@ -194,6 +202,10 @@ async function runModelStage(
     ...(reprompt.predictionCompletion !== undefined
       ? { predictionCompletion: reprompt.predictionCompletion }
       : {}),
+    ...(input.deepEquityModelPacket !== undefined
+      ? { deepEquityModelPacket: input.deepEquityModelPacket }
+      : {}),
+    ...(input.canonicalSources !== undefined ? { canonicalSources: input.canonicalSources } : {}),
   });
   const startedAt = performance.now();
   const response = await job.provider.generate({
@@ -635,28 +647,68 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     deepEquityEvidenceBundle === undefined
       ? undefined
       : buildDeepEquityModelPacket(deepEquityEvidenceBundle);
-  const plannedStages = plannedResearchStages(command);
-  const playbookSelection = await runPlaybookSelection(
-    jobInput,
-    collectedSources,
-    context,
-    plannedStages,
-  );
-  const playbookContext = playbookSelection.context;
-  const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
-    command,
-    collectedSources,
-    context: playbookContext,
-    quickModel: runParams.quickModel,
-    runStage: (stage, model, stageInput) =>
-      runModelStage(stage, model, {
-        job: jobInput,
-        collectedSources: stageInput.collectedSources,
-        context: stageInput.context,
-        ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
-      }),
-  });
   const sources = buildSourceList(command, collectedSources, historicalContext, generatedAt);
+  const simplifiedDeepEquity =
+    input.reasoningVariant === "simplified" &&
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    command.depth === "deep";
+  let playbookContext: ResearchContext;
+  let playbookAudit: PlaybookSelectionAudit;
+  let playbookSelectionOutput: StageOutput | undefined;
+  let reasoning: {
+    readonly analysisOutputs: readonly StageOutput[];
+    readonly critiqueOutput: StageOutput;
+  };
+  if (simplifiedDeepEquity) {
+    if (deepEquityModelPacket === undefined) {
+      throw new Error("simplified deep-equity reasoning requires a finalized model packet");
+    }
+    playbookContext = await loadSimplifiedDeepEquityPlaybookContext(
+      input.config.promptDir,
+      context,
+    );
+    playbookAudit = staticPlaybookAudit();
+    reasoning = await runDeepEquityReasoning({
+      collectedSources,
+      context: playbookContext,
+      quickModel: runParams.quickModel,
+      runStage: (stage, model, stageInput) =>
+        runModelStage(stage, model, {
+          job: jobInput,
+          collectedSources: stageInput.collectedSources,
+          context: stageInput.context,
+          ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
+          deepEquityModelPacket,
+          canonicalSources: sources,
+        }),
+    });
+  } else {
+    const plannedStages = plannedResearchStages(command);
+    const playbookSelection = await runPlaybookSelection(
+      jobInput,
+      collectedSources,
+      context,
+      plannedStages,
+    );
+    playbookContext = playbookSelection.context;
+    playbookAudit = playbookSelection.audit;
+    playbookSelectionOutput = playbookSelection.output;
+    reasoning = await runAnalysisPhase({
+      command,
+      collectedSources,
+      context: playbookContext,
+      quickModel: runParams.quickModel,
+      runStage: (stage, model, stageInput) =>
+        runModelStage(stage, model, {
+          job: jobInput,
+          collectedSources: stageInput.collectedSources,
+          context: stageInput.context,
+          ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
+        }),
+    });
+  }
+  const { analysisOutputs, critiqueOutput } = reasoning;
   const knownSourceIds = new Set(sources.map((source) => source.id));
   // Build the emission-time subject allowlist from the resolved run params.
   // Research runs use researchPredictionGate instead; pass undefined so no double-drop occurs.
@@ -681,6 +733,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         context: playbookContext,
         priorStages,
         ...(reprompt !== undefined ? { reprompt } : {}),
+        ...(simplifiedDeepEquity && deepEquityModelPacket !== undefined
+          ? { deepEquityModelPacket, canonicalSources: sources }
+          : {}),
       }),
   });
   const postSynthesisWarnings = auditPostSynthesisReport(
@@ -718,7 +773,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...webGatherLoop.stageOutputs,
     ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
-    playbookSelection.output,
+    ...(playbookSelectionOutput === undefined ? [] : [playbookSelectionOutput]),
     ...analysisOutputs,
     critiqueOutput,
     ...synthesis.stageOutputs,
@@ -745,7 +800,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),
     historicalContext,
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
-    playbookAudit: playbookSelection.audit,
+    playbookAudit,
     predictionRetryErrors,
     predictionTrimWarnings,
     predictionCompletion,

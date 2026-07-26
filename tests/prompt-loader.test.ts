@@ -209,6 +209,7 @@ describe("loadStagePrompt — real prompt files", () => {
       "mover-theme-analysis",
       "instrument-evidence-analysis",
       "market-behavior-analysis",
+      "equity-analysis",
       "critique",
       "final-synthesis",
     ] as const;

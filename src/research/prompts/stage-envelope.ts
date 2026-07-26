@@ -1,6 +1,7 @@
 import type { AppConfig } from "../../config";
 import type { ResearchCommand } from "../../cli/args";
-import type { Prediction, ResearchReport } from "../../domain/types";
+import type { Prediction, ResearchReport, Source } from "../../domain/types";
+import type { DeepEquityModelPacket } from "../../deep-equity/types";
 import type { CollectedSources } from "../../sources/types";
 import type { LoadedPrompt, StageLabel } from "../prompt-loader";
 import type { LoadedPlaybook } from "../playbooks";
@@ -29,6 +30,8 @@ export interface StageInput {
   readonly predictionRepromptErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
+  readonly deepEquityModelPacket?: DeepEquityModelPacket;
+  readonly canonicalSources?: readonly Source[];
   // Only the final-synthesis stage honors this; every other stage ignores it. This narrows the
   // Pre-split builder, which rewrote instruction and stageGoal for any stage when it was set —
   // A combination no caller produces (only the prediction-completion pass sets it, and that

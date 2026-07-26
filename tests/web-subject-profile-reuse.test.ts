@@ -14,7 +14,8 @@ import {
   type WebSubjectProfileArtifact,
 } from "../src/web-evidence/web-subject-profile";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
-import { collectedSources } from "./support/fixtures";
+import { collectedSources, deepEquityEvidenceBundle } from "./support/fixtures";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 const tmpDirs: string[] = [];
 
@@ -198,16 +199,59 @@ async function writePriorRun(input: {
     notFinancialAdvice: true,
     extras: { depth: input.depth ?? "deep" },
   });
-  await writeJson(
-    join(runDir, "normalized", "web-subject-profile.json"),
-    profile({
-      ...(input.sourceIds !== undefined ? { sourceIds: input.sourceIds } : {}),
-      ...(input.generatedAt !== undefined ? { generatedAt: input.generatedAt } : {}),
-      ...(input.version !== undefined ? { version: input.version } : {}),
-      symbol: input.symbol,
-      ...(input.subjectKind !== undefined ? { subjectKind: input.subjectKind } : {}),
-    }),
-  );
+  const artifact = profile({
+    ...(input.sourceIds !== undefined ? { sourceIds: input.sourceIds } : {}),
+    ...(input.generatedAt !== undefined ? { generatedAt: input.generatedAt } : {}),
+    ...(input.version !== undefined ? { version: input.version } : {}),
+    symbol: input.symbol,
+    ...(input.subjectKind !== undefined ? { subjectKind: input.subjectKind } : {}),
+  });
+  if (jobType === "equity" && (input.depth ?? "deep") === "deep") {
+    const generatedAt = input.generatedAt ?? "2026-05-01T00:00:00.000Z";
+    const sources = input.sources ?? [webSource];
+    const base = deepEquityEvidenceBundle();
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        run: { symbol: input.symbol, analysisAsOf: generatedAt },
+        evidence: { ...base.evidence, extendedSources: sources, webSubjectProfile: artifact },
+        governance: {
+          ...base.governance,
+          sourcePlan: {
+            ...base.governance.sourcePlan,
+            generatedAt,
+            run: {
+              jobType: "equity",
+              assetClass: "equity",
+              symbol: input.symbol,
+              depth: "deep",
+            },
+          },
+          evidenceLanes: { ...base.governance.evidenceLanes, generatedAt },
+          sourceLedger: {
+            version: 2,
+            generatedAt,
+            sources: sources.map((source) => ({
+              id: source.id,
+              kind: source.kind,
+              lane: "subject-profile",
+              posture: "covered",
+              relatedGapIds: [],
+              fetchedAt: source.fetchedAt,
+            })),
+          },
+        },
+        context: {
+          historicalContext: {
+            ...base.context.historicalContext,
+            generatedAt,
+          },
+        },
+      }),
+    );
+  } else {
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.webSubjectProfile), artifact);
+  }
   if (input.analytics !== undefined) {
     await writeJson(join(runDir, "analytics.json"), input.analytics);
   }
@@ -286,7 +330,7 @@ describe("Web Subject Profile reuse", () => {
     const priorRunDir = join(dataDir, "prior-aapl");
     const before = await Promise.all([
       readFile(join(priorRunDir, "report.json"), "utf8"),
-      readFile(join(priorRunDir, "normalized", "web-subject-profile.json"), "utf8"),
+      readFile(join(priorRunDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
       readFile(join(priorRunDir, "analytics.json"), "utf8"),
     ]);
 
@@ -314,7 +358,7 @@ describe("Web Subject Profile reuse", () => {
     await expect(
       Promise.all([
         readFile(join(priorRunDir, "report.json"), "utf8"),
-        readFile(join(priorRunDir, "normalized", "web-subject-profile.json"), "utf8"),
+        readFile(join(priorRunDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
         readFile(join(priorRunDir, "analytics.json"), "utf8"),
       ]),
     ).resolves.toEqual(before);

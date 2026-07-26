@@ -25,6 +25,7 @@ export const RUN_ARTIFACT_FILES = {
   alphaValidation: "alpha-validation.json",
   rawSnapshots: `${RAW_DIR}/snapshots.json`,
   // Normalized/ sidecars carry their prefix in the value
+  evidenceBundle: `${NORMALIZED_DIR}/evidence-bundle.json`,
   marketSnapshots: `${NORMALIZED_DIR}/market-snapshots.json`,
   supplementalMarketSnapshots: `${NORMALIZED_DIR}/supplemental-market-snapshots.json`,
   newsSources: `${NORMALIZED_DIR}/news-sources.json`,

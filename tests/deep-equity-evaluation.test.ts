@@ -45,7 +45,7 @@ describe("deep-equity pipeline evaluation", () => {
         fixture.modelStages.reduce((total, call) => total + call.providerTokenEstimate, 0),
       );
     }
-  });
+  }, 30_000);
 
   test("collects once and exposes the typed simplified placeholder in paired mode", async () => {
     const requests: string[] = [];

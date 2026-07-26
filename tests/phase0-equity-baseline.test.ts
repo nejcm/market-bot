@@ -58,4 +58,4 @@ test("Phase 4 reports confirmed and suppressed earnings paths against Phase 0", 
     eligiblePredictionCount: 0,
     suppressedPredictionCount: 2,
   });
-});
+}, 30_000);

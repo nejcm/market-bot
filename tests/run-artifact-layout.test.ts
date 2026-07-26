@@ -19,6 +19,7 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.missAutopsy).toBe("miss-autopsy.json");
     expect(RUN_ARTIFACT_FILES.alphaValidation).toBe("alpha-validation.json");
     expect(RUN_ARTIFACT_FILES.rawSnapshots).toBe(`${RAW_DIR}/snapshots.json`);
+    expect(RUN_ARTIFACT_FILES.evidenceBundle).toBe(`${NORMALIZED_DIR}/evidence-bundle.json`);
 
     expect(RUN_ARTIFACT_FILES.marketSnapshots).toBe(`${NORMALIZED_DIR}/market-snapshots.json`);
     expect(RUN_ARTIFACT_FILES.supplementalMarketSnapshots).toBe(

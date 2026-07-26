@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -7,10 +7,12 @@ import {
   scanRunArtifacts,
   scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   marketSnapshot,
+  deepEquityEvidenceBundle,
   prediction,
   predictionScore,
   researchReport,
@@ -69,7 +71,208 @@ function webSubjectProfile(symbol: string): unknown {
   };
 }
 
+async function writeDeepProfileBundle(runDir: string, symbol: string): Promise<void> {
+  const sourceId = `web-${symbol.toLowerCase()}-12345678`;
+  const source = {
+    id: sourceId,
+    title: `${symbol} profile`,
+    fetchedAt: "2026-05-19T00:00:00.000Z",
+    kind: "web" as const,
+    assetClass: "equity" as const,
+    symbol,
+  };
+  const base = deepEquityEvidenceBundle();
+  await writeJson(
+    join(runDir, "normalized", "evidence-bundle.json"),
+    deepEquityEvidenceBundle({
+      run: { symbol, analysisAsOf: "2026-05-19T00:00:00.000Z" },
+      evidence: {
+        ...base.evidence,
+        extendedSources: [source],
+        webSubjectProfile: webSubjectProfile(symbol) as never,
+      },
+      governance: {
+        ...base.governance,
+        sourcePlan: {
+          ...base.governance.sourcePlan,
+          run: { jobType: "equity", assetClass: "equity", symbol, depth: "deep" },
+        },
+        sourceLedger: {
+          version: 2,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          sources: [
+            {
+              id: sourceId,
+              kind: "web",
+              lane: "subject-profile",
+              posture: "covered",
+              relatedGapIds: [],
+              fetchedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+        },
+      },
+    }),
+  );
+}
+
 describe("loadRunArtifact", () => {
+  test("reads deep-equity evidence only from the bundle without legacy fallback", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "deep-bundle");
+    const bundledSnapshot = marketSnapshot({ sourceId: "bundle-market", price: 101 });
+    const legacySnapshot = marketSnapshot({ sourceId: "legacy-market", price: 999 });
+    const base = deepEquityEvidenceBundle();
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "deep-bundle",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extras: { depth: "deep" },
+      }),
+    );
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        evidence: {
+          ...base.evidence,
+          marketSnapshots: [bundledSnapshot],
+          verifiedMarketSnapshot: verifiedMarketSnapshot({
+            ohlcv: { ...verifiedMarketSnapshot().ohlcv, close: 101 },
+          }),
+        },
+        governance: {
+          ...base.governance,
+          sourceLedger: {
+            version: 2,
+            generatedAt: "2026-05-19T00:00:00.000Z",
+            sources: [
+              {
+                id: bundledSnapshot.sourceId,
+                kind: "market-data",
+                lane: "market-data",
+                posture: "covered",
+                relatedGapIds: [],
+                observedAt: bundledSnapshot.observedAt,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.marketSnapshots), [legacySnapshot]);
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot),
+      verifiedMarketSnapshot({ ohlcv: { ...verifiedMarketSnapshot().ohlcv, close: 999 } }),
+    );
+
+    const bundled = await loadRunArtifact(runDir);
+
+    expect(bundled.artifact?.marketSnapshots[0]?.price).toBe(101);
+    expect(bundled.artifact?.verifiedMarketSnapshot?.ohlcv.close).toBe(101);
+    expect(bundled.artifact?.deepEquityEvidenceBundle?.schemaVersion).toBe(1);
+    expect(bundled.status.evidenceBundle).toBe("ok");
+
+    await unlink(join(runDir, RUN_ARTIFACT_FILES.evidenceBundle));
+    const missingBundle = await loadRunArtifact(runDir);
+
+    expect(missingBundle.status.evidenceBundle).toBe("absent");
+    expect(missingBundle.artifact?.status.evidenceBundle).toBe("absent");
+  });
+
+  test("reports a malformed deep-equity bundle without legacy fallback", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "deep-malformed-bundle");
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "deep-malformed-bundle",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extras: { depth: "deep" },
+      }),
+    );
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.marketSnapshots), [
+      marketSnapshot({ sourceId: "legacy-market", price: 999 }),
+    ]);
+    await writeFile(join(runDir, RUN_ARTIFACT_FILES.evidenceBundle), "{", "utf8");
+
+    const malformedBundle = await loadRunArtifact(runDir);
+
+    expect(malformedBundle.status.evidenceBundle).toBe("malformed");
+    expect(malformedBundle.artifact?.status.evidenceBundle).toBe("malformed");
+    expect(malformedBundle.artifact?.marketSnapshots).toEqual([]);
+  });
+
+  test("keeps component-sidecar reads for non-deep-equity run types", async () => {
+    const dataDir = tempRunsDir();
+    const cases = [
+      {
+        runId: "equity-brief",
+        report: researchReport({
+          runId: "equity-brief",
+          jobType: "equity",
+          symbol: "AAPL",
+          extras: { depth: "brief" },
+        }),
+      },
+      {
+        runId: "crypto-deep",
+        report: researchReport({
+          runId: "crypto-deep",
+          jobType: "crypto",
+          assetClass: "crypto",
+          symbol: "BTC",
+          extras: { depth: "deep" },
+        }),
+      },
+      {
+        runId: "market-overview",
+        report: researchReport({
+          runId: "market-overview",
+          jobType: "market-overview",
+          assetClass: "equity",
+          extras: { depth: "deep" },
+        }),
+      },
+      {
+        runId: "thematic-research",
+        report: researchReport({
+          runId: "thematic-research",
+          jobType: "research",
+          assetClass: "equity",
+          extras: { depth: "deep" },
+        }),
+      },
+      {
+        runId: "alpha-search",
+        report: researchReport({
+          runId: "alpha-search",
+          jobType: "alpha-search",
+          assetClass: "equity",
+          extras: { depth: "deep" },
+        }),
+      },
+    ];
+    for (const item of cases) {
+      await writeJson(join(dataDir, item.runId, RUN_ARTIFACT_FILES.report), item.report);
+      await writeJson(join(dataDir, item.runId, RUN_ARTIFACT_FILES.marketSnapshots), [
+        marketSnapshot({ sourceId: item.runId, symbol: item.report.symbol ?? "SPY" }),
+      ]);
+    }
+
+    const loaded = await Promise.all(
+      cases.map((item) => loadRunArtifact(join(dataDir, item.runId))),
+    );
+
+    expect(
+      loaded.map((item) => item.artifact?.marketSnapshots).every((items) => items?.length === 1),
+    ).toBe(true);
+  });
+
   test("round-trips canonical statements and equity completeness", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "canonical-financials");
@@ -1038,9 +1241,10 @@ describe("scanWebSubjectProfileRunArtifacts", () => {
         extras: { depth: "deep" },
       }),
     );
+    await writeDeepProfileBundle(join(dataDir, "aapl-deep"), "AAPL");
     await writeJson(
       join(dataDir, "aapl-deep", "normalized", "web-subject-profile.json"),
-      webSubjectProfile("AAPL"),
+      webSubjectProfile("IGNORED"),
     );
     await writeJson(
       join(dataDir, "aapl-brief", "report.json"),
@@ -1064,10 +1268,7 @@ describe("scanWebSubjectProfileRunArtifacts", () => {
         extras: { depth: "deep" },
       }),
     );
-    await writeJson(
-      join(dataDir, "msft-deep", "normalized", "web-subject-profile.json"),
-      webSubjectProfile("MSFT"),
-    );
+    await writeDeepProfileBundle(join(dataDir, "msft-deep"), "MSFT");
     await writeJson(
       join(dataDir, "crypto-deep", "report.json"),
       researchReport({

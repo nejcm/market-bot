@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
 import { isRecord } from "../src/guards";
-import { collectedSources as collectedSourceBundle } from "./support/fixtures";
+import {
+  collectedSources as collectedSourceBundle,
+  deepEquityEvidenceBundle,
+} from "./support/fixtures";
 import {
   config,
   createDataDirRegistry,
@@ -15,6 +18,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 const { cleanupDataDirs, tempDataDir } = createDataDirRegistry();
 
@@ -303,7 +307,7 @@ describe("runResearchJob web subject profile", () => {
       factLedger: [expect.objectContaining({ claim: "Apple sells hardware and services." })],
     });
     await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
+      readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
     ).resolves.toContain('"companyName": "Apple Inc."');
     const webGatherAudit = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
@@ -505,38 +509,78 @@ describe("runResearchJob web subject profile", () => {
       }),
       "utf8",
     );
+    const priorProfile = {
+      version: 3 as const,
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      subjectKind: "company" as const,
+      subjectId: "AAPL",
+      subjectLabel: "Apple Inc.",
+      symbol: "AAPL",
+      companyName: "Apple Inc.",
+      subjectSummary: answer,
+      questions: {
+        whatItDoes: answer,
+        howItMakesMoney: answer,
+        customers: answer,
+        geography: answer,
+        purchaseRecurrence: answer,
+        pricingPower: answer,
+        recessionCyclicality: answer,
+        managementTrackRecord: answer,
+        capitalAllocation: answer,
+        companyKpis: answer,
+        riskFactors: answer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] }],
+      openGaps: [],
+      sourceIds: [priorWebSource.id],
+      secFilingBasisDate: "2026-05-01",
+    };
+    const priorBundle = deepEquityEvidenceBundle();
     await writeFile(
-      join(priorRunDir, "normalized", "web-subject-profile.json"),
-      JSON.stringify({
-        version: 3,
-        generatedAt: "2026-05-01T00:00:00.000Z",
-        subjectKind: "company",
-        subjectId: "AAPL",
-        subjectLabel: "Apple Inc.",
-        symbol: "AAPL",
-        companyName: "Apple Inc.",
-        subjectSummary: answer,
-        questions: {
-          whatItDoes: answer,
-          howItMakesMoney: answer,
-          customers: answer,
-          geography: answer,
-          purchaseRecurrence: answer,
-          pricingPower: answer,
-          recessionCyclicality: answer,
-          managementTrackRecord: answer,
-          capitalAllocation: answer,
-          companyKpis: answer,
-          riskFactors: answer,
-        },
-        recentMaterialEvents: [],
-        factLedger: [
-          { claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] },
-        ],
-        openGaps: [],
-        sourceIds: [priorWebSource.id],
-        secFilingBasisDate: "2026-05-01",
-      }),
+      join(priorRunDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      JSON.stringify(
+        deepEquityEvidenceBundle({
+          run: { symbol: "AAPL", analysisAsOf: "2026-05-01T00:00:00.000Z" },
+          evidence: {
+            ...priorBundle.evidence,
+            extendedSources: [priorWebSource],
+            webSubjectProfile: priorProfile,
+          },
+          governance: {
+            ...priorBundle.governance,
+            sourcePlan: {
+              ...priorBundle.governance.sourcePlan,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+            },
+            evidenceLanes: {
+              ...priorBundle.governance.evidenceLanes,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+            },
+            sourceLedger: {
+              version: 2,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+              sources: [
+                {
+                  id: priorWebSource.id,
+                  kind: priorWebSource.kind,
+                  lane: "subject-profile",
+                  posture: "covered",
+                  relatedGapIds: [],
+                  fetchedAt: priorWebSource.fetchedAt,
+                },
+              ],
+            },
+          },
+          context: {
+            historicalContext: {
+              ...priorBundle.context.historicalContext,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+            },
+          },
+        }),
+      ),
       "utf8",
     );
     await writeFile(
@@ -938,7 +982,7 @@ describe("runResearchJob web subject profile", () => {
       }),
     );
     await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
+      readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
     ).resolves.toContain("profile timeout");
   });
 

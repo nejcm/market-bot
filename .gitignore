@@ -2,6 +2,7 @@ node_modules/
 data/
 coverage/
 app/dist/
+.tmp/
 *.log
 .env
 .env.*

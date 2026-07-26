@@ -7,6 +7,7 @@ import type {
 } from "../../src/domain/types";
 import type { PredictionScore } from "../../src/scoring/types";
 import type { CollectedSources } from "../../src/sources/types";
+import type { DeepEquityEvidenceBundleV1 } from "../../src/deep-equity/types";
 import type {
   ValuationMetricResult,
   ValuationWorkbenchArtifact,
@@ -125,6 +126,74 @@ export function collectedSources(overrides: Partial<CollectedSources> = {}): Col
     extendedSources: [],
     marketContextSources: [],
     sourceGaps: [],
+    ...overrides,
+  };
+}
+
+export function deepEquityEvidenceBundle(
+  overrides: Partial<DeepEquityEvidenceBundleV1> = {},
+): DeepEquityEvidenceBundleV1 {
+  return {
+    schemaVersion: 1,
+    run: { symbol: "AAPL", analysisAsOf: DEFAULT_OBSERVED_AT },
+    evidence: {
+      marketSnapshots: [],
+      supplementalMarketSnapshots: [],
+      newsSources: [],
+      extendedSources: [],
+    },
+    derived: {},
+    governance: {
+      sourceGaps: [],
+      sourcePlan: {
+        version: 2,
+        generatedAt: DEFAULT_OBSERVED_AT,
+        run: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+        lanes: [],
+      },
+      evidenceLanes: {
+        version: 2,
+        generatedAt: DEFAULT_OBSERVED_AT,
+        lanes: [],
+        summary: {
+          plannedLaneCount: 0,
+          coveredLaneCount: 0,
+          gapLaneCount: 0,
+          sourceCount: 0,
+          gapCount: 0,
+          coverageRatio: 0,
+        },
+      },
+      sourceLedger: { version: 2, generatedAt: DEFAULT_OBSERVED_AT, sources: [] },
+    },
+    context: {
+      historicalContext: {
+        generatedAt: DEFAULT_OBSERVED_AT,
+        recentDays: 90,
+        anchorMonths: [],
+        runs: [],
+        sources: [],
+        gaps: [],
+        audit: {
+          scannedRunCount: 0,
+          malformedRunCount: 0,
+          malformedScoreCount: 0,
+          candidateRunCount: 0,
+          selectedRunCount: 0,
+          recentSelectedCount: 0,
+          anchorSelectedCount: 0,
+          sameSymbolSelectedCount: 0,
+          spotlightSymbolSelectedCount: 0,
+          sameSubjectSelectedCount: 0,
+          sameHorizonSelectedCount: 0,
+          crossHorizonSelectedCount: 0,
+          resolvedMissRunCount: 0,
+          missCorrectionSelectedCount: 0,
+          gapCount: 0,
+        },
+        artifactDeltas: [],
+      },
+    },
     ...overrides,
   };
 }

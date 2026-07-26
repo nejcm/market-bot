@@ -13,6 +13,7 @@ import {
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 const { dataDirs, cleanupDataDirs } = createDataDirRegistry();
 
@@ -336,14 +337,21 @@ describe("runResearchJob artifact persistence", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    await expect(
-      readFile(join(result.artifacts.normalizedDir, "valuation-comps.json"), "utf8"),
-    ).resolves.toContain('"valuationSupportability": "screening-only"');
-    await expect(
-      readFile(join(result.artifacts.normalizedDir, "financial-lenses.json"), "utf8"),
-    ).resolves.toContain('"posture": "criteria-supported"');
-    await expect(
-      readFile(join(result.artifacts.normalizedDir, "business-framework.json"), "utf8"),
-    ).resolves.toContain('"phase": "capital-return"');
+    const bundle = JSON.parse(
+      await readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
+    ) as {
+      readonly derived: {
+        readonly valuationComps?: unknown;
+        readonly financialLenses?: unknown;
+        readonly businessFramework?: unknown;
+      };
+    };
+    expect(bundle.derived.valuationComps).toMatchObject({
+      summary: { valuationSupportability: "screening-only" },
+    });
+    expect(bundle.derived.financialLenses).toMatchObject({
+      lenses: [expect.objectContaining({ posture: "criteria-supported" })],
+    });
+    expect(bundle.derived.businessFramework).toMatchObject({ phase: "capital-return" });
   });
 });

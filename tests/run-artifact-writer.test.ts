@@ -26,6 +26,7 @@ import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-
 import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import {
   collectedSources,
+  deepEquityEvidenceBundle,
   marketSnapshot,
   researchReport,
   reverseDcfArtifact,
@@ -356,6 +357,7 @@ describe("run artifact writer manifests", () => {
       command,
       config,
       result({
+        deepEquityEvidenceBundle: deepEquityEvidenceBundle(),
         trace: trace({
           depth: "deep",
           webGatherLoop: {
@@ -393,13 +395,23 @@ describe("run artifact writer manifests", () => {
 
     expect(filesOf(writes)).toEqual(
       [
-        ...baseResearchFiles,
-        ...instrumentFiles,
+        RUN_ARTIFACT_FILES.rawSnapshots,
+        RUN_ARTIFACT_FILES.marketContext,
+        RUN_ARTIFACT_FILES.stages,
+        RUN_ARTIFACT_FILES.analytics,
+        RUN_ARTIFACT_FILES.report,
+        RUN_ARTIFACT_FILES.reportMarkdown,
+        RUN_ARTIFACT_FILES.trace,
+        RUN_ARTIFACT_FILES.evidenceBundle,
         RUN_ARTIFACT_FILES.webGatherAudit,
         RUN_ARTIFACT_FILES.forecastDisagreement,
       ].toSorted(),
     );
     expect(valueFor(writes, RUN_ARTIFACT_FILES.webGatherAudit)).toMatchObject({ rounds: 1 });
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.evidenceBundle)).toMatchObject({
+      schemaVersion: 1,
+      run: { symbol: "AAPL" },
+    });
   });
 
   test("market overview manifest preserves empty-when-absent policies", () => {

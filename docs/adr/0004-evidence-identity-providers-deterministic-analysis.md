@@ -21,7 +21,7 @@ date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date au
 2026-07-23: Phase 6 equity dimension evidence contracts; amended 2026-07-23: operating-KPI issuer
 registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended 2026-07-24:
 entitlement-adaptive institutional-ownership context; amended 2026-07-24: deterministic deep-equity
-acquisition recipe and provider packets)
+acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence)
 
 ## Context
 
@@ -78,6 +78,10 @@ without pretending the project has a global security master.
 - After collection, Evidence Lanes and the Source Ledger assess the frozen plan for coverage, gaps,
   freshness, corroboration, and traceability. Historical artifacts remain readable and are not
   rewritten.
+- Deep-equity runs persist the finalized Source Plan, Evidence Lanes, Source Ledger, source gaps,
+  normalized evidence, derived views, and historical context together in
+  `normalized/evidence-bundle.json`. Their production readers do not fall back to the legacy
+  component sidecars. Other run types retain the component persistence layout.
 - Plan applicable lanes as core, material, or supplemental. Evidence Quality is entirely
   deterministic: `low` means core evidence is unusable; `medium` means core is complete but material
   coverage or corroboration is missing, or a material lane acquired sources yet is not usable (the
@@ -139,13 +143,15 @@ without pretending the project has a global security master.
   extraction, and Business Framework reconciliation retain their existing authority.
 - The external deep-equity workflow projects one `DeepEquityModelPacket` from the finalized bundle.
   It carries canonical facts, derived views, source IDs and metadata, dates, units, and gaps; raw
-  snapshots and duplicated narrative projections remain excluded. Phase 2 does not change the
-  legacy reasoning-stage sequence or prompt projections; that model-pipeline cutover remains gated
-  to Phase 4.
+  snapshots and duplicated narrative projections remain excluded. The same finalized bundle is the
+  sole normalized deep-equity evidence artifact and production read authority. This persistence
+  cutover does not change the legacy reasoning-stage sequence or prompt projections; that
+  model-pipeline cutover remains gated to Phase 4.
 - Every equity instrument run attempts a Verified Market Snapshot from Yahoo OHLCV through the
-  cached request seam. It computes the locked indicator set, adds a citeable source, and persists
-  the normalized snapshot. Failure emits a core evidence gap; Massive closes are not an acceptable
-  substitute for OHLCV.
+  cached request seam. It computes the locked indicator set and adds a citeable source. Deep-equity
+  runs persist it inside the evidence bundle; other equity runs retain the normalized snapshot
+  sidecar. Failure emits a core evidence gap; Massive closes are not an acceptable substitute for
+  OHLCV.
 - Deep `research` runs additionally attempt Verified Market Snapshots for checked-in
   subject-registry representatives. Successful representative snapshots are citeable market-data
   sources and persist as a plural normalized sidecar; failures emit per-representative gaps but do
@@ -157,16 +163,18 @@ without pretending the project has a global security master.
 - SEC `netIncome` maps to parent-attributable `NetIncomeLoss`; optional consolidated `ProfitLoss`
   is disclosure-only when it differs. ROE and ROA retain parent-attributable income and their
   existing balance-sheet scopes rather than mixing consolidated and parent measures.
-- Equity runs persist `normalized/fundamental-history.json` as a deterministic SEC companyfacts
-  sidecar without changing `report.json`. Each series selects the first configured concept with
+- Equity runs persist deterministic SEC companyfacts Fundamental History without changing
+  `report.json`: inside the bundle for deep equity and in `normalized/fundamental-history.json` for
+  other equity runs. Each series selects the first configured concept with
   facts, filters by the analysis cutoff, retains up to ten 10-14-month 10-K periods, and resolves
   duplicate period ends to the latest-filed restatement. TTM flows use full FY plus latest YTD less
   aligned prior-year YTD; mismatched periods are omitted with an audit note. Diluted-EPS TTM is
   explicitly labeled an approximation because per-share periods are added without reweighting
   diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
   matched periods and compatible units.
-- Equity runs also persist versioned `normalized/financial-statements.json` as the canonical
-  structured-financial artifact. It accepts standard `us-gaap` and `ifrs-full` companyfacts from
+- Equity runs also persist the versioned canonical structured-financial artifact inside the deep
+  bundle or, for other equity runs, as `normalized/financial-statements.json`. It accepts standard
+  `us-gaap` and `ifrs-full` companyfacts from
   `10-K`, `10-Q`, `20-F`, and `6-K`, including amended forms. Fundamental History, Financial
   Lenses, valuation inputs, Run Artifact/API projections, and Console completeness views consume
   the artifact through separately tested seams; legacy selectors remain available for parity and
@@ -208,16 +216,20 @@ without pretending the project has a global security master.
   valid alternative to reconciled TTM coverage.
 - Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
   fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
-  Historical artifacts without the sidecar or completeness field remain readable.
+  Historical non-deep artifacts without the sidecar or completeness field remain readable.
+  Existing deep-equity artifacts require the bundle migration before the bundle-only reader
+  cutover.
 - Standard-taxonomy proceeds facts disclosed on a post-period `8-K` or `6-K` may produce a
-  separate `normalized/subsequent-financing.json` bridge. Each event retains disclosure and event
-  dates, instrument class, gross/net proceeds, separately disclosed costs, and source IDs. The
+  Subsequent Financing bridge inside the deep bundle or, for other equity runs, in
+  `normalized/subsequent-financing.json`. Each event retains disclosure and event dates,
+  instrument class, gross/net proceeds, separately disclosed costs, and source IDs. The
   latest filed cash, debt, equity, ratios, and valuation inputs remain unchanged. Events later
   covered by a canonical statement period are omitted; otherwise `reconciled` remains false and
   Financial Strength carries an explicit partial current-status marker. Missing costs remain null,
   and the bridge never derives a pro-forma cash balance.
 - Phase 6 equity dimension evidence contracts add coverage through reason codes and normalized
-  sidecars without changing completeness version 1. Credential or entitlement absence remains
+  evidence without changing completeness version 1. Deep equity stores that evidence in the
+  bundle; other equity paths retain normalized sidecars. Credential or entitlement absence remains
   missing coverage, never `not-applicable`, and non-core dimensions never affect
   `financialCoreStatus`. Filed statement balances remain separate from unaudited post-period
   events; those events are not aggregated into filed balances. In later slices, provider price
@@ -260,8 +272,9 @@ without pretending the project has a global security master.
   and market-cap gates remain enforced, the peer set is explicitly caveated as
   size/sector-comparable only, and target supportability records `not-meaningful` rather than
   conflating applicability with missing data.
-- A supported peer aggregate may add a peer-implied price reference range to the valuation-comps
-  sidecar without changing `report.json`. The derivation applies peer EV/annualized-revenue P25,
+- A supported peer aggregate may add a peer-implied price reference range to the deep bundle's
+  valuation-comps view or the non-deep valuation-comps sidecar without changing `report.json`.
+  The derivation applies peer EV/annualized-revenue P25,
   median, and P75 multiples to target annualized revenue, subtracts target net debt, and divides by
   Yahoo `sharesOutstanding` from the same quote as market cap and current price. Yahoo shares are
   used instead of filing-dated diluted shares to keep price, shares, market cap, quote currency,
@@ -336,7 +349,8 @@ without pretending the project has a global security master.
 
 ## Consequences
 
-- Evidence remains citeable and replayable through normalized and raw artifacts.
+- Evidence remains citeable through normalized artifacts and replayable through raw snapshots.
+  Deep equity has one normalized evidence authority; other run types retain component sidecars.
 - Missing optional evidence degrades transparently instead of aborting a report.
 - Derived financial and peer analysis is research context, not a composite investment score.
 - Provider failures degrade by capability rather than collapsing a run, while provenance and cache
@@ -350,9 +364,9 @@ without pretending the project has a global security master.
 
 - `src/research/evidence-request-loop.ts` and `src/sources/evidence-request-tools.ts` enforce the
   compatibility audit/merge boundary for deterministic SEC/Tradier packet outputs.
-- `src/deep-equity/index.ts`, `acquisition-recipe.ts`, and `evidence.ts` implement the external
-  workflow, explicit recipe, in-memory bundle, and
-  single model packet.
+- `src/deep-equity/index.ts`, `acquisition-recipe.ts`, `evidence.ts`, `artifact-schema.ts`, and
+  `migration.ts` implement the external workflow, explicit recipe, bundle construction,
+  persistence validation/migration, and single model packet.
 - `src/sources/sec-target-packet.ts`, `tradier-packet.ts`, and
   `extended-evidence/valuation-comps.ts` implement target, options, and peer packet acquisition.
 - `src/sources/verified-market-snapshot.ts` and `src/sources/indicators.ts` implement snapshots.

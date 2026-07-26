@@ -204,16 +204,25 @@ describe("orchestrator persistence across job types", () => {
         ]),
       );
       await expect(readdir(workflow.artifacts.rawDir)).resolves.toEqual(["snapshots.json"]);
-      await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual(
-        expect.arrayContaining([
-          "extended-evidence.json",
-          "extended-sources.json",
-          "market-context.json",
-          "market-snapshots.json",
-          "news-sources.json",
-          "source-gaps.json",
-        ]),
-      );
+      const normalizedFiles = await readdir(workflow.artifacts.normalizedDir);
+      if (workflow.report.jobType === "equity") {
+        expect(normalizedFiles).toEqual(
+          expect.arrayContaining(["evidence-bundle.json", "market-context.json"]),
+        );
+        expect(normalizedFiles).not.toContain("market-snapshots.json");
+        expect(normalizedFiles).not.toContain("source-gaps.json");
+      } else {
+        expect(normalizedFiles).toEqual(
+          expect.arrayContaining([
+            "extended-evidence.json",
+            "extended-sources.json",
+            "market-context.json",
+            "market-snapshots.json",
+            "news-sources.json",
+            "source-gaps.json",
+          ]),
+        );
+      }
       await expect(
         readFile(join(workflow.artifacts.runDir, "report.md"), "utf8"),
       ).resolves.toContain("Research-only note");

@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-06-30 (consolidated 2026-07-15)
+2026-06-30 (consolidated 2026-07-15; amended 2026-07-25: bundle-only deep-equity
+persistence and migration)
 
 ## Context
 
@@ -48,12 +49,23 @@ derived indexes, and pipeline fixtures were previously split across several reco
 - Research and alpha-search initial writes use typed manifests from
   `src/run-artifact-writer.ts`. Manifest builders own required sidecars, null-when-absent files,
   empty defaults, and run-type conditionals; `src/run-artifact-layout.ts` owns file layout.
+- Deep-equity runs persist normalized current evidence and deterministic derived views only in
+  `normalized/evidence-bundle.json`. They do not write the component normalized sidecars subsumed
+  by `DeepEquityEvidenceBundleV1`; raw provider payloads remain only in `raw/snapshots.json`.
+  Crypto, thematic research, alpha-search, market-overview, and non-deep equity runs retain their
+  existing component layouts.
 - `trace.json:stageRecords[]` and `analytics.json:runShape.stages[]` may contain monotonic-clock
   `durationMs` values. They measure individual attempts and may overlap when stages run
   concurrently.
 - `src/run-artifacts.ts` is the shared reader for reports, scores, market snapshots, and verified
   snapshots. It parses leniently at full fidelity and distinguishes absent from malformed data.
-  Single-consumer sidecars remain with their owner rather than expanding this seam.
+  On deep-equity runs it reads bundle projections only, with no production fallback to legacy
+  component sidecars. Single-consumer sidecars remain with their owner rather than expanding this
+  seam.
+- Existing deep-equity runs migrate through one dry-run-by-default tool. `--write` creates bundles
+  only after validating report identity, available legacy sidecars, bundle schema, and source
+  references. Repeated runs are idempotent, conflicting bundles are never overwritten, and legacy
+  files are never deleted.
 - The SQLite Run Artifact Index accelerates list/search and selected calibration/history reads.
   Readers use it only when schema and freshness checks pass; otherwise they warn and fall back to
   disk.
@@ -87,6 +99,9 @@ derived indexes, and pipeline fixtures were previously split across several reco
 - Index schema changes require a version bump and manual rebuild for existing databases.
 - Golden fixture changes are explicit review points; adapter request or parser changes can require
   cassette refreshes. Eval mode remains an explicit local action.
+- Deep-equity evidence has one normalized persistence contract and one production read path.
+  Legacy component sidecars may remain on disk for audit and migration verification but have no
+  production authority after cutover.
 
 ## Implementation validation
 
@@ -94,5 +109,7 @@ derived indexes, and pipeline fixtures were previously split across several reco
   `src/research/prompt-loader.ts` implement the runtime, provider, and configuration decisions.
 - `src/run-artifact-layout.ts`, `run-artifact-writer.ts`, `run-artifacts.ts`,
   `run-artifact-index*.ts`, and `src/history/artifacts.ts` implement persistence and indexes.
+- `src/deep-equity/artifact-schema.ts`, `migration.ts`, and
+  `scripts/migrate-deep-equity-bundles.ts` implement deep-equity bundle validation and migration.
 - `tests/support/run-fixtures/`, `scripts/record-fixture-run.ts`,
   `scripts/replay-fixture-run.ts`, and `tests/equity-fixture-run.test.ts` implement fixture replay.

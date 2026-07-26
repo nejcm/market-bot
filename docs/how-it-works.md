@@ -103,6 +103,13 @@ Command behavior:
 
 The shared run taxonomy includes `research` for equity subject research artifacts. It is parsed by the public CLI and Research Console as `research <subject>` and always uses the deep profile; it is also used by report validation, history/search filters, calibration/index rows, and subject identity helpers.
 
+Before a bundle-only reader cutover, migrate existing deep-equity artifacts. Run the dry run first, inspect any failures, then opt in to writes:
+
+```sh
+bun run scripts/migrate-deep-equity-bundles.ts
+bun run scripts/migrate-deep-equity-bundles.ts --write
+```
+
 Provider-health v2 expects coverage for short- and medium-horizon equity/crypto market overviews, equity and crypto runs, a deep equity run, and at least one international equity smoke run. Legacy daily/weekly artifacts count during migration because they map into market-overview horizon buckets. Blocking gaps include missing required run shapes, missing usable news for a validation lane, FRED baseline gaps, Yahoo primary equity market-data/auth failures, CoinGecko primary crypto market-data failures, missing due scoring passes, and unsupported/unreadable Run Artifact Index schemas. Expected gaps produce a `warn` verdict; this includes Massive supplemental failures, Tradier/Glassnode account limits, individual MarketAux/Finnhub news gaps when another usable news source exists, and US-centric unsupported coverage for international equities. Informational gaps are disclosed without changing a `pass` verdict. Missing history on first-run paths is a soft Historical Context Gap, not a provider-health failure.
 
 ## Setup and development commands

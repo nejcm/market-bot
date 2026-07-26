@@ -12,16 +12,75 @@ import {
   readRunFile,
   searchRunReports,
 } from "../app/artifacts";
-import { researchReport } from "./support/fixtures";
+import {
+  deepEquityEvidenceBundle,
+  marketSnapshot,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 describe("research console app artifacts", () => {
+  test("projects deep-equity detail evidence from the bundle", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "deep-detail");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    const snapshot = marketSnapshot({ sourceId: "bundle-market", price: 123 });
+    const base = deepEquityEvidenceBundle();
+    writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "deep-detail",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extras: { depth: "deep" },
+      }),
+    );
+    writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        evidence: {
+          ...base.evidence,
+          marketSnapshots: [snapshot],
+          verifiedMarketSnapshot: verifiedMarketSnapshot(),
+        },
+        governance: {
+          ...base.governance,
+          sourceLedger: {
+            version: 2,
+            generatedAt: "2026-05-19T00:00:00.000Z",
+            sources: [
+              {
+                id: snapshot.sourceId,
+                kind: "market-data",
+                lane: "market-data",
+                posture: "covered",
+                relatedGapIds: [],
+                observedAt: snapshot.observedAt,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    writeJson(join(runDir, RUN_ARTIFACT_FILES.marketSnapshots), [
+      marketSnapshot({ sourceId: "legacy-market", price: 999 }),
+    ]);
+
+    const detail = await readRunDetail(dataDir, "deep-detail");
+
+    expect(detail?.marketSnapshots?.[0]?.price).toBe(123);
+    expect(detail?.verifiedMarketSnapshot?.symbol).toBe("AAPL");
+  });
+
   test("projects canonical statements while tolerating historical runs", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const canonicalDir = join(dataDir, "canonical");

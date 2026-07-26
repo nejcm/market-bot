@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,7 +11,14 @@ import {
 } from "../src/history/artifacts";
 import { readInstrumentTimeline } from "../src/history/timeline-reader";
 import type { ModelProvider } from "../src/model/types";
-import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
+import {
+  deepEquityEvidenceBundle,
+  marketSnapshot,
+  prediction,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -96,6 +103,69 @@ function writeRun(
 }
 
 describe("history artifacts", () => {
+  test("uses the deep bundle, not legacy snapshot sidecars, for timeline freshness", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-bundle-freshness-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-deep", "2026-06-01T00:00:00.000Z", "Deep thesis", "Deep risk");
+    const runDir = join(dataDir, "run-deep");
+    const report = JSON.parse(
+      await readFile(join(runDir, RUN_ARTIFACT_FILES.report), "utf8"),
+    ) as Record<string, unknown>;
+    writeJson(join(runDir, RUN_ARTIFACT_FILES.report), {
+      ...report,
+      extras: { depth: "deep" },
+    });
+    const base = deepEquityEvidenceBundle();
+    const snapshot = marketSnapshot({
+      sourceId: "bundle-market",
+      symbol: "AAPL",
+      observedAt: "2026-06-01T00:00:00.000Z",
+    });
+    writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        run: { symbol: "AAPL", analysisAsOf: "2026-06-01T00:00:00.000Z" },
+        evidence: { ...base.evidence, marketSnapshots: [snapshot] },
+        governance: {
+          ...base.governance,
+          sourceLedger: {
+            version: 2,
+            generatedAt: "2026-06-01T00:00:00.000Z",
+            sources: [
+              {
+                id: snapshot.sourceId,
+                kind: "market-data",
+                lane: "market-data",
+                posture: "covered",
+                relatedGapIds: [],
+                observedAt: snapshot.observedAt,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+    const future = new Date("2030-01-01T00:00:00.000Z");
+
+    await utimes(join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot), future, future).catch(
+      async () => {
+        writeJson(
+          join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot),
+          verifiedMarketSnapshot(),
+        );
+        await utimes(join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot), future, future);
+      },
+    );
+    const afterLegacyTouch = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+    await utimes(join(runDir, RUN_ARTIFACT_FILES.evidenceBundle), future, future);
+    const afterBundleTouch = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+
+    expect(afterLegacyTouch.source).toBe("history");
+    expect(afterBundleTouch.source).toBe("live");
+  });
+
   test("rebuilds derived index and per-instrument timeline from run artifacts", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-artifacts-"));
     const dataDir = join(rootDir, "runs");

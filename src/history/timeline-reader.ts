@@ -4,6 +4,7 @@ import type { AssetClass } from "../domain/types";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { scanRunArtifacts } from "../run-artifacts";
 import { isRecord } from "../guards";
+import { isDeepEquityReport } from "../deep-equity/artifact-schema";
 import {
   buildInstrumentTimelines,
   historyDir,
@@ -25,7 +26,6 @@ const TIMELINE_FRESHNESS_FILES = [
   RUN_ARTIFACT_FILES.report,
   RUN_ARTIFACT_FILES.score,
   RUN_ARTIFACT_FILES.missAutopsy,
-  RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
 ] as const;
 
 function emptyInstrumentTimeline(
@@ -66,12 +66,24 @@ async function timelineIsFresh(dataDir: string, timelinePath: string): Promise<b
   const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
   const checks = entries
     .filter((entry) => entry.isDirectory())
-    .flatMap((entry) =>
-      TIMELINE_FRESHNESS_FILES.map(async (file) => {
-        const mtime = await fileMtimeMs(join(dataDir, entry.name, file));
-        return mtime === undefined || mtime <= timelineMtime;
-      }),
-    );
+    .flatMap((entry) => {
+      const runDir = join(dataDir, entry.name);
+      const reportPromise = readJson(join(runDir, RUN_ARTIFACT_FILES.report));
+      return [
+        ...TIMELINE_FRESHNESS_FILES.map(async (file) => {
+          const mtime = await fileMtimeMs(join(runDir, file));
+          return mtime === undefined || mtime <= timelineMtime;
+        }),
+        (async () => {
+          const report = await reportPromise;
+          const evidenceFile = isDeepEquityReport(report)
+            ? RUN_ARTIFACT_FILES.evidenceBundle
+            : RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
+          const mtime = await fileMtimeMs(join(runDir, evidenceFile));
+          return mtime === undefined || mtime <= timelineMtime;
+        })(),
+      ];
+    });
   const results = await Promise.all(checks);
   return results.every(Boolean);
 }

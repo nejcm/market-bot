@@ -98,8 +98,43 @@ aggregation bootstrap sampling reproducible. Supplying `--judge-model` enables b
 judging, and that model must differ from every synthesis model. The command writes one
 `evaluation.json` comparison artifact under `data/evaluations/` containing per-run records, the
 aggregate, and a typed verdict for every hard, non-inferiority, human-review, and live-smoke gate.
+It writes the seed before executing a pair and refreshes the artifact after each pair. Malformed
+judge output receives one corrective retry; a second failure leaves the pair visibly unjudged and
+the judge-dependent gates fail closed.
 Replay mode runs both variants from independent cassette cursors, leaves judging disabled by
 default, and labels its stub-cassette numbers as having no gate-evidence weight.
+
+Resume judging from already-persisted variant runs without rerunning either pipeline:
+
+```sh
+bun run scripts/replay-fixture-run.ts --resume-evaluation data/evaluations/<run> --live --judge-model <model>
+```
+
+Resume uses the seed and usable verdicts in the existing `evaluation.json`; `--force-rejudge`
+explicitly replaces usable verdicts. The recorded fixture/repetition plan is mandatory and is
+validated rather than inferred from surviving run directories. Existing legacy artifacts without
+an explicit `plan` block are not trusted; recovering one requires the complete operator-supplied
+`--fixtures`/`--repetitions` plan. A root without `evaluation.json` additionally requires an
+explicit recovery seed:
+
+```sh
+bun run scripts/replay-fixture-run.ts --resume-evaluation data/evaluations/<run> --live --judge-model <model> --seed <integer> --fixtures <fixture-a,fixture-b> --repetitions <count>
+```
+
+`--fixtures` is comma-separated. Run only one resume process against an evaluation root at a time;
+the artifact writer is atomic but does not coordinate concurrent writers. Omitting `--live` keeps
+model access off and uses fixture replay.
+
+The artifact plan records two different facts. `plan.provenance` is the immutable plan origin:
+`run-input` or `operator-recovery-input`. Resuming preserves that origin. `plan.loadSource` records
+how the current artifact was produced (`fresh-run`, `operator-recovery`, or `existing-artifact`)
+without replacing the origin. The legacy circular value `provenance: "existing-artifact"` is not a
+trusted origin and requires an explicit operator recovery plan.
+
+This is a fail-closed workflow boundary, not authentication. Agreement between top-level fields and
+the explicit plan inside one mutable JSON file does not prove that either field is genuine.
+Resistance to hand-fabricated artifacts would require an authenticated or independently anchored
+origin record; this evaluation artifact format does not provide one.
 
 The Phase 4 replay measurement covers six deep-equity fixtures. Its **reasoning-prompt token
 estimate reduction** sums `ceil(stable prompt characters / 4)` across captured model-stage prompts,

@@ -1,25 +1,15 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveConfig } from "../src/config";
+import { createProvider } from "../src/model/factory";
+import type { ModelProvider } from "../src/model/types";
 import {
-  aggregateDeepEquityEvaluation,
-  createSeededEvaluationRandom,
-  deepEquityVariantEvaluationMetrics,
-  evaluateDeepEquityGates,
-  type DeepEquityEvaluationRunRecord,
-  type DeepEquityHardGateInputs,
-  type DeepEquityVariantEvaluationMetrics,
-} from "../tests/support/deep-equity-evaluation";
-import {
-  deriveEvaluationStreamSeed,
-  EVALUATION_RANDOM_STREAM_DERIVATION,
-  EVALUATION_RANDOM_STREAM_SALTS,
-} from "../tests/support/evaluation-random";
+  DEEP_EQUITY_EVALUATION_FILE,
+  resumePairedEvaluation,
+  runPairedEvaluation,
+} from "../tests/support/deep-equity-evaluation-runner";
 import { goldenOutputPath, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
-import {
-  runFixture,
-  runFixturePair,
-  type RunFixtureVariantOutcome,
-} from "../tests/support/run-fixtures";
+import { loadFixture, runFixture } from "../tests/support/run-fixtures";
+import { makeReplayProvider } from "../tests/support/run-fixtures/llm-cassette";
 import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
 
 interface ParsedArguments {
@@ -27,24 +17,22 @@ interface ParsedArguments {
   readonly live: boolean;
   readonly writeGolden: boolean;
   readonly paired: boolean;
+  readonly resumeRoot?: string;
+  readonly recoveryFixtures?: readonly string[];
+  readonly forceRejudge: boolean;
   readonly judgeModel?: string;
   readonly repetitions: number;
   readonly seed?: number;
 }
 
-interface PairedEvaluationTask {
-  readonly fixtureName: string;
-  readonly repetition: number;
-}
-
-interface ExecutedPairedEvaluation {
-  readonly aggregateRecord?: DeepEquityEvaluationRunRecord;
-  readonly perRunRecord: Readonly<Record<string, unknown>>;
-}
-
 function usage(): never {
   throw new Error(
-    "Usage: bun run scripts/replay-fixture-run.ts <fixture-name> [<fixture-name> ...] [--live] [--write-golden] [--paired [--repetitions <count>] [--seed <integer>] [--judge-model <model>]]",
+    [
+      "Usage:",
+      "  bun run scripts/replay-fixture-run.ts <fixture-name> [--live] [--write-golden]",
+      "  bun run scripts/replay-fixture-run.ts <fixture-name> [<fixture-name> ...] --paired [--live] [--repetitions <count>] [--seed <integer>] [--judge-model <model>]",
+      "  bun run scripts/replay-fixture-run.ts --resume-evaluation <data/evaluations/root> --judge-model <model> [--live] [--seed <integer>] [--fixtures <fixture-a,fixture-b> --repetitions <count>] [--force-rejudge]",
+    ].join("\n"),
   );
 }
 
@@ -64,13 +52,37 @@ function integer(value: string | undefined, flag: string): number {
   return parsed;
 }
 
+function requiredFlagValue(args: readonly string[], index: number, flag: string): string {
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new TypeError(`${flag} requires a value`);
+  }
+  return value;
+}
+
+function fixtureList(value: string): readonly string[] {
+  const fixtures = value.split(",").map((fixture) => fixture.trim());
+  if (
+    fixtures.length === 0 ||
+    fixtures.some((fixture) => fixture === "") ||
+    new Set(fixtures).size !== fixtures.length
+  ) {
+    throw new TypeError("--fixtures must be a comma-separated list of unique fixture names");
+  }
+  return fixtures;
+}
+
 function parseArguments(args: readonly string[]): ParsedArguments {
   const fixtureNames: string[] = [];
   let live = false;
   let writeGolden = false;
   let paired = false;
+  let resumeRoot: string | undefined = undefined;
+  let recoveryFixtures: readonly string[] | undefined = undefined;
+  let forceRejudge = false;
   let judgeModel: string | undefined = undefined;
   let repetitions = 1;
+  let repetitionsSpecified = false;
   let seed: number | undefined = undefined;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -80,14 +92,20 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       writeGolden = true;
     } else if (argument === "--paired") {
       paired = true;
+    } else if (argument === "--force-rejudge") {
+      forceRejudge = true;
+    } else if (argument === "--resume-evaluation") {
+      resumeRoot = requiredFlagValue(args, index, argument);
+      index += 1;
     } else if (argument === "--judge-model") {
-      judgeModel = args[index + 1];
-      if (judgeModel === undefined || judgeModel.startsWith("--")) {
-        usage();
-      }
+      judgeModel = requiredFlagValue(args, index, argument);
+      index += 1;
+    } else if (argument === "--fixtures") {
+      recoveryFixtures = fixtureList(requiredFlagValue(args, index, argument));
       index += 1;
     } else if (argument === "--repetitions") {
       repetitions = positiveInteger(args[index + 1], "--repetitions");
+      repetitionsSpecified = true;
       index += 1;
     } else if (argument === "--seed") {
       seed = integer(args[index + 1], "--seed");
@@ -98,12 +116,32 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       fixtureNames.push(argument);
     }
   }
-  if (
-    fixtureNames.length === 0 ||
-    (!paired && fixtureNames.length !== 1) ||
-    (!paired && (judgeModel !== undefined || repetitions !== 1 || seed !== undefined)) ||
-    (paired && writeGolden)
-  ) {
+  const resumeMode = resumeRoot !== undefined;
+  const validResume =
+    resumeMode &&
+    fixtureNames.length === 0 &&
+    !paired &&
+    !writeGolden &&
+    judgeModel !== undefined &&
+    ((recoveryFixtures === undefined && !repetitionsSpecified) ||
+      (recoveryFixtures !== undefined && repetitionsSpecified));
+  const validPaired =
+    !resumeMode &&
+    paired &&
+    fixtureNames.length > 0 &&
+    recoveryFixtures === undefined &&
+    !writeGolden &&
+    !forceRejudge;
+  const validSingle =
+    !resumeMode &&
+    !paired &&
+    fixtureNames.length === 1 &&
+    judgeModel === undefined &&
+    recoveryFixtures === undefined &&
+    repetitions === 1 &&
+    seed === undefined &&
+    !forceRejudge;
+  if (!validResume && !validPaired && !validSingle) {
     usage();
   }
   return {
@@ -111,208 +149,64 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     live,
     writeGolden,
     paired,
+    ...(resumeRoot !== undefined ? { resumeRoot } : {}),
+    ...(recoveryFixtures !== undefined ? { recoveryFixtures } : {}),
+    forceRejudge,
     ...(judgeModel !== undefined ? { judgeModel } : {}),
     repetitions,
     ...(seed !== undefined ? { seed } : {}),
   };
 }
 
-function successfulMetrics(
-  outcome: RunFixtureVariantOutcome,
-): DeepEquityVariantEvaluationMetrics | undefined {
-  return outcome.status === "success"
-    ? deepEquityVariantEvaluationMetrics(outcome.result)
-    : undefined;
+function evaluationSeed(seed: number | undefined): number {
+  return seed ?? crypto.getRandomValues(new Uint32Array(1))[0] ?? 1_511_467_046;
 }
 
-function outcomeSummary(
-  outcome: RunFixtureVariantOutcome,
-  metrics: DeepEquityVariantEvaluationMetrics | undefined,
-): Readonly<Record<string, unknown>> {
-  return outcome.status === "success"
-    ? {
-        status: outcome.status,
-        runDir: outcome.result.artifacts.runDir,
-        metrics,
-      }
-    : { status: outcome.status, error: outcome.error.message };
-}
-
-function noIntegrityRegression(records: readonly DeepEquityEvaluationRunRecord[]): boolean {
-  return records.every((record) => {
-    const legacy = record.variants.legacy.reportIntegrity;
-    const simplified = record.variants.simplified.reportIntegrity;
-    return simplified !== "low" || legacy === "low";
-  });
-}
-
-function noEvidenceCoverageRegression(records: readonly DeepEquityEvaluationRunRecord[]): boolean {
-  return records.every((record) => {
-    const legacy = record.variants.legacy.deterministicEvidenceCoverageRatio;
-    const simplified = record.variants.simplified.deterministicEvidenceCoverageRatio;
-    return legacy !== null && simplified !== null && simplified >= legacy;
-  });
-}
-
-function annotateGateEvidence(verdict: ReturnType<typeof evaluateDeepEquityGates>) {
-  const evidence = {
-    "all-reports-validate": {
-      kind: "derived-proxy",
-      source: "both persistResearchJob variant executions completed successfully",
-      limitation:
-        "This relies on the pipeline's mandatory validateResearchReport boundary; it is not an independent artifact revalidation.",
-    },
-    "zero-research-only-boundary-violations": {
-      kind: "per-run-validation",
-      source: "assertSafeReportLanguage(final report)",
-    },
-    "no-invalid-predictions-persist": {
-      kind: "per-run-validation",
-      source: "validatePredictions(final report predictions, final report source IDs)",
-    },
-  } as const;
-  return {
-    ...verdict,
-    gates: verdict.gates.map((gate) => ({
-      ...gate,
-      ...(gate.name in evidence ? { evidence: evidence[gate.name as keyof typeof evidence] } : {}),
-    })),
-  };
-}
-
-async function executePairedEvaluation(
-  task: PairedEvaluationTask,
-  parsedArguments: ParsedArguments,
-  pairRoot: string,
-  variantOrderRandom: () => number,
-  blindLabelRandom: () => number,
-): Promise<ExecutedPairedEvaluation> {
-  const result = await runFixturePair(task.fixtureName, {
-    llm: parsedArguments.live ? "live" : "replay",
-    keepDataDir: true,
-    dataDir: join(pairRoot, task.fixtureName, `repetition-${String(task.repetition)}`),
-    variantOrderRandom,
-    blindLabelRandom,
-    judge: parsedArguments.judgeModel !== undefined,
-    ...(parsedArguments.judgeModel !== undefined ? { judgeModel: parsedArguments.judgeModel } : {}),
-  });
-  const legacyMetrics = successfulMetrics(result.variants.legacy);
-  const simplifiedMetrics = successfulMetrics(result.variants.simplified);
-  const aggregateRecord =
-    legacyMetrics === undefined || simplifiedMetrics === undefined
-      ? undefined
-      : {
-          scenario: task.fixtureName,
-          repetition: task.repetition,
-          variants: { legacy: legacyMetrics, simplified: simplifiedMetrics },
-          ...(result.judge !== undefined ? { judge: result.judge } : {}),
-        };
-  return {
-    ...(aggregateRecord !== undefined ? { aggregateRecord } : {}),
-    perRunRecord: {
-      scenario: task.fixtureName,
-      repetition: task.repetition,
-      variants: {
-        legacy: outcomeSummary(result.variants.legacy, legacyMetrics),
-        simplified: outcomeSummary(result.variants.simplified, simplifiedMetrics),
-      },
-      ...(result.judge !== undefined ? { judge: result.judge } : {}),
-    },
-  };
+function liveResumeProvider(): ModelProvider {
+  const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+  return createProvider(config);
 }
 
 const parsed = parseArguments(process.argv.slice(2));
 
-if (parsed.paired) {
-  const evaluationSeed =
-    parsed.seed ?? crypto.getRandomValues(new Uint32Array(1))[0] ?? 1_511_467_046;
-  const randomStreamSeeds = {
-    variantOrder: deriveEvaluationStreamSeed(evaluationSeed, "variantOrder"),
-    blindLabels: deriveEvaluationStreamSeed(evaluationSeed, "blindLabels"),
-    pairedBootstrap: deriveEvaluationStreamSeed(evaluationSeed, "pairedBootstrap"),
-  };
-  const variantOrderRandom = createSeededEvaluationRandom(randomStreamSeeds.variantOrder);
-  const blindLabelRandom = createSeededEvaluationRandom(randomStreamSeeds.blindLabels);
+if (parsed.resumeRoot !== undefined) {
+  let liveProvider: ModelProvider | null = null;
+  await resumePairedEvaluation({
+    root: parsed.resumeRoot,
+    live: parsed.live,
+    judgeModel: parsed.judgeModel!,
+    ...(parsed.seed !== undefined ? { seed: parsed.seed } : {}),
+    ...(parsed.recoveryFixtures !== undefined
+      ? {
+          plan: {
+            scenarios: parsed.recoveryFixtures,
+            repetitions: Array.from({ length: parsed.repetitions }, (_, index) => index + 1),
+          },
+        }
+      : {}),
+    forceRejudge: parsed.forceRejudge,
+    providerForScenario: async (scenario) => {
+      if (parsed.live) {
+        liveProvider ??= liveResumeProvider();
+        return liveProvider;
+      }
+      const fixture = await loadFixture(scenario);
+      return makeReplayProvider(fixture.llmCassette);
+    },
+  });
+  process.stdout.write(`${join(parsed.resumeRoot, DEEP_EQUITY_EVALUATION_FILE)}\n`);
+} else if (parsed.paired) {
   const timestamp = new Date().toISOString().replaceAll(/[:.]/gu, "-");
   const pairRoot = join("data", "evaluations", `deep-equity-${timestamp}`);
-  await mkdir(pairRoot, { recursive: true });
-  const tasks = parsed.fixtureNames.flatMap((fixtureName) =>
-    Array.from({ length: parsed.repetitions }, (_, index) => ({
-      fixtureName,
-      repetition: index + 1,
-    })),
-  );
-  const executed = await tasks.reduce<Promise<readonly ExecutedPairedEvaluation[]>>(
-    (pending, task) =>
-      pending.then(async (records) => [
-        ...records,
-        await executePairedEvaluation(task, parsed, pairRoot, variantOrderRandom, blindLabelRandom),
-      ]),
-    Promise.resolve([]),
-  );
-  const aggregateRecords = executed.flatMap((record) =>
-    record.aggregateRecord === undefined ? [] : [record.aggregateRecord],
-  );
-  const perRunRecords = executed.map((record) => record.perRunRecord);
-  const aggregate = aggregateDeepEquityEvaluation(aggregateRecords, {
-    random: createSeededEvaluationRandom(randomStreamSeeds.pairedBootstrap),
-  });
-  const expectedPairCount = parsed.fixtureNames.length * parsed.repetitions;
-  const allReportsValidate = aggregateRecords.length === expectedPairCount;
-  const hardGates: DeepEquityHardGateInputs = {
-    allReportsValidate,
-    allCitedSourceIdsResolve:
-      allReportsValidate &&
-      aggregateRecords.every(
-        (record) =>
-          record.variants.legacy.allCitedSourceIdsResolve &&
-          record.variants.simplified.allCitedSourceIdsResolve,
-      ),
-    zeroResearchOnlyBoundaryViolations:
-      allReportsValidate &&
-      aggregateRecords.every(
-        (record) =>
-          record.variants.legacy.researchOnlyBoundaryPassed &&
-          record.variants.simplified.researchOnlyBoundaryPassed,
-      ),
-    zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: false,
-    noAdditionalLowIntegrityReports: allReportsValidate && noIntegrityRegression(aggregateRecords),
-    noDeterministicEvidenceCoverageRegression:
-      allReportsValidate && noEvidenceCoverageRegression(aggregateRecords),
-    noInvalidPredictionsPersist:
-      allReportsValidate &&
-      aggregateRecords.every(
-        (record) =>
-          record.variants.legacy.persistedPredictionsValidate &&
-          record.variants.simplified.persistedPredictionsValidate,
-      ),
-    humanReviewApproved: false,
-    liveSmokePassed: false,
-  };
-  const gateVerdict = annotateGateEvidence(evaluateDeepEquityGates(aggregate, hardGates));
-  const comparison = {
-    version: 1,
-    runtime: { bunVersion: Bun.version },
-    mode: parsed.live ? "live-model-fixed-data" : "stub-cassette-replay",
-    evidenceWeight: parsed.live
-      ? "Candidate evaluation output; human adjudication and the required live smoke remain separate."
-      : "Stub-cassette artifact with no evidentiary weight; never use it as gate evidence.",
-    fixtures: parsed.fixtureNames,
+  await runPairedEvaluation({
+    root: pairRoot,
+    fixtureNames: parsed.fixtureNames,
     repetitions: parsed.repetitions,
-    seed: evaluationSeed,
-    randomStreams: {
-      derivation: EVALUATION_RANDOM_STREAM_DERIVATION,
-      streamSalts: EVALUATION_RANDOM_STREAM_SALTS,
-      derivedSeeds: randomStreamSeeds,
-    },
-    records: perRunRecords,
-    aggregate,
-    hardGateInputs: hardGates,
-    gateVerdict,
-  };
-  const comparisonPath = join(pairRoot, "evaluation.json");
-  await writeFile(comparisonPath, `${JSON.stringify(comparison, null, 2)}\n`, "utf8");
-  process.stdout.write(`${comparisonPath}\n`);
+    seed: evaluationSeed(parsed.seed),
+    live: parsed.live,
+    ...(parsed.judgeModel !== undefined ? { judgeModel: parsed.judgeModel } : {}),
+  });
+  process.stdout.write(`${join(pairRoot, DEEP_EQUITY_EVALUATION_FILE)}\n`);
 } else {
   const fixtureName = parsed.fixtureNames[0]!;
   const result = await runFixture(fixtureName, {

@@ -1,0 +1,614 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { ModelProvider, ModelRequest } from "../src/model/types";
+import {
+  DEEP_EQUITY_EVALUATION_FILE,
+  resumePairedEvaluation,
+  runPairedEvaluation,
+} from "./support/deep-equity-evaluation-runner";
+import { PAIRWISE_JUDGE_DIMENSIONS } from "./support/deep-equity-evaluation";
+import { loadFixture } from "./support/run-fixtures";
+import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+function judgeResponse(winner: "A" | "tie" = "A"): string {
+  return JSON.stringify({
+    dimensions: Object.fromEntries(
+      PAIRWISE_JUDGE_DIMENSIONS.map((dimension) => [
+        dimension,
+        { A: 4, B: winner === "tie" ? 4 : 3, rationale: `${dimension} comparison` },
+      ]),
+    ),
+    winner,
+    rationale: winner === "tie" ? "The reports are equivalent." : "A is stronger overall.",
+    criticalMaterialEvidenceOmissions: { A: [], B: [] },
+  });
+}
+
+function isJudgeRequest(request: ModelRequest): boolean {
+  return request.messages.some((message) =>
+    message.content.includes('"stage":"deep-equity-pairwise-judge'),
+  );
+}
+
+async function fixtureProvider(
+  judgeResponses: readonly string[],
+  judgeCalls: ModelRequest[],
+): Promise<ModelProvider> {
+  const fixture = await loadFixture("equity-aapl-deep");
+  const replay = makeReplayProvider(fixture.llmCassette);
+  return {
+    name: "evaluation-runner-test",
+    generate: async (request) => {
+      if (!isJudgeRequest(request)) {
+        return replay.generate(request);
+      }
+      judgeCalls.push(request);
+      return {
+        content: judgeResponses[judgeCalls.length - 1] ?? judgeResponses.at(-1) ?? "{}",
+        tokenEstimate: 10,
+      };
+    },
+  };
+}
+
+async function tempEvaluationRoot(name: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), `market-bot-${name}-`));
+  tempRoots.push(root);
+  return root;
+}
+
+describe("deep-equity evaluation runner", () => {
+  test("writes a complete fail-closed artifact when both judge responses omit dimensions", async () => {
+    const root = await tempEvaluationRoot("judge-malformed");
+    const judgeCalls: ModelRequest[] = [];
+    const provider = await fixtureProvider(
+      [
+        JSON.stringify({ winner: "A", rationale: "missing dimensions" }),
+        JSON.stringify({ winner: "B", rationale: "still missing dimensions" }),
+      ],
+      judgeCalls,
+    );
+
+    const artifact = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 42,
+      live: false,
+      judgeModel: "fixture-judge",
+      provider,
+    });
+    const persisted = JSON.parse(
+      await readFile(join(root, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as typeof artifact;
+
+    expect(judgeCalls).toHaveLength(2);
+    expect(persisted.records).toHaveLength(1);
+    expect(persisted.judging).toMatchObject({
+      judgedPairCount: 0,
+      unjudgedPairCount: 1,
+      incompletePairCount: 0,
+    });
+    expect(persisted.records[0]?.unjudged).toEqual({
+      code: "missing-dimensions",
+      message: "pairwise judge response must contain a dimensions object",
+      attempts: 2,
+      tokenEstimate: 20,
+    });
+    expect(persisted.judging.tokenEstimates).toEqual({
+      judgedPairs: 0,
+      unjudgedPairs: 20,
+      totalRecorded: 20,
+      unjudgedPairsWithoutEstimate: 0,
+    });
+    expect(persisted.gateVerdict.failingGates).toEqual(
+      expect.arrayContaining([
+        "rubric-non-inferiority",
+        "pairwise-loss-rate",
+        "scenario-repetition-losses",
+      ]),
+    );
+    expect(persisted.tokenMetrics.wholeRunTraceTokenImprovement.gateMetric).toBe(true);
+    expect(persisted.tokenMetrics.reasoningPromptTokenEstimateReduction.gateMetric).toBe(false);
+  }, 30_000);
+
+  test("resumes persisted variants equivalently and skips an already usable verdict", async () => {
+    const uninterruptedRoot = await tempEvaluationRoot("judge-uninterrupted");
+    const uninterruptedCalls: ModelRequest[] = [];
+    const uninterrupted = await runPairedEvaluation({
+      root: uninterruptedRoot,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 77,
+      live: false,
+      judgeModel: "fixture-judge",
+      provider: await fixtureProvider([judgeResponse()], uninterruptedCalls),
+    });
+    expect(uninterruptedCalls).toHaveLength(1);
+
+    const resumeRoot = await tempEvaluationRoot("judge-resume");
+    await cp(join(uninterruptedRoot, "equity-aapl-deep"), join(resumeRoot, "equity-aapl-deep"), {
+      recursive: true,
+    });
+    const resumedCalls: ModelRequest[] = [];
+    let resumeProviderCalls = 0;
+    const resumeProvider = async () => {
+      resumeProviderCalls += 1;
+      return fixtureProvider([judgeResponse()], resumedCalls);
+    };
+    const resumed = await resumePairedEvaluation({
+      root: resumeRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      seed: 77,
+      plan: { scenarios: ["equity-aapl-deep"], repetitions: [1] },
+      providerForScenario: resumeProvider,
+    });
+
+    expect(resumeProviderCalls).toBe(1);
+    expect(resumedCalls).toHaveLength(1);
+    expect(resumed.aggregate).toEqual(uninterrupted.aggregate);
+    expect(resumed.tokenMetrics).toEqual(uninterrupted.tokenMetrics);
+    expect(resumed.records).toHaveLength(1);
+    expect(resumed.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "operator-recovery",
+    });
+
+    const rerun = await resumePairedEvaluation({
+      root: resumeRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      providerForScenario: resumeProvider,
+    });
+
+    expect(resumeProviderCalls).toBe(1);
+    expect(rerun.records).toHaveLength(1);
+    expect(rerun.aggregate).toEqual(resumed.aggregate);
+    expect(rerun.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "existing-artifact",
+    });
+    await expect(
+      resumePairedEvaluation({
+        root: resumeRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        seed: 78,
+        providerForScenario: resumeProvider,
+      }),
+    ).rejects.toThrow("resume seed 78 does not match recorded seed 77");
+
+    const validArtifact = JSON.parse(
+      await readFile(join(resumeRoot, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as Record<string, unknown>;
+    if (
+      !("plan" in validArtifact) ||
+      validArtifact.plan === null ||
+      typeof validArtifact.plan !== "object" ||
+      Array.isArray(validArtifact.plan)
+    ) {
+      throw new Error("resumed artifact must contain an explicit plan");
+    }
+    const invalidProvenanceArtifact = {
+      ...validArtifact,
+      plan: { ...validArtifact.plan, provenance: "survivor-discovery" },
+    };
+    await writeFile(
+      join(resumeRoot, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify(invalidProvenanceArtifact, null, 2)}\n`,
+      "utf8",
+    );
+    await expect(
+      resumePairedEvaluation({
+        root: resumeRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        providerForScenario: resumeProvider,
+      }),
+    ).rejects.toThrow("resume evaluation.json explicit plan provenance is unsupported");
+
+    const invalidLoadSourceArtifact = {
+      ...validArtifact,
+      plan: { ...validArtifact.plan, loadSource: "fabricated-artifact" },
+    };
+    await writeFile(
+      join(resumeRoot, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify(invalidLoadSourceArtifact, null, 2)}\n`,
+      "utf8",
+    );
+    await expect(
+      resumePairedEvaluation({
+        root: resumeRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        providerForScenario: resumeProvider,
+      }),
+    ).rejects.toThrow("resume evaluation.json explicit plan load source is unsupported");
+
+    const circularProvenanceArtifact = {
+      ...validArtifact,
+      plan: { ...validArtifact.plan, provenance: "existing-artifact" },
+    };
+    await writeFile(
+      join(resumeRoot, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify(circularProvenanceArtifact, null, 2)}\n`,
+      "utf8",
+    );
+    await expect(
+      resumePairedEvaluation({
+        root: resumeRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        providerForScenario: resumeProvider,
+      }),
+    ).rejects.toThrow(
+      "resume evaluation.json has circular plan provenance existing-artifact; supply --fixtures and --repetitions to recover it",
+    );
+    const recoveredCircular = await resumePairedEvaluation({
+      root: resumeRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      plan: { scenarios: ["equity-aapl-deep"], repetitions: [1] },
+      providerForScenario: resumeProvider,
+    });
+    expect(recoveredCircular.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "operator-recovery",
+      expectedPairCount: 1,
+    });
+
+    const malformedArtifact = { ...validArtifact };
+    delete malformedArtifact.fixtures;
+    await writeFile(
+      join(resumeRoot, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify(malformedArtifact, null, 2)}\n`,
+      "utf8",
+    );
+    await expect(
+      resumePairedEvaluation({
+        root: resumeRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        plan: { scenarios: ["equity-aapl-deep"], repetitions: [1] },
+        providerForScenario: resumeProvider,
+      }),
+    ).rejects.toThrow(
+      "resume evaluation.json must contain valid fixtures and repetitions plan fields",
+    );
+  }, 30_000);
+
+  test("an interrupted resume preserves later usable verdicts in the complete snapshot", async () => {
+    const root = await tempEvaluationRoot("judge-interrupted-resume");
+    const setupJudgeCalls: ModelRequest[] = [];
+    const initial = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 91,
+      live: false,
+      judgeModel: "fixture-judge",
+      provider: await fixtureProvider([judgeResponse()], setupJudgeCalls),
+    });
+    const scenarioRoot = join(root, "equity-aapl-deep");
+    await cp(join(scenarioRoot, "repetition-1"), join(scenarioRoot, "repetition-2"), {
+      recursive: true,
+    });
+    await cp(join(scenarioRoot, "repetition-1"), join(scenarioRoot, "repetition-3"), {
+      recursive: true,
+    });
+    const [baseRecord] = initial.records;
+    const retainedJudge = baseRecord?.judge;
+    if (retainedJudge === undefined || baseRecord === undefined) {
+      throw new Error("setup evaluation must contain a usable judge verdict");
+    }
+    const pendingReason = {
+      code: "missing-dimensions" as const,
+      message: "prior malformed judge response",
+      attempts: 2 as const,
+      tokenEstimate: 20,
+    };
+    const interruptedSetup = {
+      ...initial,
+      repetitions: 3,
+      plan: {
+        ...initial.plan,
+        repetitions: [1, 2, 3],
+        expectedPairCount: 3,
+      },
+      records: [1, 2, 3].map((repetition) => ({
+        ...baseRecord,
+        repetition,
+        ...(repetition === 2 ? { judge: retainedJudge } : { unjudged: pendingReason }),
+        ...(repetition === 2 ? { unjudged: undefined } : { judge: undefined }),
+      })),
+    };
+    await writeFile(
+      join(root, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify(interruptedSetup, null, 2)}\n`,
+      "utf8",
+    );
+
+    const firstResumeJudgeCalls: ModelRequest[] = [];
+    let firstResumeProviderCalls = 0;
+    await expect(
+      resumePairedEvaluation({
+        root,
+        live: false,
+        judgeModel: "fixture-judge",
+        providerForScenario: async () => {
+          firstResumeProviderCalls += 1;
+          if (firstResumeProviderCalls === 2) {
+            throw new Error("simulated process interruption");
+          }
+          return fixtureProvider([judgeResponse()], firstResumeJudgeCalls);
+        },
+      }),
+    ).rejects.toThrow("simulated process interruption");
+
+    const afterInterruption = JSON.parse(
+      await readFile(join(root, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as typeof initial;
+    expect(afterInterruption.records).toHaveLength(3);
+    expect(afterInterruption.records.find((record) => record.repetition === 2)?.judge).toEqual(
+      retainedJudge,
+    );
+    expect(afterInterruption.records.find((record) => record.repetition === 3)?.unjudged).toEqual(
+      pendingReason,
+    );
+
+    const secondResumeJudgeCalls: ModelRequest[] = [];
+    let secondResumeProviderCalls = 0;
+    const completed = await resumePairedEvaluation({
+      root,
+      live: false,
+      judgeModel: "fixture-judge",
+      providerForScenario: async () => {
+        secondResumeProviderCalls += 1;
+        return fixtureProvider([judgeResponse()], secondResumeJudgeCalls);
+      },
+    });
+
+    expect(secondResumeProviderCalls).toBe(1);
+    expect(secondResumeJudgeCalls).toHaveLength(1);
+    expect(completed.records).toHaveLength(3);
+    expect(completed.judging.judgedPairCount).toBe(3);
+  }, 30_000);
+
+  test("manifest-less and plan-less legacy resume keep the operator's missing fixture planned", async () => {
+    const sourceRoot = await tempEvaluationRoot("judge-recovery-source");
+    await runPairedEvaluation({
+      root: sourceRoot,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 105,
+      live: false,
+    });
+    const recoveryRoot = await tempEvaluationRoot("judge-recovery-root");
+    const sourceRepetition = join(sourceRoot, "equity-aapl-deep", "repetition-1");
+    for (const scenario of ["scenario-a", "scenario-b", "scenario-c"]) {
+      await mkdir(join(recoveryRoot, scenario), { recursive: true });
+      for (const repetition of [1, 2, 3]) {
+        await cp(
+          sourceRepetition,
+          join(recoveryRoot, scenario, `repetition-${String(repetition)}`),
+          {
+            recursive: true,
+          },
+        );
+      }
+    }
+    await expect(readFile(join(recoveryRoot, DEEP_EQUITY_EVALUATION_FILE))).rejects.toThrow();
+    await expect(
+      resumePairedEvaluation({
+        root: recoveryRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        seed: 106,
+        providerForScenario: async () => fixtureProvider([judgeResponse("tie")], []),
+      }),
+    ).rejects.toThrow(
+      "resume without evaluation.json requires an authoritative --fixtures and --repetitions plan",
+    );
+
+    const judgeCalls: ModelRequest[] = [];
+    const artifact = await resumePairedEvaluation({
+      root: recoveryRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      seed: 106,
+      plan: {
+        scenarios: ["scenario-a", "scenario-b", "scenario-c", "scenario-d"],
+        repetitions: [1, 2, 3],
+      },
+      providerForScenario: async () => fixtureProvider([judgeResponse("tie")], judgeCalls),
+    });
+    const missingScenario = artifact.aggregate.scenarios.find(
+      (scenario) => scenario.scenario === "scenario-d",
+    );
+
+    expect(judgeCalls).toHaveLength(9);
+    expect(artifact.plan).toEqual({
+      provenance: "operator-recovery-input",
+      loadSource: "operator-recovery",
+      scenarios: ["scenario-a", "scenario-b", "scenario-c", "scenario-d"],
+      repetitions: [1, 2, 3],
+      expectedPairCount: 12,
+    });
+    expect(artifact.judging.expectedPairCount).toBe(12);
+    expect(artifact.aggregate).toMatchObject({
+      plannedPairCount: 12,
+      runCount: 9,
+      rubric: { evaluatedPairCount: 9 },
+    });
+    expect(missingScenario).toMatchObject({
+      expectedRepetitions: [1, 2, 3],
+      repetitions: [],
+      judgedRepetitions: [],
+    });
+    expect(artifact.gateVerdict.failingGates).toEqual(
+      expect.arrayContaining([
+        "rubric-non-inferiority",
+        "pairwise-loss-rate",
+        "scenario-repetition-losses",
+      ]),
+    );
+
+    const legacyArtifact = structuredClone(artifact) as unknown as Record<string, unknown>;
+    delete legacyArtifact.plan;
+    legacyArtifact.fixtures = ["scenario-a", "scenario-b", "scenario-c"];
+    legacyArtifact.repetitions = 3;
+    await writeFile(
+      join(recoveryRoot, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify(legacyArtifact, null, 2)}\n`,
+      "utf8",
+    );
+    let legacyProviderCalls = 0;
+    const failIfProviderRequested = async (): Promise<ModelProvider> => {
+      legacyProviderCalls += 1;
+      throw new Error("stored verdicts must not request a provider");
+    };
+    await expect(
+      resumePairedEvaluation({
+        root: recoveryRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        providerForScenario: failIfProviderRequested,
+      }),
+    ).rejects.toThrow(
+      "resume evaluation.json has no explicit authoritative plan; supply --fixtures and --repetitions to recover this legacy artifact",
+    );
+    expect(legacyProviderCalls).toBe(0);
+
+    const recoveredLegacy = await resumePairedEvaluation({
+      root: recoveryRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      plan: {
+        scenarios: ["scenario-a", "scenario-b", "scenario-c", "scenario-d"],
+        repetitions: [1, 2, 3],
+      },
+      providerForScenario: failIfProviderRequested,
+    });
+
+    expect(legacyProviderCalls).toBe(0);
+    expect(recoveredLegacy.plan).toEqual({
+      provenance: "operator-recovery-input",
+      loadSource: "operator-recovery",
+      scenarios: ["scenario-a", "scenario-b", "scenario-c", "scenario-d"],
+      repetitions: [1, 2, 3],
+      expectedPairCount: 12,
+    });
+    expect(recoveredLegacy.aggregate).toMatchObject({
+      plannedPairCount: 12,
+      runCount: 9,
+      rubric: { evaluatedPairCount: 9 },
+    });
+    expect(
+      recoveredLegacy.aggregate.scenarios.find((scenario) => scenario.scenario === "scenario-d"),
+    ).toMatchObject({
+      expectedRepetitions: [1, 2, 3],
+      repetitions: [],
+      judgedRepetitions: [],
+    });
+    expect(recoveredLegacy.gateVerdict.failingGates).toEqual(
+      expect.arrayContaining([
+        "rubric-non-inferiority",
+        "pairwise-loss-rate",
+        "scenario-repetition-losses",
+      ]),
+    );
+
+    const secondResume = await resumePairedEvaluation({
+      root: recoveryRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      providerForScenario: failIfProviderRequested,
+    });
+    expect(legacyProviderCalls).toBe(0);
+    expect(secondResume.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "existing-artifact",
+      expectedPairCount: 12,
+    });
+    expect(secondResume.aggregate).toMatchObject({
+      plannedPairCount: 12,
+      runCount: 9,
+      rubric: { evaluatedPairCount: 9 },
+    });
+
+    const forceJudgeCalls: ModelRequest[] = [];
+    const forced = await resumePairedEvaluation({
+      root: recoveryRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      forceRejudge: true,
+      providerForScenario: async () => fixtureProvider([judgeResponse("tie")], forceJudgeCalls),
+    });
+    expect(forceJudgeCalls).toHaveLength(9);
+    expect(forced.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "existing-artifact",
+      expectedPairCount: 12,
+    });
+    expect(forced.aggregate).toMatchObject({
+      plannedPairCount: 12,
+      runCount: 9,
+      rubric: { evaluatedPairCount: 9 },
+    });
+
+    const interruptedJudgeCalls: ModelRequest[] = [];
+    let interruptedProviderCalls = 0;
+    await expect(
+      resumePairedEvaluation({
+        root: recoveryRoot,
+        live: false,
+        judgeModel: "fixture-judge",
+        forceRejudge: true,
+        providerForScenario: async () => {
+          interruptedProviderCalls += 1;
+          if (interruptedProviderCalls === 2) {
+            throw new Error("simulated operator-origin interruption");
+          }
+          return fixtureProvider([judgeResponse("tie")], interruptedJudgeCalls);
+        },
+      }),
+    ).rejects.toThrow("simulated operator-origin interruption");
+    expect(interruptedJudgeCalls).toHaveLength(1);
+    const interruptedArtifact = JSON.parse(
+      await readFile(join(recoveryRoot, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as typeof forced;
+    expect(interruptedArtifact.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "existing-artifact",
+      expectedPairCount: 12,
+    });
+    expect(interruptedArtifact.aggregate.plannedPairCount).toBe(12);
+
+    const postInterruption = await resumePairedEvaluation({
+      root: recoveryRoot,
+      live: false,
+      judgeModel: "fixture-judge",
+      providerForScenario: failIfProviderRequested,
+    });
+    expect(legacyProviderCalls).toBe(0);
+    expect(postInterruption.plan).toMatchObject({
+      provenance: "operator-recovery-input",
+      loadSource: "existing-artifact",
+      expectedPairCount: 12,
+    });
+    expect(postInterruption.aggregate).toMatchObject({
+      plannedPairCount: 12,
+      runCount: 9,
+      rubric: { evaluatedPairCount: 9 },
+    });
+  }, 30_000);
+});

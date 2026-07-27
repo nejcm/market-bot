@@ -1,6 +1,4 @@
-import type { ReportIntegrity, ResearchReport } from "../../src/domain/types";
-import { isRecord, readString, readStringArray } from "../../src/guards";
-import type { ModelProvider } from "../../src/model/types";
+import type { ReportIntegrity } from "../../src/domain/types";
 import { assertSafeReportLanguage, validatePredictions } from "../../src/report/schema";
 import type { StageOutput } from "../../src/research/final-synthesis";
 import {
@@ -8,23 +6,21 @@ import {
   type PersistedResearchJobResult,
   type RunResearchJobInput,
 } from "../../src/research/orchestrator";
+import { type DeepEquityPipelineVariant, type PairwiseJudgeResult } from "./deep-equity-judge";
 
-export const DEEP_EQUITY_PIPELINE_VARIANTS = ["legacy", "simplified"] as const;
-
-export type DeepEquityPipelineVariant = (typeof DEEP_EQUITY_PIPELINE_VARIANTS)[number];
-
-export const PAIRWISE_JUDGE_DIMENSIONS = [
-  "evidence-grounding-citations",
-  "financial-valuation-reasoning",
-  "catalysts-material-events",
-  "downside-counterevidence",
-  "scenario-prediction-specificity",
-  "uncertainty-gap-disclosure",
-] as const;
-
-export type PairwiseJudgeDimension = (typeof PAIRWISE_JUDGE_DIMENSIONS)[number];
-
-type BlindLabel = "A" | "B";
+export {
+  DEEP_EQUITY_PIPELINE_VARIANTS,
+  judgeDeepEquityPair,
+  judgeDeepEquityPairSafely,
+  PAIRWISE_JUDGE_DIMENSIONS,
+  type BlindPairwiseJudgeInput,
+  type DeepEquityPipelineVariant,
+  type PairwiseJudgeDimension,
+  type PairwiseJudgeFailureCode,
+  type PairwiseJudgeFailureReason,
+  type PairwiseJudgeOutcome,
+  type PairwiseJudgeResult,
+} from "./deep-equity-judge";
 
 export async function runDeepEquityPipelineVariant(
   variant: DeepEquityPipelineVariant,
@@ -40,38 +36,6 @@ export async function runDeepEquityPipelineVariant(
   return persistResearchJob({ ...input, reasoningVariant: variant });
 }
 
-interface BlindDimensionScore {
-  readonly A: number;
-  readonly B: number;
-  readonly rationale: string;
-}
-
-interface BlindJudgeResponse {
-  readonly dimensions: Readonly<Record<PairwiseJudgeDimension, BlindDimensionScore>>;
-  readonly winner: BlindLabel | "tie";
-  readonly rationale: string;
-  readonly criticalMaterialEvidenceOmissions: Readonly<Record<BlindLabel, readonly string[]>>;
-}
-
-export interface PairwiseJudgeResult {
-  readonly version: 1;
-  readonly judgeModel: string;
-  readonly blindOrder: readonly BlindLabel[];
-  readonly blindLabels: Readonly<Record<DeepEquityPipelineVariant, BlindLabel>>;
-  readonly dimensions: readonly {
-    readonly dimension: PairwiseJudgeDimension;
-    readonly legacyScore: number;
-    readonly simplifiedScore: number;
-    readonly rationale: string;
-  }[];
-  readonly decision: DeepEquityPipelineVariant | "tie";
-  readonly rationale: string;
-  readonly criticalMaterialEvidenceOmissions: Readonly<
-    Record<DeepEquityPipelineVariant, readonly string[]>
-  >;
-  readonly tokenEstimate: number;
-}
-
 export interface DeepEquityVariantEvaluationMetrics {
   readonly researchOnlyBoundaryPassed: boolean;
   readonly persistedPredictionsValidate: boolean;
@@ -79,6 +43,7 @@ export interface DeepEquityVariantEvaluationMetrics {
   readonly citedSourceUtilization: number;
   readonly allCitedSourceIdsResolve: boolean;
   readonly modelTokenEstimate: number;
+  readonly reasoningPromptTokenEstimate: number | null;
   readonly coreReasoningCallCount: number;
   readonly totalReasoningCallCount: number;
   readonly reportIntegrity: ReportIntegrity | "missing";
@@ -96,17 +61,20 @@ export interface DeepEquityEvaluationRunRecord {
 
 export interface DeepEquityScenarioAggregate {
   readonly scenario: string;
+  readonly expectedRepetitions: readonly number[];
   readonly repetitions: readonly number[];
+  readonly judgedRepetitions: readonly number[];
   readonly simplifiedWins: number;
   readonly simplifiedLosses: number;
   readonly ties: number;
-  readonly legacyMedianValidPredictionCount: number;
-  readonly simplifiedMedianValidPredictionCount: number;
-  readonly validPredictionMedianDifference: number;
+  readonly legacyMedianValidPredictionCount: number | null;
+  readonly simplifiedMedianValidPredictionCount: number | null;
+  readonly validPredictionMedianDifference: number | null;
 }
 
 export interface DeepEquityEvaluationAggregate {
   readonly version: 1;
+  readonly plannedPairCount: number;
   readonly runCount: number;
   readonly rubric: {
     readonly evaluatedPairCount: number;
@@ -130,6 +98,11 @@ export interface DeepEquityEvaluationAggregate {
   readonly scenarios: readonly DeepEquityScenarioAggregate[];
   readonly citedSourceUtilizationDelta: number | null;
   readonly medianModelTokenImprovement: number | null;
+  readonly reasoningPromptTokens: {
+    readonly evaluatedPairCount: number;
+    readonly unavailablePairCount: number;
+    readonly medianImprovement: number | null;
+  };
   readonly reasoningCalls: {
     readonly allRunsUseThreeCoreCalls: boolean;
     readonly allRunsUseAtMostFiveTotalCalls: boolean;
@@ -206,18 +179,6 @@ const LOWER_PERCENTILE = 0.025;
 const UPPER_PERCENTILE = 0.975;
 const CORE_REASONING_STAGES = new Set(["equity-analysis", "critique", "final-synthesis"]);
 
-interface BlindPairwiseJudgeInput {
-  readonly provider: ModelProvider;
-  readonly judgeModel: string;
-  readonly synthesisModels: readonly string[];
-  readonly reports: Readonly<Record<DeepEquityPipelineVariant, ResearchReport>>;
-  readonly random?: () => number;
-}
-
-function defaultRandom(): number {
-  return (crypto.getRandomValues(new Uint32Array(1))[0] ?? 0) / 4_294_967_296;
-}
-
 export function createSeededEvaluationRandom(seed: number): () => number {
   if (!Number.isInteger(seed)) {
     throw new TypeError("evaluation seed must be an integer");
@@ -273,6 +234,7 @@ function passesValidation(check: () => void): boolean {
 
 export function deepEquityVariantEvaluationMetrics(
   result: Pick<PersistedResearchJobResult, "report" | "stageOutputs" | "trace">,
+  reasoningPromptTokenEstimate?: number,
 ): DeepEquityVariantEvaluationMetrics {
   const references = new Set(citationReferences(result.report));
   const sourceIds = new Set(result.report.sources.map((source) => source.id));
@@ -290,6 +252,7 @@ export function deepEquityVariantEvaluationMetrics(
       result.report.sources.length === 0 ? 0 : references.size / result.report.sources.length,
     allCitedSourceIdsResolve: [...references].every((sourceId) => sourceIds.has(sourceId)),
     modelTokenEstimate: result.trace.tokenEstimate,
+    reasoningPromptTokenEstimate: reasoningPromptTokenEstimate ?? null,
     coreReasoningCallCount: budgetedCalls.filter(
       (output) => output.repromptReason === undefined && CORE_REASONING_STAGES.has(output.stage),
     ).length,
@@ -353,19 +316,48 @@ function pairedBootstrapConfidenceInterval(
   };
 }
 
+export interface DeepEquityEvaluationPlan {
+  readonly scenarios: readonly string[];
+  readonly repetitions: readonly number[];
+}
+
 interface AggregateEvaluationOptions {
+  readonly plan: DeepEquityEvaluationPlan;
   readonly bootstrapIterations?: number;
   readonly random?: () => number;
 }
 
+export function validateDeepEquityEvaluationPlan(plan: DeepEquityEvaluationPlan): void {
+  if (
+    plan.scenarios.length === 0 ||
+    new Set(plan.scenarios).size !== plan.scenarios.length ||
+    plan.scenarios.some((scenario) => scenario.trim() === "")
+  ) {
+    throw new TypeError("evaluation plan must contain unique, non-empty scenarios");
+  }
+  if (
+    plan.repetitions.length === 0 ||
+    plan.repetitions.some((repetition, index) => repetition !== index + 1)
+  ) {
+    throw new TypeError("evaluation plan repetitions must be contiguous positive integers");
+  }
+}
+
 export function aggregateDeepEquityEvaluation(
   records: readonly DeepEquityEvaluationRunRecord[],
-  options: AggregateEvaluationOptions = {},
+  options: AggregateEvaluationOptions,
 ): DeepEquityEvaluationAggregate {
+  if (options?.plan === undefined) {
+    throw new TypeError("gate-producing aggregation requires an authoritative evaluation plan");
+  }
+  validateDeepEquityEvaluationPlan(options.plan);
   const iterations = options.bootstrapIterations ?? DEFAULT_BOOTSTRAP_ITERATIONS;
   if (!Number.isInteger(iterations) || iterations <= 0) {
     throw new TypeError("bootstrap iterations must be a positive integer");
   }
+  const expectedScenarioNames = options.plan.scenarios;
+  const expectedRepetitions = options.plan.repetitions;
+  const plannedPairCount = expectedScenarioNames.length * expectedRepetitions.length;
   const judgedRecords = records.filter(
     (record): record is DeepEquityEvaluationRunRecord & { readonly judge: PairwiseJudgeResult } =>
       record.judge !== undefined,
@@ -386,28 +378,37 @@ export function aggregateDeepEquityEvaluation(
     (record) => record.judge.decision === "legacy",
   ).length;
   const ties = judgedRecords.length - simplifiedWins - simplifiedLosses;
-  const scenarioNames = [...new Set(records.map((record) => record.scenario))].toSorted();
-  const scenarios = scenarioNames.map((scenario): DeepEquityScenarioAggregate => {
+  const scenarios = expectedScenarioNames.map((scenario): DeepEquityScenarioAggregate => {
     const scenarioRecords = records.filter((record) => record.scenario === scenario);
-    const scenarioJudges = scenarioRecords.flatMap((record) =>
-      record.judge === undefined ? [] : [record.judge],
+    const judgedScenarioRecords = scenarioRecords.filter(
+      (record): record is DeepEquityEvaluationRunRecord & { readonly judge: PairwiseJudgeResult } =>
+        record.judge !== undefined,
     );
-    const legacyMedianValidPredictionCount = median(
-      scenarioRecords.map((record) => record.variants.legacy.validPredictionCount),
-    );
-    const simplifiedMedianValidPredictionCount = median(
-      scenarioRecords.map((record) => record.variants.simplified.validPredictionCount),
-    );
+    const scenarioJudges = judgedScenarioRecords.map((record) => record.judge);
+    const legacyMedianValidPredictionCount =
+      scenarioRecords.length === 0
+        ? null
+        : median(scenarioRecords.map((record) => record.variants.legacy.validPredictionCount));
+    const simplifiedMedianValidPredictionCount =
+      scenarioRecords.length === 0
+        ? null
+        : median(scenarioRecords.map((record) => record.variants.simplified.validPredictionCount));
     return {
       scenario,
+      expectedRepetitions,
       repetitions: scenarioRecords.map((record) => record.repetition).toSorted((a, b) => a - b),
+      judgedRepetitions: judgedScenarioRecords
+        .map((record) => record.repetition)
+        .toSorted((a, b) => a - b),
       simplifiedWins: scenarioJudges.filter((judge) => judge.decision === "simplified").length,
       simplifiedLosses: scenarioJudges.filter((judge) => judge.decision === "legacy").length,
       ties: scenarioJudges.filter((judge) => judge.decision === "tie").length,
       legacyMedianValidPredictionCount,
       simplifiedMedianValidPredictionCount,
       validPredictionMedianDifference:
-        simplifiedMedianValidPredictionCount - legacyMedianValidPredictionCount,
+        legacyMedianValidPredictionCount === null || simplifiedMedianValidPredictionCount === null
+          ? null
+          : simplifiedMedianValidPredictionCount - legacyMedianValidPredictionCount,
     };
   });
   const citedSourceUtilizationDelta =
@@ -432,10 +433,22 @@ export function aggregateDeepEquityEvaluation(
             return (legacy - record.variants.simplified.modelTokenEstimate) / legacy;
           }),
         );
+  const reasoningPromptTokenImprovements = records.flatMap((record) => {
+    const legacy = record.variants.legacy.reasoningPromptTokenEstimate;
+    const simplified = record.variants.simplified.reasoningPromptTokenEstimate;
+    if (legacy === null || simplified === null) {
+      return [];
+    }
+    if (!Number.isFinite(legacy) || legacy <= 0) {
+      throw new Error("legacy reasoning prompt token estimate must be positive");
+    }
+    return [(legacy - simplified) / legacy];
+  });
   const simplifiedMetrics = records.map((record) => record.variants.simplified);
   const evaluatedPairCount = judgedRecords.length;
   return {
     version: 1,
+    plannedPairCount,
     runCount: records.length,
     rubric: {
       evaluatedPairCount,
@@ -448,7 +461,7 @@ export function aggregateDeepEquityEvaluation(
     },
     pairwise: {
       evaluatedPairCount,
-      unevaluatedPairCount: records.length - evaluatedPairCount,
+      unevaluatedPairCount: plannedPairCount - evaluatedPairCount,
       simplifiedWins,
       simplifiedLosses,
       ties,
@@ -459,6 +472,14 @@ export function aggregateDeepEquityEvaluation(
     scenarios,
     citedSourceUtilizationDelta,
     medianModelTokenImprovement,
+    reasoningPromptTokens: {
+      evaluatedPairCount: reasoningPromptTokenImprovements.length,
+      unavailablePairCount: records.length - reasoningPromptTokenImprovements.length,
+      medianImprovement:
+        reasoningPromptTokenImprovements.length === 0
+          ? null
+          : median(reasoningPromptTokenImprovements),
+    },
     reasoningCalls: {
       allRunsUseThreeCoreCalls:
         simplifiedMetrics.length > 0 &&
@@ -487,17 +508,27 @@ export function evaluateDeepEquityGates(
   hardGates: DeepEquityHardGateInputs,
 ): DeepEquityGateVerdict {
   const ciLowerBound = aggregate.rubric.pairedBootstrap95PercentCi.lowerBound;
+  const judgedSampleComplete =
+    aggregate.plannedPairCount > 0 &&
+    aggregate.runCount === aggregate.plannedPairCount &&
+    aggregate.rubric.evaluatedPairCount === aggregate.plannedPairCount;
   const scenarioRepetitionGate =
+    judgedSampleComplete &&
     aggregate.scenarios.length > 0 &&
     aggregate.scenarios.every(
       (scenario) =>
-        scenario.repetitions.length === REQUIRED_SCENARIO_REPETITIONS &&
+        scenario.expectedRepetitions.length === REQUIRED_SCENARIO_REPETITIONS &&
+        scenario.judgedRepetitions.length === scenario.expectedRepetitions.length &&
+        scenario.judgedRepetitions.every(
+          (repetition, index) => repetition === scenario.expectedRepetitions[index],
+        ) &&
         scenario.simplifiedLosses < 2,
     );
   const validPredictionGate =
     aggregate.scenarios.length > 0 &&
     aggregate.scenarios.every(
       (scenario) =>
+        scenario.validPredictionMedianDifference !== null &&
         scenario.validPredictionMedianDifference >= -MAX_VALID_PREDICTION_MEDIAN_DEFICIT,
     );
   const reasoningCallGate =
@@ -556,7 +587,8 @@ export function evaluateDeepEquityGates(
     {
       name: "rubric-non-inferiority",
       category: "non-inferiority",
-      passed: ciLowerBound !== null && ciLowerBound >= MIN_RUBRIC_CI_LOWER_BOUND,
+      passed:
+        judgedSampleComplete && ciLowerBound !== null && ciLowerBound >= MIN_RUBRIC_CI_LOWER_BOUND,
       actual: ciLowerBound,
       requirement: `paired-bootstrap 95% CI lower bound >= ${String(MIN_RUBRIC_CI_LOWER_BOUND)}`,
     },
@@ -564,7 +596,7 @@ export function evaluateDeepEquityGates(
       name: "pairwise-loss-rate",
       category: "non-inferiority",
       passed:
-        aggregate.pairwise.evaluatedPairCount > 0 &&
+        judgedSampleComplete &&
         aggregate.pairwise.simplifiedLossRate <= MAX_SIMPLIFIED_PAIRWISE_LOSS_RATE,
       actual: aggregate.pairwise.simplifiedLossRate,
       requirement: `simplified pairwise loss rate <= ${String(MAX_SIMPLIFIED_PAIRWISE_LOSS_RATE)}`,
@@ -629,169 +661,5 @@ export function evaluateDeepEquityGates(
     passed: failingGates.length === 0,
     gates,
     failingGates,
-  };
-}
-
-function score(value: unknown, dimension: PairwiseJudgeDimension, label: BlindLabel): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 5) {
-    throw new Error(`pairwise judge ${dimension}.${label} must be an integer from 1 to 5`);
-  }
-  return value;
-}
-
-function parseJudgeResponse(content: string): BlindJudgeResponse {
-  const parsed = JSON.parse(content) as unknown;
-  if (!isRecord(parsed)) {
-    throw new Error("pairwise judge response must be an object");
-  }
-  const rawDimensions = parsed.dimensions;
-  if (!isRecord(rawDimensions)) {
-    throw new Error("pairwise judge response must contain a dimensions object");
-  }
-  const dimensions = Object.fromEntries(
-    PAIRWISE_JUDGE_DIMENSIONS.map((dimension) => {
-      const value = rawDimensions[dimension];
-      if (!isRecord(value)) {
-        throw new Error(`pairwise judge response is missing dimension ${dimension}`);
-      }
-      const rationale = readString(value, "rationale");
-      if (rationale === undefined) {
-        throw new Error(`pairwise judge ${dimension}.rationale must be non-empty`);
-      }
-      return [
-        dimension,
-        {
-          A: score(value.A, dimension, "A"),
-          B: score(value.B, dimension, "B"),
-          rationale,
-        },
-      ];
-    }),
-  ) as Record<PairwiseJudgeDimension, BlindDimensionScore>;
-  const { winner } = parsed;
-  if (winner !== "A" && winner !== "B" && winner !== "tie") {
-    throw new Error("pairwise judge winner must be A, B, or tie");
-  }
-  const rationale = readString(parsed, "rationale");
-  const omissions = parsed.criticalMaterialEvidenceOmissions;
-  if (rationale === undefined || !isRecord(omissions)) {
-    throw new Error(
-      "pairwise judge response must contain rationale and criticalMaterialEvidenceOmissions",
-    );
-  }
-  const A = readStringArray(omissions, "A");
-  const B = readStringArray(omissions, "B");
-  if (A === undefined || B === undefined) {
-    throw new Error("pairwise judge omission labels must be string arrays");
-  }
-  return {
-    dimensions,
-    winner,
-    rationale,
-    criticalMaterialEvidenceOmissions: { A, B },
-  };
-}
-
-function judgePrompt(
-  ordered: readonly {
-    readonly label: BlindLabel;
-    readonly report: ResearchReport;
-  }[],
-): string {
-  return JSON.stringify({
-    stage: "deep-equity-pairwise-judge",
-    task: "Blindly compare two research-only deep-equity reports from the same evidence state.",
-    scoring: "Score each report from 1 (poor) to 5 (excellent) on every rubric dimension.",
-    rubric: {
-      "evidence-grounding-citations":
-        "Claims are grounded in the supplied evidence and citations are relevant and sufficient.",
-      "financial-valuation-reasoning":
-        "Financial statements, operating performance, valuation, and peer evidence are interpreted coherently.",
-      "catalysts-material-events":
-        "Material events and catalysts are identified, dated, and weighted appropriately.",
-      "downside-counterevidence":
-        "Risks, downside evidence, contradictions, and counterarguments are treated seriously.",
-      "scenario-prediction-specificity":
-        "Scenarios and observable predictions are specific, measurable, and evidence-supported.",
-      "uncertainty-gap-disclosure":
-        "Uncertainty, missing evidence, provider gaps, and limitations are disclosed clearly.",
-    },
-    instructions: [
-      "The labels are randomized and contain no pipeline identity. Do not infer or discuss implementation identity.",
-      "Judge only the supplied reports. Do not add investment advice or trade-action language.",
-      "Return strict JSON with dimensions keyed by every rubric key.",
-      "Each dimension value must be {A:1-5,B:1-5,rationale:string}.",
-      "Also return winner as A, B, or tie; an overall rationale; and criticalMaterialEvidenceOmissions as {A:string[],B:string[]}.",
-    ],
-    reports: ordered,
-  });
-}
-
-function variantForLabel(
-  labels: Readonly<Record<DeepEquityPipelineVariant, BlindLabel>>,
-  label: BlindLabel,
-): DeepEquityPipelineVariant {
-  return labels.legacy === label ? "legacy" : "simplified";
-}
-
-export async function judgeDeepEquityPair(
-  input: BlindPairwiseJudgeInput,
-): Promise<PairwiseJudgeResult> {
-  const judgeModel = input.judgeModel.trim();
-  if (judgeModel === "") {
-    throw new Error("judge model must be non-empty");
-  }
-  const synthesisModels = [...new Set(input.synthesisModels.map((model) => model.trim()))].filter(
-    Boolean,
-  );
-  if (synthesisModels.includes(judgeModel)) {
-    throw new Error(
-      `judge model "${judgeModel}" must differ from synthesis model(s): ${synthesisModels.join(", ")}`,
-    );
-  }
-  const legacyFirst = (input.random ?? defaultRandom)() < 0.5;
-  const labels: Readonly<Record<DeepEquityPipelineVariant, BlindLabel>> = legacyFirst
-    ? { legacy: "A", simplified: "B" }
-    : { legacy: "B", simplified: "A" };
-  const ordered = (["A", "B"] as const).map((label) => {
-    const variant = variantForLabel(labels, label);
-    return { label, report: input.reports[variant] };
-  });
-  const response = await input.provider.generate({
-    model: judgeModel,
-    responseFormat: "json",
-    params: { temperature: 0 },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an independent evaluator of research-only market reports. Apply the supplied rubric consistently and return strict JSON only.",
-      },
-      { role: "user", content: judgePrompt(ordered) },
-    ],
-  });
-  const judged = parseJudgeResponse(response.content);
-  const scoreFor = (
-    dimension: PairwiseJudgeDimension,
-    variant: DeepEquityPipelineVariant,
-  ): number => judged.dimensions[dimension][labels[variant]];
-  return {
-    version: 1,
-    judgeModel,
-    blindOrder: ordered.map((entry) => entry.label),
-    blindLabels: labels,
-    dimensions: PAIRWISE_JUDGE_DIMENSIONS.map((dimension) => ({
-      dimension,
-      legacyScore: scoreFor(dimension, "legacy"),
-      simplifiedScore: scoreFor(dimension, "simplified"),
-      rationale: judged.dimensions[dimension].rationale,
-    })),
-    decision: judged.winner === "tie" ? "tie" : variantForLabel(labels, judged.winner),
-    rationale: judged.rationale,
-    criticalMaterialEvidenceOmissions: {
-      legacy: judged.criticalMaterialEvidenceOmissions[labels.legacy],
-      simplified: judged.criticalMaterialEvidenceOmissions[labels.simplified],
-    },
-    tokenEstimate: response.tokenEstimate,
   };
 }

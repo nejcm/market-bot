@@ -5,6 +5,7 @@ import {
   deepEquityVariantEvaluationMetrics,
   evaluateDeepEquityGates,
   judgeDeepEquityPair,
+  judgeDeepEquityPairSafely,
   PAIRWISE_JUDGE_DIMENSIONS,
   type DeepEquityEvaluationAggregate,
   type DeepEquityEvaluationRunRecord,
@@ -299,6 +300,98 @@ describe("deep-equity pipeline evaluation", () => {
     ).rejects.toThrow('judge model "same-model" must differ from synthesis model(s): same-model');
     expect(called).toBe(false);
   });
+
+  test("repairs one malformed judge response and returns the valid retry", async () => {
+    const requests: ModelRequest[] = [];
+    const responses = [
+      JSON.stringify({ winner: "A", rationale: "dimensions omitted" }),
+      judgeResponse(),
+    ];
+
+    const outcome = await judgeDeepEquityPairSafely({
+      provider: {
+        name: "repairing-judge-provider",
+        generate: async (request) => {
+          requests.push(request);
+          return { content: responses[requests.length - 1]!, tokenEstimate: 10 };
+        },
+      },
+      judgeModel: "independent-judge",
+      synthesisModels: ["synthesis-model"],
+      reports: { legacy: researchReport(), simplified: researchReport() },
+      random: () => 0.25,
+    });
+
+    expect(outcome.status).toBe("judged");
+    if (outcome.status !== "judged") {
+      throw new Error("judge retry must produce a verdict");
+    }
+    expect(requests).toHaveLength(2);
+    expect(outcome.judge.tokenEstimate).toBe(20);
+    expect(requests[1]?.messages.at(-1)?.content).toContain(
+      "pairwise judge response must contain a dimensions object",
+    );
+    expect(requests[1]?.messages.at(-1)?.content).toContain("Return the complete expected object");
+  });
+
+  test("records a typed transport failure after exactly one retry", async () => {
+    let attempts = 0;
+
+    const outcome = await judgeDeepEquityPairSafely({
+      provider: {
+        name: "failing-judge-provider",
+        generate: async () => {
+          attempts += 1;
+          throw new Error(`judge transport failure ${String(attempts)}`);
+        },
+      },
+      judgeModel: "independent-judge",
+      synthesisModels: ["synthesis-model"],
+      reports: { legacy: researchReport(), simplified: researchReport() },
+      random: () => 0.25,
+    });
+
+    expect(attempts).toBe(2);
+    expect(outcome).toEqual({
+      status: "unjudged",
+      reason: {
+        code: "transport-error",
+        message: "judge transport failure 2",
+        attempts: 2,
+        tokenEstimate: null,
+      },
+    });
+  });
+
+  test("retains token usage from two terminal malformed judge responses", async () => {
+    const tokenEstimates = [7, 11] as const;
+    let attempts = 0;
+
+    const outcome = await judgeDeepEquityPairSafely({
+      provider: {
+        name: "malformed-judge-provider",
+        generate: async () => ({
+          content: JSON.stringify({ winner: "A", rationale: "dimensions omitted" }),
+          tokenEstimate: tokenEstimates[attempts++]!,
+        }),
+      },
+      judgeModel: "independent-judge",
+      synthesisModels: ["synthesis-model"],
+      reports: { legacy: researchReport(), simplified: researchReport() },
+      random: () => 0.25,
+    });
+
+    expect(attempts).toBe(2);
+    expect(outcome).toEqual({
+      status: "unjudged",
+      reason: {
+        code: "missing-dimensions",
+        message: "pairwise judge response must contain a dimensions object",
+        attempts: 2,
+        tokenEstimate: 18,
+      },
+    });
+  });
 });
 
 const passingHardGates: DeepEquityHardGateInputs = {
@@ -323,6 +416,7 @@ function evaluationMetrics(
     citedSourceUtilization: 0.5,
     allCitedSourceIdsResolve: true,
     modelTokenEstimate: 100,
+    reasoningPromptTokenEstimate: 100,
     coreReasoningCallCount: 3,
     totalReasoningCallCount: 4,
     reportIntegrity: "high",
@@ -373,6 +467,11 @@ function passingEvaluationRecords(
   );
 }
 
+const passingEvaluationPlan = {
+  scenarios: ["scenario-a", "scenario-b", "scenario-c", "scenario-d"],
+  repetitions: [1, 2, 3],
+} as const;
+
 function failingGateNames(aggregate: DeepEquityEvaluationAggregate): readonly DeepEquityGateName[] {
   return evaluateDeepEquityGates(aggregate, passingHardGates).failingGates;
 }
@@ -380,6 +479,7 @@ function failingGateNames(aggregate: DeepEquityEvaluationAggregate): readonly De
 describe("deep-equity evaluation aggregation and gates", () => {
   test("aggregates rubric, pairwise, scenario, prediction, utilization, token, and call metrics", () => {
     const aggregate = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      plan: passingEvaluationPlan,
       bootstrapIterations: 200,
       random: createSeededEvaluationRandom(42),
     });
@@ -414,6 +514,11 @@ describe("deep-equity evaluation aggregation and gates", () => {
     });
     expect(aggregate.citedSourceUtilizationDelta).toBeCloseTo(-0.04);
     expect(aggregate.medianModelTokenImprovement).toBeCloseTo(0.3);
+    expect(aggregate.reasoningPromptTokens).toEqual({
+      evaluatedPairCount: 12,
+      unavailablePairCount: 0,
+      medianImprovement: 0,
+    });
     expect(aggregate.reasoningCalls).toEqual({
       allRunsUseThreeCoreCalls: true,
       allRunsUseAtMostFiveTotalCalls: true,
@@ -424,6 +529,7 @@ describe("deep-equity evaluation aggregation and gates", () => {
 
   test("returns a clean pass when every hard and non-inferiority gate passes", () => {
     const aggregate = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      plan: passingEvaluationPlan,
       bootstrapIterations: 100,
       random: createSeededEvaluationRandom(7),
     });
@@ -437,6 +543,7 @@ describe("deep-equity evaluation aggregation and gates", () => {
 
   test("fails each non-inferiority gate individually", () => {
     const passing = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      plan: passingEvaluationPlan,
       bootstrapIterations: 100,
       random: createSeededEvaluationRandom(9),
     });
@@ -519,7 +626,11 @@ describe("deep-equity evaluation aggregation and gates", () => {
   test("counts ties without treating them as wins or losses", () => {
     const aggregate = aggregateDeepEquityEvaluation(
       passingEvaluationRecords(() => syntheticJudge("tie")),
-      { bootstrapIterations: 100, random: createSeededEvaluationRandom(11) },
+      {
+        plan: passingEvaluationPlan,
+        bootstrapIterations: 100,
+        random: createSeededEvaluationRandom(11),
+      },
     );
 
     expect(aggregate.pairwise).toMatchObject({
@@ -533,10 +644,88 @@ describe("deep-equity evaluation aggregation and gates", () => {
     expect(aggregate.scenarios.every((scenario) => scenario.ties === 3)).toBe(true);
   });
 
+  test("fails every judge-dependent gate when the judged sample is incomplete", () => {
+    const records = passingEvaluationRecords().map((record, index) =>
+      index === 0
+        ? {
+            scenario: record.scenario,
+            repetition: record.repetition,
+            variants: record.variants,
+          }
+        : record,
+    );
+    const aggregate = aggregateDeepEquityEvaluation(records, {
+      plan: passingEvaluationPlan,
+      bootstrapIterations: 100,
+      random: createSeededEvaluationRandom(12),
+    });
+    const verdict = evaluateDeepEquityGates(aggregate, passingHardGates);
+
+    expect(aggregate.rubric.evaluatedPairCount).toBe(11);
+    expect(aggregate.runCount).toBe(12);
+    expect(verdict.failingGates).toEqual([
+      "rubric-non-inferiority",
+      "pairwise-loss-rate",
+      "scenario-repetition-losses",
+    ]);
+  });
+
+  test("uses the planned denominator when an entire fixture fails before aggregation", () => {
+    const survivingRecords = passingEvaluationRecords().filter(
+      (record) => record.scenario !== "scenario-d",
+    );
+    const aggregate = aggregateDeepEquityEvaluation(survivingRecords, {
+      bootstrapIterations: 100,
+      random: createSeededEvaluationRandom(14),
+      plan: passingEvaluationPlan,
+    });
+    const verdict = evaluateDeepEquityGates(aggregate, passingHardGates);
+    const missingScenario = aggregate.scenarios.find(
+      (scenario) => scenario.scenario === "scenario-d",
+    );
+
+    expect(aggregate.plannedPairCount).toBe(12);
+    expect(aggregate.runCount).toBe(9);
+    expect(aggregate.rubric.evaluatedPairCount).toBe(9);
+    expect(missingScenario).toMatchObject({
+      expectedRepetitions: [1, 2, 3],
+      repetitions: [],
+      judgedRepetitions: [],
+      legacyMedianValidPredictionCount: null,
+      simplifiedMedianValidPredictionCount: null,
+      validPredictionMedianDifference: null,
+    });
+    expect(verdict.failingGates).toEqual(
+      expect.arrayContaining([
+        "rubric-non-inferiority",
+        "pairwise-loss-rate",
+        "scenario-repetition-losses",
+      ]),
+    );
+  });
+
+  test("rejects plan omission instead of inferring a gate denominator from survivors", () => {
+    const survivingRecords = passingEvaluationRecords().filter(
+      (record) => record.scenario !== "scenario-d",
+    );
+
+    expect(() =>
+      // @ts-expect-error The runtime guard protects untyped callers as well as the required type.
+      aggregateDeepEquityEvaluation(survivingRecords, {
+        bootstrapIterations: 100,
+        random: createSeededEvaluationRandom(15),
+      }),
+    ).toThrow("gate-producing aggregation requires an authoritative evaluation plan");
+  });
+
   test("passes when the paired-bootstrap lower bound is exactly -0.25", () => {
     const aggregate = aggregateDeepEquityEvaluation(
       passingEvaluationRecords(() => syntheticJudge("simplified", -0.25)),
-      { bootstrapIterations: 100, random: createSeededEvaluationRandom(13) },
+      {
+        plan: passingEvaluationPlan,
+        bootstrapIterations: 100,
+        random: createSeededEvaluationRandom(13),
+      },
     );
 
     expect(aggregate.rubric.pairedBootstrap95PercentCi.lowerBound).toBe(-0.25);
@@ -589,17 +778,32 @@ describe("deep-equity evaluation aggregation and gates", () => {
     }
 
     expect(() => createSeededEvaluationRandom(1.5)).toThrow("evaluation seed must be an integer");
-    expect(() => aggregateDeepEquityEvaluation(records, { bootstrapIterations: 0 })).toThrow(
-      "bootstrap iterations must be a positive integer",
-    );
     expect(() =>
       aggregateDeepEquityEvaluation(records, {
+        plan: { scenarios: [], repetitions: [1] },
+      }),
+    ).toThrow("evaluation plan must contain unique, non-empty scenarios");
+    expect(() =>
+      aggregateDeepEquityEvaluation(records, {
+        plan: { scenarios: ["scenario-a"], repetitions: [2] },
+      }),
+    ).toThrow("evaluation plan repetitions must be contiguous positive integers");
+    expect(() =>
+      aggregateDeepEquityEvaluation(records, {
+        plan: passingEvaluationPlan,
+        bootstrapIterations: 0,
+      }),
+    ).toThrow("bootstrap iterations must be a positive integer");
+    expect(() =>
+      aggregateDeepEquityEvaluation(records, {
+        plan: passingEvaluationPlan,
         bootstrapIterations: 1,
         random: () => 1,
       }),
     ).toThrow("evaluation RNG must return a finite value in [0, 1)");
     expect(() =>
       aggregateDeepEquityEvaluation([{ ...firstRecord, judge: { ...judge, dimensions: [] } }], {
+        plan: passingEvaluationPlan,
         bootstrapIterations: 1,
       }),
     ).toThrow("pairwise judge result must contain rubric dimensions");

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, type ResearchCommand } from "../../../src/cli/args";
@@ -9,11 +9,13 @@ import { collectSources } from "../../../src/sources/collector";
 import type { CollectedSources, FetchLike } from "../../../src/sources/types";
 import {
   DEEP_EQUITY_PIPELINE_VARIANTS,
-  judgeDeepEquityPair,
+  judgeDeepEquityPairSafely,
   runDeepEquityPipelineVariant,
   type DeepEquityPipelineVariant,
+  type PairwiseJudgeFailureReason,
   type PairwiseJudgeResult,
 } from "../deep-equity-evaluation";
+import { captureProvider, modelCallTotals, type CapturedModelCall } from "../model-call-capture";
 import {
   persistResearchJob,
   type PersistedResearchJobResult,
@@ -85,6 +87,7 @@ export type RunFixtureVariantOutcome =
   | {
       readonly status: "success";
       readonly result: PersistedResearchJobResult;
+      readonly reasoningPromptTokenEstimate: number;
     }
   | {
       readonly status: "error";
@@ -96,6 +99,7 @@ export interface RunFixturePairResult {
   readonly collectedSources: CollectedSources;
   readonly variants: Readonly<Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>>;
   readonly judge?: PairwiseJudgeResult;
+  readonly unjudged?: PairwiseJudgeFailureReason;
   readonly cleanup: () => Promise<void>;
 }
 
@@ -105,6 +109,7 @@ interface FixtureDataDir {
 }
 
 const FIXTURE_ROOT = join(import.meta.dir, "../../fixtures/runs");
+export const DEEP_EQUITY_EVALUATION_METRICS_FILE = "deep-equity-evaluation-metrics.json";
 
 async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;
@@ -362,22 +367,40 @@ export async function runFixturePair(
   for (const variant of variants) {
     try {
       const currentConfig = variantConfig(config, dataDir, variant);
-      const variantProvider =
+      const baseVariantProvider =
         options.provider ??
         (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : collectionProvider);
+      const capturedCalls: CapturedModelCall[] = [];
+      const variantProvider = captureProvider(baseVariantProvider, capturedCalls);
+      const result = await runDeepEquityPipelineVariant(variant, {
+        command,
+        config: currentConfig,
+        provider: variantProvider,
+        collectedSources,
+        sourcePlan,
+        now,
+        endClock: () => now,
+        sourceFetchImpl: fetchImpl,
+        sourceRetryDelaysMs: [],
+      });
+      const reasoningPromptTokenEstimate = modelCallTotals(capturedCalls).promptTokenEstimate;
+      await writeFile(
+        join(result.artifacts.runDir, DEEP_EQUITY_EVALUATION_METRICS_FILE),
+        `${JSON.stringify(
+          {
+            version: 1,
+            reasoningPromptTokenEstimate,
+            definition: "ceil(stable prompt characters / 4), summed across variant model calls",
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
       outcomes[variant] = {
         status: "success",
-        result: await runDeepEquityPipelineVariant(variant, {
-          command,
-          config: currentConfig,
-          provider: variantProvider,
-          collectedSources,
-          sourcePlan,
-          now,
-          endClock: () => now,
-          sourceFetchImpl: fetchImpl,
-          sourceRetryDelaysMs: [],
-        }),
+        result,
+        reasoningPromptTokenEstimate,
       };
     } catch (error) {
       outcomes[variant] = outcomeError(error);
@@ -385,9 +408,9 @@ export async function runFixturePair(
   }
   const { legacy, simplified } = outcomes;
   const judgeModel = options.judgeModel ?? config.quickModel;
-  const judge =
+  const judgeOutcome =
     options.judge === true && legacy.status === "success" && simplified.status === "success"
-      ? await judgeDeepEquityPair({
+      ? await judgeDeepEquityPairSafely({
           provider: collectionProvider,
           judgeModel,
           synthesisModels: [
@@ -405,7 +428,8 @@ export async function runFixturePair(
     dataDir,
     collectedSources,
     variants: outcomes,
-    ...(judge !== undefined ? { judge } : {}),
+    ...(judgeOutcome?.status === "judged" ? { judge: judgeOutcome.judge } : {}),
+    ...(judgeOutcome?.status === "unjudged" ? { unjudged: judgeOutcome.reason } : {}),
     cleanup: async () => {
       if (options.keepDataDir !== true && tempRoot !== undefined) {
         await rm(tempRoot, { recursive: true, force: true });

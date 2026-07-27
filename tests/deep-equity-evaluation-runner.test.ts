@@ -9,8 +9,8 @@ import {
   runPairedEvaluation,
 } from "./support/deep-equity-evaluation-runner";
 import { PAIRWISE_JUDGE_DIMENSIONS } from "./support/deep-equity-evaluation";
-import { loadFixture } from "./support/run-fixtures";
-import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+import { DEEP_EQUITY_VARIANT_FAILURE_FILE, loadFixture } from "./support/run-fixtures";
+import { llmCassetteKey, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 
 const tempRoots: string[] = [];
 
@@ -65,7 +65,139 @@ async function tempEvaluationRoot(name: string): Promise<string> {
   return root;
 }
 
+// Fails exactly one variant by rejecting its first final-synthesis call.
+async function firstFinalSynthesisFailsProvider(message: string): Promise<ModelProvider> {
+  const fixture = await loadFixture("equity-aapl-deep");
+  const replay = makeReplayProvider(fixture.llmCassette);
+  let finalSynthesisCalls = 0;
+  return {
+    name: "evaluation-runner-variant-failure",
+    generate: async (request) => {
+      if (llmCassetteKey(request).startsWith("final-synthesis|")) {
+        finalSynthesisCalls += 1;
+        if (finalSynthesisCalls === 1) {
+          throw new Error(message);
+        }
+      }
+      return replay.generate(request);
+    },
+  };
+}
+
 describe("deep-equity evaluation runner", () => {
+  test("a failed variant keeps its artifacts and stays out of judging, aggregation, and gates", async () => {
+    const root = await tempEvaluationRoot("variant-failure");
+    const artifact = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 42,
+      live: false,
+      judgeModel: "fixture-judge",
+      provider: await firstFinalSynthesisFailsProvider("simulated synthesis transport failure"),
+    });
+    const persisted = JSON.parse(
+      await readFile(join(root, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as typeof artifact;
+    const [record] = persisted.records;
+    if (record === undefined) {
+      throw new Error("evaluation must record the attempted pair");
+    }
+    const failed = [record.variants.legacy, record.variants.simplified].filter(
+      (variant) => variant.status === "error",
+    );
+    const succeeded = [record.variants.legacy, record.variants.simplified].filter(
+      (variant) => variant.status === "success",
+    );
+
+    expect(failed).toHaveLength(1);
+    expect(succeeded).toHaveLength(1);
+    expect(failed[0]?.error).toBe("simulated synthesis transport failure");
+
+    // Forensics: the failed variant's directory survives and holds the raw model exchange.
+    const failedRunDir = failed[0]?.runDir;
+    if (failedRunDir === undefined) {
+      throw new Error("failed variant must record where its artifacts were preserved");
+    }
+    const preserved = JSON.parse(
+      await readFile(join(failedRunDir, DEEP_EQUITY_VARIANT_FAILURE_FILE), "utf8"),
+    ) as {
+      readonly error: readonly { readonly message: string }[];
+      readonly modelExchanges: readonly {
+        readonly stage: string;
+        readonly response: string | null;
+      }[];
+    };
+    expect(preserved.error[0]?.message).toBe("simulated synthesis transport failure");
+    expect(preserved.modelExchanges.length).toBeGreaterThan(0);
+    expect(preserved.modelExchanges.at(-1)?.stage).toBe("final-synthesis");
+    expect(preserved.modelExchanges.at(-1)?.response).toBeNull();
+    expect(
+      preserved.modelExchanges.some(
+        (exchange) => typeof exchange.response === "string" && exchange.response.length > 0,
+      ),
+    ).toBe(true);
+
+    // Failure counting is unchanged: unjudged, unaggregated, and every hard gate fails closed.
+    expect(record.judge).toBeUndefined();
+    expect(record.unjudged?.code).toBe("variant-failure");
+    expect(persisted.judging).toMatchObject({
+      expectedPairCount: 1,
+      judgedPairCount: 0,
+      unjudgedPairCount: 1,
+      incompletePairCount: 0,
+    });
+    expect(persisted.aggregate.runCount).toBe(0);
+    expect(persisted.aggregate.rubric.evaluatedPairCount).toBe(0);
+    expect(persisted.hardGateInputs).toMatchObject({
+      allReportsValidate: false,
+      allCitedSourceIdsResolve: false,
+      zeroResearchOnlyBoundaryViolations: false,
+      noAdditionalLowIntegrityReports: false,
+      noDeterministicEvidenceCoverageRegression: false,
+      noInvalidPredictionsPersist: false,
+    });
+    expect(persisted.gateVerdict.status).toBe("fail");
+    expect(persisted.gateVerdict.failingGates).toEqual(
+      expect.arrayContaining(["all-reports-validate", "rubric-non-inferiority"]),
+    );
+  }, 30_000);
+
+  test("records the quick model each variant ran with and round-trips it through resume", async () => {
+    const root = await tempEvaluationRoot("quick-model");
+    const artifact = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 63,
+      live: false,
+      provider: await fixtureProvider([judgeResponse()], []),
+    });
+    const persisted = JSON.parse(
+      await readFile(join(root, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as typeof artifact;
+
+    expect(persisted.records[0]?.variants.legacy).toMatchObject({
+      status: "success",
+      quickModel: "fixture-quick",
+      synthesisModel: "fixture-synthesis",
+    });
+    expect(persisted.records[0]?.variants.simplified).toMatchObject({
+      status: "success",
+      quickModel: "fixture-quick",
+      synthesisModel: "fixture-synthesis",
+    });
+
+    const resumed = await resumePairedEvaluation({
+      root,
+      live: false,
+      judgeModel: "fixture-judge",
+      providerForScenario: async () => fixtureProvider([judgeResponse()], []),
+    });
+    expect(resumed.records[0]?.variants.legacy).toMatchObject({ quickModel: "fixture-quick" });
+    expect(resumed.records[0]?.variants.simplified).toMatchObject({ quickModel: "fixture-quick" });
+  }, 30_000);
+
   test("writes a complete fail-closed artifact when both judge responses omit dimensions", async () => {
     const root = await tempEvaluationRoot("judge-malformed");
     const judgeCalls: ModelRequest[] = [];

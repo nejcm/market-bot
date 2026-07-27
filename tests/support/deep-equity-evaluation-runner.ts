@@ -40,12 +40,19 @@ interface SuccessfulVariantRecord {
   readonly status: "success";
   readonly runDir: string;
   readonly synthesisModel: string;
+  /** Optional so artifacts written before quick-model recording still parse. */
+  readonly quickModel?: string;
   readonly metrics: DeepEquityVariantEvaluationMetrics;
 }
 
 interface FailedVariantRecord {
   readonly status: "error";
   readonly error: string;
+  /**
+   * Where the failed variant's surviving artifacts were preserved. Optional because a run can fail
+   * before any directory exists. Forensics only: an error record is never judged or aggregated.
+   */
+  readonly runDir?: string;
 }
 
 type EvaluationVariantRecord = SuccessfulVariantRecord | FailedVariantRecord;
@@ -361,17 +368,21 @@ function outcomeRecord(
   outcome: RunFixtureVariantOutcome,
   metrics: DeepEquityVariantEvaluationMetrics | undefined,
 ): EvaluationVariantRecord {
-  return outcome.status === "success" && metrics !== undefined
-    ? {
-        status: "success",
-        runDir: outcome.result.artifacts.runDir,
-        synthesisModel: outcome.result.trace.synthesisModel,
-        metrics,
-      }
-    : {
-        status: "error",
-        error: outcome.status === "error" ? outcome.error.message : "variant metrics unavailable",
-      };
+  if (outcome.status === "success" && metrics !== undefined) {
+    return {
+      status: "success",
+      runDir: outcome.result.artifacts.runDir,
+      synthesisModel: outcome.result.trace.synthesisModel,
+      quickModel: outcome.result.trace.quickModel,
+      metrics,
+    };
+  }
+  const runDir = outcome.status === "error" ? outcome.runDir : outcome.result.artifacts.runDir;
+  return {
+    status: "error",
+    error: outcome.status === "error" ? outcome.error.message : "variant metrics unavailable",
+    ...(runDir !== undefined ? { runDir } : {}),
+  };
 }
 
 function inlinePairRecord(
@@ -727,12 +738,18 @@ function resumePairRecord(
         status: "success",
         runDir: pair.variants.legacy.runDir,
         synthesisModel: pair.variants.legacy.trace.synthesisModel,
+        ...(pair.variants.legacy.quickModel !== undefined
+          ? { quickModel: pair.variants.legacy.quickModel }
+          : {}),
         metrics: pair.variants.legacy.metrics,
       },
       simplified: {
         status: "success",
         runDir: pair.variants.simplified.runDir,
         synthesisModel: pair.variants.simplified.trace.synthesisModel,
+        ...(pair.variants.simplified.quickModel !== undefined
+          ? { quickModel: pair.variants.simplified.quickModel }
+          : {}),
         metrics: pair.variants.simplified.metrics,
       },
     },

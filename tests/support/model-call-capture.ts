@@ -9,6 +9,19 @@ export interface CapturedModelCall {
   readonly providerTokenEstimate: number;
 }
 
+/**
+ * Full prompt/response text for one model call. Captured only when a caller supplies a transcript
+ * sink; it is forensic evidence for failed runs, never an input to metrics, aggregation, or gates.
+ */
+export interface CapturedModelExchange {
+  readonly order: number;
+  readonly stage: string;
+  readonly model: string;
+  readonly messages: readonly { readonly role: string; readonly content: string }[];
+  readonly response: string | null;
+  readonly error?: string;
+}
+
 export interface ModelCallTotals {
   readonly callCount: number;
   readonly promptCharacterEstimate: number;
@@ -51,9 +64,29 @@ function stablePromptContent(content: string): string {
   }
 }
 
+function recordExchange(
+  transcript: CapturedModelExchange[],
+  index: number,
+  request: ModelRequest,
+  outcome: { readonly response: string } | { readonly error: string },
+): void {
+  transcript[index] = {
+    order: index + 1,
+    stage: requestStage(request),
+    model: request.model,
+    messages: request.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+    response: "response" in outcome ? outcome.response : null,
+    ...("error" in outcome ? { error: outcome.error } : {}),
+  };
+}
+
 export function captureProvider(
   provider: ModelProvider,
   captured: CapturedModelCall[],
+  transcript?: CapturedModelExchange[],
 ): ModelProvider {
   let order = 0;
   return {
@@ -61,7 +94,17 @@ export function captureProvider(
     generate: async (request) => {
       const currentOrder = order;
       order += 1;
-      const response = await provider.generate(request);
+      const response = await provider.generate(request).catch((error: unknown) => {
+        if (transcript !== undefined) {
+          recordExchange(transcript, currentOrder, request, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        throw error;
+      });
+      if (transcript !== undefined) {
+        recordExchange(transcript, currentOrder, request, { response: response.content });
+      }
       const promptCharacterEstimate = request.messages.reduce(
         (total, message) => total + stablePromptContent(message.content).length,
         0,

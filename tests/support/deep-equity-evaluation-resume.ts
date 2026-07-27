@@ -15,6 +15,8 @@ export interface ResumableEvaluationVariant {
   readonly runDir: string;
   readonly report: ResearchReport;
   readonly trace: RunTrace;
+  /** Optional so run traces written before quick-model recording still resume. */
+  readonly quickModel?: string;
   readonly stageOutputs: readonly StageOutput[];
   readonly metrics: DeepEquityVariantEvaluationMetrics;
 }
@@ -100,13 +102,16 @@ async function loadVariant(
     throw new Error(`resume report artifact is malformed: ${reportPath}`);
   }
   const report = validateResearchReport(reportValue as unknown as ResearchReport);
-  const trace = readTrace(await readJson(tracePath), tracePath);
+  const traceValue = await readJson(tracePath);
+  const trace = readTrace(traceValue, tracePath);
+  const quickModel = isRecord(traceValue) ? readString(traceValue, "quickModel") : undefined;
   const stageOutputs = readStages(await readJson(stagesPath), stagesPath);
   const reasoningPromptTokenEstimate = await readPromptTokenEstimate(runDir);
   return {
     runDir,
     report,
     trace,
+    ...(quickModel !== undefined ? { quickModel } : {}),
     stageOutputs,
     metrics: deepEquityVariantEvaluationMetrics(
       { report, trace, stageOutputs },

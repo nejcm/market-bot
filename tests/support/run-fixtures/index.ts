@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, type ResearchCommand } from "../../../src/cli/args";
@@ -15,7 +15,12 @@ import {
   type PairwiseJudgeFailureReason,
   type PairwiseJudgeResult,
 } from "../deep-equity-evaluation";
-import { captureProvider, modelCallTotals, type CapturedModelCall } from "../model-call-capture";
+import {
+  captureProvider,
+  modelCallTotals,
+  type CapturedModelCall,
+  type CapturedModelExchange,
+} from "../model-call-capture";
 import {
   persistResearchJob,
   type PersistedResearchJobResult,
@@ -92,6 +97,11 @@ export type RunFixtureVariantOutcome =
   | {
       readonly status: "error";
       readonly error: Error;
+      /**
+       * Directory holding whatever survived the failed variant. Absent only when no directory could
+       * be preserved at all; a failed variant is never eligible for metrics, judging, or gates.
+       */
+      readonly runDir?: string;
     };
 
 export interface RunFixturePairResult {
@@ -110,6 +120,8 @@ interface FixtureDataDir {
 
 const FIXTURE_ROOT = join(import.meta.dir, "../../fixtures/runs");
 export const DEEP_EQUITY_EVALUATION_METRICS_FILE = "deep-equity-evaluation-metrics.json";
+export const DEEP_EQUITY_VARIANT_FAILURE_FILE = "deep-equity-variant-failure.json";
+const MAX_PRESERVED_ERROR_CAUSES = 10;
 
 async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;
@@ -320,11 +332,78 @@ function variantConfig(config: AppConfig, pairDataDir: string, variant: DeepEqui
   };
 }
 
-function outcomeError(error: unknown): RunFixtureVariantOutcome {
+function outcomeError(error: unknown, runDir: string | undefined): RunFixtureVariantOutcome {
   return {
     status: "error",
     error: error instanceof Error ? error : new Error(String(error)),
+    ...(runDir !== undefined ? { runDir } : {}),
   };
+}
+
+function errorChain(error: unknown): readonly Record<string, string>[] {
+  const chain: Record<string, string>[] = [];
+  let current = error;
+  while (current instanceof Error && chain.length < MAX_PRESERVED_ERROR_CAUSES) {
+    chain.push({
+      message: current.message,
+      ...(current.stack !== undefined ? { stack: current.stack } : {}),
+    });
+    current = current.cause;
+  }
+  if (chain.length === 0) {
+    chain.push({ message: String(error) });
+  }
+  return chain;
+}
+
+// Sole run directory the variant managed to create, if any.
+async function createdRunDir(variantDataDir: string): Promise<string | undefined> {
+  try {
+    const entries = await readdir(variantDataDir, { withFileTypes: true });
+    const names = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .toSorted();
+    return names.length === 1 ? join(variantDataDir, names[0]!) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Keeps a failed variant's evidence on disk and returns where it lives.
+// Best effort: preservation must never mask the original variant error.
+async function preserveVariantFailure(input: {
+  readonly pairDataDir: string;
+  readonly variantDataDir: string;
+  readonly variant: DeepEquityPipelineVariant;
+  readonly error: unknown;
+  readonly modelExchanges: readonly CapturedModelExchange[];
+  readonly modelCalls: readonly CapturedModelCall[];
+}): Promise<string | undefined> {
+  try {
+    const runDir =
+      (await createdRunDir(input.variantDataDir)) ??
+      join(input.pairDataDir, `${input.variant}-failure`);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, DEEP_EQUITY_VARIANT_FAILURE_FILE),
+      `${JSON.stringify(
+        {
+          version: 1,
+          variant: input.variant,
+          error: errorChain(input.error),
+          modelCalls: input.modelCalls,
+          modelExchanges: input.modelExchanges,
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    return runDir;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function runFixturePair(
@@ -365,13 +444,18 @@ export async function runFixturePair(
       ? DEEP_EQUITY_PIPELINE_VARIANTS.toReversed()
       : DEEP_EQUITY_PIPELINE_VARIANTS;
   for (const variant of variants) {
+    const currentConfig = variantConfig(config, dataDir, variant);
+    const capturedCalls: CapturedModelCall[] = [];
+    const capturedExchanges: CapturedModelExchange[] = [];
     try {
-      const currentConfig = variantConfig(config, dataDir, variant);
       const baseVariantProvider =
         options.provider ??
         (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : collectionProvider);
-      const capturedCalls: CapturedModelCall[] = [];
-      const variantProvider = captureProvider(baseVariantProvider, capturedCalls);
+      const variantProvider = captureProvider(
+        baseVariantProvider,
+        capturedCalls,
+        capturedExchanges,
+      );
       const result = await runDeepEquityPipelineVariant(variant, {
         command,
         config: currentConfig,
@@ -403,7 +487,17 @@ export async function runFixturePair(
         reasoningPromptTokenEstimate,
       };
     } catch (error) {
-      outcomes[variant] = outcomeError(error);
+      outcomes[variant] = outcomeError(
+        error,
+        await preserveVariantFailure({
+          pairDataDir: dataDir,
+          variantDataDir: currentConfig.dataDir,
+          variant,
+          error,
+          modelExchanges: capturedExchanges,
+          modelCalls: capturedCalls,
+        }),
+      );
     }
   }
   const { legacy, simplified } = outcomes;

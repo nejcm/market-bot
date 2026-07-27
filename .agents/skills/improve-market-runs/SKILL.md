@@ -27,9 +27,9 @@ Run a bounded improvement loop for `market-bot` artifacts.
 
 - Check `git status --short --branch` before the first run. Record unrelated staged/unstaged files in the report and ignore them unless they block the task.
 - Validate model command surfaces once per session with minimal prompts:
-  - GPT family: `codex exec --ephemeral --ignore-user-config --sandbox read-only --cd <repo> --skip-git-repo-check -m gpt-5.5 -c model_reasoning_effort="low" -`
-  - Claude family: `claude -p --effort low --model opus "Return exactly: CLAUDE_OK"`
-- If a command path fails, try the nearest same-family fallback (`gpt-5.4` for Codex, `sonnet` for Claude), then disclose the exact command, exit code, and fallback in the next checkpoint. Do not silently switch families for verification.
+  - GPT family: `codex exec --ephemeral --ignore-user-config --sandbox read-only --cd <repo> --skip-git-repo-check -m gpt-5.6-sol -c model_reasoning_effort="medium" -`
+  - Claude family: `claude -p --effort medium --model opus "Return exactly: CLAUDE_OK"`
+- If a command path fails, try the nearest same-family fallback (`gpt-5.6-terra` for Codex, `sonnet` for Claude), then disclose the exact command, exit code, and fallback in the next checkpoint. Do not silently switch families for verification.
 
 ## Orchestrator loop
 

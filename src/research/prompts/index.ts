@@ -4,9 +4,11 @@ import {
   buildEquityAnalysisStagePrompt,
   buildSimplifiedCritiqueStagePrompt,
   buildSimplifiedFinalSynthesisStagePrompt,
+  buildSimplifiedSteeringSegment,
+  SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
 } from "./deep-equity-simplified";
 import { buildEvidenceRequestStagePrompt } from "./evidence-request";
-import { buildFinalSynthesisStagePrompt } from "./final-synthesis";
+import { buildFinalSynthesisStagePrompt, buildStageSteeringSegment } from "./final-synthesis";
 import type { StageInput } from "./stage-envelope";
 import { buildWebGatherStagePrompt } from "./web-gather";
 import { buildWebSubjectProfileStagePrompt } from "./web-subject-profile";
@@ -41,6 +43,26 @@ export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
   return buildAnalysisStagePrompt(stage, input);
 }
 
+// Recorded StageOutput.steering for whichever builder buildStagePrompt just used. Routed on the
+// Same condition so the audit record and the prompt can never describe different guidance.
+export function buildRecordedStageSteering(
+  stage: StageLabel,
+  input: StageInput,
+): string | undefined {
+  if (stage === "final-synthesis" && input.deepEquityModelPacket !== undefined) {
+    return buildSimplifiedSteeringSegment(input);
+  }
+  return buildStageSteeringSegment(
+    stage,
+    input.command,
+    input.collectedSources,
+    input.context,
+    input.predictionRepromptErrors ?? [],
+    input.predictionCompletion,
+  );
+}
+
+export { SIMPLIFIED_EXCLUDED_PREDICTION_KINDS };
 export type { PredictionCompletionPrompt, StageInput } from "./stage-envelope";
 export { buildStageSteeringSegment } from "./final-synthesis";
 export { buildPlaybookSelectionPrompt } from "./playbook-selection";

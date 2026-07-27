@@ -1,6 +1,6 @@
 import { isInstrumentCommand } from "../../cli/args";
 import type { DeepEquityModelPacket } from "../../deep-equity/types";
-import type { Source } from "../../domain/types";
+import type { PredictionKind, Source } from "../../domain/types";
 import { subjectKindForCommand } from "../../web-evidence";
 import { buildCalibrationBlock } from "../calibration-context";
 import {
@@ -30,6 +30,21 @@ import {
   finalReportShape,
   postSynthesisAuditGuidance,
 } from "./final-synthesis";
+
+// Posture rules for the write-up stage. The 2026-07-27 live pair showed the simplified report
+// Asserting "TTM operating cash flow was about $132B and a free-cash-flow proxy was about $118B" as
+// An observed fact — both are aggregates over the supplied statements — and presenting 2026-05-01
+// Verified-snapshot indicators alongside a 2026-06-15 live quote as one market state. The label
+// Vocabulary already exists (postSynthesisAuditGuidance); what was missing was which figures the
+// Rules bind to. Provenance, not authorship, decides: a TTM aggregate, peer multiple, or implied
+// Range that arrived precomputed in fundamentalHistory or derivedViews is still derived, so reading
+// It off the packet rather than computing it does not make it an observation.
+const DERIVED_FIGURE_CONSTRAINTS = {
+  derivedFigures:
+    "A figure is observed only where a filing, statement, or quote reports it directly. Anything built on top of one — a trailing-twelve-month aggregate, margin, growth rate, per-share or free-cash-flow proxy, valuation multiple, peer-implied range — is a derived calculation even when the packet supplies it already computed. Label it as derived and name the reported line items and periods it rests on.",
+  snapshotRecency:
+    "The verified snapshot is a dated bar, not the current tape. When its session date differs from the live quote, carry that date with every claim drawn from it and do not merge the two into one market state.",
+} as const;
 
 const DETERMINISTIC_CITATION_GUIDANCE =
   "For exact numeric market claims, cite deterministic snapshot sourceIds from canonicalFacts, marketContext, evidenceItems, or the verified market snapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
@@ -314,6 +329,7 @@ function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
       observablePredictions:
         "Every prediction must use the supplied observable grammar and public price data.",
       citations: FINAL_SYNTHESIS_SOURCE_ID_GUIDANCE,
+      ...DERIVED_FIGURE_CONSTRAINTS,
     },
     ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
     ...(priorThesisErrors !== undefined ? { priorThesisErrors } : {}),
@@ -323,18 +339,89 @@ function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
   };
 }
 
+// Any reprompt here is a stateless whole-report regeneration: the model is told what failed but
+// Never shown the predictions that passed, so on the evidence-thin simplified prompt it returns
+// Fewer than the attempt it was repairing (equity-fpi-ifrs-semiannual lost 3 and finished with 1).
+// Naming the survivors turns the repair back into a repair. This applies to report-only validation
+// Retries as well: those carry no predictionRepromptErrors, so the prediction-repair block never
+// Renders for them, yet they regenerate the predictions array just the same.
+function survivorGuidance(input: StageInput): string {
+  // Same shape as the earnings-suppression filter in final-synthesis: guidance must never order a
+  // Forecast re-emitted that this path no longer solicits.
+  const retained = (input.retainedPredictions ?? []).filter(
+    (candidate) => !SIMPLIFIED_EXCLUDED_PREDICTION_KINDS.includes(candidate.kind),
+  );
+  if (retained.length === 0) {
+    return "";
+  }
+  const survivors = retained.map((prediction) => ({
+    id: prediction.id,
+    kind: prediction.kind,
+    subject: prediction.subject,
+    measurableAs: prediction.measurableAs,
+    horizonTradingDays: prediction.horizonTradingDays,
+    probability: prediction.probability,
+    sourceIds: prediction.sourceIds,
+  }));
+  return ` These predictions from your previous attempt already validated: ${JSON.stringify(survivors)}. Re-emit every one of them unchanged, then repair or replace only what this reprompt flagged. Dropping a prediction that already validated is a regression, not a repair.`;
+}
+
+// Three rounds of tightening a range-sizing rule kept surfacing the same thing: neither the primary
+// Nor the completion pass sees the evidence packet, so neither has the multi-session price history
+// An [Lo, Hi] band has to be sized from. That is the pipeline's design bet, not a defect. Sizing a
+// Band from prose is what produced the 2026-07-27 failure, where valuationComps.impliedPriceRange —
+// A peer EV/revenue percentile band, 145.6-264.7 around a 198.5 quote — was used verbatim as a
+// 5-day band and then copied onto a 10-day one. Rather than append a ban to a prompt that elsewhere
+// Recommends the kind, `range` is withdrawn from every surface the steering is built from: the
+// Advertised kind union, the DSL, coverage notes, the favoured mix, diversity guidance, repair
+// Guidance, and retained-survivor lists. SynthesizeReportUntilValid drops it as a backstop if the
+// Model emits one anyway. Range stays fully available to every other path, where the sizing
+// Evidence is present.
+export const SIMPLIFIED_EXCLUDED_PREDICTION_KINDS: readonly PredictionKind[] = ["range"];
+
 function simplifiedSteeringInstruction(
   input: StageInput,
   completion: PredictionCompletionPrompt | undefined,
 ): string {
-  return completion === undefined
-    ? buildPrimaryPredictionInstruction(input.command, input.collectedSources, input.context)
-    : buildPredictionCompletionInstruction(
-        input.command,
-        input.collectedSources,
-        input.context,
-        completion,
-      );
+  const base =
+    completion === undefined
+      ? buildPrimaryPredictionInstruction(
+          input.command,
+          input.collectedSources,
+          input.context,
+          SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
+        )
+      : buildPredictionCompletionInstruction(
+          input.command,
+          input.collectedSources,
+          input.context,
+          completion,
+          SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
+        );
+  return `${base}${survivorGuidance(input)}`;
+}
+
+function simplifiedRepairInstruction(input: StageInput): string | undefined {
+  return (input.predictionRepromptErrors?.length ?? 0) > 0
+    ? buildPredictionRepairInstruction(input.context, SIMPLIFIED_EXCLUDED_PREDICTION_KINDS)
+    : undefined;
+}
+
+// Single source for the steering the simplified final-synthesis prompt carries. The prompt builder
+// Below and the orchestrator's recorded StageOutput.steering compose from these same instructions,
+// So stages.json cannot claim guidance the model never received. The record is a recomposition —
+// Trimmed and "\n\n"-joined rather than byte-identical to the prompt's instruction field — so the
+// Guarantee is content equivalence, not byte equality. That audit trail is the only reason the
+// 2026-07-27 prediction-count regression was diagnosable at all.
+export function buildSimplifiedSteeringSegment(input: StageInput): string | undefined {
+  const steering = [
+    simplifiedSteeringInstruction(input, input.predictionCompletion),
+    simplifiedRepairInstruction(input) ?? "",
+  ]
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .join("\n\n");
+  return steering.length > 0 ? steering : undefined;
 }
 
 export function buildEquityAnalysisStagePrompt(input: StageInput): string {
@@ -389,6 +476,7 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
     hasBusinessFramework,
     hasWebSubjectProfile,
     subjectKindForCommand(input.command),
+    SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
   );
   const requiredShape =
     predictionCompletion === undefined ? reportShape : { predictions: reportShape.predictions };
@@ -408,10 +496,7 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
           })(),
           reportDraft: buildCompletionReportDraft(predictionCompletion.reportDraft),
         };
-  const repairInstruction =
-    (input.predictionRepromptErrors?.length ?? 0) > 0
-      ? buildPredictionRepairInstruction(input.context)
-      : undefined;
+  const repairInstruction = simplifiedRepairInstruction(input);
   const languageRepair = buildReportLanguageRepairInstruction(input.reportValidationErrors ?? []);
 
   return assembleStagePrompt({

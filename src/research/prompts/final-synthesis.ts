@@ -5,6 +5,7 @@ import {
   type ExtendedEvidenceItem,
   type MarketSnapshot,
   type Prediction,
+  type PredictionKind,
   type ResearchReport,
   type Source,
 } from "../../domain/types";
@@ -51,6 +52,7 @@ export function finalReportShape(
   hasBusinessFramework: boolean,
   hasWebSubjectProfile: boolean,
   webSubjectKind: ReturnType<typeof subjectKindForCommand>,
+  excludedKinds: readonly PredictionKind[] = [],
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
   // Build the model-visible kind string from the same gated logic that steers the prose
@@ -61,6 +63,7 @@ export function finalReportShape(
     command,
     collectedSources,
     depthProfile.predictionSubjects,
+    excludedKinds,
   ).join("|");
   const earningsSetupShape = hasEarningsSetup
     ? {
@@ -132,6 +135,7 @@ export function finalReportShape(
 function buildForecastDiversityGuidance(
   command: ResearchCommand,
   collectedSources: CollectedSources,
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
   if (command.depth !== "deep" || !isInstrumentCommand(command)) {
     return "";
@@ -139,7 +143,7 @@ function buildForecastDiversityGuidance(
   const shapes: string[] = [
     "direction (close up/down)",
     "relative (vs benchmark)",
-    "range (outside [Lo, Hi])",
+    ...(excludedKinds.includes("range") ? [] : ["range (outside [Lo, Hi])"]),
   ];
   if (hasCiteableOptionsIvEvidence(collectedSources)) {
     shapes.push("IV (iv(SUBJECT, +N) > T)");
@@ -152,22 +156,47 @@ function buildForecastDiversityGuidance(
   return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and horizon variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
+// The observable grammar only ever asserts the positive side of a comparison, so a bearish or
+// Stays-within view is expressed through the probability rather than the expression. With `range`
+// Withdrawn there is no `outside` expression to talk about, and naming one would advertise the
+// Withdrawn kind's semantic well enough to elicit it — the gate would then drop the forecast and
+// The slot would be wasted. Default output is unchanged for every path that keeps range.
+function buildPolarityGuidance(excludedKinds: readonly PredictionKind[]): string {
+  return excludedKinds.includes("range")
+    ? ` The grammar only expresses up; to express a bearish view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up expression.`
+    : ` The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.`;
+}
+
 function predictionDslInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   predictionSubjects: readonly string[],
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
-  const equityExtras: string[] = [];
+  const clauses: string[] = [
+    "close(SUBJECT, +N) > close(SUBJECT, 0) for direction",
+    "close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative",
+    ...(excludedKinds.includes("range") ? [] : ["close(SUBJECT, +N) outside [Lo, Hi] for range"]),
+    "fred(SERIES, +N) > fred(SERIES, 0) for macro",
+  ];
   if (command.assetClass === "equity") {
     if (isVixAllowedSubject(predictionSubjects)) {
-      equityExtras.push("max(close(^VIX), 0..+N) > T for volatility");
+      clauses.push("max(close(^VIX), 0..+N) > T for volatility");
     }
     if (hasCiteableOptionsIvEvidence(collectedSources)) {
-      equityExtras.push("iv(SUBJECT, +N) > T for IV");
+      clauses.push("iv(SUBJECT, +N) > T for IV");
     }
   }
-  const equityOnly = equityExtras.length > 0 ? `, ${equityExtras.join(", ")}` : "";
-  return `Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro${equityOnly}.`;
+  return `Each prediction must use the measurableAs DSL: ${clauses.join(", ")}.`;
+}
+
+function withoutExcludedKinds(
+  mix: ForecastKindMix,
+  excludedKinds: readonly PredictionKind[],
+): ForecastKindMix {
+  return excludedKinds.length === 0
+    ? mix
+    : { ...mix, favored: mix.favored.filter((kind) => !excludedKinds.includes(kind)) };
 }
 
 function buildKindMixGuidance(mix: ForecastKindMix): string {
@@ -221,10 +250,19 @@ function describeOccupiedBroadIndexSlots(predictions: readonly Prediction[]): st
     : "";
 }
 
-export function buildPredictionRepairInstruction(context: ResearchContext): string {
+export function buildPredictionRepairInstruction(
+  context: ResearchContext,
+  excludedKinds: readonly PredictionKind[] = [],
+): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
-  const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
-  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
+  const favoredKinds = withoutExcludedKinds(
+    context.depthProfile.targetKindMix,
+    excludedKinds,
+  ).favored.join(", ");
+  const rangeGuidance = excludedKinds.includes("range")
+    ? ""
+    : " For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon.";
+  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK.${rangeGuidance} Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
 // MeasurableAs grammar for the event-anchored earnings kinds, shared verbatim by the primary and
@@ -459,24 +497,34 @@ export function buildPredictionCompletionInstruction(
   collectedSources: CollectedSources,
   context: ResearchContext,
   completion: PredictionCompletionPrompt,
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
-  const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
+  const favoredKinds = withoutExcludedKinds(
+    context.depthProfile.targetKindMix,
+    excludedKinds,
+  ).favored.join(", ");
   const coverage = predictionCoverageGuidance(
     completion.existingPredictions,
-    supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects),
+    supportedPredictionKinds(
+      command,
+      collectedSources,
+      context.depthProfile.predictionSubjects,
+      excludedKinds,
+    ),
   );
   const allowedSubjectSteering = buildAllowedSubjectSteering(
     context.depthProfile.predictionSubjects,
   );
   const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildCompletionKindGrammar(command, collectedSources)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${buildCompletionKindGrammar(command, collectedSources)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 export function buildPrimaryPredictionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
   const conditionalPredictionInstruction =
     command.depth === "deep"
@@ -503,7 +551,7 @@ export function buildPrimaryPredictionInstruction(
     ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
     : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

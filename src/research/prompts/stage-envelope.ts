@@ -28,6 +28,10 @@ export interface StageInput {
   readonly loaded: LoadedPrompt;
   readonly priorStages?: readonly unknown[];
   readonly predictionRepromptErrors?: readonly string[];
+  /** Predictions from the attempt being repaired that already validated. Only the simplified
+   *  deep-equity final-synthesis builder consumes it; every other builder ignores it, so the
+   *  generic-path prompts stay byte-identical. */
+  readonly retainedPredictions?: readonly Prediction[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
   readonly deepEquityModelPacket?: DeepEquityModelPacket;

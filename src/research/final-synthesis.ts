@@ -3,12 +3,16 @@ import {
   NEAR_BASE_RATE_BAND,
   type Prediction,
   type PredictionCompletionAudit,
+  type PredictionKind,
   type ResearchReport,
   type Source,
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
-import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import {
+  applyEarningsForecastPolicy,
+  readEarningsForecastTelemetry,
+} from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import type { PredictionCompletionPrompt } from "./prompts";
 import type { ResearchContext } from "./research-context-types";
@@ -25,11 +29,15 @@ export interface StageReprompt {
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
   readonly predictionCompletion?: PredictionCompletionPrompt;
+  /** Predictions from the attempt being repaired that already validated. A repair reprompt
+   *  regenerates the whole report from a stateless call, so without this the model never sees the
+   *  predictions it is supposed to keep and silently returns fewer than it started with. */
+  readonly retainedPredictions?: readonly Prediction[];
 }
 
 export type StageRepromptReason = Omit<
   StageReprompt,
-  "allowedSourceIds" | "predictionCompletion"
+  "allowedSourceIds" | "predictionCompletion" | "retainedPredictions"
 > & {
   readonly predictionCompletion?: Pick<
     PredictionCompletionPrompt,
@@ -56,12 +64,61 @@ interface FinalSynthesisState {
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
   readonly suppressedEarningsPredictionCountOffset?: number;
+  readonly unsolicitedKindWarnings?: readonly string[];
 }
 
 interface SynthesisProgress {
   readonly state: FinalSynthesisState;
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
+  /** Best validated prediction set seen so far in this run's repair chain. Retaining the previous
+   *  attempt alone lets a chain ratchet downward: if a repair returns fewer predictions despite the
+   *  survivor guidance, the next repair would anchor to the shrunken set and the loss compounds. */
+  readonly retainedPredictions: readonly Prediction[];
+  /** Every unsolicited-kind drop seen in this run, accumulated so a drop at any attempt survives
+   *  into trace.predictionTrimWarnings even when a later attempt is clean. */
+  readonly unsolicitedKindWarnings: readonly string[];
+}
+
+// Survivor guidance tells the model to re-emit a forecast unchanged, so it must only ever name
+// Forecasts that can actually persist. ReadPredictions validates the observable grammar, but
+// AssembleResearchReport applies deterministic report-level policy on top and can still drop one:
+// An earnings forecast for a provider-estimated event is removed by applyEarningsForecastPolicy.
+// Reuse that policy here — with the same "confirmed-only" argument report assembly passes — rather
+// Than restating it, so the guidance and assembly cannot disagree about what survives.
+function retainablePredictions(
+  input: SynthesizeReportUntilValidInput,
+  state: FinalSynthesisState,
+): readonly Prediction[] {
+  return applyEarningsForecastPolicy({
+    predictions: state.predResult.predictions,
+    setup: input.collectedSources.earningsSetup,
+    policy: "confirmed-only",
+  }).predictions;
+}
+
+// Best-so-far is the largest set, not the union of every attempt. Each candidate here is a whole
+// Set that already passed readPredictions, so it is validated *and* post-trim: taking one wholesale
+// Cannot admit an invalid prediction, and cannot resurrect a near-duplicate that
+// RejectRedundantForecasts deliberately dropped. A union would carry both risks and would need
+// Re-validation to undo them. Ties prefer the newer set, which reflects the latest repair feedback.
+function mergeKindWarnings(
+  progress: SynthesisProgress,
+  state: FinalSynthesisState,
+): readonly string[] {
+  return uniqueStrings([
+    ...progress.unsolicitedKindWarnings,
+    ...(state.unsolicitedKindWarnings ?? []),
+  ]);
+}
+
+function bestRetainedPredictions(
+  input: SynthesizeReportUntilValidInput,
+  previous: readonly Prediction[],
+  state: FinalSynthesisState,
+): readonly Prediction[] {
+  const candidate = retainablePredictions(input, state);
+  return candidate.length >= previous.length ? candidate : previous;
 }
 
 export interface SynthesizeReportUntilValidInput {
@@ -75,6 +132,10 @@ export interface SynthesizeReportUntilValidInput {
   /** Subjects the model is allowed to forecast for this run type.
    *  Undefined for research runs — `researchPredictionGate` is the authority there. */
   readonly allowedSubjects?: ReadonlySet<string>;
+  /** Kinds this path does not solicit. The prompt already withholds them from every surface it
+   *  advertises; this is the backstop for a model that emits one anyway, so an unsupported forecast
+   *  cannot reach the report. Scoped per run — other paths pass nothing and are unaffected. */
+  readonly disallowedPredictionKinds?: readonly PredictionKind[];
   readonly priorStages: readonly StageOutput[];
   readonly maxPredictionReprompts: number;
   readonly runFinalSynthesis: (
@@ -115,6 +176,8 @@ export async function synthesizeReportUntilValid(
     state: initialState,
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
+    retainedPredictions: retainablePredictions(trackedInput, initialState),
+    unsolicitedKindWarnings: initialState.unsolicitedKindWarnings ?? [],
   });
   const validated = await validateBaseReport(trackedInput, predictionProgress);
   const completion = await runPredictionCompletion(
@@ -127,7 +190,10 @@ export async function synthesizeReportUntilValid(
     report,
     stageOutputs: completion.progress.stageOutputs,
     predictionRetryErrors: completion.progress.predictionRetryErrors,
-    predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
+    predictionTrimWarnings: uniqueStrings([
+      ...predictionTrimWarnings(validated.progress.state.predResult),
+      ...completion.progress.unsolicitedKindWarnings,
+    ]),
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
@@ -179,7 +245,7 @@ async function validateBaseReport(
   }
 
   const reportRetryPredictionErrors = progress.state.predResult.errors;
-  const validationState = await runAndReadFinalSynthesis(input, {
+  const validationState = await repromptFinalSynthesis(input, progress.retainedPredictions, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors,
   });
@@ -190,11 +256,17 @@ async function validateBaseReport(
       ...progress.predictionRetryErrors,
       ...reportRetryPredictionErrors,
     ]),
+    retainedPredictions: bestRetainedPredictions(
+      input,
+      progress.retainedPredictions,
+      validationState,
+    ),
+    unsolicitedKindWarnings: mergeKindWarnings(progress, validationState),
   };
 
   const postReportPredictionErrors = validationProgress.state.predResult.errors;
   if (postReportPredictionErrors.length > 0) {
-    const state = await runAndReadFinalSynthesis(input, {
+    const state = await repromptFinalSynthesis(input, validationProgress.retainedPredictions, {
       predictionErrors: postReportPredictionErrors,
       reportValidationErrors,
     });
@@ -205,6 +277,12 @@ async function validateBaseReport(
         ...validationProgress.predictionRetryErrors,
         ...postReportPredictionErrors,
       ]),
+      retainedPredictions: bestRetainedPredictions(
+        input,
+        validationProgress.retainedPredictions,
+        state,
+      ),
+      unsolicitedKindWarnings: mergeKindWarnings(validationProgress, state),
     };
   }
 
@@ -251,7 +329,7 @@ async function buildReportWithRepair(
       );
     }
     const predictionErrors = progress.state.predResult.errors;
-    const state = await runAndReadFinalSynthesis(input, {
+    const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
       ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
       reportValidationErrors: [message],
     });
@@ -262,6 +340,8 @@ async function buildReportWithRepair(
         ...progress.predictionRetryErrors,
         ...predictionErrors,
       ]),
+      retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
+      unsolicitedKindWarnings: mergeKindWarnings(progress, state),
     };
     return buildReportWithRepair(input, nextProgress, [...seenErrors, message], attemptsLeft - 1);
   }
@@ -279,15 +359,106 @@ async function runPredictionReprompts(
         return progress;
       }
 
-      const state = await runAndReadFinalSynthesis(input, { predictionErrors: retryErrors });
+      const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
+        predictionErrors: retryErrors,
+      });
       return {
         state,
         stageOutputs: [...progress.stageOutputs, state.output],
         predictionRetryErrors: uniqueStrings([...progress.predictionRetryErrors, ...retryErrors]),
+        retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
+        unsolicitedKindWarnings: mergeKindWarnings(progress, state),
       };
     },
     Promise.resolve(initial),
   );
+}
+
+// Every reprompt below is a stateless whole-report regeneration, so the predictions that already
+// Validated have to travel with it or the next attempt silently drops them. This helper is the only
+// Place a repair reprompt is constructed: `retained` is a required positional argument, and the
+// Reprompt parameter's type rejects a `retainedPredictions` key on the object literals every caller
+// Passes, so a new repair site cannot quietly leave survivors out. That excess-property check fires
+// On fresh literals, not on a spread of a wider variable, so this is an enforced convention rather
+// Than a type-level impossibility. The initial attempt is the only caller of
+// RunAndReadFinalSynthesis with no reprompt, and it has no prior attempt to retain anything from.
+async function repromptFinalSynthesis(
+  input: SynthesizeReportUntilValidInput,
+  retained: readonly Prediction[],
+  reprompt: Omit<
+    StageReprompt,
+    "allowedSourceIds" | "retainedPredictions" | "predictionCompletion"
+  >,
+): Promise<FinalSynthesisState> {
+  return runAndReadFinalSynthesis(input, { ...reprompt, retainedPredictions: retained });
+}
+
+// Drops kinds this path does not solicit and reports what it dropped. The filter runs on the raw
+// Candidates, before readPredictions sees the batch, because batch validation is not neutral: a
+// Malformed withdrawn candidate would raise retry errors and trigger a repair for a forecast that
+// Was going to be discarded, and a withdrawn candidate sharing an id with a good one would take the
+// Duplicate-id slot and evict it — leaving fewer survivors than if the model had never emitted it.
+//
+// Dropping rather than erroring is deliberate: a withdrawn kind is not a malformed forecast, and
+// Raising it as a prediction error would spend a repair attempt regenerating the whole report when
+// The completion pass can refill the slot for free. Dropping silently would be worse than either —
+// The warning is what makes the next investigation possible, and it lands in
+// Trace.predictionTrimWarnings alongside the redundancy trims.
+function withdrawnKindOf(
+  candidate: unknown,
+  disallowed: readonly PredictionKind[],
+): PredictionKind | undefined {
+  if (typeof candidate !== "object" || candidate === null) {
+    return undefined;
+  }
+  const { kind } = candidate as { readonly kind?: unknown };
+  return typeof kind === "string" && disallowed.includes(kind as PredictionKind)
+    ? (kind as PredictionKind)
+    : undefined;
+}
+
+// Identifies a raw candidate for the warning. The id is model-supplied and may be missing or
+// Non-string at this point, so fall back to the batch position rather than losing the record.
+function candidateLabel(candidate: unknown, index: number): string {
+  if (typeof candidate === "object" && candidate !== null) {
+    const { id } = candidate as { readonly id?: unknown };
+    if (typeof id === "string" && id.length > 0) {
+      return `Prediction ${id}`;
+    }
+  }
+  return `Prediction at index ${String(index)}`;
+}
+
+function readSolicitedPredictions(
+  input: SynthesizeReportUntilValidInput,
+  value: unknown,
+): {
+  readonly predResult: ReturnType<typeof readPredictions>;
+  readonly warnings: readonly string[];
+} {
+  const disallowed = input.disallowedPredictionKinds ?? [];
+  if (disallowed.length === 0 || !Array.isArray(value)) {
+    return {
+      predResult: readPredictions(value, input.knownSourceIds, input.allowedSubjects),
+      warnings: [],
+    };
+  }
+  const solicited: unknown[] = [];
+  const warnings: string[] = [];
+  for (const [index, candidate] of value.entries()) {
+    const withdrawn = withdrawnKindOf(candidate, disallowed);
+    if (withdrawn === undefined) {
+      solicited.push(candidate);
+      continue;
+    }
+    warnings.push(
+      `${candidateLabel(candidate, index)}: ${withdrawn} forecasts are not solicited on this path; dropped before validation`,
+    );
+  }
+  return {
+    predResult: readPredictions(solicited, input.knownSourceIds, input.allowedSubjects),
+    warnings,
+  };
 }
 
 async function runAndReadFinalSynthesis(
@@ -299,12 +470,8 @@ async function runAndReadFinalSynthesis(
     allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
   const payload = parseModelPayload(output.content);
-  const predResult = readPredictions(
-    payload.predictions,
-    input.knownSourceIds,
-    input.allowedSubjects,
-  );
-  return { output, payload, predResult };
+  const { predResult, warnings } = readSolicitedPredictions(input, payload.predictions);
+  return { output, payload, predResult, unsolicitedKindWarnings: warnings };
 }
 
 interface PredictionCompletionResult {
@@ -360,6 +527,7 @@ function mergeCompletionCandidates(input: {
   readonly targetCount: number;
   readonly knownSourceIds: ReadonlySet<string>;
   readonly allowedSubjects: ReadonlySet<string>;
+  readonly disallowedKinds: readonly PredictionKind[];
 }): {
   readonly predictions: readonly Prediction[];
   readonly acceptedPredictionIds: readonly string[];
@@ -372,13 +540,23 @@ function mergeCompletionCandidates(input: {
   const rejectionReasons: string[] = [];
   let rejectedCandidateCount = 0;
 
-  for (const rawCandidate of candidates) {
+  // Iterate with the raw array index: rejectedCandidateCount skips accepted candidates, so it is
+  // Not a position and must never be used to identify one in the audit.
+  for (const [index, rawCandidate] of candidates.entries()) {
     if (accepted.length >= input.targetCount) {
       rejectedCandidateCount += 1;
       rejectionReasons.push("prediction completion target already met");
       continue;
     }
 
+    const withdrawnKind = withdrawnKindOf(rawCandidate, input.disallowedKinds);
+    if (withdrawnKind !== undefined) {
+      rejectedCandidateCount += 1;
+      rejectionReasons.push(
+        `${candidateLabel(rawCandidate, index)}: ${withdrawnKind} forecasts are not solicited on this path`,
+      );
+      continue;
+    }
     const candidateResult = readPredictions(
       [rawCandidate],
       input.knownSourceIds,
@@ -465,6 +643,7 @@ async function runPredictionCompletion(
       targetCount,
       knownSourceIds: input.knownSourceIds,
       allowedSubjects,
+      disallowedKinds: input.disallowedPredictionKinds ?? [],
     });
     const suppressedEarningsPredictionCountOffset =
       readEarningsForecastTelemetry(report)?.suppressedPredictionCount ?? 0;
@@ -485,6 +664,10 @@ async function runPredictionCompletion(
         state,
         stageOutputs: [...progress.stageOutputs, output],
         predictionRetryErrors: progress.predictionRetryErrors,
+        // The completion pass only adds predictions to an accepted report; it never repairs, so the
+        // Best-so-far set carries through untouched.
+        retainedPredictions: progress.retainedPredictions,
+        unsolicitedKindWarnings: progress.unsolicitedKindWarnings,
       },
       audit: {
         attempted: true,

@@ -50,8 +50,10 @@ import {
 import { refreshCalibrationContext } from "./calibration-context";
 import {
   buildPlaybookSelectionPrompt,
+  buildRecordedStageSteering,
   buildStagePrompt,
-  buildStageSteeringSegment,
+  SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
+  type StageInput,
 } from "./prompts";
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
@@ -189,7 +191,7 @@ async function runModelStage(
   const priorStages = input.priorStages ?? [];
   const reprompt = input.reprompt ?? {};
   const loaded = await loadStagePrompt(stage, job.command, job.config.promptDir);
-  const prompt = buildStagePrompt(stage, {
+  const stageInput: StageInput = {
     command: job.command,
     collectedSources,
     config: job.config,
@@ -197,6 +199,9 @@ async function runModelStage(
     loaded,
     priorStages,
     predictionRepromptErrors: reprompt.predictionErrors ?? [],
+    ...(reprompt.retainedPredictions !== undefined
+      ? { retainedPredictions: reprompt.retainedPredictions }
+      : {}),
     reportValidationErrors: reprompt.reportValidationErrors ?? [],
     allowedSourceIds: reprompt.allowedSourceIds ?? [],
     ...(reprompt.predictionCompletion !== undefined
@@ -206,7 +211,8 @@ async function runModelStage(
       ? { deepEquityModelPacket: input.deepEquityModelPacket }
       : {}),
     ...(input.canonicalSources !== undefined ? { canonicalSources: input.canonicalSources } : {}),
-  });
+  };
+  const prompt = buildStagePrompt(stage, stageInput);
   const startedAt = performance.now();
   const response = await job.provider.generate({
     model,
@@ -227,14 +233,7 @@ async function runModelStage(
   });
   const endedAt = performance.now();
 
-  const steering = buildStageSteeringSegment(
-    stage,
-    job.command,
-    collectedSources,
-    context,
-    reprompt.predictionErrors ?? [],
-    reprompt.predictionCompletion,
-  );
+  const steering = buildRecordedStageSteering(stage, stageInput);
 
   return {
     stage,
@@ -724,6 +723,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     sources,
     knownSourceIds,
     ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
+    // The simplified prompts withhold `range` from every surface they advertise; this is the
+    // Backstop for a model that emits one regardless. Scoped to this variant — every other path
+    // Passes nothing and keeps range.
+    ...(simplifiedDeepEquity
+      ? { disallowedPredictionKinds: SIMPLIFIED_EXCLUDED_PREDICTION_KINDS }
+      : {}),
     priorStages: [...analysisOutputs, critiqueOutput],
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
     runFinalSynthesis: (priorStages, reprompt) =>

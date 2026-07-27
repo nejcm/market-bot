@@ -136,84 +136,38 @@ const retainedRange: Prediction = prediction({
 // Observed facts alongside a stale verified bar. These guard the corrections, on the simplified
 // Path only.
 describe("simplified deep-equity report quality steering", () => {
-  // Neither the primary nor the completion pass sees the evidence packet, so neither has the
-  // Multi-session price history an [Lo, Hi] band must be sized from. Range is withdrawn here rather
-  // Than sized from prose, which is how a peer EV/revenue percentile band became a 5-day forecast.
-  test("withdraws range from every steering surface, not by appending a ban", () => {
+  // Range was withdrawn from this path on 2026-07-27 and the paired evaluation measured the
+  // Withdrawal as net negative: scenario-prediction-specificity went from legacy winning 4-of-6 to
+  // 6-of-6 and rubric-non-inferiority flipped -0.194 -> -0.722. It is reinstated, so the simplified
+  // Steering must advertise range on the same surfaces every other path does. The band-sizing
+  // Defect it was meant to fix is a missing-input problem, not a prompt problem.
+  test("solicits range on every steering surface, same as the generic path", () => {
     const prompt = simplifiedFinalSynthesisPrompt();
-    // DSL exposition, coverage notes, favoured mix and diversity guidance must all omit it.
-    expect(prompt).not.toContain("outside [Lo, Hi] for range");
-    expect(prompt).not.toContain("range (outside [Lo, Hi])");
-    expect(prompt).not.toMatch(/favor these kinds when supported:[^."]*range/u);
-    expect(prompt).not.toMatch(/priority order where the evidence supports them:[^."]*range/u);
-    // The kinds it can support are untouched.
-    expect(prompt).toContain("close(SUBJECT, +N) > close(SUBJECT, 0) for direction");
-    expect(prompt).toContain("relative (vs benchmark)");
-  });
-
-  test("stops teaching the stays-within-range polarity trick", () => {
-    const simplified = simplifiedFinalSynthesisPrompt();
-    expect(simplified).not.toContain("stays-within-range");
-    expect(simplified).not.toContain("up/outside");
-    expect(simplified).toContain("The grammar only expresses up;");
-    const {
-      deepEquityModelPacket: _packet,
-      canonicalSources: _canonical,
-      ...generic
-    } = stageInput();
-    expect(buildStagePrompt("final-synthesis", generic)).toContain("stays-within-range");
-  });
-
-  test("withdraws range from the advertised kind union without touching other kinds", () => {
-    const shape = JSON.parse(simplifiedFinalSynthesisPrompt()) as {
-      readonly requiredShape: { readonly predictions: readonly { readonly kind: string }[] };
-    };
-    const kinds = shape.requiredShape.predictions[0]?.kind.split("|") ?? [];
-    expect(kinds).not.toContain("range");
-    expect(kinds).toContain("direction");
-    expect(kinds).toContain("relative");
-  });
-
-  test("withdraws range in the prediction-completion pass too", () => {
-    const prompt = simplifiedFinalSynthesisPrompt({
-      predictionCompletion: {
-        requestedCount: 2,
-        existingPredictions: retained,
-        reportDraft: researchReport(),
-      },
-    });
+    expect(prompt).toContain("outside [Lo, Hi] for range");
+    expect(prompt).toContain("range (outside [Lo, Hi])");
+    expect(prompt).toContain("stays-within-range");
     const shape = JSON.parse(prompt) as {
       readonly requiredShape: { readonly predictions: readonly { readonly kind: string }[] };
     };
-    expect(prompt).not.toContain("outside [Lo, Hi] for range");
-    expect(shape.requiredShape.predictions[0]?.kind.split("|")).not.toContain("range");
+    expect(shape.requiredShape.predictions[0]?.kind.split("|")).toContain("range");
   });
 
-  test("drops range guidance from the repair instruction", () => {
+  test("keeps range guidance in the repair instruction", () => {
     const prompt = simplifiedFinalSynthesisPrompt({
       predictionRepromptErrors: ["Prediction pred-3: subject does not match measurableAs"],
     });
-    expect(prompt).not.toContain("For range forecasts, vary the horizon or range bounds");
+    expect(prompt).toContain("For range forecasts, vary the horizon or range bounds");
     expect(prompt).toContain("For ticker relative forecasts, use subject form TICKER:BENCHMARK");
   });
 
-  // Survivor guidance must never order a withdrawn kind re-emitted, same as the earnings filter.
-  test("filters a retained range forecast out of survivor guidance", () => {
+  test("names a retained range forecast in survivor guidance", () => {
     const prompt = simplifiedFinalSynthesisPrompt({
       predictionRepromptErrors: ["Prediction pred-3: subject does not match measurableAs"],
       retainedPredictions: [retainedRange, ...retained],
     });
     expect(prompt).toContain("already validated");
+    expect(prompt).toContain("pred-7");
     expect(prompt).toContain("pred-2");
-    expect(prompt).not.toContain("pred-7");
-  });
-
-  test("emits no survivor guidance when every retained forecast is a withdrawn kind", () => {
-    const prompt = simplifiedFinalSynthesisPrompt({
-      predictionRepromptErrors: ["Prediction pred-3: subject does not match measurableAs"],
-      retainedPredictions: [retainedRange],
-    });
-    expect(prompt).not.toContain("already validated");
   });
 
   // The completion payload briefly carried a stale price-movement block. It is gone, and the
@@ -531,231 +485,9 @@ describe("prediction repair reprompt", () => {
     expect(repair?.retainedPredictions?.map((entry) => entry.id)).toEqual(["pred-1"]);
   });
 
-  // RequiredShape is prompt text, not enforcement: readPredictions still accepts the global `range`
-  // Kind. This is the backstop for a model that emits one regardless.
-  test("drops a disobeyed range forecast before assembly and records why", async () => {
-    const validPrediction = {
-      id: "pred-1",
-      kind: "direction",
-      subject: "AAPL",
-      measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
-      horizonTradingDays: 5,
-      probability: 0.62,
-      sourceIds: ["news-equity-1"],
-    };
-    const disobeyedRange = {
-      id: "pred-2",
-      kind: "range",
-      subject: "AAPL",
-      measurableAs: "close(AAPL, +5) outside [145.6, 264.7]",
-      horizonTradingDays: 5,
-      probability: 0.18,
-      sourceIds: ["news-equity-1"],
-    };
-
-    const result = await synthesizeReportUntilValid({
-      runId: "run-1",
-      generatedAt: "2026-05-19T00:00:00.000Z",
-      command,
-      collectedSources: sources(),
-      context: context(),
-      sources: [newsSource()],
-      knownSourceIds: new Set(["news-equity-1"]),
-      allowedSubjects: new Set(["AAPL"]),
-      disallowedPredictionKinds: ["range"],
-      priorStages: [],
-      maxPredictionReprompts: 1,
-      runFinalSynthesis: () =>
-        Promise.resolve({
-          stage: "final-synthesis" as const,
-          content: reportPayload([validPrediction, disobeyedRange]),
-          tokenEstimate: 1,
-        }),
-    });
-
-    expect(result.report.predictions.map((entry) => entry.id)).toEqual(["pred-1"]);
-    expect(result.predictionTrimWarnings).toContain(
-      "Prediction pred-2: range forecasts are not solicited on this path; dropped before validation",
-    );
-    // Not an error: a withdrawn kind must not burn a repair attempt.
-    expect(result.predictionErrors).toEqual([]);
-  });
-
-  // A withdrawn candidate must never cost a valid forecast. Filtering after batch validation let a
-  // Colliding id take the duplicate slot and evict the good one, and let a malformed withdrawn
-  // Candidate raise retry errors that trigger a repair for something we discard anyway.
-  test("an id-colliding withdrawn candidate cannot evict a valid forecast", async () => {
-    const result = await synthesizeReportUntilValid({
-      runId: "run-1",
-      generatedAt: "2026-05-19T00:00:00.000Z",
-      command,
-      collectedSources: sources(),
-      context: context(),
-      sources: [newsSource()],
-      knownSourceIds: new Set(["news-equity-1"]),
-      allowedSubjects: new Set(["AAPL"]),
-      disallowedPredictionKinds: ["range"],
-      priorStages: [],
-      maxPredictionReprompts: 1,
-      runFinalSynthesis: () =>
-        Promise.resolve({
-          stage: "final-synthesis" as const,
-          content: reportPayload([
-            {
-              id: "pred-1",
-              kind: "range",
-              subject: "AAPL",
-              measurableAs: "close(AAPL, +5) outside [145.6, 264.7]",
-              horizonTradingDays: 5,
-              probability: 0.18,
-              sourceIds: ["news-equity-1"],
-            },
-            {
-              id: "pred-1",
-              kind: "direction",
-              subject: "AAPL",
-              measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
-              horizonTradingDays: 5,
-              probability: 0.62,
-              sourceIds: ["news-equity-1"],
-            },
-          ]),
-          tokenEstimate: 1,
-        }),
-    });
-
-    expect(result.report.predictions.map((entry) => entry.kind)).toEqual(["direction"]);
-    expect(result.predictionErrors).toEqual([]);
-  });
-
-  test("a malformed withdrawn candidate does not trigger a repair", async () => {
-    const reprompts: StageReprompt[] = [];
-    const result = await synthesizeReportUntilValid({
-      runId: "run-1",
-      generatedAt: "2026-05-19T00:00:00.000Z",
-      command,
-      collectedSources: sources(),
-      context: context(),
-      sources: [newsSource()],
-      knownSourceIds: new Set(["news-equity-1"]),
-      allowedSubjects: new Set(["AAPL"]),
-      disallowedPredictionKinds: ["range"],
-      priorStages: [],
-      maxPredictionReprompts: 1,
-      runFinalSynthesis: (_priorStages, reprompt) => {
-        if (reprompt !== undefined) {
-          reprompts.push(reprompt);
-        }
-        return Promise.resolve({
-          stage: "final-synthesis" as const,
-          content: reportPayload([
-            {
-              id: "pred-1",
-              kind: "direction",
-              subject: "AAPL",
-              measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
-              horizonTradingDays: 5,
-              probability: 0.62,
-              sourceIds: ["news-equity-1"],
-            },
-            // Malformed: subject does not match measurableAs. Withdrawn, so never validated.
-            {
-              id: "pred-2",
-              kind: "range",
-              subject: "SPY",
-              measurableAs: "close(AAPL, +5) outside [190, 207]",
-              horizonTradingDays: 5,
-              probability: 0.37,
-              sourceIds: ["news-equity-1"],
-            },
-          ]),
-          tokenEstimate: 1,
-        });
-      },
-    });
-
-    expect(result.predictionErrors).toEqual([]);
-    expect(result.predictionRetryErrors).toEqual([]);
-    // No reprompt carried prediction errors: the withdrawn candidate never reached validation.
-    expect(reprompts.filter((entry) => entry.predictionErrors !== undefined)).toEqual([]);
-    expect(result.report.predictions.map((entry) => entry.id)).toEqual(["pred-1"]);
-  });
-
-  // RejectedCandidateCount does not advance on accepted candidates, so using it as a position
-  // Reports an id-less withdrawn candidate under the index of whatever preceded it. The audit is
-  // The only record of why a completion candidate was refused; pointing at the wrong one sends the
-  // Next reader to the wrong place.
-  test("labels an id-less withdrawn completion candidate with its real index", async () => {
-    let call = 0;
-    const result = await synthesizeReportUntilValid({
-      runId: "run-1",
-      generatedAt: "2026-05-19T00:00:00.000Z",
-      command,
-      collectedSources: sources(),
-      context: context(),
-      sources: [newsSource()],
-      knownSourceIds: new Set(["news-equity-1"]),
-      allowedSubjects: new Set(["AAPL"]),
-      disallowedPredictionKinds: ["range"],
-      priorStages: [],
-      maxPredictionReprompts: 1,
-      runFinalSynthesis: (_priorStages, reprompt) => {
-        call += 1;
-        if (reprompt?.predictionCompletion === undefined) {
-          return Promise.resolve({
-            stage: "final-synthesis" as const,
-            content: reportPayload([
-              {
-                id: "pred-1",
-                kind: "direction",
-                subject: "AAPL",
-                measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
-                horizonTradingDays: 5,
-                probability: 0.62,
-                sourceIds: ["news-equity-1"],
-              },
-            ]),
-            tokenEstimate: 1,
-          });
-        }
-        return Promise.resolve({
-          stage: "final-synthesis" as const,
-          content: JSON.stringify({
-            predictions: [
-              // Index 0: accepted, so it never advances the rejection counter.
-              {
-                id: "pred-2",
-                kind: "direction",
-                subject: "AAPL",
-                measurableAs: "close(AAPL, +10) > close(AAPL, 0)",
-                horizonTradingDays: 10,
-                probability: 0.62,
-                sourceIds: ["news-equity-1"],
-              },
-              // Index 1: withdrawn and id-less, so the label falls back to the position.
-              {
-                kind: "range",
-                subject: "AAPL",
-                measurableAs: "close(AAPL, +5) outside [190, 207]",
-                horizonTradingDays: 5,
-                probability: 0.37,
-                sourceIds: ["news-equity-1"],
-              },
-            ],
-          }),
-          tokenEstimate: 1,
-        });
-      },
-    });
-
-    expect(call).toBe(2);
-    expect(result.predictionCompletion?.acceptedPredictionIds).toEqual(["pred-2"]);
-    expect(result.predictionCompletion?.rejectionReasons).toContain(
-      "Prediction at index 1: range forecasts are not solicited on this path",
-    );
-  });
-
-  test("keeps range when no kind is withdrawn", async () => {
+  // Runtime counterpart of the reinstatement: nothing between the model and report assembly may
+  // Drop a range forecast on this path.
+  test("keeps a range forecast through synthesis and assembly", async () => {
     const rangePrediction = {
       id: "pred-1",
       kind: "range",

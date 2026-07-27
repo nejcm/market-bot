@@ -3,7 +3,6 @@ import {
   NEAR_BASE_RATE_BAND,
   type Prediction,
   type PredictionCompletionAudit,
-  type PredictionKind,
   type ResearchReport,
   type Source,
 } from "../domain/types";
@@ -64,7 +63,6 @@ interface FinalSynthesisState {
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
   readonly suppressedEarningsPredictionCountOffset?: number;
-  readonly unsolicitedKindWarnings?: readonly string[];
 }
 
 interface SynthesisProgress {
@@ -75,9 +73,6 @@ interface SynthesisProgress {
    *  attempt alone lets a chain ratchet downward: if a repair returns fewer predictions despite the
    *  survivor guidance, the next repair would anchor to the shrunken set and the loss compounds. */
   readonly retainedPredictions: readonly Prediction[];
-  /** Every unsolicited-kind drop seen in this run, accumulated so a drop at any attempt survives
-   *  into trace.predictionTrimWarnings even when a later attempt is clean. */
-  readonly unsolicitedKindWarnings: readonly string[];
 }
 
 // Survivor guidance tells the model to re-emit a forecast unchanged, so it must only ever name
@@ -102,16 +97,6 @@ function retainablePredictions(
 // Cannot admit an invalid prediction, and cannot resurrect a near-duplicate that
 // RejectRedundantForecasts deliberately dropped. A union would carry both risks and would need
 // Re-validation to undo them. Ties prefer the newer set, which reflects the latest repair feedback.
-function mergeKindWarnings(
-  progress: SynthesisProgress,
-  state: FinalSynthesisState,
-): readonly string[] {
-  return uniqueStrings([
-    ...progress.unsolicitedKindWarnings,
-    ...(state.unsolicitedKindWarnings ?? []),
-  ]);
-}
-
 function bestRetainedPredictions(
   input: SynthesizeReportUntilValidInput,
   previous: readonly Prediction[],
@@ -132,10 +117,6 @@ export interface SynthesizeReportUntilValidInput {
   /** Subjects the model is allowed to forecast for this run type.
    *  Undefined for research runs — `researchPredictionGate` is the authority there. */
   readonly allowedSubjects?: ReadonlySet<string>;
-  /** Kinds this path does not solicit. The prompt already withholds them from every surface it
-   *  advertises; this is the backstop for a model that emits one anyway, so an unsupported forecast
-   *  cannot reach the report. Scoped per run — other paths pass nothing and are unaffected. */
-  readonly disallowedPredictionKinds?: readonly PredictionKind[];
   readonly priorStages: readonly StageOutput[];
   readonly maxPredictionReprompts: number;
   readonly runFinalSynthesis: (
@@ -177,7 +158,6 @@ export async function synthesizeReportUntilValid(
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
     retainedPredictions: retainablePredictions(trackedInput, initialState),
-    unsolicitedKindWarnings: initialState.unsolicitedKindWarnings ?? [],
   });
   const validated = await validateBaseReport(trackedInput, predictionProgress);
   const completion = await runPredictionCompletion(
@@ -190,10 +170,7 @@ export async function synthesizeReportUntilValid(
     report,
     stageOutputs: completion.progress.stageOutputs,
     predictionRetryErrors: completion.progress.predictionRetryErrors,
-    predictionTrimWarnings: uniqueStrings([
-      ...predictionTrimWarnings(validated.progress.state.predResult),
-      ...completion.progress.unsolicitedKindWarnings,
-    ]),
+    predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
@@ -261,7 +238,6 @@ async function validateBaseReport(
       progress.retainedPredictions,
       validationState,
     ),
-    unsolicitedKindWarnings: mergeKindWarnings(progress, validationState),
   };
 
   const postReportPredictionErrors = validationProgress.state.predResult.errors;
@@ -282,7 +258,6 @@ async function validateBaseReport(
         validationProgress.retainedPredictions,
         state,
       ),
-      unsolicitedKindWarnings: mergeKindWarnings(validationProgress, state),
     };
   }
 
@@ -341,7 +316,6 @@ async function buildReportWithRepair(
         ...predictionErrors,
       ]),
       retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
-      unsolicitedKindWarnings: mergeKindWarnings(progress, state),
     };
     return buildReportWithRepair(input, nextProgress, [...seenErrors, message], attemptsLeft - 1);
   }
@@ -367,7 +341,6 @@ async function runPredictionReprompts(
         stageOutputs: [...progress.stageOutputs, state.output],
         predictionRetryErrors: uniqueStrings([...progress.predictionRetryErrors, ...retryErrors]),
         retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
-        unsolicitedKindWarnings: mergeKindWarnings(progress, state),
       };
     },
     Promise.resolve(initial),
@@ -393,74 +366,6 @@ async function repromptFinalSynthesis(
   return runAndReadFinalSynthesis(input, { ...reprompt, retainedPredictions: retained });
 }
 
-// Drops kinds this path does not solicit and reports what it dropped. The filter runs on the raw
-// Candidates, before readPredictions sees the batch, because batch validation is not neutral: a
-// Malformed withdrawn candidate would raise retry errors and trigger a repair for a forecast that
-// Was going to be discarded, and a withdrawn candidate sharing an id with a good one would take the
-// Duplicate-id slot and evict it — leaving fewer survivors than if the model had never emitted it.
-//
-// Dropping rather than erroring is deliberate: a withdrawn kind is not a malformed forecast, and
-// Raising it as a prediction error would spend a repair attempt regenerating the whole report when
-// The completion pass can refill the slot for free. Dropping silently would be worse than either —
-// The warning is what makes the next investigation possible, and it lands in
-// Trace.predictionTrimWarnings alongside the redundancy trims.
-function withdrawnKindOf(
-  candidate: unknown,
-  disallowed: readonly PredictionKind[],
-): PredictionKind | undefined {
-  if (typeof candidate !== "object" || candidate === null) {
-    return undefined;
-  }
-  const { kind } = candidate as { readonly kind?: unknown };
-  return typeof kind === "string" && disallowed.includes(kind as PredictionKind)
-    ? (kind as PredictionKind)
-    : undefined;
-}
-
-// Identifies a raw candidate for the warning. The id is model-supplied and may be missing or
-// Non-string at this point, so fall back to the batch position rather than losing the record.
-function candidateLabel(candidate: unknown, index: number): string {
-  if (typeof candidate === "object" && candidate !== null) {
-    const { id } = candidate as { readonly id?: unknown };
-    if (typeof id === "string" && id.length > 0) {
-      return `Prediction ${id}`;
-    }
-  }
-  return `Prediction at index ${String(index)}`;
-}
-
-function readSolicitedPredictions(
-  input: SynthesizeReportUntilValidInput,
-  value: unknown,
-): {
-  readonly predResult: ReturnType<typeof readPredictions>;
-  readonly warnings: readonly string[];
-} {
-  const disallowed = input.disallowedPredictionKinds ?? [];
-  if (disallowed.length === 0 || !Array.isArray(value)) {
-    return {
-      predResult: readPredictions(value, input.knownSourceIds, input.allowedSubjects),
-      warnings: [],
-    };
-  }
-  const solicited: unknown[] = [];
-  const warnings: string[] = [];
-  for (const [index, candidate] of value.entries()) {
-    const withdrawn = withdrawnKindOf(candidate, disallowed);
-    if (withdrawn === undefined) {
-      solicited.push(candidate);
-      continue;
-    }
-    warnings.push(
-      `${candidateLabel(candidate, index)}: ${withdrawn} forecasts are not solicited on this path; dropped before validation`,
-    );
-  }
-  return {
-    predResult: readPredictions(solicited, input.knownSourceIds, input.allowedSubjects),
-    warnings,
-  };
-}
-
 async function runAndReadFinalSynthesis(
   input: SynthesizeReportUntilValidInput,
   reprompt?: StageReprompt,
@@ -470,8 +375,12 @@ async function runAndReadFinalSynthesis(
     allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
   const payload = parseModelPayload(output.content);
-  const { predResult, warnings } = readSolicitedPredictions(input, payload.predictions);
-  return { output, payload, predResult, unsolicitedKindWarnings: warnings };
+  const predResult = readPredictions(
+    payload.predictions,
+    input.knownSourceIds,
+    input.allowedSubjects,
+  );
+  return { output, payload, predResult };
 }
 
 interface PredictionCompletionResult {
@@ -527,7 +436,6 @@ function mergeCompletionCandidates(input: {
   readonly targetCount: number;
   readonly knownSourceIds: ReadonlySet<string>;
   readonly allowedSubjects: ReadonlySet<string>;
-  readonly disallowedKinds: readonly PredictionKind[];
 }): {
   readonly predictions: readonly Prediction[];
   readonly acceptedPredictionIds: readonly string[];
@@ -540,23 +448,13 @@ function mergeCompletionCandidates(input: {
   const rejectionReasons: string[] = [];
   let rejectedCandidateCount = 0;
 
-  // Iterate with the raw array index: rejectedCandidateCount skips accepted candidates, so it is
-  // Not a position and must never be used to identify one in the audit.
-  for (const [index, rawCandidate] of candidates.entries()) {
+  for (const rawCandidate of candidates) {
     if (accepted.length >= input.targetCount) {
       rejectedCandidateCount += 1;
       rejectionReasons.push("prediction completion target already met");
       continue;
     }
 
-    const withdrawnKind = withdrawnKindOf(rawCandidate, input.disallowedKinds);
-    if (withdrawnKind !== undefined) {
-      rejectedCandidateCount += 1;
-      rejectionReasons.push(
-        `${candidateLabel(rawCandidate, index)}: ${withdrawnKind} forecasts are not solicited on this path`,
-      );
-      continue;
-    }
     const candidateResult = readPredictions(
       [rawCandidate],
       input.knownSourceIds,
@@ -643,7 +541,6 @@ async function runPredictionCompletion(
       targetCount,
       knownSourceIds: input.knownSourceIds,
       allowedSubjects,
-      disallowedKinds: input.disallowedPredictionKinds ?? [],
     });
     const suppressedEarningsPredictionCountOffset =
       readEarningsForecastTelemetry(report)?.suppressedPredictionCount ?? 0;
@@ -667,7 +564,6 @@ async function runPredictionCompletion(
         // The completion pass only adds predictions to an accepted report; it never repairs, so the
         // Best-so-far set carries through untouched.
         retainedPredictions: progress.retainedPredictions,
-        unsolicitedKindWarnings: progress.unsolicitedKindWarnings,
       },
       audit: {
         attempted: true,

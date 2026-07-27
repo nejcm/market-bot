@@ -5,7 +5,6 @@ import {
   buildSimplifiedCritiqueStagePrompt,
   buildSimplifiedFinalSynthesisStagePrompt,
   buildSimplifiedSteeringSegment,
-  SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
 } from "./deep-equity-simplified";
 import { buildEvidenceRequestStagePrompt } from "./evidence-request";
 import { buildFinalSynthesisStagePrompt, buildStageSteeringSegment } from "./final-synthesis";
@@ -62,7 +61,6 @@ export function buildRecordedStageSteering(
   );
 }
 
-export { SIMPLIFIED_EXCLUDED_PREDICTION_KINDS };
 export type { PredictionCompletionPrompt, StageInput } from "./stage-envelope";
 export { buildStageSteeringSegment } from "./final-synthesis";
 export { buildPlaybookSelectionPrompt } from "./playbook-selection";

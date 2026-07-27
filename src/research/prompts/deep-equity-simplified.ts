@@ -1,6 +1,6 @@
 import { isInstrumentCommand } from "../../cli/args";
 import type { DeepEquityModelPacket } from "../../deep-equity/types";
-import type { PredictionKind, Source } from "../../domain/types";
+import type { Source } from "../../domain/types";
 import { subjectKindForCommand } from "../../web-evidence";
 import { buildCalibrationBlock } from "../calibration-context";
 import {
@@ -346,11 +346,7 @@ function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
 // Retries as well: those carry no predictionRepromptErrors, so the prediction-repair block never
 // Renders for them, yet they regenerate the predictions array just the same.
 function survivorGuidance(input: StageInput): string {
-  // Same shape as the earnings-suppression filter in final-synthesis: guidance must never order a
-  // Forecast re-emitted that this path no longer solicits.
-  const retained = (input.retainedPredictions ?? []).filter(
-    (candidate) => !SIMPLIFIED_EXCLUDED_PREDICTION_KINDS.includes(candidate.kind),
-  );
+  const retained = input.retainedPredictions ?? [];
   if (retained.length === 0) {
     return "";
   }
@@ -366,44 +362,25 @@ function survivorGuidance(input: StageInput): string {
   return ` These predictions from your previous attempt already validated: ${JSON.stringify(survivors)}. Re-emit every one of them unchanged, then repair or replace only what this reprompt flagged. Dropping a prediction that already validated is a regression, not a repair.`;
 }
 
-// Three rounds of tightening a range-sizing rule kept surfacing the same thing: neither the primary
-// Nor the completion pass sees the evidence packet, so neither has the multi-session price history
-// An [Lo, Hi] band has to be sized from. That is the pipeline's design bet, not a defect. Sizing a
-// Band from prose is what produced the 2026-07-27 failure, where valuationComps.impliedPriceRange —
-// A peer EV/revenue percentile band, 145.6-264.7 around a 198.5 quote — was used verbatim as a
-// 5-day band and then copied onto a 10-day one. Rather than append a ban to a prompt that elsewhere
-// Recommends the kind, `range` is withdrawn from every surface the steering is built from: the
-// Advertised kind union, the DSL, coverage notes, the favoured mix, diversity guidance, repair
-// Guidance, and retained-survivor lists. SynthesizeReportUntilValid drops it as a backstop if the
-// Model emits one anyway. Range stays fully available to every other path, where the sizing
-// Evidence is present.
-export const SIMPLIFIED_EXCLUDED_PREDICTION_KINDS: readonly PredictionKind[] = ["range"];
-
 function simplifiedSteeringInstruction(
   input: StageInput,
   completion: PredictionCompletionPrompt | undefined,
 ): string {
   const base =
     completion === undefined
-      ? buildPrimaryPredictionInstruction(
-          input.command,
-          input.collectedSources,
-          input.context,
-          SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
-        )
+      ? buildPrimaryPredictionInstruction(input.command, input.collectedSources, input.context)
       : buildPredictionCompletionInstruction(
           input.command,
           input.collectedSources,
           input.context,
           completion,
-          SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
         );
   return `${base}${survivorGuidance(input)}`;
 }
 
 function simplifiedRepairInstruction(input: StageInput): string | undefined {
   return (input.predictionRepromptErrors?.length ?? 0) > 0
-    ? buildPredictionRepairInstruction(input.context, SIMPLIFIED_EXCLUDED_PREDICTION_KINDS)
+    ? buildPredictionRepairInstruction(input.context)
     : undefined;
 }
 
@@ -476,7 +453,6 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
     hasBusinessFramework,
     hasWebSubjectProfile,
     subjectKindForCommand(input.command),
-    SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
   );
   const requiredShape =
     predictionCompletion === undefined ? reportShape : { predictions: reportShape.predictions };

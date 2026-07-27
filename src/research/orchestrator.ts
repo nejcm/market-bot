@@ -52,7 +52,6 @@ import {
   buildPlaybookSelectionPrompt,
   buildRecordedStageSteering,
   buildStagePrompt,
-  SIMPLIFIED_EXCLUDED_PREDICTION_KINDS,
   type StageInput,
 } from "./prompts";
 import { buildDepthProfileFromParams } from "./depth-profile";
@@ -723,12 +722,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     sources,
     knownSourceIds,
     ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
-    // The simplified prompts withhold `range` from every surface they advertise; this is the
-    // Backstop for a model that emits one regardless. Scoped to this variant — every other path
-    // Passes nothing and keeps range.
-    ...(simplifiedDeepEquity
-      ? { disallowedPredictionKinds: SIMPLIFIED_EXCLUDED_PREDICTION_KINDS }
-      : {}),
     priorStages: [...analysisOutputs, critiqueOutput],
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
     runFinalSynthesis: (priorStages, reprompt) =>

@@ -981,20 +981,39 @@ function resolveCandidate(
   };
 }
 
+// A relative forecast's canonical subject is the "primary:benchmark" pair, but models routinely
+// Write the bare primary ticker. The projection below finds the relative expression a bare subject
+// Could name — the expression itself for kind `relative`, or the consequent for a `conditional`
+// That wraps one, since a conditional's subject is defined by its consequent (conditionalShape).
+// Both cases are the same authoring slip and normalize identically. A subject that already carries
+// A colon, or that does not match the relative primary, is returned untouched so validateProjection
+// Still rejects a genuine field mismatch.
+function relativeExpressionForSubject(
+  kind: PredictionKind,
+  expression: ObservableExpression,
+): Extract<ObservableExpression, { readonly kind: "relative" }> | undefined {
+  if (kind === "relative" && expression.kind === "relative") {
+    return expression;
+  }
+  if (kind === "conditional" && expression.kind === "conditional") {
+    const { consequent } = expression;
+    return consequent.kind === "relative" ? consequent : undefined;
+  }
+  return undefined;
+}
+
 function normalizePredictionSubject(
   kind: PredictionKind,
   subject: string,
   expression: ObservableExpression,
 ): string {
-  if (
-    kind === "relative" &&
-    expression.kind === "relative" &&
-    !subject.includes(":") &&
-    subject === expression.subjectA
-  ) {
-    return subjectForExpression(expression);
+  if (subject.includes(":")) {
+    return subject;
   }
-  return subject;
+  const relative = relativeExpressionForSubject(kind, expression);
+  return relative !== undefined && subject === relative.subjectA
+    ? subjectForExpression(expression)
+    : subject;
 }
 
 // Minimum trading-day gap between two accepted same-subject `direction` forecasts.

@@ -4,6 +4,7 @@ import {
   isPredictionKind,
   observationStrategyForForecast,
   parseObservableExpression,
+  readObservableForecasts,
   renderClaim,
   resolveObservableForecast,
   type ObservableExpression,
@@ -474,5 +475,108 @@ describe("isPredictionKind", () => {
     expect(isPredictionKind(42)).toBe(false);
     expect(isPredictionKind(null)).toBe(false);
     expect(isPredictionKind({ kind: "direction" })).toBe(false);
+  });
+});
+
+// A relative forecast's canonical subject is "primary:benchmark", and a conditional takes its
+// Subject from its consequent — so a conditional wrapping a relative consequent needs the pair
+// Form too. Bare-primary subjects used to normalize only for kind `relative`, which rejected the
+// Conditional case with "subject does not match measurableAs" (2026-07-27 paired evaluation, three
+// Of six deep-equity fixtures). Normalization now covers both; everything else is untouched.
+function readOne(prediction: Record<string, unknown>): ReturnType<typeof readObservableForecasts> {
+  return readObservableForecasts([prediction]);
+}
+
+describe("readObservableForecasts subject normalization", () => {
+  test("completes a bare subject on a conditional with a relative consequent", () => {
+    const result = readOne({
+      id: "p1",
+      kind: "conditional",
+      subject: "AAPL",
+      measurableAs:
+        "if (close(SPY, +2) > close(SPY, 0)) then (close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0))",
+      horizonTradingDays: 5,
+      probability: 0.62,
+      sourceIds: [],
+    });
+    expect(result.issues).toEqual([]);
+    expect(result.predictions[0]?.subject).toBe("AAPL:SPY");
+  });
+
+  test("still completes a bare subject on a plain relative forecast", () => {
+    const result = readOne({
+      id: "p1",
+      kind: "relative",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.62,
+      sourceIds: [],
+    });
+    expect(result.issues).toEqual([]);
+    expect(result.predictions[0]?.subject).toBe("AAPL:SPY");
+  });
+
+  test("leaves an explicit pair subject untouched", () => {
+    const result = readOne({
+      id: "p1",
+      kind: "relative",
+      subject: "AAPL:SPY",
+      measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+      horizonTradingDays: 5,
+      probability: 0.62,
+      sourceIds: [],
+    });
+    expect(result.predictions[0]?.subject).toBe("AAPL:SPY");
+  });
+
+  test("leaves direction, range, and direction-consequent conditional subjects bare", () => {
+    const direction = readOne({
+      id: "p1",
+      kind: "direction",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+      horizonTradingDays: 5,
+      probability: 0.62,
+      sourceIds: [],
+    });
+    const range = readOne({
+      id: "p2",
+      kind: "range",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) outside [190, 207]",
+      horizonTradingDays: 5,
+      probability: 0.37,
+      sourceIds: [],
+    });
+    const conditional = readOne({
+      id: "p3",
+      kind: "conditional",
+      subject: "AAPL",
+      measurableAs: "if (close(SPY, +2) > close(SPY, 0)) then (close(AAPL, +5) > close(AAPL, 0))",
+      horizonTradingDays: 5,
+      probability: 0.62,
+      sourceIds: [],
+    });
+    expect(direction.predictions[0]?.subject).toBe("AAPL");
+    expect(range.predictions[0]?.subject).toBe("AAPL");
+    expect(conditional.predictions[0]?.subject).toBe("AAPL");
+  });
+
+  test("still rejects a subject that names neither the primary nor the pair", () => {
+    const result = readOne({
+      id: "p1",
+      kind: "conditional",
+      subject: "SPY",
+      measurableAs:
+        "if (close(SPY, +2) > close(SPY, 0)) then (close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0))",
+      horizonTradingDays: 5,
+      probability: 0.62,
+      sourceIds: [],
+    });
+    expect(result.predictions).toEqual([]);
+    expect(result.issues.map((issue) => issue.message)).toContain(
+      "Prediction p1: subject does not match measurableAs",
+    );
   });
 });

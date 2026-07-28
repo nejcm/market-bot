@@ -57,6 +57,14 @@ const SIMPLIFIED_PRICE_HISTORY_SESSIONS = 30;
 const PRICE_HISTORY_USAGE =
   "Closes and indicators share one sourceId; cite it for claims using either. latestClose is a dated-bar close, not the current tape; carry latestSessionDate with any claim drawn from it. A forecast band should reflect the closes' observed dispersion over this window; atr14 is short-horizon volatility context.";
 
+// The 2026-07-27 evaluation pair centred bands on valuationComps.impliedPriceRange.
+// This stage received only a 45-day-old verified bar, not the already-collected live quote.
+const SIMPLIFIED_CURRENT_PRICE_USAGE =
+  "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Dated verified-bar closes elsewhere in this payload are as of their session dates, not as of now. When a claim needs the current market level, use this figure and carry observedAt with it — not a bar close, and not a valuation- or peer-implied range.";
+
+const SIMPLIFIED_NO_CURRENT_PRICE_USAGE =
+  "No current quote for the run symbol was collected for this run. The most recent price available is the dated verified-bar close at its session date. State it with that date, do not present it as the current price, and say the current price is unavailable where a claim would otherwise need it.";
+
 function requireSimplifiedInput(
   input: StageInput,
 ): Pick<Required<StageInput>, "deepEquityModelPacket" | "canonicalSources"> {
@@ -340,12 +348,47 @@ function simplifiedPriceHistory(
   };
 }
 
+function simplifiedCurrentPriceReference(
+  packet: DeepEquityModelPacket,
+): Record<string, unknown> | undefined {
+  const symbol = packet.run.symbol.toUpperCase();
+  const quote = packet.canonicalFacts.marketSnapshots.find(
+    (snapshot) => snapshot.symbol.toUpperCase() === symbol,
+  );
+  const verifiedSnapshot = packet.canonicalFacts.verifiedMarketSnapshot;
+  if (
+    quote !== undefined &&
+    (verifiedSnapshot === undefined ||
+      quote.observedAt.slice(0, 10) >= verifiedSnapshot.latestSessionDate)
+  ) {
+    return {
+      status: "quote-observed",
+      price: quote.price,
+      observedAt: quote.observedAt,
+      sourceId: quote.sourceId,
+      ...(quote.identity?.quoteCurrency !== undefined
+        ? { quoteCurrency: quote.identity.quoteCurrency }
+        : {}),
+      usage: SIMPLIFIED_CURRENT_PRICE_USAGE,
+    };
+  }
+  if (verifiedSnapshot !== undefined) {
+    return {
+      status: "unavailable",
+      reason: quote === undefined ? "no-quote" : "quote-older-than-latest-bar",
+      usage: SIMPLIFIED_NO_CURRENT_PRICE_USAGE,
+    };
+  }
+  return undefined;
+}
+
 function roundToTwoDecimals(value: number | null): number | null {
   return value === null ? null : Number(value.toFixed(2));
 }
 
 function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
   const { deepEquityModelPacket: packet, canonicalSources } = requireSimplifiedInput(input);
+  const currentPriceReference = simplifiedCurrentPriceReference(packet);
   const calibrationBlock = buildCalibrationBlock(
     input.context.calibrationContext,
     input.command,
@@ -363,6 +406,7 @@ function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
   return {
     analysisAsOf: packet.run.analysisAsOf,
     run: packet.run,
+    ...(currentPriceReference !== undefined ? { currentPriceReference } : {}),
     ...simplifiedPriceHistory(packet),
     canonicalSourceIndex: compactSourceIndex(canonicalSources),
     finalEvidenceQuality: input.context.evidenceQualityAssessment,
@@ -503,22 +547,26 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
   const completionContext =
     predictionCompletion === undefined
       ? undefined
-      : {
-          evidence: {
-            ...buildCompletionEvidencePayload(
-              predictionCompletion.reportDraft,
-              input.command,
-              input.collectedSources,
-              input.context,
-            ),
-            ...simplifiedPriceHistory(packet),
-          },
-          priorStages: (() => {
-            const critique = completionCritiqueStage(input.priorStages ?? []);
-            return critique === undefined ? [] : [critique];
-          })(),
-          reportDraft: buildCompletionReportDraft(predictionCompletion.reportDraft),
-        };
+      : (() => {
+          const currentPriceReference = simplifiedCurrentPriceReference(packet);
+          return {
+            evidence: {
+              ...buildCompletionEvidencePayload(
+                predictionCompletion.reportDraft,
+                input.command,
+                input.collectedSources,
+                input.context,
+              ),
+              ...(currentPriceReference !== undefined ? { currentPriceReference } : {}),
+              ...simplifiedPriceHistory(packet),
+            },
+            priorStages: (() => {
+              const critique = completionCritiqueStage(input.priorStages ?? []);
+              return critique === undefined ? [] : [critique];
+            })(),
+            reportDraft: buildCompletionReportDraft(predictionCompletion.reportDraft),
+          };
+        })();
   const repairInstruction = simplifiedRepairInstruction(input);
   const languageRepair = buildReportLanguageRepairInstruction(input.reportValidationErrors ?? []);
 

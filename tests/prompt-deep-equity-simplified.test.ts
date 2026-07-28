@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { InstrumentCommand } from "../src/cli/args";
 import { buildDeepEquityModelPacket } from "../src/deep-equity/evidence";
-import type { Prediction, VerifiedMarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot, Prediction, VerifiedMarketSnapshot } from "../src/domain/types";
 import { buildDepthProfile } from "../src/research/depth-profile";
 import { buildSourceList } from "../src/research/report-assembly";
 import { loadStagePrompt } from "../src/research/prompt-loader";
@@ -28,6 +28,10 @@ import { config } from "./support/research-context-helpers";
 // Protects the NBIS deep-equity prompt-token floor measured after the 2026-07-27 live pair.
 // If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
 const PRICE_HISTORY_JSON_CHAR_CAP = 750;
+
+// Protects the token-reduction floor for the added centring input.
+// If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
+const CURRENT_PRICE_JSON_CHAR_CAP = 550;
 
 const command: InstrumentCommand = {
   jobType: "equity",
@@ -147,6 +151,18 @@ function packetWithSnapshot(snapshot: VerifiedMarketSnapshot) {
   });
 }
 
+function packetWithSnapshotAndQuote(snapshot: VerifiedMarketSnapshot, quote: MarketSnapshot) {
+  const bundle = deepEquityEvidenceBundle();
+  return buildDeepEquityModelPacket({
+    ...bundle,
+    evidence: {
+      ...bundle.evidence,
+      marketSnapshots: [quote],
+      verifiedMarketSnapshot: snapshot,
+    },
+  });
+}
+
 function promptEvidence(prompt: string): Record<string, unknown> {
   return (JSON.parse(prompt) as { readonly evidence: Record<string, unknown> }).evidence;
 }
@@ -232,6 +248,7 @@ describe("simplified deep-equity report quality steering", () => {
     expect(prompt).toBe(buildFinalSynthesisStagePrompt(generic));
     expect(prompt).not.toContain("priceMovementScale");
     expect(prompt).not.toContain("priceHistory");
+    expect(prompt).not.toContain("currentPriceReference");
     expect(prompt).toContain("outside [Lo, Hi] for range");
   });
 
@@ -254,12 +271,177 @@ describe("simplified deep-equity report quality steering", () => {
     expect(prompt).not.toContain("observed only where a filing, statement, or quote reports it");
     expect(prompt).not.toContain("priceMovementScale");
     expect(prompt).not.toContain("priceHistory");
+    expect(prompt).not.toContain("currentPriceReference");
   });
 
   test("the equity-analysis stage requires provenance and two-sided valuation figures", async () => {
     const loadedEquityAnalysis = await loadStagePrompt("equity-analysis", command, "prompts");
     expect(loadedEquityAnalysis.goal).toContain("even when it arrives already computed");
     expect(loadedEquityAnalysis.goal).toContain("the peer median and the spread around it");
+  });
+});
+
+describe("simplified deep-equity current price reference", () => {
+  test("emits the live quote as the current price reference", () => {
+    const snapshot = snapshotWithCloses(30);
+    const quote = marketSnapshot({
+      symbol: "aapl",
+      sourceId: "market-yahoo-equity-aapl",
+      price: 198.5,
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+
+    expect(evidence.currentPriceReference).toEqual({
+      status: "quote-observed",
+      price: 198.5,
+      observedAt: quote.observedAt,
+      sourceId: "market-yahoo-equity-aapl",
+      usage:
+        "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Dated verified-bar closes elsewhere in this payload are as of their session dates, not as of now. When a claim needs the current market level, use this figure and carry observedAt with it — not a bar close, and not a valuation- or peer-implied range.",
+    });
+  });
+
+  test("emits the live quote when no verified snapshot exists", () => {
+    const bundle = deepEquityEvidenceBundle();
+    const quote = marketSnapshot({
+      price: 198.5,
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const packet = buildDeepEquityModelPacket({
+      ...bundle,
+      evidence: { ...bundle.evidence, marketSnapshots: [quote] },
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({ deepEquityModelPacket: packet }),
+    );
+    const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
+
+    expect(currentPriceReference.status).toBe("quote-observed");
+    expect(currentPriceReference.price).toBe(198.5);
+    expect(currentPriceReference.observedAt).toBe(quote.observedAt);
+  });
+
+  test("passes quote currency through when identity carries it", () => {
+    const snapshot = snapshotWithCloses(30);
+    const quoteWithCurrency = marketSnapshot({
+      identity: { quoteCurrency: "USD" },
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const quoteWithoutCurrency = marketSnapshot({
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const withCurrency = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quoteWithCurrency),
+      }),
+    ).currentPriceReference as Record<string, unknown>;
+    const withoutCurrency = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quoteWithoutCurrency),
+      }),
+    ).currentPriceReference as Record<string, unknown>;
+
+    expect(withCurrency.quoteCurrency).toBe("USD");
+    expect(withoutCurrency).not.toHaveProperty("quoteCurrency");
+  });
+
+  test("never presents the dated bar as the current price", () => {
+    const snapshot = snapshotWithCloses(30);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+    const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
+
+    expect(currentPriceReference.status).toBe("unavailable");
+    expect(currentPriceReference.reason).toBe("no-quote");
+    expect(currentPriceReference.usage).toContain("do not present it as the current price");
+  });
+
+  test("does not use a peer snapshot as the run symbol's current price", () => {
+    const snapshot = snapshotWithCloses(30);
+    const peerQuote = marketSnapshot({
+      symbol: "MSFT",
+      price: 420,
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, peerQuote),
+      }),
+    );
+    const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
+
+    expect(currentPriceReference.status).toBe("unavailable");
+    expect(currentPriceReference.reason).toBe("no-quote");
+    expect(currentPriceReference).not.toHaveProperty("price");
+  });
+
+  test("does not claim recency for a quote older than the latest bar", () => {
+    const snapshot = verifiedMarketSnapshot({ latestSessionDate: "2026-03-30" });
+    const quote = marketSnapshot({
+      price: 198.5,
+      observedAt: "2026-02-01T14:31:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+    const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
+
+    expect(currentPriceReference.status).toBe("unavailable");
+    expect(currentPriceReference.reason).toBe("quote-older-than-latest-bar");
+    expect(currentPriceReference).not.toHaveProperty("price");
+  });
+
+  test("omits the block when neither a quote nor a verified snapshot exists", () => {
+    const evidence = promptEvidence(simplifiedFinalSynthesisPrompt());
+
+    expect(evidence).not.toHaveProperty("currentPriceReference");
+  });
+
+  test("keeps the current price reference under its character cap", () => {
+    const snapshot = snapshotWithCloses(30);
+    const quote = marketSnapshot({
+      identity: { quoteCurrency: "USD" },
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+
+    expect(JSON.stringify(evidence.currentPriceReference).length).toBeLessThan(
+      CURRENT_PRICE_JSON_CHAR_CAP,
+    );
+  });
+
+  test("resolves the quote source id through report assembly", () => {
+    const snapshot = snapshotWithCloses(30);
+    const quote = marketSnapshot({
+      sourceId: "market-yahoo-equity-aapl",
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+    const { sourceId } = evidence.currentPriceReference as { readonly sourceId: string };
+    const sourceIds = buildSourceList(
+      command,
+      sources({ marketSnapshots: [quote], verifiedMarketSnapshot: snapshot }),
+    ).map((source) => source.id);
+
+    expect(sourceIds).toContain(sourceId);
   });
 });
 
@@ -291,9 +473,10 @@ describe("simplified deep-equity price history", () => {
 
   test("carries the same block alongside latestClose on the completion pass", () => {
     const snapshot = snapshotWithCloses(30);
+    const quote = marketSnapshot({ observedAt: "2026-05-19T14:31:00.000Z" });
     const evidence = promptEvidence(
       simplifiedFinalSynthesisPrompt({
-        deepEquityModelPacket: packetWithSnapshot(snapshot),
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
         predictionCompletion: {
           requestedCount: 2,
           existingPredictions: retained,
@@ -302,6 +485,7 @@ describe("simplified deep-equity price history", () => {
       }),
     );
 
+    expect(evidence.currentPriceReference).toBeDefined();
     expect(evidence.priceHistory).toBeDefined();
     expect(evidence.latestClose).toBeDefined();
   });

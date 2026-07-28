@@ -43,12 +43,14 @@ import {
 // The 2026-07-28 paired eval then lost AAPL on evidence-grounding, downside, and gap disclosure.
 // Legacy treated the live-quote versus verified-bar gap as central; simplified only labelled it.
 // Both sides held the data, so snapshotRecency became a placement rule rather than a naming rule.
-// A material gap must reach the evidence, downside, and gap sections; an immaterial one must not.
+// Three paid repetitions recovered all three dimensions and lost financial-valuation-reasoning.
+// Pinning staleness onto every multiple resting on the older bar hedged the valuation prose.
+// State the gap and where it belongs; the valuation discussion stays free to be crisp.
 const DERIVED_FIGURE_CONSTRAINTS = {
   derivedFigures:
     "A figure is observed only where a filing, statement, or quote reports it directly. Anything built on top of one — a trailing-twelve-month aggregate, margin, growth rate, per-share or free-cash-flow proxy, valuation multiple, peer-implied range — is a derived calculation even when the packet supplies it already computed. Label it as derived and name the reported line items and periods it rests on.",
   snapshotRecency:
-    "The verified snapshot is a dated bar, not the current tape. Carry its session date with every claim drawn from it and do not merge the two into one market state. Where the two diverge materially, that gap is a contradiction in the evidence rather than a labelling detail: give both figures with their dates and their own sourceIds where the evidence is discussed, carry it into the downside and counterevidence discussion because indicators, multiples, and implied ranges resting on the older bar are stale by roughly that amount, and name it in the uncertainty and gap disclosure. Where the two agree closely, or no current quote was collected, say so once and do not construct a conflict the figures do not show.",
+    "The verified snapshot is a dated bar, not the current tape. Carry its session date with every claim drawn from it and do not merge the two into one market state. Where the two diverge materially, that gap is a contradiction in the evidence rather than a labelling detail: give both figures with their dates and their own sourceIds where the evidence is discussed, carry it into the downside and counterevidence discussion, and name it in the uncertainty and gap disclosure. Where the two agree closely, or no current quote was collected, say so once and do not construct a conflict the figures do not show.",
 } as const;
 
 const DETERMINISTIC_CITATION_GUIDANCE =

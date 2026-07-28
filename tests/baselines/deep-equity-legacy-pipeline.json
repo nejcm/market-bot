@@ -18,40 +18,40 @@
           "order": 2,
           "stage": "specialist-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 36627,
-          "promptTokenEstimate": 9157,
+          "promptCharacterEstimate": 36733,
+          "promptTokenEstimate": 9184,
           "providerTokenEstimate": 20
         },
         {
           "order": 3,
           "stage": "instrument-evidence-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 36832,
-          "promptTokenEstimate": 9208,
+          "promptCharacterEstimate": 36938,
+          "promptTokenEstimate": 9235,
           "providerTokenEstimate": 20
         },
         {
           "order": 4,
           "stage": "market-behavior-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 36830,
-          "promptTokenEstimate": 9208,
+          "promptCharacterEstimate": 36936,
+          "promptTokenEstimate": 9234,
           "providerTokenEstimate": 20
         },
         {
           "order": 5,
           "stage": "critique",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 37071,
-          "promptTokenEstimate": 9268,
+          "promptCharacterEstimate": 37177,
+          "promptTokenEstimate": 9295,
           "providerTokenEstimate": 20
         },
         {
           "order": 6,
           "stage": "final-synthesis",
           "model": "fixture-synthesis",
-          "promptCharacterEstimate": 47310,
-          "promptTokenEstimate": 11828,
+          "promptCharacterEstimate": 47416,
+          "promptTokenEstimate": 11854,
           "providerTokenEstimate": 50
         },
         {
@@ -65,8 +65,8 @@
       ],
       "modelCallTotals": {
         "callCount": 7,
-        "promptCharacterEstimate": 218819,
-        "promptTokenEstimate": 54707,
+        "promptCharacterEstimate": 219349,
+        "promptTokenEstimate": 54840,
         "providerTokenEstimate": 190
       },
       "requestCounts": [
@@ -322,40 +322,40 @@
           "order": 2,
           "stage": "specialist-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27435,
-          "promptTokenEstimate": 6859,
+          "promptCharacterEstimate": 27541,
+          "promptTokenEstimate": 6886,
           "providerTokenEstimate": 20
         },
         {
           "order": 3,
           "stage": "instrument-evidence-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27608,
-          "promptTokenEstimate": 6902,
+          "promptCharacterEstimate": 27714,
+          "promptTokenEstimate": 6929,
           "providerTokenEstimate": 20
         },
         {
           "order": 4,
           "stage": "market-behavior-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27606,
-          "promptTokenEstimate": 6902,
+          "promptCharacterEstimate": 27712,
+          "promptTokenEstimate": 6928,
           "providerTokenEstimate": 20
         },
         {
           "order": 5,
           "stage": "critique",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27783,
-          "promptTokenEstimate": 6946,
+          "promptCharacterEstimate": 27889,
+          "promptTokenEstimate": 6973,
           "providerTokenEstimate": 20
         },
         {
           "order": 6,
           "stage": "final-synthesis",
           "model": "fixture-synthesis",
-          "promptCharacterEstimate": 37453,
-          "promptTokenEstimate": 9364,
+          "promptCharacterEstimate": 37559,
+          "promptTokenEstimate": 9390,
           "providerTokenEstimate": 50
         },
         {
@@ -369,8 +369,8 @@
       ],
       "modelCallTotals": {
         "callCount": 7,
-        "promptCharacterEstimate": 166093,
-        "promptTokenEstimate": 41526,
+        "promptCharacterEstimate": 166623,
+        "promptTokenEstimate": 41659,
         "providerTokenEstimate": 190
       },
       "requestCounts": [
@@ -459,40 +459,40 @@
           "order": 2,
           "stage": "specialist-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27719,
-          "promptTokenEstimate": 6930,
+          "promptCharacterEstimate": 27825,
+          "promptTokenEstimate": 6957,
           "providerTokenEstimate": 20
         },
         {
           "order": 3,
           "stage": "instrument-evidence-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27894,
-          "promptTokenEstimate": 6974,
+          "promptCharacterEstimate": 28000,
+          "promptTokenEstimate": 7000,
           "providerTokenEstimate": 20
         },
         {
           "order": 4,
           "stage": "market-behavior-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 27892,
-          "promptTokenEstimate": 6973,
+          "promptCharacterEstimate": 27998,
+          "promptTokenEstimate": 7000,
           "providerTokenEstimate": 20
         },
         {
           "order": 5,
           "stage": "critique",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 28073,
-          "promptTokenEstimate": 7019,
+          "promptCharacterEstimate": 28179,
+          "promptTokenEstimate": 7045,
           "providerTokenEstimate": 20
         },
         {
           "order": 6,
           "stage": "final-synthesis",
           "model": "fixture-synthesis",
-          "promptCharacterEstimate": 37757,
-          "promptTokenEstimate": 9440,
+          "promptCharacterEstimate": 37863,
+          "promptTokenEstimate": 9466,
           "providerTokenEstimate": 50
         },
         {
@@ -506,8 +506,8 @@
       ],
       "modelCallTotals": {
         "callCount": 7,
-        "promptCharacterEstimate": 167619,
-        "promptTokenEstimate": 41908,
+        "promptCharacterEstimate": 168149,
+        "promptTokenEstimate": 42040,
         "providerTokenEstimate": 190
       },
       "requestCounts": [
@@ -596,40 +596,40 @@
           "order": 2,
           "stage": "specialist-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 37911,
-          "promptTokenEstimate": 9478,
+          "promptCharacterEstimate": 38017,
+          "promptTokenEstimate": 9505,
           "providerTokenEstimate": 20
         },
         {
           "order": 3,
           "stage": "instrument-evidence-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 38116,
-          "promptTokenEstimate": 9529,
+          "promptCharacterEstimate": 38222,
+          "promptTokenEstimate": 9556,
           "providerTokenEstimate": 20
         },
         {
           "order": 4,
           "stage": "market-behavior-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 38114,
-          "promptTokenEstimate": 9529,
+          "promptCharacterEstimate": 38220,
+          "promptTokenEstimate": 9555,
           "providerTokenEstimate": 20
         },
         {
           "order": 5,
           "stage": "critique",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 38355,
-          "promptTokenEstimate": 9589,
+          "promptCharacterEstimate": 38461,
+          "promptTokenEstimate": 9616,
           "providerTokenEstimate": 20
         },
         {
           "order": 6,
           "stage": "final-synthesis",
           "model": "fixture-synthesis",
-          "promptCharacterEstimate": 50146,
-          "promptTokenEstimate": 12537,
+          "promptCharacterEstimate": 50252,
+          "promptTokenEstimate": 12563,
           "providerTokenEstimate": 70
         },
         {
@@ -643,8 +643,8 @@
       ],
       "modelCallTotals": {
         "callCount": 7,
-        "promptCharacterEstimate": 229927,
-        "promptTokenEstimate": 57484,
+        "promptCharacterEstimate": 230457,
+        "promptTokenEstimate": 57617,
         "providerTokenEstimate": 170
       },
       "requestCounts": [
@@ -787,40 +787,40 @@
           "order": 2,
           "stage": "specialist-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 37464,
-          "promptTokenEstimate": 9366,
+          "promptCharacterEstimate": 37570,
+          "promptTokenEstimate": 9393,
           "providerTokenEstimate": 20
         },
         {
           "order": 3,
           "stage": "instrument-evidence-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 37669,
-          "promptTokenEstimate": 9418,
+          "promptCharacterEstimate": 37775,
+          "promptTokenEstimate": 9444,
           "providerTokenEstimate": 20
         },
         {
           "order": 4,
           "stage": "market-behavior-analysis",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 37667,
-          "promptTokenEstimate": 9417,
+          "promptCharacterEstimate": 37773,
+          "promptTokenEstimate": 9444,
           "providerTokenEstimate": 20
         },
         {
           "order": 5,
           "stage": "critique",
           "model": "fixture-quick",
-          "promptCharacterEstimate": 37908,
-          "promptTokenEstimate": 9477,
+          "promptCharacterEstimate": 38014,
+          "promptTokenEstimate": 9504,
           "providerTokenEstimate": 20
         },
         {
           "order": 6,
           "stage": "final-synthesis",
           "model": "fixture-synthesis",
-          "promptCharacterEstimate": 48844,
-          "promptTokenEstimate": 12211,
+          "promptCharacterEstimate": 48950,
+          "promptTokenEstimate": 12238,
           "providerTokenEstimate": 70
         },
         {
@@ -834,8 +834,8 @@
       ],
       "modelCallTotals": {
         "callCount": 7,
-        "promptCharacterEstimate": 225376,
-        "promptTokenEstimate": 56346,
+        "promptCharacterEstimate": 225906,
+        "promptTokenEstimate": 56480,
         "providerTokenEstimate": 170
       },
       "requestCounts": [

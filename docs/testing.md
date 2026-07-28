@@ -138,17 +138,17 @@ origin record; this evaluation artifact format does not provide one.
 
 The Phase 4 replay measurement covers six deep-equity fixtures. Its **reasoning-prompt token
 estimate reduction** sums `ceil(stable prompt characters / 4)` across captured model-stage prompts,
-then takes the six-fixture median. The current cassette result is 38.0023%. Every fixture uses three
+then takes the six-fixture median. The current cassette result is 36.8356%. Every fixture uses three
 core stages (`equity-analysis`, `critique`, `final-synthesis`) and four total calls. After restoring
 prior-calibration, prior-forecast-error, and `resolvedInstrumentIdentity` evidence,
-`equity-nbis-deep` is the per-fixture outlier at 26.5596%, not a gate failure; the evaluation test
+`equity-nbis-deep` is the per-fixture outlier at 25.7011%, not a gate failure; the evaluation test
 retains it as Phase 5 regression input with a 25% floor.
 
 That Phase 4 prompt-size metric is not the Phase 5 gate artifact's **whole-run trace-token
 improvement**. `aggregate.medianModelTokenImprovement` computes
 `(legacy.trace.tokenEstimate - simplified.trace.tokenEstimate) / legacy.trace.tokenEstimate` per
 pair and then takes the median. The one-fixture stub replay currently reports 26.3158% from 190
-versus 140 trace tokens. It is neither a six-fixture median nor comparable to the 38.0023%
+versus 140 trace tokens. It is neither a six-fixture median nor comparable to the 36.8356%
 reasoning-prompt estimate.
 
 These figures estimate cassette replay, not live-model behavior. Both legacy and `equity-analysis`
@@ -183,6 +183,15 @@ Recording requires live market data access and live model provider setup. Option
 keys such as `MARKET_BOT_FRED_API_KEY`, `MARKET_BOT_TRADIER_API_TOKEN`,
 `MARKET_BOT_EXA_API_KEY`, and `MARKET_BOT_SEC_USER_AGENT` affect what is captured. Never commit a
 fixture until the recorder's secret scan passes and `bun run check` is green.
+
+### Generated fixture price series
+
+`scripts/generate-fixture-price-series.ts` with `SEED = 17` owns the identical Yahoo chart bodies in
+`equity-aapl-brief`, `equity-aapl-deep`, `equity-analysis-comprehensive`,
+`equity-analysis-estimated-suppressed`, `equity-fpi-quarterly`, and
+`equity-fpi-ifrs-semiannual`. Do not re-record these chart entries independently: preserve the
+existing chart body when updating unrelated cassette data, and use the generator only for an
+intentional shared price-path change before replaying all six goldens.
 
 ## Fixture maintenance rules
 

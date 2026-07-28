@@ -42,8 +42,14 @@ import { loadFixture, runFixture } from "./support/run-fixtures";
 import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 
 // Protects the NBIS deep-equity prompt-token floor measured after the 2026-07-27 live pair.
-// If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
-const PRICE_HISTORY_JSON_CHAR_CAP = 750;
+// Raised from 750 to 850 on 2026-07-29 by explicit user decision, and the distinction matters.
+// This is a re-baseline against inputs the old number never covered, not a floor lowered to pass.
+// The payload did not grow: five-digit closes reach 751-753 characters and six-digit closes reach 785.
+// A JPY or KRW listing quotes in five digits and BRK-A quotes in six, and the CLI accepts both.
+// The cost of carrying them is roughly 9-25 prompt tokens against a tripwire at 33.80% median versus a 25% floor.
+// Shrinking instead would have cost sessions from the 30-close window that centred simplified bands at 0.00%.
+// The original instruction still holds in its intended sense: if payload growth hits this cap, shrink the payload.
+const PRICE_HISTORY_JSON_CHAR_CAP = 850;
 
 // Protects the token-reduction floor for the added centring input.
 // If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
@@ -162,6 +168,35 @@ function snapshotWithCloses(sessionCount: number): VerifiedMarketSnapshot {
     recentCloses,
   });
 }
+
+// The snapshotWithCloses ramp has a width pinned by construction, so the cap cannot fail on it.
+// Number(x.toFixed(2)) also drops trailing-zero cents there, making it narrower than it looks.
+// This helper is the widest realistic shape: six-digit closes whose cents never end in zero.
+// A US listing quotes there (BRK-A) and so does any JPY or KRW listing, so it is not an exotic input.
+function snapshotWithWideCloses(sessionCount: number): VerifiedMarketSnapshot {
+  const recentCloses = Array.from({ length: sessionCount }, (_, index) => ({
+    date: new Date(Date.UTC(2026, 2, index + 1)).toISOString().slice(0, 10),
+    close: Number((780_000 + index * 137 + (((index * 7) % 9) + 1) / 100).toFixed(2)),
+  }));
+  const latest = recentCloses.at(-1)!;
+  const base = verifiedMarketSnapshot();
+  return verifiedMarketSnapshot({
+    latestSessionDate: latest.date,
+    ohlcv: { ...base.ohlcv, date: latest.date, close: latest.close },
+    indicators: { ...base.indicators, atr14: 123.45 },
+    recentCloses,
+  });
+}
+
+// The committed deep-equity fixtures that reach final synthesis with a verified snapshot.
+const PRICE_HISTORY_CAP_FIXTURES = [
+  "equity-aapl-deep",
+  "equity-nbis-deep",
+  "equity-fpi-quarterly",
+  "equity-fpi-ifrs-semiannual",
+  "equity-analysis-comprehensive",
+  "equity-analysis-estimated-suppressed",
+] as const;
 
 function packetWithSnapshot(snapshot: VerifiedMarketSnapshot) {
   const bundle = deepEquityEvidenceBundle();
@@ -902,16 +937,32 @@ describe("simplified deep-equity price history", () => {
     expect(priceHistory.closes).toHaveLength(12);
   });
 
-  test("keeps the projected block under its character cap", () => {
-    const snapshot = snapshotWithCloses(30);
-    const evidence = promptEvidence(
+  test("keeps the widest realistic price magnitude under its character cap", () => {
+    const wide = promptEvidence(
       simplifiedFinalSynthesisPrompt({
-        deepEquityModelPacket: packetWithSnapshot(snapshot),
+        deepEquityModelPacket: packetWithSnapshot(snapshotWithWideCloses(30)),
       }),
-    );
+    ).priceHistory as { readonly closes: readonly number[] };
+    const ramp = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshotWithCloses(30)),
+      }),
+    ).priceHistory;
 
-    expect(JSON.stringify(evidence.priceHistory).length).toBeLessThan(PRICE_HISTORY_JSON_CHAR_CAP);
+    // Every close must serialize at its full width, or this guard is measuring the narrower shape.
+    expect(wide.closes.every((close) => String(close).length === 9)).toBe(true);
+    expect(JSON.stringify(wide).length).toBeGreaterThan(JSON.stringify(ramp).length);
+    expect(JSON.stringify(wide).length).toBeLessThan(PRICE_HISTORY_JSON_CHAR_CAP);
   });
+
+  test("keeps every committed fixture's emitted block under its character cap", async () => {
+    for (const fixture of PRICE_HISTORY_CAP_FIXTURES) {
+      const { priceHistory } = await capturedPrimaryFinalEvidence(fixture);
+
+      expect(priceHistory).toBeDefined();
+      expect(JSON.stringify(priceHistory).length).toBeLessThan(PRICE_HISTORY_JSON_CHAR_CAP);
+    }
+  }, 120_000);
 
   test("omits the block when the verified snapshot is absent", () => {
     const evidence = promptEvidence(simplifiedFinalSynthesisPrompt());

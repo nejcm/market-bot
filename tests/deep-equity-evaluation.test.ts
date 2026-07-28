@@ -124,25 +124,25 @@ describe("deep-equity pipeline evaluation", () => {
       reductions.length % 2 === 0
         ? ((reductions[midpoint - 1] ?? 0) + (reductions[midpoint] ?? 0)) / 2
         : (reductions[midpoint] ?? 0);
-    // This is a hygiene tripwire, NOT the Phase 5 cutover gate. It measures
-    // PromptTokenReductionPercent from cassette replay; the cutover gate measures the whole-run
-    // Trace.tokenEstimate median on paid runs and requires 0.30. Enforcing 30 here was a proxy
-    // For that gate using the wrong metric, which made every deliberate payload change trip a
-    // Constant and trained edits to the constant rather than to the change.
+    // This is a hygiene tripwire, not the Phase 5 cutover gate.
+    // The tripwire measures promptTokenReductionPercent from cassette replay.
+    // The cutover gate measures the whole-run trace.tokenEstimate median on paid runs, at 0.30.
+    // Enforcing 30 here proxied that gate with the wrong metric.
+    // Every deliberate payload change then tripped a constant, training edits to the constant.
     //
-    // Relaxed 2026-07-28 by explicit user decision: token growth is acceptable, so these bounds
-    // Exist only to catch UNINTENDED bloat. The floor still fires on the failure that matters --
-    // Shipping the full evidence packet to final synthesis costs roughly 6k-9k prompt tokens and
-    // Would put NBIS near 13%. Deliberate growth should change the design, not this number.
+    // Relaxed 2026-07-28 by explicit user decision: token growth is acceptable.
+    // These bounds now catch only unintended bloat.
+    // Shipping the full evidence packet to final synthesis would put NBIS near 13%, firing this.
+    // Deliberate growth should change the design, not this number.
     expect(medianReduction).toBeGreaterThanOrEqual(25);
     for (const budget of budgets) {
       expect(budget.promptTokenReductionPercent).toBeGreaterThanOrEqual(15);
     }
 
-    // NBIS carries a financial-table-mapping stage the other fixtures lack, and that stage sits in
-    // Both variants, so its achievable percentage is structurally compressed. Assert it remains the
-    // Outlier rather than pinning a numeric band: if this stops holding, the shape of the pipeline
-    // Changed and someone should look, which a two-sided band would report as a mere threshold miss.
+    // NBIS carries a financial-table-mapping stage the other fixtures lack.
+    // That stage sits in both variants, so its achievable percentage is structurally compressed.
+    // Assert it stays the outlier rather than pinning a numeric band.
+    // If this stops holding, the pipeline shape changed and someone should look.
     const lowestReduction = budgets.toSorted(
       (left, right) => left.promptTokenReductionPercent - right.promptTokenReductionPercent,
     )[0];

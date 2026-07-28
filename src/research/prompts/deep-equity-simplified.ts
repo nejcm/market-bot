@@ -49,6 +49,14 @@ const DERIVED_FIGURE_CONSTRAINTS = {
 const DETERMINISTIC_CITATION_GUIDANCE =
   "For exact numeric market claims, cite deterministic snapshot sourceIds from canonicalFacts, marketContext, evidenceItems, or the verified market snapshot when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 
+// The 2026-07-27 live pair produced a +/-30% peer-band forecast. The derived-figure rule was
+// Already present; the simplified final passes lacked the recent price dispersion needed to size
+// A band from observed movement, so this adds that input without adding another valuation rule.
+const SIMPLIFIED_PRICE_HISTORY_SESSIONS = 30;
+
+const PRICE_HISTORY_USAGE =
+  "Closes and indicators share one sourceId; cite it for claims using either. latestClose is a dated-bar close, not the current tape; carry latestSessionDate with any claim drawn from it. A forecast band should reflect the closes' observed dispersion over this window; atr14 is short-horizon volatility context.";
+
 function requireSimplifiedInput(
   input: StageInput,
 ): Pick<Required<StageInput>, "deepEquityModelPacket" | "canonicalSources"> {
@@ -301,6 +309,41 @@ function distilledPriorStages(
   });
 }
 
+function simplifiedPriceHistory(
+  packet: DeepEquityModelPacket,
+): Record<string, unknown> | undefined {
+  const snapshot = packet.canonicalFacts.verifiedMarketSnapshot;
+  if (snapshot === undefined) {
+    return undefined;
+  }
+  const window = snapshot.recentCloses.slice(-SIMPLIFIED_PRICE_HISTORY_SESSIONS);
+  if (window.length === 0) {
+    return undefined;
+  }
+  // Only ATR14 earns prompt cost for short-horizon width. Bollinger values are deliberately
+  // Withheld because they are a precomputed price band the model could copy as forecast bounds,
+  // Not because the verified snapshot lacks them.
+  const indicators = {
+    atr14: roundToTwoDecimals(snapshot.indicators.atr14),
+  };
+  return {
+    priceHistory: {
+      sourceId: verifiedSnapshotSourceId(snapshot.symbol),
+      latestSessionDate: snapshot.latestSessionDate,
+      windowStartDate: window[0]!.date,
+      // Keep this beside latestSessionDate so the dated-bar warning does not rely on array position.
+      latestClose: roundToTwoDecimals(snapshot.ohlcv.close),
+      closes: window.map((bar) => roundToTwoDecimals(bar.close)),
+      indicators,
+      usage: PRICE_HISTORY_USAGE,
+    },
+  };
+}
+
+function roundToTwoDecimals(value: number | null): number | null {
+  return value === null ? null : Number(value.toFixed(2));
+}
+
 function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
   const { deepEquityModelPacket: packet, canonicalSources } = requireSimplifiedInput(input);
   const calibrationBlock = buildCalibrationBlock(
@@ -320,6 +363,7 @@ function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
   return {
     analysisAsOf: packet.run.analysisAsOf,
     run: packet.run,
+    ...simplifiedPriceHistory(packet),
     canonicalSourceIndex: compactSourceIndex(canonicalSources),
     finalEvidenceQuality: input.context.evidenceQualityAssessment,
     sourceGapCount: packet.gaps.length,
@@ -439,7 +483,7 @@ export function buildSimplifiedCritiqueStagePrompt(input: StageInput): string {
 
 export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): string {
   const { predictionCompletion } = input;
-  requireSimplifiedInput(input);
+  const { deepEquityModelPacket: packet } = requireSimplifiedInput(input);
   const hasEarningsSetup =
     isInstrumentCommand(input.command) && input.collectedSources.earningsSetup !== undefined;
   const hasBusinessFramework =
@@ -460,12 +504,15 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
     predictionCompletion === undefined
       ? undefined
       : {
-          evidence: buildCompletionEvidencePayload(
-            predictionCompletion.reportDraft,
-            input.command,
-            input.collectedSources,
-            input.context,
-          ),
+          evidence: {
+            ...buildCompletionEvidencePayload(
+              predictionCompletion.reportDraft,
+              input.command,
+              input.collectedSources,
+              input.context,
+            ),
+            ...simplifiedPriceHistory(packet),
+          },
           priorStages: (() => {
             const critique = completionCritiqueStage(input.priorStages ?? []);
             return critique === undefined ? [] : [critique];

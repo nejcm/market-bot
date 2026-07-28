@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { InstrumentCommand } from "../src/cli/args";
 import { buildDeepEquityModelPacket } from "../src/deep-equity/evidence";
-import type { Prediction } from "../src/domain/types";
+import type { Prediction, VerifiedMarketSnapshot } from "../src/domain/types";
 import { buildDepthProfile } from "../src/research/depth-profile";
+import { buildSourceList } from "../src/research/report-assembly";
 import { loadStagePrompt } from "../src/research/prompt-loader";
 import { synthesizeReportUntilValid, type StageReprompt } from "../src/research/final-synthesis";
 import {
@@ -20,8 +21,13 @@ import {
   newsSource,
   prediction,
   researchReport,
+  verifiedMarketSnapshot,
 } from "./support/fixtures";
 import { config } from "./support/research-context-helpers";
+
+// Protects the NBIS deep-equity prompt-token floor measured after the 2026-07-27 live pair.
+// If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
+const PRICE_HISTORY_JSON_CHAR_CAP = 750;
 
 const command: InstrumentCommand = {
   jobType: "equity",
@@ -107,6 +113,44 @@ function stageInput(overrides: Partial<StageInput> = {}): StageInput {
   };
 }
 
+function snapshotWithCloses(sessionCount: number): VerifiedMarketSnapshot {
+  const recentCloses = Array.from({ length: sessionCount }, (_, index) => ({
+    date: new Date(Date.UTC(2026, 2, index + 1)).toISOString().slice(0, 10),
+    close: Number("216.47999572753906") + index * Number("1.3700027465820312"),
+  }));
+  const latest = recentCloses.at(-1)!;
+  return verifiedMarketSnapshot({
+    latestSessionDate: latest.date,
+    ohlcv: { ...verifiedMarketSnapshot().ohlcv, date: latest.date, close: latest.close },
+    indicators: {
+      ema10: Number("219.64999389648438"),
+      sma50: Number("203.3300018310547"),
+      sma200: Number("178.94000244140625"),
+      rsi14: Number("58.12345678901234"),
+      macd: Number("4.769999980926514"),
+      macdSignal: Number("3.859999895095825"),
+      macdHistogram: Number("0.9100000858306885"),
+      bollUpper: Number("274.87998962402344"),
+      bollMiddle: Number("218.8800048828125"),
+      bollLower: Number("162.88999938964844"),
+      atr14: Number("12.34999942779541"),
+    },
+    recentCloses,
+  });
+}
+
+function packetWithSnapshot(snapshot: VerifiedMarketSnapshot) {
+  const bundle = deepEquityEvidenceBundle();
+  return buildDeepEquityModelPacket({
+    ...bundle,
+    evidence: { ...bundle.evidence, verifiedMarketSnapshot: snapshot },
+  });
+}
+
+function promptEvidence(prompt: string): Record<string, unknown> {
+  return (JSON.parse(prompt) as { readonly evidence: Record<string, unknown> }).evidence;
+}
+
 function simplifiedFinalSynthesisPrompt(overrides: Partial<StageInput> = {}): string {
   return buildStagePrompt("final-synthesis", stageInput(overrides));
 }
@@ -187,6 +231,7 @@ describe("simplified deep-equity report quality steering", () => {
     const prompt = buildStagePrompt("final-synthesis", generic);
     expect(prompt).toBe(buildFinalSynthesisStagePrompt(generic));
     expect(prompt).not.toContain("priceMovementScale");
+    expect(prompt).not.toContain("priceHistory");
     expect(prompt).toContain("outside [Lo, Hi] for range");
   });
 
@@ -208,12 +253,133 @@ describe("simplified deep-equity report quality steering", () => {
     expect(prompt).toContain("outside [Lo, Hi] for range");
     expect(prompt).not.toContain("observed only where a filing, statement, or quote reports it");
     expect(prompt).not.toContain("priceMovementScale");
+    expect(prompt).not.toContain("priceHistory");
   });
 
   test("the equity-analysis stage requires provenance and two-sided valuation figures", async () => {
     const loadedEquityAnalysis = await loadStagePrompt("equity-analysis", command, "prompts");
     expect(loadedEquityAnalysis.goal).toContain("even when it arrives already computed");
     expect(loadedEquityAnalysis.goal).toContain("the peer median and the spread around it");
+  });
+});
+
+describe("simplified deep-equity price history", () => {
+  test("carries the rounded bounded series and width-relevant indicators on the primary pass", () => {
+    const snapshot = snapshotWithCloses(30);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+    const priceHistory = evidence.priceHistory as Record<string, unknown>;
+
+    expect(priceHistory.closes).toEqual(
+      snapshot.recentCloses.map((bar) => Number(bar.close.toFixed(2))),
+    );
+    expect(priceHistory.closes).toHaveLength(30);
+    expect(priceHistory.sourceId).toBe("verified-snapshot-AAPL");
+    expect(priceHistory.indicators).toEqual({
+      atr14: 12.35,
+    });
+    expect(priceHistory).not.toHaveProperty("symbol");
+    expect(priceHistory).not.toHaveProperty("sessionCount");
+    expect(priceHistory.latestClose).toBe(Number(snapshot.ohlcv.close.toFixed(2)));
+    expect(priceHistory.latestSessionDate).toBe(snapshot.latestSessionDate);
+    expect(priceHistory.usage).not.toContain("current quote");
+    expect(priceHistory.usage).not.toContain("impliedPriceRange");
+  });
+
+  test("carries the same block alongside latestClose on the completion pass", () => {
+    const snapshot = snapshotWithCloses(30);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+        predictionCompletion: {
+          requestedCount: 2,
+          existingPredictions: retained,
+          reportDraft: researchReport(),
+        },
+      }),
+    );
+
+    expect(evidence.priceHistory).toBeDefined();
+    expect(evidence.latestClose).toBeDefined();
+  });
+
+  test("keeps only the newest 30 sessions", () => {
+    const snapshot = snapshotWithCloses(60);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+    const priceHistory = evidence.priceHistory as Record<string, unknown>;
+
+    expect(priceHistory.closes).toHaveLength(30);
+    expect(priceHistory.windowStartDate).toBe(snapshot.recentCloses.at(-30)?.date);
+  });
+
+  test("keeps every available session when the window is shorter than 30", () => {
+    const snapshot = snapshotWithCloses(12);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+    const priceHistory = evidence.priceHistory as Record<string, unknown>;
+
+    expect(priceHistory.windowStartDate).toBe(snapshot.recentCloses[0]?.date);
+    expect(priceHistory.closes).toEqual(
+      snapshot.recentCloses.map((bar) => Number(bar.close.toFixed(2))),
+    );
+    expect(priceHistory.closes).toHaveLength(12);
+  });
+
+  test("keeps the projected block under its character cap", () => {
+    const snapshot = snapshotWithCloses(30);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+
+    expect(JSON.stringify(evidence.priceHistory).length).toBeLessThan(PRICE_HISTORY_JSON_CHAR_CAP);
+  });
+
+  test("omits the block when the verified snapshot is absent", () => {
+    const evidence = promptEvidence(simplifiedFinalSynthesisPrompt());
+
+    expect(evidence).not.toHaveProperty("priceHistory");
+    expect(evidence.run).toEqual({ symbol: "AAPL", analysisAsOf: "2026-05-19T00:00:00.000Z" });
+    expect(evidence.canonicalSourceIndex).toBeDefined();
+  });
+
+  test("omits the block when the verified snapshot has no recent closes", () => {
+    const snapshot = verifiedMarketSnapshot({ recentCloses: [] });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+
+    expect(evidence).not.toHaveProperty("priceHistory");
+  });
+
+  test("emits a source id that resolves through report assembly", () => {
+    const snapshot = snapshotWithCloses(30);
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshot(snapshot),
+      }),
+    );
+    const { sourceId } = evidence.priceHistory as { readonly sourceId: string };
+    const sourceIds = buildSourceList(command, sources({ verifiedMarketSnapshot: snapshot })).map(
+      (source) => source.id,
+    );
+
+    // Narrowly guards the instrument-command source-assembly gate; both sides intentionally share
+    // The verified-snapshot ID contract, so this is not independent end-to-end ID derivation proof.
+    expect(sourceIds).toContain(sourceId);
   });
 });
 

@@ -124,28 +124,29 @@ describe("deep-equity pipeline evaluation", () => {
       reductions.length % 2 === 0
         ? ((reductions[midpoint - 1] ?? 0) + (reductions[midpoint] ?? 0)) / 2
         : (reductions[midpoint] ?? 0);
-    // Plan gate: median model-token estimate must improve by at least 30%.
-    expect(medianReduction).toBeGreaterThanOrEqual(30);
+    // This is a hygiene tripwire, NOT the Phase 5 cutover gate. It measures
+    // PromptTokenReductionPercent from cassette replay; the cutover gate measures the whole-run
+    // Trace.tokenEstimate median on paid runs and requires 0.30. Enforcing 30 here was a proxy
+    // For that gate using the wrong metric, which made every deliberate payload change trip a
+    // Constant and trained edits to the constant rather than to the change.
+    //
+    // Relaxed 2026-07-28 by explicit user decision: token growth is acceptable, so these bounds
+    // Exist only to catch UNINTENDED bloat. The floor still fires on the failure that matters --
+    // Shipping the full evidence packet to final synthesis costs roughly 6k-9k prompt tokens and
+    // Would put NBIS near 13%. Deliberate growth should change the design, not this number.
+    expect(medianReduction).toBeGreaterThanOrEqual(25);
+    for (const budget of budgets) {
+      expect(budget.promptTokenReductionPercent).toBeGreaterThanOrEqual(15);
+    }
 
-    const tokenGateFailures = budgets.filter((budget) => budget.promptTokenReductionPercent < 30);
-    expect(tokenGateFailures.map((budget) => budget.fixture)).toEqual(["equity-nbis-deep"]);
-    const nbisBudget = tokenGateFailures[0];
-    expect(nbisBudget).toBeDefined();
-    if (nbisBudget === undefined) {
-      throw new Error("Expected equity-nbis-deep to remain the per-fixture token outlier");
-    }
-    // Phase 5 input: record the outlier without allowing a material regression to pass silently.
-    // Re-baselined 25 -> 24 on 2026-07-28 by explicit user decision, not by accommodation.
-    // The bounded valuation/fundamentals projection spent NBIS's headroom (25.36 -> 24.26).
-    // This guards promptTokenReductionPercent, which is NOT the Phase 5 cutover gate.
-    // The binding whole-run trace-token median still passes: 33.98% against a 30% minimum.
-    // Never lower this again to make a change fit.
-    // Trim the change instead, or re-baseline deliberately and record that decision here.
-    expect(nbisBudget.promptTokenReductionPercent).toBeGreaterThanOrEqual(24);
-    expect(nbisBudget.promptTokenReductionPercent).toBeLessThan(30);
-    for (const budget of budgets.filter((entry) => entry.fixture !== "equity-nbis-deep")) {
-      expect(budget.promptTokenReductionPercent).toBeGreaterThanOrEqual(30);
-    }
+    // NBIS carries a financial-table-mapping stage the other fixtures lack, and that stage sits in
+    // Both variants, so its achievable percentage is structurally compressed. Assert it remains the
+    // Outlier rather than pinning a numeric band: if this stops holding, the shape of the pipeline
+    // Changed and someone should look, which a two-sided band would report as a mere threshold miss.
+    const lowestReduction = budgets.toSorted(
+      (left, right) => left.promptTokenReductionPercent - right.promptTokenReductionPercent,
+    )[0];
+    expect(lowestReduction?.fixture).toBe("equity-nbis-deep");
   }, 30_000);
 
   test("simplified prediction reprompt returns a complete report and recovers", async () => {

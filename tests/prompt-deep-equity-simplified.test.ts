@@ -508,6 +508,15 @@ describe("simplified deep-equity report quality steering", () => {
     expect(prompt).toContain("do not merge the two into one market state");
   });
 
+  test("treats a material live-versus-verified price gap as a contradiction to surface", () => {
+    const prompt = simplifiedFinalSynthesisPrompt();
+    expect(prompt).toContain("a contradiction in the evidence rather than a labelling detail");
+    expect(prompt).toContain("carry it into the downside and counterevidence discussion");
+    expect(prompt).toContain("name it in the uncertainty and gap disclosure");
+    // The immaterial and no-quote paths must not be pushed into inventing a conflict.
+    expect(prompt).toContain("do not construct a conflict the figures do not show");
+  });
+
   test("leaves the generic-path final-synthesis prompt untouched", () => {
     const {
       deepEquityModelPacket: _packet,
@@ -676,7 +685,7 @@ describe("simplified deep-equity current price reference", () => {
       observedAt: quote.observedAt,
       sourceId: "market-yahoo-equity-aapl",
       usage:
-        "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Dated verified-bar closes elsewhere in this payload are as of their session dates, not as of now. When a claim needs the current market level, use this figure and carry observedAt with it — not a bar close, and not a valuation- or peer-implied range.",
+        "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Use it — not a bar close or an implied range — wherever a claim needs the current market level, and carry observedAt with it. Where it diverges materially from priceHistory.latestClose, handle that gap as reportConstraints.snapshotRecency requires.",
     });
   });
 

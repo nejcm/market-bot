@@ -40,11 +40,15 @@ import {
 // Rules bind to. Provenance, not authorship, decides: a TTM aggregate, peer multiple, or implied
 // Range that arrived precomputed in fundamentalHistory or derivedViews is still derived, so reading
 // It off the packet rather than computing it does not make it an observation.
+// The 2026-07-28 paired eval then lost AAPL on evidence-grounding, downside, and gap disclosure.
+// Legacy treated the live-quote versus verified-bar gap as central; simplified only labelled it.
+// Both sides held the data, so snapshotRecency became a placement rule rather than a naming rule.
+// A material gap must reach the evidence, downside, and gap sections; an immaterial one must not.
 const DERIVED_FIGURE_CONSTRAINTS = {
   derivedFigures:
     "A figure is observed only where a filing, statement, or quote reports it directly. Anything built on top of one — a trailing-twelve-month aggregate, margin, growth rate, per-share or free-cash-flow proxy, valuation multiple, peer-implied range — is a derived calculation even when the packet supplies it already computed. Label it as derived and name the reported line items and periods it rests on.",
   snapshotRecency:
-    "The verified snapshot is a dated bar, not the current tape. When its session date differs from the live quote, carry that date with every claim drawn from it and do not merge the two into one market state.",
+    "The verified snapshot is a dated bar, not the current tape. Carry its session date with every claim drawn from it and do not merge the two into one market state. Where the two diverge materially, that gap is a contradiction in the evidence rather than a labelling detail: give both figures with their dates and their own sourceIds where the evidence is discussed, carry it into the downside and counterevidence discussion because indicators, multiples, and implied ranges resting on the older bar are stale by roughly that amount, and name it in the uncertainty and gap disclosure. Where the two agree closely, or no current quote was collected, say so once and do not construct a conflict the figures do not show.",
 } as const;
 
 const DETERMINISTIC_CITATION_GUIDANCE =
@@ -61,7 +65,7 @@ const PRICE_HISTORY_USAGE =
 // The 2026-07-27 evaluation pair centred bands on valuationComps.impliedPriceRange.
 // This stage received only a 45-day-old verified bar, not the already-collected live quote.
 const SIMPLIFIED_CURRENT_PRICE_USAGE =
-  "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Dated verified-bar closes elsewhere in this payload are as of their session dates, not as of now. When a claim needs the current market level, use this figure and carry observedAt with it — not a bar close, and not a valuation- or peer-implied range.";
+  "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Use it — not a bar close or an implied range — wherever a claim needs the current market level, and carry observedAt with it. Where it diverges materially from priceHistory.latestClose, handle that gap as reportConstraints.snapshotRecency requires.";
 
 const SIMPLIFIED_NO_CURRENT_PRICE_USAGE =
   "No current quote for the run symbol was collected for this run. The most recent price available is the dated verified-bar close at its session date. State it with that date, do not present it as the current price, and say the current price is unavailable where a claim would otherwise need it.";

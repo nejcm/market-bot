@@ -13,6 +13,14 @@ import {
 } from "../src/research/prompts";
 import type { ResearchContext } from "../src/research/research-context-types";
 import { buildFinalSynthesisStagePrompt } from "../src/research/prompts/final-synthesis";
+import type {
+  FundamentalHistoryArtifact,
+  FundamentalHistorySeries,
+} from "../src/sources/extended-evidence/fundamental-history";
+import type {
+  PeerImpliedRange,
+  ValuationCompsArtifact,
+} from "../src/sources/extended-evidence/valuation-comps";
 import type { CollectedSources } from "../src/sources/types";
 import {
   collectedSources,
@@ -21,9 +29,17 @@ import {
   newsSource,
   prediction,
   researchReport,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
+import {
+  captureProvider,
+  type CapturedModelCall,
+  type CapturedModelExchange,
+} from "./support/model-call-capture";
 import { config } from "./support/research-context-helpers";
+import { loadFixture, runFixture } from "./support/run-fixtures";
+import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 
 // Protects the NBIS deep-equity prompt-token floor measured after the 2026-07-27 live pair.
 // If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
@@ -32,6 +48,10 @@ const PRICE_HISTORY_JSON_CHAR_CAP = 750;
 // Protects the token-reduction floor for the added centring input.
 // If this cap is hit, shrink the payload; never raise this cap or lower the token floor.
 const CURRENT_PRICE_JSON_CHAR_CAP = 550;
+
+// Protects the token-reduction headroom for the bounded report-writing evidence.
+// If this cap is hit, shrink the projection; do not raise it without re-running the token gate.
+const FINAL_FIGURE_JSON_CHAR_CAP = 6500;
 
 const command: InstrumentCommand = {
   jobType: "equity",
@@ -163,8 +183,236 @@ function packetWithSnapshotAndQuote(snapshot: VerifiedMarketSnapshot, quote: Mar
   });
 }
 
+const derivedImpliedPriceRange: PeerImpliedRange = {
+  status: "derived",
+  label: "peer-implied price reference range",
+  basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+  formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+  inputs: {
+    peerP25EvToAnnualizedRevenue: 2,
+    peerMedianEvToAnnualizedRevenue: 3,
+    peerP75EvToAnnualizedRevenue: 4,
+    annualizedRevenue: 1000,
+    netDebt: 100,
+    sharesOutstanding: 50,
+    currentPrice: 59,
+    quoteCurrency: "USD",
+    quoteObservedAt: "2026-05-19T00:00:00.000Z",
+  },
+  low: 38,
+  mid: 58,
+  high: 78,
+  position: "within-range",
+};
+
+const projectedDerivedImpliedPriceRange = {
+  status: "derived",
+  label: "peer-implied price reference range",
+  basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+  formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+  inputs: {
+    peerP25EvToAnnualizedRevenue: 2,
+    peerMedianEvToAnnualizedRevenue: 3,
+    peerP75EvToAnnualizedRevenue: 4,
+    annualizedRevenue: 1000,
+    netDebt: 100,
+    sharesOutstanding: 50,
+    quoteCurrency: "USD",
+  },
+  low: 38,
+  mid: 58,
+  high: 78,
+} as const;
+
+const suppressedImpliedPriceRange: PeerImpliedRange = {
+  status: "suppressed",
+  label: "peer-implied price reference range",
+  basis: "peer EV/annualized revenue percentiles applied to target annualized revenue",
+  formula: "impliedPrice(m) = (m × annualizedRevenue − netDebt) / sharesOutstanding",
+  inputs: {
+    peerP25EvToAnnualizedRevenue: null,
+    peerMedianEvToAnnualizedRevenue: null,
+    peerP75EvToAnnualizedRevenue: null,
+    annualizedRevenue: null,
+    netDebt: null,
+    sharesOutstanding: null,
+    currentPrice: null,
+    quoteCurrency: null,
+    quoteObservedAt: null,
+  },
+  suppressedReason: "peer percentile inputs are unavailable",
+};
+
+function emptyFundamentalHistorySeries(
+  key: FundamentalHistorySeries["key"],
+  label: string,
+  unit: FundamentalHistorySeries["unit"],
+): FundamentalHistorySeries {
+  return {
+    key,
+    label,
+    unit,
+    annual: [],
+    notes: [],
+  };
+}
+
+function fundamentalHistoryFixture(): FundamentalHistoryArtifact {
+  return {
+    version: 1,
+    generatedAt: "2026-05-19T00:00:00.000Z",
+    symbol: "AAPL",
+    sourceId: "extended-sec-edgar-aapl-fundamentals",
+    series: {
+      revenue: {
+        key: "revenue",
+        label: "Revenue",
+        unit: "currency",
+        annual: [],
+        ttm: {
+          value: 420_000_000_000,
+          form: "TTM",
+          fy: 2026,
+          fp: "TTM",
+          periodStart: "2025-04-01",
+          periodEnd: "2026-03-31",
+          periodMonths: 12,
+          filedAt: "2026-05-01",
+          currency: "USD",
+        },
+        cagr: {
+          percent: 8.2,
+          years: 3,
+          periodStart: "2023-03-31",
+          periodEnd: "2026-03-31",
+        },
+        notes: ["TTM is derived from reported quarterly periods."],
+      },
+      grossProfit: emptyFundamentalHistorySeries("grossProfit", "Gross profit", "currency"),
+      operatingIncome: emptyFundamentalHistorySeries(
+        "operatingIncome",
+        "Operating income",
+        "currency",
+      ),
+      netIncome: emptyFundamentalHistorySeries("netIncome", "Net income", "currency"),
+      dilutedEps: emptyFundamentalHistorySeries("dilutedEps", "Diluted EPS", "per-share"),
+      operatingCashFlow: emptyFundamentalHistorySeries(
+        "operatingCashFlow",
+        "Operating cash flow",
+        "currency",
+      ),
+      capex: emptyFundamentalHistorySeries("capex", "Capital expenditures", "currency"),
+      freeCashFlowProxy: emptyFundamentalHistorySeries(
+        "freeCashFlowProxy",
+        "Free cash flow proxy",
+        "currency",
+      ),
+      grossMargin: emptyFundamentalHistorySeries("grossMargin", "Gross margin", "ratio"),
+      operatingMargin: emptyFundamentalHistorySeries(
+        "operatingMargin",
+        "Operating margin",
+        "ratio",
+      ),
+      netMargin: emptyFundamentalHistorySeries("netMargin", "Net margin", "ratio"),
+    },
+  };
+}
+
+function valuationCompsFixture(
+  impliedPriceRange: PeerImpliedRange | undefined = derivedImpliedPriceRange,
+): ValuationCompsArtifact {
+  return {
+    version: 1,
+    generatedAt: "2026-05-19T00:00:00.000Z",
+    target: { symbol: "AAPL", sourceIds: ["market-aapl"], usable: true },
+    peers: [],
+    excludedPeers: [
+      {
+        symbol: "PEER",
+        role: "core",
+        reason: "market-cap gate failed",
+        sourceIds: ["market-peer"],
+      },
+    ],
+    peerUniverseSourceIds: [],
+    summary: {
+      corePeerCount: 1,
+      secondaryPeerCount: 0,
+      usablePeerCount: 0,
+      valuationSupportability: "screening-only",
+    },
+    ...(impliedPriceRange !== undefined ? { impliedPriceRange } : {}),
+    sourceIds: ["market-aapl"],
+    freshnessFlags: {
+      targetQuoteFresh: true,
+      targetSecFresh: true,
+      peerQuoteFresh: false,
+      peerSecFresh: false,
+    },
+  };
+}
+
+function packetWithFinalFigures(
+  quote: MarketSnapshot = marketSnapshot({
+    sourceId: "market-aapl",
+    marketCap: 3_100_000_000_000,
+    fundamentals: {
+      trailingPE: 31.2,
+      forwardPE: 27.4,
+      epsForward: 7.3,
+      epsTrailingTwelveMonths: 6.4,
+      sharesOutstanding: 15_000_000_000,
+      priceToBook: 45.1,
+      bookValue: 4.5,
+    },
+  }),
+  impliedPriceRange: PeerImpliedRange | undefined = derivedImpliedPriceRange,
+) {
+  const bundle = deepEquityEvidenceBundle();
+  return buildDeepEquityModelPacket({
+    ...bundle,
+    evidence: { ...bundle.evidence, marketSnapshots: [quote] },
+    derived: {
+      ...bundle.derived,
+      fundamentalHistory: fundamentalHistoryFixture(),
+      valuationComps: valuationCompsFixture(impliedPriceRange),
+      valuationWorkbench: valuationWorkbench(),
+    },
+  });
+}
+
 function promptEvidence(prompt: string): Record<string, unknown> {
   return (JSON.parse(prompt) as { readonly evidence: Record<string, unknown> }).evidence;
+}
+
+function boundedFigurePayload(evidence: Record<string, unknown>): Record<string, unknown> {
+  return {
+    issuerFundamentals: evidence.issuerFundamentals,
+    valuation: evidence.valuation,
+    fundamentalHistory: evidence.fundamentalHistory,
+    figureUsage: evidence.figureUsage,
+  };
+}
+
+async function capturedPrimaryFinalEvidence(fixtureName: string): Promise<Record<string, unknown>> {
+  const fixture = await loadFixture(fixtureName);
+  const modelCalls: CapturedModelCall[] = [];
+  const transcript: CapturedModelExchange[] = [];
+  const result = await runFixture(fixtureName, {
+    llm: "replay",
+    reasoningVariant: "simplified",
+    provider: captureProvider(makeReplayProvider(fixture.llmCassette), modelCalls, transcript),
+  });
+  try {
+    const exchange = transcript.find((entry) => entry.stage === "final-synthesis");
+    const content = exchange?.messages.findLast((message) => message.role === "user")?.content;
+    if (content === undefined) {
+      throw new Error(`missing primary final-synthesis prompt for ${fixtureName}`);
+    }
+    return (JSON.parse(content) as { readonly evidence: Record<string, unknown> }).evidence;
+  } finally {
+    await result.cleanup();
+  }
 }
 
 function simplifiedFinalSynthesisPrompt(overrides: Partial<StageInput> = {}): string {
@@ -272,6 +520,10 @@ describe("simplified deep-equity report quality steering", () => {
     expect(prompt).not.toContain("priceMovementScale");
     expect(prompt).not.toContain("priceHistory");
     expect(prompt).not.toContain("currentPriceReference");
+    expect(prompt).not.toContain("issuerFundamentals");
+    expect(prompt).not.toContain('"valuation"');
+    expect(prompt).not.toContain("fundamentalHistory");
+    expect(prompt).not.toContain("figureUsage");
   });
 
   test("the equity-analysis stage requires provenance and two-sided valuation figures", async () => {
@@ -279,6 +531,128 @@ describe("simplified deep-equity report quality steering", () => {
     expect(loadedEquityAnalysis.goal).toContain("even when it arrives already computed");
     expect(loadedEquityAnalysis.goal).toContain("the peer median and the spread around it");
   });
+});
+
+describe("simplified deep-equity final figure evidence", () => {
+  test("projects issuer, valuation, and headline history fields on the primary pass", () => {
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({ deepEquityModelPacket: packetWithFinalFigures() }),
+    );
+    const issuerFundamentals = evidence.issuerFundamentals as Record<string, unknown>;
+    const valuation = evidence.valuation as {
+      readonly valuationComps: Record<string, unknown>;
+      readonly valuationWorkbench: {
+        readonly historicalMultiples: Record<string, unknown>;
+      };
+    };
+    const fundamentalHistory = evidence.fundamentalHistory as {
+      readonly sourceId: string;
+      readonly series: { readonly revenue: Record<string, unknown> };
+    };
+
+    expect(issuerFundamentals).toEqual({
+      sourceId: "market-aapl",
+      marketCap: 3_100_000_000_000,
+      trailingPE: 31.2,
+      forwardPE: 27.4,
+      priceToBook: 45.1,
+      bookValue: 4.5,
+      epsTrailingTwelveMonths: 6.4,
+      epsForward: 7.3,
+      sharesOutstanding: 15_000_000_000,
+    });
+    expect(issuerFundamentals).not.toHaveProperty("price");
+    expect(issuerFundamentals).not.toHaveProperty("observedAt");
+    expect(valuation.valuationComps).toEqual({
+      summary: valuationCompsFixture().summary,
+      impliedPriceRange: projectedDerivedImpliedPriceRange,
+      excludedPeers: valuationCompsFixture().excludedPeers,
+    });
+    expect(valuation.valuationComps.impliedPriceRange).not.toHaveProperty("inputs.currentPrice");
+    expect(valuation.valuationComps.impliedPriceRange).not.toHaveProperty("inputs.quoteObservedAt");
+    expect(valuation.valuationComps.impliedPriceRange).not.toHaveProperty("position");
+    expect(valuation.valuationWorkbench).toEqual({
+      historicalMultiples: {
+        trailingBasis: valuationWorkbench().historicalMultiples.trailingBasis,
+        priceSelectionRule: valuationWorkbench().historicalMultiples.priceSelectionRule,
+        suppressionReasons: valuationWorkbench().historicalMultiples.suppressionReasons,
+      },
+    });
+    expect(fundamentalHistory.sourceId).toBe("extended-sec-edgar-aapl-fundamentals");
+    expect(fundamentalHistory.series.revenue).toEqual({
+      ttm: fundamentalHistoryFixture().series.revenue.ttm,
+      cagr: fundamentalHistoryFixture().series.revenue.cagr,
+      notes: fundamentalHistoryFixture().series.revenue.notes,
+    });
+    expect(fundamentalHistory.series.revenue).not.toHaveProperty("annual");
+    expect(fundamentalHistory.series.revenue).not.toHaveProperty("label");
+    expect(fundamentalHistory.series.revenue).not.toHaveProperty("unit");
+    expect(evidence.figureUsage).toContain("reportConstraints.derivedFigures");
+    expect(evidence.figureUsage).toContain("omits live-price comparison fields");
+    expect(JSON.stringify(boundedFigurePayload(evidence))).not.toContain("null");
+  });
+
+  test("omits suppressed ranges and undefined fundamentals without emitting nulls", () => {
+    const quote = marketSnapshot({
+      fundamentals: {
+        forwardPE: 27.4,
+      },
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithFinalFigures(quote, suppressedImpliedPriceRange),
+      }),
+    );
+    const issuerFundamentals = evidence.issuerFundamentals as Record<string, unknown>;
+    const valuation = evidence.valuation as {
+      readonly valuationComps: Record<string, unknown>;
+    };
+    const boundedPayload = boundedFigurePayload(evidence);
+
+    expect(issuerFundamentals).toEqual({ sourceId: "market-aapl", forwardPE: 27.4 });
+    expect(issuerFundamentals).not.toHaveProperty("marketCap");
+    expect(issuerFundamentals).not.toHaveProperty("trailingPE");
+    expect(issuerFundamentals).not.toHaveProperty("sharesOutstanding");
+    expect(valuation.valuationComps).not.toHaveProperty("impliedPriceRange");
+    expect(JSON.stringify(boundedPayload)).not.toContain("null");
+  });
+
+  test("keeps report-writing figures off the distilled completion pass", () => {
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithFinalFigures(),
+        predictionCompletion: {
+          requestedCount: 2,
+          existingPredictions: retained,
+          reportDraft: researchReport(),
+        },
+      }),
+    );
+
+    expect(evidence).not.toHaveProperty("issuerFundamentals");
+    expect(evidence).not.toHaveProperty("valuation");
+    expect(evidence).not.toHaveProperty("fundamentalHistory");
+    expect(evidence).not.toHaveProperty("figureUsage");
+  });
+
+  test("keeps the real comprehensive payload price-clean and under its character cap", async () => {
+    const evidence = await capturedPrimaryFinalEvidence("equity-analysis-comprehensive");
+    const currentPriceReference = evidence.currentPriceReference as {
+      readonly price: number;
+      readonly observedAt: string;
+    };
+    const serialized = JSON.stringify(boundedFigurePayload(evidence));
+
+    expect(serialized.length).toBeLessThan(FINAL_FIGURE_JSON_CHAR_CAP);
+    expect(serialized).not.toContain(String(currentPriceReference.price));
+    expect(serialized).not.toContain(currentPriceReference.observedAt);
+    expect(serialized).not.toContain("observedAt");
+    expect(serialized).not.toContain("quoteObservedAt");
+    // A position verdict states where the live price sits, leaking the quote by implication.
+    expect(serialized).not.toContain("position");
+    expect(serialized).not.toContain('"currentPrice"');
+    expect(serialized).not.toContain("null");
+  }, 30_000);
 });
 
 describe("simplified deep-equity current price reference", () => {

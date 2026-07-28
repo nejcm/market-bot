@@ -1,6 +1,7 @@
 import { isInstrumentCommand } from "../../cli/args";
 import type { DeepEquityModelPacket } from "../../deep-equity/types";
 import type { Source } from "../../domain/types";
+import type { PeerImpliedRange } from "../../sources/extended-evidence/valuation-comps";
 import { subjectKindForCommand } from "../../web-evidence";
 import { buildCalibrationBlock } from "../calibration-context";
 import {
@@ -65,6 +66,9 @@ const SIMPLIFIED_CURRENT_PRICE_USAGE =
 const SIMPLIFIED_NO_CURRENT_PRICE_USAGE =
   "No current quote for the run symbol was collected for this run. The most recent price available is the dated verified-bar close at its session date. State it with that date, do not present it as the current price, and say the current price is unavailable where a claim would otherwise need it.";
 
+const SIMPLIFIED_FINAL_FIGURE_USAGE =
+  "Use issuerFundamentals as fields from the run-symbol quote record. Under reportConstraints.derivedFigures, label every valuation multiple, peer-implied range, trailing aggregate, growth rate, or other calculation in these blocks as derived and name its reported inputs and periods. valuation omits live-price comparison fields; use currentPriceReference for the current market level.";
+
 function requireSimplifiedInput(
   input: StageInput,
 ): Pick<Required<StageInput>, "deepEquityModelPacket" | "canonicalSources"> {
@@ -117,12 +121,57 @@ function promptSideEvidence(input: StageInput): Record<string, unknown> {
   };
 }
 
+function compactFundamentalHistory(
+  packet: DeepEquityModelPacket,
+  headlineOnly = false,
+): Record<string, unknown> | undefined {
+  const history = packet.canonicalFacts.fundamentalHistory;
+  if (history === undefined) {
+    return undefined;
+  }
+  const series = Object.fromEntries(
+    Object.entries(history.series).flatMap(([key, item]) => {
+      const headline = {
+        ...(item.ttm !== undefined ? { ttm: item.ttm } : {}),
+        ...(item.cagr !== undefined ? { cagr: item.cagr } : {}),
+        ...(item.notes.length > 0 ? { notes: item.notes } : {}),
+      };
+      if (headlineOnly) {
+        return Object.keys(headline).length > 0 ? [[key, headline]] : [];
+      }
+      return [
+        [
+          key,
+          {
+            label: item.label,
+            unit: item.unit,
+            annual: item.annual.map((period) => ({
+              value: period.value,
+              periodEnd: period.periodEnd,
+              filedAt: period.filedAt,
+              ...(period.currency !== undefined ? { currency: period.currency } : {}),
+            })),
+            ...headline,
+          },
+        ],
+      ];
+    }),
+  );
+  if (headlineOnly && Object.keys(series).length === 0) {
+    return undefined;
+  }
+  return {
+    sourceId: history.sourceId,
+    series,
+  };
+}
+
 function compactCanonicalFacts(
   packet: DeepEquityModelPacket,
   includeHistory: boolean,
 ): Record<string, unknown> {
   const statements = packet.canonicalFacts.financialStatements;
-  const history = packet.canonicalFacts.fundamentalHistory;
+  const fundamentalHistory = includeHistory ? compactFundamentalHistory(packet) : undefined;
   return {
     marketSnapshots: packet.canonicalFacts.marketSnapshots,
     supplementalMarketSnapshots: packet.canonicalFacts.supplementalMarketSnapshots,
@@ -146,83 +195,76 @@ function compactCanonicalFacts(
           },
         }
       : {}),
-    ...(includeHistory && history !== undefined
-      ? {
-          fundamentalHistory: {
-            sourceId: history.sourceId,
-            series: Object.fromEntries(
-              Object.entries(history.series).map(([key, series]) => [
-                key,
-                {
-                  label: series.label,
-                  unit: series.unit,
-                  annual: series.annual.map((period) => ({
-                    value: period.value,
-                    periodEnd: period.periodEnd,
-                    filedAt: period.filedAt,
-                    ...(period.currency !== undefined ? { currency: period.currency } : {}),
-                  })),
-                  ...(series.ttm !== undefined ? { ttm: series.ttm } : {}),
-                  ...(series.cagr !== undefined ? { cagr: series.cagr } : {}),
-                  ...(series.notes.length > 0 ? { notes: series.notes } : {}),
-                },
-              ]),
-            ),
-          },
-        }
-      : {}),
+    ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
   };
 }
 
 function compactDerivedViews(
   packet: DeepEquityModelPacket,
   critique: boolean,
+  valuationOnly = false,
 ): Record<string, unknown> {
   const views = packet.derivedViews;
   const { valuationComps } = views;
   const workbench = views.valuationWorkbench;
   const { businessFramework } = views;
+  const impliedPriceRange = valuationComps?.impliedPriceRange;
+  const includeImpliedPriceRange = !valuationOnly || impliedPriceRange?.status === "derived";
+  const projectedImpliedPriceRange =
+    valuationOnly && impliedPriceRange?.status === "derived"
+      ? compactFinalImpliedPriceRange(impliedPriceRange)
+      : impliedPriceRange;
+  let valuationWorkbench: Record<string, unknown> | undefined = undefined;
+  if (workbench !== undefined) {
+    if (critique) {
+      valuationWorkbench = {
+        reportingCurrency: workbench.reportingCurrency,
+        quoteCurrency: workbench.quoteCurrency,
+        suppressionReasons: workbench.historicalMultiples.suppressionReasons,
+      };
+    } else if (valuationOnly) {
+      valuationWorkbench = {
+        historicalMultiples: {
+          trailingBasis: workbench.historicalMultiples.trailingBasis,
+          priceSelectionRule: workbench.historicalMultiples.priceSelectionRule,
+          suppressionReasons: workbench.historicalMultiples.suppressionReasons,
+        },
+      };
+    } else {
+      valuationWorkbench = {
+        reportingCurrency: workbench.reportingCurrency,
+        quoteCurrency: workbench.quoteCurrency,
+        priceSelectionRule: workbench.historicalMultiples.priceSelectionRule,
+        trailingBasis: workbench.historicalMultiples.trailingBasis,
+        suppressionReasons: workbench.historicalMultiples.suppressionReasons,
+      };
+    }
+  }
   const emittedViews: Record<string, unknown> = {
-    ...(!critique && views.capitalOwnership !== undefined
+    ...(!valuationOnly && !critique && views.capitalOwnership !== undefined
       ? { capitalOwnership: views.capitalOwnership }
       : {}),
-    ...(!critique && views.subsequentFinancing !== undefined
+    ...(!valuationOnly && !critique && views.subsequentFinancing !== undefined
       ? { subsequentFinancing: views.subsequentFinancing }
       : {}),
-    ...(!critique && views.analystExpectations !== undefined
+    ...(!valuationOnly && !critique && views.analystExpectations !== undefined
       ? { analystExpectations: views.analystExpectations }
       : {}),
-    ...(!critique && views.institutionalOwnership !== undefined
+    ...(!valuationOnly && !critique && views.institutionalOwnership !== undefined
       ? { institutionalOwnership: views.institutionalOwnership }
       : {}),
     ...(valuationComps !== undefined
       ? {
           valuationComps: {
             summary: valuationComps.summary,
-            impliedPriceRange: valuationComps.impliedPriceRange,
-            freshnessFlags: valuationComps.freshnessFlags,
+            ...(includeImpliedPriceRange ? { impliedPriceRange: projectedImpliedPriceRange } : {}),
+            ...(!valuationOnly ? { freshnessFlags: valuationComps.freshnessFlags } : {}),
             excludedPeers: valuationComps.excludedPeers,
           },
         }
       : {}),
-    ...(workbench !== undefined
-      ? {
-          valuationWorkbench: critique
-            ? {
-                reportingCurrency: workbench.reportingCurrency,
-                quoteCurrency: workbench.quoteCurrency,
-                suppressionReasons: workbench.historicalMultiples.suppressionReasons,
-              }
-            : {
-                reportingCurrency: workbench.reportingCurrency,
-                quoteCurrency: workbench.quoteCurrency,
-                priceSelectionRule: workbench.historicalMultiples.priceSelectionRule,
-                trailingBasis: workbench.historicalMultiples.trailingBasis,
-                suppressionReasons: workbench.historicalMultiples.suppressionReasons,
-              },
-        }
-      : {}),
-    ...(views.reverseDcf !== undefined
+    ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
+    ...(!valuationOnly && views.reverseDcf !== undefined
       ? {
           reverseDcf:
             views.reverseDcf.status === "computed" && !critique
@@ -238,8 +280,10 @@ function compactDerivedViews(
                 },
         }
       : {}),
-    ...(views.earningsSetup !== undefined ? { earningsSetup: views.earningsSetup } : {}),
-    ...(businessFramework !== undefined
+    ...(!valuationOnly && views.earningsSetup !== undefined
+      ? { earningsSetup: views.earningsSetup }
+      : {}),
+    ...(!valuationOnly && businessFramework !== undefined
       ? {
           businessFramework: {
             phase: businessFramework.phase,
@@ -254,8 +298,31 @@ function compactDerivedViews(
       : {}),
   };
   return {
-    available: Object.keys(emittedViews),
+    ...(!valuationOnly ? { available: Object.keys(emittedViews) } : {}),
     ...emittedViews,
+  };
+}
+
+function compactFinalImpliedPriceRange(
+  range: Extract<PeerImpliedRange, { readonly status: "derived" }>,
+): Record<string, unknown> {
+  return {
+    status: range.status,
+    label: range.label,
+    basis: range.basis,
+    formula: range.formula,
+    inputs: {
+      peerP25EvToAnnualizedRevenue: range.inputs.peerP25EvToAnnualizedRevenue,
+      peerMedianEvToAnnualizedRevenue: range.inputs.peerMedianEvToAnnualizedRevenue,
+      peerP75EvToAnnualizedRevenue: range.inputs.peerP75EvToAnnualizedRevenue,
+      annualizedRevenue: range.inputs.annualizedRevenue,
+      netDebt: range.inputs.netDebt,
+      sharesOutstanding: range.inputs.sharesOutstanding,
+      quoteCurrency: range.inputs.quoteCurrency,
+    },
+    low: range.low,
+    mid: range.mid,
+    high: range.high,
   };
 }
 
@@ -382,6 +449,55 @@ function simplifiedCurrentPriceReference(
   return undefined;
 }
 
+function simplifiedIssuerFundamentals(
+  packet: DeepEquityModelPacket,
+): Record<string, unknown> | undefined {
+  const symbol = packet.run.symbol.toUpperCase();
+  const quote = packet.canonicalFacts.marketSnapshots.find(
+    (snapshot) => snapshot.symbol.toUpperCase() === symbol,
+  );
+  if (quote === undefined) {
+    return undefined;
+  }
+  const { fundamentals } = quote;
+  const fields = {
+    ...(quote.marketCap !== undefined ? { marketCap: quote.marketCap } : {}),
+    ...(fundamentals?.trailingPE !== undefined ? { trailingPE: fundamentals.trailingPE } : {}),
+    ...(fundamentals?.forwardPE !== undefined ? { forwardPE: fundamentals.forwardPE } : {}),
+    ...(fundamentals?.priceToBook !== undefined ? { priceToBook: fundamentals.priceToBook } : {}),
+    ...(fundamentals?.bookValue !== undefined ? { bookValue: fundamentals.bookValue } : {}),
+    ...(fundamentals?.dividendYield !== undefined
+      ? { dividendYield: fundamentals.dividendYield }
+      : {}),
+    ...(fundamentals?.epsTrailingTwelveMonths !== undefined
+      ? { epsTrailingTwelveMonths: fundamentals.epsTrailingTwelveMonths }
+      : {}),
+    ...(fundamentals?.epsForward !== undefined ? { epsForward: fundamentals.epsForward } : {}),
+    ...(fundamentals?.sharesOutstanding !== undefined
+      ? { sharesOutstanding: fundamentals.sharesOutstanding }
+      : {}),
+    ...(fundamentals?.trailingAnnualDividendRate !== undefined
+      ? { trailingAnnualDividendRate: fundamentals.trailingAnnualDividendRate }
+      : {}),
+  };
+  return Object.keys(fields).length > 0 ? { sourceId: quote.sourceId, ...fields } : undefined;
+}
+
+function simplifiedFinalFigureEvidence(packet: DeepEquityModelPacket): Record<string, unknown> {
+  const issuerFundamentals = simplifiedIssuerFundamentals(packet);
+  const valuation = compactDerivedViews(packet, false, true);
+  const fundamentalHistory = compactFundamentalHistory(packet, true);
+  const hasValuation = Object.keys(valuation).length > 0;
+  const hasFigures =
+    issuerFundamentals !== undefined || hasValuation || fundamentalHistory !== undefined;
+  return {
+    ...(issuerFundamentals !== undefined ? { issuerFundamentals } : {}),
+    ...(hasValuation ? { valuation } : {}),
+    ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
+    ...(hasFigures ? { figureUsage: SIMPLIFIED_FINAL_FIGURE_USAGE } : {}),
+  };
+}
+
 function roundToTwoDecimals(value: number | null): number | null {
   return value === null ? null : Number(value.toFixed(2));
 }
@@ -408,6 +524,7 @@ function simplifiedFinalEvidence(input: StageInput): Record<string, unknown> {
     run: packet.run,
     ...(currentPriceReference !== undefined ? { currentPriceReference } : {}),
     ...simplifiedPriceHistory(packet),
+    ...simplifiedFinalFigureEvidence(packet),
     canonicalSourceIndex: compactSourceIndex(canonicalSources),
     finalEvidenceQuality: input.context.evidenceQualityAssessment,
     sourceGapCount: packet.gaps.length,
@@ -544,6 +661,9 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
   );
   const requiredShape =
     predictionCompletion === undefined ? reportShape : { predictions: reportShape.predictions };
+  // The measured token budget does not allow replaying the bounded report-writing figures here.
+  // The primary pass may therefore cite a peer-implied range that completion-pass predictions
+  // Cannot see; current-price and price-history anchors remain on both passes.
   const completionContext =
     predictionCompletion === undefined
       ? undefined

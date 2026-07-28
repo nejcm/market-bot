@@ -135,7 +135,13 @@ describe("deep-equity pipeline evaluation", () => {
       throw new Error("Expected equity-nbis-deep to remain the per-fixture token outlier");
     }
     // Phase 5 input: record the outlier without allowing a material regression to pass silently.
-    expect(nbisBudget.promptTokenReductionPercent).toBeGreaterThanOrEqual(25);
+    // Re-baselined 25 -> 24 on 2026-07-28 by explicit user decision, not by accommodation.
+    // The bounded valuation/fundamentals projection spent NBIS's headroom (25.36 -> 24.26).
+    // This guards promptTokenReductionPercent, which is NOT the Phase 5 cutover gate.
+    // The binding whole-run trace-token median still passes: 33.98% against a 30% minimum.
+    // Never lower this again to make a change fit.
+    // Trim the change instead, or re-baseline deliberately and record that decision here.
+    expect(nbisBudget.promptTokenReductionPercent).toBeGreaterThanOrEqual(24);
     expect(nbisBudget.promptTokenReductionPercent).toBeLessThan(30);
     for (const budget of budgets.filter((entry) => entry.fixture !== "equity-nbis-deep")) {
       expect(budget.promptTokenReductionPercent).toBeGreaterThanOrEqual(30);

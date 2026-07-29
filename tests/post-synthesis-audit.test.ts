@@ -90,6 +90,53 @@ describe("auditPostSynthesisReport", () => {
     expect(warnings).toEqual([]);
   });
 
+  test("warns when a gap-shaped risk carries a citation", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        risks: [
+          {
+            text: "No segment disclosure was provided",
+            sourceIds: ["market-yahoo-equity-aapl"],
+          },
+        ],
+      }),
+    );
+
+    expect(warnings).toEqual([
+      {
+        code: "gap-shaped-claim-cited",
+        location: "risks[0]",
+        message: "gap-shaped claim carries source citations; review citation grounding",
+        sourceIds: ["market-yahoo-equity-aapl"],
+      },
+    ]);
+  });
+
+  test("does not warn for an uncited gap-shaped risk", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        risks: [{ text: "No segment disclosure was provided", sourceIds: [] }],
+      }),
+    );
+
+    expect(warnings.some((warning) => warning.code === "gap-shaped-claim-cited")).toBe(false);
+  });
+
+  test("does not warn for an ordinary cited risk", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        risks: [
+          {
+            text: "Revenue data shows no growth in the segment",
+            sourceIds: ["market-yahoo-equity-aapl"],
+          },
+        ],
+      }),
+    );
+
+    expect(warnings).toEqual([]);
+  });
+
   test("treats empty source IDs as unsupported", () => {
     const warnings = auditPostSynthesisReport(
       reportWith({

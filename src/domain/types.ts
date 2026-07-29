@@ -337,7 +337,8 @@ export interface DomainPlaybookSelectionAudit {
 export type PostSynthesisAuditWarningCode =
   | "unsupported-numeric-claim"
   | "weak-evidence-posture-missing"
-  | "fresh-web-unused";
+  | "fresh-web-unused"
+  | "gap-shaped-claim-cited";
 
 export interface PostSynthesisAuditWarning {
   readonly code: PostSynthesisAuditWarningCode;

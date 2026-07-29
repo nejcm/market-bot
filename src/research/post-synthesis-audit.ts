@@ -6,6 +6,7 @@ import type {
   Scenario,
 } from "../domain/types";
 import type { WebSourceUsage } from "../web-evidence";
+import { isGapShapedClaim } from "./gap-shaped-claims";
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
@@ -89,6 +90,9 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
 
 function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
   return [
+    ...(isGapShapedClaim(claim.text) && claim.sourceIds.length > 0
+      ? [citedGapShapedClaimWarning(claim)]
+      : []),
     ...(isNumericOrTechnicalClaim(claim.text) &&
     !isHistoricalForecastOutcome(claim.text) &&
     hasNoSupportingSource(claim.sourceIds)
@@ -131,6 +135,15 @@ export function shouldCarryPostureLabel(text: string, sourceIds: readonly string
 export function hasPostureLabel(text: string): boolean {
   const normalized = text.toLowerCase();
   return EVIDENCE_POSTURE_LABELS.some((label) => normalized.includes(label));
+}
+
+function citedGapShapedClaimWarning(claim: AuditClaim): PostSynthesisAuditWarning {
+  return {
+    code: "gap-shaped-claim-cited",
+    location: claim.location,
+    message: "gap-shaped claim carries source citations; review citation grounding",
+    sourceIds: claim.sourceIds,
+  };
 }
 
 function unsupportedNumericWarning(claim: AuditClaim): PostSynthesisAuditWarning {

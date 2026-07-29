@@ -279,6 +279,7 @@ describe("report schema and rendering", () => {
   });
 
   test("relocates an uncited gap-shaped risk into data gaps", () => {
+    const text = "No guidance was provided for FY26";
     const command = {
       jobType: "equity",
       assetClass: "equity",
@@ -287,12 +288,7 @@ describe("report schema and rendering", () => {
     } as const;
     const payload = {
       summary: "AAPL evidence summary.",
-      risks: [
-        {
-          text: "FRED macro data was not available for this run",
-          sourceIds: [],
-        },
-      ],
+      risks: [{ text, sourceIds: [] }],
     };
     const collected = collectedSources({
       marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
@@ -311,12 +307,12 @@ describe("report schema and rendering", () => {
       sources: buildSourceList(command, collected),
     });
 
-    expect(assembled.dataGaps).toContain("FRED macro data was not available for this run");
+    expect(assembled.dataGaps).toContain(text);
     expect(assembled.risks).toEqual([]);
     expect(prepared.relocatedGapClaims).toEqual([
       {
         location: "risks[0]",
-        text: "FRED macro data was not available for this run",
+        text,
       },
     ]);
   });
@@ -2162,6 +2158,7 @@ describe("report schema and rendering", () => {
   });
 
   test("relocates an uncited gap-shaped Business Framework section", () => {
+    const text = "No guidance was provided for FY26";
     const command = {
       jobType: "equity",
       assetClass: "equity",
@@ -2175,7 +2172,7 @@ describe("report schema and rendering", () => {
           sections: [
             {
               name: "Management",
-              text: "No management evidence was provided",
+              text,
               sourceIds: [],
             },
           ],
@@ -2220,7 +2217,7 @@ describe("report schema and rendering", () => {
       readonly sections: readonly Record<string, unknown>[];
     };
 
-    expect(assembled.dataGaps).toContain("No management evidence was provided");
+    expect(assembled.dataGaps).toContain(text);
     expect(framework.sections[0]).toMatchObject({
       name: "Management",
       summary: "Management evidence is incomplete.",
@@ -2229,7 +2226,7 @@ describe("report schema and rendering", () => {
     expect(prepared.relocatedGapClaims).toEqual([
       {
         location: "Business Framework sections[0] (Management)",
-        text: "No management evidence was provided",
+        text,
       },
     ]);
   });

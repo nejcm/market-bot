@@ -137,6 +137,21 @@ describe("auditPostSynthesisReport", () => {
     expect(warnings).toEqual([]);
   });
 
+  test("does not warn for cited guidance-absence prose", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        risks: [
+          {
+            text: "No guidance was provided for FY26",
+            sourceIds: ["market-yahoo-equity-aapl"],
+          },
+        ],
+      }),
+    );
+
+    expect(warnings.some((warning) => warning.code === "gap-shaped-claim-cited")).toBe(false);
+  });
+
   test("does not warn for cited data-center prose", () => {
     const warnings = auditPostSynthesisReport(
       reportWith({

@@ -74,6 +74,9 @@ describe("shared data noun exclusions", () => {
     "Rivals operate without data centres in the region",
     "The model uses no data points from the prior year",
     "There are no data sets covering the segment",
+    "no data-center footprint in Europe",
+    "no data-centre capacity in the region",
+    "no data-points from the prior year",
   ])("keeps business data nouns out of both predicates: %s", (text) => {
     expect(isGapShapedClaimForRelocation(text)).toBe(false);
     expect(isGapShapedClaimForAuditWarning(text)).toBe(false);

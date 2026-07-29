@@ -147,9 +147,9 @@ describe("deep-equity pipeline evaluation", () => {
     // That stage sits in both variants, so its achievable percentage is structurally compressed.
     // Assert it stays the outlier rather than pinning a numeric band.
     // If this stops holding, the pipeline shape changed and someone should look.
-    const lowestReduction = budgets.toSorted(
+    const [lowestReduction] = budgets.toSorted(
       (left, right) => left.promptTokenReductionPercent - right.promptTokenReductionPercent,
-    )[0];
+    );
     expect(lowestReduction?.fixture).toBe("equity-nbis-deep");
   }, 30_000);
 
@@ -157,7 +157,7 @@ describe("deep-equity pipeline evaluation", () => {
     const fixture = await loadFixture("equity-aapl-deep");
     const replay = makeReplayProvider(fixture.llmCassette);
     const finalPrompts: Record<string, unknown>[] = [];
-    let validReportContent: string | undefined;
+    let validReportContent: string | null = null;
     const invalidPrediction = {
       id: "bad-subject",
       claim: "AAPL closes higher over 5 trading days.",
@@ -261,9 +261,12 @@ describe("deep-equity pipeline evaluation", () => {
             if (prompt.stage !== "final-synthesis") {
               return replay.generate(request);
             }
-            finalSynthesisCalls += 1;
+            const isPredictionCompletion = prompt.predictionCompletion !== undefined;
+            if (!isPredictionCompletion) {
+              finalSynthesisCalls += 1;
+            }
             const response = await replay.generate(request);
-            if (finalSynthesisCalls > 1) {
+            if (finalSynthesisCalls > 1 || isPredictionCompletion) {
               return response;
             }
             const report = JSON.parse(response.content) as Record<string, unknown>;
@@ -291,7 +294,7 @@ describe("deep-equity pipeline evaluation", () => {
       });
 
       try {
-        expect(finalSynthesisCalls).toBeLessThanOrEqual(2);
+        expect(finalSynthesisCalls).toBe(1);
         expect(result.report.dataGaps).toContain(riskText);
         expect(result.report.dataGaps).toContain(frameworkText);
         expect(result.trace.relocatedGapClaims).toEqual({
@@ -967,7 +970,7 @@ describe("deep-equity evaluation aggregation and gates", () => {
 
   test("rejects invalid deterministic aggregation inputs", () => {
     const records = passingEvaluationRecords();
-    const firstRecord = records[0];
+    const [firstRecord] = records;
     const judge = firstRecord?.judge;
     if (firstRecord === undefined || judge === undefined) {
       throw new Error("synthetic evaluation record must contain a judge result");

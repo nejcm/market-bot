@@ -105,6 +105,11 @@ the judge-dependent gates fail closed.
 Replay mode runs both variants from independent cassette cursors, leaves judging disabled by
 default, and labels its stub-cassette numbers as having no gate-evidence weight.
 
+Inspect source-level coverage differences with
+`bun run scripts/diff-evidence-coverage.ts [evaluation-root] [--json] [--out <path>]`. The script
+reads the complete planned pair denominator, keeps unavailable checks explicit, and informs the
+operator-owned evidence-omission gate without deciding it; `--out` must resolve outside `data/`.
+
 Resume judging from already-persisted variant runs without rerunning either pipeline:
 
 ```sh

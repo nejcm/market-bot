@@ -138,14 +138,23 @@ export interface SynthesizeReportUntilValidResult {
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
 }
 
+interface SynthesisCallCounts {
+  readonly totalCalls: number;
+  readonly reportRepairReprompts: number;
+}
+
 export async function synthesizeReportUntilValid(
   input: SynthesizeReportUntilValidInput,
 ): Promise<SynthesizeReportUntilValidResult> {
   let attempt = 0;
+  let reportRepairReprompts = 0;
   const trackedInput: SynthesizeReportUntilValidInput = {
     ...input,
     runFinalSynthesis: async (priorStages, reprompt) => {
       attempt += 1;
+      if ((reprompt?.reportValidationErrors?.length ?? 0) > 0) {
+        reportRepairReprompts += 1;
+      }
       const output = await input.runFinalSynthesis(priorStages, reprompt);
       const repromptReason = stageRepromptReason(reprompt);
       return {
@@ -162,7 +171,10 @@ export async function synthesizeReportUntilValid(
     predictionRetryErrors: [],
     retainedPredictions: retainablePredictions(trackedInput, initialState),
   });
-  const validated = await validateBaseReport(trackedInput, predictionProgress);
+  const validated = await validateBaseReport(trackedInput, predictionProgress, () => ({
+    totalCalls: attempt,
+    reportRepairReprompts,
+  }));
   const completion = await runPredictionCompletion(
     trackedInput,
     validated.progress,
@@ -213,6 +225,7 @@ function stageRepromptReason(reprompt: StageReprompt | undefined): StageReprompt
 async function validateBaseReport(
   input: SynthesizeReportUntilValidInput,
   progress: SynthesisProgress,
+  callCounts: () => SynthesisCallCounts,
 ): Promise<{
   readonly progress: SynthesisProgress;
   readonly report: ResearchReport;
@@ -232,7 +245,7 @@ async function validateBaseReport(
   const reportRetryPredictionErrors = progress.state.predResult.errors;
   const validationState = await repromptFinalSynthesis(input, progress.retainedPredictions, {
     predictionErrors: reportRetryPredictionErrors,
-    reportValidationErrors,
+    reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
@@ -252,7 +265,7 @@ async function validateBaseReport(
   if (postReportPredictionErrors.length > 0) {
     const state = await repromptFinalSynthesis(input, validationProgress.retainedPredictions, {
       predictionErrors: postReportPredictionErrors,
-      reportValidationErrors,
+      reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
     });
     validationProgress = {
       state,
@@ -274,6 +287,7 @@ async function validateBaseReport(
     validationProgress,
     reportValidationErrors,
     MAX_REPORT_VALIDATION_REPROMPTS,
+    callCounts,
   );
 }
 
@@ -296,25 +310,28 @@ async function buildReportWithRepair(
   progress: SynthesisProgress,
   seenErrors: readonly string[],
   attemptsLeft: number,
+  callCounts: () => SynthesisCallCounts,
 ): Promise<RepairedReport> {
   try {
     return {
       progress,
       report: buildReport(input, progress.state),
-      reportValidationErrors: uniqueStrings(seenErrors),
+      reportValidationErrors: accumulateReportValidationErrors(seenErrors),
     };
   } catch (error: unknown) {
     const message = errorMessage(error);
+    const accumulatedErrors = accumulateReportValidationErrors([...seenErrors, message]);
     if (attemptsLeft <= 0) {
+      const counts = callCounts();
       throw new Error(
-        `Report failed validation after ${String(MAX_REPORT_VALIDATION_REPROMPTS)} repair reprompt(s): ${message}`,
+        `Report failed validation after ${String(counts.totalCalls)} final-synthesis call(s) (${String(counts.reportRepairReprompts)} report-repair reprompt(s)); accumulated errors: ${accumulatedErrors.join("; ")}`,
         { cause: error },
       );
     }
     const predictionErrors = progress.state.predResult.errors;
     const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
       ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
-      reportValidationErrors: [message],
+      reportValidationErrors: accumulatedErrors,
     });
     const nextProgress: SynthesisProgress = {
       state,
@@ -325,7 +342,13 @@ async function buildReportWithRepair(
       ]),
       retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
     };
-    return buildReportWithRepair(input, nextProgress, [...seenErrors, message], attemptsLeft - 1);
+    return buildReportWithRepair(
+      input,
+      nextProgress,
+      accumulatedErrors,
+      attemptsLeft - 1,
+      callCounts,
+    );
   }
 }
 
@@ -633,6 +656,21 @@ function predictionTrimWarnings(predResult: ReturnType<typeof readPredictions>):
 
 function uniqueStrings(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
+}
+
+const MAX_ACCUMULATED_REPORT_VALIDATION_ERRORS = 12;
+
+export function accumulateReportValidationErrors(values: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const newestFirst: string[] = [];
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (value !== undefined && !seen.has(value)) {
+      seen.add(value);
+      newestFirst.push(value);
+    }
+  }
+  return newestFirst.toReversed().slice(-MAX_ACCUMULATED_REPORT_VALIDATION_ERRORS);
 }
 
 function errorMessage(error: unknown): string {

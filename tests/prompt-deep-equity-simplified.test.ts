@@ -5,7 +5,11 @@ import type { MarketSnapshot, Prediction, VerifiedMarketSnapshot } from "../src/
 import { buildDepthProfile } from "../src/research/depth-profile";
 import { buildSourceList } from "../src/research/report-assembly";
 import { loadStagePrompt } from "../src/research/prompt-loader";
-import { synthesizeReportUntilValid, type StageReprompt } from "../src/research/final-synthesis";
+import {
+  accumulateReportValidationErrors,
+  synthesizeReportUntilValid,
+  type StageReprompt,
+} from "../src/research/final-synthesis";
 import {
   buildRecordedStageSteering,
   buildStagePrompt,
@@ -1136,6 +1140,18 @@ function reportPayload(
   });
 }
 
+function reportPayloadWithUnknownSource(
+  predictions: readonly unknown[],
+  section: "keyFindings" | "bullCase" | "risks" | "catalysts",
+  sourceId: string,
+): string {
+  const base = JSON.parse(reportPayload(predictions)) as Record<string, unknown>;
+  return JSON.stringify({
+    ...base,
+    [section]: [{ text: `Invalid ${section} citation.`, sourceIds: [sourceId] }],
+  });
+}
+
 // Subject names neither the primary nor the pair, so it survives the subject normalization widened
 // In forecast/observable.ts and is still a hard field mismatch.
 function brokenPrediction(id: string): Record<string, unknown> {
@@ -1152,6 +1168,16 @@ function brokenPrediction(id: string): Record<string, unknown> {
 }
 
 describe("prediction repair reprompt", () => {
+  test("keeps the twelve most recent distinct report errors", () => {
+    const errors = Array.from({ length: 13 }, (_, index) => `error-${String(index)}`);
+    const accumulated = accumulateReportValidationErrors([...errors, "error-3"]);
+
+    expect(accumulated).toHaveLength(12);
+    expect(accumulated).not.toContain("error-0");
+    expect(accumulated[0]).toBe("error-1");
+    expect(accumulated.at(-1)).toBe("error-3");
+  });
+
   test("carries the predictions that survived the failed attempt", async () => {
     const reprompts: StageReprompt[] = [];
     const validPrediction = {
@@ -1423,5 +1449,76 @@ describe("prediction repair reprompt", () => {
     ]);
     expect(recursiveRepair?.predictionErrors).toBeUndefined();
     expect(recursiveRepair?.retainedPredictions?.map((entry) => entry.id)).toEqual(["pred-1"]);
+  });
+
+  test("accumulates distinct report errors and reports true retry counts", async () => {
+    const reprompts: StageReprompt[] = [];
+    const validPrediction = {
+      id: "pred-1",
+      kind: "range",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) outside [190, 207]",
+      horizonTradingDays: 5,
+      probability: 0.37,
+      sourceIds: ["news-equity-1"],
+    };
+    const failures = [
+      ["keyFindings", "missing-key-finding"],
+      ["bullCase", "missing-bull-case"],
+      ["risks", "missing-risk"],
+      ["catalysts", "missing-catalyst"],
+    ] as const;
+    const expectedErrors = failures.map(
+      ([section, sourceId]) => `${section}[0] cites unknown source ID: ${sourceId}`,
+    );
+    let calls = 0;
+    let failure: unknown = null;
+
+    try {
+      await synthesizeReportUntilValid({
+        runId: "run-1",
+        generatedAt: "2026-05-19T00:00:00.000Z",
+        command,
+        collectedSources: sources(),
+        context: context(),
+        sources: [newsSource()],
+        knownSourceIds: new Set(["news-equity-1"]),
+        allowedSubjects: new Set(["AAPL"]),
+        priorStages: [],
+        maxPredictionReprompts: 1,
+        runFinalSynthesis: (_priorStages, reprompt) => {
+          if (reprompt !== undefined) {
+            reprompts.push(reprompt);
+          }
+          const [section, sourceId] = failures[calls] ?? failures.at(-1)!;
+          calls += 1;
+          return Promise.resolve({
+            stage: "final-synthesis" as const,
+            content: reportPayloadWithUnknownSource([validPrediction], section, sourceId),
+            tokenEstimate: 1,
+          });
+        },
+      });
+    } catch (error: unknown) {
+      failure = error;
+    }
+
+    const reportReprompts = reprompts.filter(
+      (reprompt) => (reprompt.reportValidationErrors?.length ?? 0) > 0,
+    );
+    const thirdRepair = reportReprompts.at(2);
+    const failureMessage = failure instanceof Error ? failure.message : String(failure);
+    expect(reportReprompts.map((reprompt) => reprompt.reportValidationErrors)).toEqual([
+      expectedErrors.slice(0, 1),
+      expectedErrors.slice(0, 2),
+      expectedErrors.slice(0, 3),
+    ]);
+    expect(thirdRepair?.retainedPredictions?.map((entry) => entry.id)).toEqual(["pred-1"]);
+    expect(failureMessage).toContain(
+      "Report failed validation after 4 final-synthesis call(s) (3 report-repair reprompt(s))",
+    );
+    for (const expectedError of expectedErrors) {
+      expect(failureMessage).toContain(expectedError);
+    }
   });
 });

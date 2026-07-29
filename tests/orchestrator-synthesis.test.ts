@@ -195,7 +195,9 @@ describe("runResearchJob synthesis retry and source gaps", () => {
         }),
         now: new Date("2026-05-19T00:00:00.000Z"),
       }),
-    ).rejects.toThrow(/Report failed validation after 2 repair reprompt\(s\)/u);
+    ).rejects.toThrow(
+      /Report failed validation after 4 final-synthesis call\(s\) \(3 report-repair reprompt\(s\)\)/u,
+    );
     // Initial synthesis + one report-validation reprompt + two bounded repair reprompts.
     expect(finalCalls).toBe(4);
   });

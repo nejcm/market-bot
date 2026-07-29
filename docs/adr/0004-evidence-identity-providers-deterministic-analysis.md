@@ -171,8 +171,9 @@ without pretending the project has a global security master.
   adjudication, human review approval, and live smoke — come only from an explicitly named
   repository-resident record of unauthenticated human-stated verdicts. The record binds to the
   exact evaluation-root identifier and the evaluation-time repository HEAD, and is rejected when
-  the worktree is dirty for any path other than the record itself, so the named commit describes
-  the code that actually ran. It carries an operator identifier, an ISO date, and an independent
+  the worktree is dirty for any path other than the record itself, so an unrelated dirty path
+  fails the record closed. That check constrains the worktree; it does not prove the named commit
+  describes the code that ran. It carries an operator identifier, an ISO date, and an independent
   rationale per gate, and fails closed on absence, unreadability, malformed content, envelope or
   binding failure, or per-gate invalidity. It provides no cryptographic authentication or
   identity guarantee. The evaluation artifact distinguishes no record supplied, a supplied record

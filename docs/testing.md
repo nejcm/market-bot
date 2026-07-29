@@ -126,6 +126,10 @@ bun run scripts/replay-fixture-run.ts --resume-evaluation data/evaluations/<run>
 the artifact writer is atomic but does not coordinate concurrent writers. Omitting `--live` keeps
 model access off and uses fixture replay.
 
+The repository worktree check cannot see ignored files under `data/`. Resume mode reads stored
+judges from the prior `evaluation.json` there, so a hand-edited prior artifact is outside this
+control.
+
 The artifact plan records two different facts. `plan.provenance` is the immutable plan origin:
 `run-input` or `operator-recovery-input`. Resuming preserves that origin. `plan.loadSource` records
 how the current artifact was produced (`fresh-run`, `operator-recovery`, or `existing-artifact`)

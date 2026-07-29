@@ -120,6 +120,8 @@ function cleanValidationContext(
       dirtyPathSample: [],
       offendingPathCount: 0,
       offendingPathSample: [],
+      indexFlaggedPathCount: 0,
+      indexFlaggedPathSample: [],
     },
     repositoryRoot: resolve("."),
     ...overrides,
@@ -413,11 +415,74 @@ describe("deep-equity operator gate record", () => {
       dirtyPathSample: ["operator-approvals/deep-equity/accepted/approval.json"],
       offendingPathCount: 0,
       offendingPathSample: [],
+      indexFlaggedPathCount: 0,
+      indexFlaggedPathSample: [],
     });
     expect(audit.effectiveInputs).toEqual({
       zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: true,
       humanReviewApproved: true,
       liveSmokePassed: true,
+    });
+  });
+
+  test("an assume-unchanged tracked modification rejects the record and persists index evidence", async () => {
+    const paths = await tempApprovalPaths("assume-unchanged");
+    runGit(paths.repositoryRoot, ["update-index", "--assume-unchanged", "baseline.txt"]);
+    await writeFile(join(paths.repositoryRoot, "baseline.txt"), "hidden modification\n", "utf8");
+    await writeRecord(paths.recordPath, validRecord(paths));
+
+    const audit = await readDeepEquityOperatorGateRecord({
+      approvalRecordPath: paths.recordPath,
+      evaluationRoot: paths.root,
+      repositoryRoot: paths.repositoryRoot,
+    });
+
+    expect(audit.status).toBe("rejected");
+    expect(audit.effectiveInputs).toEqual(FALSE_OPERATOR_INPUTS);
+    expect(audit.rejectionReasons).toContainEqual({
+      code: "repository-index-flags-set",
+      message:
+        "Repository index has 1 tracked path(s) with non-default flags. Sample: baseline.txt.",
+    });
+    expect(audit.checkedRepositoryTree).toEqual({
+      status: "index-flags-set",
+      dirty: true,
+      dirtyPathCount: 1,
+      dirtyPathSample: ["operator-approvals/deep-equity/assume-unchanged/approval.json"],
+      offendingPathCount: 0,
+      offendingPathSample: [],
+      indexFlaggedPathCount: 1,
+      indexFlaggedPathSample: ["baseline.txt"],
+    });
+  });
+
+  test("a skip-worktree tracked path rejects the record and persists index evidence", async () => {
+    const paths = await tempApprovalPaths("skip-worktree");
+    runGit(paths.repositoryRoot, ["update-index", "--skip-worktree", "baseline.txt"]);
+    await writeRecord(paths.recordPath, validRecord(paths));
+
+    const audit = await readDeepEquityOperatorGateRecord({
+      approvalRecordPath: paths.recordPath,
+      evaluationRoot: paths.root,
+      repositoryRoot: paths.repositoryRoot,
+    });
+
+    expect(audit.status).toBe("rejected");
+    expect(audit.effectiveInputs).toEqual(FALSE_OPERATOR_INPUTS);
+    expect(audit.rejectionReasons).toContainEqual({
+      code: "repository-index-flags-set",
+      message:
+        "Repository index has 1 tracked path(s) with non-default flags. Sample: baseline.txt.",
+    });
+    expect(audit.checkedRepositoryTree).toEqual({
+      status: "index-flags-set",
+      dirty: true,
+      dirtyPathCount: 1,
+      dirtyPathSample: ["operator-approvals/deep-equity/skip-worktree/approval.json"],
+      offendingPathCount: 0,
+      offendingPathSample: [],
+      indexFlaggedPathCount: 1,
+      indexFlaggedPathSample: ["baseline.txt"],
     });
   });
 
@@ -484,6 +549,8 @@ describe("deep-equity operator gate record", () => {
       ],
       offendingPathCount: 1,
       offendingPathSample: ["unrelated.txt"],
+      indexFlaggedPathCount: 0,
+      indexFlaggedPathSample: [],
     });
   });
 

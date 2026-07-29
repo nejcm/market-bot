@@ -594,6 +594,8 @@ describe("deep-equity evaluation aggregation and gates", () => {
           dirtyPathSample: [],
           offendingPathCount: 0,
           offendingPathSample: [],
+          indexFlaggedPathCount: 0,
+          indexFlaggedPathSample: [],
         },
         repositoryRoot: process.cwd(),
       },

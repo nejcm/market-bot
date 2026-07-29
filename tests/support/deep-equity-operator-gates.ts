@@ -28,6 +28,7 @@ export interface DeepEquityOperatorGateRejection {
     | "invalid-json"
     | "read-failure"
     | "repository-head-unavailable"
+    | "repository-index-flags-set"
     | "repository-worktree-dirty"
     | "repository-worktree-status-unavailable"
     | "schema-violation"
@@ -38,12 +39,14 @@ export interface DeepEquityOperatorGateRejection {
 }
 
 export interface DeepEquityRepositoryTreeAudit {
-  readonly status: "clean" | "approval-record-only" | "dirty" | "unavailable";
+  readonly status: "clean" | "approval-record-only" | "dirty" | "index-flags-set" | "unavailable";
   readonly dirty: boolean;
   readonly dirtyPathCount: number;
   readonly dirtyPathSample: readonly string[];
   readonly offendingPathCount: number;
   readonly offendingPathSample: readonly string[];
+  readonly indexFlaggedPathCount: number;
+  readonly indexFlaggedPathSample: readonly string[];
 }
 
 export interface DeepEquityOperatorGateAudit {
@@ -153,17 +156,28 @@ function repositoryTreeRejections(
       },
     ];
   }
-  if (tree.offendingPathCount === 0) {
-    return [];
-  }
-  const sample =
-    tree.offendingPathSample.length === 0 ? "" : ` Sample: ${tree.offendingPathSample.join(", ")}.`;
-  return [
-    {
+  const rejections: DeepEquityOperatorGateRejection[] = [];
+  if (tree.offendingPathCount > 0) {
+    const sample =
+      tree.offendingPathSample.length === 0
+        ? ""
+        : ` Sample: ${tree.offendingPathSample.join(", ")}.`;
+    rejections.push({
       code: "repository-worktree-dirty",
       message: `Repository worktree has ${String(tree.offendingPathCount)} dirty path(s) other than the approval record.${sample}`,
-    },
-  ];
+    });
+  }
+  if (tree.indexFlaggedPathCount > 0) {
+    const sample =
+      tree.indexFlaggedPathSample.length === 0
+        ? ""
+        : ` Sample: ${tree.indexFlaggedPathSample.join(", ")}.`;
+    rejections.push({
+      code: "repository-index-flags-set",
+      message: `Repository index has ${String(tree.indexFlaggedPathCount)} tracked path(s) with non-default flags.${sample}`,
+    });
+  }
+  return rejections;
 }
 
 function rejectedAudit(
@@ -432,7 +446,8 @@ function readRepositoryTreeAudit(
     ["ls-files", "--others", "--exclude-standard", "-z"],
     repositoryRoot,
   );
-  if (trackedPaths === null || untrackedPaths === null) {
+  const indexEntries = gitNulPaths(["ls-files", "-v", "-z"], repositoryRoot);
+  if (trackedPaths === null || untrackedPaths === null || indexEntries === null) {
     return {
       status: "unavailable",
       dirty: codeVersionDirty,
@@ -440,8 +455,14 @@ function readRepositoryTreeAudit(
       dirtyPathSample: [],
       offendingPathCount: 0,
       offendingPathSample: [],
+      indexFlaggedPathCount: 0,
+      indexFlaggedPathSample: [],
     };
   }
+  const indexFlaggedPaths = indexEntries
+    .filter((entry) => !entry.startsWith("H "))
+    .map((entry) => entry.slice(2))
+    .toSorted();
   const dirtyPaths = [...new Set([...trackedPaths, ...untrackedPaths])].toSorted();
   if (codeVersionDirty !== dirtyPaths.length > 0) {
     return {
@@ -451,6 +472,8 @@ function readRepositoryTreeAudit(
       dirtyPathSample: dirtyPaths.slice(0, DIRTY_PATH_SAMPLE_LIMIT),
       offendingPathCount: dirtyPaths.length,
       offendingPathSample: dirtyPaths.slice(0, DIRTY_PATH_SAMPLE_LIMIT),
+      indexFlaggedPathCount: indexFlaggedPaths.length,
+      indexFlaggedPathSample: indexFlaggedPaths.slice(0, DIRTY_PATH_SAMPLE_LIMIT),
     };
   }
   const offendingPaths =
@@ -463,6 +486,9 @@ function readRepositoryTreeAudit(
   } else if (offendingPaths.length === 0) {
     status = "approval-record-only";
   }
+  if (indexFlaggedPaths.length > 0 && offendingPaths.length === 0) {
+    status = "index-flags-set";
+  }
   return {
     status,
     dirty: dirtyPaths.length > 0,
@@ -470,6 +496,8 @@ function readRepositoryTreeAudit(
     dirtyPathSample: dirtyPaths.slice(0, DIRTY_PATH_SAMPLE_LIMIT),
     offendingPathCount: offendingPaths.length,
     offendingPathSample: offendingPaths.slice(0, DIRTY_PATH_SAMPLE_LIMIT),
+    indexFlaggedPathCount: indexFlaggedPaths.length,
+    indexFlaggedPathSample: indexFlaggedPaths.slice(0, DIRTY_PATH_SAMPLE_LIMIT),
   };
 }
 

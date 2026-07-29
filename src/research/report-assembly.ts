@@ -21,6 +21,7 @@ import {
   applyEarningsForecastPolicy,
   hasConfirmedEarningsDate,
 } from "../forecast/earnings-eligibility";
+import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
 import { deriveEquityAnalysisCompleteness } from "../sources/extended-evidence/equity-analysis-completeness";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
@@ -151,17 +152,25 @@ function relocateBusinessFrameworkClaims(
   }
   const relocatedGapClaims: RelocatedGapClaim[] = [];
   const sections = framework.sections.map((section, index) => {
+    const name = isRecord(section) && typeof section.name === "string" ? section.name : undefined;
+    const deterministicSection =
+      name !== undefined && isBusinessFrameworkSectionName(name)
+        ? collectedSources.businessFramework?.sections.find((candidate) => candidate.name === name)
+        : undefined;
     if (
       !isRecord(section) ||
+      name === undefined ||
+      !isBusinessFrameworkSectionName(name) ||
+      deterministicSection === undefined ||
       typeof section.text !== "string" ||
       nonEmptyStringArrayValue(section.sourceIds).length > 0 ||
+      deterministicSection.sourceIds.length > 0 ||
       !isGapShapedClaim(section.text)
     ) {
       return section;
     }
-    const name = typeof section.name === "string" ? ` (${section.name})` : "";
     relocatedGapClaims.push({
-      location: `Business Framework sections[${index}]${name}`,
+      location: `Business Framework sections[${index}] (${name})`,
       text: section.text,
     });
     return Object.fromEntries(Object.entries(section).filter(([key]) => key !== "text"));
@@ -896,6 +905,17 @@ export interface AssembleResearchReportInput {
 }
 
 export function assembleResearchReport(input: AssembleResearchReportInput): ResearchReport {
+  return assembleResearchReportWithRelocations(input).report;
+}
+
+export interface AssembleResearchReportResult {
+  readonly report: ResearchReport;
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+export function assembleResearchReportWithRelocations(
+  input: AssembleResearchReportInput,
+): AssembleResearchReportResult {
   const {
     runId,
     generatedAt,
@@ -1041,7 +1061,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         })
       : undefined;
 
-  return validateResearchReport({
+  const report = validateResearchReport({
     runId,
     jobType: command.jobType,
     assetClass: command.assetClass,
@@ -1106,4 +1126,5 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         : {}),
     },
   });
+  return { report, relocatedGapClaims };
 }

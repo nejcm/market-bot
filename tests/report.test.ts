@@ -7,6 +7,7 @@ import { violatesResearchOnly } from "../src/domain/research-language";
 import { validateResearchReport } from "../src/report/schema";
 import {
   assembleResearchReport,
+  assembleResearchReportWithRelocations,
   buildSourceList,
   prepareReportClaims,
 } from "../src/research/report-assembly";
@@ -2231,6 +2232,127 @@ describe("report schema and rendering", () => {
         text: "No management evidence was provided",
       },
     ]);
+  });
+
+  test("keeps gap-shaped Business Framework text when projected fallback IDs cite it", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const text = "No management evidence was provided";
+    const payload = {
+      summary: "AAPL framework evidence is incomplete.",
+      extras: {
+        businessFramework: {
+          sections: [{ name: "Management", text, sourceIds: [] }],
+        },
+      },
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      businessFramework: {
+        version: 1,
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        symbol: "AAPL",
+        phase: "operating-leverage",
+        sections: [
+          {
+            name: "Management",
+            posture: "criteria-supported",
+            summary: "Management evidence is available.",
+            metrics: [],
+            sourceIds: ["market-aapl"],
+            gaps: [],
+          },
+        ],
+        sourceIds: ["market-aapl"],
+        gaps: [],
+      },
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const result = assembleResearchReportWithRelocations({
+      runId: "framework-fallback-citation",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const framework = result.report.extras?.businessFramework as {
+      readonly sections: readonly Record<string, unknown>[];
+    };
+
+    expect(framework.sections[0]).toMatchObject({
+      name: "Management",
+      text,
+      sourceIds: ["market-aapl"],
+    });
+    expect(result.report.dataGaps).not.toContain(text);
+    expect(result.relocatedGapClaims).toEqual([]);
+  });
+
+  test("does not relocate an unknown Business Framework section", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const text = "No liquidity evidence was provided";
+    const payload = {
+      summary: "AAPL framework evidence is incomplete.",
+      extras: {
+        businessFramework: {
+          sections: [{ name: "Liquidity", text, sourceIds: [] }],
+        },
+      },
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      businessFramework: {
+        version: 1,
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        symbol: "AAPL",
+        phase: "operating-leverage",
+        sections: [
+          {
+            name: "Management",
+            posture: "criteria-supported",
+            summary: "Management evidence is available.",
+            metrics: [],
+            sourceIds: ["market-aapl"],
+            gaps: [],
+          },
+        ],
+        sourceIds: ["market-aapl"],
+        gaps: [],
+      },
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const result = assembleResearchReportWithRelocations({
+      runId: "framework-unknown-section",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const framework = result.report.extras?.businessFramework as {
+      readonly sections: readonly Record<string, unknown>[];
+    };
+
+    expect(framework.sections).toHaveLength(1);
+    expect(framework.sections[0]).not.toHaveProperty("text");
+    expect(result.report.dataGaps).not.toContain(text);
+    expect(result.relocatedGapClaims).toEqual([]);
   });
 
   test("projects every deterministic business framework section without model-authored text", () => {

@@ -42,9 +42,10 @@ research boundaries without sharing persistence or scoring semantics.
   Prior-stage output stays structurally nested and is not rewritten.
 - Final synthesis produces the candidate report. Deterministic assembly and validation remain the
   authority over report shape, prediction acceptance, Evidence Quality, and research-only language.
-- Deterministic assembly relocates uncited gap-shaped narrative findings and Business Framework
-  section text into `dataGaps` instead of asking the model to invent citations. The trace records
-  every relocation with its original field path and text.
+- Deterministic assembly relocates uncited gap-shaped narrative findings and projected Business
+  Framework section text that remains uncited after deterministic source-ID fallback into
+  `dataGaps` instead of asking the model to invent citations. The trace records every relocation
+  with its original field path and text.
 - Final-synthesis repair reprompts carry the accumulated, path-aware report-validation error set,
   bounded to the twelve most recent distinct errors. Retry failure messages report the actual
   final-synthesis call and report-repair counts.

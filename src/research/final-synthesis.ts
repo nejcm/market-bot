@@ -18,9 +18,8 @@ import type { PredictionCompletionPrompt } from "./prompts";
 import type { ResearchContext } from "./research-context-types";
 import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
-  assembleResearchReport,
+  assembleResearchReportWithRelocations,
   parseModelPayload,
-  prepareReportClaims,
   readPredictions,
   type ModelReportPayload,
 } from "./report-assembly";
@@ -180,11 +179,8 @@ export async function synthesizeReportUntilValid(
     validated.progress,
     validated.report,
   );
-  const report = buildReport(trackedInput, completion.progress.state);
-  const { relocatedGapClaims } = prepareReportClaims(
-    completion.progress.state.payload,
-    trackedInput.collectedSources,
-  );
+  const assembled = buildReportWithRelocations(trackedInput, completion.progress.state);
+  const { report, relocatedGapClaims } = assembled;
   return {
     report,
     stageOutputs: completion.progress.stageOutputs,
@@ -630,7 +626,14 @@ function buildReport(
   input: SynthesizeReportUntilValidInput,
   state: FinalSynthesisState,
 ): ResearchReport {
-  return assembleResearchReport({
+  return buildReportWithRelocations(input, state).report;
+}
+
+function buildReportWithRelocations(
+  input: SynthesizeReportUntilValidInput,
+  state: FinalSynthesisState,
+): ReturnType<typeof assembleResearchReportWithRelocations> {
+  return assembleResearchReportWithRelocations({
     runId: input.runId,
     generatedAt: input.generatedAt,
     command: input.command,

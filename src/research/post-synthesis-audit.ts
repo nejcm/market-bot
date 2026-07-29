@@ -6,7 +6,7 @@ import type {
   Scenario,
 } from "../domain/types";
 import type { WebSourceUsage } from "../web-evidence";
-import { isGapShapedClaim } from "./gap-shaped-claims";
+import { isGapShapedClaimForAuditWarning } from "./gap-shaped-claims";
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
@@ -90,7 +90,7 @@ function predictionsForSection(predictions: readonly Prediction[]): readonly Aud
 
 function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
   return [
-    ...(isGapShapedClaim(claim.text) && claim.sourceIds.length > 0
+    ...(isGapShapedClaimForAuditWarning(claim.text) && claim.sourceIds.length > 0
       ? [citedGapShapedClaimWarning(claim)]
       : []),
     ...(isNumericOrTechnicalClaim(claim.text) &&

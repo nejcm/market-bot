@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { isGapShapedClaim } from "../src/research/gap-shaped-claims";
+import {
+  isGapShapedClaimForAuditWarning,
+  isGapShapedClaimForRelocation,
+} from "../src/research/gap-shaped-claims";
 
-describe("isGapShapedClaim", () => {
+describe("isGapShapedClaimForRelocation", () => {
   test.each([
     "No management evidence was provided",
     "Without audited segment data the margin bridge is incomplete",
@@ -11,8 +14,22 @@ describe("isGapShapedClaim", () => {
     "The earnings transcript could not be fetched",
     "Comparable estimates cannot be verified",
     "The series was not collected in this run",
+    "No guidance was provided for FY26",
+    "No forward guidance was disclosed by management",
+    "No analyst coverage was available for this name",
+    "No peer coverage exists in the collected sources",
+    "Without guidance we cannot model FY26",
+    "Management issued no FY26 guidance, leaving consensus unanchored",
+    "Peers trade without coverage from bulge-bracket banks",
   ])("recognizes evidence-absence prose: %s", (text) => {
-    expect(isGapShapedClaim(text)).toBe(true);
+    expect(isGapShapedClaimForRelocation(text)).toBe(true);
+  });
+
+  test("preserves the disclosed-data boundary", () => {
+    expect(isGapShapedClaimForRelocation("Segment data was not disclosed")).toBe(true);
+    expect(
+      isGapShapedClaimForRelocation("Segment data was not disclosed until the 2025 filing"),
+    ).toBe(false);
   });
 
   test.each([
@@ -27,10 +44,26 @@ describe("isGapShapedClaim", () => {
     "The company has no data center in Europe",
     "NBIS cannot scale without data center capacity in place",
     "The company sees no headwind in the data center segment",
-    "Management issued no FY26 guidance, leaving consensus unanchored",
-    "Segment data was not disclosed until the 2025 filing",
-    "Peers trade without coverage from bulge-bracket banks",
   ])("does not classify ordinary finding prose: %s", (text) => {
-    expect(isGapShapedClaim(text)).toBe(false);
+    expect(isGapShapedClaimForRelocation(text)).toBe(false);
+  });
+});
+
+describe("isGapShapedClaimForAuditWarning", () => {
+  test.each([
+    "No management evidence was provided",
+    "FRED macro data was not available for this run",
+    "Analyst coverage is unavailable",
+    "Segment data was not disclosed",
+  ])("recognizes audit-worthy evidence-absence prose: %s", (text) => {
+    expect(isGapShapedClaimForAuditWarning(text)).toBe(true);
+  });
+
+  test.each([
+    "Management issued no FY26 guidance, leaving consensus unanchored",
+    "Peers trade without coverage from bulge-bracket banks",
+    "Segment data was not disclosed until the 2025 filing",
+  ])("does not classify noisy audit-warning prose: %s", (text) => {
+    expect(isGapShapedClaimForAuditWarning(text)).toBe(false);
   });
 });

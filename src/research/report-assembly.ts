@@ -41,7 +41,7 @@ import {
 } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
-import { isGapShapedClaim } from "./gap-shaped-claims";
+import { isGapShapedClaimForRelocation } from "./gap-shaped-claims";
 import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ function partitionGapShapedFindings(
   const retained: KeyFinding[] = [];
   const relocatedGapClaims: RelocatedGapClaim[] = [];
   for (const [index, finding] of findings.entries()) {
-    if (finding.sourceIds.length === 0 && isGapShapedClaim(finding.text)) {
+    if (finding.sourceIds.length === 0 && isGapShapedClaimForRelocation(finding.text)) {
       relocatedGapClaims.push({ location: `${section}[${index}]`, text: finding.text });
     } else {
       retained.push(finding);
@@ -165,7 +165,7 @@ function relocateBusinessFrameworkClaims(
       typeof section.text !== "string" ||
       nonEmptyStringArrayValue(section.sourceIds).length > 0 ||
       deterministicSection.sourceIds.length > 0 ||
-      !isGapShapedClaim(section.text)
+      !isGapShapedClaimForRelocation(section.text)
     ) {
       return section;
     }

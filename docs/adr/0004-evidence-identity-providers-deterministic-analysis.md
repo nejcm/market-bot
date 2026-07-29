@@ -23,7 +23,8 @@ registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended
 entitlement-adaptive institutional-ownership context; amended 2026-07-24: deterministic deep-equity
 acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence;
 amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2026-07-29:
-quote-own timestamp on market snapshots)
+quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthenticated
+operator gate records)
 
 ## Context
 
@@ -166,6 +167,19 @@ without pretending the project has a global security master.
   model-pipeline cutover remains gated behind the paired non-inferiority evaluation and human
   approval. Phase 4 shipped a test-only reasoning variant reachable solely through the
   `reasoningVariant` input seam.
+- The operator-owned cutover gates — zero critical material-evidence omissions after
+  adjudication, human review approval, and live smoke — come only from an explicitly named
+  repository-resident record of unauthenticated human-stated verdicts. The record binds to the
+  exact evaluation-root identifier and the evaluation-time repository HEAD, and is rejected when
+  the worktree is dirty for any path other than the record itself, so the named commit describes
+  the code that actually ran. It carries an operator identifier, an ISO date, and an independent
+  rationale per gate, and fails closed on absence, unreadability, malformed content, envelope or
+  binding failure, or per-gate invalidity. It provides no cryptographic authentication or
+  identity guarantee. The evaluation artifact distinguishes no record supplied, a supplied record
+  rejected with reasons, a record whose individual gates were rejected, and an accepted record's
+  true or false verdict per gate. Because a record cannot contain the hash of the commit that
+  adds it, a checked-in record is an archival attestation rather than a re-runnable check; the
+  persisted evaluation artifact is the durable evidence.
 - Every equity instrument run attempts a Verified Market Snapshot from Yahoo OHLCV through the
   cached request seam. It computes the locked indicator set and adds a citeable source. Deep-equity
   runs persist it inside the evidence bundle; other equity runs retain the normalized snapshot

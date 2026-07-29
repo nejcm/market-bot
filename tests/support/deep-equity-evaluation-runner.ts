@@ -26,6 +26,10 @@ import {
   EVALUATION_RANDOM_STREAM_SALTS,
 } from "./evaluation-random";
 import {
+  readDeepEquityOperatorGateRecord,
+  type DeepEquityOperatorGateAudit,
+} from "./deep-equity-operator-gates";
+import {
   runFixturePair,
   type RunFixturePairResult,
   type RunFixtureVariantOutcome,
@@ -78,6 +82,7 @@ interface EvaluationContext {
   readonly seed: number;
   readonly planOrigin: EvaluationPlanOrigin;
   readonly planLoadSource: EvaluationPlanLoadSource;
+  readonly operatorGateRecord: DeepEquityOperatorGateAudit;
 }
 
 export interface DeepEquityEvaluationArtifact {
@@ -139,6 +144,7 @@ export interface DeepEquityEvaluationArtifact {
     };
   };
   readonly hardGateInputs: DeepEquityHardGateInputs;
+  readonly operatorGateRecord: DeepEquityOperatorGateAudit;
   readonly gateVerdict: ReturnType<typeof annotateGateEvidence>;
 }
 
@@ -150,6 +156,8 @@ export interface RunPairedEvaluationInput {
   readonly live: boolean;
   readonly judgeModel?: string;
   readonly provider?: ModelProvider;
+  readonly approvalRecordPath?: string;
+  readonly repositoryRoot?: string;
 }
 
 export interface ResumePairedEvaluationInput {
@@ -160,6 +168,8 @@ export interface ResumePairedEvaluationInput {
   readonly plan?: DeepEquityEvaluationPlan;
   readonly forceRejudge?: boolean;
   readonly providerForScenario: (scenario: string) => Promise<ModelProvider>;
+  readonly approvalRecordPath?: string;
+  readonly repositoryRoot?: string;
 }
 
 function noIntegrityRegression(records: readonly DeepEquityEvaluationRunRecord[]): boolean {
@@ -260,7 +270,9 @@ function buildArtifact(
           record.variants.legacy.researchOnlyBoundaryPassed &&
           record.variants.simplified.researchOnlyBoundaryPassed,
       ),
-    zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: false,
+    zeroCriticalMaterialEvidenceOmissionsAfterAdjudication:
+      context.operatorGateRecord.effectiveInputs
+        .zeroCriticalMaterialEvidenceOmissionsAfterAdjudication,
     noAdditionalLowIntegrityReports: allReportsValidate && noIntegrityRegression(aggregateRecords),
     noDeterministicEvidenceCoverageRegression:
       allReportsValidate && noEvidenceCoverageRegression(aggregateRecords),
@@ -271,8 +283,8 @@ function buildArtifact(
           record.variants.legacy.persistedPredictionsValidate &&
           record.variants.simplified.persistedPredictionsValidate,
       ),
-    humanReviewApproved: false,
-    liveSmokePassed: false,
+    humanReviewApproved: context.operatorGateRecord.effectiveInputs.humanReviewApproved,
+    liveSmokePassed: context.operatorGateRecord.effectiveInputs.liveSmokePassed,
   };
   const unjudgedPairs = records.flatMap((record) =>
     record.unjudged === undefined
@@ -348,6 +360,7 @@ function buildArtifact(
       },
     },
     hardGateInputs,
+    operatorGateRecord: context.operatorGateRecord,
     gateVerdict: annotateGateEvidence(evaluateDeepEquityGates(aggregate, hardGateInputs)),
   };
 }
@@ -437,6 +450,13 @@ export async function runPairedEvaluation(
   input: RunPairedEvaluationInput,
 ): Promise<DeepEquityEvaluationArtifact> {
   await mkdir(input.root, { recursive: true });
+  const operatorGateRecord = await readDeepEquityOperatorGateRecord({
+    evaluationRoot: input.root,
+    ...(input.repositoryRoot === undefined ? {} : { repositoryRoot: input.repositoryRoot }),
+    ...(input.approvalRecordPath === undefined
+      ? {}
+      : { approvalRecordPath: input.approvalRecordPath }),
+  });
   const expectedPairCount = input.fixtureNames.length * input.repetitions;
   const context: EvaluationContext = {
     root: input.root,
@@ -450,6 +470,7 @@ export async function runPairedEvaluation(
     seed: input.seed,
     planOrigin: "run-input",
     planLoadSource: "fresh-run",
+    operatorGateRecord,
   };
   const seeds = randomStreamSeeds(input.seed);
   const variantOrderRandom = createSeededEvaluationRandom(seeds.variantOrder);
@@ -796,6 +817,13 @@ export async function resumePairedEvaluation(
       left.repetition - right.repetition,
   );
   const repetitions = plan.repetitions.length;
+  const operatorGateRecord = await readDeepEquityOperatorGateRecord({
+    evaluationRoot: input.root,
+    ...(input.repositoryRoot === undefined ? {} : { repositoryRoot: input.repositoryRoot }),
+    ...(input.approvalRecordPath === undefined
+      ? {}
+      : { approvalRecordPath: input.approvalRecordPath }),
+  });
   const context: EvaluationContext = {
     root: input.root,
     mode: input.live ? "live-model-fixed-data" : "stub-cassette-replay",
@@ -808,6 +836,7 @@ export async function resumePairedEvaluation(
     seed,
     planOrigin: origin,
     planLoadSource: loadSource,
+    operatorGateRecord,
   };
   const storedJudges = existingJudges(existing);
   const storedUnjudgedReasons = existingUnjudgedReasons(existing);

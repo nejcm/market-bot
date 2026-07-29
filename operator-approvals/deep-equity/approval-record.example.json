@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "recordType": "unauthenticated-human-stated-deep-equity-gate-verdicts",
+  "authentication": "none",
+  "evaluationRoot": "data/evaluations/EXAMPLE-NOT-A-RUN",
+  "repositoryCommit": "0000000000000000000000000000000000000000",
+  "statedBy": "example-only@example.invalid",
+  "statedOn": "2000-01-01",
+  "statedVerdicts": {
+    "zeroCriticalMaterialEvidenceOmissionsAfterAdjudication": {
+      "verdict": false,
+      "rationale": "Inert example only; no omission adjudication was performed."
+    },
+    "humanReviewApproved": {
+      "verdict": false,
+      "rationale": "Inert example only; no human review approval was granted."
+    },
+    "liveSmokePassed": {
+      "verdict": false,
+      "rationale": "Inert example only; no live smoke was run."
+    }
+  }
+}

@@ -21,6 +21,7 @@ interface ParsedArguments {
   readonly recoveryFixtures?: readonly string[];
   readonly forceRejudge: boolean;
   readonly judgeModel?: string;
+  readonly approvalRecordPath?: string;
   readonly repetitions: number;
   readonly seed?: number;
 }
@@ -30,8 +31,8 @@ function usage(): never {
     [
       "Usage:",
       "  bun run scripts/replay-fixture-run.ts <fixture-name> [--live] [--write-golden]",
-      "  bun run scripts/replay-fixture-run.ts <fixture-name> [<fixture-name> ...] --paired [--live] [--repetitions <count>] [--seed <integer>] [--judge-model <model>]",
-      "  bun run scripts/replay-fixture-run.ts --resume-evaluation <data/evaluations/root> --judge-model <model> [--live] [--seed <integer>] [--fixtures <fixture-a,fixture-b> --repetitions <count>] [--force-rejudge]",
+      "  bun run scripts/replay-fixture-run.ts <fixture-name> [<fixture-name> ...] --paired [--live] [--repetitions <count>] [--seed <integer>] [--judge-model <model>] [--approval-record <path>]",
+      "  bun run scripts/replay-fixture-run.ts --resume-evaluation <data/evaluations/root> --judge-model <model> [--live] [--seed <integer>] [--fixtures <fixture-a,fixture-b> --repetitions <count>] [--force-rejudge] [--approval-record <path>]",
     ].join("\n"),
   );
 }
@@ -81,6 +82,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
   let recoveryFixtures: readonly string[] | undefined = undefined;
   let forceRejudge = false;
   let judgeModel: string | undefined = undefined;
+  let approvalRecordPath: string | undefined = undefined;
   let repetitions = 1;
   let repetitionsSpecified = false;
   let seed: number | undefined = undefined;
@@ -99,6 +101,9 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       index += 1;
     } else if (argument === "--judge-model") {
       judgeModel = requiredFlagValue(args, index, argument);
+      index += 1;
+    } else if (argument === "--approval-record") {
+      approvalRecordPath = requiredFlagValue(args, index, argument);
       index += 1;
     } else if (argument === "--fixtures") {
       recoveryFixtures = fixtureList(requiredFlagValue(args, index, argument));
@@ -140,7 +145,8 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     recoveryFixtures === undefined &&
     repetitions === 1 &&
     seed === undefined &&
-    !forceRejudge;
+    !forceRejudge &&
+    approvalRecordPath === undefined;
   if (!validResume && !validPaired && !validSingle) {
     usage();
   }
@@ -153,6 +159,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     ...(recoveryFixtures !== undefined ? { recoveryFixtures } : {}),
     forceRejudge,
     ...(judgeModel !== undefined ? { judgeModel } : {}),
+    ...(approvalRecordPath !== undefined ? { approvalRecordPath } : {}),
     repetitions,
     ...(seed !== undefined ? { seed } : {}),
   };
@@ -185,6 +192,9 @@ if (parsed.resumeRoot !== undefined) {
         }
       : {}),
     forceRejudge: parsed.forceRejudge,
+    ...(parsed.approvalRecordPath !== undefined
+      ? { approvalRecordPath: parsed.approvalRecordPath }
+      : {}),
     providerForScenario: async (scenario) => {
       if (parsed.live) {
         liveProvider ??= liveResumeProvider();
@@ -205,6 +215,9 @@ if (parsed.resumeRoot !== undefined) {
     seed: evaluationSeed(parsed.seed),
     live: parsed.live,
     ...(parsed.judgeModel !== undefined ? { judgeModel: parsed.judgeModel } : {}),
+    ...(parsed.approvalRecordPath !== undefined
+      ? { approvalRecordPath: parsed.approvalRecordPath }
+      : {}),
   });
   process.stdout.write(`${join(pairRoot, DEEP_EQUITY_EVALUATION_FILE)}\n`);
 } else {

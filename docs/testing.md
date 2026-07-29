@@ -137,6 +137,58 @@ the explicit plan inside one mutable JSON file does not prove that either field 
 Resistance to hand-fabricated artifacts would require an authenticated or independently anchored
 origin record; this evaluation artifact format does not provide one.
 
+The three operator-owned gates accept input only through an explicitly named approval record:
+
+```sh
+bun run scripts/replay-fixture-run.ts --resume-evaluation data/evaluations/<run> --live --judge-model <model> --approval-record operator-approvals/deep-equity/<record>.json
+```
+
+There is no default or discovery path. The file must resolve under the checked-in
+`operator-approvals/deep-equity/` repository directory and cannot live under `data/`. The inert
+example is
+[`operator-approvals/deep-equity/approval-record.example.json`](../operator-approvals/deep-equity/approval-record.example.json).
+The exact version 1 schema is:
+
+```json
+{
+  "schemaVersion": 1,
+  "recordType": "unauthenticated-human-stated-deep-equity-gate-verdicts",
+  "authentication": "none",
+  "evaluationRoot": "data/evaluations/<exact-run-root>",
+  "repositoryCommit": "<full-lowercase-40-character-HEAD>",
+  "statedBy": "<human operator identifier>",
+  "statedOn": "YYYY-MM-DD",
+  "statedVerdicts": {
+    "zeroCriticalMaterialEvidenceOmissionsAfterAdjudication": {
+      "verdict": false,
+      "rationale": "<human-authored rationale>"
+    },
+    "humanReviewApproved": {
+      "verdict": false,
+      "rationale": "<human-authored rationale>"
+    },
+    "liveSmokePassed": {
+      "verdict": false,
+      "rationale": "<human-authored rationale>"
+    }
+  }
+}
+```
+
+For a root inside the repository, `evaluationRoot` is its repository-relative path with `/`
+separators. `repositoryCommit` must match `git rev-parse HEAD` when the evaluation artifact is
+written. Envelope, root-binding, or commit-binding failure rejects the whole record. A missing,
+empty, or malformed gate entry rejects only that gate. Omitting the flag, rejecting the record, and
+accepting an explicit `false` verdict remain distinct in `evaluation.json.operatorGateRecord`.
+Every failure is false-effective and carries a rejection reason.
+Any later commit, including one that archives the record, invalidates it for a future evaluation;
+the operator must author a new record against that future evaluation's HEAD.
+
+The record is deliberately unauthenticated. `statedBy` records the operator's statement but proves
+neither identity nor authorship; there is no signature or cryptographic identity check. The
+repository owner authors and supplies this file as a separate manual action after reviewing the
+evaluation. Fixture or evaluation runners must not create or modify it.
+
 The Phase 4 replay measurement covers six deep-equity fixtures. Its **reasoning-prompt token
 estimate reduction** sums `ceil(stable prompt characters / 4)` across captured model-stage prompts,
 then takes the six-fixture median. The current cassette result is 36.8356%. Every fixture uses three

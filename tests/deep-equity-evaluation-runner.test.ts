@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readCodeVersion } from "../src/code-version";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import {
   DEEP_EQUITY_EVALUATION_FILE,
@@ -9,6 +10,10 @@ import {
   runPairedEvaluation,
 } from "./support/deep-equity-evaluation-runner";
 import { PAIRWISE_JUDGE_DIMENSIONS } from "./support/deep-equity-evaluation";
+import {
+  DEEP_EQUITY_OPERATOR_GATE_RECORD_TYPE,
+  deepEquityEvaluationRootIdentifier,
+} from "./support/deep-equity-operator-gates";
 import { DEEP_EQUITY_VARIANT_FAILURE_FILE, loadFixture } from "./support/run-fixtures";
 import { llmCassetteKey, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 
@@ -63,6 +68,39 @@ async function tempEvaluationRoot(name: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `market-bot-${name}-`));
   tempRoots.push(root);
   return root;
+}
+
+function runGit(repositoryRoot: string, args: readonly string[]): void {
+  const result = Bun.spawnSync(["git", ...args], {
+    cwd: repositoryRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `git ${args.join(" ")} failed: ${new TextDecoder().decode(result.stderr).trim()}`,
+    );
+  }
+}
+
+async function tempApprovalRepository(name: string): Promise<{
+  readonly repositoryRoot: string;
+  readonly recordPath: string;
+}> {
+  const repositoryRoot = await mkdtemp(join(tmpdir(), `market-bot-operator-record-${name}-`));
+  tempRoots.push(repositoryRoot);
+  runGit(repositoryRoot, ["init", "--quiet"]);
+  runGit(repositoryRoot, ["config", "user.email", "operator-gates@example.invalid"]);
+  runGit(repositoryRoot, ["config", "user.name", "Operator Gate Tests"]);
+  await writeFile(join(repositoryRoot, "baseline.txt"), "baseline\n", "utf8");
+  runGit(repositoryRoot, ["add", "baseline.txt"]);
+  runGit(repositoryRoot, ["commit", "--quiet", "-m", "test baseline"]);
+  const approvalDirectory = join(repositoryRoot, "operator-approvals", "deep-equity", name);
+  await mkdir(approvalDirectory, { recursive: true });
+  return {
+    repositoryRoot,
+    recordPath: join(approvalDirectory, "approval.json"),
+  };
 }
 
 // Fails exactly one variant by rejecting its first final-synthesis call.
@@ -153,9 +191,22 @@ describe("deep-equity evaluation runner", () => {
       allReportsValidate: false,
       allCitedSourceIdsResolve: false,
       zeroResearchOnlyBoundaryViolations: false,
+      zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: false,
       noAdditionalLowIntegrityReports: false,
       noDeterministicEvidenceCoverageRegression: false,
       noInvalidPredictionsPersist: false,
+      humanReviewApproved: false,
+      liveSmokePassed: false,
+    });
+    expect(persisted.operatorGateRecord).toMatchObject({
+      status: "not-supplied",
+      authentication: "none",
+      sourcePath: null,
+      effectiveInputs: {
+        zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: false,
+        humanReviewApproved: false,
+        liveSmokePassed: false,
+      },
     });
     expect(persisted.gateVerdict.status).toBe("fail");
     expect(persisted.gateVerdict.failingGates).toEqual(
@@ -196,6 +247,110 @@ describe("deep-equity evaluation runner", () => {
     });
     expect(resumed.records[0]?.variants.legacy).toMatchObject({ quickModel: "fixture-quick" });
     expect(resumed.records[0]?.variants.simplified).toMatchObject({ quickModel: "fixture-quick" });
+  }, 30_000);
+
+  test("persists no-record, rejected-record, and explicit-false operator states distinctly", async () => {
+    const root = await tempEvaluationRoot("operator-record-states");
+    const approvalRepository = await tempApprovalRepository("states");
+    const approvalRecordPath = approvalRepository.recordPath;
+    const judgeCalls: ModelRequest[] = [];
+    const initial = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 64,
+      live: false,
+      judgeModel: "fixture-judge",
+      provider: await fixtureProvider([judgeResponse()], judgeCalls),
+    });
+    expect(judgeCalls).toHaveLength(1);
+    expect(initial.operatorGateRecord.status).toBe("not-supplied");
+
+    await writeFile(approvalRecordPath, "{not-json", "utf8");
+    const rejected = await resumePairedEvaluation({
+      root,
+      live: false,
+      judgeModel: "fixture-judge",
+      approvalRecordPath,
+      repositoryRoot: approvalRepository.repositoryRoot,
+      providerForScenario: async () => {
+        throw new Error("stored verdict must not request a provider");
+      },
+    });
+    expect(rejected.operatorGateRecord).toMatchObject({
+      status: "rejected",
+      rejectionReasons: [{ code: "invalid-json" }],
+    });
+    expect(rejected.hardGateInputs).toMatchObject({
+      zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: false,
+      humanReviewApproved: false,
+      liveSmokePassed: false,
+    });
+
+    const { commit } = readCodeVersion(approvalRepository.repositoryRoot);
+    if (commit === undefined) {
+      throw new Error("Test requires a repository HEAD commit.");
+    }
+    await writeFile(
+      approvalRecordPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          recordType: DEEP_EQUITY_OPERATOR_GATE_RECORD_TYPE,
+          authentication: "none",
+          evaluationRoot: deepEquityEvaluationRootIdentifier(
+            root,
+            approvalRepository.repositoryRoot,
+          ),
+          repositoryCommit: commit,
+          statedBy: "repository-owner@example.invalid",
+          statedOn: "2026-07-29",
+          statedVerdicts: {
+            zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: {
+              verdict: true,
+              rationale: "The adjudicated omission ledger was reviewed.",
+            },
+            humanReviewApproved: {
+              verdict: false,
+              rationale: "The operator found an unresolved blinded-review concern.",
+            },
+            liveSmokePassed: {
+              verdict: true,
+              rationale: "The separately authorized live-smoke matrix passed.",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    const explicitFalse = await resumePairedEvaluation({
+      root,
+      live: false,
+      judgeModel: "fixture-judge",
+      approvalRecordPath,
+      repositoryRoot: approvalRepository.repositoryRoot,
+      providerForScenario: async () => {
+        throw new Error("stored verdict must not request a provider");
+      },
+    });
+    const persisted = JSON.parse(
+      await readFile(join(root, DEEP_EQUITY_EVALUATION_FILE), "utf8"),
+    ) as typeof explicitFalse;
+
+    expect(persisted.operatorGateRecord.status).toBe("accepted");
+    expect(persisted.operatorGateRecord.gates.humanReviewApproved).toMatchObject({
+      status: "accepted",
+      statedVerdict: false,
+      effectiveVerdict: false,
+      rationale: "The operator found an unresolved blinded-review concern.",
+    });
+    expect(persisted.hardGateInputs).toMatchObject({
+      zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: true,
+      humanReviewApproved: false,
+      liveSmokePassed: true,
+    });
   }, 30_000);
 
   test("writes a complete fail-closed artifact when both judge responses omit dimensions", async () => {

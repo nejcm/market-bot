@@ -18,6 +18,10 @@ import {
   deriveEvaluationStreamSeed,
   type EvaluationRandomStreamName,
 } from "./support/evaluation-random";
+import {
+  DEEP_EQUITY_OPERATOR_GATE_RECORD_TYPE,
+  validateDeepEquityOperatorGateRecord,
+} from "./support/deep-equity-operator-gates";
 import type { ModelRequest } from "../src/model/types";
 import {
   measureDeepEquityLegacyBaseline,
@@ -542,6 +546,65 @@ describe("deep-equity evaluation aggregation and gates", () => {
     });
 
     expect(evaluateDeepEquityGates(aggregate, passingHardGates)).toMatchObject({
+      status: "pass",
+      passed: true,
+      failingGates: [],
+    });
+  });
+
+  test("matching rationalized operator verdicts allow a pass when code gates also pass", () => {
+    const aggregate = aggregateDeepEquityEvaluation(passingEvaluationRecords(), {
+      plan: passingEvaluationPlan,
+      bootstrapIterations: 100,
+      random: createSeededEvaluationRandom(7),
+    });
+    const commit = "a".repeat(40);
+    const operatorRecord = validateDeepEquityOperatorGateRecord(
+      {
+        schemaVersion: 1,
+        recordType: DEEP_EQUITY_OPERATOR_GATE_RECORD_TYPE,
+        authentication: "none",
+        evaluationRoot: "data/evaluations/deep-equity-approved",
+        repositoryCommit: commit,
+        statedBy: "repository-owner@example.invalid",
+        statedOn: "2026-07-29",
+        statedVerdicts: {
+          zeroCriticalMaterialEvidenceOmissionsAfterAdjudication: {
+            verdict: true,
+            rationale: "The adjudicated ledger contains no critical material omissions.",
+          },
+          humanReviewApproved: {
+            verdict: true,
+            rationale: "The blinded review supports the model-pipeline cutover.",
+          },
+          liveSmokePassed: {
+            verdict: true,
+            rationale: "The separately authorized live-smoke matrix passed.",
+          },
+        },
+      },
+      {
+        sourcePath: "operator-approvals/deep-equity/approved.json",
+        checkedEvaluationRoot: "data/evaluations/deep-equity-approved",
+        checkedRepositoryCommit: commit,
+        checkedRepositoryTree: {
+          status: "clean",
+          dirty: false,
+          dirtyPathCount: 0,
+          dirtyPathSample: [],
+          offendingPathCount: 0,
+          offendingPathSample: [],
+        },
+        repositoryRoot: process.cwd(),
+      },
+    );
+    const hardGates: DeepEquityHardGateInputs = {
+      ...passingHardGates,
+      ...operatorRecord.effectiveInputs,
+    };
+
+    expect(operatorRecord.status).toBe("accepted");
+    expect(evaluateDeepEquityGates(aggregate, hardGates)).toMatchObject({
       status: "pass",
       passed: true,
       failingGates: [],

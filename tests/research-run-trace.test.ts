@@ -50,6 +50,10 @@ function traceFor(
   sources: CollectedSources,
   options: {
     readonly report?: ResearchReport;
+    readonly relocatedGapClaims?: readonly {
+      readonly location: string;
+      readonly text: string;
+    }[];
     readonly webGatherLoop?: RunTrace["webGatherLoop"];
   } = {},
 ) {
@@ -117,6 +121,9 @@ function traceFor(
     predictionCompletion: undefined,
     predictionErrors: [],
     reportValidationErrors: [],
+    ...(options.relocatedGapClaims !== undefined
+      ? { relocatedGapClaims: options.relocatedGapClaims }
+      : {}),
     postSynthesisWarnings: [],
     integrityAudit: {
       report,
@@ -134,6 +141,36 @@ function traceFor(
 }
 
 describe("run trace builder", () => {
+  test("records relocated gap claims only when items exist", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const sources = collectedSources();
+    const relocated = traceFor(command, sources, {
+      relocatedGapClaims: [
+        {
+          location: "risks[0]",
+          text: "FRED macro data was not available for this run",
+        },
+      ],
+    });
+    const empty = traceFor(command, sources, { relocatedGapClaims: [] });
+
+    expect(relocated.relocatedGapClaims).toEqual({
+      count: 1,
+      items: [
+        {
+          location: "risks[0]",
+          text: "FRED macro data was not available for this run",
+        },
+      ],
+    });
+    expect(empty.relocatedGapClaims).toBeUndefined();
+  });
+
   test("builds trace fields from run inputs and stage records", () => {
     const generatedAt = "2026-05-19T00:00:00.000Z";
     const command = {

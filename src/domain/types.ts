@@ -346,6 +346,16 @@ export interface PostSynthesisAuditWarning {
   readonly sourceIds: readonly string[];
 }
 
+export interface RelocatedGapClaim {
+  readonly location: string;
+  readonly text: string;
+}
+
+export interface RelocatedGapClaims {
+  readonly count: number;
+  readonly items: readonly RelocatedGapClaim[];
+}
+
 export interface MarketSnapshot {
   readonly sourceId: string;
   readonly assetClass: AssetClass;
@@ -809,6 +819,7 @@ export interface RunTrace {
   readonly predictionErrors?: readonly string[];
   readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly reportValidationRetryErrors?: readonly string[];
+  readonly relocatedGapClaims?: RelocatedGapClaims;
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly warnings: readonly PostSynthesisAuditWarning[];

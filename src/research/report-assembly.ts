@@ -6,6 +6,7 @@ import {
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
+  type RelocatedGapClaim,
   type ResearchReport,
   type Scenario,
   type Source,
@@ -39,6 +40,7 @@ import {
 } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
+import { isGapShapedClaim } from "./gap-shaped-claims";
 import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 
 // ---------------------------------------------------------------------------
@@ -91,6 +93,115 @@ function readFindings(value: unknown): readonly KeyFinding[] {
       };
     })
     .filter((item): item is KeyFinding => item !== undefined);
+}
+
+const RELOCATABLE_FINDING_SECTIONS = [
+  "keyFindings",
+  "bullCase",
+  "bearCase",
+  "risks",
+  "catalysts",
+] as const;
+
+type RelocatableFindingSection = (typeof RELOCATABLE_FINDING_SECTIONS)[number];
+
+interface FindingPartition {
+  readonly findings: readonly KeyFinding[];
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+interface BusinessFrameworkRelocation {
+  readonly modelExtras: Record<string, unknown>;
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+export interface PreparedReportClaims {
+  readonly findings: Readonly<Record<RelocatableFindingSection, readonly KeyFinding[]>>;
+  readonly modelExtras: Record<string, unknown>;
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+function partitionGapShapedFindings(
+  section: RelocatableFindingSection,
+  findings: readonly KeyFinding[],
+): FindingPartition {
+  const retained: KeyFinding[] = [];
+  const relocatedGapClaims: RelocatedGapClaim[] = [];
+  for (const [index, finding] of findings.entries()) {
+    if (finding.sourceIds.length === 0 && isGapShapedClaim(finding.text)) {
+      relocatedGapClaims.push({ location: `${section}[${index}]`, text: finding.text });
+    } else {
+      retained.push(finding);
+    }
+  }
+  return { findings: retained, relocatedGapClaims };
+}
+
+function relocateBusinessFrameworkClaims(
+  modelExtras: Record<string, unknown>,
+  collectedSources: CollectedSources,
+): BusinessFrameworkRelocation {
+  const framework = modelExtras.businessFramework;
+  if (
+    collectedSources.businessFramework === undefined ||
+    !isRecord(framework) ||
+    !Array.isArray(framework.sections)
+  ) {
+    return { modelExtras, relocatedGapClaims: [] };
+  }
+  const relocatedGapClaims: RelocatedGapClaim[] = [];
+  const sections = framework.sections.map((section, index) => {
+    if (
+      !isRecord(section) ||
+      typeof section.text !== "string" ||
+      nonEmptyStringArrayValue(section.sourceIds).length > 0 ||
+      !isGapShapedClaim(section.text)
+    ) {
+      return section;
+    }
+    const name = typeof section.name === "string" ? ` (${section.name})` : "";
+    relocatedGapClaims.push({
+      location: `Business Framework sections[${index}]${name}`,
+      text: section.text,
+    });
+    return Object.fromEntries(Object.entries(section).filter(([key]) => key !== "text"));
+  });
+  return relocatedGapClaims.length === 0
+    ? { modelExtras, relocatedGapClaims }
+    : {
+        modelExtras: {
+          ...modelExtras,
+          businessFramework: { ...framework, sections },
+        },
+        relocatedGapClaims,
+      };
+}
+
+export function prepareReportClaims(
+  payload: ModelReportPayload,
+  collectedSources: CollectedSources,
+): PreparedReportClaims {
+  const partitions = Object.fromEntries(
+    RELOCATABLE_FINDING_SECTIONS.map((section) => [
+      section,
+      partitionGapShapedFindings(section, readFindings(payload[section])),
+    ]),
+  ) as Record<RelocatableFindingSection, FindingPartition>;
+  const rawModelExtras =
+    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
+      ? (payload.extras as Record<string, unknown>)
+      : {};
+  const frameworkRelocation = relocateBusinessFrameworkClaims(rawModelExtras, collectedSources);
+  return {
+    findings: Object.fromEntries(
+      RELOCATABLE_FINDING_SECTIONS.map((section) => [section, partitions[section].findings]),
+    ) as Record<RelocatableFindingSection, readonly KeyFinding[]>,
+    modelExtras: frameworkRelocation.modelExtras,
+    relocatedGapClaims: [
+      ...RELOCATABLE_FINDING_SECTIONS.flatMap((section) => partitions[section].relocatedGapClaims),
+      ...frameworkRelocation.relocatedGapClaims,
+    ],
+  };
 }
 
 function readScenarios(value: unknown): readonly Scenario[] {
@@ -808,11 +919,30 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     predictions: earningsGatedPredictions.predictions,
     collectedSources,
   });
+  const {
+    findings: preparedFindings,
+    modelExtras,
+    relocatedGapClaims,
+  } = prepareReportClaims(payload, collectedSources);
+  const keyFindings = preferSnapshotCitationsForFindings(
+    preparedFindings.keyFindings,
+    collectedSources,
+  );
+  const bullCase = preferSnapshotCitationsForFindings(preparedFindings.bullCase, collectedSources);
+  const bearCase = preferSnapshotCitationsForFindings(preparedFindings.bearCase, collectedSources);
+  const risks = preferSnapshotCitationsForFindings(preparedFindings.risks, collectedSources);
+  const catalysts = preferSnapshotCitationsForFindings(
+    preparedFindings.catalysts,
+    collectedSources,
+  );
   const deterministicGapEntries = deterministicSourceGapEntries(command, collectedSources);
   const deterministicGapTexts = deterministicGapEntries.map((gap) => gap.text);
   const modelGapEntries = withoutDeterministicGapRestatements(
     withoutModelProviderGapDuplicates(
-      withoutModelPredictionCountGaps(nonEmptyStringArrayValue(payload.dataGaps)),
+      withoutModelPredictionCountGaps([
+        ...nonEmptyStringArrayValue(payload.dataGaps),
+        ...relocatedGapClaims.map((claim) => claim.text),
+      ]),
       collectedSources.sourceGaps,
     ),
     deterministicGapTexts,
@@ -858,10 +988,6 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         assessSourcePlan(buildSourcePlan(command, generatedAt), collectedSources, generatedAt),
       generatedAt,
     ).label;
-  const modelExtras =
-    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
-      ? (payload.extras as Record<string, unknown>)
-      : {};
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
@@ -869,23 +995,6 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     modelExtras,
     collectedSources,
   });
-  const keyFindings = preferSnapshotCitationsForFindings(
-    readFindings(payload.keyFindings),
-    collectedSources,
-  );
-  const bullCase = preferSnapshotCitationsForFindings(
-    readFindings(payload.bullCase),
-    collectedSources,
-  );
-  const bearCase = preferSnapshotCitationsForFindings(
-    readFindings(payload.bearCase),
-    collectedSources,
-  );
-  const risks = preferSnapshotCitationsForFindings(readFindings(payload.risks), collectedSources);
-  const catalysts = preferSnapshotCitationsForFindings(
-    readFindings(payload.catalysts),
-    collectedSources,
-  );
   const scenarios = preferSnapshotCitationsForScenarios(
     readScenarios(payload.scenarios),
     collectedSources,

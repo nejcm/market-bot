@@ -5,7 +5,11 @@ import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { validateResearchReport } from "../src/report/schema";
-import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
+import {
+  assembleResearchReport,
+  buildSourceList,
+  prepareReportClaims,
+} from "../src/research/report-assembly";
 import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context-types";
@@ -271,6 +275,109 @@ describe("report schema and rendering", () => {
     expect(message).toContain("keyFindings[11] must reference at least one source ID");
     expect(message).not.toContain("keyFindings[12]");
     expect(message).toEndWith("(+1 more)");
+  });
+
+  test("relocates an uncited gap-shaped risk into data gaps", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const payload = {
+      summary: "AAPL evidence summary.",
+      risks: [
+        {
+          text: "FRED macro data was not available for this run",
+          sourceIds: [],
+        },
+      ],
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const prepared = prepareReportClaims(payload, collected);
+    const assembled = assembleResearchReport({
+      runId: "gap-relocation",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.dataGaps).toContain("FRED macro data was not available for this run");
+    expect(assembled.risks).toEqual([]);
+    expect(prepared.relocatedGapClaims).toEqual([
+      {
+        location: "risks[0]",
+        text: "FRED macro data was not available for this run",
+      },
+    ]);
+  });
+
+  test("keeps rejecting an ordinary uncited business claim", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const collected = collectedSources();
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    expect(() =>
+      assembleResearchReport({
+        runId: "ordinary-uncited-risk",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        command,
+        payload: {
+          summary: "AAPL evidence summary.",
+          risks: [{ text: "Revenue data shows no growth in the segment", sourceIds: [] }],
+        },
+        predResult: { predictions: [], errors: [] },
+        collectedSources: collected,
+        depthProfile,
+        context: assemblyContext(depthProfile),
+        sources: [],
+      }),
+    ).toThrow("risks[0] must reference at least one source ID");
+  });
+
+  test("does not relocate a cited gap-shaped finding", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const payload = {
+      summary: "AAPL evidence summary.",
+      risks: [{ text: "No segment disclosure was provided", sourceIds: ["market-aapl"] }],
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const prepared = prepareReportClaims(payload, collected);
+    const assembled = assembleResearchReport({
+      runId: "cited-gap-claim",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.risks).toEqual(payload.risks);
+    expect(prepared.relocatedGapClaims).toEqual([]);
   });
 
   test("renders Finnhub earnings dates as provider-estimated and unconfirmed", () => {
@@ -2051,6 +2158,79 @@ describe("report schema and rendering", () => {
         },
       ],
     });
+  });
+
+  test("relocates an uncited gap-shaped Business Framework section", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const payload = {
+      summary: "AAPL framework evidence is incomplete.",
+      extras: {
+        businessFramework: {
+          sections: [
+            {
+              name: "Management",
+              text: "No management evidence was provided",
+              sourceIds: [],
+            },
+          ],
+        },
+      },
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      businessFramework: {
+        version: 1,
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        symbol: "AAPL",
+        phase: "operating-leverage",
+        sections: [
+          {
+            name: "Management",
+            posture: "insufficient-data",
+            summary: "Management evidence is incomplete.",
+            metrics: [],
+            sourceIds: [],
+            gaps: ["Management evidence unavailable"],
+          },
+        ],
+        sourceIds: [],
+        gaps: ["Management evidence unavailable"],
+      },
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const prepared = prepareReportClaims(payload, collected);
+    const assembled = assembleResearchReport({
+      runId: "framework-gap-relocation",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const framework = assembled.extras?.businessFramework as {
+      readonly sections: readonly Record<string, unknown>[];
+    };
+
+    expect(assembled.dataGaps).toContain("No management evidence was provided");
+    expect(framework.sections[0]).toMatchObject({
+      name: "Management",
+      summary: "Management evidence is incomplete.",
+    });
+    expect(framework.sections[0]).not.toHaveProperty("text");
+    expect(prepared.relocatedGapClaims).toEqual([
+      {
+        location: "Business Framework sections[0] (Management)",
+        text: "No management evidence was provided",
+      },
+    ]);
   });
 
   test("projects every deterministic business framework section without model-authored text", () => {

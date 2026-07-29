@@ -3,6 +3,7 @@ import {
   NEAR_BASE_RATE_BAND,
   type Prediction,
   type PredictionCompletionAudit,
+  type RelocatedGapClaim,
   type ResearchReport,
   type Source,
 } from "../domain/types";
@@ -19,6 +20,7 @@ import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
   assembleResearchReport,
   parseModelPayload,
+  prepareReportClaims,
   readPredictions,
   type ModelReportPayload,
 } from "./report-assembly";
@@ -133,6 +135,7 @@ export interface SynthesizeReportUntilValidResult {
   readonly predictionCompletion?: PredictionCompletionAudit;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
 }
 
 export async function synthesizeReportUntilValid(
@@ -166,6 +169,10 @@ export async function synthesizeReportUntilValid(
     validated.report,
   );
   const report = buildReport(trackedInput, completion.progress.state);
+  const { relocatedGapClaims } = prepareReportClaims(
+    completion.progress.state.payload,
+    trackedInput.collectedSources,
+  );
   return {
     report,
     stageOutputs: completion.progress.stageOutputs,
@@ -174,6 +181,7 @@ export async function synthesizeReportUntilValid(
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
+    relocatedGapClaims,
   };
 }
 

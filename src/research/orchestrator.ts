@@ -762,6 +762,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionTrimWarnings,
     predictionCompletion,
     reportValidationErrors,
+    relocatedGapClaims,
   } = synthesis;
   const codeVersion = readCodeVersion();
   const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
@@ -804,6 +805,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionCompletion,
     predictionErrors,
     reportValidationErrors,
+    relocatedGapClaims,
     postSynthesisWarnings,
     integrityAudit,
     sourcePlanning,

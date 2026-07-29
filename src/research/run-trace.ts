@@ -4,6 +4,7 @@ import {
   marketUpdateMetadataOf,
   type CodeVersion,
   type PostSynthesisAuditWarning,
+  type RelocatedGapClaim,
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
@@ -57,6 +58,7 @@ export function buildRunTrace(input: {
   readonly predictionCompletion: RunTrace["predictionCompletion"];
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
+  readonly relocatedGapClaims?: readonly RelocatedGapClaim[];
   readonly postSynthesisWarnings: readonly PostSynthesisAuditWarning[];
   readonly integrityAudit: ReportIntegrityAuditResult;
   readonly sourcePlanning: BuildSourcePlanResult;
@@ -127,6 +129,14 @@ export function buildRunTrace(input: {
     ...(earningsForecasts !== undefined ? { earningsForecasts } : {}),
     ...(input.reportValidationErrors.length > 0
       ? { reportValidationRetryErrors: input.reportValidationErrors }
+      : {}),
+    ...(input.relocatedGapClaims !== undefined && input.relocatedGapClaims.length > 0
+      ? {
+          relocatedGapClaims: {
+            count: input.relocatedGapClaims.length,
+            items: input.relocatedGapClaims,
+          },
+        }
       : {}),
     ...(input.postSynthesisWarnings.length > 0
       ? {

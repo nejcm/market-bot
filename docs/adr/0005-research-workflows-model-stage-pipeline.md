@@ -8,7 +8,8 @@ Accepted
 
 2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
 amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
-incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping)
+incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping;
+amended 2026-07-30: final-synthesis source-ID repair loop)
 
 ## Context
 
@@ -41,6 +42,12 @@ research boundaries without sharing persistence or scoring semantics.
   Prior-stage output stays structurally nested and is not rewritten.
 - Final synthesis produces the candidate report. Deterministic assembly and validation remain the
   authority over report shape, prediction acceptance, Evidence Quality, and research-only language.
+- Deterministic assembly relocates uncited gap-shaped narrative findings and Business Framework
+  section text into `dataGaps` instead of asking the model to invent citations. The trace records
+  every relocation with its original field path and text.
+- Final-synthesis repair reprompts carry the accumulated, path-aware report-validation error set,
+  bounded to the twelve most recent distinct errors. Retry failure messages report the actual
+  final-synthesis call and report-repair counts.
 - When high- or medium-evidence synthesis leaves the report short of its prediction target, one
   best-effort completion pass may add predictions only. It is prompted with a distilled context —
   the first-attempt report narrative, the critique stage output, and a compact source index

@@ -55,7 +55,10 @@ function businessFrameworkExtra(modelExtra: unknown, collectedSources: Collected
         posture: section.posture,
         summary: section.summary,
         metrics: section.metrics,
-        sourceIds: modelSection?.sourceIds ?? section.sourceIds,
+        sourceIds:
+          modelSection !== undefined && modelSection.sourceIds.length > 0
+            ? modelSection.sourceIds
+            : section.sourceIds,
         gaps: section.gaps,
         ...(modelSection !== undefined ? { text: modelSection.text } : {}),
       };

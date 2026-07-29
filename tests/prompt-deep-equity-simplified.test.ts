@@ -1036,6 +1036,42 @@ describe("simplified deep-equity price history", () => {
 });
 
 describe("simplified deep-equity final-synthesis prompt", () => {
+  test("omits the Business Framework shape and authoring invitation", () => {
+    const prompt = simplifiedFinalSynthesisPrompt({
+      collectedSources: sources({
+        businessFramework: {
+          version: 1,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          symbol: "AAPL",
+          phase: "capital-return",
+          sections: [
+            {
+              name: "Business",
+              posture: "criteria-supported",
+              summary: "Business criteria-supported.",
+              metrics: [],
+              sourceIds: ["news-equity-1"],
+              gaps: [],
+            },
+          ],
+          sourceIds: ["news-equity-1"],
+          gaps: [],
+        },
+      }),
+    });
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction: string;
+      readonly evidence: Readonly<Record<string, unknown>>;
+      readonly requiredShape?: {
+        readonly extras?: Readonly<Record<string, unknown>>;
+      };
+    };
+
+    expect(parsed.requiredShape?.extras).not.toHaveProperty("businessFramework");
+    expect(parsed.instruction).not.toContain("evidence.extendedEvidence");
+    expect(parsed.instruction).not.toContain("extras.businessFramework.sections");
+  });
+
   test("repair reprompt names the predictions that already validated", () => {
     const prompt = simplifiedFinalSynthesisPrompt({
       predictionRepromptErrors: ["Prediction pred-3: subject does not match measurableAs"],

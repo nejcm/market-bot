@@ -85,6 +85,24 @@ function sources(
     ],
     verifiedMarketSnapshot: verifiedSnapshot,
     resolvedInstrumentIdentity: snapshot.identity,
+    businessFramework: {
+      version: 1,
+      generatedAt: ANALYSIS_AS_OF,
+      symbol: "AAPL",
+      phase: "capital-return",
+      sections: [
+        {
+          name: "Business",
+          posture: "criteria-supported",
+          summary: "Business criteria-supported.",
+          metrics: [],
+          sourceIds: ["market-yahoo-equity-aapl"],
+          gaps: [],
+        },
+      ],
+      sourceIds: ["market-yahoo-equity-aapl"],
+      gaps: [],
+    },
   });
 }
 
@@ -137,6 +155,9 @@ export async function simplifiedPromptBaselineMatrix(): Promise<SimplifiedPrompt
   const sanitized = sanitizedSnapshot();
   const verifiedSnapshot = verifiedMarketSnapshot();
   const collected = sources(sanitized, verifiedSnapshot);
+  if (collected.businessFramework === undefined) {
+    throw new Error("simplified prompt baseline requires business framework evidence");
+  }
   const context = await loadSimplifiedDeepEquityPlaybookContext(config.promptDir, baseContext());
   const bundle = deepEquityEvidenceBundle({
     evidence: {
@@ -145,6 +166,9 @@ export async function simplifiedPromptBaselineMatrix(): Promise<SimplifiedPrompt
       newsSources: collected.newsSources,
       extendedSources: [],
       verifiedMarketSnapshot: verifiedSnapshot,
+    },
+    derived: {
+      businessFramework: collected.businessFramework,
     },
   });
   const deepEquityModelPacket = buildDeepEquityModelPacket(bundle);

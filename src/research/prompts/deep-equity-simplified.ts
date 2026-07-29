@@ -76,6 +76,9 @@ const SIMPLIFIED_NO_CURRENT_PRICE_USAGE =
 const SIMPLIFIED_FINAL_FIGURE_USAGE =
   "Use issuerFundamentals as fields from the run-symbol quote record. Under reportConstraints.derivedFigures, label every valuation multiple, peer-implied range, trailing aggregate, growth rate, or other calculation in these blocks as derived and name its reported inputs and periods. valuation omits live-price comparison fields; use currentPriceReference for the current market level.";
 
+// This remains false because simplifiedFinalFigureEvidence calls compactDerivedViews(packet, false, true), whose valuationOnly arm drops businessFramework.
+const SIMPLIFIED_BUSINESS_FRAMEWORK_EVIDENCE_PROJECTED = false;
+
 function requireSimplifiedInput(
   input: StageInput,
 ): Pick<Required<StageInput>, "deepEquityModelPacket" | "canonicalSources"> {
@@ -580,7 +583,15 @@ function simplifiedSteeringInstruction(
 ): string {
   const base =
     completion === undefined
-      ? buildPrimaryPredictionInstruction(input.command, input.collectedSources, input.context)
+      ? buildPrimaryPredictionInstruction(
+          input.command,
+          input.collectedSources,
+          input.context,
+          [],
+          {
+            businessFrameworkEvidenceProjected: SIMPLIFIED_BUSINESS_FRAMEWORK_EVIDENCE_PROJECTED,
+          },
+        )
       : buildPredictionCompletionInstruction(
           input.command,
           input.collectedSources,
@@ -654,15 +665,13 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
   const { deepEquityModelPacket: packet } = requireSimplifiedInput(input);
   const hasEarningsSetup =
     isInstrumentCommand(input.command) && input.collectedSources.earningsSetup !== undefined;
-  const hasBusinessFramework =
-    isInstrumentCommand(input.command) && input.collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = input.collectedSources.webSubjectProfile !== undefined;
   const reportShape = finalReportShape(
     input.command,
     input.collectedSources,
     input.context.depthProfile,
     hasEarningsSetup,
-    hasBusinessFramework,
+    SIMPLIFIED_BUSINESS_FRAMEWORK_EVIDENCE_PROJECTED,
     hasWebSubjectProfile,
     subjectKindForCommand(input.command),
   );

@@ -6,6 +6,7 @@ import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { validateResearchReport } from "../src/report/schema";
 import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
+import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context-types";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
@@ -1877,12 +1878,20 @@ describe("report schema and rendering", () => {
     });
   });
 
-  test("merges model-authored business framework text into deterministic sections", () => {
+  test("falls back to deterministic framework source IDs while preserving model precedence", () => {
     const source: Source = {
       id: "market-aapl",
       title: "AAPL market snapshot",
       fetchedAt: "2026-06-01T00:00:00.000Z",
       kind: "market-data",
+      assetClass: "equity",
+      symbol: "AAPL",
+    };
+    const modelSource: Source = {
+      id: "news-aapl",
+      title: "AAPL operating update",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "news",
       assetClass: "equity",
       symbol: "AAPL",
     };
@@ -1899,7 +1908,12 @@ describe("report schema and rendering", () => {
               {
                 name: "Business",
                 text: "AAPL has cited revenue evidence and disclosed segment gaps.",
-                sourceIds: ["market-aapl"],
+                sourceIds: [],
+              },
+              {
+                name: "Growth",
+                text: "AAPL has cited growth evidence.",
+                sourceIds: ["news-aapl"],
               },
             ],
           },
@@ -1922,6 +1936,14 @@ describe("report schema and rendering", () => {
               sourceIds: ["market-aapl"],
               gaps: ["Segment mix unavailable"],
             },
+            {
+              name: "Growth",
+              posture: "criteria-mixed",
+              summary: "Growth criteria-mixed.",
+              metrics: [],
+              sourceIds: ["market-aapl"],
+              gaps: [],
+            },
           ],
           sourceIds: ["market-aapl"],
           gaps: ["Segment mix unavailable"],
@@ -1929,10 +1951,16 @@ describe("report schema and rendering", () => {
       }),
       depthProfile: assemblyDepthProfile("AAPL"),
       context: assemblyContext(assemblyDepthProfile("AAPL")),
-      sources: [source],
+      sources: [source, modelSource],
     });
 
-    expect(assembled.extras?.businessFramework).toMatchObject({
+    const framework = assembled.extras?.businessFramework as
+      | {
+          readonly phase?: string;
+          readonly sections?: readonly Record<string, unknown>[];
+        }
+      | undefined;
+    expect(framework).toMatchObject({
       phase: "capital-return",
       sections: [
         {
@@ -1941,8 +1969,61 @@ describe("report schema and rendering", () => {
           text: "AAPL has cited revenue evidence and disclosed segment gaps.",
           sourceIds: ["market-aapl"],
         },
+        {
+          name: "Growth",
+          text: "AAPL has cited growth evidence.",
+          sourceIds: ["news-aapl"],
+        },
       ],
     });
+  });
+
+  test("projects every deterministic business framework section without model-authored text", () => {
+    const sectionNames = [
+      "Business",
+      "Phase",
+      "Moat",
+      "Growth",
+      "Management",
+      "Risk",
+      "Valuation",
+    ] as const;
+    const sections = sectionNames.map((name, index) => ({
+      name,
+      posture: "criteria-supported" as const,
+      summary: `${name} deterministic summary.`,
+      metrics: [],
+      sourceIds: [`framework-source-${String(index + 1)}`],
+      gaps: [`${name} deterministic gap.`],
+    }));
+
+    const projected = projectExtendedEvidenceReportExtras({
+      modelExtras: {},
+      collectedSources: collectedSources({
+        businessFramework: {
+          version: 1,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          symbol: "AAPL",
+          phase: "capital-return",
+          sections,
+          sourceIds: sections.flatMap((section) => section.sourceIds),
+          gaps: ["Framework deterministic gap."],
+        },
+      }),
+    });
+
+    expect(projected.businessFramework).toEqual({
+      version: 1,
+      phase: "capital-return",
+      sourceIds: sections.flatMap((section) => section.sourceIds),
+      gaps: ["Framework deterministic gap."],
+      sections,
+    });
+    expect(
+      (
+        projected.businessFramework as { readonly sections: readonly Record<string, unknown>[] }
+      ).sections.every((section) => !Object.hasOwn(section, "text")),
+    ).toBe(true);
   });
 
   test("writes canonical research subject extras", () => {

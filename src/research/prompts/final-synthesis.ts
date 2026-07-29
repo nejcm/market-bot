@@ -525,6 +525,7 @@ export function buildPrimaryPredictionInstruction(
   collectedSources: CollectedSources,
   context: ResearchContext,
   excludedKinds: readonly PredictionKind[] = [],
+  options: { readonly businessFrameworkEvidenceProjected?: boolean } = {},
 ): string {
   const conditionalPredictionInstruction =
     command.depth === "deep"
@@ -544,9 +545,10 @@ export function buildPrimaryPredictionInstruction(
     earningsPredictionInstruction =
       " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps.";
   }
-  const businessFrameworkInstruction = hasBusinessFramework
-    ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
-    : "";
+  const businessFrameworkInstruction =
+    hasBusinessFramework && options.businessFrameworkEvidenceProjected !== false
+      ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
+      : "";
   const webSubjectProfileInstruction = hasWebSubjectProfile
     ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
     : "";

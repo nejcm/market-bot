@@ -22,7 +22,8 @@ export type UnavailableReason =
   | "evidence-input-divergent"
   | "lane-has-no-collected-sources"
   | "no-deterministic-rendering"
-  | "plan-provenance-not-run-input";
+  | "plan-provenance-not-run-input"
+  | "malformed-ledger-entries";
 export type DenominatorRef =
   | { readonly name: "lane-mapped-collected"; readonly symbol: "D1"; readonly value: number }
   | { readonly name: "lane-collected"; readonly lane: string; readonly value: number }
@@ -63,6 +64,12 @@ export interface SourceItem {
   readonly evidenceClasses: readonly EvidenceClass[];
   readonly kind?: string;
 }
+export interface MalformedLedgerEntry {
+  readonly index: number;
+  readonly reason: "entry-not-record" | "id-missing-or-invalid";
+  readonly lane?: string;
+  readonly kind?: string;
+}
 export interface CoverageMeasurement {
   readonly citedSourceIds: readonly string[];
   readonly uncitedSourceIds: readonly string[];
@@ -97,6 +104,11 @@ export interface VariantCoverage {
     readonly laneMembershipEntries: number;
     readonly reportCarriedSources: number;
     readonly multiLaneDuplicateEntries: number;
+    readonly malformedLedgerEntries: {
+      readonly count: number;
+      readonly entries: readonly MalformedLedgerEntry[];
+    };
+    readonly omissionCheckAuthoritative: boolean;
     readonly d1PlusCarriedNotLaneMappedEqualsD3: boolean;
     readonly d2MinusD1EqualsMultiLaneDuplicateEntries: boolean;
   };
@@ -150,6 +162,7 @@ export interface CoverageDiffTotals {
   readonly reconciles: boolean;
   readonly coreMaterialOmissionCount: Measured;
   readonly omissionCheckUnavailableCount: number;
+  readonly unmatchedRecordCount: number;
 }
 export interface CoverageDiffArtifact {
   readonly version: 1;
@@ -175,6 +188,10 @@ interface SourceState {
   readonly lanes: Set<string>;
   readonly evidenceClasses: Set<EvidenceClass>;
   kind?: string;
+}
+interface SourceCatalog {
+  readonly sources: ReadonlyMap<string, SourceState>;
+  readonly malformedEntries: readonly MalformedLedgerEntry[];
 }
 interface ArmResult {
   readonly assessment: ArmAssessment;
@@ -322,11 +339,9 @@ export function hashGovernance(governance: Governance): string {
 function lanesOf(governance: Governance): readonly Record<string, unknown>[] {
   return (governance.evidenceLanes.lanes as readonly unknown[]).filter((lane) => isRecord(lane));
 }
-function ledgerOf(governance: Governance): readonly Record<string, unknown>[] {
-  return (governance.sourceLedger.sources as readonly unknown[]).filter((entry) => isRecord(entry));
-}
-function sourceCatalog(governance: Governance): ReadonlyMap<string, SourceState> {
+function sourceCatalog(governance: Governance): SourceCatalog {
   const catalog = new Map<string, SourceState>();
+  const malformedEntries: MalformedLedgerEntry[] = [];
   const laneClasses = new Map(
     lanesOf(governance).flatMap((lane) => {
       const name = readString(lane, "lane");
@@ -334,9 +349,24 @@ function sourceCatalog(governance: Governance): ReadonlyMap<string, SourceState>
       return name === undefined || laneClass === undefined ? [] : [[name, laneClass] as const];
     }),
   );
-  for (const entry of ledgerOf(governance)) {
+  for (const [index, candidate] of (
+    governance.sourceLedger.sources as readonly unknown[]
+  ).entries()) {
+    if (!isRecord(candidate)) {
+      malformedEntries.push({ index, reason: "entry-not-record" });
+      continue;
+    }
+    const entry = candidate;
     const id = readString(entry, "id");
     if (id === undefined) {
+      const lane = readString(entry, "lane");
+      const kind = readString(entry, "kind");
+      malformedEntries.push({
+        index,
+        reason: "id-missing-or-invalid",
+        ...(lane === undefined ? {} : { lane }),
+        ...(kind === undefined ? {} : { kind }),
+      });
       continue;
     }
     const state =
@@ -359,7 +389,7 @@ function sourceCatalog(governance: Governance): ReadonlyMap<string, SourceState>
     }
     catalog.set(id, state);
   }
-  return catalog;
+  return { sources: catalog, malformedEntries };
 }
 function reportCatalog(report: Readonly<Record<string, unknown>>): ReadonlyMap<string, string> {
   const catalog = new Map<string, string>();
@@ -514,7 +544,7 @@ function buildVariantCoverage(
       ];
     }),
   ) as unknown as Readonly<Record<EvidenceClass, CoverageMeasurement>>;
-  const catalog = sourceCatalog(governance);
+  const { sources: catalog, malformedEntries } = sourceCatalog(governance);
   const d1Ids = [...catalog.keys()];
   const reportSources = reportCatalog(report);
   const d3Ids = [...reportSources.keys()];
@@ -523,7 +553,11 @@ function buildVariantCoverage(
     ? governance.sourceLedger.sources.length
     : 0;
   const d3 = Array.isArray(report.sources) ? report.sources.length : 0;
-  const multiLaneDuplicateEntries = d2 - d1Ids.length;
+  const cataloguedLaneMemberships = [...catalog.values()].reduce(
+    (sum, source) => sum + source.lanes.size,
+    0,
+  );
+  const multiLaneDuplicateEntries = cataloguedLaneMemberships - d1Ids.length;
   return {
     lanes: laneCoverage,
     byEvidenceClass,
@@ -547,6 +581,11 @@ function buildVariantCoverage(
       laneMembershipEntries: d2,
       reportCarriedSources: d3,
       multiLaneDuplicateEntries,
+      malformedLedgerEntries: {
+        count: malformedEntries.length,
+        entries: malformedEntries,
+      },
+      omissionCheckAuthoritative: malformedEntries.length === 0,
       d1PlusCarriedNotLaneMappedEqualsD3: d1Ids.length + carriedIds.length === d3,
       d2MinusD1EqualsMultiLaneDuplicateEntries: d2 - d1Ids.length === multiLaneDuplicateEntries,
     },
@@ -725,6 +764,9 @@ export function analyzePairCoverage(
   }
   const legacyCoverage = buildVariantCoverage(legacy.report, legacy.governance);
   const simplifiedCoverage = buildVariantCoverage(simplified.report, simplified.governance);
+  const hasMalformedLedgerEntries =
+    !legacyCoverage.sourceDenominators.omissionCheckAuthoritative ||
+    !simplifiedCoverage.sourceDenominators.omissionCheckAuthoritative;
   return {
     assessment: {
       pair,
@@ -734,7 +776,7 @@ export function analyzePairCoverage(
       status: "compared",
       sharedEvidenceInput: "verified-identical",
       arms,
-      unavailableReasons: [],
+      unavailableReasons: hasMalformedLedgerEntries ? ["malformed-ledger-entries"] : [],
       sharedCoverageContext: sharedContext(legacy.governance),
     },
     comparison: {
@@ -759,6 +801,16 @@ export function analyzeEvaluation(
 ): CoverageDiffArtifact {
   const plan = planOf(evaluation);
   const records = recordsOf(evaluation);
+  const unmatchedRecordCount = records.filter((record) => {
+    const scenario = readString(record, "scenario");
+    const repetition = readNumber(record, "repetition");
+    return (
+      scenario === undefined ||
+      repetition === undefined ||
+      !plan.scenarios.includes(scenario) ||
+      !plan.repetitions.includes(repetition)
+    );
+  }).length;
   const results = plan.scenarios.flatMap((scenario) =>
     plan.repetitions.map((repetition) =>
       analyzePairCoverage(
@@ -782,6 +834,9 @@ export function analyzeEvaluation(
   const pairsNotAdjudicable = count("not-adjudicable");
   const pairsUnavailable = count("unavailable");
   const pairsMissing = count("missing");
+  const malformedLedgerPairCount = pairs.filter((pair) =>
+    pair.unavailableReasons.includes("malformed-ledger-entries"),
+  ).length;
   const reconciles =
     pairsCompared + pairsNotAdjudicable + pairsUnavailable + pairsMissing ===
     plan.expectedPairCount;
@@ -809,6 +864,7 @@ export function analyzeEvaluation(
     "variant-failure",
     "artifact-unreadable",
     "evidence-input-divergent",
+    "malformed-ledger-entries",
   ] as const) {
     const affected = pairs
       .filter((pair) => pair.unavailableReasons.includes(reason))
@@ -830,7 +886,10 @@ export function analyzeEvaluation(
     evaluationRoot,
     selectedAutomatically,
     plan,
-    adjudicable: plan.provenance === "run-input" && pairsCompared === plan.expectedPairCount,
+    adjudicable:
+      plan.provenance === "run-input" &&
+      pairsCompared === plan.expectedPairCount &&
+      malformedLedgerPairCount === 0,
     adjudicationBlockers,
     totals: {
       plannedPairCount: plan.expectedPairCount,
@@ -847,7 +906,9 @@ export function analyzeEvaluation(
               value: totalD1,
             })
           : { status: "unavailable", reason: "plan-provenance-not-run-input" },
-      omissionCheckUnavailableCount: pairsNotAdjudicable + pairsUnavailable + pairsMissing,
+      omissionCheckUnavailableCount:
+        pairsNotAdjudicable + pairsUnavailable + pairsMissing + malformedLedgerPairCount,
+      unmatchedRecordCount,
     },
     pairs,
     comparisons,
@@ -958,6 +1019,23 @@ export function renderHuman(artifact: CoverageDiffArtifact): string {
     artifact.totals.coreMaterialOmissionCount.status === "measured"
       ? String(artifact.totals.coreMaterialOmissionCount.value)
       : `n/a (${artifact.totals.coreMaterialOmissionCount.reason})`;
+  const denominatorLines = artifact.comparisons.flatMap((comparison) =>
+    (["legacy", "simplified"] as const).map((variant) => {
+      const denominators = comparison.variants[variant].sourceDenominators;
+      const malformedDetail = denominators.malformedLedgerEntries.entries
+        .map((entry) => `index ${String(entry.index)}: ${entry.reason}`)
+        .join(", ");
+      return `  ${comparison.pair} ${variant}: D1=${String(
+        denominators.laneMappedCollectedSourceIds,
+      )}, D2=${String(denominators.laneMembershipEntries)}, malformed-ledger=${String(
+        denominators.malformedLedgerEntries.count,
+      )}${malformedDetail === "" ? "" : ` (${malformedDetail})`}, multi-lane-duplicates=${String(
+        denominators.multiLaneDuplicateEntries,
+      )}, D2-D1-reconciles=${String(
+        denominators.d2MinusD1EqualsMultiLaneDuplicateEntries,
+      )}, omission-check-authoritative=${String(denominators.omissionCheckAuthoritative)}`;
+    }),
+  );
   const lines = [
     `Evaluation root: ${artifact.evaluationRoot}`,
     `adjudicable: ${String(artifact.adjudicable)} — ${String(unavailable)} of ${String(
@@ -970,6 +1048,9 @@ export function renderHuman(artifact: CoverageDiffArtifact): string {
         `  ${pair.pair}: ${pair.status}, shared-evidence-input=${pair.sharedEvidenceInput}, judged=${String(pair.judged)}`,
     ),
     "",
+    "Source denominators:",
+    ...denominatorLines,
+    "",
     "Totals:",
     `  simplified: core/material omissions=${omission} over lane-mapped-collected (D1), pairs-compared=${String(
       artifact.totals.pairsCompared,
@@ -980,7 +1061,9 @@ export function renderHuman(artifact: CoverageDiffArtifact): string {
     )}`,
     `  not-adjudicable=${String(
       artifact.totals.pairsNotAdjudicable,
-    )}, omission-check-unavailable=${String(artifact.totals.omissionCheckUnavailableCount)}`,
+    )}, omission-check-unavailable=${String(
+      artifact.totals.omissionCheckUnavailableCount,
+    )}, unmatched-records=${String(artifact.totals.unmatchedRecordCount)}`,
   ];
   return `${lines.join("\n")}\n`;
 }

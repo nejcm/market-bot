@@ -12,7 +12,7 @@ import {
 
 interface BundleOptions {
   readonly lanes?: readonly Record<string, unknown>[];
-  readonly ledger?: readonly Record<string, unknown>[];
+  readonly ledger?: readonly unknown[];
   readonly gaps?: readonly Record<string, unknown>[];
 }
 
@@ -255,12 +255,125 @@ describe("coverage diff measurements", () => {
       }),
     );
 
-    expect(analysis.lanes[0]?.measurement).toEqual({
+    const measurement = analysis.lanes[0]?.measurement;
+    expect(measurement).toEqual({
       status: "unavailable",
       reason: "lane-has-no-collected-sources",
     });
-    expect(analysis.lanes[0]?.measurement).not.toBe(0);
-    expect(analysis.lanes[0]?.measurement).not.toBe(1);
+    expect(measurement?.status).toBe("unavailable");
+    expect(measurement === undefined ? true : "value" in measurement).toBe(false);
+  });
+
+  test("surfaces malformed ledger entries without manufacturing duplicates", () => {
+    const lanes = [
+      {
+        lane: "core-lane",
+        evidenceClass: "core",
+        status: "covered",
+        coveredSourceIds: ["source-1"],
+        gapIds: [],
+      },
+      {
+        lane: "material-lane",
+        evidenceClass: "material",
+        status: "covered",
+        coveredSourceIds: ["source-2"],
+        gapIds: [],
+      },
+    ];
+    const wellFormedLedger = [
+      { id: "source-1", kind: "market-data", lane: "core-lane" },
+      { id: "source-2", kind: "news", lane: "material-lane" },
+    ];
+    const reportValue = report(
+      ["source-1"],
+      [
+        { id: "source-1", kind: "market-data" },
+        { id: "source-2", kind: "news" },
+      ],
+    );
+
+    const wellFormed = analyzeVariantCoverage(
+      reportValue,
+      bundle({ lanes, ledger: wellFormedLedger }),
+    );
+    const malformed = analyzeVariantCoverage(
+      reportValue,
+      bundle({
+        lanes,
+        ledger: [...wellFormedLedger, { kind: "news", lane: "material-lane" }],
+      }),
+    );
+    const nonRecord = analyzeVariantCoverage(
+      reportValue,
+      bundle({ lanes, ledger: [...wellFormedLedger, null] }),
+    );
+
+    expect(wellFormed.sourceDenominators).toMatchObject({
+      laneMappedCollectedSourceIds: 2,
+      laneMembershipEntries: 2,
+      multiLaneDuplicateEntries: 0,
+      malformedLedgerEntries: { count: 0, entries: [] },
+      d2MinusD1EqualsMultiLaneDuplicateEntries: true,
+      omissionCheckAuthoritative: true,
+    });
+    expect(malformed.sourceDenominators.d2MinusD1EqualsMultiLaneDuplicateEntries).toBe(false);
+    expect(malformed.sourceDenominators).toMatchObject({
+      laneMappedCollectedSourceIds: 2,
+      laneMembershipEntries: 3,
+      multiLaneDuplicateEntries: 0,
+      malformedLedgerEntries: {
+        count: 1,
+        entries: [
+          {
+            index: 2,
+            reason: "id-missing-or-invalid",
+            lane: "material-lane",
+            kind: "news",
+          },
+        ],
+      },
+      omissionCheckAuthoritative: false,
+    });
+    expect(malformed.uncitedCollectedSources.map((source) => source.id)).toEqual(["source-2"]);
+    expect(nonRecord.sourceDenominators.malformedLedgerEntries).toEqual({
+      count: 1,
+      entries: [{ index: 2, reason: "entry-not-record" }],
+    });
+  });
+
+  test("marks malformed-ledger omission checks non-authoritative in the artifact and render", () => {
+    const malformedBundle = bundle({
+      ledger: [
+        { id: "source-1", kind: "market-data", lane: "market-data" },
+        { kind: "news", lane: "market-data" },
+      ],
+    });
+    const artifact = analyzeEvaluation(
+      evaluation(
+        ["scenario"],
+        [1],
+        [
+          record(
+            "scenario",
+            1,
+            success(report(), malformedBundle),
+            success(report(), malformedBundle),
+          ),
+        ],
+      ),
+    );
+
+    expect(artifact.adjudicable).toBe(false);
+    expect(artifact.totals.omissionCheckUnavailableCount).toBe(1);
+    expect(artifact.adjudicationBlockers).toContainEqual({
+      reason: "malformed-ledger-entries",
+      pairs: ["scenario/1"],
+      blocking: true,
+    });
+    expect(renderHuman(artifact)).toContain(
+      "D1=1, D2=2, malformed-ledger=1 (index 1: id-missing-or-invalid)",
+    );
   });
 
   test("keeps D1, D2, and D3 structurally distinct", () => {
@@ -411,6 +524,21 @@ describe("coverage diff measurements", () => {
     expect(artifact.totals.omissionCheckUnavailableCount).toBe(1);
     expect(artifact.adjudicable).toBe(false);
   });
+
+  test("counts records outside the authoritative plan without blocking adjudication", () => {
+    const artifact = analyzeEvaluation(
+      evaluation(
+        ["planned"],
+        [1],
+        [record("planned", 1), record("unexpected", 1), record("planned", 2)],
+      ),
+    );
+
+    expect(artifact.totals.unmatchedRecordCount).toBe(2);
+    expect(artifact.adjudicable).toBe(true);
+    expect(artifact.adjudicationBlockers).toEqual([]);
+    expect(renderHuman(artifact)).toContain("unmatched-records=2");
+  });
 });
 
 describe("coverage diff CLI helpers", () => {
@@ -450,6 +578,12 @@ describe("coverage diff CLI helpers", () => {
     ["bare data", "data"],
   ])("rejects %s", (_label, out) => {
     expect(() => assertOutputOutsideData(out)).toThrow("--out must not write under data/");
+  });
+
+  test("returns a resolved path for an output outside data", () => {
+    expect(assertOutputOutsideData("artifacts/coverage-diff.json")).toBe(
+      resolve(import.meta.dir, "..", "artifacts", "coverage-diff.json"),
+    );
   });
 
   test("parses one positional root and rejects extra or unknown arguments", () => {

@@ -1,6 +1,6 @@
 const AUDIT_WARNING_PATTERN_ONE_NOUN = String.raw`(?:evidence|disclosure|filing|sources?|estimates?|breakdown|transcript|feed|lane|series)`;
 const RELOCATION_PATTERN_ONE_NOUN = String.raw`(?:${AUDIT_WARNING_PATTERN_ONE_NOUN}|coverage|guidance)`;
-const GAP_DATA_NOUN = String.raw`data(?!\s+(?:center|centre|point|set)\b)`;
+const GAP_DATA_NOUN = String.raw`data(?!\s+(?:centers?|centres?|points?|sets?)\b)`;
 const GAP_EVIDENCE_NOUN = String.raw`(?:${AUDIT_WARNING_PATTERN_ONE_NOUN}|data|coverage|guidance)`;
 
 const SHARED_GAP_SHAPED_PATTERNS: readonly RegExp[] = [

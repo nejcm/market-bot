@@ -137,6 +137,21 @@ describe("auditPostSynthesisReport", () => {
     expect(warnings).toEqual([]);
   });
 
+  test("does not warn for cited data-center prose", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        risks: [
+          {
+            text: "The company has no data centers in Europe",
+            sourceIds: ["market-yahoo-equity-aapl"],
+          },
+        ],
+      }),
+    );
+
+    expect(warnings.some((warning) => warning.code === "gap-shaped-claim-cited")).toBe(false);
+  });
+
   test("treats empty source IDs as unsupported", () => {
     const warnings = auditPostSynthesisReport(
       reportWith({

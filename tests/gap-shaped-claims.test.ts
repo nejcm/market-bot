@@ -67,3 +67,15 @@ describe("isGapShapedClaimForAuditWarning", () => {
     expect(isGapShapedClaimForAuditWarning(text)).toBe(false);
   });
 });
+
+describe("shared data noun exclusions", () => {
+  test.each([
+    "The company has no data centers in Europe",
+    "Rivals operate without data centres in the region",
+    "The model uses no data points from the prior year",
+    "There are no data sets covering the segment",
+  ])("keeps business data nouns out of both predicates: %s", (text) => {
+    expect(isGapShapedClaimForRelocation(text)).toBe(false);
+    expect(isGapShapedClaimForAuditWarning(text)).toBe(false);
+  });
+});

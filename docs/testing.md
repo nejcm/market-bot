@@ -69,6 +69,7 @@ intentional, refresh the goldens and inspect the diff:
 
 ```sh
 UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts
+UPDATE_PROMPT_BASELINE=1 bun test tests/simplified-prompt-baseline.test.ts
 ```
 
 ## Eval mode

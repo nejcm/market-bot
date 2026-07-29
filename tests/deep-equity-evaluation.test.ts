@@ -242,6 +242,130 @@ describe("deep-equity pipeline evaluation", () => {
     }
   }, 30_000);
 
+  for (const reasoningVariant of ["legacy", "simplified"] as const) {
+    test(`relocates fatal gap claims in ${reasoningVariant} replay`, async () => {
+      const fixture = await loadFixture("equity-aapl-deep");
+      const replay = makeReplayProvider(fixture.llmCassette);
+      let finalSynthesisCalls = 0;
+      const riskText = "No independent scenario evidence was provided";
+      const frameworkText = "No management disclosure was provided";
+      const result = await runFixture("equity-aapl-deep", {
+        llm: "replay",
+        reasoningVariant,
+        provider: {
+          name: replay.name,
+          generate: async (request) => {
+            const prompt = JSON.parse(
+              request.messages.findLast((message) => message.role === "user")?.content ?? "{}",
+            ) as Record<string, unknown>;
+            if (prompt.stage !== "final-synthesis") {
+              return replay.generate(request);
+            }
+            finalSynthesisCalls += 1;
+            const response = await replay.generate(request);
+            if (finalSynthesisCalls > 1) {
+              return response;
+            }
+            const report = JSON.parse(response.content) as Record<string, unknown>;
+            const risks = Array.isArray(report.risks) ? report.risks : [];
+            return {
+              ...response,
+              content: JSON.stringify({
+                ...report,
+                risks: [...risks, { text: riskText, sourceIds: [] }],
+                extras: {
+                  businessFramework: {
+                    sections: [
+                      {
+                        name: "Management",
+                        text: frameworkText,
+                        sourceIds: [],
+                      },
+                    ],
+                  },
+                },
+              }),
+            };
+          },
+        },
+      });
+
+      try {
+        expect(finalSynthesisCalls).toBeLessThanOrEqual(2);
+        expect(result.report.dataGaps).toContain(riskText);
+        expect(result.report.dataGaps).toContain(frameworkText);
+        expect(result.trace.relocatedGapClaims).toEqual({
+          count: 2,
+          items: [
+            { location: "risks[1]", text: riskText },
+            {
+              location: "Business Framework sections[0] (Management)",
+              text: frameworkText,
+            },
+          ],
+        });
+      } finally {
+        await result.cleanup();
+      }
+    }, 30_000);
+
+    test(`repairs an ordinary uncited finding in ${reasoningVariant} replay`, async () => {
+      const fixture = await loadFixture("equity-aapl-deep");
+      const replay = makeReplayProvider(fixture.llmCassette);
+      const repairErrors: string[][] = [];
+      let finalSynthesisCalls = 0;
+      const result = await runFixture("equity-aapl-deep", {
+        llm: "replay",
+        reasoningVariant,
+        provider: {
+          name: replay.name,
+          generate: async (request) => {
+            const prompt = JSON.parse(
+              request.messages.findLast((message) => message.role === "user")?.content ?? "{}",
+            ) as Record<string, unknown>;
+            if (prompt.stage !== "final-synthesis") {
+              return replay.generate(request);
+            }
+            finalSynthesisCalls += 1;
+            if (Array.isArray(prompt.reportValidationErrors)) {
+              repairErrors.push(
+                prompt.reportValidationErrors.filter(
+                  (error): error is string => typeof error === "string",
+                ),
+              );
+            }
+            const response = await replay.generate(request);
+            if (finalSynthesisCalls > 1) {
+              return response;
+            }
+            const report = JSON.parse(response.content) as Record<string, unknown>;
+            const risks = Array.isArray(report.risks) ? report.risks : [];
+            return {
+              ...response,
+              content: JSON.stringify({
+                ...report,
+                risks: [
+                  ...risks,
+                  {
+                    text: "Revenue data shows no growth in the segment",
+                    sourceIds: [],
+                  },
+                ],
+              }),
+            };
+          },
+        },
+      });
+
+      try {
+        expect(finalSynthesisCalls).toBeGreaterThanOrEqual(2);
+        expect(repairErrors).toContainEqual(["risks[1] must reference at least one source ID"]);
+      } finally {
+        await result.cleanup();
+      }
+    }, 30_000);
+  }
+
   test("blinds randomized labels and maps judge scores back to variants", async () => {
     const requests: ModelRequest[] = [];
     const result = await judgeDeepEquityPair({

@@ -151,9 +151,6 @@ export async function synthesizeReportUntilValid(
     ...input,
     runFinalSynthesis: async (priorStages, reprompt) => {
       attempt += 1;
-      if ((reprompt?.reportValidationErrors?.length ?? 0) > 0) {
-        reportRepairReprompts += 1;
-      }
       const output = await input.runFinalSynthesis(priorStages, reprompt);
       const repromptReason = stageRepromptReason(reprompt);
       return {
@@ -170,10 +167,17 @@ export async function synthesizeReportUntilValid(
     predictionRetryErrors: [],
     retainedPredictions: retainablePredictions(trackedInput, initialState),
   });
-  const validated = await validateBaseReport(trackedInput, predictionProgress, () => ({
-    totalCalls: attempt,
-    reportRepairReprompts,
-  }));
+  const validated = await validateBaseReport(
+    trackedInput,
+    predictionProgress,
+    () => ({
+      totalCalls: attempt,
+      reportRepairReprompts,
+    }),
+    () => {
+      reportRepairReprompts += 1;
+    },
+  );
   const completion = await runPredictionCompletion(
     trackedInput,
     validated.progress,
@@ -222,6 +226,7 @@ async function validateBaseReport(
   input: SynthesizeReportUntilValidInput,
   progress: SynthesisProgress,
   callCounts: () => SynthesisCallCounts,
+  recordReportRepairReprompt: () => void,
 ): Promise<{
   readonly progress: SynthesisProgress;
   readonly report: ResearchReport;
@@ -239,6 +244,7 @@ async function validateBaseReport(
   }
 
   const reportRetryPredictionErrors = progress.state.predResult.errors;
+  recordReportRepairReprompt();
   const validationState = await repromptFinalSynthesis(input, progress.retainedPredictions, {
     predictionErrors: reportRetryPredictionErrors,
     reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
@@ -284,6 +290,7 @@ async function validateBaseReport(
     reportValidationErrors,
     MAX_REPORT_VALIDATION_REPROMPTS,
     callCounts,
+    recordReportRepairReprompt,
   );
 }
 
@@ -307,6 +314,7 @@ async function buildReportWithRepair(
   seenErrors: readonly string[],
   attemptsLeft: number,
   callCounts: () => SynthesisCallCounts,
+  recordReportRepairReprompt: () => void,
 ): Promise<RepairedReport> {
   try {
     return {
@@ -325,6 +333,7 @@ async function buildReportWithRepair(
       );
     }
     const predictionErrors = progress.state.predResult.errors;
+    recordReportRepairReprompt();
     const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
       ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
       reportValidationErrors: accumulatedErrors,
@@ -344,6 +353,7 @@ async function buildReportWithRepair(
       accumulatedErrors,
       attemptsLeft - 1,
       callCounts,
+      recordReportRepairReprompt,
     );
   }
 }

@@ -1521,4 +1521,52 @@ describe("prediction repair reprompt", () => {
       expect(failureMessage).toContain(expectedError);
     }
   });
+
+  test("does not count prediction cleanup as a report-repair reprompt", async () => {
+    const validPrediction = {
+      id: "pred-1",
+      kind: "range",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) outside [190, 207]",
+      horizonTradingDays: 5,
+      probability: 0.37,
+      sourceIds: ["news-equity-1"],
+    };
+    let calls = 0;
+    let failure: unknown = null;
+
+    try {
+      await synthesizeReportUntilValid({
+        runId: "run-1",
+        generatedAt: "2026-05-19T00:00:00.000Z",
+        command,
+        collectedSources: sources(),
+        context: context(),
+        sources: [newsSource()],
+        knownSourceIds: new Set(["news-equity-1"]),
+        allowedSubjects: new Set(["AAPL"]),
+        priorStages: [],
+        maxPredictionReprompts: 1,
+        runFinalSynthesis: () => {
+          calls += 1;
+          return Promise.resolve({
+            stage: "final-synthesis" as const,
+            content: reportPayloadWithUnknownSource(
+              calls === 2 ? [brokenPrediction("bad-subject")] : [validPrediction],
+              "keyFindings",
+              `missing-source-${String(calls)}`,
+            ),
+            tokenEstimate: 1,
+          });
+        },
+      });
+    } catch (error: unknown) {
+      failure = error;
+    }
+
+    const failureMessage = failure instanceof Error ? failure.message : String(failure);
+    expect(failureMessage).toContain(
+      "Report failed validation after 5 final-synthesis call(s) (3 report-repair reprompt(s))",
+    );
+  });
 });

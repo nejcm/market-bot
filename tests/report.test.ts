@@ -48,6 +48,15 @@ const report: ResearchReport = {
   notFinancialAdvice: true,
 };
 
+function validationErrorMessage(candidate: ResearchReport): string {
+  try {
+    validateResearchReport(candidate);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("Expected report validation to fail");
+}
+
 const spotlightSource: Source = {
   id: "market-yahoo-equity-roku",
   title: "ROKU market snapshot",
@@ -198,6 +207,70 @@ function assembleWithSpotlights(
 describe("report schema and rendering", () => {
   test("validates source-linked findings", () => {
     expect(validateResearchReport(report)).toEqual(report);
+  });
+
+  test("aggregates source ID failures with finding paths", () => {
+    const message = validationErrorMessage({
+      ...report,
+      keyFindings: [
+        report.keyFindings[0]!,
+        report.keyFindings[0]!,
+        { text: "Unsupported finding.", sourceIds: ["fred-unemployment"] },
+      ],
+      risks: [report.risks[0]!, { text: "Uncited risk.", sourceIds: [] }],
+      catalysts: [{ text: "Uncited catalyst.", sourceIds: [] }],
+    });
+
+    expect(message).toContain("keyFindings[2] cites unknown source ID: fred-unemployment");
+    expect(message).toContain("risks[1] must reference at least one source ID");
+    expect(message).toContain("catalysts[0] must reference at least one source ID");
+  });
+
+  test("names an uncited scenario without calling it a major finding", () => {
+    const message = validationErrorMessage({
+      ...report,
+      scenarios: [{ name: "Base", description: "Conditions persist.", sourceIds: [] }],
+    });
+
+    expect(message).toBe("scenarios[0] must reference at least one source ID");
+    expect(message).not.toContain("Major findings");
+  });
+
+  test("names the Business Framework section index and name", () => {
+    const message = validationErrorMessage({
+      ...report,
+      extras: {
+        businessFramework: {
+          sections: [
+            { name: "Business" },
+            { name: "Phase" },
+            { name: "Moat" },
+            { name: "Growth" },
+            { name: "Management", text: "No management disclosure was provided.", sourceIds: [] },
+          ],
+        },
+      },
+    });
+
+    expect(message).toBe(
+      "Business Framework sections[4] (Management) must reference at least one source ID",
+    );
+  });
+
+  test("caps aggregated source ID failures at twelve items", () => {
+    const message = validationErrorMessage({
+      ...report,
+      keyFindings: Array.from({ length: 13 }, (_, index) => ({
+        text: `Uncited finding ${index}`,
+        sourceIds: [],
+      })),
+      risks: [],
+      scenarios: [],
+    });
+
+    expect(message).toContain("keyFindings[11] must reference at least one source ID");
+    expect(message).not.toContain("keyFindings[12]");
+    expect(message).toEndWith("(+1 more)");
   });
 
   test("renders Finnhub earnings dates as provider-estimated and unconfirmed", () => {
@@ -635,7 +708,9 @@ describe("report schema and rendering", () => {
       },
     };
 
-    expect(() => validateResearchReport(webReport)).toThrow("Unknown source ID: unknown-web");
+    expect(() => validateResearchReport(webReport)).toThrow(
+      "Web Subject Profile subjectSummary cites unknown source ID: unknown-web",
+    );
   });
 
   test("rejects unknown source kinds", () => {
@@ -1037,7 +1112,7 @@ describe("report schema and rendering", () => {
           },
         },
       }),
-    ).toThrow("Unknown source ID: missing-source");
+    ).toThrow("Catalyst Calendar items[0] cites unknown source ID: missing-source");
   });
 
   test("dedupes model and deterministic data gaps by normalized text", () => {
@@ -2268,7 +2343,7 @@ describe("report schema and rendering", () => {
         ...report,
         keyFindings: [{ text: "Unsupported finding.", sourceIds: ["missing"] }],
       }),
-    ).toThrow("Unknown source ID");
+    ).toThrow("keyFindings[0] cites unknown source ID: missing");
   });
 
   test("rejects empty research quality driver", () => {
@@ -2522,7 +2597,7 @@ describe("report schema and rendering", () => {
           },
         },
       }),
-    ).toThrow("Unknown source ID");
+    ).toThrow("Historical Context items[0] cites unknown source ID: missing");
 
     expect(() =>
       validateResearchReport({
@@ -2546,7 +2621,7 @@ describe("report schema and rendering", () => {
           },
         },
       }),
-    ).toThrow("Unknown source ID");
+    ).toThrow("Business Framework sections[0] (Business) cites unknown source ID: missing");
 
     expect(() =>
       validateResearchReport({

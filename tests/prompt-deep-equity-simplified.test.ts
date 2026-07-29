@@ -1086,7 +1086,7 @@ describe("simplified deep-equity final-synthesis prompt", () => {
   // Block never renders — but it regenerates the whole report, predictions included.
   test("report-only validation retry also names the predictions that already validated", () => {
     const prompt = simplifiedFinalSynthesisPrompt({
-      reportValidationErrors: ["Major findings must reference source IDs"],
+      reportValidationErrors: ["keyFindings[0] must reference at least one source ID"],
       retainedPredictions: retained,
     });
     expect(prompt).not.toContain("predictionRepair");
@@ -1419,7 +1419,7 @@ describe("prediction repair reprompt", () => {
         entry.predictionErrors === undefined && (entry.reportValidationErrors?.length ?? 0) > 0,
     );
     expect(recursiveRepair?.reportValidationErrors).toEqual([
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID",
     ]);
     expect(recursiveRepair?.predictionErrors).toBeUndefined();
     expect(recursiveRepair?.retainedPredictions?.map((entry) => entry.id)).toEqual(["pred-1"]);

@@ -39,19 +39,35 @@ function assertSourceKinds(sources: ResearchReport["sources"]): void {
   }
 }
 
-function validateSourceIds(
+const MAX_SOURCE_ID_VALIDATION_ERRORS = 12;
+
+function collectSourceIdErrors(
+  path: string,
   sourceIds: readonly string[],
   knownSourceIds: ReadonlySet<string>,
+  requireAny: boolean,
+  errors: string[],
 ): void {
-  if (sourceIds.length === 0) {
-    throw new Error("Major findings must reference source IDs");
+  if (requireAny && sourceIds.length === 0) {
+    errors.push(`${path} must reference at least one source ID`);
   }
 
   for (const sourceId of sourceIds) {
     if (!knownSourceIds.has(sourceId)) {
-      throw new Error(`Unknown source ID: ${sourceId}`);
+      errors.push(`${path} cites unknown source ID: ${sourceId}`);
     }
   }
+}
+
+function assertNoSourceIdErrors(errors: readonly string[]): void {
+  if (errors.length === 0) {
+    return;
+  }
+  const visibleErrors = errors.slice(0, MAX_SOURCE_ID_VALIDATION_ERRORS);
+  const hiddenCount = errors.length - visibleErrors.length;
+  throw new Error(
+    [...visibleErrors, ...(hiddenCount > 0 ? [`(+${hiddenCount} more)`] : [])].join("; "),
+  );
 }
 
 // This raw-value reader is all-or-nothing and falls back to an empty array.
@@ -61,36 +77,33 @@ function readStringArray(value: unknown): readonly string[] {
 }
 
 function validateKnownSourceIds(
-  section: string,
+  path: string,
   sourceIds: readonly string[],
   knownSourceIds: ReadonlySet<string>,
   requireAny: boolean,
+  errors: string[],
 ): void {
-  if (requireAny && sourceIds.length === 0) {
-    throw new Error(`${section} items must reference source IDs`);
-  }
-  for (const sourceId of sourceIds) {
-    if (!knownSourceIds.has(sourceId)) {
-      throw new Error(`Unknown source ID: ${sourceId}`);
-    }
-  }
+  collectSourceIdErrors(path, sourceIds, knownSourceIds, requireAny, errors);
 }
 
 function validateFindings(
+  section: string,
   findings: readonly KeyFinding[],
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
-  for (const finding of findings) {
-    validateSourceIds(finding.sourceIds, knownSourceIds);
+  for (const [index, finding] of findings.entries()) {
+    collectSourceIdErrors(`${section}[${index}]`, finding.sourceIds, knownSourceIds, true, errors);
   }
 }
 
 function validateScenarios(
   scenarios: readonly Scenario[],
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
-  for (const scenario of scenarios) {
-    validateSourceIds(scenario.sourceIds, knownSourceIds);
+  for (const [index, scenario] of scenarios.entries()) {
+    collectSourceIdErrors(`scenarios[${index}]`, scenario.sourceIds, knownSourceIds, true, errors);
   }
 }
 
@@ -253,7 +266,11 @@ function webSubjectProfileText(extra: unknown): readonly string[] {
   ];
 }
 
-function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateEarningsSetupExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (extra === undefined || !isRecord(extra)) {
     return;
   }
@@ -264,10 +281,11 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
       throw new Error("Earnings Setup eventDateStatus is invalid");
     }
     validateKnownSourceIds(
-      "Earnings Setup event",
+      "Earnings Setup event.sourceIds",
       readStringArray(event.sourceIds),
       knownSourceIds,
       false,
+      errors,
     );
     const confirmation = isRecord(event.dateConfirmation) ? event.dateConfirmation : undefined;
     if (event.eventDateStatus === "provider-estimated" && confirmation !== undefined) {
@@ -312,10 +330,11 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
   const impliedMove = isRecord(extra.impliedMove) ? extra.impliedMove : undefined;
   if (impliedMove !== undefined) {
     validateKnownSourceIds(
-      "Earnings Setup impliedMove",
+      "Earnings Setup impliedMove.sourceIds",
       readStringArray(impliedMove.sourceIds),
       knownSourceIds,
       false,
+      errors,
     );
   }
   // Validate source IDs on model-authored bullet sections.
@@ -324,13 +343,14 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
     if (!Array.isArray(bullets)) {
       continue;
     }
-    for (const bullet of bullets) {
+    for (const [index, bullet] of bullets.entries()) {
       if (isRecord(bullet)) {
         validateKnownSourceIds(
-          `Earnings Setup ${key}`,
+          `Earnings Setup ${key}[${index}]`,
           readStringArray(bullet.sourceIds),
           knownSourceIds,
           typeof bullet.text === "string",
+          errors,
         );
       }
     }
@@ -382,66 +402,81 @@ function validateEarningsForecastCertainty(report: ResearchReport): void {
   }
 }
 
-function validateBusinessFrameworkExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateBusinessFrameworkExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Business Framework",
+    "Business Framework sourceIds",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
+    errors,
   );
   if (!Array.isArray(extra.sections)) {
     return;
   }
-  for (const section of extra.sections) {
+  for (const [index, section] of extra.sections.entries()) {
     if (!isRecord(section)) {
       continue;
     }
+    const sectionName = typeof section.name === "string" ? ` (${section.name})` : "";
     validateKnownSourceIds(
-      "Business Framework",
+      `Business Framework sections[${index}]${sectionName}`,
       readStringArray(section.sourceIds),
       knownSourceIds,
       typeof section.text === "string",
+      errors,
     );
   }
   if (isRecord(extra.reconciliation)) {
     validateKnownSourceIds(
-      "Business Framework reconciliation",
+      "Business Framework reconciliation.profileSourceIds",
       readStringArray(extra.reconciliation.profileSourceIds),
       knownSourceIds,
       false,
+      errors,
     );
   }
 }
 
-function validateWebSubjectProfileExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateWebSubjectProfileExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Web Subject Profile",
+    "Web Subject Profile sourceIds",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
+    errors,
   );
   if (isRecord(extra.subjectSummary)) {
     validateKnownSourceIds(
-      "Web Subject Profile",
+      "Web Subject Profile subjectSummary",
       readStringArray(extra.subjectSummary.sourceIds),
       knownSourceIds,
       typeof extra.subjectSummary.answer === "string" && extra.subjectSummary.answer !== "",
+      errors,
     );
   }
   if (isRecord(extra.questions)) {
-    for (const question of Object.values(extra.questions)) {
+    for (const [key, question] of Object.entries(extra.questions)) {
       if (isRecord(question)) {
         validateKnownSourceIds(
-          "Web Subject Profile",
+          `Web Subject Profile questions.${key}`,
           readStringArray(question.sourceIds),
           knownSourceIds,
           typeof question.answer === "string" && question.answer !== "",
+          errors,
         );
       }
     }
@@ -451,76 +486,93 @@ function validateWebSubjectProfileExtra(extra: unknown, knownSourceIds: Readonly
     if (!Array.isArray(facts)) {
       continue;
     }
-    for (const fact of facts) {
+    for (const [index, fact] of facts.entries()) {
       if (isRecord(fact)) {
         validateKnownSourceIds(
-          "Web Subject Profile",
+          `Web Subject Profile ${key}[${index}]`,
           readStringArray(fact.sourceIds),
           knownSourceIds,
           typeof fact.claim === "string" && fact.claim !== "",
+          errors,
         );
       }
     }
   }
 }
 
-function validateHistoricalContextExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateHistoricalContextExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Historical Context",
+    "Historical Context sourceIds",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
+    errors,
   );
   if (!Array.isArray(extra.items)) {
     return;
   }
-  for (const item of extra.items) {
+  for (const [index, item] of extra.items.entries()) {
     if (!isRecord(item)) {
       continue;
     }
     validateKnownSourceIds(
-      "Historical Context",
+      `Historical Context items[${index}]`,
       readStringArray(item.sourceIds),
       knownSourceIds,
       typeof item.text === "string",
+      errors,
     );
   }
 }
 
-function validateSpotlightsExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateSpotlightsExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return;
   }
-  for (const item of extra.items) {
+  for (const [index, item] of extra.items.entries()) {
     if (!isRecord(item)) {
       continue;
     }
     validateKnownSourceIds(
-      "Market Spotlights",
+      `Market Spotlights items[${index}]`,
       readStringArray(item.sourceIds),
       knownSourceIds,
       typeof item.symbol === "string" &&
         (typeof item.rationale === "string" || typeof item.text === "string"),
+      errors,
     );
   }
 }
 
-function validateCatalystCalendarExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateCatalystCalendarExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return;
   }
-  for (const item of extra.items) {
+  for (const [index, item] of extra.items.entries()) {
     if (!isRecord(item)) {
       continue;
     }
     validateKnownSourceIds(
-      "Catalyst Calendar",
+      `Catalyst Calendar items[${index}]`,
       readStringArray(item.sourceIds),
       knownSourceIds,
       typeof item.label === "string",
+      errors,
     );
   }
 }
@@ -558,18 +610,19 @@ function validateProxyResolutionExtra(extra: unknown): void {
 function validateRenderedExtras(
   extras: ResearchReport["extras"],
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
   if (extras === undefined) {
     return;
   }
-  validateHistoricalContextExtra(extras.historicalContext, knownSourceIds);
-  validateSpotlightsExtra(extras.spotlights, knownSourceIds);
-  validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds);
+  validateHistoricalContextExtra(extras.historicalContext, knownSourceIds, errors);
+  validateSpotlightsExtra(extras.spotlights, knownSourceIds, errors);
+  validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds, errors);
   validateResearchSubjectExtra(extras.researchSubject);
   validateProxyResolutionExtra(extras.proxyResolution);
-  validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds);
-  validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds);
-  validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds);
+  validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds, errors);
+  validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds, errors);
+  validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds, errors);
 }
 
 const COMPLETENESS_DIMENSION_KEYS = [
@@ -587,6 +640,7 @@ function isIsoTimestamp(value: unknown): value is string {
 function validateEquityAnalysisCompleteness(
   report: ResearchReport,
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
   const completeness = report.equityAnalysisCompleteness;
   if (completeness === undefined) {
@@ -626,6 +680,7 @@ function validateEquityAnalysisCompleteness(
       dimension.sourceIds,
       knownSourceIds,
       false,
+      errors,
     );
     if (
       dimension.status === "not-applicable" &&
@@ -705,16 +760,18 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   }
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));
+  const sourceIdErrors: string[] = [];
 
   assertSourceKinds(report.sources);
-  validateFindings(report.keyFindings, knownSourceIds);
-  validateFindings(report.bullCase, knownSourceIds);
-  validateFindings(report.bearCase, knownSourceIds);
-  validateFindings(report.risks, knownSourceIds);
-  validateFindings(report.catalysts, knownSourceIds);
-  validateScenarios(report.scenarios, knownSourceIds);
-  validateEquityAnalysisCompleteness(report, knownSourceIds);
-  validateRenderedExtras(report.extras, knownSourceIds);
+  validateFindings("keyFindings", report.keyFindings, knownSourceIds, sourceIdErrors);
+  validateFindings("bullCase", report.bullCase, knownSourceIds, sourceIdErrors);
+  validateFindings("bearCase", report.bearCase, knownSourceIds, sourceIdErrors);
+  validateFindings("risks", report.risks, knownSourceIds, sourceIdErrors);
+  validateFindings("catalysts", report.catalysts, knownSourceIds, sourceIdErrors);
+  validateScenarios(report.scenarios, knownSourceIds, sourceIdErrors);
+  validateEquityAnalysisCompleteness(report, knownSourceIds, sourceIdErrors);
+  validateRenderedExtras(report.extras, knownSourceIds, sourceIdErrors);
+  assertNoSourceIdErrors(sourceIdErrors);
   validateEarningsForecastCertainty(report);
   assertSafeReportLanguage(report);
 

@@ -95,11 +95,11 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       "final-synthesis",
     ]);
     expect(retryPrompt.reportValidationErrors).toContain(
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID; bullCase[0] must reference at least one source ID; bearCase[0] must reference at least one source ID; risks[0] must reference at least one source ID; catalysts[0] must reference at least one source ID; scenarios[0] must reference at least one source ID",
     );
     expect(retryPrompt.allowedSourceIds).toEqual(["market-aapl", "news-equity-1"]);
     expect(result.trace.reportValidationRetryErrors).toEqual([
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID; bullCase[0] must reference at least one source ID; bearCase[0] must reference at least one source ID; risks[0] must reference at least one source ID; catalysts[0] must reference at least one source ID; scenarios[0] must reference at least one source ID",
     ]);
   });
 
@@ -395,7 +395,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     expect(finalPrompts).toHaveLength(4);
     expect(reportRetryPrompt.reportValidationErrors).toContain(
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID",
     );
     expect(reportRetryPrompt.predictionRepromptErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",
@@ -623,7 +623,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     expect(finalPrompts).toHaveLength(3);
     expect(combinedRetryPrompt.reportValidationErrors).toContain(
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID",
     );
     expect(combinedRetryPrompt.predictionRepromptErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",

@@ -10,6 +10,7 @@ import {
   buildResearchForecastErrorBlock,
 } from "../prior-forecast-errors";
 import {
+  forPrompt,
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "../verified-snapshot-contract";
@@ -179,8 +180,8 @@ function compactCanonicalFacts(
   const statements = packet.canonicalFacts.financialStatements;
   const fundamentalHistory = includeHistory ? compactFundamentalHistory(packet) : undefined;
   return {
-    marketSnapshots: packet.canonicalFacts.marketSnapshots,
-    supplementalMarketSnapshots: packet.canonicalFacts.supplementalMarketSnapshots,
+    marketSnapshots: forPrompt(packet.canonicalFacts.marketSnapshots),
+    supplementalMarketSnapshots: forPrompt(packet.canonicalFacts.supplementalMarketSnapshots),
     ...(packet.canonicalFacts.verifiedMarketSnapshot !== undefined
       ? { verifiedMarketSnapshot: packet.canonicalFacts.verifiedMarketSnapshot }
       : {}),

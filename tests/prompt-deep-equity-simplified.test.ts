@@ -700,6 +700,40 @@ describe("simplified deep-equity final figure evidence", () => {
 });
 
 describe("simplified deep-equity current price reference", () => {
+  // The quoteTimeUtc field is persisted evidence with no consumer yet (ADR 0004, amended 2026-07-29).
+  // The canonicalFacts field carries snapshots into equity-analysis and critique wholesale.
+  // The forPrompt projection prevents the field from changing prompt bytes on every deep run.
+  // The final-synthesis stage does not embed canonicalFacts, so this test targets earlier stages.
+  test.each(["equity-analysis", "critique"] as const)(
+    "keeps quoteTimeUtc out of the %s prompt payload",
+    (stage) => {
+      const snapshot = snapshotWithCloses(30);
+      const quote = {
+        ...marketSnapshot({
+          symbol: "aapl",
+          sourceId: "market-yahoo-equity-aapl",
+          price: 198.5,
+          observedAt: "2026-05-19T14:31:00.000Z",
+          quoteTimeUtc: "2026-05-19T14:29:07.000Z",
+        }),
+        futurePersistedField: "model-invisible-until-allowed",
+      };
+
+      const prompt = buildStagePrompt(
+        stage,
+        stageInput({ deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote) }),
+      );
+
+      // Proves the snapshot really reached this prompt, so the assertions below are not vacuous.
+      expect(prompt).toContain("market-yahoo-equity-aapl");
+      expect(prompt).toContain("2026-05-19T14:31:00.000Z");
+      expect(prompt).not.toContain("quoteTimeUtc");
+      expect(prompt).not.toContain("2026-05-19T14:29:07.000Z");
+      expect(prompt).not.toContain("futurePersistedField");
+      expect(prompt).not.toContain("model-invisible-until-allowed");
+    },
+  );
+
   test("emits the live quote as the current price reference", () => {
     const snapshot = snapshotWithCloses(30);
     const quote = marketSnapshot({

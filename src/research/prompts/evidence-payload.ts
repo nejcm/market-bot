@@ -4,6 +4,7 @@ import { rankMovers } from "../../movers/ranking";
 import type { CollectedSources } from "../../sources/types";
 import { isCompanyProfileSecSource, subjectKindForCommand } from "../../web-evidence";
 import {
+  forPrompt,
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "../verified-snapshot-contract";
@@ -202,9 +203,12 @@ export function buildEvidencePayload(
   context: ResearchContext,
 ): Record<string, unknown> {
   const { historicalContext } = context;
+  // Movers embed the whole snapshot, so they need the same prompt projection.
   const movers = rankMovers(
-    collectedSources.marketSnapshots.filter(
-      (snapshot) => snapshot.assetClass === command.assetClass,
+    forPrompt(
+      collectedSources.marketSnapshots.filter(
+        (snapshot) => snapshot.assetClass === command.assetClass,
+      ),
     ),
     moverLimitFor(command, config),
   );
@@ -265,8 +269,8 @@ export function buildEvidencePayload(
     ...userSteeringField(command),
     movers,
     marketRegime: context.marketRegime,
-    marketSnapshots: collectedSources.marketSnapshots,
-    supplementalMarketSnapshots: collectedSources.supplementalMarketSnapshots,
+    marketSnapshots: forPrompt(collectedSources.marketSnapshots),
+    supplementalMarketSnapshots: forPrompt(collectedSources.supplementalMarketSnapshots),
     newsSources: collectedSources.newsSources,
     ...evidenceProjections,
     ...(historicalContext !== undefined

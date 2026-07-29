@@ -1733,6 +1733,7 @@
               "trailingAnnualDividendRate": 0
             },
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:16:04.000Z",
             "name": "Nebius Group N.V.",
             "identity": {
               "quoteCurrency": "USD",
@@ -1768,6 +1769,7 @@
               "trailingAnnualDividendRate": 5.662
             },
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:16:13.000Z",
             "name": "State Street SPDR S&P 500 ETF T",
             "identity": {
               "quoteCurrency": "USD",
@@ -1803,6 +1805,7 @@
               "trailingAnnualDividendRate": 1.77
             },
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:16:12.000Z",
             "name": "Invesco QQQ Trust, Series 1",
             "identity": {
               "quoteCurrency": "USD",
@@ -1838,6 +1841,7 @@
               "trailingAnnualDividendRate": 2.017
             },
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:16:12.000Z",
             "name": "iShares Russell 2000 Index Fund",
             "identity": {
               "quoteCurrency": "USD",
@@ -1873,6 +1877,7 @@
               "trailingAnnualDividendRate": 5.62
             },
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:16:11.000Z",
             "name": "State Street SPDR Dow Jones Ind",
             "identity": {
               "quoteCurrency": "USD",
@@ -1899,6 +1904,7 @@
             "averageVolume": 0,
             "fiftyDayAverage": 17.3514,
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:01:01.000Z",
             "name": "CBOE Volatility Index",
             "identity": {
               "quoteCurrency": "USD",
@@ -1925,6 +1931,7 @@
             "averageVolume": 0,
             "fiftyDayAverage": 26.7,
             "observedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:01:01.000Z",
             "name": "CBOE S&P 500 3-Month Volatility",
             "identity": {
               "quoteCurrency": "USD",

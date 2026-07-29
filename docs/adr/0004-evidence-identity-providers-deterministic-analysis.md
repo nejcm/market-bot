@@ -22,7 +22,8 @@ date confirmation evidence; amended 2026-07-23: direct-exchange earnings-date au
 registry; amended 2026-07-23: entitlement-adaptive analyst expectations; amended 2026-07-24:
 entitlement-adaptive institutional-ownership context; amended 2026-07-24: deterministic deep-equity
 acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence;
-amended 2026-07-27: clarified deep-equity model-pipeline cutover gate)
+amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2026-07-29:
+quote-own timestamp on market snapshots)
 
 ## Context
 
@@ -67,6 +68,21 @@ without pretending the project has a global security master.
   no relevant thematic item before seen filtering, the existing Exa-to-Firecrawl path may provide a
   bounded fallback whose results enter normal normalization, relevance, dedupe, seen, and selection
   processing.
+- `MarketSnapshot.observedAt` is the request fetch time, not the quote's own timestamp. An
+  upstream-cached prior-session price therefore carries a fresh-looking `observedAt`, so no consumer
+  can establish quote freshness from it. `observedAt` is not redefined to fix this: both meanings are
+  live on the one field, and `buildSourceList` (`src/research/report-assembly.ts:188`, `:199`,
+  `:211`) renames it to `Source.fetchedAt` in `report.json`, where fetch time is the correct and
+  intended meaning.
+- Instead, `MarketSnapshot.quoteTimeUtc` optionally carries the provider's own quote timestamp as an
+  ISO 8601 UTC string. Yahoo populates it from `regularMarketTime` (epoch seconds) at the single
+  normalize point. The key is omitted entirely when the payload carries no such field; it is never
+  null and never fabricated from a fetch time. CoinGecko and Massive are not yet populated — no
+  committed fixture carries a quote-own timestamp for either, and capturing one is a live step.
+- `quoteTimeUtc` is additive and no consumer reads it yet. Freshness checks that currently rely on
+  `observedAt` are migrated separately so each migration stays independently measurable. Before
+  reaching a model, snapshots pass through `forPrompt`, an allow-list projection that omits the
+  field and preserves surviving input key order because JSON key order changes prompt bytes.
 - Promotion into scoring requires explicit observation semantics and tests. Massive close fallback
   remains part of the Yahoo observation path, not a generic registry capability.
 

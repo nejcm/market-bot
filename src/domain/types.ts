@@ -365,7 +365,15 @@ export interface MarketSnapshot {
   // At the single normalize point. Optional: absent for Massive fallback quotes,
   // ETFs/ADRs, or any payload lacking these fields. See ADR 0004.
   readonly fundamentals?: MarketFundamentals;
+  // The observedAt field records when this snapshot was fetched, not when the quote was struck.
+  // An upstream-cached prior-session price still carries a fresh fetch time in observedAt.
+  // Judge price age from quoteTimeUtc when present; only Yahoo populates it today.
   readonly observedAt: string;
+  // The quoteTimeUtc field records the provider's quote timestamp in ISO 8601 UTC.
+  // The field is optional and is emitted only for payloads with a Yahoo regularMarketTime.
+  // The quoteTimeUtc field is not interchangeable with observedAt and is never a fetch time.
+  // No consumer reads quoteTimeUtc yet; see ADR 0004.
+  readonly quoteTimeUtc?: string;
 }
 
 export interface MarketFundamentals {

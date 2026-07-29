@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { EQUITY_REGIME_SYMBOLS } from "../src/domain/regime-symbols";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
@@ -22,6 +23,7 @@ import { createSourceRegistry } from "../src/sources/registry";
 import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
+import { forPrompt } from "../src/research/verified-snapshot-contract";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 import type {
@@ -31,6 +33,16 @@ import type {
   SourceRequestExecutor,
 } from "../src/sources/types";
 import type { MarketSnapshot } from "../src/domain/types";
+
+interface GoldenEvidenceBundle {
+  readonly normalized: {
+    readonly "evidence-bundle.json": {
+      readonly evidence: {
+        readonly marketSnapshots: readonly MarketSnapshot[];
+      };
+    };
+  };
+}
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
 async function unexpectedTextFetch(): Promise<never> {
@@ -303,6 +315,85 @@ describe("source normalization", () => {
       sharesOutstanding: 14_687_356_000,
       trailingAnnualDividendRate: 1.04,
     });
+  });
+
+  test("derives quoteTimeUtc from regularMarketTime in the committed NBIS cassette", async () => {
+    // This test drives the real captured Yahoo body instead of a hand-built object.
+    // This guards against passing with an input shape that the provider never returns.
+    const cassette = (await Bun.file(
+      join(import.meta.dir, "fixtures", "runs", "equity-nbis-deep", "data-cassette.json"),
+    ).json()) as { readonly entries: Record<string, { readonly body: string }> };
+    const body =
+      cassette.entries["GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=NBIS"]?.body;
+    expect(body).toBeDefined();
+
+    const [snapshot] = normalizeYahooQuotePayload(JSON.parse(body!), "equity", fetchedAt);
+
+    // The captured body carries regularMarketTime as 1784736964 epoch seconds.
+    expect(snapshot?.quoteTimeUtc).toBe("2026-07-22T16:16:04.000Z");
+    // The quote's own time must not collapse onto the fetch time; that collapse is the bug.
+    expect(snapshot?.observedAt).toBe(fetchedAt);
+    expect(snapshot?.quoteTimeUtc).not.toBe(snapshot?.observedAt);
+  });
+
+  test("preserves sanitized snapshot bytes while stripping quoteTimeUtc for prompts", async () => {
+    const golden = (await Bun.file(
+      join(import.meta.dir, "fixtures", "runs", "equity-nbis-deep", "golden-output.json"),
+    ).json()) as GoldenEvidenceBundle;
+    const [snapshot] = golden.normalized["evidence-bundle.json"].evidence.marketSnapshots;
+    expect(snapshot).toBeDefined();
+
+    const expected = Object.fromEntries(
+      Object.entries(snapshot!).filter(([key]) => key !== "quoteTimeUtc"),
+    );
+    const [projected] = forPrompt([snapshot!]);
+
+    expect(JSON.stringify(projected)).toBe(JSON.stringify(expected));
+    expect(projected).not.toHaveProperty("benchmark");
+  });
+
+  test("omits quoteTimeUtc when the Yahoo quote carries no regularMarketTime", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              regularMarketPrice: 298.01,
+              regularMarketChangePercent: 0.3,
+              regularMarketVolume: 40_000_000,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot).not.toHaveProperty("quoteTimeUtc");
+    expect(snapshot?.observedAt).toBe(fetchedAt);
+  });
+
+  test("omits quoteTimeUtc when regularMarketTime is outside the Date range", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              regularMarketPrice: 298.01,
+              regularMarketChangePercent: 0.3,
+              regularMarketVolume: 40_000_000,
+              regularMarketTime: Number.MAX_VALUE,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot).not.toHaveProperty("quoteTimeUtc");
   });
 
   test("omits fundamentals when the Yahoo quote carries no fundamental fields (Massive fallback)", () => {

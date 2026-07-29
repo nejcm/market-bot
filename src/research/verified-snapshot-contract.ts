@@ -7,8 +7,57 @@
  * (src/sources/verified-market-snapshot.ts) stays fetch + compute only.
  */
 
-import type { IndicatorMap, Source, VerifiedMarketSnapshot } from "../domain/types";
+import type { IndicatorMap, MarketSnapshot, Source, VerifiedMarketSnapshot } from "../domain/types";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
+
+type RequiredKeys<T> = {
+  [Key in keyof T]-?: Pick<T, Key> extends Required<Pick<T, Key>> ? Key : never;
+}[keyof T];
+
+const ALLOWED_PROMPT_MARKET_SNAPSHOT_KEYS = [
+  "sourceId",
+  "assetClass",
+  "symbol",
+  "name",
+  "identity",
+  "benchmark",
+  "price",
+  "changePercent24h",
+  "volume",
+  "marketCap",
+  "open",
+  "previousClose",
+  "averageVolume",
+  "fiftyDayAverage",
+  "fundamentals",
+  "observedAt",
+] as const satisfies readonly (keyof MarketSnapshot)[];
+
+type MissingRequiredPromptKey = Exclude<
+  RequiredKeys<MarketSnapshot>,
+  (typeof ALLOWED_PROMPT_MARKET_SNAPSHOT_KEYS)[number]
+>;
+
+const CHECKED_ALLOWED_PROMPT_MARKET_SNAPSHOT_KEYS: MissingRequiredPromptKey extends never
+  ? typeof ALLOWED_PROMPT_MARKET_SNAPSHOT_KEYS
+  : never = ALLOWED_PROMPT_MARKET_SNAPSHOT_KEYS;
+const ALLOWED_PROMPT_MARKET_SNAPSHOT_KEY_SET = new Set<string>(
+  CHECKED_ALLOWED_PROMPT_MARKET_SNAPSHOT_KEYS,
+);
+
+// This projection is deliberately an allow-list of the MarketSnapshot fields exposed to prompts.
+// New MarketSnapshot fields stay model-invisible until they are deliberately added here.
+// This projection must not be converted to a delete-list.
+// This projection deliberately preserves surviving input key order because key order changes prompt bytes.
+// The required-key check makes a new required field fail compilation until its prompt visibility is decided.
+export function forPrompt(snapshots: readonly MarketSnapshot[]): readonly MarketSnapshot[] {
+  return snapshots.map(
+    (snapshot) =>
+      Object.fromEntries(
+        Object.entries(snapshot).filter(([key]) => ALLOWED_PROMPT_MARKET_SNAPSHOT_KEY_SET.has(key)),
+      ) as MarketSnapshot,
+  );
+}
 
 /** Locked indicator key schema (ADR 0019). Phase A.2 matches these keys by name. */
 export const INDICATOR_KEYS = [

@@ -89,6 +89,7 @@ function normalizeYahooQuote(
   // The raw payload (immune to the Massive quote fallback, which replaces the
   // Yahoo payload with a non-Yahoo shape carrying none of these fields). See ADR 0004.
   const fundamentals = readYahooFundamentals(value);
+  const quoteTimeUtc = readYahooQuoteTimeUtc(value);
   const identity: InstrumentIdentity = {
     ...(exchange !== undefined ? { exchange } : {}),
     ...(quoteCurrency !== undefined ? { quoteCurrency } : {}),
@@ -112,7 +113,21 @@ function normalizeYahooQuote(
     ...(fiftyDayAverage !== undefined ? { fiftyDayAverage } : {}),
     ...(fundamentals !== undefined ? { fundamentals } : {}),
     observedAt: fetchedAt,
+    ...(quoteTimeUtc !== undefined ? { quoteTimeUtc } : {}),
   };
+}
+
+// This converts the Yahoo quote's own timestamp into an ISO 8601 UTC string.
+// Yahoo regularMarketTime uses epoch seconds, unlike firstTradeDateMilliseconds on the same payload.
+// The function returns undefined when the field is absent or is not a finite number.
+// The caller then omits the key instead of emitting a null or a fabricated time.
+function readYahooQuoteTimeUtc(value: Record<string, unknown>): string | undefined {
+  const regularMarketTime = readNumber(value, "regularMarketTime");
+  if (regularMarketTime === undefined) {
+    return undefined;
+  }
+  const date = new Date(regularMarketTime * 1000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 // Reads the pre-computed fundamental fields the Yahoo quote endpoint carries

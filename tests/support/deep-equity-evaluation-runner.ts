@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isRecord, readNumber, readString, readStringArray } from "../../src/guards";
 import type { ModelProvider } from "../../src/model/types";
@@ -11,6 +11,7 @@ import {
   type DeepEquityEvaluationPlan,
   type DeepEquityEvaluationRunRecord,
   type DeepEquityHardGateInputs,
+  type DeepEquityPipelineVariant,
   type DeepEquityVariantEvaluationMetrics,
   type PairwiseJudgeFailureReason,
   type PairwiseJudgeResult,
@@ -64,6 +65,7 @@ type EvaluationVariantRecord = SuccessfulVariantRecord | FailedVariantRecord;
 export interface DeepEquityEvaluationPairArtifactRecord {
   readonly scenario: string;
   readonly repetition: number;
+  readonly variantOrder?: readonly DeepEquityPipelineVariant[];
   readonly variants: {
     readonly legacy: EvaluationVariantRecord;
     readonly simplified: EvaluationVariantRecord;
@@ -167,6 +169,7 @@ export interface ResumePairedEvaluationInput {
   readonly seed?: number;
   readonly plan?: DeepEquityEvaluationPlan;
   readonly forceRejudge?: boolean;
+  readonly recoverMissingPairs?: boolean;
   readonly providerForScenario: (scenario: string) => Promise<ModelProvider>;
   readonly approvalRecordPath?: string;
   readonly repositoryRoot?: string;
@@ -456,6 +459,7 @@ function inlinePairRecord(
   return {
     scenario: fixtureName,
     repetition,
+    variantOrder: result.variantOrder,
     variants,
     ...(result.judge !== undefined ? { judge: result.judge } : {}),
     ...(unjudged !== undefined ? { unjudged } : {}),
@@ -495,12 +499,14 @@ export async function runPairedEvaluation(
   await writeArtifact(context, records);
   for (const fixtureName of input.fixtureNames) {
     for (let repetition = 1; repetition <= input.repetitions; repetition += 1) {
+      const variantOrderDraw = variantOrderRandom();
+      const blindLabelDraw = blindLabelRandom();
       const result = await runFixturePair(fixtureName, {
         llm: input.live ? "live" : "replay",
         keepDataDir: true,
         dataDir: join(input.root, fixtureName, `repetition-${String(repetition)}`),
-        variantOrderRandom,
-        blindLabelRandom,
+        variantOrderRandom: () => variantOrderDraw,
+        blindLabelRandom: () => blindLabelDraw,
         judge: input.judgeModel !== undefined,
         ...(input.judgeModel !== undefined ? { judgeModel: input.judgeModel } : {}),
         ...(input.provider !== undefined ? { provider: input.provider } : {}),
@@ -516,6 +522,30 @@ export async function runPairedEvaluation(
 
 function recordKey(scenario: string, repetition: number): string {
   return `${scenario}\n${String(repetition)}`;
+}
+
+interface PlannedEvaluationPair {
+  readonly scenario: string;
+  readonly repetition: number;
+  readonly variantOrderDraw: number;
+  readonly blindLabelDraw: number;
+}
+
+function plannedEvaluationPairs(
+  plan: DeepEquityEvaluationPlan,
+  seed: number,
+): readonly PlannedEvaluationPair[] {
+  const seeds = randomStreamSeeds(seed);
+  const variantOrderRandom = createSeededEvaluationRandom(seeds.variantOrder);
+  const blindLabelRandom = createSeededEvaluationRandom(seeds.blindLabels);
+  return plan.scenarios.flatMap((scenario) =>
+    plan.repetitions.map((repetition) => ({
+      scenario,
+      repetition,
+      variantOrderDraw: variantOrderRandom(),
+      blindLabelDraw: blindLabelRandom(),
+    })),
+  );
 }
 
 async function readExistingArtifact(root: string): Promise<unknown | undefined> {
@@ -712,6 +742,80 @@ function existingJudges(value: unknown): ReadonlyMap<string, PairwiseJudgeResult
   return judges;
 }
 
+function existingRecordKeys(value: unknown): ReadonlySet<string> {
+  if (!isRecord(value) || !Array.isArray(value.records)) {
+    return new Set();
+  }
+  const keys = new Set<string>();
+  for (const record of value.records) {
+    if (!isRecord(record)) {
+      continue;
+    }
+    const scenario = readString(record, "scenario");
+    const repetition = readNumber(record, "repetition");
+    if (scenario !== undefined && repetition !== undefined && Number.isInteger(repetition)) {
+      keys.add(recordKey(scenario, repetition));
+    }
+  }
+  return keys;
+}
+
+function existingVariantOrders(
+  value: unknown,
+): ReadonlyMap<string, readonly DeepEquityPipelineVariant[]> {
+  if (!isRecord(value) || !Array.isArray(value.records)) {
+    return new Map();
+  }
+  const orders = new Map<string, readonly DeepEquityPipelineVariant[]>();
+  for (const record of value.records) {
+    if (!isRecord(record) || !Array.isArray(record.variantOrder)) {
+      continue;
+    }
+    const scenario = readString(record, "scenario");
+    const repetition = readNumber(record, "repetition");
+    const order = record.variantOrder;
+    if (
+      scenario !== undefined &&
+      repetition !== undefined &&
+      Number.isInteger(repetition) &&
+      order.length === 2 &&
+      order.every((variant) => variant === "legacy" || variant === "simplified") &&
+      order[0] !== order[1]
+    ) {
+      orders.set(recordKey(scenario, repetition), order as readonly DeepEquityPipelineVariant[]);
+    }
+  }
+  return orders;
+}
+
+async function existingArmArtifactPaths(
+  root: string,
+  scenario: string,
+  repetition: number,
+): Promise<readonly string[]> {
+  const repetitionDir = join(root, scenario, `repetition-${String(repetition)}`);
+  const candidates = [
+    join(repetitionDir, "legacy"),
+    join(repetitionDir, "simplified"),
+    join(repetitionDir, "legacy-failure"),
+    join(repetitionDir, "simplified-failure"),
+  ];
+  const existing = await Promise.all(
+    candidates.map(async (path) => {
+      try {
+        await lstat(path);
+        return path;
+      } catch (error) {
+        if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+          return null;
+        }
+        throw error;
+      }
+    }),
+  );
+  return existing.filter((path): path is string => path !== null);
+}
+
 function existingUnjudgedReasons(value: unknown): ReadonlyMap<string, PairwiseJudgeFailureReason> {
   if (!isRecord(value) || !Array.isArray(value.records)) {
     return new Map();
@@ -766,10 +870,12 @@ function resumePairRecord(
   pair: ResumableEvaluationPair,
   judge?: PairwiseJudgeResult,
   unjudged?: PairwiseJudgeFailureReason,
+  variantOrder?: readonly DeepEquityPipelineVariant[],
 ): DeepEquityEvaluationPairArtifactRecord {
   return {
     scenario: pair.scenario,
     repetition: pair.repetition,
+    ...(variantOrder === undefined ? {} : { variantOrder }),
     variants: {
       legacy: {
         status: "success",
@@ -798,6 +904,9 @@ function resumePairRecord(
 export async function resumePairedEvaluation(
   input: ResumePairedEvaluationInput,
 ): Promise<DeepEquityEvaluationArtifact> {
+  if (input.recoverMissingPairs === true && input.forceRejudge === true) {
+    throw new Error("missing-pair recovery cannot be combined with force re-judging");
+  }
   const existing = await readExistingArtifact(input.root);
   const { plan, origin, loadSource } = resumePlan(existing, input.plan);
   const recordedSeed = existingSeed(existing);
@@ -810,10 +919,11 @@ export async function resumePairedEvaluation(
   if (seed === undefined) {
     throw new Error("resume requires --seed when evaluation.json has no recorded seed");
   }
+  const plannedPairs = plannedEvaluationPairs(plan, seed);
+  const plannedPairByKey = new Map(
+    plannedPairs.map((pair) => [recordKey(pair.scenario, pair.repetition), pair]),
+  );
   const discovered = await discoverResumableEvaluationPairs(input.root);
-  if (discovered.length === 0) {
-    throw new Error(`resume found no completed variant pairs under ${input.root}`);
-  }
   const plannedScenarios = new Set(plan.scenarios);
   const plannedRepetitions = new Set(plan.repetitions);
   const unexpectedPair = discovered.find(
@@ -832,6 +942,38 @@ export async function resumePairedEvaluation(
         (fixtureIndex.get(right.scenario) ?? Number.MAX_SAFE_INTEGER) ||
       left.repetition - right.repetition,
   );
+  const discoveredKeys = new Set(pairs.map((pair) => recordKey(pair.scenario, pair.repetition)));
+  const missingPairs = plannedPairs.filter(
+    (pair) => !discoveredKeys.has(recordKey(pair.scenario, pair.repetition)),
+  );
+  const recoverablePairs: PlannedEvaluationPair[] = [];
+  if (input.recoverMissingPairs === true) {
+    const recordedKeys = existingRecordKeys(existing);
+    for (const pair of missingPairs) {
+      const key = recordKey(pair.scenario, pair.repetition);
+      if (recordedKeys.has(key)) {
+        throw new Error(
+          `recovery refused ${pair.scenario} repetition ${String(pair.repetition)} because evaluation.json already records an outcome`,
+        );
+      }
+      const artifactPaths = await existingArmArtifactPaths(
+        input.root,
+        pair.scenario,
+        pair.repetition,
+      );
+      if (artifactPaths.length > 0) {
+        throw new Error(
+          `recovery refused ${pair.scenario} repetition ${String(pair.repetition)} because arm artifacts already exist: ${artifactPaths.join(", ")}`,
+        );
+      }
+      recoverablePairs.push(pair);
+    }
+    if (recoverablePairs.length === 0) {
+      throw new Error("recovery found no planned pairs without arm artifacts");
+    }
+  } else if (discovered.length === 0) {
+    throw new Error(`resume found no completed variant pairs under ${input.root}`);
+  }
   const repetitions = plan.repetitions.length;
   const operatorGateRecord = await readDeepEquityOperatorGateRecord({
     evaluationRoot: input.root,
@@ -851,12 +993,12 @@ export async function resumePairedEvaluation(
     expectedPairCount: fixtureOrder.length * repetitions,
     seed,
     planOrigin: origin,
-    planLoadSource: loadSource,
+    planLoadSource: recoverablePairs.length > 0 ? "operator-recovery" : loadSource,
     operatorGateRecord,
   };
   const storedJudges = existingJudges(existing);
   const storedUnjudgedReasons = existingUnjudgedReasons(existing);
-  const blindRandom = createSeededEvaluationRandom(randomStreamSeeds(seed).blindLabels);
+  const storedVariantOrders = existingVariantOrders(existing);
   const records = pairs.map((pair) => {
     const key = recordKey(pair.scenario, pair.repetition);
     const storedJudge = storedJudges.get(key);
@@ -866,11 +1008,38 @@ export async function resumePairedEvaluation(
       storedJudge === undefined
         ? (storedUnjudgedReasons.get(key) ?? pendingJudgeReason())
         : undefined,
+      storedVariantOrders.get(key),
     );
   });
-  for (const [pairIndex, pair] of pairs.entries()) {
-    const blindDraw = blindRandom();
-    const storedJudge = storedJudges.get(recordKey(pair.scenario, pair.repetition));
+  const recordOrder = new Map(
+    plannedPairs.map((pair, index) => [recordKey(pair.scenario, pair.repetition), index]),
+  );
+  const sortRecords = () =>
+    records.sort(
+      (left, right) =>
+        (recordOrder.get(recordKey(left.scenario, left.repetition)) ?? Number.MAX_SAFE_INTEGER) -
+        (recordOrder.get(recordKey(right.scenario, right.repetition)) ?? Number.MAX_SAFE_INTEGER),
+    );
+  for (const pair of recoverablePairs) {
+    const provider = await input.providerForScenario(pair.scenario);
+    const result = await runFixturePair(pair.scenario, {
+      llm: input.live ? "live" : "replay",
+      keepDataDir: true,
+      dataDir: join(input.root, pair.scenario, `repetition-${String(pair.repetition)}`),
+      variantOrderRandom: () => pair.variantOrderDraw,
+      blindLabelRandom: () => pair.blindLabelDraw,
+      judge: true,
+      judgeModel: input.judgeModel,
+      provider,
+    });
+    records.push(inlinePairRecord(pair.scenario, pair.repetition, result, true));
+    sortRecords();
+    await writeArtifact(context, records);
+  }
+  for (const pair of pairs) {
+    const key = recordKey(pair.scenario, pair.repetition);
+    const plannedPair = plannedPairByKey.get(key)!;
+    const storedJudge = storedJudges.get(key);
     if (storedJudge !== undefined && input.forceRejudge !== true) {
       continue;
     }
@@ -886,12 +1055,15 @@ export async function resumePairedEvaluation(
         legacy: pair.variants.legacy.report,
         simplified: pair.variants.simplified.report,
       },
-      random: () => blindDraw,
+      random: () => plannedPair.blindLabelDraw,
     });
-    records[pairIndex] =
+    const recordIndex = records.findIndex(
+      (record) => recordKey(record.scenario, record.repetition) === key,
+    );
+    records[recordIndex] =
       outcome.status === "judged"
-        ? resumePairRecord(pair, outcome.judge)
-        : resumePairRecord(pair, undefined, outcome.reason);
+        ? resumePairRecord(pair, outcome.judge, undefined, storedVariantOrders.get(key))
+        : resumePairRecord(pair, undefined, outcome.reason, storedVariantOrders.get(key));
     await writeArtifact(context, records);
   }
   return writeArtifact(context, records);

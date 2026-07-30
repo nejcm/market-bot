@@ -670,6 +670,175 @@ describe("deep-equity evaluation runner", () => {
     expect(completed.judging.judgedPairCount).toBe(3);
   }, 30_000);
 
+  test("recovers an artifact-free pair with its original random-stream position", async () => {
+    const root = await tempEvaluationRoot("missing-pair-stream-alignment");
+    const originalJudgeCalls: ModelRequest[] = [];
+    const original = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 3,
+      seed: 137,
+      live: false,
+      judgeModel: "fixture-judge",
+      provider: await fixtureProvider([judgeResponse()], originalJudgeCalls),
+    });
+    const originalTarget = original.records.find((record) => record.repetition === 3);
+    const retainedRecords = original.records.filter((record) => record.repetition !== 3);
+    if (
+      originalTarget?.variantOrder === undefined ||
+      originalTarget.judge === undefined ||
+      retainedRecords.some((record) => record.judge === undefined)
+    ) {
+      throw new Error("setup evaluation must record execution order and usable judges");
+    }
+    await expect(
+      resumePairedEvaluation({
+        root,
+        live: false,
+        judgeModel: "fixture-judge",
+        recoverMissingPairs: true,
+        providerForScenario: async () => {
+          throw new Error("complete evaluations must not enter recovery");
+        },
+      }),
+    ).rejects.toThrow("recovery found no planned pairs without arm artifacts");
+    await rm(join(root, "equity-aapl-deep", "repetition-3"), {
+      recursive: true,
+      force: true,
+    });
+    await writeFile(
+      join(root, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify({ ...original, records: retainedRecords }, null, 2)}\n`,
+      "utf8",
+    );
+
+    let implicitProviderCalls = 0;
+    const implicit = await resumePairedEvaluation({
+      root,
+      live: false,
+      judgeModel: "fixture-judge",
+      providerForScenario: async () => {
+        implicitProviderCalls += 1;
+        throw new Error("missing-pair recovery must be opt-in");
+      },
+    });
+    expect(implicitProviderCalls).toBe(0);
+    expect(implicit.records).toHaveLength(2);
+    expect(implicit.judging.incompletePairCount).toBe(1);
+
+    const recoveryJudgeCalls: ModelRequest[] = [];
+    let recoveryProviderCalls = 0;
+    const recovered = await resumePairedEvaluation({
+      root,
+      live: false,
+      judgeModel: "fixture-judge",
+      recoverMissingPairs: true,
+      providerForScenario: async () => {
+        recoveryProviderCalls += 1;
+        return fixtureProvider([judgeResponse()], recoveryJudgeCalls);
+      },
+    });
+    const recoveredTarget = recovered.records.find((record) => record.repetition === 3);
+
+    expect(recoveryProviderCalls).toBe(1);
+    expect(recoveryJudgeCalls).toHaveLength(1);
+    expect(originalTarget.variantOrder).toEqual(["legacy", "simplified"]);
+    expect(originalTarget.judge.blindLabels).toEqual({ legacy: "A", simplified: "B" });
+    expect(recoveredTarget?.variantOrder).toEqual(originalTarget.variantOrder);
+    expect(recoveredTarget?.judge?.blindLabels).toEqual(originalTarget.judge.blindLabels);
+    expect(recovered.plan.loadSource).toBe("operator-recovery");
+    expect(recovered.judging).toMatchObject({
+      expectedPairCount: 3,
+      judgedPairCount: 3,
+      incompletePairCount: 0,
+    });
+    for (const retained of retainedRecords) {
+      expect(
+        recovered.records.find((record) => record.repetition === retained.repetition)?.judge,
+      ).toEqual(retained.judge);
+    }
+  }, 60_000);
+
+  test("recovery refuses a pair with one surviving arm", async () => {
+    const root = await tempEvaluationRoot("missing-pair-surviving-arm");
+    const original = await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 138,
+      live: false,
+    });
+    const legacyRunDir = original.records[0]?.variants.legacy.runDir;
+    if (legacyRunDir === undefined) {
+      throw new Error("setup evaluation must persist the legacy arm");
+    }
+    await rm(join(root, "equity-aapl-deep", "repetition-1", "simplified"), {
+      recursive: true,
+      force: true,
+    });
+    await writeFile(
+      join(root, DEEP_EQUITY_EVALUATION_FILE),
+      `${JSON.stringify({ ...original, records: [] }, null, 2)}\n`,
+      "utf8",
+    );
+    let providerCalls = 0;
+
+    await expect(
+      resumePairedEvaluation({
+        root,
+        live: false,
+        judgeModel: "fixture-judge",
+        recoverMissingPairs: true,
+        providerForScenario: async () => {
+          providerCalls += 1;
+          return fixtureProvider([judgeResponse()], []);
+        },
+      }),
+    ).rejects.toThrow("because arm artifacts already exist");
+    expect(providerCalls).toBe(0);
+    expect(JSON.parse(await readFile(join(legacyRunDir, "report.json"), "utf8"))).toBeObject();
+  }, 30_000);
+
+  test("recovery refuses a recorded outcome even when both arm directories are absent", async () => {
+    const root = await tempEvaluationRoot("missing-pair-recorded-outcome");
+    await runPairedEvaluation({
+      root,
+      fixtureNames: ["equity-aapl-deep"],
+      repetitions: 1,
+      seed: 139,
+      live: false,
+    });
+    await rm(join(root, "equity-aapl-deep", "repetition-1"), {
+      recursive: true,
+      force: true,
+    });
+    let providerCalls = 0;
+
+    await expect(
+      resumePairedEvaluation({
+        root,
+        live: false,
+        judgeModel: "fixture-judge",
+        recoverMissingPairs: true,
+        providerForScenario: async () => {
+          providerCalls += 1;
+          return fixtureProvider([judgeResponse()], []);
+        },
+      }),
+    ).rejects.toThrow("because evaluation.json already records an outcome");
+    expect(providerCalls).toBe(0);
+    await expect(
+      resumePairedEvaluation({
+        root,
+        live: false,
+        judgeModel: "fixture-judge",
+        recoverMissingPairs: true,
+        forceRejudge: true,
+        providerForScenario: async () => fixtureProvider([judgeResponse()], []),
+      }),
+    ).rejects.toThrow("missing-pair recovery cannot be combined with force re-judging");
+  }, 30_000);
+
   test("manifest-less and plan-less legacy resume keep the operator's missing fixture planned", async () => {
     const sourceRoot = await tempEvaluationRoot("judge-recovery-source");
     await runPairedEvaluation({

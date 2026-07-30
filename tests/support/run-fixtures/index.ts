@@ -108,6 +108,7 @@ export type RunFixtureVariantOutcome =
 export interface RunFixturePairResult {
   readonly dataDir: string;
   readonly collectedSources: CollectedSources;
+  readonly variantOrder: readonly DeepEquityPipelineVariant[];
   readonly variants: Readonly<Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>>;
   readonly judge?: PairwiseJudgeResult;
   readonly unjudged?: PairwiseJudgeFailureReason;
@@ -524,6 +525,7 @@ export async function runFixturePair(
   return {
     dataDir,
     collectedSources,
+    variantOrder: variants,
     variants: outcomes,
     ...(judgeOutcome?.status === "judged" ? { judge: judgeOutcome.judge } : {}),
     ...(judgeOutcome?.status === "unjudged" ? { unjudged: judgeOutcome.reason } : {}),

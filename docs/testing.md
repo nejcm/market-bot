@@ -129,6 +129,11 @@ explicit recovery seed:
 bun run scripts/replay-fixture-run.ts --resume-evaluation data/evaluations/<run> --live --judge-model <model> --seed <integer> --fixtures <fixture-a,fixture-b> --repetitions <count>
 ```
 
+`--recover-missing-pairs` explicitly reruns planned pairs that have no evaluation record and no
+artifacts for either arm. It reconstructs variant-order and blind-label streams from the recorded
+seed in full plan order and records `plan.loadSource: "operator-recovery"`. Recovery fails closed
+when either arm has any surviving artifact and cannot be combined with `--force-rejudge`.
+
 `--fixtures` is comma-separated. Run only one resume process against an evaluation root at a time;
 the artifact writer is atomic but does not coordinate concurrent writers. Omitting `--live` keeps
 model access off and uses fixture replay.

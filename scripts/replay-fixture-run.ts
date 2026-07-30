@@ -20,6 +20,7 @@ interface ParsedArguments {
   readonly resumeRoot?: string;
   readonly recoveryFixtures?: readonly string[];
   readonly forceRejudge: boolean;
+  readonly recoverMissingPairs: boolean;
   readonly judgeModel?: string;
   readonly approvalRecordPath?: string;
   readonly repetitions: number;
@@ -32,7 +33,7 @@ function usage(): never {
       "Usage:",
       "  bun run scripts/replay-fixture-run.ts <fixture-name> [--live] [--write-golden]",
       "  bun run scripts/replay-fixture-run.ts <fixture-name> [<fixture-name> ...] --paired [--live] [--repetitions <count>] [--seed <integer>] [--judge-model <model>] [--approval-record <path>]",
-      "  bun run scripts/replay-fixture-run.ts --resume-evaluation <data/evaluations/root> --judge-model <model> [--live] [--seed <integer>] [--fixtures <fixture-a,fixture-b> --repetitions <count>] [--force-rejudge] [--approval-record <path>]",
+      "  bun run scripts/replay-fixture-run.ts --resume-evaluation <data/evaluations/root> --judge-model <model> [--live] [--seed <integer>] [--fixtures <fixture-a,fixture-b> --repetitions <count>] [--recover-missing-pairs | --force-rejudge] [--approval-record <path>]",
     ].join("\n"),
   );
 }
@@ -81,6 +82,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
   let resumeRoot: string | undefined = undefined;
   let recoveryFixtures: readonly string[] | undefined = undefined;
   let forceRejudge = false;
+  let recoverMissingPairs = false;
   let judgeModel: string | undefined = undefined;
   let approvalRecordPath: string | undefined = undefined;
   let repetitions = 1;
@@ -96,6 +98,8 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       paired = true;
     } else if (argument === "--force-rejudge") {
       forceRejudge = true;
+    } else if (argument === "--recover-missing-pairs") {
+      recoverMissingPairs = true;
     } else if (argument === "--resume-evaluation") {
       resumeRoot = requiredFlagValue(args, index, argument);
       index += 1;
@@ -128,6 +132,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     !paired &&
     !writeGolden &&
     judgeModel !== undefined &&
+    !(forceRejudge && recoverMissingPairs) &&
     ((recoveryFixtures === undefined && !repetitionsSpecified) ||
       (recoveryFixtures !== undefined && repetitionsSpecified));
   const validPaired =
@@ -136,7 +141,8 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     fixtureNames.length > 0 &&
     recoveryFixtures === undefined &&
     !writeGolden &&
-    !forceRejudge;
+    !forceRejudge &&
+    !recoverMissingPairs;
   const validSingle =
     !resumeMode &&
     !paired &&
@@ -146,6 +152,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     repetitions === 1 &&
     seed === undefined &&
     !forceRejudge &&
+    !recoverMissingPairs &&
     approvalRecordPath === undefined;
   if (!validResume && !validPaired && !validSingle) {
     usage();
@@ -158,6 +165,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     ...(resumeRoot !== undefined ? { resumeRoot } : {}),
     ...(recoveryFixtures !== undefined ? { recoveryFixtures } : {}),
     forceRejudge,
+    recoverMissingPairs,
     ...(judgeModel !== undefined ? { judgeModel } : {}),
     ...(approvalRecordPath !== undefined ? { approvalRecordPath } : {}),
     repetitions,
@@ -192,6 +200,7 @@ if (parsed.resumeRoot !== undefined) {
         }
       : {}),
     forceRejudge: parsed.forceRejudge,
+    recoverMissingPairs: parsed.recoverMissingPairs,
     ...(parsed.approvalRecordPath !== undefined
       ? { approvalRecordPath: parsed.approvalRecordPath }
       : {}),

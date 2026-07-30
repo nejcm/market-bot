@@ -120,6 +120,30 @@ describe("deep-equity packet acquisition", () => {
     }
   });
 
+  // The approved plan lists "target SEC facts/submissions once" as a mandatory recording-adapter
+  // Assertion, and cassette parity is explicitly insufficient for request counts.
+  // The peer test above covers peer CIKs 1-5 only, so the target's own packet was unasserted.
+  // AAPL is CIK 320193 here, padded to 0000320193.
+  test("fetches the target SEC facts and submissions once", async () => {
+    const fixture = await loadFixture("equity-analysis-comprehensive");
+    const replayFetch = makeReplayFetch(fixture.dataCassette, fixture.dir);
+    const adapter = recordingRequestAdapter((url) => replayFetch(url));
+    const config = createFixtureConfig(fixture.meta, fixture.dir);
+
+    await collectSources(
+      AAPL_COMMAND,
+      { ...config.sourceOptions, cacheDisabled: true },
+      { now: NOW, fetchImpl: adapter.fetch, retryDelaysMs: [] },
+    );
+
+    expect(
+      adapter.urls.filter((url) => url.includes("/companyfacts/CIK0000320193.json")),
+    ).toHaveLength(1);
+    expect(
+      adapter.urls.filter((url) => url.includes("/submissions/CIK0000320193.json")),
+    ).toHaveLength(1);
+  });
+
   test("fetches Tradier expirations once and every unique union chain once", async () => {
     const adapter = recordingRequestAdapter((url) => {
       if (url.includes("/expirations")) {

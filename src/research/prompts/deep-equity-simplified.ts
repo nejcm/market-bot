@@ -1,6 +1,6 @@
 import { isInstrumentCommand } from "../../cli/args";
 import type { DeepEquityModelPacket } from "../../deep-equity/types";
-import type { Source } from "../../domain/types";
+import { resolveMarketSnapshotPriceAsOf, type Source } from "../../domain/types";
 import type { PeerImpliedRange } from "../../sources/extended-evidence/valuation-comps";
 import { subjectKindForCommand } from "../../web-evidence";
 import { buildCalibrationBlock } from "../calibration-context";
@@ -51,7 +51,7 @@ const DERIVED_FIGURE_CONSTRAINTS = {
   derivedFigures:
     "A figure is observed only where a filing, statement, or quote reports it directly. Anything built on top of one — a trailing-twelve-month aggregate, margin, growth rate, per-share or free-cash-flow proxy, valuation multiple, peer-implied range — is a derived calculation even when the packet supplies it already computed. Label it as derived and name the reported line items and periods it rests on.",
   snapshotRecency:
-    "The verified snapshot is a dated bar, not the current tape. Carry its session date with every claim drawn from it and do not merge the two into one market state. Where the two diverge materially, that gap is a contradiction in the evidence rather than a labelling detail: give both figures with their dates and their own sourceIds where the evidence is discussed, carry it into the downside and counterevidence discussion, and name it in the uncertainty and gap disclosure. Where the two agree closely, or no current quote was collected, say so once and do not construct a conflict the figures do not show.",
+    "The verified snapshot is a dated bar, not the current tape. Carry its session date with every claim drawn from it and do not merge observations of different vintage into one market state. Two prices of different vintage are not by themselves evidence of a market move or an unexplained contradiction. Discuss a genuine divergence only when both price instants are known and close enough for direct comparison; otherwise state that their vintages prevent attributing the difference and do not narrate it as a move. Where comparable prices agree closely, or no current price was collected, say so once and do not construct a conflict the figures do not show.",
 } as const;
 
 const DETERMINISTIC_CITATION_GUIDANCE =
@@ -68,7 +68,7 @@ const PRICE_HISTORY_USAGE =
 // The 2026-07-27 evaluation pair centred bands on valuationComps.impliedPriceRange.
 // This stage received only a 45-day-old verified bar, not the already-collected live quote.
 const SIMPLIFIED_CURRENT_PRICE_USAGE =
-  "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Use it — not a bar close or an implied range — wherever a claim needs the current market level, and carry observedAt with it. Where it diverges materially from priceHistory.latestClose, handle that gap as reportConstraints.snapshotRecency requires.";
+  "Most recent available price for run symbol; use it for the current market level and cite sourceId. For priceAsOf quote-time, carry instant as quote time. For fetch-time-only, instant is only fetch time and strike time is unknown; never date the price at it. A different vintage from priceHistory.latestClose is not evidence of a move; apply reportConstraints.snapshotRecency.";
 
 const SIMPLIFIED_NO_CURRENT_PRICE_USAGE =
   "No current quote for the run symbol was collected for this run. The most recent price available is the dated verified-bar close at its session date. State it with that date, do not present it as the current price, and say the current price is unavailable where a claim would otherwise need it.";
@@ -456,9 +456,9 @@ function simplifiedCurrentPriceReference(
       quote.observedAt.slice(0, 10) >= verifiedSnapshot.latestSessionDate)
   ) {
     return {
-      status: "quote-observed",
+      status: "price-available",
       price: quote.price,
-      observedAt: quote.observedAt,
+      priceAsOf: resolveMarketSnapshotPriceAsOf(quote),
       sourceId: quote.sourceId,
       ...(quote.identity?.quoteCurrency !== undefined
         ? { quoteCurrency: quote.identity.quoteCurrency }

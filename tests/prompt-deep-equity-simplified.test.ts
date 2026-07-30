@@ -570,16 +570,20 @@ describe("simplified deep-equity report quality steering", () => {
     expect(prompt).toContain("observed only where a filing, statement, or quote reports it");
     expect(prompt).toContain("even when the packet supplies it already computed");
     expect(prompt).toContain("peer-implied range");
-    expect(prompt).toContain("do not merge the two into one market state");
+    expect(prompt).toContain(
+      "do not merge observations of different vintage into one market state",
+    );
   });
 
-  test("treats a material live-versus-verified price gap as a contradiction to surface", () => {
+  test("does not infer a move from differently dated prices", () => {
     const prompt = simplifiedFinalSynthesisPrompt();
-    expect(prompt).toContain("a contradiction in the evidence rather than a labelling detail");
-    expect(prompt).toContain("carry it into the downside and counterevidence discussion");
-    expect(prompt).toContain("name it in the uncertainty and gap disclosure");
-    // The immaterial and no-quote paths must not be pushed into inventing a conflict.
-    expect(prompt).toContain("do not construct a conflict the figures do not show");
+    expect(prompt).toContain(
+      "Two prices of different vintage are not by themselves evidence of a market move",
+    );
+    expect(prompt).toContain(
+      "Discuss a genuine divergence only when both price instants are known and close enough for direct comparison",
+    );
+    expect(prompt).toContain("do not narrate it as a move");
   });
 
   test("leaves the generic-path final-synthesis prompt untouched", () => {
@@ -713,13 +717,13 @@ describe("simplified deep-equity final figure evidence", () => {
     const evidence = await capturedPrimaryFinalEvidence("equity-analysis-comprehensive");
     const currentPriceReference = evidence.currentPriceReference as {
       readonly price: number;
-      readonly observedAt: string;
+      readonly priceAsOf: { readonly instant: string };
     };
     const serialized = JSON.stringify(boundedFigurePayload(evidence));
 
     expect(serialized.length).toBeLessThan(FINAL_FIGURE_JSON_CHAR_CAP);
     expect(serialized).not.toContain(String(currentPriceReference.price));
-    expect(serialized).not.toContain(currentPriceReference.observedAt);
+    expect(serialized).not.toContain(currentPriceReference.priceAsOf.instant);
     expect(serialized).not.toContain("observedAt");
     expect(serialized).not.toContain("quoteObservedAt");
     // A position verdict states where the live price sits, leaking the quote by implication.
@@ -730,10 +734,9 @@ describe("simplified deep-equity final figure evidence", () => {
 });
 
 describe("simplified deep-equity current price reference", () => {
-  // The quoteTimeUtc field is persisted evidence with no consumer yet (ADR 0004, amended 2026-07-29).
   // The canonicalFacts field carries snapshots into equity-analysis and critique wholesale.
-  // The forPrompt projection prevents the field from changing prompt bytes on every deep run.
-  // The final-synthesis stage does not embed canonicalFacts, so this test targets earlier stages.
+  // The forPrompt projection prevents quoteTimeUtc from changing those earlier prompt bytes.
+  // Final synthesis receives only the explicit currentPriceReference.priceAsOf projection.
   test.each(["equity-analysis", "critique"] as const)(
     "keeps quoteTimeUtc out of the %s prompt payload",
     (stage) => {
@@ -764,7 +767,7 @@ describe("simplified deep-equity current price reference", () => {
     },
   );
 
-  test("emits the live quote as the current price reference", () => {
+  test("labels a price without a quote timestamp as fetch time only", () => {
     const snapshot = snapshotWithCloses(30);
     const quote = marketSnapshot({
       symbol: "aapl",
@@ -779,16 +782,44 @@ describe("simplified deep-equity current price reference", () => {
     );
 
     expect(evidence.currentPriceReference).toEqual({
-      status: "quote-observed",
+      status: "price-available",
       price: 198.5,
-      observedAt: quote.observedAt,
+      priceAsOf: {
+        kind: "fetch-time-only",
+        instant: quote.observedAt,
+      },
       sourceId: "market-yahoo-equity-aapl",
       usage:
-        "Most recent observed price for the run symbol: a live quote fetched at observedAt; cite sourceId for it. Use it — not a bar close or an implied range — wherever a claim needs the current market level, and carry observedAt with it. Where it diverges materially from priceHistory.latestClose, handle that gap as reportConstraints.snapshotRecency requires.",
+        "Most recent available price for run symbol; use it for the current market level and cite sourceId. For priceAsOf quote-time, carry instant as quote time. For fetch-time-only, instant is only fetch time and strike time is unknown; never date the price at it. A different vintage from priceHistory.latestClose is not evidence of a move; apply reportConstraints.snapshotRecency.",
     });
   });
 
-  test("emits the live quote when no verified snapshot exists", () => {
+  test("carries the provider quote timestamp when known", () => {
+    const snapshot = snapshotWithCloses(30);
+    const quote = marketSnapshot({
+      symbol: "aapl",
+      sourceId: "market-yahoo-equity-aapl",
+      price: 198.5,
+      observedAt: "2026-05-19T14:31:00.000Z",
+      quoteTimeUtc: "2026-05-19T14:29:07.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+
+    expect(evidence.currentPriceReference).toMatchObject({
+      price: 198.5,
+      priceAsOf: {
+        kind: "quote-time",
+        instant: "2026-05-19T14:29:07.000Z",
+      },
+    });
+    expect(JSON.stringify(evidence.currentPriceReference)).not.toContain('"observedAt"');
+  });
+
+  test("emits the most recent available price when no verified snapshot exists", () => {
     const bundle = deepEquityEvidenceBundle();
     const quote = marketSnapshot({
       price: 198.5,
@@ -803,9 +834,32 @@ describe("simplified deep-equity current price reference", () => {
     );
     const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
 
-    expect(currentPriceReference.status).toBe("quote-observed");
+    expect(currentPriceReference.status).toBe("price-available");
     expect(currentPriceReference.price).toBe(198.5);
-    expect(currentPriceReference.observedAt).toBe(quote.observedAt);
+    expect(currentPriceReference.priceAsOf).toEqual({
+      kind: "fetch-time-only",
+      instant: quote.observedAt,
+    });
+  });
+
+  test("does not treat differently dated prices as evidence of a move", () => {
+    const prompt = simplifiedFinalSynthesisPrompt({
+      deepEquityModelPacket: packetWithSnapshotAndQuote(
+        snapshotWithCloses(30),
+        marketSnapshot({
+          price: 198.5,
+          observedAt: "2026-06-15T14:31:00.000Z",
+          quoteTimeUtc: "2026-06-15T14:29:07.000Z",
+        }),
+      ),
+    });
+
+    expect(prompt).toContain(
+      "Two prices of different vintage are not by themselves evidence of a market move",
+    );
+    expect(prompt).toContain(
+      "Discuss a genuine divergence only when both price instants are known and close enough for direct comparison",
+    );
   });
 
   test("passes quote currency through when identity carries it", () => {

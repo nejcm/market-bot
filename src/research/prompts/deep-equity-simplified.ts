@@ -79,6 +79,11 @@ const SIMPLIFIED_FINAL_FIGURE_USAGE =
 // This remains false because simplifiedFinalFigureEvidence calls compactDerivedViews(packet, false, true), whose valuationOnly arm drops businessFramework.
 const SIMPLIFIED_BUSINESS_FRAMEWORK_EVIDENCE_PROJECTED = false;
 
+// The simplified payload carries no extendedEvidence at all: promptSideEvidence emits the profile
+// Digest at the payload top level. Both the instruction and the required extras slot are gated off
+// The same projection, so the model is never told to cite a profile the prompt does not carry.
+const SIMPLIFIED_WEB_SUBJECT_PROFILE_EVIDENCE_PATH = "evidence.webSubjectProfile";
+
 function requireSimplifiedInput(
   input: StageInput,
 ): Pick<Required<StageInput>, "deepEquityModelPacket" | "canonicalSources"> {
@@ -102,6 +107,18 @@ function webSubjectProfile(input: StageInput): Record<string, unknown> | undefin
     factLedger: profile.factLedger,
     recentMaterialEvents: profile.recentMaterialEvents,
     openGaps: profile.openGaps,
+  };
+}
+
+// Derived from the projection itself rather than from collectedSources, so the claim the model
+// Reads and the payload it reads cannot drift apart.
+function simplifiedWebSubjectProfileEvidence(input: StageInput): {
+  readonly projected: boolean;
+  readonly path: string;
+} {
+  return {
+    projected: webSubjectProfile(input) !== undefined,
+    path: SIMPLIFIED_WEB_SUBJECT_PROFILE_EVIDENCE_PATH,
   };
 }
 
@@ -590,6 +607,7 @@ function simplifiedSteeringInstruction(
           [],
           {
             businessFrameworkEvidenceProjected: SIMPLIFIED_BUSINESS_FRAMEWORK_EVIDENCE_PROJECTED,
+            webSubjectProfileEvidence: simplifiedWebSubjectProfileEvidence(input),
           },
         )
       : buildPredictionCompletionInstruction(
@@ -665,14 +683,13 @@ export function buildSimplifiedFinalSynthesisStagePrompt(input: StageInput): str
   const { deepEquityModelPacket: packet } = requireSimplifiedInput(input);
   const hasEarningsSetup =
     isInstrumentCommand(input.command) && input.collectedSources.earningsSetup !== undefined;
-  const hasWebSubjectProfile = input.collectedSources.webSubjectProfile !== undefined;
   const reportShape = finalReportShape(
     input.command,
     input.collectedSources,
     input.context.depthProfile,
     hasEarningsSetup,
     SIMPLIFIED_BUSINESS_FRAMEWORK_EVIDENCE_PROJECTED,
-    hasWebSubjectProfile,
+    simplifiedWebSubjectProfileEvidence(input).projected,
     subjectKindForCommand(input.command),
   );
   const requiredShape =

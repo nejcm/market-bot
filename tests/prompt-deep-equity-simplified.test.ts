@@ -26,6 +26,7 @@ import type {
   ValuationCompsArtifact,
 } from "../src/sources/extended-evidence/valuation-comps";
 import type { CollectedSources } from "../src/sources/types";
+import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 import {
   collectedSources,
   deepEquityEvidenceBundle,
@@ -116,6 +117,31 @@ function sources(overrides: Partial<CollectedSources> = {}) {
     ...overrides,
   });
 }
+
+// Every answer and fact carries its own web sourceIds, which is what makes the profile citeable
+// From the top-level digest alone: the simplified payload never ships the extendedEvidence item
+// That carries the aggregate sourceIds on the legacy path.
+const citedCompanyProfile: WebSubjectProfileArtifact = {
+  version: 2,
+  generatedAt: "2026-05-28T00:00:00.000Z",
+  subjectKind: "company",
+  subjectId: "AAPL",
+  symbol: "AAPL",
+  subjectSummary: { answer: "Apple sells devices", sourceIds: ["web-1"] },
+  questions: {
+    whatItDoes: { answer: "Consumer electronics", sourceIds: ["web-1"] },
+    howItMakesMoney: { answer: "Hardware + services", sourceIds: ["web-1"] },
+    customers: { answer: "Global consumers", sourceIds: ["web-1"] },
+    geography: { answer: "Worldwide", sourceIds: ["web-1"] },
+    purchaseRecurrence: { answer: "High", sourceIds: ["web-1"] },
+    pricingPower: { answer: "Premium", sourceIds: ["web-1"] },
+    recessionCyclicality: { answer: "Moderate", sourceIds: ["web-1"] },
+  },
+  recentMaterialEvents: [{ claim: "Launched a device", sourceIds: ["web-1"] }],
+  factLedger: [{ claim: "Revenue grew", sourceIds: ["web-1"] }],
+  openGaps: ["No segment split"],
+  sourceIds: ["web-1"],
+};
 
 // No eventDateStatus, so the date is provider-estimated: report assembly suppresses every earnings
 // Forecast built on it via applyEarningsForecastPolicy's "confirmed-only" policy.
@@ -1074,6 +1100,67 @@ describe("simplified deep-equity final-synthesis prompt", () => {
     expect(parsed.requiredShape?.extras).not.toHaveProperty("businessFramework");
     expect(parsed.instruction).not.toContain("evidence.extendedEvidence");
     expect(parsed.instruction).not.toContain("extras.businessFramework.sections");
+  });
+
+  // The simplified payload carries no extendedEvidence at all, so naming that location told the
+  // Model to cite a profile from a key the prompt does not have. Same defect class as the Business
+  // Framework fix above. The assertions read the payload rather than a second copy of the expected
+  // Path, so an instruction pointing anywhere the evidence is not fails here.
+  test("names the payload key that actually carries the Web Subject Profile", () => {
+    const prompt = simplifiedFinalSynthesisPrompt({
+      collectedSources: sources({ webSubjectProfile: citedCompanyProfile }),
+    });
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction: string;
+      readonly evidence: Readonly<Record<string, unknown>>;
+      readonly requiredShape?: { readonly extras?: Readonly<Record<string, unknown>> };
+    };
+
+    expect(parsed.evidence).toHaveProperty("webSubjectProfile");
+    expect(parsed.evidence).not.toHaveProperty("extendedEvidence");
+    expect(parsed.instruction).toContain("A cited Web Subject Profile is in evidence.");
+    expect(parsed.requiredShape?.extras).toHaveProperty("webSubjectProfile");
+    const named = /A cited Web Subject Profile is in evidence\.([A-Za-z]+)\./u.exec(
+      parsed.instruction,
+    );
+    const namedKey = named?.[1] ?? "";
+    expect(namedKey).not.toBe("");
+    expect(Object.keys(parsed.evidence)).toContain(namedKey);
+  });
+
+  // The projection drops the digest when no web sourceIds were accepted, so a profile can be
+  // Present in collectedSources and absent from the prompt. Both the instruction and the extras
+  // Slot are gated off that projection, never off the collected artifact.
+  test("omits the profile claim and extras slot when no web sourceIds were accepted", () => {
+    const prompt = simplifiedFinalSynthesisPrompt({
+      collectedSources: sources({
+        webSubjectProfile: { ...citedCompanyProfile, sourceIds: [] },
+      }),
+    });
+    const parsed = JSON.parse(prompt) as {
+      readonly instruction: string;
+      readonly evidence: Readonly<Record<string, unknown>>;
+      readonly requiredShape?: { readonly extras?: Readonly<Record<string, unknown>> };
+    };
+
+    expect(parsed.evidence).not.toHaveProperty("webSubjectProfile");
+    expect(parsed.instruction).not.toContain("A cited Web Subject Profile");
+    expect(parsed.requiredShape?.extras).not.toHaveProperty("webSubjectProfile");
+  });
+
+  // The legacy payload does ship both locations, so its wording is accurate and its prompt bytes
+  // Must not move. The pinned legacy golden is the byte guard; this states the contract locally.
+  test("leaves the legacy profile wording untouched", () => {
+    const {
+      deepEquityModelPacket: _packet,
+      canonicalSources: _canonical,
+      ...generic
+    } = stageInput({ collectedSources: sources({ webSubjectProfile: citedCompanyProfile }) });
+    const prompt = buildFinalSynthesisStagePrompt(generic);
+
+    expect(prompt).toContain(
+      "A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile.",
+    );
   });
 
   test("repair reprompt names the predictions that already validated", () => {

@@ -180,13 +180,14 @@ without pretending the project has a global security master.
   existing balance-sheet scopes rather than mixing consolidated and parent measures.
 - Equity runs persist deterministic SEC companyfacts Fundamental History without changing
   `report.json`: inside the bundle for deep equity and in `normalized/fundamental-history.json` for
-  other equity runs. Each series selects the first configured concept with
-  facts, filters by the analysis cutoff, retains up to ten 10-14-month 10-K periods, and resolves
-  duplicate period ends to the latest-filed restatement. TTM flows use full FY plus latest YTD less
-  aligned prior-year YTD; mismatched periods are omitted with an audit note. Diluted-EPS TTM is
-  explicitly labeled an approximation because per-share periods are added without reweighting
-  diluted shares. FCF proxy, margins, annual-only CAGR, and margin change are derived only from
-  matched periods and compatible units.
+  other equity runs. Each revenue series buckets concepts whose latest eligible period is within 100
+  days of the most recent candidate, then selects the first by configured order; other series select
+  the first configured concept with facts. Selection then filters by the analysis cutoff, retains
+  up to ten 10-14-month 10-K periods, and resolves duplicate period ends to the latest-filed
+  restatement. TTM flows use full FY plus latest YTD less aligned prior-year YTD; mismatched periods
+  are omitted with an audit note. Diluted-EPS TTM is explicitly labeled an approximation because
+  per-share periods are added without reweighting diluted shares. FCF proxy, margins, annual-only
+  CAGR, and margin change are derived only from matched periods and compatible units.
 - Equity runs also persist the versioned canonical structured-financial artifact inside the deep
   bundle or, for other equity runs, as `normalized/financial-statements.json`. It accepts standard
   `us-gaap` and `ifrs-full` companyfacts from
@@ -208,11 +209,11 @@ without pretending the project has a global security master.
   incomplete-statement, cutoff, history-cap, and unreconciled-TTM conditions. An untagged `6-K`
   remains filing evidence and produces an explicit structured-financial gap; model table extraction
   is outside this artifact's Phase 1 trust boundary.
-- Shadow parity telemetry compares overlapping canonical periods, values, TTM derivations, and
-  currency/unit basis with current fundamental-history and Financial Lens outputs. Differences are
-  either matched, assigned a deterministic explanation (including the legacy `10-K`/`10-Q` form
-  boundary), or marked unexplained; fixture gates require zero unexplained differences before a
-  consumer migration.
+- Shadow parity telemetry compares selected concepts, overlapping canonical periods, values, TTM
+  derivations, and currency/unit basis with current fundamental-history and Financial Lens outputs.
+  Differences are either matched, assigned a deterministic explanation (including the legacy
+  `10-K`/`10-Q` form boundary), or marked unexplained; fixture gates require zero unexplained
+  differences before a consumer migration.
 - Equity reports optionally expose versioned `equityAnalysisCompleteness`. Its
   `financialCoreStatus` is determined only by canonical primary financials; valuation,
   expectations, capital/ownership, and operating-KPI dimensions affect only `coverageLevel`.
@@ -349,11 +350,12 @@ without pretending the project has a global security master.
 - SEC duration selection cannot always distinguish quarter-only from year-to-date facts. Derived
   annualized metrics must preserve period metadata and be treated as screening evidence.
 - Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
-  series: the first configured concept with facts supplies the whole series. This keeps selection
-  consistent and deterministic but can shorten history. Diluted-EPS TTM remains approximate when
-  share counts vary across component periods. Because each period independently selects its
-  latest-filed fact, a TTM calculation can combine a restated latest YTD with a prior-year YTD that
-  was not restated in the same filing.
+  series. Revenue buckets concepts whose latest eligible period is within 100 days of the most
+  recent candidate, then uses configured order; other series use the first configured concept with
+  facts. This keeps selection consistent and deterministic but can shorten history. Diluted-EPS TTM
+  remains approximate when share counts vary across component periods. Because each period
+  independently selects its latest-filed fact, a TTM calculation can combine a restated latest YTD
+  with a prior-year YTD that was not restated in the same filing.
 - The canonical financial-statements artifact drives the optional equity completeness contract and
   its Phase 2 consumers. Companyfacts current-report financing coverage is limited to explicitly
   tagged standard-taxonomy proceeds and cost facts; untagged narrative disclosures remain outside

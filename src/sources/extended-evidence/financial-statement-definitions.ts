@@ -14,6 +14,17 @@ export interface FinancialStatementSeriesDefinition {
   readonly concepts: Readonly<Record<FinancialStatementTaxonomy, readonly string[]>>;
 }
 
+const DAY_MS = 86_400_000;
+export const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
+
+export function isRevenueConceptInRecencyBucket(
+  periodEnd: string,
+  latestPeriodEnd: string,
+): boolean {
+  const ageDays = (Date.parse(latestPeriodEnd) - Date.parse(periodEnd)) / DAY_MS;
+  return Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= REVENUE_CONCEPT_RECENCY_BUCKET_DAYS;
+}
+
 export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatementSeriesDefinition[] =
   [
     {

@@ -27,6 +27,7 @@ import {
   companyDescription,
   compactNumber,
   financialTrendCurrency,
+  financialTrendGaps,
   financialTrendRows,
   formatTrendAmount,
   NO_COMPANY_DESCRIPTION,
@@ -1302,12 +1303,13 @@ function renderEquityMarkdownReport(
     | undefined,
 ): string {
   const title = reportTitle(report);
-  const materialGaps = report.dataGaps.filter(
-    (gap) => classifyGap(gap, report.symbol) === "material",
-  );
-  const diagnosticGaps = report.dataGaps.filter(
-    (gap) => classifyGap(gap, report.symbol) === "diagnostic",
-  );
+  const presentationGaps =
+    collectedSources?.fundamentalHistory === undefined
+      ? []
+      : financialTrendGaps(collectedSources.fundamentalHistory);
+  const allGaps = [...new Set([...report.dataGaps, ...presentationGaps])];
+  const materialGaps = allGaps.filter((gap) => classifyGap(gap, report.symbol) === "material");
+  const diagnosticGaps = allGaps.filter((gap) => classifyGap(gap, report.symbol) === "diagnostic");
   const additionalSourceIds = [
     ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
     ...(collectedSources?.fundamentalHistory === undefined ||

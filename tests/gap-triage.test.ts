@@ -39,6 +39,10 @@ describe("gap triage", () => {
     ],
     ["missing FRED credential", "fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
     [
+      "feature-named optional-provider credential absence",
+      "earnings-setup-implied-move: MARKET_BOT_TRADIER_API_TOKEN is not set; implied move unavailable",
+    ],
+    [
       "valuation peer exclusion",
       "valuation-peers: Peer DELL excluded from valuation comps: market cap outside range",
     ],
@@ -67,6 +71,10 @@ describe("gap triage", () => {
         cause: "provider-data-missing",
         evidenceQualityImpact: "core-cap",
       } satisfies SourceGap,
+    ],
+    [
+      "unrecognised feature-named credential gap",
+      "earnings-setup-implied-move: MARKET_BOT_UNKNOWN_API_TOKEN is not set",
     ],
   ])("classifies %s as material", (_label, gap) => {
     expect(classifyGap(gap)).toBe("material");

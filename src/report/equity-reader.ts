@@ -36,6 +36,7 @@ interface CompanyDescriptionReport {
 }
 
 export const NO_COMPANY_DESCRIPTION = "No cited plain-language company description is available.";
+const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
 
 export function periodLabel(period: LabeledPeriod): string {
   if (period.kind === "ttm") {
@@ -46,10 +47,11 @@ export function periodLabel(period: LabeledPeriod): string {
 
 export function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod[] {
   const annual = new Map<string, TrendPeriod>();
-  for (const series of Object.values(history.series)) {
+  for (const key of TREND_SERIES_KEYS) {
+    const series = history.series[key];
     for (const point of series.annual) {
       const existing = annual.get(point.periodEnd);
-      if (existing === undefined || point.filedAt < existing.filedAt) {
+      if (existing === undefined || point.filedAt > existing.filedAt) {
         annual.set(point.periodEnd, {
           kind: "annual",
           periodEnd: point.periodEnd,
@@ -63,13 +65,14 @@ export function trendPeriods(history: FundamentalHistoryArtifact): readonly Tren
     .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
     .slice(-5);
   let ttm: TrendPeriod | undefined = undefined;
-  for (const series of Object.values(history.series)) {
+  for (const key of TREND_SERIES_KEYS) {
+    const series = history.series[key];
     const point = series.ttm;
     if (
       point !== undefined &&
       (ttm === undefined ||
         point.periodEnd > ttm.periodEnd ||
-        (point.periodEnd === ttm.periodEnd && point.filedAt < ttm.filedAt))
+        (point.periodEnd === ttm.periodEnd && point.filedAt > ttm.filedAt))
     ) {
       ttm = {
         kind: "ttm",
@@ -79,6 +82,18 @@ export function trendPeriods(history: FundamentalHistoryArtifact): readonly Tren
     }
   }
   return ttm === undefined ? annualRows : [...annualRows, ttm];
+}
+
+export function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {
+  const missingRevenuePeriods = trendPeriods(history).filter(
+    (period) => historyPoint(history.series.revenue, period.periodEnd, period.kind) === undefined,
+  ).length;
+  if (missingRevenuePeriods === 0) {
+    return [];
+  }
+  return [
+    `fundamental-history-revenue: SEC revenue history is unavailable for ${String(missingRevenuePeriods)} rendered period(s); affected revenue and derived operating-margin values are shown as unavailable`,
+  ];
 }
 
 export function historyPoint(

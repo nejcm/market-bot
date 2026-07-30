@@ -11,6 +11,9 @@ const DIAGNOSTIC_REASON_CODES = new Set([
 
 const OPTIONAL_PROVIDER_SOURCE =
   /^(?:finnhub|firecrawl|fred|glassnode|marketaux|massive|tradier)(?:-|$)/u;
+// Exa is the primary web-evidence provider, so a missing Exa credential remains material.
+const OPTIONAL_PROVIDER_CREDENTIAL =
+  /\bMARKET_BOT_(?:FINNHUB_API_TOKEN|FIRECRAWL_API_KEY|FRED_API_KEY|GLASSNODE_API_KEY|MARKETAUX_API_TOKEN|MASSIVE_API_KEY|POLYGON_API_KEY|TRADIER_API_TOKEN)\b/u;
 const OPTIONAL_PROVIDER_ABSENCE =
   /(?:credential|api[_ -]?token|api[_ -]?key).*(?:missing|not set)|missing.*(?:credential|api[_ -]?token|api[_ -]?key)/iu;
 const ENTITLEMENT_FAILURE = /(?:entitlement|status\s*403|\b403\b|access is restricted)/iu;
@@ -46,7 +49,7 @@ export function classifyGap(gap: SourceGap | string, reportSymbol?: string): Gap
       diagnosticReasonCode(gap) ||
       source === "valuation-peers" ||
       isPeerSecGap(source, scopedSymbol, reportSymbol) ||
-      (OPTIONAL_PROVIDER_SOURCE.test(source) &&
+      ((OPTIONAL_PROVIDER_SOURCE.test(source) || OPTIONAL_PROVIDER_CREDENTIAL.test(gap)) &&
         (OPTIONAL_PROVIDER_ABSENCE.test(gap) || ENTITLEMENT_FAILURE.test(gap)))
     ) {
       return "diagnostic";
@@ -63,7 +66,9 @@ export function classifyGap(gap: SourceGap | string, reportSymbol?: string): Gap
     return "diagnostic";
   }
   if (
-    (OPTIONAL_PROVIDER_SOURCE.test(source) || OPTIONAL_PROVIDER_SOURCE.test(provider)) &&
+    (OPTIONAL_PROVIDER_SOURCE.test(source) ||
+      OPTIONAL_PROVIDER_SOURCE.test(provider) ||
+      OPTIONAL_PROVIDER_CREDENTIAL.test(gap.message)) &&
     (gap.cause === "missing-credential" || ENTITLEMENT_FAILURE.test(gap.message))
   ) {
     return "diagnostic";

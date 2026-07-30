@@ -153,6 +153,22 @@ function fundamentalHistoryComparisons(
     if (artifactSeries === undefined) {
       continue;
     }
+    const artifactConcept = latestFact(artifactSeries)?.concept;
+    const legacyConcept = historySeries?.concept;
+    if (
+      artifactConcept !== undefined &&
+      legacyConcept !== undefined &&
+      artifactConcept !== legacyConcept
+    ) {
+      comparisons.push(
+        differenceComparison({
+          consumer: "fundamental-history",
+          field: `${historyKey}.concept`,
+          artifactValue: artifactConcept ?? "missing",
+          legacyValue: legacyConcept ?? "missing",
+        }),
+      );
+    }
     const artifactAnnualByPeriod = new Map(
       artifactSeries.annual.map((fact) => [fact.periodKey, fact]),
     );

@@ -1617,7 +1617,7 @@ describe("run workspace view", () => {
     );
   });
 
-  test("selects annual periods from non-column fundamental series", () => {
+  test("ignores annual periods from non-column fundamental series", () => {
     const history = fundamentalHistoryFixture();
     const annualPoint = history.series.dilutedEps.annual.at(-1);
     expect(annualPoint).not.toBeUndefined();
@@ -1641,14 +1641,10 @@ describe("run workspace view", () => {
       },
     });
 
-    expect(periods).toContainEqual({
-      kind: "annual",
-      periodEnd: annualPeriodEnd,
-      filedAt: "2026-11-01",
-    });
+    expect(periods.some((period) => period.periodEnd === annualPeriodEnd)).toBe(false);
   });
 
-  test("selects the TTM period from non-column fundamental series", () => {
+  test("ignores the TTM period from non-column fundamental series", () => {
     const history = fundamentalHistoryFixture();
     const annualPoint = history.series.dilutedEps.annual.at(-1);
     expect(annualPoint).not.toBeUndefined();
@@ -1672,11 +1668,63 @@ describe("run workspace view", () => {
       },
     });
 
-    expect(periods).toContainEqual({
-      kind: "ttm",
-      periodEnd: ttmPeriodEnd,
-      filedAt: "2027-02-01",
+    expect(periods.some((period) => period.periodEnd === ttmPeriodEnd)).toBe(false);
+  });
+
+  test("labels each trend row with the latest filing among its displayed values", () => {
+    const history = fundamentalHistoryFixture();
+    const latestRevenue = history.series.revenue.annual.at(-1);
+    expect(latestRevenue).not.toBeUndefined();
+    if (latestRevenue === undefined) {
+      return;
+    }
+    const { periodEnd } = latestRevenue;
+    const periods = trendPeriods({
+      ...history,
+      series: {
+        ...history.series,
+        revenue: {
+          ...history.series.revenue,
+          annual: history.series.revenue.annual.map((point) =>
+            point.periodEnd === periodEnd ? { ...point, filedAt: "2025-11-02" } : point,
+          ),
+        },
+        netIncome: {
+          ...history.series.netIncome,
+          annual: history.series.netIncome.annual.map((point) =>
+            point.periodEnd === periodEnd ? { ...point, filedAt: "2025-11-03" } : point,
+          ),
+        },
+        dilutedEps: {
+          ...history.series.dilutedEps,
+          annual: history.series.dilutedEps.annual.map((point) =>
+            point.periodEnd === periodEnd ? { ...point, filedAt: "2026-01-15" } : point,
+          ),
+        },
+      },
     });
+
+    expect(periods.find((period) => period.periodEnd === periodEnd)?.filedAt).toBe("2025-11-03");
+  });
+
+  test("surfaces missing revenue history as a material reader gap", () => {
+    const history = fundamentalHistoryFixture();
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      report: completenessReport(),
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          revenue: { ...history.series.revenue, annual: [], notes: [] },
+          operatingMargin: { ...history.series.operatingMargin, annual: [], notes: [] },
+        },
+      },
+    });
+
+    expect(view.equityPresentation?.defaultView.materialGaps).toContain(
+      "fundamental-history-revenue: SEC revenue history is unavailable for 3 rendered period(s); affected revenue and derived operating-margin values are shown as unavailable",
+    );
   });
 
   test("uses the cited company-description fallback instead of report summary", () => {

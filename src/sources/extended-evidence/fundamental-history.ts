@@ -10,6 +10,7 @@ import {
   type SecFactValue,
   type SecMetricDefinition,
 } from "./sec-edgar";
+import { isRevenueConceptInRecencyBucket } from "./financial-statement-definitions";
 
 export type FundamentalHistorySeriesKey =
   | "revenue"
@@ -85,6 +86,12 @@ interface SelectedFacts {
   readonly facts: readonly SecFactValue[];
 }
 
+interface RankedSelectedFacts extends SelectedFacts {
+  readonly priority: number;
+  readonly unitPriority: number;
+  readonly latest: SecFactValue;
+}
+
 interface FactWithPeriod extends SecFactValue {
   readonly fp: string;
   readonly fy: number;
@@ -134,28 +141,62 @@ function metricDefinition(key: RawSeriesDefinition["key"]): SecMetricDefinition 
   return definition;
 }
 
-function selectFacts(payload: unknown, definition: SecMetricDefinition): SelectedFacts | undefined {
+function selectFacts(
+  payload: unknown,
+  definition: SecMetricDefinition,
+  analysisAsOf?: string,
+): SelectedFacts | undefined {
   if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
     return undefined;
   }
   const gaap = payload.facts["us-gaap"];
-  for (const concept of definition.concepts) {
+  const ranked: RankedSelectedFacts[] = [];
+  for (const [priority, concept] of definition.concepts.entries()) {
     const fact = isRecord(gaap[concept]) ? gaap[concept] : undefined;
     const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
     if (units === undefined) {
       continue;
     }
-    for (const currency of definition.unitKeys) {
+    for (const [unitPriority, currency] of definition.unitKeys.entries()) {
       const facts = readArray(units, currency).flatMap((value) => {
         const parsed = readSecFactValue(value);
         return parsed === undefined ? [] : [parsed];
       });
       if (facts.length > 0) {
-        return { concept, currency, facts };
+        if (definition.key !== "revenue") {
+          return { concept, currency, facts };
+        }
+        const [latest] = facts
+          .filter((candidate) => isFactObservableAsOf(candidate, analysisAsOf))
+          .toSorted(
+            (left, right) =>
+              (right.end ?? "").localeCompare(left.end ?? "") ||
+              (right.filed ?? "").localeCompare(left.filed ?? ""),
+          );
+        if (latest !== undefined) {
+          ranked.push({ concept, currency, facts, priority, unitPriority, latest });
+        }
       }
     }
   }
-  return undefined;
+  const latestPeriodEnd = ranked
+    .map((candidate) => candidate.latest.end ?? "")
+    .toSorted()
+    .at(-1);
+  if (latestPeriodEnd === undefined || latestPeriodEnd === "") {
+    return undefined;
+  }
+  return ranked
+    .filter((candidate) =>
+      isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd),
+    )
+    .toSorted(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.unitPriority - right.unitPriority ||
+        left.concept.localeCompare(right.concept) ||
+        left.currency.localeCompare(right.currency),
+    )[0];
 }
 
 function factSignature(fact: SecFactValue): string {
@@ -387,7 +428,7 @@ function rawSeries(
   definition: RawSeriesDefinition,
   analysisAsOf?: string,
 ): FundamentalHistorySeries {
-  const selected = selectFacts(payload, metricDefinition(definition.key));
+  const selected = selectFacts(payload, metricDefinition(definition.key), analysisAsOf);
   const notes: string[] = [];
   if (selected === undefined) {
     notes.push("annual:missing-concept: no SEC facts found for the ordered concept list");

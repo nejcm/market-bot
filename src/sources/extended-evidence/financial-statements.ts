@@ -3,6 +3,7 @@ import type { CollectContext } from "../types";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
 import {
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  isRevenueConceptInRecencyBucket,
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
 import {
@@ -176,13 +177,56 @@ function factsForDefinition(
   if (root === undefined) {
     return [];
   }
-  for (const concept of definition.concepts[taxonomy]) {
-    const facts = unitFacts(taxonomy, root, concept);
-    if (facts.some((fact) => eligible(fact))) {
-      return facts;
+  const concepts = definition.concepts[taxonomy];
+  if (definition.key !== "revenue") {
+    for (const concept of concepts) {
+      const facts = unitFacts(taxonomy, root, concept);
+      if (facts.some((fact) => eligible(fact))) {
+        return facts;
+      }
     }
+    return [];
   }
-  return [];
+  const ranked = concepts
+    .map((concept, priority) => {
+      const facts = unitFacts(taxonomy, root, concept);
+      const [latest] = facts
+        .filter((fact) => eligible(fact))
+        .toSorted(
+          (left, right) =>
+            right.periodEnd.localeCompare(left.periodEnd) ||
+            right.filedAt.localeCompare(left.filedAt),
+        );
+      return { facts, latest, priority };
+    })
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        readonly facts: readonly ParsedFact[];
+        readonly latest: ParsedFact;
+        readonly priority: number;
+      } => candidate.latest !== undefined,
+    );
+  const latestPeriodEnd = ranked
+    .map((candidate) => candidate.latest.periodEnd)
+    .toSorted()
+    .at(-1);
+  if (latestPeriodEnd === undefined) {
+    return [];
+  }
+  return (
+    ranked
+      .filter((candidate) =>
+        isRevenueConceptInRecencyBucket(candidate.latest.periodEnd, latestPeriodEnd),
+      )
+      .toSorted(
+        (left, right) =>
+          left.priority - right.priority ||
+          left.latest.concept.localeCompare(right.latest.concept) ||
+          left.latest.unit.localeCompare(right.latest.unit),
+      )[0]?.facts ?? []
+  );
 }
 
 function allFactsForDefinition(

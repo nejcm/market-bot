@@ -16,6 +16,7 @@ import type { HistoricalResearchContext } from "../src/research/historical-conte
 import type { DepthProfile, ResearchContext } from "../src/research/research-context-types";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -124,6 +125,54 @@ test("renders an uncited real company description as a paragraph", () => {
 
   expect(markdown).toContain(`## What the Company Does\n\n${description}\n`);
   expect(markdown).not.toContain(`\n- ${description}`);
+});
+
+test("declares missing revenue history instead of leaving unexplained trend-table blanks", () => {
+  const history = deriveFundamentalHistory(
+    {
+      facts: {
+        "us-gaap": {
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                {
+                  val: 20,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2024,
+                  filed: "2024-11-01",
+                  start: "2023-10-01",
+                  end: "2024-09-30",
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    {
+      symbol: "AAPL",
+      generatedAt: "2025-08-01T00:00:00.000Z",
+      analysisAsOf: "2025-08-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    },
+  );
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: [],
+    },
+    undefined,
+    { fundamentalHistory: history },
+  );
+
+  expect(markdown).toContain("FY ending 2024-09-30 (filed 2024-11-01) | — | 20 | — | —");
+  expect(markdown).toContain(
+    "**Material:** fundamental-history-revenue: SEC revenue history is unavailable",
+  );
 });
 
 const spotlightSource: Source = {

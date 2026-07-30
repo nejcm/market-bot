@@ -20,6 +20,7 @@ import type {
 import {
   companyDescription,
   financialTrendCurrency,
+  financialTrendGaps,
   financialTrendRows,
   periodLabel,
 } from "../../src/report/equity-reader";
@@ -1820,7 +1821,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
 
   const forecastItems = scoredForecasts(report, detail.score, detail.missAutopsy);
   const targetHealth = predictionTargetHealth(detail.analytics, report);
-  const splitGaps = splitDataGaps(stringArray(report, "dataGaps"));
+  const trendGaps =
+    detail.fundamentalHistory === undefined ? [] : financialTrendGaps(detail.fundamentalHistory);
+  const splitGaps = splitDataGaps([...new Set([...stringArray(report, "dataGaps"), ...trendGaps])]);
   const reportSymbol = typeof report?.symbol === "string" ? report.symbol : detail.summary.symbol;
   const triagedGaps = splitGaps.otherGaps.map((gap) => ({
     text: gap,

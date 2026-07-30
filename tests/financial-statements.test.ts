@@ -226,6 +226,33 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  test("uses configured revenue order within the recency bucket", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(175, 2025)] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: {
+            USD: [
+              fact({
+                value: 17,
+                form: "10-K",
+                fiscalYear: 2026,
+                fiscalPeriod: "FY",
+                filedAt: "2026-05-01",
+                periodStart: "2025-04-01",
+                periodEnd: "2026-03-31",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(artifact.statements.incomeStatement.revenue.annual).toEqual([
+      expect.objectContaining({ value: 175, concept: "Revenues" }),
+    ]);
+  });
+
   test.each([
     { cadence: "quarterly", form: "10-Q" as const, endMonthDay: "03-31", fp: "Q1" },
     { cadence: "semiannual", form: "6-K" as const, endMonthDay: "06-30", fp: "H1" },
@@ -498,6 +525,78 @@ describe("canonical financial statements", () => {
       expect.objectContaining({
         consumer: "fundamental-history",
         field: "revenue.annual",
+        status: "unexplained",
+      }),
+    );
+  });
+
+  test("reports selected-concept divergence as an unexplained parity mismatch", () => {
+    const companyFacts = payload({ "us-gaap": { Revenues: { USD: [annual(100, 2025)] } } });
+    const artifact = derive(companyFacts);
+    const history = deriveFundamentalHistory(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      analysisAsOf: "2026-06-15T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const parity = attachFinancialStatementParity(artifact, {
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          revenue: {
+            ...history.series.revenue,
+            concept: "RevenueFromContractWithCustomerExcludingAssessedTax",
+          },
+        },
+      },
+    }).shadowParity;
+
+    expect(parity.comparisons).toContainEqual({
+      consumer: "fundamental-history",
+      field: "revenue.concept",
+      status: "unexplained",
+      artifactValue: "Revenues",
+      legacyValue: "RevenueFromContractWithCustomerExcludingAssessedTax",
+    });
+  });
+
+  test("does not report a concept divergence when the artifact concept is missing", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        NetIncomeLoss: { USD: [annual(10, 2025)] },
+      },
+    });
+    const artifact = derive(companyFacts);
+    const history = deriveFundamentalHistory(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      analysisAsOf: "2026-06-15T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const parity = attachFinancialStatementParity(
+      {
+        ...artifact,
+        statements: {
+          ...artifact.statements,
+          incomeStatement: {
+            ...artifact.statements.incomeStatement,
+            revenue: {
+              ...artifact.statements.incomeStatement.revenue,
+              annual: [],
+              interim: [],
+            },
+          },
+        },
+      },
+      { fundamentalHistory: history },
+    ).shadowParity;
+
+    expect(parity.comparisons).not.toContainEqual(
+      expect.objectContaining({
+        consumer: "fundamental-history",
+        field: "revenue.concept",
         status: "unexplained",
       }),
     );

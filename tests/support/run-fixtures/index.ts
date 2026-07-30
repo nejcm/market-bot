@@ -39,7 +39,7 @@ export interface FixtureMeta {
   readonly quickModel?: string;
   readonly synthesisModel?: string;
   readonly challengerModels?: readonly string[];
-  readonly configuredProviders?: readonly ("finnhub" | "tradier")[];
+  readonly configuredProviders?: readonly ("exa" | "finnhub" | "firecrawl" | "tradier")[];
   readonly secUserAgent?: string;
   readonly webGatherDisabled?: boolean;
   readonly evidenceRequestOptions?: {
@@ -66,6 +66,7 @@ export interface RunFixtureOptions {
   readonly llm: "replay" | "live";
   readonly keepDataDir?: boolean;
   readonly dataDir?: string;
+  readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
   readonly onDataRequest?: (request: FixtureDataRequest) => void;
   readonly reasoningVariant?: "legacy" | "simplified";
@@ -187,7 +188,9 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
     ...config,
     sourceOptions: {
       ...sourceOptions,
+      ...(configuredProviders.has("exa") ? { exaApiKey: "fixture-token" } : {}),
       ...(configuredProviders.has("finnhub") ? { finnhubApiToken: "fixture-token" } : {}),
+      ...(configuredProviders.has("firecrawl") ? { firecrawlApiKey: "fixture-token" } : {}),
       ...(configuredProviders.has("tradier") ? { tradierApiToken: "fixture-token" } : {}),
     },
     evidenceRequestOptions: meta.evidenceRequestOptions ?? {
@@ -268,7 +271,7 @@ export async function runFixture(
   const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
   const config = fixtureConfig(fixture.meta, dataDir, resolvedOptions.llm);
   const fetchImpl = observedFetch(
-    makeReplayFetch(fixture.dataCassette, fixture.dir),
+    resolvedOptions.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
     resolvedOptions.onDataRequest,
   );
   const provider =
@@ -415,7 +418,7 @@ export async function runFixturePair(
   const { dataDir, tempRoot } = await fixtureDataDir(`${name}-pair`, requestedDataDir);
   const config = fixtureConfig(fixture.meta, dataDir, options.llm);
   const fetchImpl = observedFetch(
-    makeReplayFetch(fixture.dataCassette, fixture.dir),
+    options.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
     options.onDataRequest,
   );
   const collectionProvider =

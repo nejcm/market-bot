@@ -33,6 +33,7 @@ const REPLAY_FIXTURES = [
   "equity-fpi-ifrs-semiannual",
   "equity-fpi-quarterly",
   "equity-nbis-deep",
+  "equity-web-fallback-deep",
 ] as const;
 
 const PROVIDER_DEGRADATION_REASON_CODES: ReadonlySet<string> = new Set([

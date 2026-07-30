@@ -20,6 +20,7 @@ const FIXTURES = [
   "equity-fpi-ifrs-semiannual",
   "equity-analysis-comprehensive",
   "equity-analysis-estimated-suppressed",
+  "equity-web-fallback-deep",
 ] as const;
 
 const CAPTURE_EARNINGS_FIXTURES = new Set<string>([

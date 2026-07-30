@@ -61,6 +61,7 @@ const FIXTURE_NAMES = [
   "equity-analysis-estimated-suppressed",
   "equity-fpi-quarterly",
   "equity-fpi-ifrs-semiannual",
+  "equity-web-fallback-deep",
 ] as const;
 const CHART_KEY_FRAGMENT = "/v8/finance/chart/";
 const SEED = 17;

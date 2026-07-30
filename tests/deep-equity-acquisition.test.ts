@@ -8,8 +8,9 @@ import {
 import { createCollectContext, resetSourceResilienceForTests } from "../src/sources/source-request";
 import { collectTradierPacket } from "../src/sources/tradier-packet";
 import type { FetchLike } from "../src/sources/types";
+import { WEB_GATHER_DUPLICATE_REQUEST_REASON } from "../src/sources/web-gather-rejection-reasons";
 import { makeReplayFetch } from "./support/run-fixtures/data-cassette";
-import { createFixtureConfig, loadFixture } from "./support/run-fixtures";
+import { createFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
 
 const NOW = new Date("2026-06-15T14:30:00.000Z");
 const AAPL_COMMAND: InstrumentCommand = {
@@ -21,19 +22,35 @@ const AAPL_COMMAND: InstrumentCommand = {
 
 interface RecordingRequestAdapter {
   readonly fetch: FetchLike;
+  readonly requests: readonly {
+    readonly url: string;
+    readonly method: string;
+    readonly body?: string;
+  }[];
   readonly urls: string[];
 }
 
 function recordingRequestAdapter(
-  respond: (url: string) => Response | Promise<Response>,
+  respond: (url: string, init?: RequestInit) => Response | Promise<Response>,
 ): RecordingRequestAdapter {
   const urls: string[] = [];
+  const requests: {
+    url: string;
+    method: string;
+    body?: string;
+  }[] = [];
   return {
+    requests,
     urls,
-    fetch: async (input) => {
+    fetch: async (input, init) => {
       const url = input instanceof Request ? input.url : String(input);
       urls.push(url);
-      return respond(url);
+      requests.push({
+        url,
+        method: (init?.method ?? "GET").toUpperCase(),
+        ...(typeof init?.body === "string" ? { body: init.body } : {}),
+      });
+      return respond(url, init);
     },
   };
 }
@@ -360,5 +377,102 @@ describe("deep-equity packet acquisition", () => {
     expect(
       result.sourceGaps.filter((gap) => gap.cause === "unsupported-coverage").length,
     ).toBeGreaterThanOrEqual(2);
+  });
+
+  test("replays web gather through Exa search and Firecrawl fallback once", async () => {
+    const fixture = await loadFixture("equity-web-fallback-deep");
+    const replayFetch = makeReplayFetch(fixture.dataCassette, fixture.dir);
+    const adapter = recordingRequestAdapter((url, init) => replayFetch(url, init));
+    const result = await runFixture("equity-web-fallback-deep", {
+      llm: "replay",
+      fetchImpl: adapter.fetch,
+    });
+
+    try {
+      const exaSearchRequests = adapter.requests.filter(
+        (request) =>
+          new URL(request.url).hostname === "api.exa.ai" &&
+          new URL(request.url).pathname === "/search",
+      );
+      const firecrawlRequests = adapter.requests.filter(
+        (request) => new URL(request.url).hostname === "api.firecrawl.dev",
+      );
+      const searchAudit = result.trace.webGatherLoop?.acceptedRequests.find(
+        (request) => request.tool === "web_search",
+      );
+      expect({
+        exaSearchCount: exaSearchRequests.length,
+        firecrawlPaths: firecrawlRequests.map((request) => new URL(request.url).pathname),
+        fallback: searchAudit?.fallback,
+      }).toEqual({
+        exaSearchCount: 1,
+        firecrawlPaths: ["/v2/search"],
+        fallback: {
+          attemptedProviders: ["exa", "firecrawl"],
+          servedProvider: "firecrawl",
+          fallbackReason: "empty",
+          firecrawlCreditsUsed: 3,
+        },
+      });
+
+      const fetchedUrls = adapter.requests
+        .filter(
+          (request) =>
+            new URL(request.url).hostname === "api.exa.ai" &&
+            new URL(request.url).pathname === "/contents",
+        )
+        .map((request) => {
+          const body = JSON.parse(request.body ?? "{}") as { readonly urls?: readonly string[] };
+          return body.urls?.[0];
+        });
+      expect(fetchedUrls).toEqual([
+        "https://investor.example/aapl-capital-allocation",
+        "https://industry.example/apple-services-kpis",
+      ]);
+
+      expect(result.trace.webGatherLoop?.rejectedRequests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            tool: "web_search",
+            reason: "web_search query must mention the run subject",
+          }),
+          expect.objectContaining({
+            tool: "web_fetch",
+            reason: WEB_GATHER_DUPLICATE_REQUEST_REASON,
+          }),
+        ]),
+      );
+      expect(searchAudit?.duplicateResults).toHaveLength(1);
+
+      const webSources =
+        result.deepEquityEvidenceBundle?.evidence.extendedSources.filter(
+          (source) => source.kind === "web",
+        ) ?? [];
+      expect({
+        removedInstruction:
+          (result.trace.webGatherLoop?.sanitizer.removedInstructionSpanCount ?? 0) > 0,
+        removedChrome: (result.trace.webGatherLoop?.sanitizer.removedChromeHtmlCount ?? 0) > 0,
+        containsUnsafeText: /ignore previous|system prompt/iu.test(JSON.stringify(webSources)),
+      }).toEqual({
+        removedInstruction: true,
+        removedChrome: true,
+        containsUnsafeText: false,
+      });
+      expect({
+        sourceIds: webSources.map((source) => source.id),
+        profile: result.deepEquityEvidenceBundle?.evidence.webSubjectProfile,
+        stages: result.trace.stages,
+      }).toMatchObject({
+        sourceIds: ["web-aapl-6c345d05", "web-aapl-b15b01d7"],
+        profile: {
+          version: 3,
+          subjectId: "AAPL",
+          sourceIds: ["web-aapl-6c345d05", "web-aapl-b15b01d7"],
+        },
+        stages: expect.arrayContaining(["web-subject-profile"]),
+      });
+    } finally {
+      await result.cleanup();
+    }
   });
 });

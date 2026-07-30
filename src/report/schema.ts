@@ -9,6 +9,7 @@ import {
   type Scenario,
 } from "../domain/types";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import { resolveCoverageLevel } from "../sources/extended-evidence/equity-analysis-completeness";
 import { retainedEvidenceSpanForEarningsDate } from "../sources/extended-evidence/earnings-date-confirmation";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
@@ -665,7 +666,8 @@ function validateEquityAnalysisCompleteness(
       dimension.status !== "complete" &&
       dimension.status !== "partial" &&
       dimension.status !== "blocked" &&
-      dimension.status !== "not-applicable"
+      dimension.status !== "not-applicable" &&
+      dimension.status !== "not-assessed"
     ) {
       throw new Error(`Equity analysis completeness ${key} status is invalid`);
     }
@@ -692,21 +694,19 @@ function validateEquityAnalysisCompleteness(
         `Equity analysis completeness ${key} not-applicable status requires affirmative evidence`,
       );
     }
+    if (dimension.status === "not-assessed" && dimension.reasonCodes.length === 0) {
+      throw new Error(
+        `Equity analysis completeness ${key} not-assessed status requires a reason code`,
+      );
+    }
   }
-  const completeOrNotApplicable = [
+  const dimensions = [
     completeness.dimensions.valuation,
     completeness.dimensions.expectations,
     completeness.dimensions.capitalOwnership,
     completeness.dimensions.operatingKpis,
-  ].filter(
-    (dimension) => dimension.status === "complete" || dimension.status === "not-applicable",
-  ).length;
-  let expectedCoverage: "comprehensive" | "substantial" | "limited" = "substantial";
-  if (primaryStatus !== "complete" || completeOrNotApplicable <= 1) {
-    expectedCoverage = "limited";
-  } else if (completeOrNotApplicable === 4) {
-    expectedCoverage = "comprehensive";
-  }
+  ];
+  const expectedCoverage = resolveCoverageLevel(dimensions, primaryStatus);
   if (completeness.coverageLevel !== expectedCoverage) {
     throw new Error("Equity analysis completeness coverageLevel conflicts with dimension statuses");
   }

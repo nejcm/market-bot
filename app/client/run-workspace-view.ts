@@ -1,4 +1,5 @@
 import type { RunDetail } from "../types";
+import { classifyGap, type GapTriage } from "../../src/report/gap-triage";
 import {
   resolveMarketSnapshotPriceAsOf,
   type EquityAnalysisDimensionStatus,
@@ -113,6 +114,10 @@ export interface RunWorkspaceEvidenceView {
 export interface RunWorkspaceGapsView {
   readonly shortfalls: readonly string[];
   readonly otherGaps: readonly string[];
+  readonly triagedGaps: readonly {
+    readonly text: string;
+    readonly triage: GapTriage;
+  }[];
   readonly visible: boolean;
 }
 
@@ -549,7 +554,8 @@ export function equityCompletenessView(
       (dimension.status !== "complete" &&
         dimension.status !== "partial" &&
         dimension.status !== "blocked" &&
-        dimension.status !== "not-applicable") ||
+        dimension.status !== "not-applicable" &&
+        dimension.status !== "not-assessed") ||
       typeof dimension.asOf !== "string"
     ) {
       return [];
@@ -1511,6 +1517,10 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const forecastItems = scoredForecasts(report, detail.score, detail.missAutopsy);
   const targetHealth = predictionTargetHealth(detail.analytics, report);
   const splitGaps = splitDataGaps(stringArray(report, "dataGaps"));
+  const triagedGaps = splitGaps.otherGaps.map((gap) => ({
+    text: gap,
+    triage: classifyGap(gap),
+  }));
   const forecastsVisible =
     forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined;
 
@@ -1541,7 +1551,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
           marketSnapshotMounted: snapshot !== undefined,
         })
       : undefined;
-  const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
+  const gapsVisible = splitGaps.shortfalls.length > 0 || triagedGaps.length > 0;
 
   const tableOfContents = [
     { key: "summary", label: "Summary", visible: summary !== "" },
@@ -1631,7 +1641,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       ...(businessFramework !== undefined ? { businessFramework } : {}),
       extendedItems,
     },
-    gaps: { ...splitGaps, visible: gapsVisible },
+    gaps: { ...splitGaps, triagedGaps, visible: gapsVisible },
     sources: { items: sources(report) },
     ...(snapshot !== undefined ? { snapshot } : {}),
     tableOfContents,

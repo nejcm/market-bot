@@ -290,7 +290,7 @@ describe("provider dimension contracts", () => {
     ).toBeTrue();
     expect(
       [...dimensionStates].every((state) =>
-        ["blocked", "partial", "complete", "not-applicable"].includes(state),
+        ["blocked", "partial", "complete", "not-applicable", "not-assessed"].includes(state),
       ),
     ).toBeTrue();
   });
@@ -315,7 +315,12 @@ describe("provider dimension contracts", () => {
             PROVIDER_DEGRADATION_REASON_CODES.has(reasonCode),
             `${fixture}: undocumented provider degradation ${reasonCode}`,
           ).toBeTrue();
-          expect(dimension.status, `${fixture}: ${reasonCode} must remain partial`).toBe("partial");
+          const providerOnly = dimension.reasonCodes.every((code) =>
+            PROVIDER_DEGRADATION_REASON_CODES.has(code),
+          );
+          const expectedStatus =
+            reasonCode.startsWith("expectations-") && providerOnly ? "not-assessed" : "partial";
+          expect(dimension.status, `${fixture}: ${reasonCode} status`).toBe(expectedStatus);
           expect(dimension.status, `${fixture}: ${reasonCode} cannot be not-applicable`).not.toBe(
             "not-applicable",
           );

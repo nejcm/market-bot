@@ -663,7 +663,12 @@ export interface Scenario {
   readonly sourceIds: readonly string[];
 }
 
-export type EquityAnalysisDimensionStatus = "complete" | "partial" | "blocked" | "not-applicable";
+export type EquityAnalysisDimensionStatus =
+  | "complete"
+  | "partial"
+  | "blocked"
+  | "not-applicable"
+  | "not-assessed";
 
 export interface EquityAnalysisCompletenessDimension {
   readonly status: EquityAnalysisDimensionStatus;

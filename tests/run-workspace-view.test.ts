@@ -549,6 +549,7 @@ describe("run workspace view", () => {
     expect(view.gaps).toMatchObject({
       shortfalls: ["predictionShortfall: emitted 1 of 3"],
       otherGaps: ["No channel inventory data."],
+      triagedGaps: [{ text: "No channel inventory data.", triage: "material" }],
       visible: true,
     });
     expect(view.sources.items[0]?.id).toBe("source-1");
@@ -592,7 +593,12 @@ describe("run workspace view", () => {
     });
     expect(view.forecasts).toMatchObject({ items: [], groups: [], visible: false });
     expect(view.evidence.extendedItems).toEqual([]);
-    expect(view.gaps).toMatchObject({ shortfalls: [], otherGaps: [], visible: false });
+    expect(view.gaps).toMatchObject({
+      shortfalls: [],
+      otherGaps: [],
+      triagedGaps: [],
+      visible: false,
+    });
     expect(view.sources.items).toEqual([]);
     expect(view.snapshot).toBeUndefined();
     expect(view.tableOfContents).toEqual([]);

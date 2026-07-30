@@ -200,7 +200,7 @@ describe("analyst expectations", () => {
     expect(result.gaps.every((gap) => gap.cause === "unsupported-coverage")).toBe(true);
     expect(completeness.financialCoreStatus).toBe(baseline.financialCoreStatus);
     expect(completeness.dimensions.expectations).toEqual({
-      status: "partial",
+      status: "not-assessed",
       reasonCodes: ["expectations-provider-entitlement-blocked"],
       asOf: FETCHED_AT,
       sourceIds: [],
@@ -225,7 +225,7 @@ describe("analyst expectations", () => {
     expect(result.gaps).toHaveLength(4);
     expect(result.gaps.every((gap) => gap.cause === "missing-credential")).toBe(true);
     expect(completeness.dimensions.expectations).toEqual({
-      status: "partial",
+      status: "not-assessed",
       reasonCodes: ["expectations-provider-credential-missing"],
       asOf: FETCHED_AT,
       sourceIds: [],

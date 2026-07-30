@@ -523,27 +523,33 @@ function expectationsDimension(
     };
   }
 
-  if (input.analystExpectationsSignal?.status === "forbidden") {
-    return {
-      status: "partial",
-      reasonCodes: ["expectations-provider-entitlement-blocked"],
-      asOf: input.analystExpectations?.generatedAt ?? input.asOf,
-      sourceIds: [],
-    };
-  }
-  if (input.analystExpectationsSignal?.status === "missing-credential") {
-    return {
-      status: "partial",
-      reasonCodes: ["expectations-provider-credential-missing"],
-      asOf: input.asOf,
-      sourceIds: [],
-    };
-  }
-
   const analystSourceIds = unique([
     ...(input.analystExpectations?.estimates.eps?.sourceIds ?? []),
     ...(input.analystExpectations?.estimates.revenue?.sourceIds ?? []),
   ]);
+  let providerReason: string | undefined = undefined;
+  if (input.analystExpectationsSignal?.status === "forbidden") {
+    providerReason = "expectations-provider-entitlement-blocked";
+  } else if (input.analystExpectationsSignal?.status === "missing-credential") {
+    providerReason = "expectations-provider-credential-missing";
+  }
+  if (providerReason !== undefined) {
+    const inputsWereAssessed =
+      input.analystExpectations !== undefined || input.earningsSetup !== undefined;
+    return {
+      status: inputsWereAssessed ? "partial" : "not-assessed",
+      reasonCodes: [
+        ...(inputsWereAssessed ? ["expectations-inputs-incomplete"] : []),
+        providerReason,
+      ],
+      asOf:
+        input.analystExpectations?.generatedAt ??
+        input.earningsSetup?.event.fetchedAt ??
+        input.asOf,
+      sourceIds: unique([...analystSourceIds, ...(input.earningsSetup?.event.sourceIds ?? [])]),
+    };
+  }
+
   if (
     hasConsensus(input.analystExpectations, "eps") &&
     hasConsensus(input.analystExpectations, "revenue")
@@ -583,7 +589,7 @@ export function operatingKpisDimension(
       : lookupOperatingKpiRegistry(input.symbol, input.assetClass, registry);
   if (entry === undefined) {
     return {
-      status: "partial",
+      status: "not-assessed",
       reasonCodes: ["operating-kpi-registry-unconfigured"],
       asOf: input.asOf,
       sourceIds: [],
@@ -646,21 +652,30 @@ function nonCoreDimensions(
   };
 }
 
+export function resolveCoverageLevel(
+  dimensions: readonly EquityAnalysisCompletenessDimension[],
+  financialCoreStatus: EquityAnalysisCompleteness["financialCoreStatus"],
+): EquityAnalysisCompleteness["coverageLevel"] {
+  // Not-assessed dimensions deliberately remain un-credited, so the label never moves a grade.
+  const completeOrNotApplicable = dimensions.filter(
+    (dimension) => dimension.status === "complete" || dimension.status === "not-applicable",
+  ).length;
+  if (financialCoreStatus !== "complete" || completeOrNotApplicable <= 1) {
+    return "limited";
+  }
+  if (completeOrNotApplicable === dimensions.length) {
+    return "comprehensive";
+  }
+  return "substantial";
+}
+
 export function deriveEquityAnalysisCompleteness(
   input: EquityAnalysisCompletenessInput,
 ): EquityAnalysisCompleteness {
   const primaryFinancials = primaryFinancialsDimension(input.financialStatements, input.asOf);
   const nonCore = nonCoreDimensions(input);
-  const completeOrNotApplicable = Object.values(nonCore).filter(
-    (dimension) => dimension.status === "complete" || dimension.status === "not-applicable",
-  ).length;
   const financialCoreStatus = primaryFinancials.status;
-  let coverageLevel: EquityAnalysisCompleteness["coverageLevel"] = "substantial";
-  if (financialCoreStatus !== "complete" || completeOrNotApplicable <= 1) {
-    coverageLevel = "limited";
-  } else if (completeOrNotApplicable === 4) {
-    coverageLevel = "comprehensive";
-  }
+  const coverageLevel = resolveCoverageLevel(Object.values(nonCore), financialCoreStatus);
   return {
     version: 1,
     financialCoreStatus,

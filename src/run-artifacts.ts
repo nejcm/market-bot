@@ -554,7 +554,8 @@ function readEquityAnalysisCompleteness(value: unknown): EquityAnalysisCompleten
       (dimension.status !== "complete" &&
         dimension.status !== "partial" &&
         dimension.status !== "blocked" &&
-        dimension.status !== "not-applicable") ||
+        dimension.status !== "not-applicable" &&
+        dimension.status !== "not-assessed") ||
       readStringArray(dimension, "reasonCodes") === undefined ||
       readString(dimension, "asOf") === undefined ||
       readStringArray(dimension, "sourceIds") === undefined
@@ -566,6 +567,7 @@ function readEquityAnalysisCompleteness(value: unknown): EquityAnalysisCompleten
   if (
     !isRecord(primaryFinancials) ||
     primaryFinancials.status === "not-applicable" ||
+    primaryFinancials.status === "not-assessed" ||
     value.financialCoreStatus !== primaryFinancials.status
   ) {
     return undefined;

@@ -657,6 +657,56 @@ describe("equity analysis completeness", () => {
     });
   });
 
+  test("marks optional entitlement-only expectations as not assessed", () => {
+    const forbidden = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      analystExpectationsSignal: { status: "forbidden", sourceIds: [] },
+    });
+    const missingCredential = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      analystExpectationsSignal: { status: "missing-credential", sourceIds: [] },
+    });
+
+    expect(forbidden.dimensions.expectations).toMatchObject({
+      status: "not-assessed",
+      reasonCodes: ["expectations-provider-entitlement-blocked"],
+    });
+    expect(missingCredential.dimensions.expectations).toMatchObject({
+      status: "not-assessed",
+      reasonCodes: ["expectations-provider-credential-missing"],
+    });
+  });
+
+  test("keeps mixed expectations data and entitlement gaps partial", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      analystExpectations: {
+        version: 1,
+        generatedAt: AS_OF,
+        symbol: "TEST",
+        estimates: {
+          eps: {
+            provider: "finnhub",
+            consensus: [{ mean: 1 }],
+            sourceIds: ["eps-source"],
+            observedAt: AS_OF,
+          },
+        },
+      },
+      analystExpectationsSignal: { status: "forbidden", sourceIds: [] },
+    });
+
+    expect(result.dimensions.expectations).toEqual({
+      status: "partial",
+      reasonCodes: ["expectations-inputs-incomplete", "expectations-provider-entitlement-blocked"],
+      asOf: AS_OF,
+      sourceIds: ["eps-source"],
+    });
+  });
+
   test("grades capital ownership from filed histories and precise reasons", () => {
     const complete = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
@@ -729,7 +779,21 @@ describe("equity analysis completeness", () => {
     expect(forbidden.coverageLevel).toBe(baseline.coverageLevel);
   });
 
-  test("keeps unconfigured issuer operating KPIs partial", () => {
+  test("keeps mixed ownership data and entitlement gaps partial", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      capitalOwnership: capitalOwnership({ stockBasedCompensation: [] }),
+      institutionalOwnershipSignal: { status: "forbidden", sourceIds: [] },
+    });
+
+    expect(result.dimensions.capitalOwnership).toMatchObject({
+      status: "partial",
+      reasonCodes: ["sbc-history-missing", "ownership-provider-entitlement-blocked"],
+    });
+  });
+
+  test("marks an unconfigured issuer operating KPI registry as not assessed", () => {
     const result = deriveEquityAnalysisCompleteness({
       asOf: AS_OF,
       assetClass: "equity",
@@ -738,11 +802,45 @@ describe("equity analysis completeness", () => {
     });
 
     expect(result.dimensions.operatingKpis).toEqual({
-      status: "partial",
+      status: "not-assessed",
       reasonCodes: ["operating-kpi-registry-unconfigured"],
       asOf: AS_OF,
       sourceIds: [],
     });
+  });
+
+  test("does not add a complete path or raise coverage for not-assessed dimensions", () => {
+    const result = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "AAPL",
+      financialStatements: statements({ cadence: "quarterly" }),
+      extendedEvidence: comprehensiveEvidence(),
+      analystExpectationsSignal: { status: "forbidden", sourceIds: [] },
+    });
+    const partialBaseline = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      symbol: "AAPL",
+      financialStatements: statements({ cadence: "quarterly" }),
+      extendedEvidence: comprehensiveEvidence(),
+    });
+    const changedDimensions = [
+      result.dimensions.expectations,
+      result.dimensions.operatingKpis,
+      result.dimensions.capitalOwnership,
+    ];
+
+    expect(changedDimensions.map((dimension) => dimension.status)).toEqual([
+      "not-assessed",
+      "not-assessed",
+      "partial",
+    ]);
+    expect(changedDimensions.some((dimension) => dimension.status === "complete")).toBeFalse();
+    // Both not-assessed dimensions remain un-credited, so legacy 1/4 arithmetic stays limited.
+    expect(result.coverageLevel).toBe("limited");
+    expect(result.financialCoreStatus).toBe(partialBaseline.financialCoreStatus);
+    expect(result.coverageLevel).toBe(partialBaseline.coverageLevel);
   });
 
   test("enumerates declared but unverified ASTS operating KPIs", () => {
@@ -798,11 +896,14 @@ describe("equity analysis completeness", () => {
   });
 
   test("validates the public contract and rejects credential-based non-applicability", () => {
-    const completeness = deriveEquityAnalysisCompleteness({
-      asOf: AS_OF,
-      assetClass: "equity",
-      financialStatements: statements({ cadence: "quarterly" }),
-    });
+    const completeness = {
+      ...deriveEquityAnalysisCompleteness({
+        asOf: AS_OF,
+        assetClass: "equity",
+        financialStatements: statements({ cadence: "quarterly" }),
+      }),
+      coverageLevel: "limited" as const,
+    };
     const report: ResearchReport = {
       runId: "run-1",
       jobType: "equity",
@@ -833,6 +934,12 @@ describe("equity analysis completeness", () => {
       notFinancialAdvice: true,
     };
     expect(validateResearchReport(report).equityAnalysisCompleteness).toEqual(completeness);
+    expect(() =>
+      validateResearchReport({
+        ...report,
+        equityAnalysisCompleteness: { ...completeness, coverageLevel: "substantial" },
+      }),
+    ).toThrow("coverageLevel conflicts with dimension statuses");
 
     const invalid = {
       ...report,
@@ -850,5 +957,23 @@ describe("equity analysis completeness", () => {
       },
     };
     expect(() => validateResearchReport(invalid)).toThrow("requires affirmative evidence");
+
+    const missingNotAssessedReason = {
+      ...report,
+      equityAnalysisCompleteness: {
+        ...completeness,
+        dimensions: {
+          ...completeness.dimensions,
+          operatingKpis: {
+            ...completeness.dimensions.operatingKpis,
+            status: "not-assessed" as const,
+            reasonCodes: [],
+          },
+        },
+      },
+    };
+    expect(() => validateResearchReport(missingNotAssessedReason)).toThrow(
+      "not-assessed status requires a reason code",
+    );
   });
 });

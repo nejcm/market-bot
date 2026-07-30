@@ -86,7 +86,9 @@
   );
   const forecastHorizons = $derived(workspace?.forecasts.horizons ?? []);
   const sourceItems = $derived(workspace?.sources.items ?? []);
-  const splitGaps = $derived(workspace?.gaps ?? { shortfalls: [], otherGaps: [] });
+  const splitGaps = $derived(
+    workspace?.gaps ?? { shortfalls: [], otherGaps: [], triagedGaps: [] },
+  );
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
@@ -151,6 +153,7 @@
     partial: "border-[#d9c89a] bg-[#f8f1df] text-[#8a6116]",
     blocked: "border-[#dfb9b5] bg-[#faecea] text-[#8c2720]",
     "not-applicable": "border-border bg-secondary text-muted-foreground",
+    "not-assessed": "border-[#b8c3cf] bg-[#eef2f6] text-[#46576a]",
   };
   const FINANCIAL_LENS_VALUE_CLASSES: Record<FinancialLensStatTone, string> = {
     strong: "text-[#0F7E48]",
@@ -1436,7 +1439,7 @@
                 </div>
               {/if}
 
-              {#if splitGaps.otherGaps.length > 0}
+              {#if splitGaps.triagedGaps.length > 0}
                 <div
                   class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116] {splitGaps
                     .shortfalls.length > 0
@@ -1446,15 +1449,15 @@
                   Data gaps · what we could not verify
                 </div>
                 <div class="mt-3.5 flex flex-col gap-2.5">
-                  {#each splitGaps.otherGaps as gap}
+                  {#each splitGaps.triagedGaps as gap}
                     <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
                       <span
                         class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
                       >
-                        GAP
+                        {gap.triage}
                       </span>
                       <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
-                        {gap}
+                        {gap.text}
                       </div>
                     </div>
                   {/each}

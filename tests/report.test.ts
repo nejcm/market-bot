@@ -62,6 +62,49 @@ function validationErrorMessage(candidate: ResearchReport): string {
   throw new Error("Expected report validation to fail");
 }
 
+test("renders not-assessed completeness as a non-success status chip", () => {
+  const asOf = "2026-05-19T00:00:00.000Z";
+  const dimension = {
+    status: "partial" as const,
+    reasonCodes: ["fixture-partial"],
+    asOf,
+    sourceIds: [],
+  };
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "TEST",
+    equityAnalysisCompleteness: {
+      version: 1,
+      financialCoreStatus: "partial",
+      coverageLevel: "limited",
+      asOf,
+      dimensions: {
+        primaryFinancials: dimension,
+        valuation: dimension,
+        expectations: {
+          status: "not-assessed",
+          reasonCodes: ["expectations-provider-credential-missing"],
+          asOf,
+          sourceIds: [],
+        },
+        capitalOwnership: dimension,
+        operatingKpis: {
+          status: "not-assessed",
+          reasonCodes: ["operating-kpi-registry-unconfigured"],
+          asOf,
+          sourceIds: [],
+        },
+      },
+    },
+  });
+
+  expect(markdown).toContain("Expectations `not assessed — inputs unavailable`");
+  expect(markdown).toContain("Operating KPIs `not assessed — inputs unavailable`");
+  expect(markdown).not.toContain("Expectations `complete`");
+});
+
 const spotlightSource: Source = {
   id: "market-yahoo-equity-roku",
   title: "ROKU market snapshot",

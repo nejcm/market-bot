@@ -221,7 +221,7 @@ without pretending the project has a global security master.
   inputs were never configured or available to the deployment, including an unconfigured
   operating-KPI registry or a missing optional provider credential or entitlement, such as Finnhub
   403 responses for estimates, price-targets, or ownership endpoints. `not-assessed` dimensions are
-  excluded from the headline coverage grade and tier computation, never count as complete, and
+  excluded from the headline coverage grade, never count as complete, and
   never upgrade a tier or raise the headline grade relative to counting the same dimension as
   `partial`. This supersedes earlier `partial` wording for those cases. `partial` means the
   dimension was assessed and its data was incomplete.

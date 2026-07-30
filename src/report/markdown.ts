@@ -2,6 +2,7 @@ import {
   isInstrumentJobType,
   resolveMarketSnapshotPriceAsOf,
   researchReportEvidenceQuality,
+  type EquityAnalysisDimensionStatus,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
@@ -17,6 +18,7 @@ import {
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
+import { classifyGap } from "./gap-triage";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
@@ -35,6 +37,38 @@ function markdownText(value: string): string {
     }
     return `${String.fromCodePoint(92)}${char}`;
   });
+}
+
+function renderGap(gap: string): string {
+  const triage = classifyGap(gap);
+  return `- **${triage === "material" ? "Material" : "Diagnostic"}:** ${markdownText(gap)}`;
+}
+
+function completenessStatusChip(status: EquityAnalysisDimensionStatus): string {
+  if (status === "not-assessed") {
+    return "`not assessed — inputs unavailable`";
+  }
+  return `\`${status.replaceAll("-", " ")}\``;
+}
+
+function renderEquityCompletenessChips(report: ResearchReport): readonly string[] {
+  const completeness = report.equityAnalysisCompleteness;
+  if (completeness === undefined) {
+    return [];
+  }
+  const dimensions = [
+    ["Primary financials", completeness.dimensions.primaryFinancials],
+    ["Valuation", completeness.dimensions.valuation],
+    ["Expectations", completeness.dimensions.expectations],
+    ["Capital & ownership", completeness.dimensions.capitalOwnership],
+    ["Operating KPIs", completeness.dimensions.operatingKpis],
+  ] as const;
+  return [
+    `Analysis Completeness: financial core ${completenessStatusChip(completeness.financialCoreStatus)} · coverage \`${completeness.coverageLevel}\``,
+    `Dimension Status: ${dimensions
+      .map(([label, dimension]) => `${label} ${completenessStatusChip(dimension.status)}`)
+      .join(" · ")}`,
+  ];
 }
 
 // Diverges from guards.readStringArray (record+key, undefined on miss) and
@@ -511,7 +545,7 @@ function renderAlphaSearchReport(report: ResearchReport): string {
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
+      : report.dataGaps.map((gap) => renderGap(gap)).join("\n");
   const sources = renderSources(report);
   const leads = readAlphaSearchLeads(report.extras);
   const rawLeadLimit = readAlphaSearchLeadDisplayLimit(report.extras);
@@ -936,7 +970,7 @@ export function renderMarkdownReport(
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
+      : report.dataGaps.map((gap) => renderGap(gap)).join("\n");
   const sources = renderSources(report);
 
   return [
@@ -955,6 +989,7 @@ export function renderMarkdownReport(
     ...(report.researchQualityDriver !== undefined
       ? [`Research Quality Driver: ${report.researchQualityDriver}`]
       : []),
+    ...renderEquityCompletenessChips(report),
     "",
     "## Summary",
     "",

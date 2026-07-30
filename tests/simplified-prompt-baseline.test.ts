@@ -20,7 +20,7 @@ function snapshotBearingKeys(value: unknown, path = "$"): readonly string[] {
   }
   return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => {
     const here = `${path}.${key}`;
-    const offending = key.toLowerCase().endsWith('marketsnapshots') ? [here] : [];
+    const offending = key.toLowerCase().endsWith("marketsnapshots") ? [here] : [];
     return [...offending, ...snapshotBearingKeys(child, here)];
   });
 }

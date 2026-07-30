@@ -220,11 +220,10 @@ without pretending the project has a global security master.
 - Amendment: a completeness dimension is `not-assessed` when it cannot be evaluated because its
   inputs were never configured or available to the deployment, including an unconfigured
   operating-KPI registry or a missing optional provider credential or entitlement, such as Finnhub
-  403 responses for estimates, price-targets, or ownership endpoints. `not-assessed` dimensions are
-  excluded from the headline coverage grade, never count as complete, and
-  never upgrade a tier or raise the headline grade relative to counting the same dimension as
-  `partial`. This supersedes earlier `partial` wording for those cases. `partial` means the
-  dimension was assessed and its data was incomplete.
+  403 responses for estimates, price-targets, or ownership endpoints. `not-assessed` dimensions
+  never count as complete, and never upgrade a tier or raise the headline grade relative to
+  counting the same dimension as `partial`. This supersedes earlier `partial` wording for those
+  cases. `partial` means the dimension was assessed and its data was incomplete.
 - Primary-financial completeness requires a usable current annual basis, three comparable annual
   periods, one reporting currency, applicable per-share evidence, and either a reconciled TTM or an
   annual-as-current state before the next cadence-specific interim is due. Quarterly, semiannual,
@@ -240,8 +239,8 @@ without pretending the project has a global security master.
 - Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
   fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
   Historical non-deep artifacts without the sidecar or completeness field remain readable.
-  Existing deep-equity artifacts require the bundle migration before the bundle-only reader
-  cutover.
+  The existing deep-equity artifact migration completed before the bundle-only reader cutover, and
+  the migrator was removed under ADR 0006.
 - Standard-taxonomy proceeds facts disclosed on a post-period `8-K` or `6-K` may produce a
   Subsequent Financing bridge inside the deep bundle or, for other equity runs, in
   `normalized/subsequent-financing.json`. Each event retains disclosure and event dates,

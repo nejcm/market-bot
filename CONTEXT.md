@@ -308,9 +308,9 @@ Disclosed missing, weak, failed, or stale provider evidence. Persisted research 
 
 Completeness status for a dimension that could not be evaluated because its inputs were never
 configured or available to the deployment, such as an unconfigured operating-KPI registry or a
-missing optional provider credential or entitlement. It is excluded from the headline coverage
-grade and tier computation, never counts as complete, and never upgrades a tier. Unlike `partial`,
-it does not mean the dimension was assessed with incomplete data.
+missing optional provider credential or entitlement. It never counts as complete, and never
+upgrades a tier or raises the headline grade relative to counting the same dimension as `partial`.
+Unlike `partial`, it does not mean the dimension was assessed with incomplete data.
 
 ## Material Gap
 

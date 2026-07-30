@@ -109,7 +109,6 @@ derived indexes, and pipeline fixtures were previously split across several reco
   `src/research/prompt-loader.ts` implement the runtime, provider, and configuration decisions.
 - `src/run-artifact-layout.ts`, `run-artifact-writer.ts`, `run-artifacts.ts`,
   `run-artifact-index*.ts`, and `src/history/artifacts.ts` implement persistence and indexes.
-- `src/deep-equity/artifact-schema.ts`, `migration.ts`, and
-  `scripts/migrate-deep-equity-bundles.ts` implement deep-equity bundle validation and migration.
+- `src/deep-equity/artifact-schema.ts` implements deep-equity bundle validation.
 - `tests/support/run-fixtures/`, `scripts/record-fixture-run.ts`,
-  `scripts/replay-fixture-run.ts`, and `tests/equity-fixture-run.test.ts` implement fixture replay.
+  `scripts/replay-fixture-run.ts`, and `tests/equity-fixture/run.test.ts` implement fixture replay.

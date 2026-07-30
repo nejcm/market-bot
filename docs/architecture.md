@@ -189,11 +189,26 @@ Adding a new prediction shape means updating: the parser in `forecast/observable
 
 Schema is the contract. Validation enforces the research-only boundary ([ADR 0001](./adr/0001-research-only-boundary.md)) with context-aware trade-action matching that permits neutral business descriptions, and enforces the observable-prediction rule ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)).
 
+Deep-equity markdown leads with a default reader block: company description, observed price with
+market date and freshness, a multi-year plus TTM trend table, valuation context that is explicitly
+not a target price, catalysts and risks, upcoming earnings and consensus, and material gaps.
+Specialist detail follows under `## Appendix`, including reverse DCF, full valuation and peer
+tables, ownership and analyst detail, options IV, financing and capital detail, Business Framework,
+Financial Lens posture labels, and diagnostic gaps. `src/report/equity-reader.ts` is the shared
+trend derivation used by markdown and the Console; `src/report/gap-triage.ts` is the shared
+material/diagnostic classifier.
+
 ### Research Console App (`app/`)
 
 A local, research-only Svelte 5 SPA (`app/client/`) served by a Bun HTTP API (`app/server.ts`). The server reads run artifacts from `MARKET_BOT_DATA_DIR` (list/search via the Run Artifact Index with disk fallback) and exposes: `/api/runs`, `/api/runs/:id`, `/api/runs/:id/files`, `/api/search`, `/api/jobs` (same-origin POST queues whitelisted CLI jobs), `/api/provider-health`, and `/api/calibration` (both read data-root `summary.{json,md}` siblings).
 
 Views: dashboard (metrics, runs-per-day chart, recent runs), run workspace, search, jobs, calibration, and provider health. The run workspace joins each run's `score.json` to its observable forecasts — hit/miss/pending badges with resolution evidence in neutral observation language — and joins `miss-autopsy.json` when present to show material forecast-error taxonomy without changing outcome badge semantics. `app/client/run-workspace-view.ts` projects a `RunDetail` into the report, forecast, evidence, gap, source, verified-snapshot, and table-of-contents sections; the Svelte component retains interaction state and rendering. For instrument runs that persisted `normalized/verified-market-snapshot.json` ([ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)), it renders a recent-closes chart with latest indicator values and forecast-horizon ticks. The calibration view shows resolved policy-v3 count, hit rate, Brier score, explicit sample-size warnings, a reliability chart over sparse bins, Miss Autopsy taxonomy counts, and slice tables; the quality-of-forecasts framing lives only there, never in per-run outcome badges.
+
+For equity runs, the workspace mirrors the markdown split. The default surface keeps identity and
+price, the shared trend table, company context, catalysts and risks, earnings and consensus,
+coverage, and material gaps visible. One collapsed Advanced section contains the specialist detail,
+Financial Lens posture labels, diagnostic gaps, and raw Extended Evidence; the view model retains
+the full collected artifact.
 
 Client conventions: loose `Record<string, unknown>` payloads at the wire, validated by type guards in `app/client/api.ts`, parsed by pure functions in `app/client/view-model.ts` / `app/report-artifact-view.ts`; hand-rolled SVG charts (no chart dependency). The console stays read-only over artifacts and adds no trade-action surface.
 

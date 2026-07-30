@@ -450,21 +450,25 @@ function simplifiedCurrentPriceReference(
     (snapshot) => snapshot.symbol.toUpperCase() === symbol,
   );
   const verifiedSnapshot = packet.canonicalFacts.verifiedMarketSnapshot;
-  if (
-    quote !== undefined &&
-    (verifiedSnapshot === undefined ||
-      quote.observedAt.slice(0, 10) >= verifiedSnapshot.latestSessionDate)
-  ) {
-    return {
-      status: "price-available",
-      price: quote.price,
-      priceAsOf: resolveMarketSnapshotPriceAsOf(quote),
-      sourceId: quote.sourceId,
-      ...(quote.identity?.quoteCurrency !== undefined
-        ? { quoteCurrency: quote.identity.quoteCurrency }
-        : {}),
-      usage: SIMPLIFIED_CURRENT_PRICE_USAGE,
-    };
+  if (quote !== undefined) {
+    const priceAsOf = resolveMarketSnapshotPriceAsOf(quote);
+    // Preserve eligibility when strike time is unknown because quote age cannot be established.
+    if (
+      verifiedSnapshot === undefined ||
+      priceAsOf.kind === "fetch-time-only" ||
+      priceAsOf.instant.slice(0, 10) >= verifiedSnapshot.latestSessionDate
+    ) {
+      return {
+        status: "price-available",
+        price: quote.price,
+        priceAsOf,
+        sourceId: quote.sourceId,
+        ...(quote.identity?.quoteCurrency !== undefined
+          ? { quoteCurrency: quote.identity.quoteCurrency }
+          : {}),
+        usage: SIMPLIFIED_CURRENT_PRICE_USAGE,
+      };
+    }
   }
   if (verifiedSnapshot !== undefined) {
     return {

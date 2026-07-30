@@ -919,11 +919,30 @@ describe("simplified deep-equity current price reference", () => {
     expect(currentPriceReference).not.toHaveProperty("price");
   });
 
-  test("does not claim recency for a quote older than the latest bar", () => {
+  test("keeps a quote struck after the latest verified session eligible", () => {
     const snapshot = verifiedMarketSnapshot({ latestSessionDate: "2026-03-30" });
     const quote = marketSnapshot({
       price: 198.5,
-      observedAt: "2026-02-01T14:31:00.000Z",
+      observedAt: "2026-04-01T14:31:00.000Z",
+      quoteTimeUtc: "2026-03-31T20:00:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+    const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
+
+    expect(currentPriceReference.status).toBe("price-available");
+    expect(currentPriceReference.price).toBe(198.5);
+  });
+
+  test("rejects a quote struck before the latest verified session", () => {
+    const snapshot = verifiedMarketSnapshot({ latestSessionDate: "2026-03-30" });
+    const quote = marketSnapshot({
+      price: 198.5,
+      observedAt: "2026-04-01T14:31:00.000Z",
+      quoteTimeUtc: "2026-03-29T20:00:00.000Z",
     });
     const evidence = promptEvidence(
       simplifiedFinalSynthesisPrompt({
@@ -935,6 +954,27 @@ describe("simplified deep-equity current price reference", () => {
     expect(currentPriceReference.status).toBe("unavailable");
     expect(currentPriceReference.reason).toBe("quote-older-than-latest-bar");
     expect(currentPriceReference).not.toHaveProperty("price");
+  });
+
+  test("keeps a fetch-time-only quote eligible when strike time is unknown", () => {
+    const snapshot = verifiedMarketSnapshot({ latestSessionDate: "2026-03-30" });
+    const quote = marketSnapshot({
+      price: 198.5,
+      observedAt: "2026-03-29T20:00:00.000Z",
+    });
+    const evidence = promptEvidence(
+      simplifiedFinalSynthesisPrompt({
+        deepEquityModelPacket: packetWithSnapshotAndQuote(snapshot, quote),
+      }),
+    );
+    const currentPriceReference = evidence.currentPriceReference as Record<string, unknown>;
+
+    expect(currentPriceReference.status).toBe("price-available");
+    expect(currentPriceReference.price).toBe(198.5);
+    expect(currentPriceReference.priceAsOf).toEqual({
+      kind: "fetch-time-only",
+      instant: quote.observedAt,
+    });
   });
 
   test("omits the block when neither a quote nor a verified snapshot exists", () => {

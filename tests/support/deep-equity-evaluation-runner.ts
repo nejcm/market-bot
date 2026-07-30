@@ -531,6 +531,16 @@ interface PlannedEvaluationPair {
   readonly blindLabelDraw: number;
 }
 
+// Enumerates every planned pair in the SAME order runPairedEvaluation walks them (fixture outer,
+// Repetition inner) and captures each pair's stream draws, so a pair recovered later lands on the
+// Draws its plan position would have received.
+//
+// Note a deliberate semantics change for the judge path. The original run consumes the blind-label
+// Stream only when a pair is judged, so a failed pair consumes none, whereas this enumerates a draw
+// For every planned pair. Resume previously drew sequentially over DISCOVERED pairs, which happened
+// To match the original for trailing failures. A pair's blind draw is now a function of its plan
+// Position rather than of how many earlier pairs failed. Stored judges are still skipped, so no
+// Recorded judgment changes; only a fresh judge call's A/B assignment can differ.
 function plannedEvaluationPairs(
   plan: DeepEquityEvaluationPlan,
   seed: number,

@@ -9,6 +9,22 @@ function sha256(text: string): string {
   return new Bun.CryptoHasher("sha256").update(text).digest("hex");
 }
 
+// Every path whose key names a wholesale snapshot collection, at any depth.
+// Returned as paths rather than a boolean so a failure names where the payload regrew.
+function snapshotBearingKeys(value: unknown, path = "$"): readonly string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => snapshotBearingKeys(item, `${path}[${String(index)}]`));
+  }
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => {
+    const here = `${path}.${key}`;
+    const offending = key.toLowerCase().endsWith('marketsnapshots') ? [here] : [];
+    return [...offending, ...snapshotBearingKeys(child, here)];
+  });
+}
+
 describe("simplified deep-equity prompt baseline", () => {
   test("renders the metadata-sanitized snapshot with production tail-key order", async () => {
     const matrix = await simplifiedPromptBaselineMatrix();
@@ -27,12 +43,26 @@ describe("simplified deep-equity prompt baseline", () => {
     expect(Object.keys(snapshot!).slice(-3)).toEqual(["name", "identity", "benchmark"]);
   });
 
+  // This was a line-anchored regex over the prompt text, so it only worked while the JSON stayed
+  // Pretty-printed. Emitting the prompt on one line would have made the pattern unmatchable and the
+  // Guard silently permanent, with the hash pin as the only remaining backstop.
+  // Walking the parsed structure instead makes it independent of formatting.
   test("keeps final-synthesis on named projections instead of wholesale snapshots", async () => {
     const matrix = await simplifiedPromptBaselineMatrix();
     const finalSynthesis = matrix.cases.find(({ key }) => key === "final-synthesis");
 
     expect(finalSynthesis).toBeDefined();
-    expect(finalSynthesis!.text).not.toMatch(/^\s*"\w*[Mm]arketSnapshots":/mu);
+    expect(snapshotBearingKeys(JSON.parse(finalSynthesis!.text))).toEqual([]);
+  });
+
+  // Guard on the guard. The payload below is exactly what the check exists to reject, serialized
+  // The way the old pattern could not see. If this ever passes, the replacement was pointless.
+  test("detects a wholesale snapshot the line-anchored pattern would miss", () => {
+    const regrown = { evidence: { canonicalFacts: { marketSnapshots: [{ symbol: "AAPL" }] } } };
+    const singleLine = JSON.stringify(regrown);
+
+    expect(singleLine).not.toMatch(/^\s*"\w*[Mm]arketSnapshots":/mu);
+    expect(snapshotBearingKeys(regrown)).toEqual(["$.evidence.canonicalFacts.marketSnapshots"]);
   });
 
   test("prompt hashes match the checked-in goldens", async () => {

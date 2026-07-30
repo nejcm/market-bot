@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
 import {
@@ -11,16 +12,68 @@ import {
   type RunWorkspaceView,
 } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
-import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot, ResearchReport, VerifiedMarketSnapshot } from "../src/domain/types";
 import {
   deriveFundamentalHistory,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
   type FundamentalHistorySeriesKey,
 } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
+import { renderFinancialTrends } from "../src/report/markdown";
+import { financialTrendRows, trendPeriods } from "../src/report/equity-reader";
 import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
+
+async function renderRunWorkspaceComponent(detail: RunDetail): Promise<string> {
+  const subprocess = Bun.spawn(
+    [process.execPath, "run", resolve(import.meta.dir, "support/render-run-workspace.ts")],
+    {
+      stdin: new Blob([JSON.stringify(detail)]),
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  const [body, error, exitCode] = await Promise.all([
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(error);
+  }
+  return body;
+}
+
+function financialTrendReport(sourceId: string): ResearchReport {
+  return {
+    runId: "run-1",
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    generatedAt: "2026-07-04T12:00:00.000Z",
+    summary: "Equity summary.",
+    keyFindings: [],
+    bullCase: [],
+    bearCase: [],
+    risks: [],
+    catalysts: [],
+    scenarios: [],
+    confidence: "medium",
+    dataGaps: [],
+    predictions: [],
+    sources: [
+      {
+        id: sourceId,
+        title: "SEC fundamentals",
+        fetchedAt: "2026-07-04T12:00:00.000Z",
+        kind: "extended-evidence",
+      },
+    ],
+    notFinancialAdvice: true,
+  };
+}
 
 function summary(overrides: Partial<RunSummary> = {}): RunSummary {
   return {
@@ -144,6 +197,46 @@ function fundamentalHistoryAnnualFacts(values: readonly number[]) {
       end: `${String(fy)}-09-30`,
     };
   });
+}
+
+function balanceSheetAnnualFacts(values: readonly number[]) {
+  return values.map((val, index) => {
+    const fy = 2023 + index;
+    return {
+      val,
+      form: "10-K",
+      fp: "FY",
+      fy,
+      filed: `${String(fy + 1)}-02-01`,
+      end: `${String(fy)}-12-31`,
+    };
+  });
+}
+
+function balanceSheetHistoryFixture() {
+  return deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          CashAndCashEquivalentsAtCarryingValue: {
+            units: { USD: balanceSheetAnnualFacts([30_000_000_000, 32_000_000_000]) },
+          },
+          LongTermDebt: {
+            units: { USD: balanceSheetAnnualFacts([90_000_000_000, 85_000_000_000]) },
+          },
+          WeightedAverageNumberOfDilutedSharesOutstanding: {
+            units: { shares: balanceSheetAnnualFacts([15_500_000_000, 15_000_000_000]) },
+          },
+        },
+      },
+    },
+    {
+      symbol: "AAPL",
+      generatedAt: "2025-02-01T00:00:00.000Z",
+      analysisAsOf: "2025-02-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    },
+  );
 }
 
 function fundamentalHistoryFixture(epsValues: readonly number[] = [2, 2.5, 6.13]) {
@@ -386,7 +479,7 @@ describe("run workspace view", () => {
       ],
     });
     expect(workspace.equityCompleteness).toEqual(completeness);
-    expect(tocKeys(workspace)).toContain("equityCompleteness");
+    expect(tocKeys(workspace)).toContain("advanced");
   });
 
   test("suppresses completeness for historical reports without the field", () => {
@@ -445,7 +538,7 @@ describe("run workspace view", () => {
           ),
       ),
     ).toBe(true);
-    expect(tocKeys(view)).toContain("fundamentalHistory");
+    expect(tocKeys(view)).toContain("financialTrends");
   });
 
   test("omits the fundamental-history projection for old runs without the sidecar", () => {
@@ -555,16 +648,7 @@ describe("run workspace view", () => {
     expect(view.sources.items[0]?.id).toBe("source-1");
     expect(view.snapshot?.value.symbol).toBe("AAPL");
     expect(view.snapshot?.tradingViewUrl).toContain("AAPL");
-    expect(tocKeys(view)).toEqual([
-      "summary",
-      "findings",
-      "cases",
-      "scenarios",
-      "snapshot",
-      "extendedEvidence",
-      "forecasts",
-      "gaps",
-    ]);
+    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "findings", "gaps", "advanced"]);
   });
 
   test("ignores sparse or malformed optional artifacts", () => {
@@ -601,7 +685,7 @@ describe("run workspace view", () => {
     });
     expect(view.sources.items).toEqual([]);
     expect(view.snapshot).toBeUndefined();
-    expect(view.tableOfContents).toEqual([]);
+    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
   test("projects a matching equity snapshot into an unassessed header", () => {
@@ -744,7 +828,7 @@ describe("run workspace view", () => {
 
     expect(view.forecasts.visible).toBe(true);
     expect(view.forecasts.items).toEqual([]);
-    expect(tocKeys(view)).toEqual(["forecasts", "gaps"]);
+    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
   test("groups legacy financial lens metrics by lens and retains posture", () => {
@@ -802,7 +886,7 @@ describe("run workspace view", () => {
         tiles: [expect.objectContaining({ key: "rsi14", lens: "Momentum", tone: "strong" })],
       },
     ]);
-    expect(tocKeys(view)).toEqual(["financialLensStats"]);
+    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
   test("requires snapshot job type, file availability, and valid content", () => {
@@ -861,7 +945,7 @@ describe("run workspace view", () => {
       methodDisclosure: expect.stringContaining("impliedPrice(m)"),
       boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     });
-    expect(tocKeys(view)).toEqual(["peerImpliedRange"]);
+    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
   test("projects historical multiples and the peer table from the valuation workbench", () => {
@@ -894,7 +978,14 @@ describe("run workspace view", () => {
               usable: true,
             },
           ],
-          excludedPeers: [],
+          excludedPeers: [
+            {
+              symbol: "GOOG",
+              role: "core",
+              reason: "revenue period is stale",
+              sourceIds: ["sec-goog"],
+            },
+          ],
           peerUniverseSourceIds: [],
           summary: {
             corePeerCount: 1,
@@ -947,8 +1038,16 @@ describe("run workspace view", () => {
           currency: "USD",
         },
       ],
+      excludedPeerRows: [
+        {
+          symbol: "GOOG",
+          role: "core",
+          reason: "revenue period is stale",
+          sourceIds: ["sec-goog"],
+        },
+      ],
     });
-    expect(tocKeys(workspace)).toEqual(["valuationWorkbench"]);
+    expect(tocKeys(workspace)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
   test("projects the solved-input matrix and disclosed assumptions", () => {
@@ -970,7 +1069,7 @@ describe("run workspace view", () => {
     expect(view?.status === "computed" && view.rows.every((row) => row.cells.length === 5)).toBe(
       true,
     );
-    expect(tocKeys(workspace)).toEqual(["reverseDcf"]);
+    expect(tocKeys(workspace)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
   test("keeps every populated reverse DCF view string inside the research-only boundary", () => {
@@ -1253,6 +1352,361 @@ describe("run workspace view", () => {
     });
   });
 
+  test("partitions the equity reader view from Advanced without dropping content", () => {
+    const report = {
+      ...completenessReport(),
+      symbol: "AAPL",
+      keyFindings: [{ text: "Reader finding sentinel.", sourceIds: ["source-bull"] }],
+      catalysts: [{ text: "Reader catalyst sentinel.", sourceIds: ["source-bull"] }],
+      risks: [{ text: "Reader risk sentinel.", sourceIds: ["source-bear"] }],
+      scenarios: [
+        {
+          name: "Advanced scenario sentinel",
+          description: "Scenario detail.",
+          sourceIds: ["source-bear"],
+        },
+      ],
+      dataGaps: ["Primary revenue evidence missing.", "tradier: API token missing"],
+      extras: {
+        earningsSetup: {
+          event: {
+            date: "2026-08-01",
+            timing: "after-market",
+            eventDateStatus: "provider-estimated",
+            epsEstimate: 1.25,
+            revenueEstimate: 12_000_000_000,
+            sourceIds: ["source-bull"],
+          },
+        },
+        businessFramework: {
+          phase: "capital-return",
+          sections: [
+            {
+              name: "Business",
+              posture: "criteria-supported",
+              text: "Apple designs devices and digital services.",
+              sourceIds: ["source-bull"],
+            },
+          ],
+          sourceIds: ["source-bull"],
+          gaps: [],
+        },
+      },
+      extendedEvidence: {
+        items: [
+          {
+            category: "analyst-estimates",
+            title: "Analyst consensus sentinel",
+            summary: "Distribution detail.",
+            metrics: { mean: 1.2, period: "FY 2027", count: 12 },
+            sourceIds: ["source-bull"],
+          },
+          {
+            category: "institutional-ownership",
+            title: "Institutional detail sentinel",
+            summary: "Ownership detail.",
+            sourceIds: ["source-bear"],
+          },
+          {
+            category: "options-iv",
+            title: "Options detail sentinel",
+            summary: "Options detail.",
+            sourceIds: ["source-bear"],
+          },
+        ],
+      },
+    };
+    const financialLenses = {
+      version: 1 as const,
+      generatedAt: "2026-07-04T12:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Quality" as const,
+          posture: "criteria-supported" as const,
+          metrics: [],
+          sourceIds: ["source-bull"],
+        },
+        {
+          name: "Growth" as const,
+          posture: "criteria-mixed" as const,
+          metrics: [],
+          sourceIds: ["source-bull"],
+        },
+        {
+          name: "Financial Strength" as const,
+          posture: "criteria-not-supported" as const,
+          metrics: [],
+          sourceIds: ["source-bear"],
+        },
+        {
+          name: "Value" as const,
+          posture: "insufficient-data" as const,
+          metrics: [],
+          sourceIds: [],
+        },
+      ],
+      sourceIds: ["source-bull", "source-bear"],
+    };
+    const view = buildRunWorkspaceView({
+      summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH] }),
+      report,
+      marketSnapshots: [marketSnapshot()],
+      verifiedMarketSnapshot: snapshot(),
+      fundamentalHistory: snapshotFundamentalHistory(
+        {},
+        { revenue: 170, freeCashFlowProxy: 35, operatingMargin: 0.25 },
+      ),
+      financialStatements: balanceSheetHistoryFixture(),
+      peerImpliedRange: peerImpliedRange(),
+      valuationWorkbench: valuationWorkbench(),
+      financialLenses,
+      reverseDcf: reverseDcfArtifact(),
+    });
+
+    const reader = view.equityPresentation?.defaultView;
+    const advanced = view.equityPresentation?.advanced;
+    expect(reader?.sectionOrder).toEqual([
+      "identityPrice",
+      "companySummary",
+      "financialTrends",
+      "valuationContext",
+      "findings",
+      "catalystsRisks",
+      "earningsConsensus",
+      "coverageMaterialGaps",
+    ]);
+    expect(advanced?.sectionOrder).toEqual([
+      "financialLensDrivers",
+      "financialLensGroups",
+      "valuationWorkbench",
+      "reverseDcf",
+      "peerComps",
+      "institutionalAnalystOptions",
+      "diagnosticGaps",
+      "extendedEvidence",
+      "balanceSheetHistory",
+      "remainingResearchDetail",
+    ]);
+    expect(reader?.financialTrends?.columns).toEqual([
+      "Period",
+      "Revenue",
+      "Net income",
+      "Operating margin",
+      "FCF",
+    ]);
+    expect(reader?.financialTrends?.rows[0]).toEqual({
+      period: "FY ending 2022-09-30 (filed 2022-11-01)",
+      revenue: "100",
+      netIncome: "20",
+      operatingMargin: "25.0%",
+      freeCashFlow: "22",
+    });
+    expect(reader?.financialTrends?.rows.at(-1)).toMatchObject({
+      period: "TTM (2025-06-30; filed 2025-08-01)",
+      revenue: "170",
+      operatingMargin: "25.0%",
+      freeCashFlow: "35",
+    });
+    expect(reader?.cases.map((section) => section.key)).toEqual(["risks", "catalysts"]);
+    expect(advanced?.cases.map((section) => section.key)).toEqual(["bullCase", "bearCase"]);
+    expect(reader?.materialGaps).toEqual(["Primary revenue evidence missing."]);
+    expect(advanced?.diagnosticGaps).toEqual(["tradier: API token missing"]);
+    expect(advanced?.financialLensGroups).toHaveLength(financialLenses.lenses.length);
+    expect(advanced?.valuationWorkbench).toBeDefined();
+    expect(advanced?.reverseDcf).toBeDefined();
+    expect(advanced?.peerImpliedRange).toBeDefined();
+    expect(advanced?.extendedItems).toHaveLength(report.extendedEvidence.items.length);
+    expect(advanced?.balanceSheetHistory?.rows).toEqual([
+      {
+        period: "FY ending 2023-12-31 (filed 2024-02-01)",
+        cash: "$30.0B",
+        debt: "$90.0B",
+        dilutedShares: "15.5B",
+      },
+      {
+        period: "FY ending 2024-12-31 (filed 2025-02-01)",
+        cash: "$32.0B",
+        debt: "$85.0B",
+        dilutedShares: "15.0B",
+      },
+    ]);
+    expect(reader?.earningsConsensus.items.map((item) => item.label)).toEqual([
+      "Upcoming earnings",
+      "EPS consensus",
+      "Revenue consensus",
+      "Analyst consensus sentinel",
+    ]);
+    expect(reader?.companySummary).toEqual({
+      text: "Apple designs devices and digital services.",
+      sourceIds: ["source-bull"],
+    });
+    expect(advanced?.reportSummary).toBe("Equity summary.");
+
+    const readerText = renderedStrings(reader).join("\n");
+    const advancedText = renderedStrings(advanced).join("\n");
+    expect(readerText).not.toContain("Equity summary.");
+    expect(advancedText).toContain("Equity summary.");
+    for (const readerOnly of [
+      "Reader finding sentinel.",
+      "Reader catalyst sentinel.",
+      "Reader risk sentinel.",
+      "Primary revenue evidence missing.",
+      "2026-08-01 · after-market · provider-estimated",
+    ]) {
+      expect(readerText).toContain(readerOnly);
+      expect(advancedText).not.toContain(readerOnly);
+    }
+    for (const advancedOnly of [
+      "criteria-supported",
+      "criteria-mixed",
+      "criteria-not-supported",
+      "insufficient-data",
+      "Advanced scenario sentinel",
+      "Institutional detail sentinel",
+      "Options detail sentinel",
+      "tradier: API token missing",
+    ]) {
+      expect(advancedText).toContain(advancedOnly);
+      expect(readerText).not.toContain(advancedOnly);
+    }
+
+    const wholeViewText = renderedStrings(view).join("\n");
+    for (const retained of [
+      "Reader finding sentinel.",
+      "Reader catalyst sentinel.",
+      "Reader risk sentinel.",
+      "Advanced scenario sentinel",
+      "Institutional detail sentinel",
+      "Options detail sentinel",
+      "Primary revenue evidence missing.",
+      "tradier: API token missing",
+    ]) {
+      expect(wholeViewText).toContain(retained);
+    }
+    expect(view.report.financialLensGroups).toHaveLength(financialLenses.lenses.length);
+    expect(view.evidence.extendedItems).toHaveLength(report.extendedEvidence.items.length);
+  });
+
+  test("uses identical financial-trend rows in Console and report markdown", () => {
+    const history = snapshotFundamentalHistory(
+      {
+        revenue: [100, 120, 140],
+        operatingMargin: [0.2, 0.22, 0.24],
+        freeCashFlowProxy: [20, 25, 30],
+      },
+      { revenue: 170, operatingMargin: 0.25, freeCashFlowProxy: 35 },
+    );
+    const report = financialTrendReport(history.sourceId);
+    const consoleRows = buildRunWorkspaceView({
+      summary: summary(),
+      report: { ...report },
+      fundamentalHistory: history,
+    }).equityPresentation?.defaultView.financialTrends?.rows;
+    const markdown = renderFinancialTrends(report, { fundamentalHistory: history });
+
+    expect(consoleRows).not.toBeUndefined();
+    expect(consoleRows?.length).toBeGreaterThan(0);
+    for (const row of consoleRows ?? []) {
+      expect(markdown).toContain(
+        [row.period, row.revenue, row.netIncome, row.operatingMargin, row.freeCashFlow].join(" | "),
+      );
+    }
+    expect(markdown.split("\n").filter((line) => line.split(" | ").length === 5)).toHaveLength(
+      (consoleRows?.length ?? 0) + 2,
+    );
+  });
+
+  test("selects annual periods from non-column fundamental series", () => {
+    const history = fundamentalHistoryFixture();
+    const annualPoint = history.series.dilutedEps.annual.at(-1);
+    expect(annualPoint).not.toBeUndefined();
+    if (annualPoint === undefined) {
+      return;
+    }
+    const annualPeriodEnd = "2026-09-30";
+    const nonColumnAnnual = {
+      ...annualPoint,
+      periodEnd: annualPeriodEnd,
+      filedAt: "2026-11-01",
+    };
+    const periods = trendPeriods({
+      ...history,
+      series: {
+        ...history.series,
+        grossProfit: {
+          ...history.series.grossProfit,
+          annual: [...history.series.grossProfit.annual, nonColumnAnnual],
+        },
+      },
+    });
+
+    expect(periods).toContainEqual({
+      kind: "annual",
+      periodEnd: annualPeriodEnd,
+      filedAt: "2026-11-01",
+    });
+  });
+
+  test("selects the TTM period from non-column fundamental series", () => {
+    const history = fundamentalHistoryFixture();
+    const annualPoint = history.series.dilutedEps.annual.at(-1);
+    expect(annualPoint).not.toBeUndefined();
+    if (annualPoint === undefined) {
+      return;
+    }
+    const ttmPeriodEnd = "2026-12-31";
+    const nonColumnTtm = {
+      ...snapshotHistoryPoint(annualPoint, annualPoint.value),
+      periodEnd: ttmPeriodEnd,
+      filedAt: "2027-02-01",
+    };
+    const periods = trendPeriods({
+      ...history,
+      series: {
+        ...history.series,
+        dilutedEps: {
+          ...history.series.dilutedEps,
+          ttm: nonColumnTtm,
+        },
+      },
+    });
+
+    expect(periods).toContainEqual({
+      kind: "ttm",
+      periodEnd: ttmPeriodEnd,
+      filedAt: "2027-02-01",
+    });
+  });
+
+  test("uses the cited company-description fallback instead of report summary", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      report: {
+        ...completenessReport(),
+        summary: "Advanced narrative summary.",
+        extras: {
+          businessFramework: {
+            sections: [
+              {
+                name: "Business",
+                posture: "criteria-supported",
+                text: "Business criteria-supported",
+                sourceIds: ["source-bull"],
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(view.equityPresentation?.defaultView.companySummary).toEqual({
+      text: "No cited plain-language company description is available.",
+      sourceIds: [],
+    });
+    expect(view.equityPresentation?.advanced.reportSummary).toBe("Advanced narrative summary.");
+  });
+
   test("preserves GBp price formatting in the snapshot", () => {
     const view = equitySnapshotView({
       summary: summary({ symbol: "RR.L" }),
@@ -1426,8 +1880,79 @@ describe("run workspace view", () => {
 
     expect(equitySnapshotView(detail)).toBeUndefined();
     expect(workspace.equitySnapshot).toBeUndefined();
+    expect(workspace.equityPresentation).toBeUndefined();
     expect(workspace.report.summary).toBe("Crypto summary.");
     expect(tocKeys(workspace)).toEqual(["summary"]);
+  });
+
+  test("keeps the equity reader projection for legacy runs without assetClass", () => {
+    const { assetClass: _assetClass, ...legacySummary } = summary();
+    const workspace = buildRunWorkspaceView({
+      summary: legacySummary,
+      report: completenessReport(),
+      marketSnapshots: [marketSnapshot()],
+    });
+
+    expect(workspace.equitySnapshot).toBeDefined();
+    expect(workspace.equityPresentation).toBeDefined();
+  });
+
+  test("renders the equity reader projection before one collapsed Advanced appendix", () => {
+    const consoleSource = readFileSync(
+      new URL("../app/client/components/run-workspace.svelte", import.meta.url),
+      "utf8",
+    );
+    const advancedStart = consoleSource.indexOf("<details");
+    const readerSource = consoleSource.slice(0, advancedStart);
+    const advancedSource = consoleSource.slice(advancedStart);
+
+    expect(advancedStart).toBeGreaterThan(0);
+    expect(consoleSource.match(/<details/gu)).toHaveLength(1);
+    expect(advancedSource).toContain("open={equityPresentation === undefined}");
+    expect(advancedSource).toContain("Detailed diagnostics, assumptions, and supporting evidence");
+    expect(readerSource).toContain("equityPresentation.defaultView.financialTrends.rows");
+    expect(readerSource).toContain("equityPresentation.defaultView.materialGaps");
+    expect(readerSource).not.toContain("equityPresentation.advanced.");
+    expect(advancedSource).toContain("equityPresentation.advanced.financialLensDrivers");
+    expect(advancedSource).toContain("equityPresentation.advanced.balanceSheetHistory");
+    expect(advancedSource).toContain("valuationWorkbench.excludedPeerRows");
+    expect(advancedSource).not.toContain("equityPresentation.defaultView.");
+  });
+
+  test("keeps bindSection keys unique across the component", () => {
+    const consoleSource = readFileSync(
+      new URL("../app/client/components/run-workspace.svelte", import.meta.url),
+      "utf8",
+    );
+    const keys = [...consoleSource.matchAll(/bindSection\("([^"]+)"\)/gu)].map((match) => match[1]);
+
+    expect(keys.length).toBeGreaterThan(0);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  test("server-renders financial-core status and non-empty trend rows in the equity reader", async () => {
+    const history = snapshotFundamentalHistory(
+      {},
+      { revenue: 170, freeCashFlowProxy: 35, operatingMargin: 0.25 },
+    );
+    const html = await renderRunWorkspaceComponent({
+      summary: summary(),
+      report: completenessReport(),
+      marketSnapshots: [marketSnapshot()],
+      fundamentalHistory: history,
+    });
+    const text = html
+      .replaceAll(/<[^>]+>/gu, " ")
+      .replaceAll(/\s+/gu, " ")
+      .trim();
+    const expectedRows = financialTrendRows(history);
+
+    expect(text).toContain("financial core · complete");
+    expect(expectedRows.length).toBeGreaterThan(0);
+    for (const row of expectedRows) {
+      expect(text).toContain(row.period);
+      expect(text).toContain(row.revenue);
+    }
   });
 
   test("keeps deterministic snapshot and Console copy inside the research-only boundary", () => {

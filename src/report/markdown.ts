@@ -20,14 +20,19 @@ import {
 import { isRecord, readNumber } from "../guards";
 import { classifyGap } from "./gap-triage";
 import type { CollectedSources } from "../sources/types";
-import type {
-  FundamentalHistoryArtifact,
-  FundamentalHistoryPoint,
-  FundamentalHistorySeries,
-} from "../sources/extended-evidence/fundamental-history";
 import type { FinancialStatementSeries } from "../sources/extended-evidence/financial-statements-contract";
 import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
 import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
+import {
+  companyDescription,
+  compactNumber,
+  financialTrendCurrency,
+  financialTrendRows,
+  formatTrendAmount,
+  NO_COMPANY_DESCRIPTION,
+  periodLabel,
+  trendPeriods,
+} from "./equity-reader";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
@@ -254,58 +259,10 @@ function renderPriceProvenance(
     .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
 }
 
-function hasPlainLanguageDescription(text: string): boolean {
-  const outsideParentheses = text.replaceAll(/\([^()]*\)/gu, " ");
-  const descriptiveWords = (outsideParentheses.match(/[A-Za-z][A-Za-z'-]*/gu) ?? []).filter(
-    (word) =>
-      !["business", "criteria", "supported", "mixed", "not", "insufficient", "data"].includes(
-        word.toLowerCase(),
-      ),
-  );
-  return descriptiveWords.length >= 2;
-}
-
 function renderCompanyDescription(report: ResearchReport): string {
-  const profile = report.extras?.webSubjectProfile;
-  if (isRecord(profile)) {
-    const candidates = [
-      profile.subjectSummary,
-      isRecord(profile.questions) ? profile.questions.whatItDoes : undefined,
-    ];
-    for (const candidate of candidates) {
-      if (!isRecord(candidate) || typeof candidate.answer !== "string" || candidate.answer === "") {
-        continue;
-      }
-      const refs = sourceRefs(knownSourceIds(report, candidate.sourceIds));
-      return `## What the Company Does\n\n${markdownText(candidate.answer)}${refs === "" ? "" : ` ${refs}`}\n`;
-    }
-  }
-
-  const framework = report.extras?.businessFramework;
-  if (isRecord(framework) && Array.isArray(framework.sections)) {
-    const business = framework.sections.find(
-      (section) => isRecord(section) && section.name === "Business",
-    );
-    if (isRecord(business)) {
-      let rawText = "";
-      if (typeof business.text === "string") {
-        rawText = business.text;
-      } else if (typeof business.summary === "string") {
-        rawText = business.summary;
-      }
-      const posture = typeof business.posture === "string" ? business.posture : "";
-      const prefix = `Business ${posture}`;
-      const plainText = (
-        rawText.startsWith(prefix) ? rawText.slice(prefix.length) : rawText
-      ).trim();
-      if (plainText !== "" && hasPlainLanguageDescription(rawText)) {
-        const refs = sourceRefs(knownSourceIds(report, business.sourceIds));
-        return `## What the Company Does\n\n${markdownText(plainText)}${refs === "" ? "" : ` ${refs}`}\n`;
-      }
-    }
-  }
-
-  return "## What the Company Does\n\n- No cited plain-language company description is available.\n";
+  const description = companyDescription(report);
+  const refs = sourceRefs(description.sourceIds);
+  return `## What the Company Does\n\n${description.text === NO_COMPANY_DESCRIPTION ? "- " : ""}${markdownText(description.text)}${refs === "" ? "" : ` ${refs}`}\n`;
 }
 
 function quoteCurrency(snapshot: MarketSnapshot): string {
@@ -330,106 +287,13 @@ function renderPriceAndMarketDate(
   return `## Price and Market Date\n\n${summary}${refs === "" ? "" : ` ${refs}`}\n`;
 }
 
-function compactNumber(value: number): string {
-  const absolute = Math.abs(value);
-  const units = [
-    [1_000_000_000_000, "T"],
-    [1_000_000_000, "B"],
-    [1_000_000, "M"],
-  ] as const;
-  for (const [scale, suffix] of units) {
-    if (absolute >= scale) {
-      return `${(value / scale).toFixed(1)}${suffix}`;
-    }
-  }
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
-}
-
-function historyPoint(
-  series: FundamentalHistorySeries,
-  periodEnd: string,
-  kind: "annual" | "ttm",
-): FundamentalHistoryPoint | undefined {
-  if (kind === "ttm") {
-    return series.ttm?.periodEnd === periodEnd ? series.ttm : undefined;
-  }
-  return series.annual.find((point) => point.periodEnd === periodEnd);
-}
-
-interface TrendPeriod {
-  readonly kind: "annual" | "ttm";
-  readonly periodEnd: string;
-  readonly filedAt: string;
-}
-
 interface StatementPeriod {
   readonly kind: "annual" | "interim";
   readonly periodEnd: string;
   readonly filedAt: string;
 }
 
-function periodLabel(period: TrendPeriod | StatementPeriod): string {
-  if (period.kind === "ttm") {
-    return `TTM (${period.periodEnd}; filed ${period.filedAt})`;
-  }
-  return `${period.kind === "annual" ? "FY" : "Interim"} ending ${period.periodEnd} (filed ${period.filedAt})`;
-}
-
-function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod[] {
-  const annual = new Map<string, TrendPeriod>();
-  for (const series of Object.values(history.series)) {
-    for (const point of series.annual) {
-      const existing = annual.get(point.periodEnd);
-      if (existing === undefined || point.filedAt < existing.filedAt) {
-        annual.set(point.periodEnd, {
-          kind: "annual",
-          periodEnd: point.periodEnd,
-          filedAt: point.filedAt,
-        });
-      }
-    }
-  }
-  const annualRows = [...annual.values()]
-    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
-    .slice(-5);
-  let ttm: TrendPeriod | undefined = undefined;
-  for (const series of Object.values(history.series)) {
-    const point = series.ttm;
-    if (point === undefined) {
-      continue;
-    }
-    if (
-      ttm === undefined ||
-      point.periodEnd > ttm.periodEnd ||
-      (point.periodEnd === ttm.periodEnd && point.filedAt < ttm.filedAt)
-    ) {
-      ttm = {
-        kind: "ttm",
-        periodEnd: point.periodEnd,
-        filedAt: point.filedAt,
-      };
-    }
-  }
-  return ttm === undefined ? annualRows : [...annualRows, ttm];
-}
-
-function historyValue(
-  history: FundamentalHistoryArtifact,
-  key: keyof FundamentalHistoryArtifact["series"],
-  period: TrendPeriod,
-): number | undefined {
-  return historyPoint(history.series[key], period.periodEnd, period.kind)?.value;
-}
-
-function formatTrendAmount(value: number | undefined): string {
-  return value === undefined ? "—" : compactNumber(value);
-}
-
-function formatTrendPercent(value: number | undefined): string {
-  return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
-}
-
-function renderFinancialTrends(
+export function renderFinancialTrends(
   report: ResearchReport,
   sources: Pick<CollectedSources, "fundamentalHistory"> | undefined,
 ): string {
@@ -437,23 +301,14 @@ function renderFinancialTrends(
   if (history === undefined) {
     return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
   }
-  const periods = trendPeriods(history);
-  if (periods.length === 0) {
+  const trendRows = financialTrendRows(history);
+  if (trendRows.length === 0) {
     return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
   }
-  const rows = periods.map((period) => {
-    const netIncome = historyValue(history, "netIncome", period);
-    const operatingMargin = historyValue(history, "operatingMargin", period);
-    return [
-      periodLabel(period),
-      formatTrendAmount(historyValue(history, "revenue", period)),
-      formatTrendAmount(netIncome),
-      formatTrendPercent(operatingMargin),
-      formatTrendAmount(historyValue(history, "freeCashFlowProxy", period)),
-    ].join(" | ");
-  });
-  const currency =
-    history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
+  const rows = trendRows.map((row) =>
+    [row.period, row.revenue, row.netIncome, row.operatingMargin, row.freeCashFlow].join(" | "),
+  );
+  const currency = financialTrendCurrency(history);
   const refs = sourceRefs(knownSourceIds(report, [history.sourceId]));
   return [
     "## Financial Trends",

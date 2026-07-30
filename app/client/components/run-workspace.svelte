@@ -68,7 +68,16 @@
   const sectionEls: Partial<Record<string, HTMLElement>> = {};
 
   const workspace = $derived(detail === null ? undefined : buildRunWorkspaceView(detail));
-  const reportSummary = $derived(workspace?.report.summary ?? "");
+  const equityPresentation = $derived(workspace?.equityPresentation);
+  const reportSummary = $derived(
+    equityPresentation?.advanced.reportSummary ?? workspace?.report.summary ?? "",
+  );
+  const reportSummarySectionKey = $derived(
+    equityPresentation === undefined ? "summary" : "advancedSummary",
+  );
+  const reportFindingsSectionKey = $derived(
+    equityPresentation === undefined ? "findings" : "advancedFindings",
+  );
   const reportMarkdown = $derived(workspace?.report.markdown);
   const findingItems = $derived(workspace?.report.findings ?? []);
   const scenarioItems = $derived(workspace?.report.scenarios ?? []);
@@ -88,6 +97,11 @@
   const sourceItems = $derived(workspace?.sources.items ?? []);
   const splitGaps = $derived(
     workspace?.gaps ?? { shortfalls: [], otherGaps: [], triagedGaps: [] },
+  );
+  const advancedTriagedGaps = $derived(
+    equityPresentation === undefined
+      ? splitGaps.triagedGaps
+      : splitGaps.triagedGaps.filter((gap) => gap.triage === "diagnostic"),
   );
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
@@ -118,6 +132,14 @@
       ...section,
       ...CASE_STYLES[section.key],
     })),
+  );
+  const defaultCaseSections = $derived(
+    caseSections.filter((section) => section.key === "catalysts" || section.key === "risks"),
+  );
+  const advancedCaseSections = $derived(
+    equityPresentation === undefined
+      ? caseSections
+      : caseSections.filter((section) => section.key === "bullCase" || section.key === "bearCase"),
   );
 
   const tocEntries = $derived(workspace?.tableOfContents ?? []);
@@ -329,7 +351,209 @@
     {#if activeTab === "report"}
       <div class="mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]">
         <article class="min-w-0">
-          {#if equitySnapshot !== undefined}
+          {#if equityPresentation !== undefined}
+            <section {@attach bindSection("equityOverview")} class="mb-6 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
+                  Equity snapshot
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]"> numbers and dates first </span>
+              </div>
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                    {equityPresentation.defaultView.pricePerformance.label}
+                  </div>
+                  <div class="mt-2 flex items-baseline gap-2 font-mono">
+                    <span class="text-[18px] font-semibold">
+                      {equityPresentation.defaultView.pricePerformance.price ?? "Unavailable"}
+                    </span>
+                    <span
+                      class="text-[12px] font-medium {equityPresentation.defaultView.pricePerformance
+                        .changeDirection === 'positive'
+                        ? 'text-[#0F9D58]'
+                        : equityPresentation.defaultView.pricePerformance.changeDirection === 'negative'
+                          ? 'text-[#9B0F06]'
+                          : 'text-muted-foreground'}"
+                    >
+                      {equityPresentation.defaultView.pricePerformance.change24h ?? "24h unavailable"}
+                    </span>
+                  </div>
+                  <div class="mt-1 font-mono text-[9px] text-[#8a8f96]">
+                    {#if equityPresentation.defaultView.pricePerformance.priceAsOf !== undefined}
+                      {equityPresentation.defaultView.pricePerformance.priceAsOf.kind === "quote-time"
+                        ? "Quote time"
+                        : "Fetch time"} · {equityPresentation.defaultView.pricePerformance.priceAsOf.instant}
+                    {:else}
+                      Price time unavailable
+                    {/if}
+                  </div>
+                  {@render citeChips(equityPresentation.defaultView.pricePerformance.sourceIds)}
+                </div>
+                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                    {equityPresentation.defaultView.valuationContext.label}
+                  </div>
+                  <div class="mt-2 font-mono text-[13px] font-medium">
+                    {equityPresentation.defaultView.valuationContext.display}
+                  </div>
+                  {#if equityPresentation.defaultView.valuationContext.positionLabel !== undefined}
+                    <div class="mt-1 text-[10px] text-primary">
+                      {equityPresentation.defaultView.valuationContext.positionLabel}
+                    </div>
+                  {/if}
+                  <div class="mt-1 text-[9px] leading-snug text-muted-foreground">
+                    {equityPresentation.defaultView.valuationContext.disclosure}
+                  </div>
+                  {@render citeChips(equityPresentation.defaultView.valuationContext.sourceIds)}
+                </div>
+              </div>
+            </section>
+
+            <div
+              {@attach bindSection("summary")}
+              class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
+            >
+              {equityPresentation.defaultView.companySummary.text}
+              {@render citeChips(equityPresentation.defaultView.companySummary.sourceIds)}
+            </div>
+
+            {#if equityPresentation.defaultView.financialTrends !== undefined}
+              <section {@attach bindSection("financialTrends")} class="mt-8.5 scroll-mt-5">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                    Financial trends
+                  </span>
+                  <span class="font-mono text-[10px] text-[#8a8f96]">
+                    {equityPresentation.defaultView.financialTrends.reportingCurrency ?? "currency unavailable"}
+                    · FCF proxy
+                  </span>
+                </div>
+                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
+                  <table class="w-full min-w-[650px] border-collapse text-left">
+                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        {#each equityPresentation.defaultView.financialTrends.columns as column, index}
+                          <th class="px-2.5 py-2 font-semibold {index === 0 ? '' : 'text-right'}">
+                            {column}
+                          </th>
+                        {/each}
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border font-mono text-[10px]">
+                      {#each equityPresentation.defaultView.financialTrends.rows as row}
+                        <tr>
+                          <td class="px-2.5 py-2">{row.period}</td>
+                          <td class="px-2.5 py-2 text-right">{row.revenue}</td>
+                          <td class="px-2.5 py-2 text-right">{row.netIncome}</td>
+                          <td class="px-2.5 py-2 text-right">{row.operatingMargin}</td>
+                          <td class="px-2.5 py-2 text-right">{row.freeCashFlow}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+                {@render citeChips(equityPresentation.defaultView.financialTrends.sourceIds)}
+              </section>
+            {/if}
+
+            {#if equityPresentation.defaultView.findings.length > 0}
+              <section {@attach bindSection("findings")} class="mt-8.5 scroll-mt-5">
+                {@render sectionHeading("Key findings")}
+                {#each equityPresentation.defaultView.findings as item, index}
+                  <div class="flex gap-3.5 border-b border-[#f0ede7] py-3.5">
+                    <span class="shrink-0 pt-0.75 font-mono text-xs text-[#a8acb1]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div class="min-w-0">
+                      <span class="font-serif text-[15.5px] leading-[1.6] text-[#1f2225]">
+                        {item.text}
+                      </span>
+                      {@render citeChips(item.sourceIds)}
+                    </div>
+                  </div>
+                {/each}
+              </section>
+            {/if}
+
+            {#if defaultCaseSections.length > 0}
+              <div {@attach bindSection("cases")} class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2">
+                {#each defaultCaseSections as section}
+                  <div
+                    class="rounded-lg border border-border bg-card px-4.5 py-4"
+                    style="border-top: 3px solid {section.edge}"
+                  >
+                    <div class="text-xs font-semibold uppercase tracking-wider" style="color: {section.fg}">
+                      {section.title}
+                    </div>
+                    <div class="mt-3 flex flex-col gap-3">
+                      {#each section.items as item}
+                        <div class="min-w-0">
+                          <span class="font-serif text-sm leading-[1.55] text-[#2a2d30]">
+                            {item.text}
+                          </span>
+                          {@render citeChips(item.sourceIds)}
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
+            {#if equityPresentation.defaultView.earningsConsensus.items.length > 0}
+              <section {@attach bindSection("earningsConsensus")} class="mt-8.5 scroll-mt-5">
+                {@render sectionHeading("Upcoming earnings & consensus")}
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                  {#each equityPresentation.defaultView.earningsConsensus.items as item}
+                    <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                      <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                        {item.label}
+                      </div>
+                      <div class="mt-1.5 font-mono text-[12px]">{item.value}</div>
+                      {@render citeChips(item.sourceIds)}
+                    </div>
+                  {/each}
+                </div>
+              </section>
+            {/if}
+
+            <section {@attach bindSection("gaps")} class="mt-8.5 scroll-mt-5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#e9ddc2] pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]">
+                  Coverage & material gaps
+                </span>
+                <div class="flex flex-wrap gap-2">
+                  <span
+                    class="rounded border px-2 py-1 font-mono text-[10px] {COMPLETENESS_STATUS_CLASSES[
+                      equityPresentation.defaultView.coverage.financialCoreStatus
+                    ]}"
+                  >
+                    financial core · {equityPresentation.defaultView.coverage.financialCoreStatus}
+                  </span>
+                  <span class="rounded border border-border bg-secondary px-2 py-1 font-mono text-[10px]">
+                    coverage · {equityPresentation.defaultView.coverage.coverageLevel ?? "unavailable"}
+                  </span>
+                </div>
+              </div>
+              {#if equityPresentation.defaultView.materialGaps.length === 0}
+                <div class="mt-3 text-sm text-muted-foreground">No material gaps identified.</div>
+              {:else}
+                <div class="mt-3.5 flex flex-col gap-2.5">
+                  {#each equityPresentation.defaultView.materialGaps as gap}
+                    <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
+                      <span class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]">
+                        MATERIAL
+                      </span>
+                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </section>
+          {/if}
+
+          {#if equityPresentation === undefined && equitySnapshot !== undefined}
             <section class="mb-6">
               <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
                 <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
@@ -574,10 +798,26 @@
             </section>
           {/if}
 
-          {#if reportSummary !== ""}
-            <div
-              {@attach bindSection("summary")}
-              class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
+          <details
+            {@attach bindSection("advanced")}
+            class={equityPresentation === undefined ? "contents" : "mt-9 block scroll-mt-5"}
+            open={equityPresentation === undefined}
+          >
+            <summary
+              class={equityPresentation === undefined
+                ? "hidden"
+                : "cursor-pointer border-y border-border py-3 text-[11px] font-semibold text-muted-foreground"}
+            >
+              <span class="tracking-[0.09em]">Advanced</span>
+              <span class="ml-2 font-normal text-[#8a8f96]">
+                Detailed diagnostics, assumptions, and supporting evidence
+              </span>
+            </summary>
+            <div class={equityPresentation === undefined ? "contents" : "pb-2 pt-1"}>
+            {#if reportSummary !== ""}
+              <div
+                {@attach bindSection(reportSummarySectionKey)}
+                class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
             >
               {reportSummary}
             </div>
@@ -587,20 +827,24 @@
             <section {@attach bindSection("equityCompleteness")} class="mt-5 scroll-mt-5">
               <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
                 <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  Analysis completeness
+                  {equityPresentation === undefined
+                    ? "Analysis completeness"
+                    : "Completeness diagnostics"}
                 </span>
                 <span class="font-mono text-[10px] text-[#8a8f96]">
                   as of {equityCompleteness.asOf}
                 </span>
               </div>
-              <div class="mt-3 flex flex-wrap gap-2 font-mono text-[10px]">
-                <span class="rounded border px-2 py-1 {COMPLETENESS_STATUS_CLASSES[equityCompleteness.financialCoreStatus]}">
-                  financial core · {equityCompleteness.financialCoreStatus}
-                </span>
-                <span class="rounded border border-border bg-secondary px-2 py-1 text-foreground">
-                  coverage · {equityCompleteness.coverageLevel}
-                </span>
-              </div>
+              {#if equityPresentation === undefined}
+                <div class="mt-3 flex flex-wrap gap-2 font-mono text-[10px]">
+                  <span class="rounded border px-2 py-1 {COMPLETENESS_STATUS_CLASSES[equityCompleteness.financialCoreStatus]}">
+                    financial core · {equityCompleteness.financialCoreStatus}
+                  </span>
+                  <span class="rounded border border-border bg-secondary px-2 py-1 text-foreground">
+                    coverage · {equityCompleteness.coverageLevel}
+                  </span>
+                </div>
+              {/if}
               <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {#each equityCompleteness.dimensions as dimension}
                   <div class="rounded-lg border border-border bg-card px-3 py-2.5">
@@ -629,6 +873,91 @@
                     {/if}
                   </div>
                 {/each}
+              </div>
+            </section>
+          {/if}
+
+          {#if equityPresentation !== undefined}
+            <section class="mt-5">
+              <div class="border-b border-[#cfe0e3] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
+                Detailed equity metrics
+              </div>
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  {equityPresentation.advanced.keyDatedMetrics.label}
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+                  {#each [...equityPresentation.advanced.keyDatedMetrics.metrics, ...equityPresentation.advanced.keyDatedMetrics.foldedYahooMetrics] as metric}
+                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                      <div class="font-mono text-[13px] font-semibold">{metric.value ?? "Unavailable"}</div>
+                      <div class="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                        {metric.label}
+                      </div>
+                      <div class="mt-1 font-mono text-[8px] text-[#8a8f96]">
+                        {metric.dateBasis ?? "Date unavailable"}
+                      </div>
+                      {@render citeChips(metric.sourceIds)}
+                    </div>
+                  {/each}
+                </div>
+              </div>
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  {equityPresentation.advanced.miniCharts.label}
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                  {#each equityPresentation.advanced.miniCharts.charts as chart}
+                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                      <div class="text-[9px] font-semibold uppercase tracking-wider">{chart.label}</div>
+                      {#if chart.geometry === undefined}
+                        <div class="mt-3 text-xs text-muted-foreground">Unavailable</div>
+                      {:else}
+                        <div class="mt-1 font-mono text-[12px] font-semibold">{chart.value}</div>
+                        <SparklineBars geometry={chart.geometry} label={`${chart.label} history`} />
+                        <div class="font-mono text-[8px] text-[#8a8f96]">{chart.period}</div>
+                        {@render citeChips(chart.sourceIds)}
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </div>
+              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  {equityPresentation.advanced.financialLensDrivers.label}
+                </div>
+                <div class="mt-2 grid gap-2 sm:grid-cols-3">
+                  <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                    <div class="text-[9px] font-semibold uppercase tracking-wider">
+                      {equityPresentation.advanced.financialLensDrivers.postures.label}
+                    </div>
+                    <div class="mt-2 space-y-1.5">
+                      {#each equityPresentation.advanced.financialLensDrivers.postures.items as posture}
+                        <div>
+                          <span class="text-[10px] font-medium">{posture.lens}</span>
+                          <span class="font-mono text-[9px] text-muted-foreground">
+                            · {posture.postureLabel}
+                          </span>
+                          {@render citeChips(posture.sourceIds)}
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                  {#each [equityPresentation.advanced.financialLensDrivers.bullCase, equityPresentation.advanced.financialLensDrivers.bearCase] as driverCard}
+                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
+                      <div class="text-[9px] font-semibold uppercase tracking-wider">
+                        {driverCard.label}
+                      </div>
+                      <div class="mt-2 space-y-2">
+                        {#each driverCard.items as item}
+                          <div class="font-serif text-[12px] leading-snug">
+                            {item.text}
+                            {@render citeChips(item.sourceIds)}
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
               </div>
             </section>
           {/if}
@@ -735,6 +1064,42 @@
             </section>
           {/if}
 
+          {#if equityPresentation?.advanced.balanceSheetHistory !== undefined}
+            <section class="mt-8.5">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                  Balance sheet & share count
+                </span>
+                <span class="font-mono text-[10px] text-[#8a8f96]">
+                  {equityPresentation.advanced.balanceSheetHistory.reportingCurrency ?? "currency unavailable"}
+                </span>
+              </div>
+              <div class="mt-3 overflow-x-auto rounded-lg border border-border">
+                <table class="w-full min-w-[580px] border-collapse text-left">
+                  <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th class="px-2.5 py-2 font-semibold">Period</th>
+                      <th class="px-2.5 py-2 text-right font-semibold">Cash</th>
+                      <th class="px-2.5 py-2 text-right font-semibold">Debt</th>
+                      <th class="px-2.5 py-2 text-right font-semibold">Diluted shares</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border font-mono text-[10px]">
+                    {#each equityPresentation.advanced.balanceSheetHistory.rows as row}
+                      <tr>
+                        <td class="px-2.5 py-2">{row.period}</td>
+                        <td class="px-2.5 py-2 text-right">{row.cash}</td>
+                        <td class="px-2.5 py-2 text-right">{row.debt}</td>
+                        <td class="px-2.5 py-2 text-right">{row.dilutedShares}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+              {@render citeChips(equityPresentation.advanced.balanceSheetHistory.sourceIds)}
+            </section>
+          {/if}
+
           {#if valuationWorkbench !== undefined}
             <section {@attach bindSection("valuationWorkbench")} class="mt-8.5 scroll-mt-5">
               <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
@@ -830,6 +1195,20 @@
               {:else if valuationWorkbench.peerSuppression !== undefined}
                 <div class="mt-2 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
                   {valuationWorkbench.peerSuppression}
+                </div>
+              {/if}
+              {#if valuationWorkbench.excludedPeerRows.length > 0}
+                <div class="mt-4 text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  Excluded-peer diagnostics
+                </div>
+                <div class="mt-2 space-y-2">
+                  {#each valuationWorkbench.excludedPeerRows as peer}
+                    <div class="rounded-lg border border-dashed border-border bg-secondary px-3 py-2 text-[10px]">
+                      <span class="font-mono font-semibold">{peer.symbol}</span>
+                      · {peer.role} · {peer.reason}
+                      {@render citeChips(peer.sourceIds)}
+                    </div>
+                  {/each}
                 </div>
               {/if}
             </section>
@@ -932,8 +1311,8 @@
             </section>
           {/if}
 
-          {#if findingItems.length > 0}
-            <section {@attach bindSection("findings")} class="mt-8.5 scroll-mt-5">
+          {#if equityPresentation === undefined && findingItems.length > 0}
+            <section {@attach bindSection(reportFindingsSectionKey)} class="mt-8.5 scroll-mt-5">
               {@render sectionHeading("Key findings")}
               {#each findingItems as item, index}
                 <div class="flex gap-3.5 border-b border-[#f0ede7] py-3.5">
@@ -951,9 +1330,12 @@
             </section>
           {/if}
 
-          {#if caseSections.length > 0}
-            <div {@attach bindSection("cases")} class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2">
-              {#each caseSections as section}
+          {#if advancedCaseSections.length > 0}
+            <div
+              {@attach bindSection("advancedCases")}
+              class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2"
+            >
+              {#each advancedCaseSections as section}
                 <div
                   class="rounded-lg border border-border bg-card px-4.5 py-4"
                   style="border-top: 3px solid {section.edge}"
@@ -1416,7 +1798,7 @@
           {/if}
 
           {#if showGapsSection}
-            <section {@attach bindSection("gaps")} class="mt-8.5 scroll-mt-5">
+            <section {@attach bindSection("diagnosticGaps")} class="mt-8.5 scroll-mt-5">
               {#if splitGaps.shortfalls.length > 0}
                 <div
                   class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]"
@@ -1439,7 +1821,7 @@
                 </div>
               {/if}
 
-              {#if splitGaps.triagedGaps.length > 0}
+              {#if advancedTriagedGaps.length > 0}
                 <div
                   class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116] {splitGaps
                     .shortfalls.length > 0
@@ -1449,7 +1831,7 @@
                   Data gaps · what we could not verify
                 </div>
                 <div class="mt-3.5 flex flex-col gap-2.5">
-                  {#each splitGaps.triagedGaps as gap}
+                  {#each advancedTriagedGaps as gap}
                     <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
                       <span
                         class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
@@ -1473,6 +1855,8 @@
                 class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{reportMarkdown}</pre>
             </section>
           {/if}
+            </div>
+          </details>
         </article>
 
         <aside class="sticky top-6 hidden h-fit pt-1 xl:block">

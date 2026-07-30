@@ -6,6 +6,8 @@ import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
 import { runCli, scorePassOptions } from "../src/app";
 import type { ModelProvider } from "../src/model/types";
 import type { PersistedResearchJobResult } from "../src/research/orchestrator";
+import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
+import type { RunDetail } from "../app/types";
 import { collectedSources, researchReport } from "./support/fixtures";
 
 // Minimal run-quality analytics that renderRunAnalyticsConsole can summarize without
@@ -52,6 +54,41 @@ const originalCacheDir = process.env.MARKET_BOT_CACHE_DIR;
 const originalApeWisdomFilter = process.env.MARKET_BOT_APEWISDOM_FILTER;
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
 const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
+
+describe("Research Console equity presentation boundary", () => {
+  test("leaves every non-equity run type on the existing flat workspace path", () => {
+    for (const [jobType, assetClass, symbol] of [
+      ["crypto", "crypto", "BTC"],
+      ["market-overview", "equity", undefined],
+      ["research", "equity", undefined],
+    ] as const) {
+      const detail: RunDetail = {
+        summary: {
+          runId: `${jobType}-run`,
+          jobType,
+          assetClass,
+          ...(symbol === undefined ? {} : { symbol }),
+          findingCount: 1,
+          predictionCount: 0,
+          sourceCount: 0,
+          dataGapCount: 0,
+          hasScore: false,
+          availableFiles: [],
+        },
+        report: {
+          summary: `${jobType} summary`,
+          keyFindings: [{ text: `${jobType} finding`, sourceIds: [] }],
+        },
+      };
+
+      const view = buildRunWorkspaceView(detail);
+      expect(view.equityPresentation).toBeUndefined();
+      expect(view.report.summary).toBe(`${jobType} summary`);
+      expect(view.report.findings).toEqual([{ text: `${jobType} finding`, sourceIds: [] }]);
+      expect(view.tableOfContents.map((entry) => entry.key)).toEqual(["summary", "findings"]);
+    }
+  });
+});
 
 afterEach(async () => {
   if (originalDataDir === undefined) {

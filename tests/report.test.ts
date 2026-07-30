@@ -105,6 +105,27 @@ test("renders not-assessed completeness as a non-success status chip", () => {
   expect(markdown).not.toContain("Expectations `complete`");
 });
 
+test("renders an uncited real company description as a paragraph", () => {
+  const description = "Apple designs and sells consumer technology products.";
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    extras: {
+      webSubjectProfile: {
+        subjectSummary: {
+          answer: description,
+          sourceIds: ["unknown-source"],
+        },
+      },
+    },
+  });
+
+  expect(markdown).toContain(`## What the Company Does\n\n${description}\n`);
+  expect(markdown).not.toContain(`\n- ${description}`);
+});
+
 const spotlightSource: Source = {
   id: "market-yahoo-equity-roku",
   title: "ROKU market snapshot",

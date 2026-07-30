@@ -11,11 +11,18 @@ import type {
   FinancialLensName,
   FinancialLensPosture,
 } from "../../src/sources/extended-evidence/financial-lens";
+import type { FinancialStatementSeries } from "../../src/sources/extended-evidence/financial-statements-contract";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistoryPoint,
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
+import {
+  companyDescription,
+  financialTrendCurrency,
+  financialTrendRows,
+  periodLabel,
+} from "../../src/report/equity-reader";
 import type {
   PeerImpliedRange,
   ValuationCompsRow,
@@ -196,6 +203,44 @@ export interface RunWorkspaceFundamentalHistoryView {
   readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
 }
 
+export interface RunWorkspaceFinancialTrendRow {
+  readonly period: string;
+  readonly revenue: string;
+  readonly netIncome: string;
+  readonly operatingMargin: string;
+  readonly freeCashFlow: string;
+}
+
+export interface RunWorkspaceFinancialTrendView {
+  readonly columns: readonly ["Period", "Revenue", "Net income", "Operating margin", "FCF"];
+  readonly reportingCurrency?: string;
+  readonly sourceIds: readonly string[];
+  readonly rows: readonly RunWorkspaceFinancialTrendRow[];
+}
+
+export interface RunWorkspaceBalanceSheetHistoryRow {
+  readonly period: string;
+  readonly cash: string;
+  readonly debt: string;
+  readonly dilutedShares: string;
+}
+
+export interface RunWorkspaceBalanceSheetHistoryView {
+  readonly reportingCurrency?: string;
+  readonly sourceIds: readonly string[];
+  readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
+}
+
+export interface RunWorkspaceEarningsConsensusItem {
+  readonly label: string;
+  readonly value: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceEarningsConsensusView {
+  readonly items: readonly RunWorkspaceEarningsConsensusItem[];
+}
+
 export interface RunWorkspaceCompletenessDimension {
   readonly key:
     | "primaryFinancials"
@@ -293,6 +338,7 @@ export interface RunWorkspaceEquitySnapshotReferenceRange extends RunWorkspaceEq
   readonly key: "peerReferenceRange";
   readonly display: string;
   readonly positionLabel?: string;
+  readonly disclosure: string;
 }
 
 export interface RunWorkspaceEquitySnapshotMetric {
@@ -401,6 +447,13 @@ export interface RunWorkspaceValuationPeerRow {
   readonly inputDates: string;
 }
 
+export interface RunWorkspaceExcludedValuationPeerRow {
+  readonly symbol: string;
+  readonly role: string;
+  readonly reason: string;
+  readonly sourceIds: readonly string[];
+}
+
 export interface RunWorkspaceValuationWorkbenchView {
   readonly reportingCurrency: string;
   readonly quoteCurrency: string;
@@ -411,6 +464,7 @@ export interface RunWorkspaceValuationWorkbenchView {
   readonly peerSupportability: string;
   readonly peerSuppression?: string;
   readonly peerRows: readonly RunWorkspaceValuationPeerRow[];
+  readonly excludedPeerRows: readonly RunWorkspaceExcludedValuationPeerRow[];
 }
 
 export type RunWorkspaceReverseDcfView =
@@ -437,9 +491,61 @@ export interface RunWorkspaceTableOfContentsEntry {
   readonly label: string;
 }
 
+export interface RunWorkspaceEquityPresentationView {
+  readonly defaultView: {
+    readonly sectionOrder: readonly [
+      "identityPrice",
+      "companySummary",
+      "financialTrends",
+      "valuationContext",
+      "findings",
+      "catalystsRisks",
+      "earningsConsensus",
+      "coverageMaterialGaps",
+    ];
+    readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
+    readonly companySummary: RunWorkspaceTextItem;
+    readonly financialTrends?: RunWorkspaceFinancialTrendView;
+    readonly valuationContext: RunWorkspaceEquitySnapshotReferenceRange;
+    readonly findings: readonly RunWorkspaceTextItem[];
+    readonly cases: readonly RunWorkspaceCaseSection[];
+    readonly earningsConsensus: RunWorkspaceEarningsConsensusView;
+    readonly coverage: RunWorkspaceEquitySnapshotCompleteness;
+    readonly materialGaps: readonly string[];
+  };
+  readonly advanced: {
+    readonly sectionOrder: readonly [
+      "financialLensDrivers",
+      "financialLensGroups",
+      "valuationWorkbench",
+      "reverseDcf",
+      "peerComps",
+      "institutionalAnalystOptions",
+      "diagnosticGaps",
+      "extendedEvidence",
+      "balanceSheetHistory",
+      "remainingResearchDetail",
+    ];
+    readonly financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers;
+    readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
+    readonly keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics;
+    readonly miniCharts: RunWorkspaceEquitySnapshotMiniCharts;
+    readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
+    readonly reverseDcf?: RunWorkspaceReverseDcfView;
+    readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
+    readonly extendedItems: readonly ExtendedEvidenceItemView[];
+    readonly diagnosticGaps: readonly string[];
+    readonly balanceSheetHistory?: RunWorkspaceBalanceSheetHistoryView;
+    readonly cases: readonly RunWorkspaceCaseSection[];
+    readonly scenarios: readonly ScenarioView[];
+    readonly reportSummary: string;
+  };
+}
+
 export interface RunWorkspaceView {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
   readonly equitySnapshot?: RunWorkspaceEquitySnapshotView;
+  readonly equityPresentation?: RunWorkspaceEquityPresentationView;
   readonly equityCompleteness?: RunWorkspaceEquityCompletenessView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
@@ -763,6 +869,15 @@ export function valuationWorkbenchView(
       ? { peerSuppression: artifact.peerComparison.detail }
       : {}),
     peerRows: valuationPeerRows(artifact),
+    excludedPeerRows:
+      artifact.peerComparison.status === "available"
+        ? artifact.peerComparison.valuationComps.excludedPeers.map((peer) => ({
+            symbol: peer.symbol,
+            role: peer.role,
+            reason: peer.reason,
+            sourceIds: peer.sourceIds,
+          }))
+        : [],
   };
 }
 
@@ -927,6 +1042,190 @@ export function fundamentalHistoryView(
     ];
   });
   return cards.length === 0 ? undefined : { cards };
+}
+
+export function financialTrendView(detail: RunDetail): RunWorkspaceFinancialTrendView | undefined {
+  const artifact = detail.fundamentalHistory;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const rows = financialTrendRows(artifact);
+  if (rows.length === 0) {
+    return undefined;
+  }
+  const currency = financialTrendCurrency(artifact);
+  return {
+    columns: ["Period", "Revenue", "Net income", "Operating margin", "FCF"],
+    ...(currency === undefined ? {} : { reportingCurrency: currency }),
+    sourceIds: [artifact.sourceId],
+    rows,
+  };
+}
+
+interface WorkspaceStatementPeriod {
+  readonly kind: "annual" | "interim";
+  readonly periodEnd: string;
+  readonly filedAt: string;
+}
+
+function statementPeriods(detail: RunDetail): readonly WorkspaceStatementPeriod[] {
+  const statements = detail.financialStatements?.statements;
+  if (statements === undefined) {
+    return [];
+  }
+  const periods = new Map<string, WorkspaceStatementPeriod>();
+  for (const series of [
+    statements.balanceSheet.cash,
+    statements.balanceSheet.debt,
+    statements.perShare.dilutedShares,
+  ]) {
+    for (const kind of ["annual", "interim"] as const) {
+      for (const fact of series[kind]) {
+        const existing = periods.get(fact.periodEnd);
+        if (
+          existing === undefined ||
+          (kind === "annual" && existing.kind === "interim") ||
+          (kind === existing.kind && fact.filedAt < existing.filedAt)
+        ) {
+          periods.set(fact.periodEnd, {
+            kind,
+            periodEnd: fact.periodEnd,
+            filedAt: fact.filedAt,
+          });
+        }
+      }
+    }
+  }
+  return [...periods.values()]
+    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
+    .slice(-5);
+}
+
+function statementValue(series: FinancialStatementSeries, periodEnd: string): number | undefined {
+  return (
+    series.annual.find((fact) => fact.periodEnd === periodEnd)?.value ??
+    series.interim.find((fact) => fact.periodEnd === periodEnd)?.value
+  );
+}
+
+function statementAmount(value: number | undefined, currency: string | undefined): string {
+  if (value === undefined) {
+    return "—";
+  }
+  return currency === undefined
+    ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)
+    : formatLensValue(value, "currency", currency);
+}
+
+export function balanceSheetHistoryView(
+  detail: RunDetail,
+): RunWorkspaceBalanceSheetHistoryView | undefined {
+  const artifact = detail.financialStatements;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const { statements } = artifact;
+  const periods = statementPeriods(detail);
+  if (periods.length === 0) {
+    return undefined;
+  }
+  const currency = artifact.reportingCurrency;
+  return {
+    ...(currency === undefined ? {} : { reportingCurrency: currency }),
+    sourceIds: [artifact.sourceId],
+    rows: periods.map((period) => {
+      const dilutedShares = statementValue(statements.perShare.dilutedShares, period.periodEnd);
+      return {
+        period: periodLabel(period),
+        cash: statementAmount(
+          statementValue(statements.balanceSheet.cash, period.periodEnd),
+          currency,
+        ),
+        debt: statementAmount(
+          statementValue(statements.balanceSheet.debt, period.periodEnd),
+          currency,
+        ),
+        dilutedShares: dilutedShares === undefined ? "—" : scaleCurrency(dilutedShares),
+      };
+    }),
+  };
+}
+
+function compactNumber(value: number): string {
+  const absolute = Math.abs(value);
+  for (const [scale, suffix] of [
+    [1_000_000_000_000, "T"],
+    [1_000_000_000, "B"],
+    [1_000_000, "M"],
+  ] as const) {
+    if (absolute >= scale) {
+      return `${(value / scale).toFixed(1)}${suffix}`;
+    }
+  }
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+export function earningsConsensusView(
+  report: Record<string, unknown> | undefined,
+): RunWorkspaceEarningsConsensusView {
+  const items: RunWorkspaceEarningsConsensusItem[] = [];
+  const extras = isRecord(report?.extras) ? report.extras : undefined;
+  const setup = isRecord(extras?.earningsSetup) ? extras.earningsSetup : undefined;
+  const event = isRecord(setup?.event) ? setup.event : undefined;
+  if (event !== undefined) {
+    const sourceIds = stringArrayValue(event.sourceIds) ?? [];
+    const date = typeof event.date === "string" ? event.date : undefined;
+    if (date !== undefined) {
+      const timing = typeof event.timing === "string" ? event.timing : "timing unavailable";
+      let status = "confirmation unavailable";
+      if (typeof event.eventDateStatus === "string") {
+        status = event.eventDateStatus;
+      } else if (typeof event.dateStatus === "string") {
+        status = event.dateStatus;
+      }
+      items.push({
+        label: "Upcoming earnings",
+        value: `${date} · ${timing} · ${status}`,
+        sourceIds,
+      });
+    }
+    if (typeof event.epsEstimate === "number") {
+      items.push({
+        label: "EPS consensus",
+        value: `${String(event.epsEstimate)} · single-provider snapshot`,
+        sourceIds,
+      });
+    }
+    if (typeof event.revenueEstimate === "number") {
+      items.push({
+        label: "Revenue consensus",
+        value: `${compactNumber(event.revenueEstimate)} · single-provider snapshot`,
+        sourceIds,
+      });
+    }
+  }
+  const extendedEvidence = isRecord(report?.extendedEvidence) ? report.extendedEvidence : undefined;
+  const extendedItems = Array.isArray(extendedEvidence?.items) ? extendedEvidence.items : [];
+  for (const item of extendedItems) {
+    if (
+      !isRecord(item) ||
+      item.category !== "analyst-estimates" ||
+      typeof item.title !== "string" ||
+      !isRecord(item.metrics) ||
+      typeof item.metrics.mean !== "number"
+    ) {
+      continue;
+    }
+    const period = typeof item.metrics.period === "string" ? ` for ${item.metrics.period}` : "";
+    const count =
+      typeof item.metrics.count === "number" ? ` · ${String(item.metrics.count)} estimates` : "";
+    items.push({
+      label: item.title,
+      value: `Mean ${compactNumber(item.metrics.mean)}${period}${count}`,
+      sourceIds: stringArrayValue(item.sourceIds) ?? [],
+    });
+  }
+  return { items };
 }
 
 const CASE_SECTIONS: readonly {
@@ -1284,6 +1583,8 @@ function snapshotDriverCard(
 function snapshotReferenceRange(
   peerImpliedRange: RunWorkspacePeerImpliedRangeView | undefined,
 ): RunWorkspaceEquitySnapshotReferenceRange {
+  const disclosure =
+    "Peer-derived reference range for context only; not a forecast or recommendation.";
   if (peerImpliedRange === undefined) {
     return {
       key: "peerReferenceRange",
@@ -1293,6 +1594,7 @@ function snapshotReferenceRange(
       detailSectionMounted: false,
       sourceIds: [],
       display: "N/M — peer evidence unavailable: reference range is unavailable",
+      disclosure,
     };
   }
   if (peerImpliedRange.status === "suppressed") {
@@ -1304,6 +1606,7 @@ function snapshotReferenceRange(
       detailSectionMounted: true,
       sourceIds: peerImpliedRange.sourceIds,
       display: `N/M — peer evidence unavailable: ${peerImpliedRange.suppressionReason}`,
+      disclosure,
     };
   }
   return {
@@ -1315,6 +1618,7 @@ function snapshotReferenceRange(
     sourceIds: peerImpliedRange.sourceIds,
     display: `${peerImpliedRange.lowLabel} · ${peerImpliedRange.midLabel} · ${peerImpliedRange.highLabel}`,
     positionLabel: peerImpliedRange.positionLabel,
+    disclosure,
   };
 }
 
@@ -1338,7 +1642,7 @@ function composeEquitySnapshot(
   ].filter((value) => value !== undefined).length;
   const pricePerformance: RunWorkspaceEquitySnapshotPricePerformance = {
     key: "pricePerformance",
-    label: "Price & performance",
+    label: "Price",
     state: snapshotState(priceFieldCount, 5),
     detailSectionKey: "snapshot",
     detailSectionMounted: inputs.marketSnapshotMounted,
@@ -1357,7 +1661,7 @@ function composeEquitySnapshot(
 
   const analysisCompleteness: RunWorkspaceEquitySnapshotCompleteness = {
     key: "analysisCompleteness",
-    label: "Analysis completeness",
+    label: "Coverage",
     state: equityCompleteness === undefined ? "unavailable" : "available",
     detailSectionKey: "equityCompleteness",
     detailSectionMounted: equityCompleteness !== undefined,
@@ -1517,9 +1821,10 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const forecastItems = scoredForecasts(report, detail.score, detail.missAutopsy);
   const targetHealth = predictionTargetHealth(detail.analytics, report);
   const splitGaps = splitDataGaps(stringArray(report, "dataGaps"));
+  const reportSymbol = typeof report?.symbol === "string" ? report.symbol : detail.summary.symbol;
   const triagedGaps = splitGaps.otherGaps.map((gap) => ({
     text: gap,
-    triage: classifyGap(gap),
+    triage: classifyGap(gap, reportSymbol),
   }));
   const forecastsVisible =
     forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined;
@@ -1539,81 +1844,187 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const valuationWorkbench = valuationWorkbenchView(detail);
   const reverseDcf = reverseDcfView(detail);
   const peerImpliedRange = peerImpliedRangeView(detail);
-  const equitySnapshot =
-    detail.summary.jobType === "equity"
-      ? composeEquitySnapshot({
-          ...(equityHeader === undefined ? {} : { equityHeader }),
-          ...(equityCompleteness === undefined ? {} : { equityCompleteness }),
-          ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
-          ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
-          financialLensGroups,
-          cases,
-          marketSnapshotMounted: snapshot !== undefined,
-        })
-      : undefined;
+  const financialTrends = financialTrendView(detail);
+  const balanceSheetHistory = balanceSheetHistoryView(detail);
+  const earningsConsensus = earningsConsensusView(report);
+  const isEquityPresentation =
+    detail.summary.jobType === "equity" &&
+    (detail.summary.assetClass === undefined || detail.summary.assetClass === "equity");
+  const equitySnapshot = isEquityPresentation
+    ? composeEquitySnapshot({
+        ...(equityHeader === undefined ? {} : { equityHeader }),
+        ...(equityCompleteness === undefined ? {} : { equityCompleteness }),
+        ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
+        ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
+        financialLensGroups,
+        cases,
+        marketSnapshotMounted: snapshot !== undefined,
+      })
+    : undefined;
+  const materialGaps = triagedGaps
+    .filter((gap) => gap.triage === "material")
+    .map((gap) => gap.text);
+  const diagnosticGaps = triagedGaps
+    .filter((gap) => gap.triage === "diagnostic")
+    .map((gap) => gap.text);
+  const description = companyDescription(report ?? {});
+  const equityPresentation: RunWorkspaceEquityPresentationView | undefined =
+    equitySnapshot === undefined
+      ? undefined
+      : {
+          defaultView: {
+            sectionOrder: [
+              "identityPrice",
+              "companySummary",
+              "financialTrends",
+              "valuationContext",
+              "findings",
+              "catalystsRisks",
+              "earningsConsensus",
+              "coverageMaterialGaps",
+            ],
+            pricePerformance: equitySnapshot.pricePerformance,
+            companySummary: description,
+            ...(financialTrends === undefined ? {} : { financialTrends }),
+            valuationContext: {
+              ...equitySnapshot.peerReferenceRange,
+              label: "Valuation context",
+            },
+            findings,
+            cases: cases.filter(
+              (section) => section.key === "catalysts" || section.key === "risks",
+            ),
+            earningsConsensus,
+            coverage: equitySnapshot.analysisCompleteness,
+            materialGaps,
+          },
+          advanced: {
+            sectionOrder: [
+              "financialLensDrivers",
+              "financialLensGroups",
+              "valuationWorkbench",
+              "reverseDcf",
+              "peerComps",
+              "institutionalAnalystOptions",
+              "diagnosticGaps",
+              "extendedEvidence",
+              "balanceSheetHistory",
+              "remainingResearchDetail",
+            ],
+            financialLensDrivers: equitySnapshot.financialLensDrivers,
+            financialLensGroups,
+            keyDatedMetrics: equitySnapshot.keyDatedMetrics,
+            miniCharts: equitySnapshot.miniCharts,
+            ...(valuationWorkbench === undefined ? {} : { valuationWorkbench }),
+            ...(reverseDcf === undefined ? {} : { reverseDcf }),
+            ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
+            extendedItems,
+            diagnosticGaps,
+            ...(balanceSheetHistory === undefined ? {} : { balanceSheetHistory }),
+            cases: cases.filter(
+              (section) => section.key === "bullCase" || section.key === "bearCase",
+            ),
+            scenarios: scenarioItems,
+            reportSummary: summary,
+          },
+        };
   const gapsVisible = splitGaps.shortfalls.length > 0 || triagedGaps.length > 0;
 
-  const tableOfContents = [
-    { key: "summary", label: "Summary", visible: summary !== "" },
-    {
-      key: "equityCompleteness",
-      label: "Analysis completeness",
-      visible: equityCompleteness !== undefined,
-    },
-    {
-      key: "financialLensStats",
-      label: "Financial lens stats",
-      visible: financialLensGroups.length > 0,
-    },
-    { key: "findings", label: "Key findings", visible: findings.length > 0 },
-    { key: "cases", label: "Cases & risks", visible: cases.length > 0 },
-    { key: "scenarios", label: "Scenarios", visible: scenarioItems.length > 0 },
-    { key: "snapshot", label: "Market snapshot", visible: snapshot !== undefined },
-    {
-      key: "fundamentalHistory",
-      label: "Fundamental history",
-      visible: fundamentalHistory !== undefined,
-    },
-    {
-      key: "valuationWorkbench",
-      label: "Valuation workbench",
-      visible: valuationWorkbench !== undefined,
-    },
-    {
-      key: "reverseDcf",
-      label: "Reverse DCF input sensitivity",
-      visible: reverseDcf !== undefined,
-    },
-    {
-      key: "peerImpliedRange",
-      label: "Peer-implied price reference range",
-      visible: peerImpliedRange !== undefined,
-    },
-    { key: "history", label: "Historical context", visible: historicalContext !== undefined },
-    {
-      key: "webSubjectProfile",
-      label: "Web Subject Profile",
-      visible: webSubjectProfile !== undefined,
-    },
-    {
-      key: "businessFramework",
-      label: "Business framework",
-      visible: businessFramework !== undefined,
-    },
-    {
-      key: "extendedEvidence",
-      label: "Extended evidence",
-      visible: extendedItems.length > 0,
-    },
-    { key: "forecasts", label: "Forecasts", visible: forecastsVisible },
-    { key: "gaps", label: "Data gaps", visible: gapsVisible },
-  ]
+  const tableOfContents = (
+    equityPresentation === undefined
+      ? [
+          { key: "summary", label: "Summary", visible: summary !== "" },
+          {
+            key: "equityCompleteness",
+            label: "Analysis completeness",
+            visible: equityCompleteness !== undefined,
+          },
+          {
+            key: "financialLensStats",
+            label: "Financial lens stats",
+            visible: financialLensGroups.length > 0,
+          },
+          { key: "findings", label: "Key findings", visible: findings.length > 0 },
+          { key: "cases", label: "Cases & risks", visible: cases.length > 0 },
+          { key: "scenarios", label: "Scenarios", visible: scenarioItems.length > 0 },
+          { key: "snapshot", label: "Market snapshot", visible: snapshot !== undefined },
+          {
+            key: "fundamentalHistory",
+            label: "Fundamental history",
+            visible: fundamentalHistory !== undefined,
+          },
+          {
+            key: "valuationWorkbench",
+            label: "Valuation workbench",
+            visible: valuationWorkbench !== undefined,
+          },
+          {
+            key: "reverseDcf",
+            label: "Reverse DCF input sensitivity",
+            visible: reverseDcf !== undefined,
+          },
+          {
+            key: "peerImpliedRange",
+            label: "Peer-implied price reference range",
+            visible: peerImpliedRange !== undefined,
+          },
+          {
+            key: "history",
+            label: "Historical context",
+            visible: historicalContext !== undefined,
+          },
+          {
+            key: "webSubjectProfile",
+            label: "Web Subject Profile",
+            visible: webSubjectProfile !== undefined,
+          },
+          {
+            key: "businessFramework",
+            label: "Business framework",
+            visible: businessFramework !== undefined,
+          },
+          {
+            key: "extendedEvidence",
+            label: "Extended evidence",
+            visible: extendedItems.length > 0,
+          },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible },
+          { key: "gaps", label: "Data gaps", visible: gapsVisible },
+        ]
+      : [
+          { key: "equityOverview", label: "Price", visible: true },
+          { key: "summary", label: "Company summary", visible: true },
+          {
+            key: "financialTrends",
+            label: "Financial trends",
+            visible: financialTrends !== undefined,
+          },
+          { key: "findings", label: "Key findings", visible: findings.length > 0 },
+          {
+            key: "cases",
+            label: "Catalysts & risks",
+            visible: equityPresentation.defaultView.cases.length > 0,
+          },
+          {
+            key: "earningsConsensus",
+            label: "Earnings & consensus",
+            visible: earningsConsensus.items.length > 0,
+          },
+          {
+            key: "gaps",
+            label: "Coverage & material gaps",
+            visible: true,
+          },
+          { key: "advanced", label: "Advanced", visible: true },
+        ]
+  )
     .filter((entry) => entry.visible)
     .map(({ key, label }) => ({ key, label }));
 
   return {
     ...(equityHeader !== undefined ? { equityHeader } : {}),
     ...(equitySnapshot !== undefined ? { equitySnapshot } : {}),
+    ...(equityPresentation !== undefined ? { equityPresentation } : {}),
     ...(equityCompleteness !== undefined ? { equityCompleteness } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
     ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),

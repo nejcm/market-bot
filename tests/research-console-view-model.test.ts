@@ -1180,6 +1180,34 @@ describe("report artifact parsers", () => {
     ]);
   });
 
+  test("retains institutional, analyst, and options evidence for the Advanced appendix", () => {
+    const categories = [
+      "institutional-ownership",
+      "analyst-estimate-context",
+      "analyst-estimates",
+      "options-iv",
+    ];
+    const items = extendedEvidenceItems({
+      extendedEvidence: {
+        items: categories.map((category) => ({
+          category,
+          title: `${category} detail`,
+          summary: `${category} raw evidence`,
+          sourceIds: [`source-${category}`],
+          metrics: { count: 2 },
+        })),
+      },
+    });
+
+    expect(items.map((item) => item.category)).toEqual(categories);
+    expect(items.map((item) => item.summary)).toEqual(
+      categories.map((category) => `${category} raw evidence`),
+    );
+    expect(items.flatMap((item) => item.sourceIds)).toEqual(
+      categories.map((category) => `source-${category}`),
+    );
+  });
+
   test("splits prediction shortfall gaps from other data gaps", () => {
     expect(
       splitDataGaps(["predictionShortfall: emitted 2 of 3 target predictions", "Missing provider"]),

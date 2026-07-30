@@ -135,6 +135,61 @@ describe("coverage diff pairing and adjudicability", () => {
     });
   });
 
+  // A financial-table-mapping MODEL stage runs inside both variants on equity-nbis-deep.
+  // The untagged-table validator writes its rejection reasons into governance gap prose.
+  // Two arms sharing one collected input therefore hash differently.
+  // The old check discarded such a pair even though its ledger and lanes matched exactly.
+  // These two cases discriminate: prose-only difference must compare, ledger difference must not.
+  test("compares a pair whose bundles differ only in gap prose", () => {
+    const annotatedBundle = bundle({
+      gaps: [{ source: "sec-untagged-financials", message: "label-mismatch on dilutedEps" }],
+    });
+    const input = evaluation(
+      ["scenario"],
+      [1],
+      [record("scenario", 1, success(), success(report(), annotatedBundle))],
+    );
+
+    const artifact = analyzeEvaluation(input);
+
+    expect(artifact.pairs[0]?.sharedEvidenceInput).toBe("identical-modulo-annotations");
+    expect(artifact.totals.pairsCompared).toBe(1);
+    expect(artifact.totals.pairsNotAdjudicable).toBe(0);
+    expect(artifact.comparisons).toHaveLength(1);
+    // Recorded, but it must not block adjudication.
+    expect(artifact.adjudicationBlockers).toContainEqual({
+      reason: "evidence-annotations-divergent",
+      pairs: ["scenario/1"],
+      blocking: false,
+    });
+    expect(artifact.adjudicable).toBe(true);
+  });
+
+  test("still suppresses when lane coverage differs, not just prose", () => {
+    const changedLanes = bundle({
+      lanes: [
+        {
+          lane: "market-data",
+          evidenceClass: "core",
+          status: "covered",
+          coveredSourceIds: ["source-1", "source-2"],
+          gapIds: [],
+        },
+      ],
+    });
+    const input = evaluation(
+      ["scenario"],
+      [1],
+      [record("scenario", 1, success(), success(report(), changedLanes))],
+    );
+
+    const artifact = analyzeEvaluation(input);
+
+    expect(artifact.pairs[0]?.sharedEvidenceInput).toBe("divergent");
+    expect(artifact.totals.pairsNotAdjudicable).toBe(1);
+    expect(artifact.adjudicable).toBe(false);
+  });
+
   test("keeps a failed arm inside the planned 3 by 3 denominator", () => {
     const scenarios = ["a", "b", "c"];
     const repetitions = [1, 2, 3];

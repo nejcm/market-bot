@@ -20,6 +20,7 @@ export type UnavailableReason =
   | "artifact-unreadable"
   | "pair-missing"
   | "evidence-input-divergent"
+  | "evidence-annotations-divergent"
   | "lane-has-no-collected-sources"
   | "no-deterministic-rendering"
   | "plan-provenance-not-run-input"
@@ -133,7 +134,11 @@ export interface PairAssessment {
   readonly repetition: number;
   readonly judged: boolean;
   readonly status: "compared" | "not-adjudicable" | "unavailable" | "missing";
-  readonly sharedEvidenceInput: "verified-identical" | "divergent" | "unverifiable";
+  readonly sharedEvidenceInput:
+    | "verified-identical"
+    | "identical-modulo-annotations"
+    | "divergent"
+    | "unverifiable";
   readonly arms: Readonly<Record<VariantName, ArmAssessment>>;
   readonly unavailableReasons: readonly UnavailableReason[];
   readonly sharedCoverageContext?: Readonly<Record<string, unknown>>;
@@ -331,6 +336,33 @@ export function hashGovernance(governance: Governance): string {
         evidenceLanes: governance.evidenceLanes,
         sourceGaps: governance.sourceGaps,
         sourceLedger: governance.sourceLedger,
+      }),
+    )
+    .digest("hex");
+}
+
+// Collect-once-run-both does not make the persisted bundle byte-identical across arms.
+// On equity-nbis-deep a financial-table-mapping MODEL stage runs inside both variants.
+// Untagged-table validation then writes its rejection reasons into governance gap prose.
+// Two arms sharing one collected input therefore still hash differently.
+// Measured on equity-nbis-deep/3: ledger, coveredSourceIds and gapIds all identical.
+// Only the human-readable gap text differed, and the whole pair was discarded for it.
+// That reported "could not check" about a pair that was fully checkable.
+// It is the denominator-laundering failure class pointing the conservative way.
+// This hash covers only what the omission analysis actually reads.
+// So annotation prose cannot suppress a real comparison, and a real input divergence still can.
+export function hashAdjudicationRelevantGovernance(governance: Governance): string {
+  return new Bun.CryptoHasher("sha256")
+    .update(
+      JSON.stringify({
+        sourceLedger: governance.sourceLedger,
+        lanes: lanesOf(governance).map((lane) => ({
+          lane: lane.lane,
+          evidenceClass: lane.evidenceClass,
+          status: lane.status,
+          coveredSourceIds: lane.coveredSourceIds,
+          gapIds: lane.gapIds,
+        })),
       }),
     )
     .digest("hex");
@@ -748,7 +780,12 @@ export function analyzePairCoverage(
   ) {
     throw new Error(`available pair ${pair} lost loaded artifacts`);
   }
-  if (legacy.assessment.governanceHash !== simplified.assessment.governanceHash) {
+  const governanceDiffers =
+    legacy.assessment.governanceHash !== simplified.assessment.governanceHash;
+  const adjudicationInputDiffers =
+    hashAdjudicationRelevantGovernance(legacy.governance) !==
+    hashAdjudicationRelevantGovernance(simplified.governance);
+  if (adjudicationInputDiffers) {
     return {
       assessment: {
         pair,
@@ -762,6 +799,10 @@ export function analyzePairCoverage(
       },
     };
   }
+  // Annotation-only divergence: the arms read the same sources and lanes, so the omission
+  // Comparison below is valid. Reported rather than dropped, and never silent — the reason travels
+  // With the pair so a reader can see that the bundles were not byte-identical.
+  const annotationsDiverge = governanceDiffers;
   const legacyCoverage = buildVariantCoverage(legacy.report, legacy.governance);
   const simplifiedCoverage = buildVariantCoverage(simplified.report, simplified.governance);
   const hasMalformedLedgerEntries =
@@ -774,9 +815,14 @@ export function analyzePairCoverage(
       repetition,
       judged: isRecord(record.judge),
       status: "compared",
-      sharedEvidenceInput: "verified-identical",
+      sharedEvidenceInput: annotationsDiverge
+        ? "identical-modulo-annotations"
+        : "verified-identical",
       arms,
-      unavailableReasons: hasMalformedLedgerEntries ? ["malformed-ledger-entries"] : [],
+      unavailableReasons: [
+        ...(hasMalformedLedgerEntries ? (["malformed-ledger-entries"] as const) : []),
+        ...(annotationsDiverge ? (["evidence-annotations-divergent"] as const) : []),
+      ],
       sharedCoverageContext: sharedContext(legacy.governance),
     },
     comparison: {
@@ -872,6 +918,19 @@ export function analyzeEvaluation(
     if (affected.length > 0) {
       adjudicationBlockers.push({ reason, pairs: affected, blocking: true });
     }
+  }
+  // Non-blocking on purpose: the arms read the same sources and lanes, so the comparison stands.
+  // Recorded anyway, because the persisted bundles were not byte-identical and a reader who assumes
+  // Collect-once-run-both guarantees that would misread the pair.
+  const annotationDivergentPairs = pairs
+    .filter((pair) => pair.unavailableReasons.includes("evidence-annotations-divergent"))
+    .map((pair) => pair.pair);
+  if (annotationDivergentPairs.length > 0) {
+    adjudicationBlockers.push({
+      reason: "evidence-annotations-divergent",
+      pairs: annotationDivergentPairs,
+      blocking: false,
+    });
   }
   const totalD1 = comparisons.reduce(
     (sum, item) => sum + item.variants.simplified.sourceDenominators.laneMappedCollectedSourceIds,

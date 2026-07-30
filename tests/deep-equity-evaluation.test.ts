@@ -22,6 +22,7 @@ import {
   DEEP_EQUITY_OPERATOR_GATE_RECORD_TYPE,
   validateDeepEquityOperatorGateRecord,
 } from "./support/deep-equity-operator-gates";
+import { sharedEvidenceCoverageHolds } from "./support/deep-equity-evaluation-runner";
 import type { ModelRequest } from "../src/model/types";
 import {
   measureDeepEquityLegacyBaseline,
@@ -1006,5 +1007,42 @@ describe("deep-equity evaluation aggregation and gates", () => {
         bootstrapIterations: 1,
       }),
     ).toThrow("pairwise judge result must contain rubric dimensions");
+  });
+
+  // This gate previously asserted simplified >= legacy on a value both arms read from ONE shared
+  // Evidence bundle, so it was x >= x: unfalsifiable on its own subject, false only when an arm
+  // Died. The cases below are chosen to be classified DIFFERENTLY by the old and new predicates —
+  // A higher simplified ratio passed the old test and must fail this one, because under
+  // Collect-once-run-both any inequality means the arms did not consume the same evidence.
+  describe("shared deterministic evidence coverage", () => {
+    const pair = (legacyRatio: number | null, simplifiedRatio: number | null) => [
+      {
+        scenario: "scenario-a",
+        repetition: 1,
+        variants: {
+          legacy: evaluationMetrics({ deterministicEvidenceCoverageRatio: legacyRatio }),
+          simplified: evaluationMetrics({ deterministicEvidenceCoverageRatio: simplifiedRatio }),
+        },
+        judge: syntheticJudge(),
+      },
+    ];
+
+    test("holds when both arms report the same coverage", () => {
+      expect(sharedEvidenceCoverageHolds(pair(0.5, 0.5))).toBe(true);
+    });
+
+    test("fails when simplified reports HIGHER coverage than legacy", () => {
+      // The discriminating case. The old predicate returned true here.
+      expect(sharedEvidenceCoverageHolds(pair(0.5, 0.6))).toBe(false);
+    });
+
+    test("fails when simplified reports lower coverage than legacy", () => {
+      expect(sharedEvidenceCoverageHolds(pair(0.6, 0.5))).toBe(false);
+    });
+
+    test("fails when either arm produced no metric", () => {
+      expect(sharedEvidenceCoverageHolds(pair(null, 0.5))).toBe(false);
+      expect(sharedEvidenceCoverageHolds(pair(0.5, null))).toBe(false);
+    });
   });
 });

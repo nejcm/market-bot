@@ -180,11 +180,27 @@ function noIntegrityRegression(records: readonly DeepEquityEvaluationRunRecord[]
   });
 }
 
-function noEvidenceCoverageRegression(records: readonly DeepEquityEvaluationRunRecord[]): boolean {
+// Collect-once-run-both means both arms consume one evidence bundle, so this ratio is a property
+// Of the bundle rather than of a reasoning path. The former `simplified >= legacy` test was
+// Therefore `x >= x`: it passed whenever both arms succeeded and read false only when an arm
+// Produced no metric, which is a completeness signal wearing a coverage name. It could not fail on
+// Its own subject.
+//
+// Equality is the invariant that is actually true here and can actually be violated: if the two
+// Arms report different coverage they did not consume the same evidence, and the pair is not a
+// Valid comparison regardless of which side is higher. A higher simplified ratio is a broken
+// Shared-bundle contract, not an improvement to celebrate.
+//
+// This does not check what either arm CITED — that is the real coverage-regression question, it
+// Needs per-arm cited coverage over the lane-mapped collected denominator, and it is not wired.
+// Use scripts/diff-evidence-coverage.ts for it and do not read this gate as answering it.
+export function sharedEvidenceCoverageHolds(
+  records: readonly DeepEquityEvaluationRunRecord[],
+): boolean {
   return records.every((record) => {
     const legacy = record.variants.legacy.deterministicEvidenceCoverageRatio;
     const simplified = record.variants.simplified.deterministicEvidenceCoverageRatio;
-    return legacy !== null && simplified !== null && simplified >= legacy;
+    return legacy !== null && simplified !== null && simplified === legacy;
   });
 }
 
@@ -275,7 +291,7 @@ function buildArtifact(
         .zeroCriticalMaterialEvidenceOmissionsAfterAdjudication,
     noAdditionalLowIntegrityReports: allReportsValidate && noIntegrityRegression(aggregateRecords),
     noDeterministicEvidenceCoverageRegression:
-      allReportsValidate && noEvidenceCoverageRegression(aggregateRecords),
+      allReportsValidate && sharedEvidenceCoverageHolds(aggregateRecords),
     noInvalidPredictionsPersist:
       allReportsValidate &&
       aggregateRecords.every(

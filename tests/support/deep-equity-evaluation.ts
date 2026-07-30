@@ -575,7 +575,9 @@ export function evaluateDeepEquityGates(
       category: "hard",
       passed: hardGates.noDeterministicEvidenceCoverageRegression,
       actual: hardGates.noDeterministicEvidenceCoverageRegression,
-      requirement: "no regression in deterministic evidence coverage",
+      // Both arms consume one bundle, so this verifies the shared-evidence contract rather than a
+      // Reasoning-path regression. It says nothing about what either arm cited.
+      requirement: "both arms report identical deterministic evidence coverage",
     },
     {
       name: "no-invalid-predictions-persist",

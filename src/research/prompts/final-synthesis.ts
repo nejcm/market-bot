@@ -527,10 +527,9 @@ export function buildPrimaryPredictionInstruction(
   excludedKinds: readonly PredictionKind[] = [],
   options: {
     readonly businessFrameworkEvidenceProjected?: boolean;
-    // Where this pipeline's evidence payload actually carries the profile digest, and whether it
-    // Carries it at all. Legacy ships both the extendedEvidence item and a top-level digest; the
-    // Simplified payload ships only the top-level digest, and drops it when no web sourceIds were
-    // Accepted. Naming a location the payload does not have invites uncitable prose.
+    // Describes where, and whether, this pipeline's evidence payload carries the profile digest.
+    // The surviving legacy payload ships both the extendedEvidence item and a top-level digest.
+    // Naming a location the payload does not have invites uncitable prose.
     readonly webSubjectProfileEvidence?: {
       readonly projected: boolean;
       readonly path: string;

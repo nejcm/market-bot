@@ -309,7 +309,6 @@ describe("runCli", () => {
           collectedSources: collectedSources(),
           historicalContext: {},
           deepEquityEvidenceBundle: {},
-          deepEquityModelPacket: {},
           artifacts: {
             runDir,
             rawDir: join(runDir, "raw"),

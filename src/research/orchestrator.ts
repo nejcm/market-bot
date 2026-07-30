@@ -87,11 +87,6 @@ import {
 } from "./source-plan";
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
-import {
-  loadSimplifiedDeepEquityPlaybookContext,
-  runDeepEquityReasoning,
-  staticPlaybookAudit,
-} from "./deep-equity-reasoning";
 import { buildRunTrace } from "./run-trace";
 import { createSourceRequestContext } from "../sources/source-request";
 import {
@@ -100,8 +95,8 @@ import {
 } from "./financial-table-extraction-phase";
 import type { FinancialTablePacket } from "../sources/extended-evidence/untagged-financial-tables-contract";
 import { FINANCIAL_TABLE_SEMANTIC_FIELDS } from "../sources/extended-evidence/untagged-financial-table-validation";
-import { buildDeepEquityEvidenceBundle, buildDeepEquityModelPacket } from "../deep-equity/evidence";
-import type { DeepEquityEvidenceBundleV1, DeepEquityModelPacket } from "../deep-equity/types";
+import { buildDeepEquityEvidenceBundle } from "../deep-equity/evidence";
+import type { DeepEquityEvidenceBundleV1 } from "../deep-equity/types";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -119,7 +114,6 @@ export interface RunResearchJobInput {
   readonly endClock?: () => Date;
   readonly sourceFetchImpl?: FetchLike;
   readonly sourceRetryDelaysMs?: readonly number[];
-  readonly reasoningVariant?: "legacy" | "simplified";
 }
 
 export interface RunResearchJobResult {
@@ -138,7 +132,6 @@ export interface RunResearchJobResult {
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly marketUpdateMovers?: readonly Mover[];
   readonly deepEquityEvidenceBundle?: DeepEquityEvidenceBundleV1;
-  readonly deepEquityModelPacket?: DeepEquityModelPacket;
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
@@ -193,8 +186,6 @@ interface ModelStageInput {
   readonly context: ResearchContext;
   readonly priorStages?: readonly StageOutput[];
   readonly reprompt?: StageReprompt;
-  readonly deepEquityModelPacket?: DeepEquityModelPacket;
-  readonly canonicalSources?: ResearchReport["sources"];
 }
 
 async function runModelStage(
@@ -214,18 +205,11 @@ async function runModelStage(
     loaded,
     priorStages,
     predictionRepromptErrors: reprompt.predictionErrors ?? [],
-    ...(reprompt.retainedPredictions !== undefined
-      ? { retainedPredictions: reprompt.retainedPredictions }
-      : {}),
     reportValidationErrors: reprompt.reportValidationErrors ?? [],
     allowedSourceIds: reprompt.allowedSourceIds ?? [],
     ...(reprompt.predictionCompletion !== undefined
       ? { predictionCompletion: reprompt.predictionCompletion }
       : {}),
-    ...(input.deepEquityModelPacket !== undefined
-      ? { deepEquityModelPacket: input.deepEquityModelPacket }
-      : {}),
-    ...(input.canonicalSources !== undefined ? { canonicalSources: input.canonicalSources } : {}),
   };
   const prompt = buildStagePrompt(stage, stageInput);
   const startedAt = performance.now();
@@ -657,71 +641,30 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           sourceLedger: sourcePlanning.sourceLedger,
         })
       : undefined;
-  const deepEquityModelPacket =
-    deepEquityEvidenceBundle === undefined
-      ? undefined
-      : buildDeepEquityModelPacket(deepEquityEvidenceBundle);
   const sources = buildSourceList(command, collectedSources, historicalContext, generatedAt);
-  const simplifiedDeepEquity =
-    input.reasoningVariant === "simplified" &&
-    isInstrumentCommand(command) &&
-    command.assetClass === "equity" &&
-    command.depth === "deep";
-  let playbookContext: ResearchContext;
-  let playbookAudit: PlaybookSelectionAudit;
-  let playbookSelectionOutput: StageOutput | undefined;
-  let reasoning: {
-    readonly analysisOutputs: readonly StageOutput[];
-    readonly critiqueOutput: StageOutput;
-  };
-  if (simplifiedDeepEquity) {
-    if (deepEquityModelPacket === undefined) {
-      throw new Error("simplified deep-equity reasoning requires a finalized model packet");
-    }
-    playbookContext = await loadSimplifiedDeepEquityPlaybookContext(
-      input.config.promptDir,
-      context,
-    );
-    playbookAudit = staticPlaybookAudit();
-    reasoning = await runDeepEquityReasoning({
-      collectedSources,
-      context: playbookContext,
-      quickModel: runParams.quickModel,
-      runStage: (stage, model, stageInput) =>
-        runModelStage(stage, model, {
-          job: jobInput,
-          collectedSources: stageInput.collectedSources,
-          context: stageInput.context,
-          ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
-          deepEquityModelPacket,
-          canonicalSources: sources,
-        }),
-    });
-  } else {
-    const plannedStages = plannedResearchStages(command);
-    const playbookSelection = await runPlaybookSelection(
-      jobInput,
-      collectedSources,
-      context,
-      plannedStages,
-    );
-    playbookContext = playbookSelection.context;
-    playbookAudit = playbookSelection.audit;
-    playbookSelectionOutput = playbookSelection.output;
-    reasoning = await runAnalysisPhase({
-      command,
-      collectedSources,
-      context: playbookContext,
-      quickModel: runParams.quickModel,
-      runStage: (stage, model, stageInput) =>
-        runModelStage(stage, model, {
-          job: jobInput,
-          collectedSources: stageInput.collectedSources,
-          context: stageInput.context,
-          ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
-        }),
-    });
-  }
+  const plannedStages = plannedResearchStages(command);
+  const playbookSelection = await runPlaybookSelection(
+    jobInput,
+    collectedSources,
+    context,
+    plannedStages,
+  );
+  const playbookContext = playbookSelection.context;
+  const playbookAudit: PlaybookSelectionAudit = playbookSelection.audit;
+  const playbookSelectionOutput = playbookSelection.output;
+  const reasoning = await runAnalysisPhase({
+    command,
+    collectedSources,
+    context: playbookContext,
+    quickModel: runParams.quickModel,
+    runStage: (stage, model, stageInput) =>
+      runModelStage(stage, model, {
+        job: jobInput,
+        collectedSources: stageInput.collectedSources,
+        context: stageInput.context,
+        ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
+      }),
+  });
   const { analysisOutputs, critiqueOutput } = reasoning;
   const knownSourceIds = new Set(sources.map((source) => source.id));
   // Build the emission-time subject allowlist from the resolved run params.
@@ -747,9 +690,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         context: playbookContext,
         priorStages,
         ...(reprompt !== undefined ? { reprompt } : {}),
-        ...(simplifiedDeepEquity && deepEquityModelPacket !== undefined
-          ? { deepEquityModelPacket, canonicalSources: sources }
-          : {}),
       }),
   });
   const postSynthesisWarnings = auditPostSynthesisReport(
@@ -879,7 +819,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
     ...(marketUpdateMovers !== undefined ? { marketUpdateMovers } : {}),
     ...(deepEquityEvidenceBundle !== undefined ? { deepEquityEvidenceBundle } : {}),
-    ...(deepEquityModelPacket !== undefined ? { deepEquityModelPacket } : {}),
   };
 }
 

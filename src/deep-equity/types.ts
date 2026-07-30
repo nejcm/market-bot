@@ -3,7 +3,6 @@ import type { InstrumentCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type {
   ExtendedEvidence,
-  ExtendedEvidenceItem,
   InstrumentIdentity,
   MarketSnapshot,
   ResearchReport,
@@ -86,45 +85,6 @@ export interface DeepEquityEvidenceBundleV1 {
   };
 }
 
-export interface DeepEquityModelSource {
-  readonly id: string;
-  readonly title: string;
-  readonly url?: string;
-  readonly fetchedAt: string;
-  readonly kind: Source["kind"];
-  readonly provider?: string;
-  readonly publisher?: string;
-  readonly symbol?: string;
-  readonly sourceIds?: readonly string[];
-  readonly text?: string;
-}
-
-export interface DeepEquityModelEvidenceItem extends Omit<ExtendedEvidenceItem, "summary"> {
-  readonly text: string;
-}
-
-export interface DeepEquityModelPacket {
-  readonly schemaVersion: 1;
-  readonly run: DeepEquityEvidenceBundleV1["run"];
-  readonly canonicalFacts: {
-    readonly marketSnapshots: readonly MarketSnapshot[];
-    readonly supplementalMarketSnapshots: readonly MarketSnapshot[];
-    readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
-    readonly financialStatements?: FinancialStatementsArtifact;
-    readonly fundamentalHistory?: FundamentalHistoryArtifact;
-  };
-  readonly evidenceItems: readonly DeepEquityModelEvidenceItem[];
-  readonly derivedViews: DeepEquityEvidenceBundleV1["derived"];
-  readonly sources: readonly DeepEquityModelSource[];
-  readonly gaps: readonly SourceGap[];
-  readonly governance: {
-    readonly sourcePlan: SourcePlanArtifact;
-    readonly evidenceLanes: EvidenceLanesArtifact;
-    readonly sourceLedger: SourceLedgerArtifact;
-  };
-  readonly historicalContext: HistoricalResearchContext;
-}
-
 export interface DeepEquityRunInput {
   readonly command: InstrumentCommand;
   readonly config: AppConfig;
@@ -151,6 +111,5 @@ export interface DeepEquityRunResult {
   readonly analytics: RunAnalytics;
   readonly stageOutputs: readonly StageOutput[];
   readonly evidenceBundle: DeepEquityEvidenceBundleV1;
-  readonly modelPacket: DeepEquityModelPacket;
   readonly artifacts: RunArtifactPaths;
 }

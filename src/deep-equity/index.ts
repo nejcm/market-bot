@@ -54,7 +54,7 @@ export async function runDeepEquity(
       ? { sourceRetryDelaysMs: dependencies.retryDelaysMs }
       : {}),
   });
-  if (result.deepEquityEvidenceBundle === undefined || result.deepEquityModelPacket === undefined) {
+  if (result.deepEquityEvidenceBundle === undefined) {
     throw new Error("Deep-equity evidence bundle finalization failed");
   }
   return {
@@ -64,14 +64,12 @@ export async function runDeepEquity(
     analytics: result.analytics,
     stageOutputs: result.stageOutputs,
     evidenceBundle: result.deepEquityEvidenceBundle,
-    modelPacket: result.deepEquityModelPacket,
     artifacts: result.artifacts,
   };
 }
 
 export type {
   DeepEquityEvidenceBundleV1,
-  DeepEquityModelPacket,
   DeepEquityRunDependencies,
   DeepEquityRunInput,
   DeepEquityRunResult,

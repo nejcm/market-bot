@@ -92,7 +92,6 @@ const VALID_PLAYBOOK_STAGES: ReadonlySet<string> = new Set([
   "mover-theme-analysis",
   "instrument-evidence-analysis",
   "market-behavior-analysis",
-  "equity-analysis",
   "critique",
   "final-synthesis",
 ]);

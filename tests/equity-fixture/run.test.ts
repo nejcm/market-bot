@@ -98,15 +98,7 @@ describe("static equity run fixtures", () => {
           },
           context: { historicalContext: expect.any(Object) },
         });
-        expect(result.deepEquityModelPacket).toMatchObject({
-          schemaVersion: 1,
-          canonicalFacts: expect.any(Object),
-          evidenceItems: expect.any(Array),
-          sources: expect.any(Array),
-          gaps: expect.any(Array),
-        });
         expect(JSON.stringify(result.deepEquityEvidenceBundle)).not.toContain("rawSnapshots");
-        expect(JSON.stringify(result.deepEquityModelPacket)).not.toContain("rawSnapshots");
       }
       expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(
         await readGoldenOutput(name),

@@ -162,27 +162,6 @@ without pretending the project has a global security master.
 - Adaptive deep-equity web acquisition uses one planning model call followed by one parallel
   search/fetch batch. Exa/Firecrawl fallback, sanitization, relevance, dedupe, profile reuse and
   extraction, and Business Framework reconciliation retain their existing authority.
-- The external deep-equity workflow projects one `DeepEquityModelPacket` from the finalized bundle.
-  It carries canonical facts, derived views, source IDs and metadata, dates, units, and gaps; raw
-  snapshots and duplicated narrative projections remain excluded. The same finalized bundle is the
-  sole normalized deep-equity evidence artifact and production read authority. This persistence
-  cutover does not change the legacy reasoning-stage sequence or prompt projections; that
-  model-pipeline cutover remains gated behind the paired non-inferiority evaluation and human
-  approval.
-- The operator-owned cutover gates — zero critical material-evidence omissions after
-  adjudication, human review approval, and live smoke — come only from an explicitly named
-  repository-resident record of unauthenticated human-stated verdicts. The record binds to the
-  exact evaluation-root identifier and the evaluation-time repository HEAD, and is rejected when
-  the worktree is dirty for any path other than the record itself, so an unrelated dirty path
-  fails the record closed. That check constrains the worktree; it does not prove the named commit
-  describes the code that ran. It carries an operator identifier, an ISO date, and an independent
-  rationale per gate, and fails closed on absence, unreadability, malformed content, envelope or
-  binding failure, or per-gate invalidity. It provides no cryptographic authentication or
-  identity guarantee. The evaluation artifact distinguishes no record supplied, a supplied record
-  rejected with reasons, a record whose individual gates were rejected, and an accepted record's
-  true or false verdict per gate. Because a record cannot contain the hash of the commit that
-  adds it, a checked-in record is an archival attestation rather than a re-runnable check; the
-  persisted evaluation artifact is the durable evidence.
 - Every equity instrument run attempts a Verified Market Snapshot from Yahoo OHLCV through the
   cached request seam. It computes the locked indicator set and adds a citeable source. Deep-equity
   runs persist it inside the evidence bundle; other equity runs retain the normalized snapshot

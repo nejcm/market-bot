@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, type ResearchCommand } from "../../../src/cli/args";
@@ -6,21 +6,7 @@ import { resolveConfig, type AppConfig } from "../../../src/config";
 import { createProvider } from "../../../src/model/factory";
 import type { ModelProvider } from "../../../src/model/types";
 import { collectSources } from "../../../src/sources/collector";
-import type { CollectedSources, FetchLike } from "../../../src/sources/types";
-import {
-  DEEP_EQUITY_PIPELINE_VARIANTS,
-  judgeDeepEquityPairSafely,
-  runDeepEquityPipelineVariant,
-  type DeepEquityPipelineVariant,
-  type PairwiseJudgeFailureReason,
-  type PairwiseJudgeResult,
-} from "../deep-equity-evaluation";
-import {
-  captureProvider,
-  modelCallTotals,
-  type CapturedModelCall,
-  type CapturedModelExchange,
-} from "../model-call-capture";
+import type { FetchLike } from "../../../src/sources/types";
 import {
   persistResearchJob,
   type PersistedResearchJobResult,
@@ -69,7 +55,6 @@ export interface RunFixtureOptions {
   readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
   readonly onDataRequest?: (request: FixtureDataRequest) => void;
-  readonly reasoningVariant?: "legacy" | "simplified";
 }
 
 export interface RunFixtureResult extends PersistedResearchJobResult {
@@ -82,48 +67,12 @@ export interface FixtureDataRequest {
   readonly url: string;
 }
 
-export interface RunFixturePairOptions extends RunFixtureOptions {
-  readonly judge?: boolean;
-  readonly judgeModel?: string;
-  readonly variantOrderRandom?: () => number;
-  readonly blindLabelRandom?: () => number;
-}
-
-export type RunFixtureVariantOutcome =
-  | {
-      readonly status: "success";
-      readonly result: PersistedResearchJobResult;
-      readonly reasoningPromptTokenEstimate: number;
-    }
-  | {
-      readonly status: "error";
-      readonly error: Error;
-      /**
-       * Directory holding whatever survived the failed variant. Absent only when no directory could
-       * be preserved at all; a failed variant is never eligible for metrics, judging, or gates.
-       */
-      readonly runDir?: string;
-    };
-
-export interface RunFixturePairResult {
-  readonly dataDir: string;
-  readonly collectedSources: CollectedSources;
-  readonly variantOrder: readonly DeepEquityPipelineVariant[];
-  readonly variants: Readonly<Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>>;
-  readonly judge?: PairwiseJudgeResult;
-  readonly unjudged?: PairwiseJudgeFailureReason;
-  readonly cleanup: () => Promise<void>;
-}
-
 interface FixtureDataDir {
   readonly dataDir: string;
   readonly tempRoot?: string;
 }
 
 const FIXTURE_ROOT = join(import.meta.dir, "../../fixtures/runs");
-export const DEEP_EQUITY_EVALUATION_METRICS_FILE = "deep-equity-evaluation-metrics.json";
-export const DEEP_EQUITY_VARIANT_FAILURE_FILE = "deep-equity-variant-failure.json";
-const MAX_PRESERVED_ERROR_CAUSES = 10;
 
 async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;
@@ -307,230 +256,12 @@ export async function runFixture(
     endClock: () => now,
     sourceFetchImpl: fetchImpl,
     sourceRetryDelaysMs: [],
-    ...(resolvedOptions.reasoningVariant !== undefined
-      ? { reasoningVariant: resolvedOptions.reasoningVariant }
-      : {}),
   });
   return {
     ...result,
     dataDir,
     cleanup: async () => {
       if (resolvedOptions.keepDataDir !== true && tempRoot !== undefined) {
-        await rm(tempRoot, { recursive: true, force: true });
-      }
-    },
-  };
-}
-
-function variantConfig(config: AppConfig, pairDataDir: string, variant: DeepEquityPipelineVariant) {
-  const dataDir = join(pairDataDir, variant);
-  return {
-    ...config,
-    dataDir,
-    sourceOptions: {
-      ...config.sourceOptions,
-      cacheDir: join(dataDir, "..", "cache"),
-      newsSeenPath: join(dataDir, "..", "news-seen.json"),
-      peerUniverseLearnedPath: join(dataDir, "..", "peer-universe-learned.json"),
-    },
-  };
-}
-
-function outcomeError(error: unknown, runDir: string | undefined): RunFixtureVariantOutcome {
-  return {
-    status: "error",
-    error: error instanceof Error ? error : new Error(String(error)),
-    ...(runDir !== undefined ? { runDir } : {}),
-  };
-}
-
-function errorChain(error: unknown): readonly Record<string, string>[] {
-  const chain: Record<string, string>[] = [];
-  let current = error;
-  while (current instanceof Error && chain.length < MAX_PRESERVED_ERROR_CAUSES) {
-    chain.push({
-      message: current.message,
-      ...(current.stack !== undefined ? { stack: current.stack } : {}),
-    });
-    current = current.cause;
-  }
-  if (chain.length === 0) {
-    chain.push({ message: String(error) });
-  }
-  return chain;
-}
-
-// Sole run directory the variant managed to create, if any.
-async function createdRunDir(variantDataDir: string): Promise<string | undefined> {
-  try {
-    const entries = await readdir(variantDataDir, { withFileTypes: true });
-    const names = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .toSorted();
-    return names.length === 1 ? join(variantDataDir, names[0]!) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// Keeps a failed variant's evidence on disk and returns where it lives.
-// Best effort: preservation must never mask the original variant error.
-async function preserveVariantFailure(input: {
-  readonly pairDataDir: string;
-  readonly variantDataDir: string;
-  readonly variant: DeepEquityPipelineVariant;
-  readonly error: unknown;
-  readonly modelExchanges: readonly CapturedModelExchange[];
-  readonly modelCalls: readonly CapturedModelCall[];
-}): Promise<string | undefined> {
-  try {
-    const runDir =
-      (await createdRunDir(input.variantDataDir)) ??
-      join(input.pairDataDir, `${input.variant}-failure`);
-    await mkdir(runDir, { recursive: true });
-    await writeFile(
-      join(runDir, DEEP_EQUITY_VARIANT_FAILURE_FILE),
-      `${JSON.stringify(
-        {
-          version: 1,
-          variant: input.variant,
-          error: errorChain(input.error),
-          modelCalls: input.modelCalls,
-          modelExchanges: input.modelExchanges,
-        },
-        null,
-        2,
-      )}\n`,
-      "utf8",
-    );
-    return runDir;
-  } catch {
-    return undefined;
-  }
-}
-
-export async function runFixturePair(
-  name: string,
-  options: RunFixturePairOptions,
-): Promise<RunFixturePairResult> {
-  const fixture = await loadFixture(name);
-  const { dataDir: requestedDataDir } = options;
-  const { dataDir, tempRoot } = await fixtureDataDir(`${name}-pair`, requestedDataDir);
-  const config = fixtureConfig(fixture.meta, dataDir, options.llm);
-  const fetchImpl = observedFetch(
-    options.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
-    options.onDataRequest,
-  );
-  const collectionProvider =
-    options.provider ??
-    (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : createProvider(config));
-  const rawCommand = researchCommand(fixture.meta.argv);
-  const resolvedSubject = resolveResearchSubject(rawCommand);
-  const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
-  const now = new Date(fixture.meta.now);
-  const sourcePlan = buildSourcePlan(command, now.toISOString(), resolvedSubject);
-  const collectedSources = await collectSources(command, config.sourceOptions, {
-    now,
-    fetchImpl,
-    retryDelaysMs: [],
-    ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
-    peerUniverse: {
-      provider: collectionProvider,
-      model: config.quickModel,
-      cachePath:
-        config.sourceOptions.peerUniverseLearnedPath ?? join(dataDir, "..", "peer-universe.json"),
-    },
-  });
-  const outcomes = {} as Record<DeepEquityPipelineVariant, RunFixtureVariantOutcome>;
-  const variants =
-    options.variantOrderRandom !== undefined && options.variantOrderRandom() >= 0.5
-      ? DEEP_EQUITY_PIPELINE_VARIANTS.toReversed()
-      : DEEP_EQUITY_PIPELINE_VARIANTS;
-  for (const variant of variants) {
-    const currentConfig = variantConfig(config, dataDir, variant);
-    const capturedCalls: CapturedModelCall[] = [];
-    const capturedExchanges: CapturedModelExchange[] = [];
-    try {
-      const baseVariantProvider =
-        options.provider ??
-        (options.llm === "replay" ? makeReplayProvider(fixture.llmCassette) : collectionProvider);
-      const variantProvider = captureProvider(
-        baseVariantProvider,
-        capturedCalls,
-        capturedExchanges,
-      );
-      const result = await runDeepEquityPipelineVariant(variant, {
-        command,
-        config: currentConfig,
-        provider: variantProvider,
-        collectedSources,
-        sourcePlan,
-        now,
-        endClock: () => now,
-        sourceFetchImpl: fetchImpl,
-        sourceRetryDelaysMs: [],
-      });
-      const reasoningPromptTokenEstimate = modelCallTotals(capturedCalls).promptTokenEstimate;
-      await writeFile(
-        join(result.artifacts.runDir, DEEP_EQUITY_EVALUATION_METRICS_FILE),
-        `${JSON.stringify(
-          {
-            version: 1,
-            reasoningPromptTokenEstimate,
-            definition: "ceil(stable prompt characters / 4), summed across variant model calls",
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-      outcomes[variant] = {
-        status: "success",
-        result,
-        reasoningPromptTokenEstimate,
-      };
-    } catch (error) {
-      outcomes[variant] = outcomeError(
-        error,
-        await preserveVariantFailure({
-          pairDataDir: dataDir,
-          variantDataDir: currentConfig.dataDir,
-          variant,
-          error,
-          modelExchanges: capturedExchanges,
-          modelCalls: capturedCalls,
-        }),
-      );
-    }
-  }
-  const { legacy, simplified } = outcomes;
-  const judgeModel = options.judgeModel ?? config.quickModel;
-  const judgeOutcome =
-    options.judge === true && legacy.status === "success" && simplified.status === "success"
-      ? await judgeDeepEquityPairSafely({
-          provider: collectionProvider,
-          judgeModel,
-          synthesisModels: [
-            legacy.result.trace.synthesisModel,
-            simplified.result.trace.synthesisModel,
-          ],
-          reports: {
-            legacy: legacy.result.report,
-            simplified: simplified.result.report,
-          },
-          ...(options.blindLabelRandom !== undefined ? { random: options.blindLabelRandom } : {}),
-        })
-      : undefined;
-  return {
-    dataDir,
-    collectedSources,
-    variantOrder: variants,
-    variants: outcomes,
-    ...(judgeOutcome?.status === "judged" ? { judge: judgeOutcome.judge } : {}),
-    ...(judgeOutcome?.status === "unjudged" ? { unjudged: judgeOutcome.reason } : {}),
-    cleanup: async () => {
-      if (options.keepDataDir !== true && tempRoot !== undefined) {
         await rm(tempRoot, { recursive: true, force: true });
       }
     },

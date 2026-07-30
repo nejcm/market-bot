@@ -433,7 +433,6 @@ const GENERIC_STAGES: readonly StageLabel[] = [
   "mover-theme-analysis",
   "instrument-evidence-analysis",
   "market-behavior-analysis",
-  "equity-analysis",
   "critique",
   "forecast-disagreement",
 ];

@@ -43,6 +43,31 @@ describe("golden report contracts", () => {
     expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
   });
 
+  test("non-equity report types retain the legacy section order without an appendix", () => {
+    const reports: readonly ResearchReport[] = [
+      { ...report(), jobType: "market-overview" },
+      { ...report(), jobType: "crypto", assetClass: "crypto", symbol: "BTC" },
+      { ...report(), jobType: "research" },
+      { ...report(), jobType: "alpha-search" },
+    ];
+    for (const candidate of reports) {
+      const markdown = renderMarkdownReport(candidate);
+      expect(markdown).not.toContain("## Appendix");
+      if (candidate.jobType === "alpha-search") {
+        expect(markdown).toContain("## Research Leads");
+        continue;
+      }
+      const summary = markdown.indexOf("## Summary");
+      const findings = markdown.indexOf("## Key Findings");
+      const risks = markdown.indexOf("## Risks");
+      const dataGaps = markdown.indexOf("## Data Gaps");
+      expect(summary).toBeGreaterThanOrEqual(0);
+      expect(findings).toBeGreaterThan(summary);
+      expect(risks).toBeGreaterThan(findings);
+      expect(dataGaps).toBeGreaterThan(risks);
+    }
+  });
+
   test("safety scanner blocks trade-action wording", () => {
     expect(() => assertSafeReportLanguage(report("This says sell the instrument."))).toThrow(
       "trade-action language",

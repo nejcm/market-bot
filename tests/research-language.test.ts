@@ -149,6 +149,30 @@ describe("violatesResearchOnly", () => {
     expect(violatesResearchOnly("peer-implied price reference range")).toBeNull();
   });
 
+  test("allows the explicit research-only target-price disclaimer", () => {
+    expect(violatesResearchOnly("This is valuation context, not a target price.")).toBeNull();
+    expect(violatesResearchOnly("This is a target price.")).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "Although this is not a target price, shares are likely to reach 250 USD within 12 months.",
+      ),
+    ).not.toBeNull();
+    expect(violatesResearchOnly("Not A Target Price, but the stock reaches 300.")).not.toBeNull();
+    expect(
+      violatesResearchOnly("This is not a target prices statement; 400 is achievable."),
+    ).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "Although this is valuation context, not a target price. Shares likely reach 250 USD.",
+      ),
+    ).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "This is valuation context, not a target price. The model states a fair value of 125 USD.",
+      ),
+    ).not.toBeNull();
+  });
+
   test("blocks a bare peer-implied point price", () => {
     expect(violatesResearchOnly("The peer-implied price is 125 USD.")).not.toBeNull();
   });

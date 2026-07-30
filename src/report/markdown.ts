@@ -19,6 +19,15 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
 import { classifyGap } from "./gap-triage";
+import type { CollectedSources } from "../sources/types";
+import type {
+  FundamentalHistoryArtifact,
+  FundamentalHistoryPoint,
+  FundamentalHistorySeries,
+} from "../sources/extended-evidence/fundamental-history";
+import type { FinancialStatementSeries } from "../sources/extended-evidence/financial-statements-contract";
+import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
+import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
@@ -39,8 +48,8 @@ function markdownText(value: string): string {
   });
 }
 
-function renderGap(gap: string): string {
-  const triage = classifyGap(gap);
+function renderGap(gap: string, reportSymbol?: string): string {
+  const triage = classifyGap(gap, reportSymbol);
   return `- **${triage === "material" ? "Material" : "Diagnostic"}:** ${markdownText(gap)}`;
 }
 
@@ -82,7 +91,10 @@ function knownSourceIds(report: ResearchReport, sourceIds: unknown): readonly st
   return readStringArray(sourceIds).filter((sourceId) => known.has(sourceId));
 }
 
-function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
+function collectReportSourceIds(
+  report: ResearchReport,
+  additionalSourceIds: readonly string[] = [],
+): ReadonlySet<string> {
   const ids = new Set<string>();
   const add = (sourceIds: readonly string[]) => {
     for (const sourceId of sourceIds) {
@@ -149,6 +161,7 @@ function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
       }
     }
   }
+  add(knownSourceIds(report, additionalSourceIds));
 
   return ids;
 }
@@ -172,12 +185,15 @@ function sourceInventoryLine(
   return `- ${String(uncitedCount)} uncited normalized source(s) omitted from markdown (${inventory}). Full source arrays remain in report.json and console files.`;
 }
 
-function renderSources(report: ResearchReport): string {
+function renderSources(
+  report: ResearchReport,
+  additionalSourceIds: readonly string[] = [],
+): string {
   if (report.sources.length === 0) {
     return "- No sources.";
   }
 
-  const citedIds = collectReportSourceIds(report);
+  const citedIds = collectReportSourceIds(report, additionalSourceIds);
   const citedSources = report.sources.filter((source) => citedIds.has(source.id));
   const uncitedCount = report.sources.length - citedSources.length;
   const rows = citedSources.map(
@@ -236,6 +252,400 @@ function renderPriceProvenance(
   return summary
     .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
     .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+}
+
+function hasPlainLanguageDescription(text: string): boolean {
+  const outsideParentheses = text.replaceAll(/\([^()]*\)/gu, " ");
+  const descriptiveWords = (outsideParentheses.match(/[A-Za-z][A-Za-z'-]*/gu) ?? []).filter(
+    (word) =>
+      !["business", "criteria", "supported", "mixed", "not", "insufficient", "data"].includes(
+        word.toLowerCase(),
+      ),
+  );
+  return descriptiveWords.length >= 2;
+}
+
+function renderCompanyDescription(report: ResearchReport): string {
+  const profile = report.extras?.webSubjectProfile;
+  if (isRecord(profile)) {
+    const candidates = [
+      profile.subjectSummary,
+      isRecord(profile.questions) ? profile.questions.whatItDoes : undefined,
+    ];
+    for (const candidate of candidates) {
+      if (!isRecord(candidate) || typeof candidate.answer !== "string" || candidate.answer === "") {
+        continue;
+      }
+      const refs = sourceRefs(knownSourceIds(report, candidate.sourceIds));
+      return `## What the Company Does\n\n${markdownText(candidate.answer)}${refs === "" ? "" : ` ${refs}`}\n`;
+    }
+  }
+
+  const framework = report.extras?.businessFramework;
+  if (isRecord(framework) && Array.isArray(framework.sections)) {
+    const business = framework.sections.find(
+      (section) => isRecord(section) && section.name === "Business",
+    );
+    if (isRecord(business)) {
+      let rawText = "";
+      if (typeof business.text === "string") {
+        rawText = business.text;
+      } else if (typeof business.summary === "string") {
+        rawText = business.summary;
+      }
+      const posture = typeof business.posture === "string" ? business.posture : "";
+      const prefix = `Business ${posture}`;
+      const plainText = (
+        rawText.startsWith(prefix) ? rawText.slice(prefix.length) : rawText
+      ).trim();
+      if (plainText !== "" && hasPlainLanguageDescription(rawText)) {
+        const refs = sourceRefs(knownSourceIds(report, business.sourceIds));
+        return `## What the Company Does\n\n${markdownText(plainText)}${refs === "" ? "" : ` ${refs}`}\n`;
+      }
+    }
+  }
+
+  return "## What the Company Does\n\n- No cited plain-language company description is available.\n";
+}
+
+function quoteCurrency(snapshot: MarketSnapshot): string {
+  return snapshot.identity?.quoteCurrency ?? "";
+}
+
+function renderPriceAndMarketDate(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
+  if (marketSnapshot === undefined) {
+    return "## Price and Market Date\n\n- No current normalized price is available.\n";
+  }
+  const currency = quoteCurrency(marketSnapshot);
+  const price = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(
+    marketSnapshot.price,
+  );
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const label = `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+  const summary = `Observed price: ${price}${currency === "" ? "" : ` ${currency}`}; price as of ${label}.`;
+  const refs = sourceRefs(knownSourceIds(report, [marketSnapshot.sourceId]));
+  return `## Price and Market Date\n\n${summary}${refs === "" ? "" : ` ${refs}`}\n`;
+}
+
+function compactNumber(value: number): string {
+  const absolute = Math.abs(value);
+  const units = [
+    [1_000_000_000_000, "T"],
+    [1_000_000_000, "B"],
+    [1_000_000, "M"],
+  ] as const;
+  for (const [scale, suffix] of units) {
+    if (absolute >= scale) {
+      return `${(value / scale).toFixed(1)}${suffix}`;
+    }
+  }
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+}
+
+function historyPoint(
+  series: FundamentalHistorySeries,
+  periodEnd: string,
+  kind: "annual" | "ttm",
+): FundamentalHistoryPoint | undefined {
+  if (kind === "ttm") {
+    return series.ttm?.periodEnd === periodEnd ? series.ttm : undefined;
+  }
+  return series.annual.find((point) => point.periodEnd === periodEnd);
+}
+
+interface TrendPeriod {
+  readonly kind: "annual" | "ttm";
+  readonly periodEnd: string;
+  readonly filedAt: string;
+}
+
+interface StatementPeriod {
+  readonly kind: "annual" | "interim";
+  readonly periodEnd: string;
+  readonly filedAt: string;
+}
+
+function periodLabel(period: TrendPeriod | StatementPeriod): string {
+  if (period.kind === "ttm") {
+    return `TTM (${period.periodEnd}; filed ${period.filedAt})`;
+  }
+  return `${period.kind === "annual" ? "FY" : "Interim"} ending ${period.periodEnd} (filed ${period.filedAt})`;
+}
+
+function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod[] {
+  const annual = new Map<string, TrendPeriod>();
+  for (const series of Object.values(history.series)) {
+    for (const point of series.annual) {
+      const existing = annual.get(point.periodEnd);
+      if (existing === undefined || point.filedAt < existing.filedAt) {
+        annual.set(point.periodEnd, {
+          kind: "annual",
+          periodEnd: point.periodEnd,
+          filedAt: point.filedAt,
+        });
+      }
+    }
+  }
+  const annualRows = [...annual.values()]
+    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
+    .slice(-5);
+  let ttm: TrendPeriod | undefined = undefined;
+  for (const series of Object.values(history.series)) {
+    const point = series.ttm;
+    if (point === undefined) {
+      continue;
+    }
+    if (
+      ttm === undefined ||
+      point.periodEnd > ttm.periodEnd ||
+      (point.periodEnd === ttm.periodEnd && point.filedAt < ttm.filedAt)
+    ) {
+      ttm = {
+        kind: "ttm",
+        periodEnd: point.periodEnd,
+        filedAt: point.filedAt,
+      };
+    }
+  }
+  return ttm === undefined ? annualRows : [...annualRows, ttm];
+}
+
+function historyValue(
+  history: FundamentalHistoryArtifact,
+  key: keyof FundamentalHistoryArtifact["series"],
+  period: TrendPeriod,
+): number | undefined {
+  return historyPoint(history.series[key], period.periodEnd, period.kind)?.value;
+}
+
+function formatTrendAmount(value: number | undefined): string {
+  return value === undefined ? "—" : compactNumber(value);
+}
+
+function formatTrendPercent(value: number | undefined): string {
+  return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+function renderFinancialTrends(
+  report: ResearchReport,
+  sources: Pick<CollectedSources, "fundamentalHistory"> | undefined,
+): string {
+  const history = sources?.fundamentalHistory;
+  if (history === undefined) {
+    return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
+  }
+  const periods = trendPeriods(history);
+  if (periods.length === 0) {
+    return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
+  }
+  const rows = periods.map((period) => {
+    const netIncome = historyValue(history, "netIncome", period);
+    const operatingMargin = historyValue(history, "operatingMargin", period);
+    return [
+      periodLabel(period),
+      formatTrendAmount(historyValue(history, "revenue", period)),
+      formatTrendAmount(netIncome),
+      formatTrendPercent(operatingMargin),
+      formatTrendAmount(historyValue(history, "freeCashFlowProxy", period)),
+    ].join(" | ");
+  });
+  const currency =
+    history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
+  const refs = sourceRefs(knownSourceIds(report, [history.sourceId]));
+  return [
+    "## Financial Trends",
+    "",
+    `Amounts${currency === undefined ? "" : ` in ${markdownText(currency)}`}. FCF is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    "",
+    "Period | Revenue | Net income | Operating margin | FCF",
+    "--- | ---: | ---: | ---: | ---:",
+    ...rows,
+    "",
+  ].join("\n");
+}
+
+function statementPeriods(
+  financialStatements: NonNullable<CollectedSources["financialStatements"]>,
+): readonly StatementPeriod[] {
+  const { cash, debt } = financialStatements.statements.balanceSheet;
+  const { dilutedShares } = financialStatements.statements.perShare;
+  const periods = new Map<string, StatementPeriod>();
+  for (const series of [cash, debt, dilutedShares]) {
+    for (const kind of ["annual", "interim"] as const) {
+      for (const fact of series[kind]) {
+        const existing = periods.get(fact.periodEnd);
+        if (
+          existing === undefined ||
+          (kind === "annual" && existing.kind === "interim") ||
+          (kind === existing.kind && fact.filedAt < existing.filedAt)
+        ) {
+          periods.set(fact.periodEnd, {
+            kind,
+            periodEnd: fact.periodEnd,
+            filedAt: fact.filedAt,
+          });
+        }
+      }
+    }
+  }
+  return [...periods.values()]
+    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
+    .slice(-5);
+}
+
+function statementValue(series: FinancialStatementSeries, periodEnd: string): number | undefined {
+  return (
+    series.annual.find((fact) => fact.periodEnd === periodEnd)?.value ??
+    series.interim.find((fact) => fact.periodEnd === periodEnd)?.value
+  );
+}
+
+function renderBalanceSheetAndShareCount(
+  report: ResearchReport,
+  sources: Pick<CollectedSources, "financialStatements"> | undefined,
+): string {
+  const financialStatements = sources?.financialStatements;
+  if (financialStatements === undefined) {
+    return "### Balance Sheet and Share Count\n\n- Balance-sheet and diluted-share history is unavailable.\n";
+  }
+  const periods = statementPeriods(financialStatements);
+  if (periods.length === 0) {
+    return "### Balance Sheet and Share Count\n\n- Balance-sheet and diluted-share history is unavailable.\n";
+  }
+  const { cash, debt } = financialStatements.statements.balanceSheet;
+  const { dilutedShares } = financialStatements.statements.perShare;
+  const rows = periods.map((period) =>
+    [
+      periodLabel(period),
+      formatTrendAmount(statementValue(cash, period.periodEnd)),
+      formatTrendAmount(statementValue(debt, period.periodEnd)),
+      formatTrendAmount(statementValue(dilutedShares, period.periodEnd)),
+    ].join(" | "),
+  );
+  const refs = sourceRefs(knownSourceIds(report, [financialStatements.sourceId]));
+  return [
+    "### Balance Sheet and Share Count",
+    "",
+    `Cash and debt amounts${financialStatements.reportingCurrency === undefined ? "" : ` in ${markdownText(financialStatements.reportingCurrency)}`}; diluted shares are weighted-average shares.${refs === "" ? "" : ` ${refs}`}`,
+    "",
+    "Period | Cash | Debt | Diluted shares",
+    "--- | ---: | ---: | ---:",
+    ...rows,
+    "",
+  ].join("\n");
+}
+
+function renderValuationContext(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+  sources: Pick<CollectedSources, "valuationWorkbench"> | undefined,
+): string {
+  const comparison = sources?.valuationWorkbench?.peerComparison;
+  if (comparison?.status === "available") {
+    const { valuationComps } = comparison;
+    const { impliedPriceRange: range, target } = valuationComps;
+    if (range?.status === "derived") {
+      const { priceAsOf } = target;
+      const date =
+        priceAsOf === undefined
+          ? target.quoteObservedAt
+          : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+      let position = "above";
+      if (range.position === "within-range") {
+        position = "within";
+      } else if (range.position === "below-range") {
+        position = "below";
+      }
+      return `## Valuation Context\n\nThe observed quote is ${position} the peer-implied price reference range of ${range.low.toFixed(2)}–${range.high.toFixed(2)} ${range.inputs.quoteCurrency}${date === undefined ? "" : ` as of ${date}`}; this is valuation context, not a target price.\n`;
+    }
+  }
+  const fundamentals = marketSnapshot?.fundamentals;
+  const metrics = [
+    ...(fundamentals?.trailingPE === undefined
+      ? []
+      : [`trailing P/E ${fundamentals.trailingPE.toFixed(2)}x`]),
+    ...(fundamentals?.forwardPE === undefined
+      ? []
+      : [`forward P/E ${fundamentals.forwardPE.toFixed(2)}x`]),
+    ...(fundamentals?.priceToBook === undefined
+      ? []
+      : [`price/book ${fundamentals.priceToBook.toFixed(2)}x`]),
+  ];
+  const refs =
+    marketSnapshot === undefined
+      ? ""
+      : sourceRefs(knownSourceIds(report, [marketSnapshot.sourceId]));
+  const context =
+    metrics.length === 0
+      ? "No peer-derived reference range or normalized market multiple is available"
+      : `Observed market multiples are ${metrics.join(", ")}`;
+  return `## Valuation Context\n\n${context}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}\n`;
+}
+
+function renderCompactEarningsAndConsensus(report: ResearchReport): string {
+  const rows: string[] = [];
+  const setup = report.extras?.earningsSetup;
+  if (isRecord(setup) && isRecord(setup.event)) {
+    const { event } = setup;
+    const symbol = typeof event.symbol === "string" ? event.symbol : report.symbol;
+    const date = typeof event.date === "string" ? event.date : undefined;
+    const timing = typeof event.timing === "string" ? event.timing : "unknown";
+    const status = event.eventDateStatus ?? event.dateStatus;
+    const refs = sourceRefs(knownSourceIds(report, event.sourceIds));
+    if (date !== undefined) {
+      rows.push(
+        `- **Upcoming earnings:** ${markdownText(symbol ?? "")} on ${date} (${timing}; ${typeof status === "string" ? status : "confirmation unavailable"})${refs === "" ? "" : ` ${refs}`}`,
+      );
+    }
+    if (typeof event.epsEstimate === "number") {
+      rows.push(`- **EPS consensus:** ${String(event.epsEstimate)} (single-provider snapshot)`);
+    }
+    if (typeof event.revenueEstimate === "number") {
+      rows.push(
+        `- **Revenue consensus:** ${compactNumber(event.revenueEstimate)} (single-provider snapshot)`,
+      );
+    }
+  }
+  const consensusItems =
+    report.extendedEvidence?.items.filter((item) => item.category === "analyst-estimates") ?? [];
+  for (const item of consensusItems) {
+    const mean = item.metrics?.mean;
+    if (typeof mean !== "number") {
+      continue;
+    }
+    const period = item.metrics?.period;
+    const count = item.metrics?.count;
+    const refs = sourceRefs(item.sourceIds);
+    rows.push(
+      `- **${markdownText(item.title)}:** mean ${compactNumber(mean)}${typeof period === "string" ? ` for ${period}` : ""}${typeof count === "number" ? ` (${String(count)} estimates)` : ""}${refs === "" ? "" : ` ${refs}`}`,
+    );
+  }
+  return [
+    "## Upcoming Earnings and Consensus",
+    "",
+    ...(rows.length === 0 ? ["- No upcoming earnings or consensus snapshot is available."] : rows),
+    "",
+  ].join("\n");
+}
+
+function renderGapSection(
+  title: string,
+  gaps: readonly string[],
+  emptyMessage: string,
+  reportSymbol?: string,
+): string {
+  const rows =
+    gaps.length === 0
+      ? `- ${emptyMessage}`
+      : gaps.map((gap) => renderGap(gap, reportSymbol)).join("\n");
+  return `## ${title}\n\n${rows}\n`;
+}
+
+function renderAppendixSection(markdown: string): string {
+  return markdown.replaceAll(/^(#{2,5})(?= )/gmu, "#$1");
 }
 
 function renderExtendedEvidence(
@@ -961,9 +1371,17 @@ function reportTitle(report: ResearchReport): string {
 export function renderMarkdownReport(
   report: ResearchReport,
   marketSnapshot?: MarketSnapshot,
+  collectedSources?: Pick<
+    CollectedSources,
+    "financialStatements" | "fundamentalHistory" | "valuationWorkbench" | "reverseDcf"
+  >,
 ): string {
   if (report.jobType === "alpha-search") {
     return renderAlphaSearchReport(report);
+  }
+
+  if (report.jobType === "equity" && report.assetClass === "equity") {
+    return renderEquityMarkdownReport(report, marketSnapshot, collectedSources);
   }
 
   const title = reportTitle(report);
@@ -1015,5 +1433,113 @@ export function renderMarkdownReport(
     "",
     sources,
     "",
+  ].join("\n");
+}
+
+function renderEquityMarkdownReport(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+  collectedSources:
+    | Pick<
+        CollectedSources,
+        "financialStatements" | "fundamentalHistory" | "valuationWorkbench" | "reverseDcf"
+      >
+    | undefined,
+): string {
+  const title = reportTitle(report);
+  const materialGaps = report.dataGaps.filter(
+    (gap) => classifyGap(gap, report.symbol) === "material",
+  );
+  const diagnosticGaps = report.dataGaps.filter(
+    (gap) => classifyGap(gap, report.symbol) === "diagnostic",
+  );
+  const additionalSourceIds = [
+    ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
+    ...(collectedSources?.fundamentalHistory === undefined ||
+    trendPeriods(collectedSources.fundamentalHistory).length === 0
+      ? []
+      : [collectedSources.fundamentalHistory.sourceId]),
+    ...(collectedSources?.financialStatements === undefined ||
+    statementPeriods(collectedSources.financialStatements).length === 0
+      ? []
+      : [collectedSources.financialStatements.sourceId]),
+  ];
+  const sources = renderSources(report, additionalSourceIds);
+  const valuationPriceAsOf =
+    collectedSources?.valuationWorkbench?.peerComparison.status === "available"
+      ? collectedSources.valuationWorkbench.peerComparison.valuationComps.target.priceAsOf
+      : undefined;
+  const priceAsOf =
+    valuationPriceAsOf ??
+    (marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot));
+
+  return [
+    `# ${title}`,
+    "",
+    RESEARCH_ONLY_NOTE,
+    "",
+    `Generated: ${report.generatedAt}`,
+    `Evidence Quality: ${researchReportEvidenceQuality(report)}`,
+    ...(report.reportIntegrity !== undefined
+      ? [`Report Integrity: ${report.reportIntegrity}`]
+      : []),
+    ...(report.researchQuality !== undefined
+      ? [`Research Quality: ${report.researchQuality}`]
+      : []),
+    ...(report.researchQualityDriver !== undefined
+      ? [`Research Quality Driver: ${report.researchQualityDriver}`]
+      : []),
+    ...renderEquityCompletenessChips(report),
+    "",
+    renderCompanyDescription(report),
+    renderPriceAndMarketDate(report, marketSnapshot),
+    renderFinancialTrends(report, collectedSources),
+    renderValuationContext(report, marketSnapshot, collectedSources),
+    renderFindings("Catalysts", report.catalysts),
+    renderCatalystCalendar(report),
+    renderFindings("Key Findings", report.keyFindings),
+    renderFindings("Risks", report.risks),
+    renderCompactEarningsAndConsensus(report),
+    renderGapSection(
+      "Material Data Gaps",
+      materialGaps,
+      "No material gaps identified.",
+      report.symbol,
+    ),
+    "## Appendix",
+    "",
+    "### Summary",
+    "",
+    report.summary,
+    "",
+    renderBalanceSheetAndShareCount(report, collectedSources),
+    renderAppendixSection(renderFindings("Bull Case", report.bullCase)),
+    renderAppendixSection(renderFindings("Bear Case", report.bearCase)),
+    renderAppendixSection(renderScenarios(report.scenarios)),
+    renderAppendixSection(renderBusinessFramework(report)),
+    renderAppendixSection(renderWebSubjectProfile(report)),
+    renderAppendixSection(renderExtendedEvidence(report, marketSnapshot)),
+    renderAppendixSection(renderEarningsSetup(report)),
+    renderAppendixSection(renderHistoricalContext(report)),
+    renderAppendixSection(renderSpotlights(report)),
+    renderAppendixSection(renderPredictions(report.predictions)),
+    ...(diagnosticGaps.length === 0
+      ? []
+      : [
+          renderAppendixSection(
+            renderGapSection(
+              "Diagnostic Data Gaps",
+              diagnosticGaps,
+              "No diagnostic gaps identified.",
+              report.symbol,
+            ),
+          ),
+        ]),
+    "### Sources",
+    "",
+    sources,
+    "",
+    renderAppendixSection(renderValuationWorkbenchMarkdown(collectedSources?.valuationWorkbench)),
+    renderAppendixSection(renderReverseDcfMarkdown(collectedSources?.reverseDcf, priceAsOf)),
   ].join("\n");
 }

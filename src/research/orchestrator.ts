@@ -8,15 +8,12 @@ import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../arti
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucket,
-  resolveMarketSnapshotPriceAsOf,
   type MarketSnapshot,
   type Mover,
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
 import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
-import { renderValuationWorkbenchMarkdown } from "../report/valuation-workbench-markdown";
-import { renderReverseDcfMarkdown } from "../report/reverse-dcf-markdown";
 import type { ModelProvider } from "../model/types";
 import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
@@ -792,20 +789,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(forecastPersistence !== undefined ? { forecastPersistence } : {}),
   });
   const marketSnapshot = matchingMarketSnapshot(command, collectedSources);
-  const valuationPriceAsOf =
-    collectedSources.valuationWorkbench?.peerComparison.status === "available"
-      ? collectedSources.valuationWorkbench.peerComparison.valuationComps.target.priceAsOf
-      : undefined;
-  const priceAsOf =
-    valuationPriceAsOf ??
-    (marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot));
 
   return {
     report,
-    markdown:
-      renderMarkdownReport(report, marketSnapshot) +
-      renderValuationWorkbenchMarkdown(collectedSources.valuationWorkbench) +
-      renderReverseDcfMarkdown(collectedSources.reverseDcf, priceAsOf),
+    markdown: renderMarkdownReport(report, marketSnapshot, collectedSources),
     trace,
     analytics,
     stageOutputs,

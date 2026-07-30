@@ -37,6 +37,11 @@ describe("gap triage", () => {
         cause: "missing-credential",
       } satisfies SourceGap,
     ],
+    ["missing FRED credential", "fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+    [
+      "valuation peer exclusion",
+      "valuation-peers: Peer DELL excluded from valuation comps: market cap outside range",
+    ],
     ["operating KPI reason code", "operating-kpi-unverified:asts-satellites-launched"],
     ["registry unconfigured", "operating-kpi-registry-unconfigured"],
   ])("classifies %s as diagnostic", (_label, gap) => {
@@ -65,6 +70,15 @@ describe("gap triage", () => {
     ],
   ])("classifies %s as material", (_label, gap) => {
     expect(classifyGap(gap)).toBe("material");
+  });
+
+  test("demotes SEC gaps scoped to a peer while retaining subject gaps as material", () => {
+    expect(classifyGap("sec-edgar: Missing SEC company facts: revenue [MSFT]", "AAPL")).toBe(
+      "diagnostic",
+    );
+    expect(classifyGap("sec-edgar: Missing SEC company facts: revenue [AAPL]", "AAPL")).toBe(
+      "material",
+    );
   });
 
   test("defaults an unknown code to material", () => {

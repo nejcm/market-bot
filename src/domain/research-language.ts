@@ -23,13 +23,26 @@ export const READER_DIRECTED_ADVICE_PATTERN =
 export const VALUATION_CERTAINTY_PATTERN =
   /(?:\b(?:implied fair value|fair value|intrinsic value|margin of safety|undervalued|overvalued|target prices?|price targets?|percentage gap|valuation gap|(?<!peer-)implied prices?(?!\s+(?:are|were)\s+not positive)|peer-implied price(?! reference range\b)|peer-implied prices(?!\s+(?:are|were)\s+not positive))\b|%\s+gap\b)/iu;
 
+const SANCTIONED_DISCLAIMERS = ["this is valuation context, not a target price."] as const;
+const SANCTIONED_DISCLAIMER_PATTERNS = SANCTIONED_DISCLAIMERS.map(
+  (disclaimer) =>
+    new RegExp(
+      `(^|[.!?;]\\s+)${disclaimer.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)}(?=\\s|$)`,
+      "gimu",
+    ),
+);
+
 export function violatesResearchOnly(text: string): { match: string } | null {
+  const scannedText = SANCTIONED_DISCLAIMER_PATTERNS.reduce(
+    (candidate, pattern) => candidate.replaceAll(pattern, "$1"),
+    text,
+  );
   const m =
-    TRADE_ACTION_PATTERN.exec(text) ??
-    TICKER_TRADE_ACTION_PATTERN.exec(text) ??
-    IMPERATIVE_TRADE_ACTION_PATTERN.exec(text) ??
-    SENTENCE_INITIAL_TRADE_ACTION_PATTERN.exec(text) ??
-    READER_DIRECTED_ADVICE_PATTERN.exec(text) ??
-    VALUATION_CERTAINTY_PATTERN.exec(text);
+    TRADE_ACTION_PATTERN.exec(scannedText) ??
+    TICKER_TRADE_ACTION_PATTERN.exec(scannedText) ??
+    IMPERATIVE_TRADE_ACTION_PATTERN.exec(scannedText) ??
+    SENTENCE_INITIAL_TRADE_ACTION_PATTERN.exec(scannedText) ??
+    READER_DIRECTED_ADVICE_PATTERN.exec(scannedText) ??
+    VALUATION_CERTAINTY_PATTERN.exec(scannedText);
   return m !== null ? { match: m[0].trim() } : null;
 }

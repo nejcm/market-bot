@@ -250,6 +250,10 @@ Current evidence contains only facts observable by its analysis cutoff. Later fa
 
 Warn-only, no-model inspection for weak-evidence hygiene (for example unsupported numeric/technical claims or missing evidence posture). It records telemetry without blocking, rewriting, or re-synthesis; Report Integrity Audit handles pruning.
 
+## Gap-Shaped Claim
+
+Narrative absence-of-evidence claim recognized by two consumer-specific predicates. The broad relocation predicate moves an uncited claim from a findings section, or an eligible known Business Framework section with no projected fallback source IDs, into `dataGaps` and records its original path and text in `trace.json:relocatedGapClaims`. The stricter audit predicate emits the observational `gap-shaped-claim-cited` warning when such a claim carries source IDs. The predicates are not interchangeable.
+
 ## Report Integrity Audit
 
 No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, and Predictions, then validates/persists the result. Uncited numeric summary prose and missing posture labels remain advisory; pruned Predictions never score. See [ADR 0005](./docs/adr/0005-research-workflows-model-stage-pipeline.md).

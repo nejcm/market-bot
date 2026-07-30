@@ -9,7 +9,7 @@ Accepted
 2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
 amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
 incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping;
-amended 2026-07-30: final-synthesis source-ID repair loop)
+amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit)
 
 ## Context
 
@@ -46,9 +46,13 @@ research boundaries without sharing persistence or scoring semantics.
   Framework section text that remains uncited after deterministic source-ID fallback into
   `dataGaps` instead of asking the model to invent citations. The trace records every relocation
   with its original field path and text.
+- Source-ID validation aggregates path-aware violations across the five findings sections,
+  scenarios, equity-analysis completeness, and rendered extras into one error. It exposes the first
+  twelve violations and appends `(+N more)` when additional violations exist.
 - Final-synthesis repair reprompts carry the accumulated, path-aware report-validation error set,
   bounded to the twelve most recent distinct errors. Retry failure messages report the actual
-  final-synthesis call and report-repair counts.
+  final-synthesis call count and count only genuine report-repair call sites as report-repair
+  reprompts.
 - When high- or medium-evidence synthesis leaves the report short of its prediction target, one
   best-effort completion pass may add predictions only. It is prompted with a distilled context —
   the first-attempt report narrative, the critique stage output, and a compact source index
@@ -58,9 +62,15 @@ research boundaries without sharing persistence or scoring semantics.
   prior-stage transcript. The allowed source-ID list stays the citation authority, so the scoped
   context never invalidates a cite, and deterministic merge and validation remain the authority over
   accepted candidates.
-- The post-synthesis audit records unsupported numeric/technical claims and evidence-posture
-  omissions as warning telemetry. It does not remove claims, lower Evidence Quality, or fail a
-  run.
+- Gap-shaped claim detection is consumer-specific. Relocation uses the broader
+  `isGapShapedClaimForRelocation` predicate; the observational audit uses the stricter
+  `isGapShapedClaimForAuditWarning` predicate. They are not interchangeable: relocation favors
+  recall because an uncited false negative remains validation-fatal, while the warning favors
+  precision because it has no enforcement effect.
+- The post-synthesis audit records unsupported numeric/technical claims, evidence-posture
+  omissions, and cited gap-shaped claims (`gap-shaped-claim-cited`) as warning telemetry. No gate
+  or threshold reads these warnings; the audit does not remove claims, lower Evidence Quality, or
+  fail a run.
 - After schema-valid synthesis and before forecast disagreement, the deterministic Report
   Integrity Audit prunes blocking violations: numeric or technical findings, scenarios, and
   predictions without an eligible supporting source (structural eligibility only — no

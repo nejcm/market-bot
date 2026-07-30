@@ -26,6 +26,7 @@ import type {
 } from "../../src/sources/extended-evidence/financial-lens";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { isRecord, numberAt, readStringVerbatim } from "../../src/guards";
+import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/types";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
@@ -605,7 +606,10 @@ function financialLensSourceLabel(sourceIds: readonly string[]): string | undefi
   return undefined;
 }
 
-function financialLensMetricCaption(metric: FinancialLensMetric): string | undefined {
+function financialLensMetricCaption(
+  metric: FinancialLensMetric,
+  marketSnapshots: readonly MarketSnapshot[],
+): string | undefined {
   const source = financialLensSourceLabel(metric.sourceIds);
   if (source === undefined) {
     return undefined;
@@ -615,6 +619,16 @@ function financialLensMetricCaption(metric: FinancialLensMetric): string | undef
   }
   const date = metric.periodEnd.slice(0, 10);
   if (metric.periodMonths === undefined) {
+    const marketSnapshot = marketSnapshots.find((snapshot) =>
+      metric.sourceIds.includes(snapshot.sourceId),
+    );
+    if (marketSnapshot !== undefined) {
+      const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+      return `${source} · ${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+    }
+    if (metric.sourceIds.some((sourceId) => sourceId.includes("yahoo"))) {
+      return `${source} · fetch time ${metric.periodEnd}`;
+    }
     return `${source} · observed ${date}`;
   }
   const period = metric.periodMonths === 12 ? "FY" : `${String(metric.periodMonths)}M`;
@@ -623,6 +637,7 @@ function financialLensMetricCaption(metric: FinancialLensMetric): string | undef
 
 export function financialLensStatTiles(
   artifact?: FinancialLensArtifact,
+  marketSnapshots: readonly MarketSnapshot[] = [],
 ): readonly FinancialLensStatTile[] {
   if (artifact === undefined) {
     return [];
@@ -633,7 +648,7 @@ export function financialLensStatTiles(
         typeof metric.value === "string"
           ? metric.value
           : formatLensValue(metric.value, metric.unit, metric.currency);
-      const caption = financialLensMetricCaption(metric);
+      const caption = financialLensMetricCaption(metric, marketSnapshots);
       return {
         key: metric.key,
         lens: lens.name,

@@ -362,7 +362,13 @@
                     Quote currency · {equitySnapshot.pricePerformance.quoteCurrency ?? "unavailable"}
                   </div>
                   <div class="mt-1 font-mono text-[9px] text-[#8a8f96]">
-                    Yahoo observation · {equitySnapshot.pricePerformance.observedAt ?? "unavailable"}
+                    {#if equitySnapshot.pricePerformance.priceAsOf !== undefined}
+                      {equitySnapshot.pricePerformance.priceAsOf.kind === "quote-time"
+                        ? "Quote time"
+                        : "Fetch time"} · {equitySnapshot.pricePerformance.priceAsOf.instant}
+                    {:else}
+                      Price time unavailable
+                    {/if}
                   </div>
                   {#if equitySnapshot.pricePerformance.sourceIds.length > 0}
                     <div class="mt-1.5 flex flex-wrap gap-y-1">
@@ -845,7 +851,7 @@
                   <div>
                     <span class="font-semibold text-foreground">Enterprise value</span><br />
                     <span class="font-mono">{reverseDcf.enterpriseValue}</span><br />
-                    observed {reverseDcf.enterpriseValueDate}
+                    {reverseDcf.enterpriseValueDate}
                   </div>
                   <div>
                     <span class="font-semibold text-foreground">Horizon</span><br />

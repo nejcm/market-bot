@@ -1,12 +1,14 @@
 import type { InstrumentCommand } from "../../cli/args";
 import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap, sourceGapWithContext } from "../../domain/source-gaps";
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  MarketSnapshot,
-  Source,
-  SourceGap,
+import {
+  resolveMarketSnapshotPriceAsOf,
+  type ExtendedEvidence,
+  type ExtendedEvidenceItem,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+  type Source,
+  type SourceGap,
 } from "../../domain/types";
 import {
   resolvePeerUniverseWithFallback,
@@ -76,6 +78,7 @@ export interface ValuationCompsRow {
   readonly currentPrice?: number;
   readonly quoteCurrency?: string;
   readonly quoteObservedAt?: string;
+  readonly priceAsOf?: MarketSnapshotPriceAsOf;
   readonly sourceIds: readonly string[];
   readonly usable: boolean;
 }
@@ -528,6 +531,7 @@ function targetRow(
       ? { quoteCurrency: snapshot.identity.quoteCurrency }
       : {}),
     ...(snapshot?.observedAt !== undefined ? { quoteObservedAt: snapshot.observedAt } : {}),
+    ...(snapshot !== undefined ? { priceAsOf: resolveMarketSnapshotPriceAsOf(snapshot) } : {}),
     sourceIds: item.sourceIds,
     usable,
   };
@@ -719,6 +723,7 @@ function peerRow(
     ...(annualizedRevenue !== undefined ? { annualizedRevenue } : {}),
     ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),
     ...(quote?.observedAt !== undefined ? { quoteObservedAt: quote.observedAt } : {}),
+    ...(quote !== undefined ? { priceAsOf: resolveMarketSnapshotPriceAsOf(quote) } : {}),
     sourceIds,
   };
   return {

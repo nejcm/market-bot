@@ -383,8 +383,20 @@ export interface MarketSnapshot {
   // The quoteTimeUtc field records the provider's quote timestamp in ISO 8601 UTC.
   // The field is optional and is emitted only for payloads with a Yahoo regularMarketTime.
   // The quoteTimeUtc field is not interchangeable with observedAt and is never a fetch time.
-  // No consumer reads quoteTimeUtc yet; see ADR 0004.
+  // Deterministic artifact renderers consume it through resolveMarketSnapshotPriceAsOf; see ADR 0004.
   readonly quoteTimeUtc?: string;
+}
+
+export type MarketSnapshotPriceAsOf =
+  | { readonly kind: "quote-time"; readonly instant: string }
+  | { readonly kind: "fetch-time-only"; readonly instant: string };
+
+export function resolveMarketSnapshotPriceAsOf(
+  snapshot: Pick<MarketSnapshot, "observedAt" | "quoteTimeUtc">,
+): MarketSnapshotPriceAsOf {
+  return snapshot.quoteTimeUtc === undefined
+    ? { kind: "fetch-time-only", instant: snapshot.observedAt }
+    : { kind: "quote-time", instant: snapshot.quoteTimeUtc };
 }
 
 export interface MarketFundamentals {

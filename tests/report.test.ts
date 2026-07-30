@@ -2736,6 +2736,55 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("[extended-fred-macro]");
   });
 
+  test("renders price-derived evidence with quote or fetch time provenance", () => {
+    const priceSourceId = "market-aapl";
+    const equityReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      sources: [
+        {
+          id: priceSourceId,
+          title: "AAPL market snapshot",
+          fetchedAt: "2026-05-19T14:31:00.000Z",
+          kind: "market-data",
+          assetClass: "equity",
+          symbol: "AAPL",
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "valuation",
+            title: "AAPL Valuation Evidence",
+            summary: "Valuation Evidence: market cap as of 2026-05-19; cash/debt as of 2026-03-31.",
+            sourceIds: [priceSourceId],
+            observedAt: "2026-05-19T14:31:00.000Z",
+          },
+        ],
+        gaps: [],
+      },
+    };
+    const fetchedSnapshot = marketSnapshot({
+      sourceId: priceSourceId,
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const quotedSnapshot = marketSnapshot({
+      sourceId: priceSourceId,
+      observedAt: "2026-05-19T14:31:00.000Z",
+      quoteTimeUtc: "2026-05-19T14:29:07.000Z",
+    });
+
+    const fetchedMarkdown = renderMarkdownReport(equityReport, fetchedSnapshot);
+    const quotedMarkdown = renderMarkdownReport(equityReport, quotedSnapshot);
+
+    expect(fetchedMarkdown).toContain("market cap fetch time 2026-05-19T14:31:00.000Z");
+    expect(fetchedMarkdown).not.toContain("market cap quote time");
+    expect(quotedMarkdown).toContain("market cap quote time 2026-05-19T14:29:07.000Z");
+  });
+
   test("escapes generic report metadata in Markdown", () => {
     const markdown = renderMarkdownReport({
       ...report,

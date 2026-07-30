@@ -8,6 +8,8 @@ import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../arti
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucket,
+  resolveMarketSnapshotPriceAsOf,
+  type MarketSnapshot,
   type Mover,
   type ResearchReport,
   type RunTrace,
@@ -141,6 +143,20 @@ export interface RunResearchJobResult {
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
   readonly artifacts: RunArtifactPaths;
+}
+
+function matchingMarketSnapshot(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): MarketSnapshot | undefined {
+  if (!isInstrumentCommand(command)) {
+    return undefined;
+  }
+  const symbol = command.symbol.toUpperCase();
+  return collectedSources.marketSnapshots.find(
+    (snapshot) =>
+      snapshot.assetClass === command.assetClass && snapshot.symbol.toUpperCase() === symbol,
+  );
 }
 
 const MAX_PREDICTION_REPROMPTS = 2;
@@ -835,13 +851,21 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(calibrationContext !== undefined ? { calibrationContext } : {}),
     ...(forecastPersistence !== undefined ? { forecastPersistence } : {}),
   });
+  const marketSnapshot = matchingMarketSnapshot(command, collectedSources);
+  const valuationPriceAsOf =
+    collectedSources.valuationWorkbench?.peerComparison.status === "available"
+      ? collectedSources.valuationWorkbench.peerComparison.valuationComps.target.priceAsOf
+      : undefined;
+  const priceAsOf =
+    valuationPriceAsOf ??
+    (marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot));
 
   return {
     report,
     markdown:
-      renderMarkdownReport(report) +
+      renderMarkdownReport(report, marketSnapshot) +
       renderValuationWorkbenchMarkdown(collectedSources.valuationWorkbench) +
-      renderReverseDcfMarkdown(collectedSources.reverseDcf),
+      renderReverseDcfMarkdown(collectedSources.reverseDcf, priceAsOf),
     trace,
     analytics,
     stageOutputs,

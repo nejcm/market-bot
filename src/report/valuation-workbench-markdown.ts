@@ -7,6 +7,7 @@ import type {
   PeerImpliedRange,
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
+import type { MarketSnapshotPriceAsOf } from "../domain/types";
 
 function cell(value: string): string {
   return value.replaceAll("|", String.raw`\|`).replaceAll("\n", " ");
@@ -48,13 +49,30 @@ function peerRole(row: ValuationCompsRow, targetSymbol: string): string {
   return row.role ?? "peer";
 }
 
+function rowPriceAsOf(row: ValuationCompsRow): MarketSnapshotPriceAsOf | undefined {
+  return (
+    row.priceAsOf ??
+    (row.quoteObservedAt === undefined
+      ? undefined
+      : { kind: "fetch-time-only", instant: row.quoteObservedAt })
+  );
+}
+
+function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf | undefined): string | undefined {
+  if (priceAsOf === undefined) {
+    return undefined;
+  }
+  return `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+}
+
 function peerRow(row: ValuationCompsRow, targetSymbol: string): string {
   const multiple =
     typeof row.evToAnnualizedRevenue === "number"
       ? `${row.evToAnnualizedRevenue.toFixed(2)}x`
       : "N/M";
+  const priceDate = priceAsOfLabel(rowPriceAsOf(row));
   const dates = [
-    ...(row.quoteObservedAt === undefined ? [] : [`quote ${row.quoteObservedAt}`]),
+    ...(priceDate === undefined ? [] : [priceDate]),
     ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
     ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
     ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
@@ -81,7 +99,10 @@ function peerSection(artifact: ValuationWorkbenchArtifact): string {
   const rows = [valuationComps.target, ...valuationComps.peers].map((row) =>
     peerRow(row, valuationComps.target.symbol),
   );
-  const rangeLine = peerReferenceRangeLine(valuationComps.impliedPriceRange);
+  const rangeLine = peerReferenceRangeLine(
+    valuationComps.impliedPriceRange,
+    rowPriceAsOf(valuationComps.target),
+  );
   const excluded =
     valuationComps.excludedPeers.length === 0
       ? "- Excluded peers: none."
@@ -101,14 +122,22 @@ function peerSection(artifact: ValuationWorkbenchArtifact): string {
   ].join("\n");
 }
 
-function peerReferenceRangeLine(referenceRange: PeerImpliedRange | undefined): string {
+function peerReferenceRangeLine(
+  referenceRange: PeerImpliedRange | undefined,
+  priceAsOf: MarketSnapshotPriceAsOf | undefined,
+): string {
   if (referenceRange === undefined) {
     return "- Reference range: suppressed (range output unavailable).";
   }
   if (referenceRange.status === "suppressed") {
     return `- Reference range: suppressed (${referenceRange.suppressedReason}).`;
   }
-  return `- Reference range: ${referenceRange.low.toFixed(2)}–${referenceRange.high.toFixed(2)} ${referenceRange.inputs.quoteCurrency}; midpoint ${referenceRange.mid.toFixed(2)}; observed position ${referenceRange.position}; quote ${referenceRange.inputs.quoteObservedAt ?? "unavailable"}.`;
+  const priceDate =
+    priceAsOfLabel(priceAsOf) ??
+    (referenceRange.inputs.quoteObservedAt === null
+      ? "price time unavailable"
+      : `fetch time ${referenceRange.inputs.quoteObservedAt}`);
+  return `- Reference range: ${referenceRange.low.toFixed(2)}–${referenceRange.high.toFixed(2)} ${referenceRange.inputs.quoteCurrency}; midpoint ${referenceRange.mid.toFixed(2)}; observed position ${referenceRange.position}; ${priceDate}.`;
 }
 
 export function renderValuationWorkbenchMarkdown(

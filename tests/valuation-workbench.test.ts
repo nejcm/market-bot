@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { violatesResearchOnly } from "../src/domain/research-language";
+import { resolveMarketSnapshotPriceAsOf } from "../src/domain/types";
 import type {
   FinancialStatementFact,
   FinancialStatementName,
@@ -14,6 +15,7 @@ import {
   type ValuationWorkbenchArtifact,
 } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
+import { reverseDcfWorkbench } from "./support/fixtures";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 
@@ -389,6 +391,57 @@ describe("valuation workbench", () => {
     expect(markdown).toContain("Peer comparison data is unavailable for this run.");
     expect(violatesResearchOnly(markdown)).toBeNull();
     expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
+  });
+
+  test("labels a provider quote timestamp as quote time", () => {
+    const base = reverseDcfWorkbench();
+    if (base.peerComparison.status !== "available") {
+      throw new Error("valuation workbench fixture peer comparison missing");
+    }
+    const priceAsOf = resolveMarketSnapshotPriceAsOf({
+      observedAt: "2026-05-19T14:31:00.000Z",
+      quoteTimeUtc: "2026-05-19T14:29:07.000Z",
+    });
+    const artifact: ValuationWorkbenchArtifact = {
+      ...base,
+      peerComparison: {
+        ...base.peerComparison,
+        valuationComps: {
+          ...base.peerComparison.valuationComps,
+          target: { ...base.peerComparison.valuationComps.target, priceAsOf },
+        },
+      },
+    };
+
+    const markdown = renderValuationWorkbenchMarkdown(artifact);
+
+    expect(markdown).toContain("quote time 2026-05-19T14:29:07.000Z");
+    expect(markdown).not.toContain("quote time 2026-05-19T14:31:00.000Z");
+  });
+
+  test("labels a price without a quote timestamp as fetch time only", () => {
+    const base = reverseDcfWorkbench();
+    if (base.peerComparison.status !== "available") {
+      throw new Error("valuation workbench fixture peer comparison missing");
+    }
+    const priceAsOf = resolveMarketSnapshotPriceAsOf({
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const artifact: ValuationWorkbenchArtifact = {
+      ...base,
+      peerComparison: {
+        ...base.peerComparison,
+        valuationComps: {
+          ...base.peerComparison.valuationComps,
+          target: { ...base.peerComparison.valuationComps.target, priceAsOf },
+        },
+      },
+    };
+
+    const markdown = renderValuationWorkbenchMarkdown(artifact);
+
+    expect(markdown).toContain("fetch time 2026-05-19T14:31:00.000Z");
+    expect(markdown).not.toContain("quote time 2026-05-19T14:31:00.000Z");
   });
 
   test("rejects an unproved not-applicable metric on read", () => {

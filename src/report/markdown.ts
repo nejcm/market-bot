@@ -1,7 +1,9 @@
 import {
   isInstrumentJobType,
+  resolveMarketSnapshotPriceAsOf,
   researchReportEvidenceQuality,
   type KeyFinding,
+  type MarketSnapshot,
   type Prediction,
   type ResearchReport,
   type Scenario,
@@ -186,7 +188,26 @@ function renderPredictions(predictions: readonly Prediction[]): string {
   return `## Predictions\n\n${rows}\n`;
 }
 
-function renderExtendedEvidence(report: ResearchReport): string {
+function renderPriceProvenance(
+  summary: string,
+  sourceIds: readonly string[],
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
+  if (marketSnapshot === undefined || !sourceIds.includes(marketSnapshot.sourceId)) {
+    return summary;
+  }
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const label = `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  return summary
+    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+}
+
+function renderExtendedEvidence(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
   if (!isInstrumentJobType(report.jobType)) {
     return "";
   }
@@ -200,7 +221,8 @@ function renderExtendedEvidence(report: ResearchReport): string {
   const rows = items
     .map((item) => {
       const refs = sourceRefs(item.sourceIds);
-      return `- **${markdownText(item.title)}:** ${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`;
+      const summary = renderPriceProvenance(item.summary, item.sourceIds, marketSnapshot);
+      return `- **${markdownText(item.title)}:** ${markdownText(summary)}${refs === "" ? "" : ` ${refs}`}`;
     })
     .join("\n");
   return `${renderAnalystEstimateContext(report)}${renderInstitutionalOwnershipContext(report)}## Extended Evidence\n\n${rows}\n`;
@@ -880,15 +902,16 @@ function renderEarningsSetup(report: ResearchReport): string {
   return lines.join("\n");
 }
 
-const EXTENDED_EVIDENCE_SECTION_RENDERERS: readonly ((report: ResearchReport) => string)[] = [
-  renderBusinessFramework,
-  renderWebSubjectProfile,
-  renderExtendedEvidence,
-  renderEarningsSetup,
-];
-
-function renderExtendedEvidenceSections(report: ResearchReport): readonly string[] {
-  return EXTENDED_EVIDENCE_SECTION_RENDERERS.map((render) => render(report));
+function renderExtendedEvidenceSections(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+): readonly string[] {
+  return [
+    renderBusinessFramework(report),
+    renderWebSubjectProfile(report),
+    renderExtendedEvidence(report, marketSnapshot),
+    renderEarningsSetup(report),
+  ];
 }
 
 function reportTitle(report: ResearchReport): string {
@@ -901,7 +924,10 @@ function reportTitle(report: ResearchReport): string {
   return `${report.assetClass} Market Overview`;
 }
 
-export function renderMarkdownReport(report: ResearchReport): string {
+export function renderMarkdownReport(
+  report: ResearchReport,
+  marketSnapshot?: MarketSnapshot,
+): string {
   if (report.jobType === "alpha-search") {
     return renderAlphaSearchReport(report);
   }
@@ -942,7 +968,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Catalysts", report.catalysts),
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
-    ...renderExtendedEvidenceSections(report),
+    ...renderExtendedEvidenceSections(report, marketSnapshot),
     renderHistoricalContext(report),
     renderSpotlights(report),
     renderPredictions(report.predictions),

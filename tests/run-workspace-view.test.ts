@@ -612,41 +612,42 @@ describe("run workspace view", () => {
       dailyChange: "+1.4%",
       changeDirection: "positive",
       observedAt: "2026-07-04T12:00:00.000Z",
+      priceAsOf: { kind: "fetch-time-only", instant: "2026-07-04T12:00:00.000Z" },
       sourceIds: ["market-yahoo-equity-aapl"],
       financials: [
         {
           key: "marketCap",
           label: "Market cap",
           value: "$3000.0B",
-          caption: "Yahoo quote · point in time · 2026-07-04T12:00:00.000Z",
+          caption: "Yahoo quote · point in time · fetch time 2026-07-04T12:00:00.000Z",
           sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "trailingPE",
           label: "Trailing P/E",
           value: "31.00x",
-          caption: "Yahoo quote · trailing 12M · 2026-07-04T12:00:00.000Z",
+          caption: "Yahoo quote · trailing 12M · fetch time 2026-07-04T12:00:00.000Z",
           sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "forwardPE",
           label: "Forward P/E",
           value: "28.00x",
-          caption: "Yahoo quote · forward · 2026-07-04T12:00:00.000Z",
+          caption: "Yahoo quote · forward · fetch time 2026-07-04T12:00:00.000Z",
           sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "dividendYield",
           label: "Dividend yield",
           value: "0.4%",
-          caption: "Yahoo quote · quote snapshot · 2026-07-04T12:00:00.000Z",
+          caption: "Yahoo quote · quote snapshot · fetch time 2026-07-04T12:00:00.000Z",
           sourceIds: ["market-yahoo-equity-aapl"],
         },
         {
           key: "sharesOutstanding",
           label: "Shares outstanding",
           value: "15.0B",
-          caption: "Yahoo quote · point in time · 2026-07-04T12:00:00.000Z",
+          caption: "Yahoo quote · point in time · fetch time 2026-07-04T12:00:00.000Z",
           sourceIds: ["market-yahoo-equity-aapl"],
         },
       ],
@@ -955,7 +956,7 @@ describe("run workspace view", () => {
       startingFcf: "8 USD",
       startingFcfDates: "period 2025-12-31 · public 2026-02-01",
       enterpriseValue: "1,000 USD",
-      enterpriseValueDate: "2026-02-02",
+      enterpriseValueDate: "fetch time 2026-02-02",
       horizonYears: 5,
       terminalGrowthRatesPct: [0, 1, 2, 3, 4],
     });
@@ -1154,6 +1155,7 @@ describe("run workspace view", () => {
       change24h: "+1.4%",
       quoteCurrency: "USD",
       observedAt: "2026-07-04T12:00:00.000Z",
+      priceAsOf: { kind: "fetch-time-only", instant: "2026-07-04T12:00:00.000Z" },
       sourceIds: ["market-yahoo-equity-aapl"],
     });
     expect(view?.analysisCompleteness).toMatchObject({
@@ -1202,11 +1204,11 @@ describe("run workspace view", () => {
     expect(view?.keyDatedMetrics.metrics.slice(4)).toEqual([
       expect.objectContaining({
         value: "28.00x",
-        dateBasis: "observed 2026-07-04T12:00:00.000Z",
+        dateBasis: "fetch time 2026-07-04T12:00:00.000Z",
       }),
       expect.objectContaining({
         value: "$7.25",
-        dateBasis: "observed 2026-07-04T12:00:00.000Z",
+        dateBasis: "fetch time 2026-07-04T12:00:00.000Z",
       }),
     ]);
     expect(view?.keyDatedMetrics.foldedYahooMetrics.map((metric) => metric.key)).toEqual([
@@ -1263,6 +1265,7 @@ describe("run workspace view", () => {
       quoteCurrency: "GBp",
       change24h: "-1.3%",
       observedAt: "2026-07-04T12:00:00.000Z",
+      priceAsOf: { kind: "fetch-time-only", instant: "2026-07-04T12:00:00.000Z" },
       sourceIds: ["market-yahoo-equity-aapl"],
     });
   });

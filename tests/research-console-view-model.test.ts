@@ -1904,7 +1904,7 @@ describe("report artifact parsers", () => {
 
     expect(tiles.map((tile) => tile.caption)).toEqual([
       "SEC EDGAR · FY period ended 2025-06-28",
-      "Yahoo quote · observed 2026-06-21",
+      "Yahoo quote · fetch time 2026-06-21T14:30:00.000Z",
     ]);
   });
 

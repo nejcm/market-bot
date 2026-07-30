@@ -24,7 +24,7 @@ entitlement-adaptive institutional-ownership context; amended 2026-07-24: determ
 acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence;
 amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2026-07-29:
 quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthenticated
-operator gate records)
+operator gate records; amended 2026-07-30: deterministic price-as-of labelling)
 
 ## Context
 
@@ -80,10 +80,12 @@ without pretending the project has a global security master.
   normalize point. The key is omitted entirely when the payload carries no such field; it is never
   null and never fabricated from a fetch time. CoinGecko and Massive are not yet populated — no
   committed fixture carries a quote-own timestamp for either, and capturing one is a live step.
-- `quoteTimeUtc` is additive and no consumer reads it yet. Freshness checks that currently rely on
-  `observedAt` are migrated separately so each migration stays independently measurable. Before
-  reaching a model, snapshots pass through `forPrompt`, an allow-list projection that omits the
-  field and preserves surviving input key order because JSON key order changes prompt bytes.
+- `resolveMarketSnapshotPriceAsOf` exposes `quoteTimeUtc` as a discriminated `quote-time` result
+  and falls back to an explicit `fetch-time-only` result. Deterministic Markdown and Console
+  renderers use that result when labelling price instants; valuation freshness gates continue to
+  use their existing inputs and are migrated separately. Before reaching a model, snapshots pass
+  through `forPrompt`, an allow-list projection that omits `quoteTimeUtc` and preserves surviving
+  input key order because JSON key order changes prompt bytes.
 - Promotion into scoring requires explicit observation semantics and tests. Massive close fallback
   remains part of the Yahoo observation path, not a generic registry capability.
 

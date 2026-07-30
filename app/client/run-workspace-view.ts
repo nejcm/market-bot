@@ -1,5 +1,10 @@
 import type { RunDetail } from "../types";
-import type { EquityAnalysisDimensionStatus, MarketSnapshot } from "../../src/domain/types";
+import {
+  resolveMarketSnapshotPriceAsOf,
+  type EquityAnalysisDimensionStatus,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+} from "../../src/domain/types";
 import { isRecord } from "../../src/guards";
 import type {
   FinancialLensName,
@@ -10,7 +15,10 @@ import type {
   FundamentalHistoryPoint,
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
-import type { PeerImpliedRange } from "../../src/sources/extended-evidence/valuation-comps";
+import type {
+  PeerImpliedRange,
+  ValuationCompsRow,
+} from "../../src/sources/extended-evidence/valuation-comps";
 import type {
   ValuationMetricResult,
   ValuationWorkbenchArtifact,
@@ -139,6 +147,7 @@ export interface RunWorkspaceEquityHeaderView {
   readonly dailyChange?: string;
   readonly changeDirection?: "positive" | "negative" | "flat";
   readonly observedAt?: string;
+  readonly priceAsOf?: MarketSnapshotPriceAsOf;
   readonly sourceIds: readonly string[];
   readonly financials: readonly RunWorkspaceEquityHeaderFinancial[];
 }
@@ -257,6 +266,7 @@ export interface RunWorkspaceEquitySnapshotPricePerformance extends RunWorkspace
   readonly changeDirection?: "positive" | "negative" | "flat";
   readonly quoteCurrency?: string;
   readonly observedAt?: string;
+  readonly priceAsOf?: MarketSnapshotPriceAsOf;
 }
 
 export interface RunWorkspaceEquitySnapshotCompletenessDimension extends Omit<
@@ -596,6 +606,43 @@ function rangeGeometry(
   };
 }
 
+function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf): string {
+  return `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+}
+
+function valuationRowPriceAsOf(row: ValuationCompsRow): MarketSnapshotPriceAsOf | undefined {
+  return (
+    row.priceAsOf ??
+    (row.quoteObservedAt === undefined
+      ? undefined
+      : { kind: "fetch-time-only", instant: row.quoteObservedAt })
+  );
+}
+
+function valuationTargetPriceAsOf(
+  detail: RunDetail,
+  fallbackFetchTime: string | null | undefined,
+): MarketSnapshotPriceAsOf | undefined {
+  if (detail.valuationWorkbench?.peerComparison.status === "available") {
+    return valuationRowPriceAsOf(detail.valuationWorkbench.peerComparison.valuationComps.target);
+  }
+  return fallbackFetchTime === null || fallbackFetchTime === undefined
+    ? undefined
+    : { kind: "fetch-time-only", instant: fallbackFetchTime };
+}
+
+function valuationRowInputDates(row: ValuationCompsRow): string {
+  const priceAsOf = valuationRowPriceAsOf(row);
+  return (
+    [
+      ...(priceAsOf === undefined ? [] : [priceAsOfLabel(priceAsOf)]),
+      ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
+      ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
+      ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
+    ].join(" · ") || "—"
+  );
+}
+
 export function peerImpliedRangeView(
   detail: RunDetail,
 ): RunWorkspacePeerImpliedRangeView | undefined {
@@ -618,6 +665,8 @@ export function peerImpliedRangeView(
     };
   }
   const { inputs } = range;
+  const priceAsOf = valuationTargetPriceAsOf(detail, inputs.quoteObservedAt);
+  const priceDate = priceAsOf === undefined ? "price time unavailable" : priceAsOfLabel(priceAsOf);
   return {
     status: "derived",
     label,
@@ -628,7 +677,7 @@ export function peerImpliedRangeView(
     midLabel: `Mid ${formatReferencePrice(range.mid)}`,
     highLabel: `High ${formatReferencePrice(range.high)}`,
     currentLabel: `Current price ${formatReferencePrice(inputs.currentPrice)}`,
-    methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo quote ${inputs.quoteObservedAt ?? "unavailable"}.`,
+    methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo price ${priceDate}.`,
     boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     geometry: rangeGeometry(range),
   };
@@ -665,13 +714,7 @@ function valuationPeerRows(
     multiple:
       row.evToAnnualizedRevenue === undefined ? "N/M" : `${row.evToAnnualizedRevenue.toFixed(2)}x`,
     currency: row.quoteCurrency ?? "—",
-    inputDates:
-      [
-        ...(row.quoteObservedAt === undefined ? [] : [`quote ${row.quoteObservedAt}`]),
-        ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
-        ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
-        ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
-      ].join(" · ") || "—",
+    inputDates: valuationRowInputDates(row),
   }));
 }
 
@@ -734,6 +777,10 @@ export function reverseDcfView(detail: RunDetail): RunWorkspaceReverseDcfView | 
       message: `${artifact.reason}: ${artifact.detail}`,
     };
   }
+  const priceAsOf = valuationTargetPriceAsOf(
+    detail,
+    artifact.assumptions.enterpriseValue.observedAt,
+  );
   return {
     status: "computed",
     startingFcf: formatReverseDcfAmount(
@@ -745,7 +792,10 @@ export function reverseDcfView(detail: RunDetail): RunWorkspaceReverseDcfView | 
       artifact.assumptions.enterpriseValue.value,
       artifact.assumptions.enterpriseValue.currency,
     ),
-    enterpriseValueDate: artifact.assumptions.enterpriseValue.observedAt,
+    enterpriseValueDate:
+      priceAsOf === undefined
+        ? `fetch time ${artifact.assumptions.enterpriseValue.observedAt}`
+        : priceAsOfLabel(priceAsOf),
     horizonYears: artifact.assumptions.horizonYears,
     terminalGrowthRatesPct: artifact.assumptions.terminalGrowthRatesPct,
     rows: artifact.grid.rows.map((row) => ({
@@ -895,9 +945,25 @@ function matchingMarketSnapshot(detail: RunDetail): MarketSnapshot | undefined {
   );
 }
 
+function renderedPriceSummary(
+  summary: string,
+  sourceIds: readonly string[],
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
+  if (marketSnapshot === undefined || !sourceIds.includes(marketSnapshot.sourceId)) {
+    return summary;
+  }
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const label = priceAsOfLabel(priceAsOf);
+  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  return summary
+    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+}
+
 function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquityHeaderFinancial[] {
   const quoteCurrency = snapshot.identity?.quoteCurrency;
-  const observed = snapshot.observedAt;
+  const priceDate = priceAsOfLabel(resolveMarketSnapshotPriceAsOf(snapshot));
   const sourceIds = snapshot.sourceId.trim() === "" ? [] : [snapshot.sourceId];
   const candidates: readonly (RunWorkspaceEquityHeaderFinancial | undefined)[] = [
     snapshot.marketCap === undefined || quoteCurrency === undefined
@@ -906,7 +972,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "marketCap",
           label: "Market cap",
           value: formatLensValue(snapshot.marketCap, "currency", quoteCurrency),
-          caption: `Yahoo quote · point in time · ${observed}`,
+          caption: `Yahoo quote · point in time · ${priceDate}`,
           sourceIds,
         },
     snapshot.fundamentals?.trailingPE === undefined
@@ -918,7 +984,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
             snapshot.fundamentals.trailingPE,
             snapshot.fundamentals.epsTrailingTwelveMonths,
           ),
-          caption: `Yahoo quote · trailing 12M · ${observed}`,
+          caption: `Yahoo quote · trailing 12M · ${priceDate}`,
           sourceIds,
         },
     snapshot.fundamentals?.forwardPE === undefined
@@ -927,7 +993,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "forwardPE",
           label: "Forward P/E",
           value: formatPeRatio(snapshot.fundamentals.forwardPE, snapshot.fundamentals.epsForward),
-          caption: `Yahoo quote · forward · ${observed}`,
+          caption: `Yahoo quote · forward · ${priceDate}`,
           sourceIds,
         },
     snapshot.fundamentals?.epsForward === undefined
@@ -941,7 +1007,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
               quoteCurrency === undefined ? undefined : CURRENCY_SYMBOLS[quoteCurrency];
             return symbol === undefined ? value : `${symbol}${value}`;
           })(),
-          caption: `Yahoo quote · forward · ${observed}`,
+          caption: `Yahoo quote · forward · ${priceDate}`,
           sourceIds,
         },
     snapshot.fundamentals?.dividendYield === undefined
@@ -950,7 +1016,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "dividendYield",
           label: "Dividend yield",
           value: formatLensValue(snapshot.fundamentals.dividendYield, "whole-percent"),
-          caption: `Yahoo quote · quote snapshot · ${observed}`,
+          caption: `Yahoo quote · quote snapshot · ${priceDate}`,
           sourceIds,
         },
     snapshot.fundamentals?.sharesOutstanding === undefined
@@ -959,7 +1025,7 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "sharesOutstanding",
           label: "Shares outstanding",
           value: scaleCurrency(snapshot.fundamentals.sharesOutstanding),
-          caption: `Yahoo quote · point in time · ${observed}`,
+          caption: `Yahoo quote · point in time · ${priceDate}`,
           sourceIds,
         },
   ];
@@ -990,6 +1056,7 @@ export function equityHeaderView(detail: RunDetail): RunWorkspaceEquityHeaderVie
     ? formatLensValue(snapshot.changePercent24h, "whole-percent")
     : undefined;
   const observedAt = snapshot.observedAt.trim() || undefined;
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
   const sourceIds = snapshot.sourceId.trim() === "" ? [] : [snapshot.sourceId];
 
   return {
@@ -1011,6 +1078,7 @@ export function equityHeaderView(detail: RunDetail): RunWorkspaceEquityHeaderVie
           changeDirection: dailyChangeDirection(snapshot.changePercent24h),
         }),
     ...(observedAt === undefined ? {} : { observedAt }),
+    priceAsOf,
     sourceIds,
     financials: headerFinancials(snapshot),
   };
@@ -1034,7 +1102,10 @@ function uniqueSourceIds(sourceIds: readonly string[]): readonly string[] {
 }
 
 function financialLensGroupViews(detail: RunDetail): readonly RunWorkspaceFinancialLensGroup[] {
-  const financialLensStats = financialLensStatTiles(detail.financialLenses);
+  const financialLensStats = financialLensStatTiles(
+    detail.financialLenses,
+    detail.marketSnapshots ?? [],
+  );
   return (
     detail.financialLenses?.lenses.map(
       (lens): RunWorkspaceFinancialLensGroup => ({
@@ -1154,9 +1225,9 @@ function snapshotForwardMetric(
     label,
     state: "available",
     value: financial.value,
-    ...(equityHeader?.observedAt === undefined
+    ...(equityHeader?.priceAsOf === undefined
       ? {}
-      : { dateBasis: `observed ${equityHeader.observedAt}` }),
+      : { dateBasis: priceAsOfLabel(equityHeader.priceAsOf) }),
     sourceIds: financial.sourceIds,
   };
 }
@@ -1256,7 +1327,7 @@ function composeEquitySnapshot(
     equityHeader?.price,
     equityHeader?.dailyChange,
     equityHeader?.quoteCurrency,
-    equityHeader?.observedAt,
+    equityHeader?.priceAsOf,
     equityHeader?.sourceIds[0],
   ].filter((value) => value !== undefined).length;
   const pricePerformance: RunWorkspaceEquitySnapshotPricePerformance = {
@@ -1275,6 +1346,7 @@ function composeEquitySnapshot(
       ? {}
       : { quoteCurrency: equityHeader.quoteCurrency }),
     ...(equityHeader?.observedAt === undefined ? {} : { observedAt: equityHeader.observedAt }),
+    ...(equityHeader?.priceAsOf === undefined ? {} : { priceAsOf: equityHeader.priceAsOf }),
   };
 
   const analysisCompleteness: RunWorkspaceEquitySnapshotCompleteness = {
@@ -1445,7 +1517,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const historicalContext = historicalContextAuditView(detail.trace);
   const webSubjectProfile = webSubjectProfileView(report, detail.webSubjectProfile);
   const businessFramework = businessFrameworkView(report, detail.businessFramework);
-  const extendedItems = extendedEvidenceItems(report);
+  const marketSnapshot = matchingMarketSnapshot(detail);
+  const extendedItems = extendedEvidenceItems(report).map((item) => ({
+    ...item,
+    summary: renderedPriceSummary(item.summary, item.sourceIds, marketSnapshot),
+  }));
   const snapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
   const equityCompleteness = equityCompletenessView(detail);

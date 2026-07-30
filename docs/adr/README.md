@@ -11,6 +11,7 @@ ADRs record accepted architecture and material implementation constraints.
 | [0003](./0003-forecasts-scoring-calibration-cross-run-intelligence.md) | Forecasts, scoring, calibration, and cross-run context    |
 | [0004](./0004-evidence-identity-providers-deterministic-analysis.md)   | Evidence, identity, providers, and deterministic analysis |
 | [0005](./0005-research-workflows-model-stage-pipeline.md)              | Research workflows, model stages, and table mapping       |
+| [0006](./0006-deep-equity-legacy-reasoning-retained.md)                | Deep-equity legacy reasoning retained                     |
 
 ## Conventions
 

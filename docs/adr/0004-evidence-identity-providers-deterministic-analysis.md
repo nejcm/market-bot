@@ -24,7 +24,8 @@ entitlement-adaptive institutional-ownership context; amended 2026-07-24: determ
 acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-equity persistence;
 amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2026-07-29:
 quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthenticated
-operator gate records; amended 2026-07-30: deterministic price-as-of labelling)
+operator gate records; amended 2026-07-30: deterministic price-as-of labelling; amended 2026-07-30:
+not-assessed equity completeness status)
 
 ## Context
 
@@ -167,8 +168,7 @@ without pretending the project has a global security master.
   sole normalized deep-equity evidence artifact and production read authority. This persistence
   cutover does not change the legacy reasoning-stage sequence or prompt projections; that
   model-pipeline cutover remains gated behind the paired non-inferiority evaluation and human
-  approval. Phase 4 shipped a test-only reasoning variant reachable solely through the
-  `reasoningVariant` input seam.
+  approval.
 - The operator-owned cutover gates — zero critical material-evidence omissions after
   adjudication, human review approval, and live smoke — come only from an explicitly named
   repository-resident record of unauthenticated human-stated verdicts. The record binds to the
@@ -238,6 +238,14 @@ without pretending the project has a global security master.
   `financialCoreStatus` is determined only by canonical primary financials; valuation,
   expectations, capital/ownership, and operating-KPI dimensions affect only `coverageLevel`.
   Missing credentials or entitlements never establish non-applicability.
+- Amendment: a completeness dimension is `not-assessed` when it cannot be evaluated because its
+  inputs were never configured or available to the deployment, including an unconfigured
+  operating-KPI registry or a missing optional provider credential or entitlement, such as Finnhub
+  403 responses for estimates, price-targets, or ownership endpoints. `not-assessed` dimensions are
+  excluded from the headline coverage grade and tier computation, never count as complete, and
+  never upgrade a tier or raise the headline grade relative to counting the same dimension as
+  `partial`. This supersedes earlier `partial` wording for those cases. `partial` means the
+  dimension was assessed and its data was incomplete.
 - Primary-financial completeness requires a usable current annual basis, three comparable annual
   periods, one reporting currency, applicable per-share evidence, and either a reconciled TTM or an
   annual-as-current state before the next cadence-specific interim is due. Quarterly, semiannual,

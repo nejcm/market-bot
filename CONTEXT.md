@@ -8,6 +8,20 @@ All artifacts and terms below are research-only: they do not imply investment co
 
 A sourced artifact summarizing evidence, uncertainty, scenarios, risks, and gaps.
 
+## Default View
+
+The reader-facing surface of a deep-equity report or Console run: what the company does; price with
+market date and freshness; a three-to-five-year plus TTM trend table; valuation context positioned
+relative to the observed quote and never as a target price; catalysts and risks; upcoming earnings
+and consensus; and material data gaps.
+
+## Appendix
+
+The trailing detail surface containing reverse DCF, full valuation tables, full peer rows and
+excluded-peer diagnostics, institutional and insider detail, analyst estimate distributions,
+options IV, the subsequent-financing bridge, capital ownership, and the five Financial Lenses with
+their posture labels. Collection drops nothing; only placement changes.
+
 ## Research Console App
 
 Local UI for browsing run history, Research Views, Sources, Source Gaps, evidence quality, analytics, and provider health.
@@ -289,6 +303,26 @@ Optional citeable provider that does not drive mover ranking, regime labels, or 
 ## Source Gap
 
 Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
+
+## Not-Assessed
+
+Completeness status for a dimension that could not be evaluated because its inputs were never
+configured or available to the deployment, such as an unconfigured operating-KPI registry or a
+missing optional provider credential or entitlement. It is excluded from the headline coverage
+grade and tier computation, never counts as complete, and never upgrades a tier. Unlike `partial`,
+it does not mean the dimension was assessed with incomplete data.
+
+## Material Gap
+
+A Material Gap affects what a reader can conclude about the company, such as missing financial
+statements, a failed verified price snapshot, or provider data missing from a core lane, and appears
+in the Default View.
+
+## Diagnostic Gap
+
+A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
+provider, an entitlement 403, or an unconfigured operating-KPI registry, and appears only in the
+Appendix.
 
 ## Source Plan
 

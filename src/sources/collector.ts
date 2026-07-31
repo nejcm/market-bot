@@ -881,10 +881,16 @@ async function collectEquityEnrichment(
     evidenceWithComps,
     input.fetchedAt,
   );
+  const legacyEvidenceWithYahooFundamentals = addYahooFundamentals(
+    input.command,
+    input.marketSnapshots,
+    legacyValuationResult.extendedEvidence,
+    input.fetchedAt,
+  );
   const legacyFinancialLensResult = addFinancialLensEvidence(
     input.command,
     input.marketSnapshots,
-    evidenceWithYahooFundamentals,
+    legacyEvidenceWithYahooFundamentals,
     input.verifiedMarketSnapshot,
     input.fetchedAt,
   );

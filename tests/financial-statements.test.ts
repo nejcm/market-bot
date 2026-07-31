@@ -226,11 +226,12 @@ describe("canonical financial statements", () => {
     ]);
   });
 
-  test("uses configured revenue order within the recency bucket", () => {
+  test("keeps total revenue for MARA/TeraWulf-class competing concepts", () => {
     const artifact = derive(
       payload({
         "us-gaap": {
-          Revenues: { USD: [annual(175, 2025)] },
+          Revenues: { USD: [annual(90, 2018)] },
+          SalesRevenueNet: { USD: [annual(150, 2024), annual(175, 2025)] },
           RevenueFromContractWithCustomerExcludingAssessedTax: {
             USD: [
               fact({
@@ -248,9 +249,11 @@ describe("canonical financial statements", () => {
       }),
     );
 
-    expect(artifact.statements.incomeStatement.revenue.annual).toEqual([
-      expect.objectContaining({ value: 175, concept: "Revenues" }),
-    ]);
+    const { revenue } = artifact.statements.incomeStatement;
+    expect(revenue.annual.map((item) => item.value)).toEqual([150, 175]);
+    expect(new Set([...revenue.annual, ...revenue.interim].map((item) => item.concept))).toEqual(
+      new Set(["SalesRevenueNet"]),
+    );
   });
 
   test.each([

@@ -13,6 +13,7 @@ import { loadFixture, runFixture, type RunFixtureResult } from "../support/run-f
 import { makeReplayProvider } from "../support/run-fixtures/llm-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
+import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
 
 const FIXTURES = [
   "equity-aapl-brief",
@@ -101,6 +102,16 @@ describe("static equity run fixtures", () => {
           context: { historicalContext: expect.any(Object) },
         });
         expect(JSON.stringify(result.deepEquityEvidenceBundle)).not.toContain("rawSnapshots");
+        const financialStatements = result.deepEquityEvidenceBundle?.derived.financialStatements;
+        if (financialStatements !== undefined) {
+          expect(financialStatements.shadowParity.unexplainedCount).toBe(0);
+          const fundamentalHistory = result.deepEquityEvidenceBundle?.derived.fundamentalHistory;
+          if (fundamentalHistory !== undefined) {
+            expect(fundamentalHistory).toEqual(
+              deriveFundamentalHistoryFromFinancialStatements(financialStatements),
+            );
+          }
+        }
       }
       expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(
         await readGoldenOutput(name),

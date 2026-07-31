@@ -592,7 +592,7 @@ describe("run workspace view", () => {
             sourceIds: ["source-1"],
           },
         ],
-        dataGaps: ["predictionShortfall: emitted 1 of 3", "No channel inventory data."],
+        dataGaps: ["predictionShortfall: emitted 1 of 3", "tradier-options: Persisted override"],
         sources: [
           {
             id: "source-1",
@@ -626,6 +626,15 @@ describe("run workspace view", () => {
       analytics: {
         predictions: { count: 1, targetCount: 3, targetMet: false },
       },
+      sourceGaps: [
+        {
+          source: "tradier-options",
+          provider: "tradier",
+          message: "Persisted override",
+          cause: "missing-credential",
+          triage: "material",
+        },
+      ],
       verifiedMarketSnapshot: snapshot(),
     };
 
@@ -643,8 +652,8 @@ describe("run workspace view", () => {
     expect(view.evidence.extendedItems[0]?.title).toBe("Valuation");
     expect(view.gaps).toMatchObject({
       shortfalls: ["predictionShortfall: emitted 1 of 3"],
-      otherGaps: ["No channel inventory data."],
-      triagedGaps: [{ text: "No channel inventory data.", triage: "material" }],
+      otherGaps: ["tradier-options: Persisted override"],
+      triagedGaps: [{ text: "tradier-options: Persisted override", triage: "material" }],
       visible: true,
     });
     expect(view.sources.items[0]?.id).toBe("source-1");

@@ -1,5 +1,5 @@
 import { isRecord } from "../guards";
-import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../domain/types";
+import type { MarketSnapshot, MarketSnapshotPriceAsOf, SourceGap } from "../domain/types";
 import type {
   FinancialStatementFact,
   FinancialStatementsArtifact,
@@ -11,7 +11,7 @@ import type {
 } from "../sources/extended-evidence/fundamental-history";
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
-import { classifyGap } from "./gap-triage";
+import { readGapTriage } from "./gap-triage";
 
 export interface TrendPeriod {
   readonly kind: "annual" | "ttm";
@@ -157,6 +157,7 @@ export interface EquityReaderProjectionInput {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
+  readonly sourceGaps?: readonly SourceGap[];
 }
 
 interface CompanyDescriptionReport {
@@ -602,6 +603,7 @@ function analystEstimateDistributions(
 function projectedGaps(
   report: unknown,
   history: FundamentalHistoryArtifact | undefined,
+  sourceGaps: readonly SourceGap[],
 ): {
   readonly material: readonly string[];
   readonly diagnostic: readonly string[];
@@ -621,7 +623,7 @@ function projectedGaps(
   for (const gap of gaps) {
     if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
       predictionShortfalls.push(gap);
-    } else if (classifyGap(gap, reportSymbol) === "diagnostic") {
+    } else if (readGapTriage(gap, sourceGaps, reportSymbol) === "diagnostic") {
       diagnostic.push(gap);
     } else {
       material.push(gap);
@@ -633,7 +635,7 @@ function projectedGaps(
 export function projectEquityReader(input: EquityReaderProjectionInput): EquityReaderProjection {
   const record = reportRecord(input.report);
   const generatedAt = typeof record?.generatedAt === "string" ? record.generatedAt : undefined;
-  const gaps = projectedGaps(input.report, input.fundamentalHistory);
+  const gaps = projectedGaps(input.report, input.fundamentalHistory, input.sourceGaps ?? []);
   const projectedFinancialTrends = financialTrends(input.fundamentalHistory);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
   return {

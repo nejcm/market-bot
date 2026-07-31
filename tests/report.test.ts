@@ -1332,7 +1332,7 @@ describe("report schema and rendering", () => {
     ).toThrow("Catalyst Calendar items[0] cites unknown source ID: missing-source");
   });
 
-  test("dedupes model and deterministic data gaps by normalized text", () => {
+  test("dedupes data gaps and stamps structured material and diagnostic triage", () => {
     const command = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
@@ -1374,7 +1374,7 @@ describe("report schema and rendering", () => {
       calibrationContext: undefined,
     };
 
-    const assembled = assembleResearchReport({
+    const assembled = assembleResearchReportWithRelocations({
       runId: "run-1",
       generatedAt: "2026-06-01T00:00:00.000Z",
       command,
@@ -1410,6 +1410,12 @@ describe("report schema and rendering", () => {
             message: " source request failed   with status 403 ",
             cause: "fetch-failed",
           }),
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "Optional options evidence unavailable",
+            cause: "missing-credential",
+          }),
         ],
       }),
       depthProfile,
@@ -1417,7 +1423,11 @@ describe("report schema and rendering", () => {
       sources: [],
     });
 
-    expect(assembled.dataGaps).toEqual(["massive-news: source request failed with status 403"]);
+    expect(assembled.report.dataGaps).toEqual([
+      "massive-news: source request failed with status 403",
+      "tradier-options: Optional options evidence unavailable",
+    ]);
+    expect(assembled.sourceGaps.map((gap) => gap.triage)).toEqual(["material", "diagnostic"]);
   });
 
   test("dedupes model provider gap prose against deterministic source gaps", () => {

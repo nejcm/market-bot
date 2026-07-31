@@ -165,7 +165,10 @@ export interface SourceGap {
   readonly capability?: SourceGapCapability;
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
+  readonly triage?: SourceGapTriage;
 }
+
+export type SourceGapTriage = "material" | "diagnostic";
 
 export type SourceGapCapability =
   | "market-data"

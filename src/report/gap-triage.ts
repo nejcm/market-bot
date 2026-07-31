@@ -1,6 +1,7 @@
-import type { SourceGap } from "../domain/types";
+import { sourceGapScopedReportText } from "../domain/source-gaps";
+import type { SourceGap, SourceGapTriage } from "../domain/types";
 
-export type GapTriage = "material" | "diagnostic";
+export type GapTriage = SourceGapTriage;
 
 const DIAGNOSTIC_REASON_CODES = new Set([
   "expectations-provider-credential-missing",
@@ -41,6 +42,8 @@ function isPeerSecGap(source: string, symbol: string | undefined, reportSymbol?:
   );
 }
 
+// Legacy-read fallback for Source Gaps persisted before `triage`.
+// New-run assembly calls the structured overload once to stamp the persisted field.
 export function classifyGap(gap: SourceGap | string, reportSymbol?: string): GapTriage {
   if (typeof gap === "string") {
     const source = sourceName(gap);
@@ -59,19 +62,26 @@ export function classifyGap(gap: SourceGap | string, reportSymbol?: string): Gap
 
   const source = sourceName(gap.source);
   const provider = gap.provider?.trim().toLowerCase() ?? "";
-  if (diagnosticReasonCode(source) || diagnosticReasonCode(gap.message)) {
+  if (diagnosticReasonCode(source)) {
     return "diagnostic";
   }
   if (source === "valuation-peers" || isPeerSecGap(source, gap.symbol, reportSymbol)) {
     return "diagnostic";
   }
   if (
-    (OPTIONAL_PROVIDER_SOURCE.test(source) ||
-      OPTIONAL_PROVIDER_SOURCE.test(provider) ||
-      OPTIONAL_PROVIDER_CREDENTIAL.test(gap.message)) &&
-    (gap.cause === "missing-credential" || ENTITLEMENT_FAILURE.test(gap.message))
+    (OPTIONAL_PROVIDER_SOURCE.test(source) || OPTIONAL_PROVIDER_SOURCE.test(provider)) &&
+    (gap.cause === "missing-credential" || gap.cause === "unsupported-coverage")
   ) {
     return "diagnostic";
   }
   return "material";
+}
+
+export function readGapTriage(
+  text: string,
+  sourceGaps: readonly SourceGap[] = [],
+  reportSymbol?: string,
+): GapTriage {
+  const structured = sourceGaps.find((gap) => sourceGapScopedReportText(gap) === text);
+  return structured?.triage ?? classifyGap(structured ?? text, reportSymbol);
 }

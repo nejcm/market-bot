@@ -8,6 +8,7 @@ import {
   type Prediction,
   type ResearchReport,
   type Scenario,
+  type SourceGap,
 } from "../domain/types";
 import { renderClaimForMeasurableAs } from "../forecast/observable";
 import { RESEARCH_ONLY_NOTE } from "./schema";
@@ -18,7 +19,7 @@ import {
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
-import { classifyGap, type GapTriage } from "./gap-triage";
+import { readGapTriage, type GapTriage } from "./gap-triage";
 import type { CollectedSources } from "../sources/types";
 import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
 import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
@@ -56,8 +57,13 @@ function markdownText(value: string): string {
   });
 }
 
-function renderGap(gap: string, reportSymbol?: string, placement?: GapTriage): string {
-  const triage = placement ?? classifyGap(gap, reportSymbol);
+function renderGap(
+  gap: string,
+  reportSymbol?: string,
+  placement?: GapTriage,
+  sourceGaps: readonly SourceGap[] = [],
+): string {
+  const triage = placement ?? readGapTriage(gap, sourceGaps, reportSymbol);
   return `- **${triage === "material" ? "Material" : "Diagnostic"}:** ${markdownText(gap)}`;
 }
 
@@ -1197,13 +1203,17 @@ function reportTitle(report: ResearchReport): string {
   return `${report.assetClass} Market Overview`;
 }
 
+type MarkdownCollectedSources = Pick<
+  CollectedSources,
+  "financialStatements" | "fundamentalHistory" | "valuationWorkbench" | "reverseDcf"
+> & {
+  readonly sourceGaps?: readonly SourceGap[];
+};
+
 export function renderMarkdownReport(
   report: ResearchReport,
   marketSnapshot?: MarketSnapshot,
-  collectedSources?: Pick<
-    CollectedSources,
-    "financialStatements" | "fundamentalHistory" | "valuationWorkbench" | "reverseDcf"
-  >,
+  collectedSources?: MarkdownCollectedSources,
 ): string {
   if (report.jobType === "alpha-search") {
     return renderAlphaSearchReport(report);
@@ -1217,7 +1227,9 @@ export function renderMarkdownReport(
   const gaps =
     report.dataGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => renderGap(gap)).join("\n");
+      : report.dataGaps
+          .map((gap) => renderGap(gap, report.symbol, undefined, collectedSources?.sourceGaps))
+          .join("\n");
   const sources = renderSources(report);
 
   return [
@@ -1268,12 +1280,7 @@ export function renderMarkdownReport(
 function renderEquityMarkdownReport(
   report: ResearchReport,
   marketSnapshot: MarketSnapshot | undefined,
-  collectedSources:
-    | Pick<
-        CollectedSources,
-        "financialStatements" | "fundamentalHistory" | "valuationWorkbench" | "reverseDcf"
-      >
-    | undefined,
+  collectedSources: MarkdownCollectedSources | undefined,
 ): string {
   const title = reportTitle(report);
   const projection = projectEquityReader({
@@ -1288,6 +1295,9 @@ function renderEquityMarkdownReport(
     ...(collectedSources?.valuationWorkbench === undefined
       ? {}
       : { valuationWorkbench: collectedSources.valuationWorkbench }),
+    ...(collectedSources?.sourceGaps === undefined
+      ? {}
+      : { sourceGaps: collectedSources.sourceGaps }),
   });
   const diagnosticGaps = [
     ...projection.appendix.predictionShortfalls,

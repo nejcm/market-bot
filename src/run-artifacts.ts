@@ -28,6 +28,7 @@ import {
   isSourceGapCapability,
   isSourceGapCause,
   isSourceGapEvidenceQualityImpact,
+  isSourceGapTriage,
 } from "./domain/source-gaps";
 import { isPredictionKind, renderClaimForMeasurableAs } from "./forecast/observable";
 import { CURRENT_SCORING_POLICY_VERSION } from "./scoring/policy";
@@ -145,6 +146,7 @@ export interface RunArtifact {
   readonly scores: readonly PredictionScore[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly sourceGaps: readonly SourceGap[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly themeCatalysts?: readonly ThemeCatalystItem[];
@@ -452,6 +454,7 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
     const evidenceQualityImpact = isSourceGapEvidenceQualityImpact(item.evidenceQualityImpact)
       ? item.evidenceQualityImpact
       : undefined;
+    const triage = isSourceGapTriage(item.triage) ? item.triage : undefined;
     return [
       {
         source: item.source,
@@ -461,6 +464,7 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
         ...(capability !== undefined ? { capability } : {}),
         ...(cause !== undefined ? { cause } : {}),
         ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
+        ...(triage !== undefined ? { triage } : {}),
       },
     ];
   });
@@ -1638,6 +1642,7 @@ const REPORT_FILE = RUN_ARTIFACT_FILES.report;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const MARKET_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.marketSnapshots;
+const SOURCE_GAPS_FILE = RUN_ARTIFACT_FILES.sourceGaps;
 const VERIFIED_MARKET_SNAPSHOT_FILE = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
 const VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots;
 const THEME_CATALYSTS_FILE = RUN_ARTIFACT_FILES.themeCatalysts;
@@ -1703,6 +1708,9 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
   const snapshotFile = deepEquity
     ? undefined
     : await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
+  const sourceGapsFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, SOURCE_GAPS_FILE));
   const verifiedSnapshotFile = deepEquity
     ? undefined
     : await readJsonFile(join(runDir, VERIFIED_MARKET_SNAPSHOT_FILE));
@@ -1773,6 +1781,12 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     deepEquityEvidenceBundle?.governance.sourcePlan,
     sourcePlanFile,
     readSourcePlan,
+  );
+  const sourceGaps = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.governance.sourceGaps,
+    sourceGapsFile,
+    readSourceGaps,
   );
   const evidenceLanes = readBundleOrSidecar(
     deepEquity,
@@ -1856,6 +1870,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       marketSnapshots: deepEquity
         ? readSnapshots(deepEquityEvidenceBundle?.evidence.marketSnapshots)
         : readSnapshots(snapshotFile?.value),
+      sourceGaps: sourceGaps ?? [],
       ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
       ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
       ...(themeCatalysts.length > 0 ? { themeCatalysts } : {}),

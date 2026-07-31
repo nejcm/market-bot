@@ -14,6 +14,7 @@ import {
 } from "../domain/types";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { dedupeSourceGaps } from "../domain/source-gaps";
+import { classifyGap } from "../report/gap-triage";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
@@ -911,6 +912,7 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
 export interface AssembleResearchReportResult {
   readonly report: ResearchReport;
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+  readonly sourceGaps: readonly SourceGap[];
 }
 
 export function assembleResearchReportWithRelocations(
@@ -928,6 +930,11 @@ export function assembleResearchReportWithRelocations(
     sources,
     suppressedEarningsPredictionCountOffset = 0,
   } = input;
+  const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
+  const sourceGaps = collectedSources.sourceGaps.map((gap) => ({
+    ...gap,
+    triage: classifyGap(gap, reportSymbol),
+  }));
 
   const earningsGatedPredictions = applyEarningsForecastPolicy({
     predictions: predResult.predictions,
@@ -1126,5 +1133,5 @@ export function assembleResearchReportWithRelocations(
         : {}),
     },
   });
-  return { report, relocatedGapClaims };
+  return { report, relocatedGapClaims, sourceGaps };
 }

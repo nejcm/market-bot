@@ -8931,7 +8931,8 @@
             "provider": "marketaux",
             "capability": "news",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "no-cap"
+            "evidenceQualityImpact": "no-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -8940,7 +8941,8 @@
             "provider": "sec-edgar",
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "material"
           },
           {
             "source": "sec-edgar",
@@ -8949,7 +8951,8 @@
             "provider": "sec-edgar",
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "material"
           },
           {
             "source": "fred-macro",
@@ -8957,7 +8960,8 @@
             "provider": "fred",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -8966,7 +8970,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "MSFT"
+            "symbol": "MSFT",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -8975,7 +8980,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "MSFT"
+            "symbol": "MSFT",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -8984,7 +8990,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "GOOGL"
+            "symbol": "GOOGL",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -8993,7 +9000,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "GOOGL"
+            "symbol": "GOOGL",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -9002,7 +9010,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "AMZN"
+            "symbol": "AMZN",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -9011,7 +9020,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "AMZN"
+            "symbol": "AMZN",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -9020,7 +9030,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "META"
+            "symbol": "META",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -9029,7 +9040,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "META"
+            "symbol": "META",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -9038,7 +9050,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "DELL"
+            "symbol": "DELL",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -9047,7 +9060,8 @@
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
             "evidenceQualityImpact": "extended-evidence-cap",
-            "symbol": "DELL"
+            "symbol": "DELL",
+            "triage": "diagnostic"
           },
           {
             "source": "valuation-peers",
@@ -9056,7 +9070,8 @@
             "provider": "market-bot",
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "business-framework",
@@ -9064,7 +9079,8 @@
             "provider": "market-bot",
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
-            "evidenceQualityImpact": "no-cap"
+            "evidenceQualityImpact": "no-cap",
+            "triage": "material"
           }
         ],
         "sourcePlan": {

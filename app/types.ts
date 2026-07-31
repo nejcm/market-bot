@@ -1,4 +1,4 @@
-import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot, SourceGap, VerifiedMarketSnapshot } from "../src/domain/types";
 import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
@@ -34,6 +34,7 @@ export interface RunDetail {
   readonly score?: Record<string, unknown>;
   readonly missAutopsy?: Record<string, unknown>;
   readonly marketSnapshots?: readonly MarketSnapshot[];
+  readonly sourceGaps?: readonly SourceGap[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly financialLenses?: FinancialLensArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;

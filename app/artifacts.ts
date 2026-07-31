@@ -267,6 +267,7 @@ export async function readRunDetail(
     ...(artifact.artifact !== undefined
       ? { marketSnapshots: artifact.artifact.marketSnapshots }
       : {}),
+    ...(artifact.artifact !== undefined ? { sourceGaps: artifact.artifact.sourceGaps } : {}),
     ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
       ? { verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot }
       : {}),

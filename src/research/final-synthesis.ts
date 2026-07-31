@@ -6,6 +6,7 @@ import {
   type RelocatedGapClaim,
   type ResearchReport,
   type Source,
+  type SourceGap,
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
@@ -128,6 +129,7 @@ export interface SynthesizeReportUntilValidInput {
 
 export interface SynthesizeReportUntilValidResult {
   readonly report: ResearchReport;
+  readonly sourceGaps: readonly SourceGap[];
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
@@ -184,9 +186,10 @@ export async function synthesizeReportUntilValid(
     validated.report,
   );
   const assembled = buildReportWithRelocations(trackedInput, completion.progress.state);
-  const { report, relocatedGapClaims } = assembled;
+  const { report, relocatedGapClaims, sourceGaps } = assembled;
   return {
     report,
+    sourceGaps,
     stageOutputs: completion.progress.stageOutputs,
     predictionRetryErrors: completion.progress.predictionRetryErrors,
     predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),

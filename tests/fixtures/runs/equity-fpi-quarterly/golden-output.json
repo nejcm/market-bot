@@ -5644,7 +5644,8 @@
             "provider": "marketaux",
             "capability": "news",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "no-cap"
+            "evidenceQualityImpact": "no-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-news",
@@ -5652,7 +5653,8 @@
             "provider": "finnhub",
             "capability": "news",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "no-cap"
+            "evidenceQualityImpact": "no-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "sec-edgar",
@@ -5661,7 +5663,8 @@
             "provider": "sec-edgar",
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "material"
           },
           {
             "source": "finnhub-events",
@@ -5669,7 +5672,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-eps-estimate",
@@ -5677,7 +5681,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-revenue-estimate",
@@ -5685,7 +5690,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-ebitda-estimate",
@@ -5693,7 +5699,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-analyst-range",
@@ -5701,7 +5708,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-institutional-ownership",
@@ -5709,7 +5717,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "finnhub-insider-transactions",
@@ -5717,7 +5726,8 @@
             "provider": "finnhub",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "fred-macro",
@@ -5725,7 +5735,8 @@
             "provider": "fred",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "tradier-options",
@@ -5733,7 +5744,8 @@
             "provider": "tradier",
             "capability": "extended-evidence",
             "cause": "missing-credential",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "valuation-peers",
@@ -5742,7 +5754,8 @@
             "provider": "market-bot",
             "capability": "extended-evidence",
             "cause": "unsupported-coverage",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "diagnostic"
           },
           {
             "source": "valuation",
@@ -5750,7 +5763,8 @@
             "symbol": "FPIQ",
             "provider": "market-bot",
             "capability": "extended-evidence",
-            "evidenceQualityImpact": "no-cap"
+            "evidenceQualityImpact": "no-cap",
+            "triage": "material"
           },
           {
             "source": "business-framework",
@@ -5758,7 +5772,8 @@
             "provider": "market-bot",
             "capability": "extended-evidence",
             "cause": "provider-data-missing",
-            "evidenceQualityImpact": "no-cap"
+            "evidenceQualityImpact": "no-cap",
+            "triage": "material"
           },
           {
             "source": "sec-edgar",
@@ -5766,7 +5781,8 @@
             "provider": "sec-edgar",
             "capability": "evidence-request",
             "cause": "unsupported-coverage",
-            "evidenceQualityImpact": "extended-evidence-cap"
+            "evidenceQualityImpact": "extended-evidence-cap",
+            "triage": "material"
           }
         ],
         "sourcePlan": {

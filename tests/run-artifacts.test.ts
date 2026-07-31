@@ -273,6 +273,49 @@ describe("loadRunArtifact", () => {
     ).toBe(true);
   });
 
+  test("reads persisted and legacy Source Gap triage", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "source-gap-triage");
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "source-gap-triage",
+        jobType: "equity",
+        symbol: "AAPL",
+        extras: { depth: "brief" },
+      }),
+    );
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), [
+      {
+        source: "verified-snapshot",
+        message: "Verified snapshot unavailable",
+        cause: "fetch-failed",
+        triage: "material",
+      },
+      {
+        source: "tradier-options",
+        message: "Legacy optional-provider gap",
+        cause: "missing-credential",
+      },
+    ]);
+
+    const loaded = await loadRunArtifact(runDir);
+
+    expect(loaded.artifact?.sourceGaps).toEqual([
+      {
+        source: "verified-snapshot",
+        message: "Verified snapshot unavailable",
+        cause: "fetch-failed",
+        triage: "material",
+      },
+      {
+        source: "tradier-options",
+        message: "Legacy optional-provider gap",
+        cause: "missing-credential",
+      },
+    ]);
+  });
+
   test("round-trips canonical statements and equity completeness", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "canonical-financials");

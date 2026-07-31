@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import type { SourceGap } from "../src/domain/types";
 import { projectEquityReader } from "../src/report/equity-reader";
+import { classifyGap } from "../src/report/gap-triage";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
@@ -206,5 +208,33 @@ describe("equity reader projection", () => {
       count: 10,
       sourceIds: ["finnhub-eps"],
     });
+  });
+
+  test("prefers persisted triage and falls back for legacy structured gaps", () => {
+    const persisted = {
+      source: "tradier-options",
+      provider: "tradier",
+      message: "Persisted override",
+      cause: "missing-credential",
+      triage: "material",
+    } satisfies SourceGap;
+    const legacy = {
+      source: "tradier-options",
+      provider: "tradier",
+      message: "Legacy fallback",
+      cause: "missing-credential",
+    } satisfies SourceGap;
+
+    const projection = projectEquityReader({
+      report: {
+        symbol: "AAPL",
+        dataGaps: ["tradier-options: Persisted override", "tradier-options: Legacy fallback"],
+      },
+      sourceGaps: [persisted, legacy],
+    });
+
+    expect(classifyGap(persisted)).toBe("diagnostic");
+    expect(projection.defaultView.materialGaps).toEqual(["tradier-options: Persisted override"]);
+    expect(projection.appendix.diagnosticGaps).toEqual(["tradier-options: Legacy fallback"]);
   });
 });

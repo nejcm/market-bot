@@ -1,5 +1,5 @@
 import type { RunDetail } from "../types";
-import { classifyGap, type GapTriage } from "../../src/report/gap-triage";
+import { readGapTriage, type GapTriage } from "../../src/report/gap-triage";
 import {
   resolveMarketSnapshotPriceAsOf,
   type EquityAnalysisDimensionStatus,
@@ -1233,6 +1233,7 @@ function projectEquityReaderForDetail(detail: RunDetail): EquityReaderProjection
       ? {}
       : { valuationWorkbench: detail.valuationWorkbench }),
     ...(detail.peerImpliedRange === undefined ? {} : { peerImpliedRange: detail.peerImpliedRange }),
+    ...(detail.sourceGaps === undefined ? {} : { sourceGaps: detail.sourceGaps }),
   });
 }
 
@@ -1821,7 +1822,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const reportSymbol = typeof report?.symbol === "string" ? report.symbol : detail.summary.symbol;
   const triagedGaps = splitGaps.otherGaps.map((gap) => ({
     text: gap,
-    triage: classifyGap(gap, reportSymbol),
+    triage: readGapTriage(gap, detail.sourceGaps, reportSymbol),
   }));
   const forecastsVisible =
     forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined;

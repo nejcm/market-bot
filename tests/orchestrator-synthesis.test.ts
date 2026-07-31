@@ -516,7 +516,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     // The exact-context duplicate is deduped and the nested grossProfit gap is folded into
     // The wider grossProfit, capex gap, leaving a single consolidated sec-edgar gap.
-    expect(result.collectedSources.sourceGaps).toEqual([overlappingGap]);
+    expect(result.collectedSources.sourceGaps).toEqual([{ ...overlappingGap, triage: "material" }]);
     expect(result.collectedSources.extendedEvidence?.gaps).toEqual([overlappingGap]);
     expect(result.collectedSources.marketContext?.gaps).toEqual([macroContextGap]);
     expect(regulatoryLane?.gapText).toEqual([

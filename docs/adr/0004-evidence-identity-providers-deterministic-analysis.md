@@ -25,7 +25,7 @@ acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-eq
 amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2026-07-29:
 quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthenticated
 operator gate records; amended 2026-07-30: deterministic price-as-of labelling; amended 2026-07-30:
-not-assessed equity completeness status)
+not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage)
 
 ## Context
 
@@ -103,6 +103,10 @@ without pretending the project has a global security master.
   normalized evidence, derived views, and historical context together in
   `normalized/evidence-bundle.json`. Their production readers do not fall back to the legacy
   component sidecars. Other run types retain the component persistence layout.
+- Deterministic report assembly stamps each persisted structured Source Gap with
+  `triage: "material" | "diagnostic"` from its structured cause, reason/source code, provider
+  identity, and symbol scope. Readers prefer that field and use the legacy classifier only for
+  historical gaps without it; report `dataGaps` remains a string projection.
 - Plan applicable lanes as core, material, or supplemental. Evidence Quality is entirely
   deterministic: `low` means core evidence is unusable; `medium` means core is complete but material
   coverage or corroboration is missing, or a material lane acquired sources yet is not usable (the

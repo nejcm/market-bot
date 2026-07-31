@@ -41,7 +41,12 @@ function isSource(value: unknown): value is Source {
 }
 
 function isSourceGap(value: unknown): boolean {
-  return isRecord(value) && isNonEmptyString(value.source) && isNonEmptyString(value.message);
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.source) &&
+    isNonEmptyString(value.message) &&
+    (value.triage === undefined || value.triage === "material" || value.triage === "diagnostic")
+  );
 }
 
 function isVerifiedMarketSnapshot(value: unknown): boolean {

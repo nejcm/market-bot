@@ -626,18 +626,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const sourcePlanning = assessSourcePlan(frozenSourcePlan, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };
-  const deepEquityEvidenceBundle =
-    isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep"
-      ? buildDeepEquityEvidenceBundle({
-          symbol: command.symbol,
-          analysisAsOf: generatedAt,
-          collectedSources,
-          historicalContext,
-          sourcePlan: sourcePlanning.sourcePlan,
-          evidenceLanes: sourcePlanning.evidenceLanes,
-          sourceLedger: sourcePlanning.sourceLedger,
-        })
-      : undefined;
   const sources = buildSourceList(command, collectedSources, historicalContext, generatedAt);
   const plannedStages = plannedResearchStages(command);
   const playbookSelection = await runPlaybookSelection(
@@ -689,6 +677,19 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ...(reprompt !== undefined ? { reprompt } : {}),
       }),
   });
+  collectedSources = { ...collectedSources, sourceGaps: synthesis.sourceGaps };
+  const deepEquityEvidenceBundle =
+    isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep"
+      ? buildDeepEquityEvidenceBundle({
+          symbol: command.symbol,
+          analysisAsOf: generatedAt,
+          collectedSources,
+          historicalContext,
+          sourcePlan: sourcePlanning.sourcePlan,
+          evidenceLanes: sourcePlanning.evidenceLanes,
+          sourceLedger: sourcePlanning.sourceLedger,
+        })
+      : undefined;
   const postSynthesisWarnings = auditPostSynthesisReport(
     synthesis.report,
     computeWebSourceUsage(synthesis.report, collectedSources),

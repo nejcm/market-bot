@@ -26,7 +26,9 @@ function daysBetween(start: string, end: string): number | undefined {
     : undefined;
 }
 
-export function financialStatementPeriodMonths(fact: FinancialStatementFact): number | undefined {
+export function financialStatementPeriodMonths(
+  fact: Pick<FinancialStatementFact, "periodStart" | "periodEnd">,
+): number | undefined {
   if (fact.periodStart === undefined) {
     return undefined;
   }

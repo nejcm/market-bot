@@ -10,6 +10,7 @@ import {
   capFinancialStatementPeriods,
   deriveFinancialStatementTtm,
   detectFinancialStatementCadence,
+  financialStatementPeriodMonths,
   incompleteFinancialStatementNotes,
 } from "./financial-statement-periods";
 import {
@@ -65,6 +66,8 @@ export interface FinancialStatementsDeriveInput {
 }
 
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
+const MIN_ANNUAL_DURATION_MONTHS = 10;
+const MAX_ANNUAL_DURATION_MONTHS = 14;
 
 export function canonicalizeSecForm(value: string):
   | {
@@ -372,8 +375,22 @@ function expectedUnit(definition: FinancialStatementSeriesDefinition, currency: 
   return definition.unitKind === "per-share" ? `${currency}/shares` : currency;
 }
 
-function periodType(fact: ParsedFact): "annual" | "interim" {
-  return fact.canonicalForm === "10-K" || fact.canonicalForm === "20-F" ? "annual" : "interim";
+function periodType(
+  fact: ParsedFact,
+  definition: FinancialStatementSeriesDefinition,
+): "annual" | "interim" {
+  if (fact.canonicalForm !== "10-K" && fact.canonicalForm !== "20-F") {
+    return "interim";
+  }
+  if (definition.kind === "instant") {
+    return "annual";
+  }
+  const months = financialStatementPeriodMonths(fact);
+  return months !== undefined &&
+    months >= MIN_ANNUAL_DURATION_MONTHS &&
+    months <= MAX_ANNUAL_DURATION_MONTHS
+    ? "annual"
+    : "interim";
 }
 
 function periodKey(fact: ParsedFact): string {
@@ -382,13 +399,14 @@ function periodKey(fact: ParsedFact): string {
 
 function toSelectedFact(
   fact: ParsedFact,
+  definition: FinancialStatementSeriesDefinition,
   currency: string,
   sourceId: string,
 ): FinancialStatementFact {
   return {
     value: fact.value,
     periodKey: periodKey(fact),
-    periodType: periodType(fact),
+    periodType: periodType(fact, definition),
     form: fact.form,
     canonicalForm: fact.canonicalForm,
     amendment: fact.amendment,
@@ -503,11 +521,11 @@ function selectSeries(
     });
   }
   const annualSelection = selectRestatements(
-    compatible.filter((fact) => periodType(fact) === "annual"),
+    compatible.filter((fact) => periodType(fact, definition) === "annual"),
     definition.key,
   );
   const interimSelection = selectRestatements(
-    compatible.filter((fact) => periodType(fact) === "interim"),
+    compatible.filter((fact) => periodType(fact, definition) === "interim"),
     definition.key,
   );
   validationNotes.push(...annualSelection.notes, ...interimSelection.notes);
@@ -531,10 +549,10 @@ function selectSeries(
   const orderedAnnual = annualSelection.facts.toSorted(chronological);
   const orderedInterim = interimSelection.facts.toSorted(chronological);
   const annual = orderedAnnual.map((fact) =>
-    toSelectedFact(fact, reportingCurrency, input.sourceId),
+    toSelectedFact(fact, definition, reportingCurrency, input.sourceId),
   );
   const interim = orderedInterim.map((fact) =>
-    toSelectedFact(fact, reportingCurrency, input.sourceId),
+    toSelectedFact(fact, definition, reportingCurrency, input.sourceId),
   );
   const ttmResult = deriveFinancialStatementTtm(definition, annual, interim, reportingCurrency);
   if (ttmResult.note !== undefined) {

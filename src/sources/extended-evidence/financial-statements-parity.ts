@@ -200,6 +200,8 @@ function fundamentalHistoryComparisons(
               artifact.omissionNotes.some(
                 (note) => note.code === "history-cap" && note.periodKey === capKey,
               ),
+            verifiedRestatementDifference:
+              legacyPoint === undefined && artifactFact?.amendment === true,
           }),
         );
         continue;

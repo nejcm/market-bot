@@ -5,6 +5,7 @@ import {
 } from "../src/sources/extended-evidence/financial-statements";
 import { attachFinancialStatementParity } from "../src/sources/extended-evidence/financial-statements-parity";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 
 interface FactInput {
   readonly value: number;
@@ -176,6 +177,112 @@ describe("canonical financial statements", () => {
     expect(artifact.validationNotes.some((note) => note.code === "duplicate-superseded")).toBe(
       true,
     );
+  });
+
+  test("keeps sub-annual 10-K flows out of annual consumers while preserving instants", () => {
+    const flowFacts = (values: readonly [number, number, number, number]) => [
+      fact({
+        value: values[0],
+        form: "10-K",
+        fiscalYear: 2023,
+        fiscalPeriod: "FY",
+        filedAt: "2024-05-24",
+        periodStart: "2023-01-01",
+        periodEnd: "2023-12-31",
+        accessionNumber: "fy-2023",
+      }),
+      fact({
+        value: values[1],
+        form: "10-K",
+        fiscalYear: 2023,
+        fiscalPeriod: "FY",
+        filedAt: "2024-05-24",
+        periodStart: "2023-01-01",
+        periodEnd: "2023-06-30",
+        accessionNumber: "h1-comparative",
+      }),
+      fact({
+        value: values[2],
+        form: "10-K",
+        fiscalYear: 2023,
+        fiscalPeriod: "FY",
+        filedAt: "2024-05-24",
+        periodStart: "2023-04-01",
+        periodEnd: "2023-06-30",
+        accessionNumber: "q2-comparative",
+      }),
+      fact({
+        value: values[3],
+        form: "10-K",
+        fiscalYear: 2023,
+        fiscalPeriod: "FY",
+        filedAt: "2024-05-24",
+        periodStart: "2023-01-01",
+        periodEnd: "2023-09-30",
+        accessionNumber: "ytd-comparative",
+      }),
+    ];
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: flowFacts([100, 45, 25, 72]) },
+        NetCashProvidedByUsedInOperatingActivities: { USD: flowFacts([30, 12, 7, 20]) },
+        CashAndCashEquivalentsAtCarryingValue: {
+          USD: [
+            fact({
+              value: 18,
+              form: "10-K",
+              fiscalYear: 2023,
+              fiscalPeriod: "FY",
+              filedAt: "2024-05-24",
+              periodEnd: "2023-12-31",
+              accessionNumber: "fy-2023-instant",
+            }),
+          ],
+        },
+      },
+    });
+    const artifact = derive(companyFacts);
+    const history = deriveFundamentalHistory(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      analysisAsOf: "2026-06-15T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const parity = attachFinancialStatementParity(artifact, {
+      fundamentalHistory: history,
+    }).shadowParity;
+    const workbench = buildValuationWorkbench({
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: artifact,
+      priceHistory: [],
+      quoteCurrency: "USD",
+    });
+
+    expect({
+      revenueAnnualPeriods: artifact.statements.incomeStatement.revenue.annual.map(
+        (item) => item.periodKey,
+      ),
+      cashFlowAnnualPeriods: artifact.statements.cashFlowStatement.operatingCashFlow.annual.map(
+        (item) => item.periodKey,
+      ),
+      balanceSheetAnnualPeriods: artifact.statements.balanceSheet.cash.annual.map(
+        (item) => item.periodKey,
+      ),
+      workbenchPeriodEnds: workbench.historicalMultiples.observations.map((item) => item.periodEnd),
+      unexplainedFundamentalHistoryPeriods: parity.comparisons
+        .filter(
+          (comparison) =>
+            comparison.consumer === "fundamental-history" && comparison.status === "unexplained",
+        )
+        .map((comparison) => comparison.periodEnd),
+    }).toEqual({
+      revenueAnnualPeriods: ["2023-01-01|2023-12-31"],
+      cashFlowAnnualPeriods: ["2023-01-01|2023-12-31"],
+      balanceSheetAnnualPeriods: ["instant|2023-12-31"],
+      workbenchPeriodEnds: ["2023-12-31"],
+      unexplainedFundamentalHistoryPeriods: [],
+    });
   });
 
   test("isolates the most recent standard taxonomy and reporting currency", () => {
@@ -562,6 +669,55 @@ describe("canonical financial statements", () => {
       artifactValue: "Revenues",
       legacyValue: "RevenueFromContractWithCustomerExcludingAssessedTax",
     });
+  });
+
+  test("explains amendment-only canonical annual coverage absent from legacy history", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        GrossProfit: {
+          USD: [
+            fact({
+              value: 40,
+              form: "10-K/A",
+              fiscalYear: 2025,
+              fiscalPeriod: "FY",
+              filedAt: "2026-03-01",
+              periodStart: "2025-01-01",
+              periodEnd: "2025-12-31",
+            }),
+          ],
+        },
+      },
+    });
+    const artifact = derive(companyFacts);
+    const history = deriveFundamentalHistory(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      analysisAsOf: "2026-06-15T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const parity = attachFinancialStatementParity(artifact, {
+      fundamentalHistory: history,
+    }).shadowParity;
+
+    expect(parity.comparisons).toContainEqual({
+      consumer: "fundamental-history",
+      field: "grossProfit.annual",
+      status: "explained",
+      artifactValue: 40,
+      legacyValue: "missing",
+      periodEnd: "2025-12-31",
+      reasonCode: "canonical-restatement-precedence",
+      explanation:
+        "The canonical selector applies accession/date/amendment precedence to the matching period before comparison.",
+    });
+    expect(
+      parity.comparisons.filter(
+        (comparison) =>
+          comparison.consumer === "fundamental-history" && comparison.status === "unexplained",
+      ),
+    ).toHaveLength(0);
   });
 
   test("does not report a concept divergence when the artifact concept is missing", () => {

@@ -221,20 +221,25 @@ describe("equity reader projection", () => {
     const legacy = {
       source: "tradier-options",
       provider: "tradier",
-      message: "Legacy fallback",
+      message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
       cause: "missing-credential",
     } satisfies SourceGap;
 
     const projection = projectEquityReader({
       report: {
         symbol: "AAPL",
-        dataGaps: ["tradier-options: Persisted override", "tradier-options: Legacy fallback"],
+        dataGaps: [
+          "tradier-options: Persisted override",
+          "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+        ],
       },
       sourceGaps: [persisted, legacy],
     });
 
     expect(classifyGap(persisted)).toBe("diagnostic");
     expect(projection.defaultView.materialGaps).toEqual(["tradier-options: Persisted override"]);
-    expect(projection.appendix.diagnosticGaps).toEqual(["tradier-options: Legacy fallback"]);
+    expect(projection.appendix.diagnosticGaps).toEqual([
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+    ]);
   });
 });

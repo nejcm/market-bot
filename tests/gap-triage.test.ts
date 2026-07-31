@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SourceGap } from "../src/domain/types";
-import { classifyGap } from "../src/report/gap-triage";
+import { classifyGap, readGapTriage } from "../src/report/gap-triage";
 
 describe("gap triage", () => {
   test.each([
@@ -91,5 +91,16 @@ describe("gap triage", () => {
 
   test("defaults an unknown code to material", () => {
     expect(classifyGap("new-unmapped-gap-code")).toBe("material");
+  });
+
+  test("uses string classification for legacy structured gaps without triage", () => {
+    const legacyGap = {
+      source: "finnhub-events",
+      message: "Finnhub events endpoint failed with status 403",
+    } satisfies SourceGap;
+    const text = "finnhub-events: Finnhub events endpoint failed with status 403";
+
+    expect(classifyGap(legacyGap)).toBe("material");
+    expect(readGapTriage(text, [legacyGap])).toBe("diagnostic");
   });
 });

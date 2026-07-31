@@ -8,6 +8,7 @@ import {
   scanWebSubjectProfileRunArtifacts,
 } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { readDeepEquityEvidenceBundle } from "../src/deep-equity/artifact-schema";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
@@ -314,6 +315,55 @@ describe("loadRunArtifact", () => {
         cause: "missing-credential",
       },
     ]);
+  });
+
+  test("drops invalid Source Gap triage from a component sidecar", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "invalid-source-gap-triage");
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "invalid-source-gap-triage",
+        jobType: "equity",
+        symbol: "AAPL",
+        extras: { depth: "brief" },
+      }),
+    );
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), [
+      {
+        source: "verified-snapshot",
+        message: "Invalid persisted triage",
+        triage: "weird",
+      },
+    ]);
+
+    const loaded = await loadRunArtifact(runDir);
+
+    expect(loaded.artifact?.sourceGaps).toEqual([
+      {
+        source: "verified-snapshot",
+        message: "Invalid persisted triage",
+      },
+    ]);
+  });
+
+  test("rejects invalid Source Gap triage in a deep-equity bundle", () => {
+    const base = deepEquityEvidenceBundle();
+    const candidate = {
+      ...base,
+      governance: {
+        ...base.governance,
+        sourceGaps: [
+          {
+            source: "verified-snapshot",
+            message: "Invalid persisted triage",
+            triage: "weird",
+          },
+        ],
+      },
+    };
+
+    expect(readDeepEquityEvidenceBundle(candidate)).toBeUndefined();
   });
 
   test("round-trips canonical statements and equity completeness", async () => {

@@ -83,5 +83,5 @@ export function readGapTriage(
   reportSymbol?: string,
 ): GapTriage {
   const structured = sourceGaps.find((gap) => sourceGapScopedReportText(gap) === text);
-  return structured?.triage ?? classifyGap(structured ?? text, reportSymbol);
+  return structured?.triage ?? classifyGap(text, reportSymbol);
 }

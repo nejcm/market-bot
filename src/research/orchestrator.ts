@@ -210,11 +210,13 @@ async function runModelStage(
   };
   const prompt = buildStagePrompt(stage, stageInput);
   const startedAt = performance.now();
+  const modelParams =
+    stage === "final-synthesis"
+      ? context.runParams.synthesisModelParams
+      : context.runParams.quickModelParams;
   const response = await job.provider.generate({
     model,
-    ...(context.runParams.modelParams !== undefined
-      ? { params: context.runParams.modelParams }
-      : {}),
+    ...(modelParams !== undefined ? { params: modelParams } : {}),
     responseFormat: "json",
     messages: [
       {
@@ -285,7 +287,7 @@ async function runFinancialTableMappingStage(
   const startedAt = performance.now();
   const response = await job.provider.generate({
     model: runParams.quickModel,
-    ...(runParams.modelParams !== undefined ? { params: runParams.modelParams } : {}),
+    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
     responseFormat: "json",
     messages: [
       { role: "system", content: withUntrustedModelInputRule(loaded.system) },
@@ -333,8 +335,8 @@ async function runPlaybookSelection(
   const startedAt = performance.now();
   const response = await input.provider.generate({
     model: context.runParams.quickModel,
-    ...(context.runParams.modelParams !== undefined
-      ? { params: context.runParams.modelParams }
+    ...(context.runParams.quickModelParams !== undefined
+      ? { params: context.runParams.quickModelParams }
       : {}),
     responseFormat: "json",
     messages: [
@@ -415,8 +417,8 @@ async function runForecastDisagreementPhase(input: {
         providerName: input.jobInput.provider.name,
         baselineModel: input.runParams.synthesisModel,
         challengerModels,
-        ...(input.runParams.modelParams !== undefined
-          ? { modelParams: input.runParams.modelParams }
+        ...(input.runParams.synthesisModelParams !== undefined
+          ? { modelParams: input.runParams.synthesisModelParams }
           : {}),
         loaded,
         report: {

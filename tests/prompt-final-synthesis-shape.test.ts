@@ -43,7 +43,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -104,7 +105,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["AAPL"],
           focus: ["thesis"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -174,7 +176,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: depthProfile.predictionSubjects,
           focus: depthProfile.focus,
           targetKindMix: depthProfile.targetKindMix,
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -232,7 +235,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["BTC"],
           focus: ["thesis"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "crypto",
@@ -377,7 +381,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["AAPL"],
           focus: ["ticker research"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -444,7 +449,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -515,7 +521,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -587,7 +594,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",

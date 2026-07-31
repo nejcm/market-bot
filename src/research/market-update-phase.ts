@@ -76,8 +76,8 @@ async function runSpotlightSelection(input: {
   const startedAt = performance.now();
   const response = await input.provider.generate({
     model: input.context.runParams.quickModel,
-    ...(input.context.runParams.modelParams !== undefined
-      ? { params: input.context.runParams.modelParams }
+    ...(input.context.runParams.quickModelParams !== undefined
+      ? { params: input.context.runParams.quickModelParams }
       : {}),
     responseFormat: "json",
     messages: [

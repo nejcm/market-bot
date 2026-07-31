@@ -142,27 +142,28 @@ Configuration is read in `src/config.ts` from environment variables. Live model 
 
 Useful knobs:
 
-| Variable                                                                             | Purpose                                                                                                            |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `MARKET_BOT_PROVIDER`                                                                | `openai`, `openai-compatible`, `codex`, or `anthropic`.                                                            |
-| `MARKET_BOT_BASE_URL`                                                                | Required for `openai-compatible`.                                                                                  |
-| `MARKET_BOT_QUICK_MODEL`                                                             | Model for playbook-selection, specialist, coverage-panel, and critique stages.                                     |
-| `MARKET_BOT_SYNTHESIS_MODEL`                                                         | Model for final synthesis and `--deep` output.                                                                     |
-| `MARKET_BOT_REASONING_EFFORT`                                                        | Optional `low`, `medium`, or `high` reasoning-effort hint.                                                         |
-| `MARKET_BOT_DATA_DIR`                                                                | Run artifact directory, default `data/runs`.                                                                       |
-| `MARKET_BOT_INDEX_DB_PATH`                                                           | Derived SQLite Run Artifact Index path; defaults to `data/index.sqlite` when `MARKET_BOT_DATA_DIR` is `data/runs`. |
-| `MARKET_BOT_INDEX_DISABLE`                                                           | Set `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through.                      |
-| `MARKET_BOT_CACHE_DIR`                                                               | Raw source cache directory, default `data/cache`.                                                                  |
-| `MARKET_BOT_CACHE_DISABLE`                                                           | Set `1` or `true` to bypass cache.                                                                                 |
-| `MARKET_BOT_CACHE_FALLBACK_DAYS`                                                     | Stale cache fallback window after an over-budget or missing live refetch fails.                                    |
-| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT` | Caps AI-selected Market Spotlights for market-overview runs.                                                       |
-| `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT`                                        | Top-ranked mover candidates fed to the spotlight selector (`0` = all).                                             |
-| `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` / `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT`  | Caps recent prior run artifacts used as Historical Research Context.                                               |
-| `MARKET_BOT_HISTORY_RECENT_DAYS` / `MARKET_BOT_HISTORY_ANCHOR_MONTHS`                | Controls recent and older anchor history selection.                                                                |
-| `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT`                                           | Preserves recent resolved-miss runs against same-day rerun eviction (`0` = off).                                   |
-| `MARKET_BOT_MARKETAUX_API_TOKEN`                                                     | Enables MarketAux news.                                                                                            |
-| `MARKET_BOT_FINNHUB_API_TOKEN`                                                       | Enables Finnhub news.                                                                                              |
-| `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY`                          | Enables supplemental Massive equity snapshots and news. `MARKET_BOT_POLYGON_API_KEY` is a legacy alias.            |
+| Variable                                                                                  | Purpose                                                                                                            |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `MARKET_BOT_PROVIDER`                                                                     | `openai`, `openai-compatible`, `codex`, or `anthropic`.                                                            |
+| `MARKET_BOT_BASE_URL`                                                                     | Required for `openai-compatible`.                                                                                  |
+| `MARKET_BOT_QUICK_MODEL`                                                                  | Model for playbook-selection, specialist, coverage-panel, and critique stages.                                     |
+| `MARKET_BOT_SYNTHESIS_MODEL`                                                              | Model for final synthesis and `--deep` output.                                                                     |
+| `MARKET_BOT_QUICK_REASONING_EFFORT` / `MARKET_BOT_SYNTHESIS_REASONING_EFFORT`             | Optional reasoning effort for non-Codex quick/synthesis model calls.                                               |
+| `MARKET_BOT_CODEX_QUICK_REASONING_EFFORT` / `MARKET_BOT_CODEX_SYNTHESIS_REASONING_EFFORT` | Optional independent reasoning effort for Codex quick/synthesis model calls.                                       |
+| `MARKET_BOT_DATA_DIR`                                                                     | Run artifact directory, default `data/runs`.                                                                       |
+| `MARKET_BOT_INDEX_DB_PATH`                                                                | Derived SQLite Run Artifact Index path; defaults to `data/index.sqlite` when `MARKET_BOT_DATA_DIR` is `data/runs`. |
+| `MARKET_BOT_INDEX_DISABLE`                                                                | Set `1` or `true` to force disk-scan fallbacks for index-backed reads and skip write-through.                      |
+| `MARKET_BOT_CACHE_DIR`                                                                    | Raw source cache directory, default `data/cache`.                                                                  |
+| `MARKET_BOT_CACHE_DISABLE`                                                                | Set `1` or `true` to bypass cache.                                                                                 |
+| `MARKET_BOT_CACHE_FALLBACK_DAYS`                                                          | Stale cache fallback window after an over-budget or missing live refetch fails.                                    |
+| `MARKET_BOT_MARKET_SPOTLIGHT_BRIEF_LIMIT` / `MARKET_BOT_MARKET_SPOTLIGHT_DEEP_LIMIT`      | Caps AI-selected Market Spotlights for market-overview runs.                                                       |
+| `MARKET_BOT_MARKET_SPOTLIGHT_CANDIDATE_LIMIT`                                             | Top-ranked mover candidates fed to the spotlight selector (`0` = all).                                             |
+| `MARKET_BOT_HISTORY_TICKER_RECENT_LIMIT` / `MARKET_BOT_HISTORY_MARKET_RECENT_LIMIT`       | Caps recent prior run artifacts used as Historical Research Context.                                               |
+| `MARKET_BOT_HISTORY_RECENT_DAYS` / `MARKET_BOT_HISTORY_ANCHOR_MONTHS`                     | Controls recent and older anchor history selection.                                                                |
+| `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT`                                                | Preserves recent resolved-miss runs against same-day rerun eviction (`0` = off).                                   |
+| `MARKET_BOT_MARKETAUX_API_TOKEN`                                                          | Enables MarketAux news.                                                                                            |
+| `MARKET_BOT_FINNHUB_API_TOKEN`                                                            | Enables Finnhub news.                                                                                              |
+| `MARKET_BOT_MASSIVE_API_KEY` / `MARKET_BOT_POLYGON_API_KEY`                               | Enables supplemental Massive equity snapshots and news. `MARKET_BOT_POLYGON_API_KEY` is a legacy alias.            |
 
 See [configuration.md](./configuration.md) for the full table.
 

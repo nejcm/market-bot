@@ -263,10 +263,18 @@ function buildChatDeps(dataDir: string): ChatEndpointDeps {
     }
     const provider = createProvider(appConfig);
     const chatModel = consoleConfig.chat.model ?? appConfig.quickModel;
+    const reasoningEffort =
+      appConfig.provider === "codex"
+        ? appConfig.codexQuickReasoningEffort
+        : appConfig.quickReasoningEffort;
     return {
       status: "ready",
       provider,
-      chatConfig: { ...consoleConfig.chat, model: chatModel },
+      chatConfig: {
+        ...consoleConfig.chat,
+        model: chatModel,
+        ...(reasoningEffort !== undefined ? { modelParams: { reasoningEffort } } : {}),
+      },
       dataDir,
     };
   } catch {

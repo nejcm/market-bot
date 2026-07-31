@@ -39,7 +39,8 @@ function kindMixSynthesisInstruction(command: ResearchCommand): string {
         predictionSubjects: depthProfile.predictionSubjects,
         focus: depthProfile.focus,
         targetKindMix: depthProfile.targetKindMix,
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: command.assetClass,
@@ -157,7 +158,8 @@ function finalSynthesisInstruction(
         predictionSubjects: depthProfile.predictionSubjects,
         focus: depthProfile.focus,
         targetKindMix: depthProfile.targetKindMix,
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: command.assetClass,
@@ -364,7 +366,8 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       predictionSubjects: ["AAPL"],
       focus: ["thesis"],
       targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
     },
     marketRegime: {
       assetClass: "equity",
@@ -619,7 +622,8 @@ describe("StageInput assembly", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",

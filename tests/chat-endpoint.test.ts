@@ -360,6 +360,37 @@ describe("chat endpoint", () => {
     expect(capturedMessages[4]!.content).toBe("message 9");
   });
 
+  test("passes quick-model reasoning effort while preserving chat output limit", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
+    setupRunDir(dataDir, "run-reasoning");
+    let capturedParams: unknown = null;
+    const capturingProvider: StreamingModelProvider = {
+      name: "capture",
+      ...generateStub,
+      generateStream: async (request) => {
+        capturedParams = request.params;
+        return textStream("ok");
+      },
+    };
+
+    const request = chatRequest("run-reasoning", [{ role: "user", content: "Explain this run" }]);
+    const response = await handleRunChat(
+      request,
+      new URL(request.url),
+      chatDeps(dataDir, {
+        provider: capturingProvider,
+        chatConfig: defaultChatConfig({
+          modelParams: { reasoningEffort: "high" },
+          maxOutputTokens: 700,
+        }),
+      }),
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response!.status).toBe(200);
+    expect(capturedParams).toEqual({ reasoningEffort: "high", max_completion_tokens: 700 });
+  });
+
   test("maps multi-part content to flat text", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "chat-test-"));
     setupRunDir(dataDir, "run-parts");

@@ -34,7 +34,7 @@ describe("runResearchJob pipeline stages", () => {
       "market-overview-equity": {
         quickModel: "combo-quick",
         synthesisModel: "combo-synthesis",
-        modelParams: { temperature: 0.2, reasoningEffort: "medium" },
+        modelParams: { temperature: 0.2 },
         targetPredictions: 2,
       },
       "market-overview-crypto": {},
@@ -84,7 +84,11 @@ describe("runResearchJob pipeline stages", () => {
 
     const result = await runResearchJob({
       command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
-      config,
+      config: {
+        ...config,
+        quickReasoningEffort: "low",
+        synthesisReasoningEffort: "high",
+      },
       runConfig,
       provider,
       collectedSources: collectedSourceBundle({
@@ -98,11 +102,11 @@ describe("runResearchJob pipeline stages", () => {
     });
 
     expect(requests).toEqual([
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "medium" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "high" } },
     ]);
     expect(result.trace.quickModel).toBe("combo-quick");
     expect(result.trace.synthesisModel).toBe("combo-synthesis");

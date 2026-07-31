@@ -502,9 +502,19 @@ describe("resolveConfig", () => {
     ).toBe("global-anthropic-key");
   });
 
-  test("reads reasoning effort", () => {
-    expect(resolveConfig({ MARKET_BOT_REASONING_EFFORT: "high" }).modelParams).toEqual({
-      reasoningEffort: "high",
+  test("reads provider and role-specific reasoning efforts", () => {
+    expect(
+      resolveConfig({
+        MARKET_BOT_QUICK_REASONING_EFFORT: "low",
+        MARKET_BOT_SYNTHESIS_REASONING_EFFORT: "medium",
+        MARKET_BOT_CODEX_QUICK_REASONING_EFFORT: "high",
+        MARKET_BOT_CODEX_SYNTHESIS_REASONING_EFFORT: "low",
+      }),
+    ).toMatchObject({
+      quickReasoningEffort: "low",
+      synthesisReasoningEffort: "medium",
+      codexQuickReasoningEffort: "high",
+      codexSynthesisReasoningEffort: "low",
     });
   });
 
@@ -522,10 +532,17 @@ describe("resolveConfig", () => {
     ).toThrow("Expected comma-separated forecast-disagreement model IDs");
   });
 
-  test("rejects invalid reasoning effort", () => {
-    expect(() => resolveConfig({ MARKET_BOT_REASONING_EFFORT: "max" })).toThrow(
+  test("rejects invalid role reasoning effort", () => {
+    expect(() => resolveConfig({ MARKET_BOT_QUICK_REASONING_EFFORT: "max" })).toThrow(
       "Unsupported reasoning effort",
     );
+  });
+
+  test("does not read the removed shared reasoning effort variable", () => {
+    expect(resolveConfig({ MARKET_BOT_REASONING_EFFORT: "high" })).not.toMatchObject({
+      quickReasoningEffort: expect.anything(),
+      synthesisReasoningEffort: expect.anything(),
+    });
   });
 
   test("reads model timeout", () => {

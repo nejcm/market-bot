@@ -48,7 +48,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -111,7 +112,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -167,7 +169,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -250,7 +253,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -303,7 +307,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -364,7 +369,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -421,7 +427,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",

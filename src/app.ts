@@ -228,6 +228,10 @@ export async function runCli(
     const provider = command.narrative
       ? (dependencies.createProvider ?? createProvider)(config)
       : undefined;
+    const synthesisReasoningEffort =
+      config.provider === "codex"
+        ? config.codexSynthesisReasoningEffort
+        : config.synthesisReasoningEffort;
     const delta = await (dependencies.buildThesisDelta ?? buildThesisDelta)({
       dataDir: config.dataDir,
       symbol: command.symbol,
@@ -235,7 +239,15 @@ export async function runCli(
       ...(command.since !== undefined ? { since: command.since } : {}),
       ...(command.to !== undefined ? { to: command.to } : {}),
       narrative: command.narrative,
-      ...(provider !== undefined ? { provider, model: config.synthesisModel } : {}),
+      ...(provider !== undefined
+        ? {
+            provider,
+            model: config.synthesisModel,
+            ...(synthesisReasoningEffort !== undefined
+              ? { modelParams: { reasoningEffort: synthesisReasoningEffort } }
+              : {}),
+          }
+        : {}),
       now: now(),
     });
     return renderThesisDelta(delta);

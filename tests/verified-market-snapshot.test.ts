@@ -579,7 +579,8 @@ describe("buildStagePrompt — verified snapshot + identity injection", () => {
           predictionSubjects: ["AAPL"],
           focus: ["instrument"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",

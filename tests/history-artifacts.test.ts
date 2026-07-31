@@ -306,13 +306,17 @@ describe("history artifacts", () => {
     writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
     await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
 
+    let capturedParams: unknown = null;
     const provider: ModelProvider = {
       name: "test",
-      generate: async () => ({
-        content: "The research thesis shifted from old evidence to new evidence.",
-        tokenEstimate: 10,
-        costEstimateUsd: 0.01,
-      }),
+      generate: async (request) => {
+        capturedParams = request.params;
+        return {
+          content: "The research thesis shifted from old evidence to new evidence.",
+          tokenEstimate: 10,
+          costEstimateUsd: 0.01,
+        };
+      },
     };
     const delta = await buildThesisDelta({
       dataDir,
@@ -323,12 +327,14 @@ describe("history artifacts", () => {
       narrative: true,
       provider,
       model: "test-model",
+      modelParams: { reasoningEffort: "medium" },
       now: new Date("2026-06-06T00:00:00.000Z"),
     });
 
     expect(delta.sections.summary?.added).toEqual(["New thesis"]);
     expect(delta.sections.summary?.removed).toEqual(["Old thesis"]);
     expect(delta.narrative?.model).toBe("test-model");
+    expect(capturedParams).toEqual({ temperature: 0.2, reasoningEffort: "medium" });
     const persisted = await readFile(
       join(rootDir, "history", "deltas", "equity-AAPL-run-old-to-run-new.json"),
       "utf8",

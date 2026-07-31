@@ -37,7 +37,8 @@ describe("buildPlaybookSelectionPrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -106,7 +107,8 @@ describe("buildSpotlightSelectionPrompt", () => {
         predictionSubjects: ["SPY"],
         focus: ["market regime", "movers"],
         targetKindMix: { favored: ["relative", "range"] as const, minNonDirection: 1 },
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: "equity" as const,
@@ -167,7 +169,8 @@ describe("buildSpotlightSelectionPrompt", () => {
         predictionSubjects: ["SPY"],
         focus: ["market regime", "movers"],
         targetKindMix: { favored: ["relative", "range"] as const, minNonDirection: 1 },
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: "equity" as const,

@@ -263,7 +263,8 @@ function assemblyContext(
     runParams: {
       quickModel: "quick",
       synthesisModel: "synthesis",
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
       minimumKeyFindings: 0,
       minimumScenarios: 0,
       targetPredictions: 0,
@@ -1354,7 +1355,8 @@ describe("report schema and rendering", () => {
       runParams: {
         quickModel: "quick",
         synthesisModel: "synthesis",
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
         minimumKeyFindings: 0,
         minimumScenarios: 0,
         targetPredictions: 0,
@@ -1454,7 +1456,8 @@ describe("report schema and rendering", () => {
       runParams: {
         quickModel: "quick",
         synthesisModel: "synthesis",
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
         minimumKeyFindings: 0,
         minimumScenarios: 0,
         targetPredictions: 0,

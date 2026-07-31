@@ -32,7 +32,7 @@ Run params resolve via the fallback chain in
 `src/config/runs/resolver.ts`:
 
 1. `CODE_DEFAULTS` (code defaults in `src/config/runs/profiles/shared.ts`).
-2. `AppConfig` env overrides (`quickModel`, `synthesisModel`, `modelParams`).
+2. `AppConfig` env overrides (`quickModel`, `synthesisModel`, and provider/role-specific reasoning efforts).
 3. Profile block from `src/config/runs/profiles/*.ts`.
 4. The profile's `deep:` sub-block when `depth === "deep"`.
 

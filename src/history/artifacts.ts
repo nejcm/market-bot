@@ -13,7 +13,7 @@ import {
 } from "../domain/types";
 import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
-import type { ModelProvider } from "../model/types";
+import type { ModelParams, ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { violatesResearchOnly } from "../domain/research-language";
 import {
@@ -142,6 +142,7 @@ export interface ThesisDeltaInput {
   readonly narrative?: boolean;
   readonly provider?: ModelProvider;
   readonly model?: string;
+  readonly modelParams?: ModelParams;
   readonly now?: Date;
 }
 
@@ -798,6 +799,7 @@ async function generateNarrative(
   delta: Omit<ThesisDelta, "narrative">,
   provider: ModelProvider,
   model: string,
+  modelParams: ModelParams | undefined,
 ): Promise<ThesisDelta["narrative"]> {
   const response = await provider.generate({
     model,
@@ -813,7 +815,10 @@ async function generateNarrative(
         content: JSON.stringify(delta, undefined, 2),
       },
     ],
-    params: { temperature: 0.2 },
+    params: {
+      temperature: 0.2,
+      ...modelParams,
+    },
   });
   const text = response.content.trim();
   if (violatesResearchOnly(text) !== null) {
@@ -866,6 +871,7 @@ export async function buildThesisDelta(input: ThesisDeltaInput): Promise<ThesisD
               throw new Error("A model provider is required for --narrative");
             })(),
           input.model ?? "unknown",
+          input.modelParams,
         )
       : undefined;
   const delta: ThesisDelta = narrative === undefined ? base : { ...base, narrative };

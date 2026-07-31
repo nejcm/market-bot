@@ -72,7 +72,8 @@ function traceFor(
     runParams: {
       quickModel: "quick-test",
       synthesisModel: "synthesis-test",
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
       minimumKeyFindings: 5,
       minimumScenarios: 3,
       targetPredictions: 6,
@@ -193,7 +194,8 @@ describe("run trace builder", () => {
       runParams: {
         quickModel: "quick-test",
         synthesisModel: "synthesis-test",
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
         minimumKeyFindings: 5,
         minimumScenarios: 3,
         targetPredictions: 6,

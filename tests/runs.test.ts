@@ -302,25 +302,31 @@ describe("resolveRunParams — run keys", () => {
     expect(crypto.predictionSubjects).not.toContain("SPY");
   });
 
-  test("modelParams is undefined by default (no sampling knobs seeded)", () => {
+  test("role model params are undefined by default (no sampling knobs seeded)", () => {
     const result = resolveRunParams(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
       baseConfig,
     );
 
-    expect(result.modelParams).toBeUndefined();
+    expect(result.quickModelParams).toBeUndefined();
+    expect(result.synthesisModelParams).toBeUndefined();
   });
 
-  test("AppConfig modelParams flow into resolved run params", () => {
+  test("generic reasoning efforts flow into both resolved run roles", () => {
     const result = resolveRunParams(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
-      { ...baseConfig, modelParams: { reasoningEffort: "medium" } },
+      {
+        ...baseConfig,
+        quickReasoningEffort: "medium",
+        synthesisReasoningEffort: "high",
+      },
     );
 
-    expect(result.modelParams).toEqual({ reasoningEffort: "medium" });
+    expect(result.quickModelParams).toEqual({ reasoningEffort: "medium" });
+    expect(result.synthesisModelParams).toEqual({ reasoningEffort: "high" });
   });
 
-  test("run-specific modelParams override AppConfig defaults", () => {
+  test("run-specific modelParams override role environment defaults", () => {
     const patchedConfig: RunConfig = {
       ...runConfig,
       "market-overview-equity": {
@@ -331,10 +337,42 @@ describe("resolveRunParams — run keys", () => {
 
     const result = resolveRunParams(
       legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
-      { ...baseConfig, modelParams: { reasoningEffort: "low" } },
+      {
+        ...baseConfig,
+        quickReasoningEffort: "low",
+        synthesisReasoningEffort: "low",
+      },
       patchedConfig,
     );
 
-    expect(result.modelParams).toEqual({ reasoningEffort: "high", temperature: 0.2 });
+    expect(result.quickModelParams).toEqual({ reasoningEffort: "high", temperature: 0.2 });
+    expect(result.synthesisModelParams).toEqual({ reasoningEffort: "high", temperature: 0.2 });
+  });
+
+  test("Codex uses independent Codex role efforts", () => {
+    const result = resolveRunParams(
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      {
+        ...baseConfig,
+        provider: "codex",
+        quickReasoningEffort: "low",
+        synthesisReasoningEffort: "low",
+        codexQuickReasoningEffort: "high",
+        codexSynthesisReasoningEffort: "medium",
+      },
+    );
+
+    expect(result.quickModelParams).toEqual({ reasoningEffort: "high" });
+    expect(result.synthesisModelParams).toEqual({ reasoningEffort: "medium" });
+  });
+
+  test("non-Codex providers ignore Codex role efforts", () => {
+    const result = resolveRunParams(
+      legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      { ...baseConfig, codexQuickReasoningEffort: "high", codexSynthesisReasoningEffort: "high" },
+    );
+
+    expect(result.quickModelParams).toBeUndefined();
+    expect(result.synthesisModelParams).toBeUndefined();
   });
 });

@@ -180,7 +180,18 @@ function createLiveFixtureConfig(meta: FixtureMeta, dataDir: string): AppConfig 
     ...(liveConfig.codexSynthesisModel !== undefined
       ? { codexSynthesisModel: liveConfig.codexSynthesisModel }
       : {}),
-    ...(liveConfig.modelParams !== undefined ? { modelParams: liveConfig.modelParams } : {}),
+    ...(liveConfig.quickReasoningEffort !== undefined
+      ? { quickReasoningEffort: liveConfig.quickReasoningEffort }
+      : {}),
+    ...(liveConfig.synthesisReasoningEffort !== undefined
+      ? { synthesisReasoningEffort: liveConfig.synthesisReasoningEffort }
+      : {}),
+    ...(liveConfig.codexQuickReasoningEffort !== undefined
+      ? { codexQuickReasoningEffort: liveConfig.codexQuickReasoningEffort }
+      : {}),
+    ...(liveConfig.codexSynthesisReasoningEffort !== undefined
+      ? { codexSynthesisReasoningEffort: liveConfig.codexSynthesisReasoningEffort }
+      : {}),
   };
 }
 

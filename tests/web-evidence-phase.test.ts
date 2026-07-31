@@ -45,7 +45,8 @@ const context: ResearchContext = {
   runParams: {
     quickModel: "quick-test",
     synthesisModel: "synthesis-test",
-    modelParams: undefined,
+    quickModelParams: undefined,
+    synthesisModelParams: undefined,
     minimumKeyFindings: 5,
     minimumScenarios: 3,
     targetPredictions: 6,

@@ -72,6 +72,24 @@ function amendedFilingArtifact(): FinancialStatementsArtifact {
   } as unknown as FinancialStatementsArtifact;
 }
 
+function divergentFilingArtifact(): FinancialStatementsArtifact {
+  const cash = statementSeries("cash", [statementFact("cash", 100, "2025-02-01")]);
+  const debt = statementSeries("debt", [statementFact("debt", 80, "2025-02-01")]);
+  const dilutedShares = statementSeries("dilutedShares", [
+    statementFact("dilutedShares", 10, "2025-02-01"),
+    statementFact("dilutedShares", 9, "2025-03-01"),
+  ]);
+  return {
+    analysisAsOf: "2025-04-01T12:00:00.000Z",
+    sourceId: "sec-statements",
+    reportingCurrency: "USD",
+    statements: {
+      balanceSheet: { cash, debt },
+      perShare: { dilutedShares },
+    },
+  } as unknown as FinancialStatementsArtifact;
+}
+
 describe("equity reader projection", () => {
   test("selects amended values and filing dates jointly before the analysis cutoff", () => {
     const projection = projectEquityReader({
@@ -97,6 +115,42 @@ describe("equity reader projection", () => {
           unit: "USD",
           unitScale: 1,
           sourceIds: ["sec-2025-03-01"],
+        },
+        dilutedShares: {
+          value: 9,
+          filedAt: "2025-03-01",
+          unit: "shares",
+          unitScale: 1,
+          sourceIds: ["sec-2025-03-01"],
+        },
+      },
+    ]);
+  });
+
+  test("preserves independently filed metrics for the same statement period", () => {
+    const projection = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: divergentFilingArtifact(),
+    });
+
+    expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
+      {
+        kind: "annual",
+        periodEnd: "2024-12-31",
+        filedAt: "2025-03-01",
+        cash: {
+          value: 100,
+          filedAt: "2025-02-01",
+          unit: "USD",
+          unitScale: 1,
+          sourceIds: ["sec-2025-02-01"],
+        },
+        debt: {
+          value: 80,
+          filedAt: "2025-02-01",
+          unit: "USD",
+          unitScale: 1,
+          sourceIds: ["sec-2025-02-01"],
         },
         dilutedShares: {
           value: 9,

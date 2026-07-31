@@ -314,13 +314,11 @@ function observableStatementFact(
   fact: FinancialStatementFact,
   cutoff: string,
   periodEnd?: string,
-  filedAt?: string,
 ): boolean {
   return (
     fact.periodEnd <= cutoff &&
     fact.filedAt <= cutoff &&
-    (periodEnd === undefined || fact.periodEnd === periodEnd) &&
-    (filedAt === undefined || fact.filedAt === filedAt)
+    (periodEnd === undefined || fact.periodEnd === periodEnd)
   );
 }
 
@@ -335,19 +333,18 @@ function compareStatementFacts(
   );
 }
 
-function selectedStatementValue(
+function selectedStatementFact(
   facts: readonly FinancialStatementFact[],
   cutoff: string,
   periodEnd: string,
-  filedAt: string,
-): EquityReaderStatementValue | undefined {
-  const fact = facts
-    .filter((candidate) => observableStatementFact(candidate, cutoff, periodEnd, filedAt))
+): FinancialStatementFact | undefined {
+  return facts
+    .filter((candidate) => observableStatementFact(candidate, cutoff, periodEnd))
     .toSorted(compareStatementFacts)
     .at(0);
-  if (fact === undefined) {
-    return undefined;
-  }
+}
+
+function statementValue(fact: FinancialStatementFact): EquityReaderStatementValue {
   return {
     value: fact.value,
     filedAt: fact.filedAt,
@@ -377,40 +374,31 @@ function balanceSheetHistory(
     .toSorted()
     .slice(-5);
   const rows = periods.flatMap((periodEnd): readonly EquityReaderBalanceSheetRow[] => {
-    const filingFact = facts
-      .filter((fact) => observableStatementFact(fact, cutoff, periodEnd))
+    const cashFact = selectedStatementFact([...cash.annual, ...cash.interim], cutoff, periodEnd);
+    const debtFact = selectedStatementFact([...debt.annual, ...debt.interim], cutoff, periodEnd);
+    const dilutedSharesFact = selectedStatementFact(
+      [...dilutedShares.annual, ...dilutedShares.interim],
+      cutoff,
+      periodEnd,
+    );
+    const filingFact = [cashFact, debtFact, dilutedSharesFact]
+      .filter((fact): fact is FinancialStatementFact => fact !== undefined)
       .toSorted(compareStatementFacts)
       .at(0);
     if (filingFact === undefined) {
       return [];
     }
     const { filedAt, periodType: kind } = filingFact;
-    const cashValue = selectedStatementValue(
-      [...cash.annual, ...cash.interim],
-      cutoff,
-      periodEnd,
-      filedAt,
-    );
-    const debtValue = selectedStatementValue(
-      [...debt.annual, ...debt.interim],
-      cutoff,
-      periodEnd,
-      filedAt,
-    );
-    const dilutedSharesValue = selectedStatementValue(
-      [...dilutedShares.annual, ...dilutedShares.interim],
-      cutoff,
-      periodEnd,
-      filedAt,
-    );
     return [
       {
         kind,
         periodEnd,
         filedAt,
-        ...(cashValue === undefined ? {} : { cash: cashValue }),
-        ...(debtValue === undefined ? {} : { debt: debtValue }),
-        ...(dilutedSharesValue === undefined ? {} : { dilutedShares: dilutedSharesValue }),
+        ...(cashFact === undefined ? {} : { cash: statementValue(cashFact) }),
+        ...(debtFact === undefined ? {} : { debt: statementValue(debtFact) }),
+        ...(dilutedSharesFact === undefined
+          ? {}
+          : { dilutedShares: statementValue(dilutedSharesFact) }),
       },
     ];
   });

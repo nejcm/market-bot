@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import {
   COMPLETENESS_REASON_CODE_LABELS,
-  buildRunWorkspaceView,
   completenessReasonCodeLabel,
+  equityCompletenessView,
+  equitySnapshotView,
 } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
 import type {
@@ -201,17 +202,9 @@ describe("provider dimension contracts", () => {
     const goldens = await loadGoldenReports();
 
     for (const golden of goldens) {
-      const snapshot = buildRunWorkspaceView(goldenRunDetail(golden)).equitySnapshot;
+      const snapshot = equitySnapshotView(goldenRunDetail(golden));
       const knownSourceIds = new Set(golden.report.sources.map((source) => source.id));
       expect(snapshot, `${golden.fixture}: snapshot missing`).toBeDefined();
-      expect(snapshot?.sectionOrder).toEqual([
-        "pricePerformance",
-        "analysisCompleteness",
-        "peerReferenceRange",
-        "keyDatedMetrics",
-        "miniCharts",
-        "financialLensDrivers",
-      ]);
 
       for (const sourceId of snapshotCitationIds(snapshot)) {
         expect(
@@ -265,8 +258,7 @@ describe("provider dimension contracts", () => {
     const dimensionStates = new Set<string>();
 
     for (const golden of goldens) {
-      const completeness = buildRunWorkspaceView(goldenRunDetail(golden)).equitySnapshot
-        ?.analysisCompleteness;
+      const completeness = equitySnapshotView(goldenRunDetail(golden))?.analysisCompleteness;
       if (completeness?.financialCoreStatus !== undefined) {
         financialCoreStates.add(completeness.financialCoreStatus);
       }
@@ -381,15 +373,15 @@ describe("provider dimension contracts", () => {
         "utf8",
       );
 
-      const workspace = buildRunWorkspaceView(detail);
+      const snapshot = equitySnapshotView(detail);
       const loaded = await loadRunArtifact(runDir);
 
-      expect(workspace.equityCompleteness).toBeUndefined();
-      expect(workspace.equitySnapshot).toBeDefined();
-      expect(workspace.equitySnapshot?.pricePerformance.state).toBe("unavailable");
-      expect(workspace.equitySnapshot?.analysisCompleteness.state).toBe("unavailable");
-      expect(workspace.equitySnapshot?.miniCharts.charts).toHaveLength(4);
-      expect(snapshotCitationIds(workspace.equitySnapshot)).toEqual([]);
+      expect(equityCompletenessView(detail)).toBeUndefined();
+      expect(snapshot).toBeDefined();
+      expect(snapshot?.pricePerformance.state).toBe("unavailable");
+      expect(snapshot?.analysisCompleteness.state).toBe("unavailable");
+      expect(snapshot?.miniCharts.charts).toHaveLength(4);
+      expect(snapshotCitationIds(snapshot)).toEqual([]);
       expect(loaded.status.report).toBe("ok");
       expect(loaded.artifact?.report.equityAnalysisCompleteness).toBeUndefined();
     } finally {

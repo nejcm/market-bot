@@ -21,8 +21,10 @@ import {
   periodLabel,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
+  type EquityReaderAppendixCompleteness,
   type EquityReaderBalanceSheetHistory,
   type EquityReaderConsensusItem,
+  type EquityReaderFinancialCoreStatus,
   type EquityReaderProjection,
   type EquityReaderValuationContext,
 } from "../../src/report/equity-reader";
@@ -419,14 +421,6 @@ export interface RunWorkspaceEquitySnapshotFinancialLensDrivers {
 }
 
 export interface RunWorkspaceEquitySnapshotView {
-  readonly sectionOrder: readonly [
-    "pricePerformance",
-    "analysisCompleteness",
-    "peerReferenceRange",
-    "keyDatedMetrics",
-    "miniCharts",
-    "financialLensDrivers",
-  ];
   readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
   readonly analysisCompleteness: RunWorkspaceEquitySnapshotCompleteness;
   readonly peerReferenceRange: RunWorkspaceEquitySnapshotReferenceRange;
@@ -507,16 +501,6 @@ export interface RunWorkspaceTableOfContentsEntry {
 
 export interface RunWorkspaceEquityPresentationView {
   readonly defaultView: {
-    readonly sectionOrder: readonly [
-      "identityPrice",
-      "companySummary",
-      "financialTrends",
-      "valuationContext",
-      "findings",
-      "catalystsRisks",
-      "earningsConsensus",
-      "coverageMaterialGaps",
-    ];
     readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
     readonly companySummary: RunWorkspaceTextItem;
     readonly financialTrends?: RunWorkspaceFinancialTrendView;
@@ -524,22 +508,11 @@ export interface RunWorkspaceEquityPresentationView {
     readonly findings: readonly RunWorkspaceTextItem[];
     readonly cases: readonly RunWorkspaceCaseSection[];
     readonly earningsConsensus: RunWorkspaceEarningsConsensusView;
-    readonly coverage: RunWorkspaceEquitySnapshotCompleteness;
+    readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
     readonly materialGaps: readonly string[];
   };
   readonly advanced: {
-    readonly sectionOrder: readonly [
-      "financialLensDrivers",
-      "financialLensGroups",
-      "valuationWorkbench",
-      "reverseDcf",
-      "peerComps",
-      "institutionalAnalystOptions",
-      "diagnosticGaps",
-      "extendedEvidence",
-      "balanceSheetHistory",
-      "remainingResearchDetail",
-    ];
+    readonly completeness?: EquityReaderAppendixCompleteness;
     readonly financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers;
     readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
     readonly keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics;
@@ -558,10 +531,7 @@ export interface RunWorkspaceEquityPresentationView {
 }
 
 export interface RunWorkspaceView {
-  readonly equityHeader?: RunWorkspaceEquityHeaderView;
-  readonly equitySnapshot?: RunWorkspaceEquitySnapshotView;
   readonly equityPresentation?: RunWorkspaceEquityPresentationView;
-  readonly equityCompleteness?: RunWorkspaceEquityCompletenessView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
   readonly reverseDcf?: RunWorkspaceReverseDcfView;
@@ -1759,14 +1729,6 @@ function composeEquitySnapshot(
   };
 
   return {
-    sectionOrder: [
-      "pricePerformance",
-      "analysisCompleteness",
-      "peerReferenceRange",
-      "keyDatedMetrics",
-      "miniCharts",
-      "financialLensDrivers",
-    ],
     pricePerformance,
     analysisCompleteness,
     peerReferenceRange,
@@ -1879,16 +1841,6 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       ? undefined
       : {
           defaultView: {
-            sectionOrder: [
-              "identityPrice",
-              "companySummary",
-              "financialTrends",
-              "valuationContext",
-              "findings",
-              "catalystsRisks",
-              "earningsConsensus",
-              "coverageMaterialGaps",
-            ],
             pricePerformance: equitySnapshot.pricePerformance,
             companySummary: description,
             ...(financialTrends === undefined ? {} : { financialTrends }),
@@ -1901,22 +1853,15 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
               (section) => section.key === "catalysts" || section.key === "risks",
             ),
             earningsConsensus,
-            coverage: equitySnapshot.analysisCompleteness,
+            ...(readerProjection.defaultView.financialCoreStatus === undefined
+              ? {}
+              : { financialCoreStatus: readerProjection.defaultView.financialCoreStatus }),
             materialGaps,
           },
           advanced: {
-            sectionOrder: [
-              "financialLensDrivers",
-              "financialLensGroups",
-              "valuationWorkbench",
-              "reverseDcf",
-              "peerComps",
-              "institutionalAnalystOptions",
-              "diagnosticGaps",
-              "extendedEvidence",
-              "balanceSheetHistory",
-              "remainingResearchDetail",
-            ],
+            ...(readerProjection.appendix.completeness === undefined
+              ? {}
+              : { completeness: readerProjection.appendix.completeness }),
             financialLensDrivers: equitySnapshot.financialLensDrivers,
             financialLensGroups,
             keyDatedMetrics: equitySnapshot.keyDatedMetrics,
@@ -2029,10 +1974,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     .map(({ key, label }) => ({ key, label }));
 
   return {
-    ...(equityHeader !== undefined ? { equityHeader } : {}),
-    ...(equitySnapshot !== undefined ? { equitySnapshot } : {}),
     ...(equityPresentation !== undefined ? { equityPresentation } : {}),
-    ...(equityCompleteness !== undefined ? { equityCompleteness } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
     ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
     ...(reverseDcf !== undefined ? { reverseDcf } : {}),

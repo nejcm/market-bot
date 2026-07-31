@@ -5,6 +5,7 @@ import type { RunDetail, RunSummary } from "../app/types";
 import {
   buildRunWorkspaceView,
   equityCompletenessView,
+  equityHeaderView,
   equitySnapshotView,
   peerImpliedRangeView,
   valuationWorkbenchView,
@@ -480,7 +481,22 @@ describe("run workspace view", () => {
         { key: "operatingKpis", status: "partial" },
       ],
     });
-    expect(workspace.equityCompleteness).toEqual(completeness);
+    expect(workspace.equityPresentation?.defaultView.financialCoreStatus).toBe("complete");
+    expect(workspace.equityPresentation?.advanced.completeness).toMatchObject({
+      coverageLevel: "limited",
+      dimensions: [
+        {
+          key: "primaryFinancials",
+          status: "complete",
+          reasonCodes: primaryFinancials.reasonCodes,
+          sourceIds: primaryFinancials.sourceIds,
+        },
+        { key: "valuation", status: "partial" },
+        { key: "expectations", status: "partial" },
+        { key: "capitalOwnership", status: "partial" },
+        { key: "operatingKpis", status: "partial" },
+      ],
+    });
     expect(tocKeys(workspace)).toContain("advanced");
   });
 
@@ -488,8 +504,9 @@ describe("run workspace view", () => {
     const detail: RunDetail = { summary: summary(), report: { summary: "Historical" } };
 
     expect(equityCompletenessView(detail)).toBeUndefined();
-    expect(buildRunWorkspaceView(detail).equityCompleteness).toBeUndefined();
-    expect(tocKeys(buildRunWorkspaceView(detail))).not.toContain("equityCompleteness");
+    const workspace = buildRunWorkspaceView(detail);
+    expect(workspace.equityPresentation?.defaultView.financialCoreStatus).toBeUndefined();
+    expect(workspace.equityPresentation?.advanced.completeness).toBeUndefined();
   });
 
   test("projects fundamental history into pre-scaled sparkline cards", () => {
@@ -700,12 +717,12 @@ describe("run workspace view", () => {
   });
 
   test("projects a matching equity snapshot into an unassessed header", () => {
-    const view = buildRunWorkspaceView({
+    const header = equityHeaderView({
       summary: summary(),
       marketSnapshots: [marketSnapshot()],
     });
 
-    expect(view.equityHeader).toEqual({
+    expect(header).toEqual({
       displayName: "Apple Inc.",
       symbol: "AAPL",
       price: "$211",
@@ -756,7 +773,7 @@ describe("run workspace view", () => {
   });
 
   test("renders negative-earnings P/E header tiles with the value and a caveat", () => {
-    const view = buildRunWorkspaceView({
+    const header = equityHeaderView({
       summary: summary(),
       marketSnapshots: [
         marketSnapshot({
@@ -770,7 +787,7 @@ describe("run workspace view", () => {
       ],
     });
 
-    expect(view.equityHeader?.financials).toEqual([
+    expect(header?.financials).toEqual([
       expect.objectContaining({ key: "marketCap" }),
       expect.objectContaining({ key: "trailingPE", value: "-40.00x (negative earnings)" }),
       expect.objectContaining({ key: "forwardPE", value: "-222.14x (negative earnings)" }),
@@ -788,45 +805,45 @@ describe("run workspace view", () => {
       identity: { displayName: "Rolls-Royce Holdings", quoteCurrency: "GBp" },
       price: 912.4,
     });
-    const view = buildRunWorkspaceView({
+    const header = equityHeaderView({
       summary: summary({ symbol: "RR.L" }),
       marketSnapshots: [gbpSnapshot],
     });
 
-    expect(view.equityHeader).toMatchObject({ price: "912.4p", quoteCurrency: "GBp" });
+    expect(header).toMatchObject({ price: "912.4p", quoteCurrency: "GBp" });
   });
 
   test("omits the equity header without snapshots or without an asset and symbol match", () => {
-    expect(buildRunWorkspaceView({ summary: summary() }).equityHeader).toBeUndefined();
+    expect(equityHeaderView({ summary: summary() })).toBeUndefined();
 
-    const researchView = buildRunWorkspaceView({
+    const researchHeader = equityHeaderView({
       summary: summary({ jobType: "research", assetClass: "research", symbol: "AI" }),
       marketSnapshots: [marketSnapshot()],
     });
-    expect(researchView.equityHeader).toBeUndefined();
+    expect(researchHeader).toBeUndefined();
 
-    const mismatchedView = buildRunWorkspaceView({
+    const mismatchedHeader = equityHeaderView({
       summary: summary(),
       marketSnapshots: [marketSnapshot({ symbol: "MSFT" })],
     });
-    expect(mismatchedView.equityHeader).toBeUndefined();
+    expect(mismatchedHeader).toBeUndefined();
   });
 
   test("falls back from identity display name to snapshot name and symbol", () => {
-    const named = buildRunWorkspaceView({
+    const named = equityHeaderView({
       summary: summary(),
       marketSnapshots: [marketSnapshot({ identity: { quoteCurrency: "USD" } })],
     });
     const { name: _name, ...unnamedSnapshot } = marketSnapshot({
       identity: { quoteCurrency: "USD" },
     });
-    const symbolOnly = buildRunWorkspaceView({
+    const symbolOnly = equityHeaderView({
       summary: summary(),
       marketSnapshots: [unnamedSnapshot],
     });
 
-    expect(named.equityHeader?.displayName).toBe("Apple");
-    expect(symbolOnly.equityHeader?.displayName).toBe("AAPL");
+    expect(named?.displayName).toBe("Apple");
+    expect(symbolOnly?.displayName).toBe("AAPL");
   });
 
   test("shows forecasts and table-of-contents entries for a disclosed forecast shortfall", () => {
@@ -1255,14 +1272,6 @@ describe("run workspace view", () => {
 
     const view = equitySnapshotView(detail);
 
-    expect(view?.sectionOrder).toEqual([
-      "pricePerformance",
-      "analysisCompleteness",
-      "peerReferenceRange",
-      "keyDatedMetrics",
-      "miniCharts",
-      "financialLensDrivers",
-    ]);
     expect(view?.pricePerformance).toMatchObject({
       state: "available",
       detailSectionKey: "snapshot",
@@ -1485,28 +1494,6 @@ describe("run workspace view", () => {
 
     const reader = view.equityPresentation?.defaultView;
     const advanced = view.equityPresentation?.advanced;
-    expect(reader?.sectionOrder).toEqual([
-      "identityPrice",
-      "companySummary",
-      "financialTrends",
-      "valuationContext",
-      "findings",
-      "catalystsRisks",
-      "earningsConsensus",
-      "coverageMaterialGaps",
-    ]);
-    expect(advanced?.sectionOrder).toEqual([
-      "financialLensDrivers",
-      "financialLensGroups",
-      "valuationWorkbench",
-      "reverseDcf",
-      "peerComps",
-      "institutionalAnalystOptions",
-      "diagnosticGaps",
-      "extendedEvidence",
-      "balanceSheetHistory",
-      "remainingResearchDetail",
-    ]);
     expect(reader?.financialTrends?.columns).toEqual([
       "Period",
       "Revenue",
@@ -1958,7 +1945,6 @@ describe("run workspace view", () => {
     const workspace = buildRunWorkspaceView(detail);
 
     expect(equitySnapshotView(detail)).toBeUndefined();
-    expect(workspace.equitySnapshot).toBeUndefined();
     expect(workspace.equityPresentation).toBeUndefined();
     expect(workspace.report.summary).toBe("Crypto summary.");
     expect(tocKeys(workspace)).toEqual(["summary"]);
@@ -1966,13 +1952,14 @@ describe("run workspace view", () => {
 
   test("keeps the equity reader projection for legacy runs without assetClass", () => {
     const { assetClass: _assetClass, ...legacySummary } = summary();
-    const workspace = buildRunWorkspaceView({
+    const detail: RunDetail = {
       summary: legacySummary,
       report: completenessReport(),
       marketSnapshots: [marketSnapshot()],
-    });
+    };
+    const workspace = buildRunWorkspaceView(detail);
 
-    expect(workspace.equitySnapshot).toBeDefined();
+    expect(equitySnapshotView(detail)).toBeDefined();
     expect(workspace.equityPresentation).toBeDefined();
   });
 

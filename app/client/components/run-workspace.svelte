@@ -15,7 +15,6 @@
     buildRunWorkspaceView,
     completenessReasonCodeLabel,
     type RunWorkspaceCaseKey,
-    type RunWorkspaceEquitySnapshotCard,
   } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
@@ -110,9 +109,8 @@
   const fundamentalHistory = $derived(workspace?.fundamentalHistory);
   const valuationWorkbench = $derived(workspace?.valuationWorkbench);
   const reverseDcf = $derived(workspace?.reverseDcf);
-  const equityCompleteness = $derived(workspace?.equityCompleteness);
+  const appendixCompleteness = $derived(equityPresentation?.advanced.completeness);
   const peerImpliedRange = $derived(workspace?.peerImpliedRange);
-  const equitySnapshot = $derived(workspace?.equitySnapshot);
   const targetHealth = $derived(workspace?.forecasts.targetHealth);
   const historicalAudit = $derived(workspace?.evidence.historicalContext);
   const showForecastsSection = $derived(workspace?.forecasts.visible ?? false);
@@ -257,23 +255,6 @@
 {#snippet sectionHeading(label: string)}
   <div class="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
     {label}
-  </div>
-{/snippet}
-
-{#snippet snapshotCardActions(card: RunWorkspaceEquitySnapshotCard)}
-  <div class="flex shrink-0 items-center gap-2">
-    <span class="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
-      {card.state}
-    </span>
-    {#if card.detailSectionMounted}
-      <button
-        class="font-mono text-[9px] uppercase tracking-wider text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        type="button"
-        onclick={() => scrollToSection(card.detailSectionKey)}
-      >
-        View evidence
-      </button>
-    {/if}
   </div>
 {/snippet}
 
@@ -523,18 +504,17 @@
                 <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]">
                   Coverage & material gaps
                 </span>
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    class="rounded border px-2 py-1 font-mono text-[10px] {COMPLETENESS_STATUS_CLASSES[
-                      equityPresentation.defaultView.coverage.financialCoreStatus
-                    ]}"
-                  >
-                    financial core · {equityPresentation.defaultView.coverage.financialCoreStatus}
-                  </span>
-                  <span class="rounded border border-border bg-secondary px-2 py-1 font-mono text-[10px]">
-                    coverage · {equityPresentation.defaultView.coverage.coverageLevel ?? "unavailable"}
-                  </span>
-                </div>
+                {#if equityPresentation.defaultView.financialCoreStatus !== undefined}
+                  <div class="flex flex-wrap gap-2">
+                    <span
+                      class="rounded border px-2 py-1 font-mono text-[10px] {COMPLETENESS_STATUS_CLASSES[
+                        equityPresentation.defaultView.financialCoreStatus
+                      ]}"
+                    >
+                      financial core · {equityPresentation.defaultView.financialCoreStatus}
+                    </span>
+                  </div>
+                {/if}
               </div>
               {#if equityPresentation.defaultView.materialGaps.length === 0}
                 <div class="mt-3 text-sm text-muted-foreground">No material gaps identified.</div>
@@ -550,251 +530,6 @@
                   {/each}
                 </div>
               {/if}
-            </section>
-          {/if}
-
-          {#if equityPresentation === undefined && equitySnapshot !== undefined}
-            <section class="mb-6">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  Equity snapshot
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]"> neutral evidence summary </span>
-              </div>
-
-              <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                      {equitySnapshot.pricePerformance.label}
-                    </div>
-                    {@render snapshotCardActions(equitySnapshot.pricePerformance)}
-                  </div>
-                  <div class="mt-2 flex items-baseline gap-2 font-mono">
-                    <span class="text-[18px] font-semibold">
-                      {equitySnapshot.pricePerformance.price ?? "Unavailable"}
-                    </span>
-                    <span
-                      class="text-[12px] font-medium {equitySnapshot.pricePerformance
-                        .changeDirection === 'positive'
-                        ? 'text-[#0F9D58]'
-                        : equitySnapshot.pricePerformance.changeDirection === 'negative'
-                          ? 'text-[#9B0F06]'
-                          : 'text-muted-foreground'}"
-                    >
-                      {equitySnapshot.pricePerformance.change24h ?? "24h unavailable"}
-                    </span>
-                  </div>
-                  <div class="mt-1 text-[10px] text-muted-foreground">
-                    Quote currency · {equitySnapshot.pricePerformance.quoteCurrency ?? "unavailable"}
-                  </div>
-                  <div class="mt-1 font-mono text-[9px] text-[#8a8f96]">
-                    {#if equitySnapshot.pricePerformance.priceAsOf !== undefined}
-                      {equitySnapshot.pricePerformance.priceAsOf.kind === "quote-time"
-                        ? "Quote time"
-                        : "Fetch time"} · {equitySnapshot.pricePerformance.priceAsOf.instant}
-                    {:else}
-                      Price time unavailable
-                    {/if}
-                  </div>
-                  {#if equitySnapshot.pricePerformance.sourceIds.length > 0}
-                    <div class="mt-1.5 flex flex-wrap gap-y-1">
-                      {@render citeChips(equitySnapshot.pricePerformance.sourceIds)}
-                    </div>
-                  {/if}
-                </div>
-
-                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                      {equitySnapshot.peerReferenceRange.label}
-                    </div>
-                    {@render snapshotCardActions(equitySnapshot.peerReferenceRange)}
-                  </div>
-                  <div class="mt-2 font-mono text-[13px] font-medium">
-                    {equitySnapshot.peerReferenceRange.display}
-                  </div>
-                  {#if equitySnapshot.peerReferenceRange.positionLabel !== undefined}
-                    <div class="mt-1 text-[10px] text-primary">
-                      {equitySnapshot.peerReferenceRange.positionLabel}
-                    </div>
-                  {/if}
-                  {#if equitySnapshot.peerReferenceRange.sourceIds.length > 0}
-                    <div class="mt-1.5 flex flex-wrap gap-y-1">
-                      {@render citeChips(equitySnapshot.peerReferenceRange.sourceIds)}
-                    </div>
-                  {/if}
-                </div>
-              </div>
-
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                    {equitySnapshot.analysisCompleteness.label}
-                  </div>
-                  {@render snapshotCardActions(equitySnapshot.analysisCompleteness)}
-                </div>
-                {#if equitySnapshot.analysisCompleteness.state === "unavailable"}
-                  <div class="mt-2 text-sm text-muted-foreground">Unavailable</div>
-                {:else}
-                  <div class="mt-2 flex flex-wrap gap-2 font-mono text-[10px]">
-                    <span
-                      class="rounded border px-2 py-1 {COMPLETENESS_STATUS_CLASSES[
-                        equitySnapshot.analysisCompleteness.financialCoreStatus ?? 'partial'
-                      ]}"
-                    >
-                      financial core · {equitySnapshot.analysisCompleteness.financialCoreStatus}
-                    </span>
-                    <span class="rounded border border-border bg-secondary px-2 py-1">
-                      coverage · {equitySnapshot.analysisCompleteness.coverageLevel}
-                    </span>
-                  </div>
-                  <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {#each equitySnapshot.analysisCompleteness.dimensions as dimension}
-                      <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                        <div class="flex items-start justify-between gap-2">
-                          <span class="text-[9px] font-semibold uppercase tracking-wider">
-                            {dimension.label}
-                          </span>
-                          <span
-                            class="rounded border px-1.5 py-0.5 font-mono text-[8px] {COMPLETENESS_STATUS_CLASSES[
-                              dimension.status
-                            ]}"
-                          >
-                            {dimension.status.replaceAll("-", " ")}
-                          </span>
-                        </div>
-                        <div class="mt-1 text-[9px] leading-snug text-muted-foreground">
-                          {dimension.reasons.join(" · ") || "No additional reason"}
-                        </div>
-                        {#if dimension.sourceIds.length > 0}
-                          <div class="mt-1 flex flex-wrap gap-y-1">
-                            {@render citeChips(dimension.sourceIds)}
-                          </div>
-                        {/if}
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                    {equitySnapshot.keyDatedMetrics.label}
-                  </div>
-                  {@render snapshotCardActions(equitySnapshot.keyDatedMetrics)}
-                </div>
-                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-                  {#each [...equitySnapshot.keyDatedMetrics.metrics, ...equitySnapshot.keyDatedMetrics.foldedYahooMetrics] as metric}
-                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                      <div class="font-mono text-[13px] font-semibold">
-                        {metric.value ?? "Unavailable"}
-                      </div>
-                      <div class="mt-0.5 flex items-center justify-between gap-2 text-[9px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                        <span>{metric.label}</span>
-                        <span class="font-mono text-[8px] font-normal text-muted-foreground">
-                          {metric.state}
-                        </span>
-                      </div>
-                      <div class="mt-1 font-mono text-[8px] leading-snug text-[#8a8f96]">
-                        {metric.dateBasis ?? "Date unavailable"}
-                      </div>
-                      {#if metric.sourceIds.length > 0}
-                        <div class="mt-1 flex flex-wrap gap-y-1">
-                          {@render citeChips(metric.sourceIds)}
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  {equitySnapshot.miniCharts.label}
-                </div>
-                <div class="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
-                  {#each equitySnapshot.miniCharts.charts as chart}
-                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                      <div class="flex items-start justify-between gap-2">
-                        <span class="text-[9px] font-semibold uppercase tracking-wider">
-                          {chart.label}
-                        </span>
-                        {@render snapshotCardActions(chart)}
-                      </div>
-                      {#if chart.geometry === undefined}
-                        <div class="mt-3 text-xs text-muted-foreground">Unavailable</div>
-                      {:else}
-                        <div class="mt-1 flex items-baseline justify-between gap-2">
-                          <span class="font-mono text-[12px] font-semibold">{chart.value}</span>
-                          <span class="font-mono text-[8px] text-[#8a8f96]">{chart.state}</span>
-                        </div>
-                        <SparklineBars geometry={chart.geometry} label={`${chart.label} history`} />
-                        <div class="font-mono text-[8px] text-[#8a8f96]">{chart.period}</div>
-                        {#if chart.sourceIds.length > 0}
-                          <div class="mt-1 flex flex-wrap gap-y-1">
-                            {@render citeChips(chart.sourceIds)}
-                          </div>
-                        {/if}
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  {equitySnapshot.financialLensDrivers.label}
-                </div>
-                <div class="mt-2 grid gap-2 sm:grid-cols-3">
-                  <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                    <div class="flex items-start justify-between gap-2">
-                      <span class="text-[9px] font-semibold uppercase tracking-wider">
-                        {equitySnapshot.financialLensDrivers.postures.label}
-                      </span>
-                      {@render snapshotCardActions(equitySnapshot.financialLensDrivers.postures)}
-                    </div>
-                    {#if equitySnapshot.financialLensDrivers.postures.items.length === 0}
-                      <div class="mt-2 text-xs text-muted-foreground">Unavailable</div>
-                    {:else}
-                      <div class="mt-2 space-y-1.5">
-                        {#each equitySnapshot.financialLensDrivers.postures.items as posture}
-                          <div>
-                            <span class="text-[10px] font-medium">{posture.lens}</span>
-                            <span class="font-mono text-[9px] text-muted-foreground">
-                              · {posture.postureLabel}
-                            </span>
-                            {@render citeChips(posture.sourceIds)}
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
-                  </div>
-                  {#each [equitySnapshot.financialLensDrivers.bullCase, equitySnapshot.financialLensDrivers.bearCase] as driverCard}
-                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                      <div class="flex items-start justify-between gap-2">
-                        <span class="text-[9px] font-semibold uppercase tracking-wider">
-                          {driverCard.label}
-                        </span>
-                        {@render snapshotCardActions(driverCard)}
-                      </div>
-                      {#if driverCard.items.length === 0}
-                        <div class="mt-2 text-xs text-muted-foreground">Unavailable</div>
-                      {:else}
-                        <div class="mt-2 space-y-2">
-                          {#each driverCard.items as item}
-                            <div class="font-serif text-[12px] leading-snug">
-                              {item.text}
-                              {@render citeChips(item.sourceIds)}
-                            </div>
-                          {/each}
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
             </section>
           {/if}
 
@@ -823,30 +558,23 @@
             </div>
           {/if}
 
-          {#if equityCompleteness !== undefined}
+          {#if appendixCompleteness !== undefined}
             <section {@attach bindSection("equityCompleteness")} class="mt-5 scroll-mt-5">
               <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
                 <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  {equityPresentation === undefined
-                    ? "Analysis completeness"
-                    : "Completeness diagnostics"}
+                  Completeness diagnostics
                 </span>
                 <span class="font-mono text-[10px] text-[#8a8f96]">
-                  as of {equityCompleteness.asOf}
+                  as of {appendixCompleteness.asOf}
                 </span>
               </div>
-              {#if equityPresentation === undefined}
-                <div class="mt-3 flex flex-wrap gap-2 font-mono text-[10px]">
-                  <span class="rounded border px-2 py-1 {COMPLETENESS_STATUS_CLASSES[equityCompleteness.financialCoreStatus]}">
-                    financial core · {equityCompleteness.financialCoreStatus}
-                  </span>
-                  <span class="rounded border border-border bg-secondary px-2 py-1 text-foreground">
-                    coverage · {equityCompleteness.coverageLevel}
-                  </span>
-                </div>
-              {/if}
+              <div class="mt-3 flex flex-wrap gap-2 font-mono text-[10px]">
+                <span class="rounded border border-border bg-secondary px-2 py-1 text-foreground">
+                  coverage · {appendixCompleteness.coverageLevel}
+                </span>
+              </div>
               <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {#each equityCompleteness.dimensions as dimension}
+                {#each appendixCompleteness.dimensions as dimension}
                   <div class="rounded-lg border border-border bg-card px-3 py-2.5">
                     <div class="flex items-start justify-between gap-2">
                       <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">

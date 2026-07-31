@@ -2,9 +2,7 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
   import {
-    formatClose,
     formatDate,
-    formatDateMinute,
     jsonBlock,
     runLabel,
     formatShortfallGap,
@@ -21,6 +19,9 @@
   import SparklineBars from "./sparkline-bars.svelte";
   import RangeBar from "./range-bar.svelte";
   import RunChat from "./run-chat.svelte";
+  import ObservableForecasts from "./observable-forecasts.svelte";
+  import WebSubjectProfile from "./web-subject-profile.svelte";
+  import BusinessFramework from "./business-framework.svelte";
 
   interface Props {
     readonly activeTab: Tab;
@@ -156,11 +157,6 @@
     missAutopsy: "Miss autopsy",
   };
 
-  const DISAGREEMENT_BADGE_CLASSES: Record<string, string> = {
-    low: "border-[#cfe0e3] bg-accent text-primary",
-    medium: "border-[#d9c89a] bg-[#f5ecd6] text-[#8a6116]",
-    high: "border-[#b8bdc3] bg-[#eef0f2] text-[#3f454b]",
-  };
   const FINANCIAL_LENS_TILE_CLASSES: Record<FinancialLensStatTone, string> = {
     strong: "bg-[#dff2e7]",
     healthy: "bg-[#e1f0f2]",
@@ -182,14 +178,6 @@
     weak: "text-[#9B0F06]",
     neutral: "text-foreground",
   };
-
-  function percent(value: number): string {
-    return `${String(Math.round(value * 100))}%`;
-  }
-
-  function spreadPoints(value: number): string {
-    return `${String(Math.round(value * 100))}pp`;
-  }
 
   const dataContent = $derived.by(() => {
     if (detail === null) {
@@ -225,16 +213,6 @@
     cite = null;
     onHighlightSource(sourceId);
     onTabChange("sources");
-  }
-
-  function subjectSymbols(subject: string | undefined): readonly string[] {
-    if (subject === undefined) {
-      return [];
-    }
-    return subject
-      .split(":")
-      .map((part) => part.trim().toUpperCase())
-      .filter((part) => /^[A-Z0-9._-]+$/u.test(part));
   }
 </script>
 
@@ -1157,157 +1135,11 @@
           {/if}
 
           {#if webSubjectProfile !== undefined}
-            <section {@attach bindSection("webSubjectProfile")} class="mt-8.5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#d9c89a] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]">
-                  Web Subject Profile
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  low-trust web evidence
-                  {#if webSubjectProfile.generatedAt !== undefined}
-                    · {formatDateMinute(webSubjectProfile.generatedAt)}
-                  {/if}
-                </span>
-              </div>
-              {#if webSubjectProfile.subjectLabel !== undefined}
-                <div class="mt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                  {webSubjectProfile.subjectLabel}
-                </div>
-              {/if}
-              {#if webSubjectProfile.subjectSummary !== undefined}
-                <div
-                  class="mt-3 rounded-lg border border-[#e9ddc2] bg-[#fbf6ea] px-4 py-3 text-[13px] leading-[1.55] text-[#4a4334]"
-                >
-                  {webSubjectProfile.subjectSummary.answer}
-                  {@render citeChips(webSubjectProfile.subjectSummary.sourceIds)}
-                </div>
-              {/if}
-              <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
-                {#each webSubjectProfile.questions as question}
-                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
-                    <div class="text-[12.5px] font-semibold text-foreground">
-                      {question.label}
-                    </div>
-                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
-                      {question.answer}
-                    </div>
-                    {@render citeChips(question.sourceIds)}
-                  </div>
-                {/each}
-              </div>
-              {#if webSubjectProfile.recentMaterialEvents.length > 0}
-                <div class="mt-4">
-                  <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
-                    Recent material events
-                  </div>
-                  <div class="mt-2 space-y-2">
-                    {#each webSubjectProfile.recentMaterialEvents as event}
-                      <div
-                        class="rounded-lg border border-[#e9ddc2] bg-[#fbf6ea] px-4 py-2.5 text-[12.5px] text-[#4a4334]"
-                      >
-                        {event.claim}
-                        {@render citeChips(event.sourceIds)}
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-              {#if webSubjectProfile.factLedger.length > 0}
-                <div class="mt-4">
-                  <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
-                    Fact ledger
-                  </div>
-                  <div class="mt-2 space-y-2">
-                    {#each webSubjectProfile.factLedger as fact}
-                      <div class="rounded-lg border border-border bg-card px-4 py-2.5 text-[12.5px] text-[#45494e]">
-                        {fact.claim}
-                        {@render citeChips(fact.sourceIds)}
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-              {#if webSubjectProfile.openGaps.length > 0}
-                <div class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
-                  <div class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
-                    Profile gaps
-                  </div>
-                  <div class="space-y-1 text-[12.5px] text-[#5c6066]">
-                    {#each webSubjectProfile.openGaps as gap}
-                      <div>{gap}</div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </section>
+            <WebSubjectProfile profile={webSubjectProfile} {citeChips} {bindSection} />
           {/if}
 
           {#if businessFramework !== undefined}
-            <section {@attach bindSection("businessFramework")} class="mt-8.5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  Business framework
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  phase · {businessFramework.phase}
-                </span>
-              </div>
-              <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
-                {#each businessFramework.sections as section}
-                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
-                    <div class="flex flex-wrap items-center gap-2">
-                      {#if section.name !== "Phase"}
-                        <span
-                          class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary"
-                        >
-                          {section.posture.replaceAll("-", " ")}
-                        </span>
-                      {/if}
-                      <div class="text-[12.5px] font-semibold text-foreground">
-                        {section.name}
-                      </div>
-                    </div>
-                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
-                      {section.text ?? section.summary}
-                    </div>
-                    {#if section.metrics.length > 0}
-                      <div class="mt-3 grid grid-cols-2 gap-2">
-                        {#each section.metrics.slice(0, 4) as metric}
-                          <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
-                            <div class="font-mono text-[12px] font-medium text-foreground">
-                              {metric.value}
-                            </div>
-                            <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
-                              {metric.label}
-                            </div>
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
-                    {@render citeChips(section.sourceIds)}
-                    {#if section.gaps.length > 0}
-                      <div class="mt-2 space-y-1 font-mono text-[10px] leading-normal text-[#8a6116]">
-                        {#each section.gaps as gap}
-                          <div>{gap}</div>
-                        {/each}
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-              {#if businessFramework.gaps.length > 0}
-                <div class="mt-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
-                  <div class="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6116]">
-                    Framework data gaps
-                  </div>
-                  <div class="space-y-1 text-[12.5px] text-[#5c6066]">
-                    {#each businessFramework.gaps as gap}
-                      <div>{gap}</div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </section>
+            <BusinessFramework framework={businessFramework} {citeChips} {bindSection} />
           {/if}
 
           {#if (equityPresentation?.advanced.analystEstimateDistributions.length ?? 0) > 0}
@@ -1393,177 +1225,16 @@
           {/if}
 
           {#if showForecastsSection}
-            <section {@attach bindSection("forecasts")} class="mt-8.5 scroll-mt-5">
-              <div class="flex items-baseline justify-between border-b border-border pb-2">
-                <div class="flex items-center gap-2">
-                  <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                    Observable forecasts
-                  </span>
-                  {#if targetHealth !== undefined && !targetHealth.targetMet}
-                    <span
-                      class="rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
-                    >
-                      BELOW TARGET
-                    </span>
-                  {/if}
-                </div>
-                <span class="font-mono text-[10px] text-[#a8acb1]">
-                  {#if targetHealth !== undefined}
-                    {targetHealth.count} / {targetHealth.target} target ·
-                  {/if}
-                  {#if forecastStats.resolved > 0}
-                    scored {forecastStats.resolved}/{forecastStats.total} ·
-                    {forecastStats.hits} event true · {forecastStats.misses} event false ·
-                    {#if forecastStats.voided > 0}
-                      {forecastStats.voided} voided ·
-                    {/if}
-                  {/if}
-                  td = trading days
-                </span>
-              </div>
-              {#if forecastItems.length === 0}
-                <div class="py-4 text-sm text-muted-foreground">No forecasts emitted for this run.</div>
-              {/if}
-              {#each groupedForecastItems as group}
-                {#if group.antecedent !== undefined}
-                  <div
-                    class="border-b border-[#f0ede7] bg-[#fbfaf7] px-2 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-[#5c6066]"
-                  >
-                    If {group.antecedent}
-                  </div>
-                {/if}
-                {#each group.forecasts as forecast}
-                  <div
-                    class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_132px] sm:gap-4"
-                  >
-                    <div class="font-serif text-sm leading-normal text-[#1f2225]">
-                      {forecast.claim}
-                      {@render citeChips(forecast.sourceIds)}
-                      {#if forecast.score?.resolved === true && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
-                        <span class="mt-1 block font-mono text-[10.5px] text-[#8a8f96]">
-                          close {formatClose(forecast.score.close0)} → {formatClose(forecast.score.closeN)}
-                          {#if forecast.score.changePct !== undefined}
-                            ({forecast.score.changePct > 0 ? "+" : ""}{forecast.score.changePct.toFixed(1)}%)
-                          {/if}
-                          {#if forecast.score.observedAt !== undefined}
-                            · observed {formatDateMinute(forecast.score.observedAt)}
-                          {/if}
-                        </span>
-                      {/if}
-                      {#if forecast.missAutopsy !== undefined}
-                        <span class="mt-1 block text-[11.5px] leading-normal text-[#5c6066]">
-                          Autopsy: {forecast.missAutopsy.rationale}
-                        </span>
-                      {/if}
-                    </div>
-                    <div>
-                      {#if forecast.kind !== undefined}
-                        <span
-                          class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
-                        >
-                          {forecast.kind}
-                        </span>
-                      {/if}
-                      <div class="mt-1 flex flex-wrap gap-1">
-                        {#each subjectSymbols(forecast.subject) as symbol}
-                          <button
-                            class="rounded border border-[#cfe0e3] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            type="button"
-                            onclick={() => onOpenInstrument(detail.summary.assetClass ?? "", symbol)}
-                          >
-                            {symbol}
-                          </button>
-                        {/each}
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      {#if forecast.probability !== undefined}
-                        {@const pct = Math.round(forecast.probability * 100)}
-                        <div class="h-1 flex-1 rounded-sm bg-[#f0ede7]">
-                          <div class="h-1 rounded-sm bg-[#4ba3b2]" style="width: {pct}%"></div>
-                        </div>
-                        <span class="w-8.5 text-right font-mono text-xs font-medium">{pct}%</span>
-                      {/if}
-                    </div>
-                    <div class="text-left font-mono text-[11.5px] text-[#5c6066] sm:text-right">
-                      {forecast.horizonTradingDays === undefined ? "" : `${forecast.horizonTradingDays} td`}
-                    </div>
-                    <div class="flex flex-wrap gap-1.5 sm:justify-end">
-                      {#if forecast.score?.outcome === "hit"}
-                        <span
-                          class="rounded border border-[#9fc2c8] bg-[#e7f1f3] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
-                        >
-                          EVENT TRUE
-                        </span>
-                      {:else if forecast.score?.outcome === "miss"}
-                        <span
-                          class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
-                        >
-                          EVENT FALSE
-                        </span>
-                      {:else if forecast.score?.status === "voided"}
-                        <span
-                          class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-                          title={forecast.score?.pendingReason ?? "condition unmet"}
-                        >
-                          VOIDED
-                        </span>
-                      {:else if forecast.score?.status === "active-pending"}
-                        <span
-                          class="rounded border border-dashed border-[#9fc2c8] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
-                          title={forecast.score?.pendingReason ?? "condition met; consequent pending"}
-                        >
-                          ACTIVE
-                        </span>
-                      {:else if forecast.score?.status === "pending-condition"}
-                        <span
-                          class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
-                          title={forecast.score?.pendingReason ?? "condition pending"}
-                        >
-                          CONDITION PENDING
-                        </span>
-                      {:else if forecast.score?.status === "abandoned"}
-                        <span
-                          class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-                          title={forecast.score?.pendingReason ?? "scoring abandoned"}
-                        >
-                          ABANDONED
-                        </span>
-                      {:else}
-                        <span
-                          class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
-                          title={forecast.score?.pendingReason ?? "not yet scored"}
-                        >
-                          PENDING
-                        </span>
-                      {/if}
-                      {#if forecast.forecastDisagreement !== undefined}
-                        <span
-                          class="rounded border px-1.75 py-0.5 font-mono text-[10px] {DISAGREEMENT_BADGE_CLASSES[
-                            forecast.forecastDisagreement.band
-                          ]}"
-                          title="Forecast Disagreement: {forecast.forecastDisagreement.band} spread; mean {percent(
-                            forecast.forecastDisagreement.meanProbability,
-                          )}; spread {spreadPoints(forecast.forecastDisagreement.probabilitySpread)}; {forecast
-                            .forecastDisagreement.participantCount} model probabilities"
-                        >
-                          FD {forecast.forecastDisagreement.band.toUpperCase()}
-                          {spreadPoints(forecast.forecastDisagreement.probabilitySpread)}
-                        </span>
-                      {/if}
-                      {#if forecast.missAutopsy !== undefined}
-                        <span
-                          class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
-                          title={forecast.missAutopsy.supportingSignals.join("; ") || forecast.missAutopsy.rationale}
-                        >
-                          AUTOPSY {forecast.missAutopsy.cause}
-                        </span>
-                      {/if}
-                    </div>
-                  </div>
-                {/each}
-              {/each}
-            </section>
+            <ObservableForecasts
+              {forecastItems}
+              {groupedForecastItems}
+              {forecastStats}
+              {targetHealth}
+              assetClass={detail.summary.assetClass ?? ""}
+              {citeChips}
+              {bindSection}
+              {onOpenInstrument}
+            />
           {/if}
 
           {#if showGapsSection}

@@ -2045,4 +2045,45 @@ describe("run workspace view", () => {
       withoutPermittedPeerPhrase(consoleSource).match(BANNED_SNAPSHOT_CONSOLE_TOKENS),
     ).toBeNull();
   });
+
+  test("server-renders the extracted observable-forecasts component with scored evidence", async () => {
+    const html = await renderRunWorkspaceComponent({
+      summary: summary({ availableFiles: ["score.json"], hasScore: true }),
+      report: {
+        ...completenessReport(),
+        predictions: [
+          {
+            id: "prediction-1",
+            claim: "AAPL rises.",
+            kind: "direction",
+            subject: "AAPL",
+            measurableAs: "AAPL close > 211",
+            probability: 0.6,
+            horizonTradingDays: 5,
+            sourceIds: ["source-bull"],
+          },
+        ],
+      },
+      score: {
+        scores: [
+          {
+            predictionId: "prediction-1",
+            resolved: true,
+            outcome: "hit",
+            evidence: { close0: 211, closeN: 215 },
+          },
+        ],
+      },
+      analytics: { predictions: { count: 1, targetCount: 3, targetMet: false } },
+    });
+    const text = html
+      .replaceAll(/<[^>]+>/gu, " ")
+      .replaceAll(/\s+/gu, " ")
+      .trim();
+
+    expect(text).toContain("Observable forecasts");
+    expect(text).toContain("AAPL rises.");
+    expect(text).toContain("EVENT TRUE");
+    expect(text).toContain("BELOW TARGET");
+  });
 });

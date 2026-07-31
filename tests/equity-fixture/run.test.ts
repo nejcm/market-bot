@@ -141,6 +141,7 @@ describe("static equity run fixtures", () => {
     const appendixOnly = [
       "\n### Balance Sheet and Share Count\n",
       "\n### Business Framework\n",
+      "\n### Analyst Estimate Distributions\n",
       "\n### External Analyst Estimate Context\n",
       "\n### External Ownership Context\n",
       "\n### Extended Evidence\n",
@@ -172,6 +173,17 @@ describe("static equity run fixtures", () => {
     expect(reader).not.toContain("Debt");
     expect(reader).not.toContain("Diluted shares");
     expect(reader).toContain("this is valuation context, not a target price.");
+    expect(reader).toContain(
+      "this is valuation context, not a target price. [market-yahoo-equity-aapl]",
+    );
+    expect(reader).toContain(
+      "**EPS consensus:** 1.72 (single-provider snapshot) [extended-finnhub-events-aapl]",
+    );
+    expect(reader).toContain(
+      "**Revenue consensus:** 98.0B (single-provider snapshot) [extended-finnhub-events-aapl]",
+    );
+    expect(reader).not.toContain("predictionShortfall:");
+    expect(appendix).toContain("**Diagnostic:** predictionShortfall: emitted 2 of 5");
     expect(reader).not.toContain("fred-macro:");
     expect(appendix).toContain("fred-macro:");
     expect(appendix).toContain("**Diagnostic:** sec-edgar: Missing SEC company facts: grossProfit");
@@ -179,6 +191,14 @@ describe("static equity run fixtures", () => {
     expect(appendix).toContain("marketaux-news:");
     expect(reader).not.toContain("- **Median:**");
     expect(appendix).toContain("- **Median:**");
+    for (const title of [
+      "AAPL external EPS estimate consensus",
+      "AAPL external revenue estimate consensus",
+      "AAPL external EBITDA estimate consensus",
+    ]) {
+      expect(appendix!).toContain(`#### ${title}`);
+    }
+    expect(appendix!.match(/Mean \| Median \| High \| Low \| Count/gu)).toHaveLength(3);
     expect(appendix).not.toMatch(/^## /mu);
 
     const preservedReportContent = [

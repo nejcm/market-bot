@@ -1,9 +1,17 @@
 import { isRecord } from "../guards";
+import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../domain/types";
+import type {
+  FinancialStatementFact,
+  FinancialStatementsArtifact,
+} from "../sources/extended-evidence/financial-statements-contract";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistoryPoint,
   FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
+import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
+import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
+import { classifyGap } from "./gap-triage";
 
 export interface TrendPeriod {
   readonly kind: "annual" | "ttm";
@@ -30,6 +38,127 @@ export interface CompanyDescription {
   readonly sourceIds: readonly string[];
 }
 
+export interface EquityReaderFinancialTrends {
+  readonly reportingCurrency?: string;
+  readonly sourceIds: readonly string[];
+  readonly rows: readonly FinancialTrendRow[];
+}
+
+export interface EquityReaderStatementValue {
+  readonly value: number;
+  readonly filedAt: string;
+  readonly unit: string;
+  readonly unitScale: number;
+  readonly sourceIds: readonly string[];
+}
+
+export interface EquityReaderBalanceSheetRow extends LabeledPeriod {
+  readonly kind: "annual" | "interim";
+  readonly cash?: EquityReaderStatementValue;
+  readonly debt?: EquityReaderStatementValue;
+  readonly dilutedShares?: EquityReaderStatementValue;
+}
+
+export interface EquityReaderBalanceSheetHistory {
+  readonly reportingCurrency?: string;
+  readonly sourceIds: readonly string[];
+  readonly rows: readonly EquityReaderBalanceSheetRow[];
+}
+
+export interface EquityReaderMarketMultiple {
+  readonly key: "trailingPE" | "forwardPE" | "priceToBook";
+  readonly value: number;
+}
+
+export type EquityReaderValuationContext =
+  | {
+      readonly kind: "peer-range";
+      readonly status: "derived";
+      readonly range: Extract<PeerImpliedRange, { status: "derived" }>;
+      readonly priceAsOf?: MarketSnapshotPriceAsOf;
+      readonly sourceIds: readonly string[];
+    }
+  | {
+      readonly kind: "peer-range";
+      readonly status: "suppressed";
+      readonly range: Extract<PeerImpliedRange, { status: "suppressed" }>;
+      readonly sourceIds: readonly string[];
+      readonly fallbackMetrics: readonly EquityReaderMarketMultiple[];
+      readonly fallbackSourceIds: readonly string[];
+    }
+  | {
+      readonly kind: "market-multiples";
+      readonly metrics: readonly EquityReaderMarketMultiple[];
+      readonly sourceIds: readonly string[];
+    }
+  | {
+      readonly kind: "unavailable";
+      readonly sourceIds: readonly string[];
+    };
+
+export type EquityReaderConsensusItem =
+  | {
+      readonly kind: "earnings-date";
+      readonly symbol: string;
+      readonly date: string;
+      readonly timing: string;
+      readonly status: string;
+      readonly sourceIds: readonly string[];
+    }
+  | {
+      readonly kind: "eps-consensus";
+      readonly value: number;
+      readonly sourceIds: readonly string[];
+    }
+  | {
+      readonly kind: "revenue-consensus";
+      readonly value: number;
+      readonly sourceIds: readonly string[];
+    }
+  | {
+      readonly kind: "analyst-consensus";
+      readonly title: string;
+      readonly mean: number;
+      readonly period?: string;
+      readonly count?: number;
+      readonly sourceIds: readonly string[];
+    };
+
+export interface EquityReaderAnalystEstimateDistribution {
+  readonly title: string;
+  readonly period?: string;
+  readonly mean?: number;
+  readonly median?: number;
+  readonly high?: number;
+  readonly low?: number;
+  readonly count?: number;
+  readonly sourceIds: readonly string[];
+}
+
+export interface EquityReaderProjection {
+  readonly defaultView: {
+    readonly financialTrends?: EquityReaderFinancialTrends;
+    readonly valuationContext: EquityReaderValuationContext;
+    readonly earningsConsensus: readonly EquityReaderConsensusItem[];
+    readonly materialGaps: readonly string[];
+  };
+  readonly appendix: {
+    readonly balanceSheetHistory?: EquityReaderBalanceSheetHistory;
+    readonly analystEstimateDistributions: readonly EquityReaderAnalystEstimateDistribution[];
+    readonly diagnosticGaps: readonly string[];
+    readonly predictionShortfalls: readonly string[];
+  };
+}
+
+export interface EquityReaderProjectionInput {
+  readonly report: unknown;
+  readonly marketSnapshot?: MarketSnapshot;
+  readonly fundamentalHistory?: FundamentalHistoryArtifact;
+  readonly financialStatements?: FinancialStatementsArtifact;
+  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  readonly peerImpliedRange?: PeerImpliedRange;
+}
+
 interface CompanyDescriptionReport {
   readonly extras?: unknown;
   readonly sources?: unknown;
@@ -37,6 +166,7 @@ interface CompanyDescriptionReport {
 
 export const NO_COMPANY_DESCRIPTION = "No cited plain-language company description is available.";
 const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
+const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
 
 export function periodLabel(period: LabeledPeriod): string {
   if (period.kind === "ttm") {
@@ -152,6 +282,394 @@ export function financialTrendRows(
 
 export function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {
   return history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
+}
+
+function uniqueSourceIds(sourceIds: readonly string[]): readonly string[] {
+  return [...new Set(sourceIds)];
+}
+
+function stringArrayValue(value: unknown): readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+function financialTrends(
+  history: FundamentalHistoryArtifact | undefined,
+): EquityReaderFinancialTrends | undefined {
+  if (history === undefined) {
+    return undefined;
+  }
+  const rows = financialTrendRows(history);
+  if (rows.length === 0) {
+    return undefined;
+  }
+  const reportingCurrency = financialTrendCurrency(history);
+  return {
+    ...(reportingCurrency === undefined ? {} : { reportingCurrency }),
+    sourceIds: [history.sourceId],
+    rows,
+  };
+}
+
+function observableStatementFact(
+  fact: FinancialStatementFact,
+  cutoff: string,
+  periodEnd?: string,
+  filedAt?: string,
+): boolean {
+  return (
+    fact.periodEnd <= cutoff &&
+    fact.filedAt <= cutoff &&
+    (periodEnd === undefined || fact.periodEnd === periodEnd) &&
+    (filedAt === undefined || fact.filedAt === filedAt)
+  );
+}
+
+function compareStatementFacts(
+  left: FinancialStatementFact,
+  right: FinancialStatementFact,
+): number {
+  return (
+    right.periodEnd.localeCompare(left.periodEnd) ||
+    right.filedAt.localeCompare(left.filedAt) ||
+    Number(right.periodType === "annual") - Number(left.periodType === "annual")
+  );
+}
+
+function selectedStatementValue(
+  facts: readonly FinancialStatementFact[],
+  cutoff: string,
+  periodEnd: string,
+  filedAt: string,
+): EquityReaderStatementValue | undefined {
+  const fact = facts
+    .filter((candidate) => observableStatementFact(candidate, cutoff, periodEnd, filedAt))
+    .toSorted(compareStatementFacts)
+    .at(0);
+  if (fact === undefined) {
+    return undefined;
+  }
+  return {
+    value: fact.value,
+    filedAt: fact.filedAt,
+    unit: fact.unit,
+    unitScale: fact.unitScale,
+    sourceIds: fact.sourceIds,
+  };
+}
+
+function balanceSheetHistory(
+  artifact: FinancialStatementsArtifact | undefined,
+  reportGeneratedAt: string | undefined,
+): EquityReaderBalanceSheetHistory | undefined {
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
+  const { cash, debt } = artifact.statements.balanceSheet;
+  const { dilutedShares } = artifact.statements.perShare;
+  const series = [cash, debt, dilutedShares];
+  const facts = series.flatMap((item) => [...item.annual, ...item.interim]);
+  const periods = [
+    ...new Set(
+      facts.filter((fact) => observableStatementFact(fact, cutoff)).map((fact) => fact.periodEnd),
+    ),
+  ]
+    .toSorted()
+    .slice(-5);
+  const rows = periods.flatMap((periodEnd): readonly EquityReaderBalanceSheetRow[] => {
+    const filingFact = facts
+      .filter((fact) => observableStatementFact(fact, cutoff, periodEnd))
+      .toSorted(compareStatementFacts)
+      .at(0);
+    if (filingFact === undefined) {
+      return [];
+    }
+    const { filedAt, periodType: kind } = filingFact;
+    const cashValue = selectedStatementValue(
+      [...cash.annual, ...cash.interim],
+      cutoff,
+      periodEnd,
+      filedAt,
+    );
+    const debtValue = selectedStatementValue(
+      [...debt.annual, ...debt.interim],
+      cutoff,
+      periodEnd,
+      filedAt,
+    );
+    const dilutedSharesValue = selectedStatementValue(
+      [...dilutedShares.annual, ...dilutedShares.interim],
+      cutoff,
+      periodEnd,
+      filedAt,
+    );
+    return [
+      {
+        kind,
+        periodEnd,
+        filedAt,
+        ...(cashValue === undefined ? {} : { cash: cashValue }),
+        ...(debtValue === undefined ? {} : { debt: debtValue }),
+        ...(dilutedSharesValue === undefined ? {} : { dilutedShares: dilutedSharesValue }),
+      },
+    ];
+  });
+  if (rows.length === 0) {
+    return undefined;
+  }
+  return {
+    ...(artifact.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: artifact.reportingCurrency }),
+    sourceIds: uniqueSourceIds([
+      artifact.sourceId,
+      ...rows.flatMap((row) => [
+        ...(row.cash?.sourceIds ?? []),
+        ...(row.debt?.sourceIds ?? []),
+        ...(row.dilutedShares?.sourceIds ?? []),
+      ]),
+    ]),
+    rows,
+  };
+}
+
+function valuationSourceIds(workbench: ValuationWorkbenchArtifact | undefined): readonly string[] {
+  if (workbench?.peerComparison.status === "available") {
+    return workbench.peerComparison.valuationComps.sourceIds;
+  }
+  return workbench?.peerComparison.sourceIds ?? [];
+}
+
+function valuationPriceAsOf(
+  workbench: ValuationWorkbenchArtifact | undefined,
+  range: Extract<PeerImpliedRange, { status: "derived" }>,
+): MarketSnapshotPriceAsOf | undefined {
+  if (workbench?.peerComparison.status === "available") {
+    const { priceAsOf, quoteObservedAt } = workbench.peerComparison.valuationComps.target;
+    return (
+      priceAsOf ??
+      (quoteObservedAt === undefined
+        ? undefined
+        : { kind: "fetch-time-only", instant: quoteObservedAt })
+    );
+  }
+  const { quoteObservedAt } = range.inputs;
+  return quoteObservedAt === null
+    ? undefined
+    : { kind: "fetch-time-only", instant: quoteObservedAt };
+}
+
+function valuationContext(
+  marketSnapshot: MarketSnapshot | undefined,
+  workbench: ValuationWorkbenchArtifact | undefined,
+  projectedRange: PeerImpliedRange | undefined,
+): EquityReaderValuationContext {
+  const workbenchRange =
+    workbench?.peerComparison.status === "available"
+      ? workbench.peerComparison.valuationComps.impliedPriceRange
+      : undefined;
+  const range = projectedRange ?? workbenchRange;
+  const sourceIds = valuationSourceIds(workbench);
+  const fundamentals = marketSnapshot?.fundamentals;
+  const metrics = [
+    ...(fundamentals?.trailingPE === undefined
+      ? []
+      : [{ key: "trailingPE" as const, value: fundamentals.trailingPE }]),
+    ...(fundamentals?.forwardPE === undefined
+      ? []
+      : [{ key: "forwardPE" as const, value: fundamentals.forwardPE }]),
+    ...(fundamentals?.priceToBook === undefined
+      ? []
+      : [{ key: "priceToBook" as const, value: fundamentals.priceToBook }]),
+  ];
+  const marketSourceIds = marketSnapshot === undefined ? [] : [marketSnapshot.sourceId];
+  if (range?.status === "derived") {
+    const priceAsOf = valuationPriceAsOf(workbench, range);
+    return {
+      kind: "peer-range",
+      status: "derived",
+      range,
+      ...(priceAsOf === undefined ? {} : { priceAsOf }),
+      sourceIds,
+    };
+  }
+  if (range?.status === "suppressed") {
+    return {
+      kind: "peer-range",
+      status: "suppressed",
+      range,
+      sourceIds,
+      fallbackMetrics: metrics,
+      fallbackSourceIds: marketSourceIds,
+    };
+  }
+  if (metrics.length > 0 && marketSnapshot !== undefined) {
+    return {
+      kind: "market-multiples",
+      metrics,
+      sourceIds: [marketSnapshot.sourceId],
+    };
+  }
+  return { kind: "unavailable", sourceIds: [] };
+}
+
+function reportRecord(report: unknown): Record<string, unknown> | undefined {
+  return isRecord(report) ? report : undefined;
+}
+
+function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[] {
+  const record = reportRecord(report);
+  const extras = isRecord(record?.extras) ? record.extras : undefined;
+  const setup = isRecord(extras?.earningsSetup) ? extras.earningsSetup : undefined;
+  const event = isRecord(setup?.event) ? setup.event : undefined;
+  const items: EquityReaderConsensusItem[] = [];
+  if (event !== undefined) {
+    const sourceIds = stringArrayValue(event.sourceIds);
+    if (typeof event.date === "string") {
+      const { eventDateStatus, dateStatus, symbol: eventSymbol } = event;
+      let status = "confirmation unavailable";
+      if (typeof eventDateStatus === "string") {
+        status = eventDateStatus;
+      } else if (typeof dateStatus === "string") {
+        status = dateStatus;
+      }
+      let symbol = "";
+      const reportSymbol = record?.symbol;
+      if (typeof eventSymbol === "string") {
+        symbol = eventSymbol;
+      } else if (typeof reportSymbol === "string") {
+        symbol = reportSymbol;
+      }
+      items.push({
+        kind: "earnings-date",
+        symbol,
+        date: event.date,
+        timing: typeof event.timing === "string" ? event.timing : "timing unavailable",
+        status,
+        sourceIds,
+      });
+    }
+    if (typeof event.epsEstimate === "number") {
+      items.push({ kind: "eps-consensus", value: event.epsEstimate, sourceIds });
+    }
+    if (typeof event.revenueEstimate === "number") {
+      items.push({ kind: "revenue-consensus", value: event.revenueEstimate, sourceIds });
+    }
+  }
+  const extendedEvidence = isRecord(record?.extendedEvidence) ? record.extendedEvidence : undefined;
+  const extendedItems = Array.isArray(extendedEvidence?.items) ? extendedEvidence.items : [];
+  for (const item of extendedItems) {
+    if (
+      !isRecord(item) ||
+      item.category !== "analyst-estimates" ||
+      typeof item.title !== "string" ||
+      !isRecord(item.metrics) ||
+      typeof item.metrics.mean !== "number"
+    ) {
+      continue;
+    }
+    items.push({
+      kind: "analyst-consensus",
+      title: item.title,
+      mean: item.metrics.mean,
+      ...(typeof item.metrics.period === "string" ? { period: item.metrics.period } : {}),
+      ...(typeof item.metrics.count === "number" ? { count: item.metrics.count } : {}),
+      sourceIds: stringArrayValue(item.sourceIds),
+    });
+  }
+  return items;
+}
+
+function analystEstimateDistributions(
+  report: unknown,
+): readonly EquityReaderAnalystEstimateDistribution[] {
+  const record = reportRecord(report);
+  const extendedEvidence = isRecord(record?.extendedEvidence) ? record.extendedEvidence : undefined;
+  const items = Array.isArray(extendedEvidence?.items) ? extendedEvidence.items : [];
+  return items.flatMap((item): readonly EquityReaderAnalystEstimateDistribution[] => {
+    if (
+      !isRecord(item) ||
+      item.category !== "analyst-estimates" ||
+      typeof item.title !== "string" ||
+      !isRecord(item.metrics)
+    ) {
+      return [];
+    }
+    const { metrics } = item;
+    return [
+      {
+        title: item.title,
+        ...(typeof metrics.period === "string" ? { period: metrics.period } : {}),
+        ...(typeof metrics.mean === "number" ? { mean: metrics.mean } : {}),
+        ...(typeof metrics.median === "number" ? { median: metrics.median } : {}),
+        ...(typeof metrics.high === "number" ? { high: metrics.high } : {}),
+        ...(typeof metrics.low === "number" ? { low: metrics.low } : {}),
+        ...(typeof metrics.count === "number" ? { count: metrics.count } : {}),
+        sourceIds: stringArrayValue(item.sourceIds),
+      },
+    ];
+  });
+}
+
+function projectedGaps(
+  report: unknown,
+  history: FundamentalHistoryArtifact | undefined,
+): {
+  readonly material: readonly string[];
+  readonly diagnostic: readonly string[];
+  readonly predictionShortfalls: readonly string[];
+} {
+  const record = reportRecord(report);
+  const reportGaps = Array.isArray(record?.dataGaps)
+    ? record.dataGaps.filter((gap): gap is string => typeof gap === "string")
+    : [];
+  const gaps = [
+    ...new Set([...reportGaps, ...(history === undefined ? [] : financialTrendGaps(history))]),
+  ];
+  const reportSymbol = typeof record?.symbol === "string" ? record.symbol : undefined;
+  const material: string[] = [];
+  const diagnostic: string[] = [];
+  const predictionShortfalls: string[] = [];
+  for (const gap of gaps) {
+    if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
+      predictionShortfalls.push(gap);
+    } else if (classifyGap(gap, reportSymbol) === "diagnostic") {
+      diagnostic.push(gap);
+    } else {
+      material.push(gap);
+    }
+  }
+  return { material, diagnostic, predictionShortfalls };
+}
+
+export function projectEquityReader(input: EquityReaderProjectionInput): EquityReaderProjection {
+  const record = reportRecord(input.report);
+  const generatedAt = typeof record?.generatedAt === "string" ? record.generatedAt : undefined;
+  const gaps = projectedGaps(input.report, input.fundamentalHistory);
+  const projectedFinancialTrends = financialTrends(input.fundamentalHistory);
+  const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
+  return {
+    defaultView: {
+      ...(projectedFinancialTrends === undefined
+        ? {}
+        : { financialTrends: projectedFinancialTrends }),
+      valuationContext: valuationContext(
+        input.marketSnapshot,
+        input.valuationWorkbench,
+        input.peerImpliedRange,
+      ),
+      earningsConsensus: earningsConsensus(input.report),
+      materialGaps: gaps.material,
+    },
+    appendix: {
+      ...(projectedBalanceSheet === undefined
+        ? {}
+        : { balanceSheetHistory: projectedBalanceSheet }),
+      analystEstimateDistributions: analystEstimateDistributions(input.report),
+      diagnosticGaps: gaps.diagnostic,
+      predictionShortfalls: gaps.predictionShortfalls,
+    },
+  };
 }
 
 function hasPlainLanguageDescription(text: string): boolean {

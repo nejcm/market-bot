@@ -18,21 +18,23 @@ import {
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
-import { classifyGap } from "./gap-triage";
+import { classifyGap, type GapTriage } from "./gap-triage";
 import type { CollectedSources } from "../sources/types";
-import type { FinancialStatementSeries } from "../sources/extended-evidence/financial-statements-contract";
 import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
 import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
 import {
   companyDescription,
   compactNumber,
-  financialTrendCurrency,
-  financialTrendGaps,
-  financialTrendRows,
   formatTrendAmount,
   NO_COMPANY_DESCRIPTION,
   periodLabel,
-  trendPeriods,
+  projectEquityReader,
+  type EquityReaderAnalystEstimateDistribution,
+  type EquityReaderBalanceSheetHistory,
+  type EquityReaderConsensusItem,
+  type EquityReaderFinancialTrends,
+  type EquityReaderMarketMultiple,
+  type EquityReaderValuationContext,
 } from "./equity-reader";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
@@ -54,8 +56,8 @@ function markdownText(value: string): string {
   });
 }
 
-function renderGap(gap: string, reportSymbol?: string): string {
-  const triage = classifyGap(gap, reportSymbol);
+function renderGap(gap: string, reportSymbol?: string, placement?: GapTriage): string {
+  const triage = placement ?? classifyGap(gap, reportSymbol);
   return `- **${triage === "material" ? "Material" : "Diagnostic"}:** ${markdownText(gap)}`;
 }
 
@@ -288,33 +290,34 @@ function renderPriceAndMarketDate(
   return `## Price and Market Date\n\n${summary}${refs === "" ? "" : ` ${refs}`}\n`;
 }
 
-interface StatementPeriod {
-  readonly kind: "annual" | "interim";
-  readonly periodEnd: string;
-  readonly filedAt: string;
-}
-
 export function renderFinancialTrends(
   report: ResearchReport,
   sources: Pick<CollectedSources, "fundamentalHistory"> | undefined,
 ): string {
-  const history = sources?.fundamentalHistory;
-  if (history === undefined) {
+  const projection = projectEquityReader({
+    report,
+    ...(sources?.fundamentalHistory === undefined
+      ? {}
+      : { fundamentalHistory: sources.fundamentalHistory }),
+  });
+  return renderProjectedFinancialTrends(report, projection.defaultView.financialTrends);
+}
+
+function renderProjectedFinancialTrends(
+  report: ResearchReport,
+  trends: EquityReaderFinancialTrends | undefined,
+): string {
+  if (trends === undefined) {
     return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
   }
-  const trendRows = financialTrendRows(history);
-  if (trendRows.length === 0) {
-    return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
-  }
-  const rows = trendRows.map((row) =>
+  const rows = trends.rows.map((row) =>
     [row.period, row.revenue, row.netIncome, row.operatingMargin, row.freeCashFlow].join(" | "),
   );
-  const currency = financialTrendCurrency(history);
-  const refs = sourceRefs(knownSourceIds(report, [history.sourceId]));
+  const refs = sourceRefs(knownSourceIds(report, trends.sourceIds));
   return [
     "## Financial Trends",
     "",
-    `Amounts${currency === undefined ? "" : ` in ${markdownText(currency)}`}. FCF is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
     "",
     "Period | Revenue | Net income | Operating margin | FCF",
     "--- | ---: | ---: | ---: | ---:",
@@ -323,69 +326,26 @@ export function renderFinancialTrends(
   ].join("\n");
 }
 
-function statementPeriods(
-  financialStatements: NonNullable<CollectedSources["financialStatements"]>,
-): readonly StatementPeriod[] {
-  const { cash, debt } = financialStatements.statements.balanceSheet;
-  const { dilutedShares } = financialStatements.statements.perShare;
-  const periods = new Map<string, StatementPeriod>();
-  for (const series of [cash, debt, dilutedShares]) {
-    for (const kind of ["annual", "interim"] as const) {
-      for (const fact of series[kind]) {
-        const existing = periods.get(fact.periodEnd);
-        if (
-          existing === undefined ||
-          (kind === "annual" && existing.kind === "interim") ||
-          (kind === existing.kind && fact.filedAt < existing.filedAt)
-        ) {
-          periods.set(fact.periodEnd, {
-            kind,
-            periodEnd: fact.periodEnd,
-            filedAt: fact.filedAt,
-          });
-        }
-      }
-    }
-  }
-  return [...periods.values()]
-    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
-    .slice(-5);
-}
-
-function statementValue(series: FinancialStatementSeries, periodEnd: string): number | undefined {
-  return (
-    series.annual.find((fact) => fact.periodEnd === periodEnd)?.value ??
-    series.interim.find((fact) => fact.periodEnd === periodEnd)?.value
-  );
-}
-
 function renderBalanceSheetAndShareCount(
   report: ResearchReport,
-  sources: Pick<CollectedSources, "financialStatements"> | undefined,
+  history: EquityReaderBalanceSheetHistory | undefined,
 ): string {
-  const financialStatements = sources?.financialStatements;
-  if (financialStatements === undefined) {
+  if (history === undefined) {
     return "### Balance Sheet and Share Count\n\n- Balance-sheet and diluted-share history is unavailable.\n";
   }
-  const periods = statementPeriods(financialStatements);
-  if (periods.length === 0) {
-    return "### Balance Sheet and Share Count\n\n- Balance-sheet and diluted-share history is unavailable.\n";
-  }
-  const { cash, debt } = financialStatements.statements.balanceSheet;
-  const { dilutedShares } = financialStatements.statements.perShare;
-  const rows = periods.map((period) =>
+  const rows = history.rows.map((row) =>
     [
-      periodLabel(period),
-      formatTrendAmount(statementValue(cash, period.periodEnd)),
-      formatTrendAmount(statementValue(debt, period.periodEnd)),
-      formatTrendAmount(statementValue(dilutedShares, period.periodEnd)),
+      periodLabel(row),
+      formatTrendAmount(row.cash?.value),
+      formatTrendAmount(row.debt?.value),
+      formatTrendAmount(row.dilutedShares?.value),
     ].join(" | "),
   );
-  const refs = sourceRefs(knownSourceIds(report, [financialStatements.sourceId]));
+  const refs = sourceRefs(knownSourceIds(report, history.sourceIds));
   return [
     "### Balance Sheet and Share Count",
     "",
-    `Cash and debt amounts${financialStatements.reportingCurrency === undefined ? "" : ` in ${markdownText(financialStatements.reportingCurrency)}`}; diluted shares are weighted-average shares.${refs === "" ? "" : ` ${refs}`}`,
+    `Cash and debt amounts${history.reportingCurrency === undefined ? "" : ` in ${markdownText(history.reportingCurrency)}`}; diluted shares are weighted-average shares.${refs === "" ? "" : ` ${refs}`}`,
     "",
     "Period | Cash | Debt | Diluted shares",
     "--- | ---: | ---: | ---:",
@@ -396,89 +356,67 @@ function renderBalanceSheetAndShareCount(
 
 function renderValuationContext(
   report: ResearchReport,
-  marketSnapshot: MarketSnapshot | undefined,
-  sources: Pick<CollectedSources, "valuationWorkbench"> | undefined,
+  valuation: EquityReaderValuationContext,
 ): string {
-  const comparison = sources?.valuationWorkbench?.peerComparison;
-  if (comparison?.status === "available") {
-    const { valuationComps } = comparison;
-    const { impliedPriceRange: range, target } = valuationComps;
-    if (range?.status === "derived") {
-      const { priceAsOf } = target;
-      const date =
-        priceAsOf === undefined
-          ? target.quoteObservedAt
-          : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
-      let position = "above";
-      if (range.position === "within-range") {
-        position = "within";
-      } else if (range.position === "below-range") {
-        position = "below";
-      }
-      return `## Valuation Context\n\nThe observed quote is ${position} the peer-implied price reference range of ${range.low.toFixed(2)}–${range.high.toFixed(2)} ${range.inputs.quoteCurrency}${date === undefined ? "" : ` as of ${date}`}; this is valuation context, not a target price.\n`;
+  if (valuation.kind === "peer-range" && valuation.status === "derived") {
+    const { range, priceAsOf } = valuation;
+    let position = "above";
+    if (range.position === "within-range") {
+      position = "within";
+    } else if (range.position === "below-range") {
+      position = "below";
     }
+    const date =
+      priceAsOf === undefined
+        ? undefined
+        : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+    const refs = sourceRefs(knownSourceIds(report, valuation.sourceIds));
+    return `## Valuation Context\n\nThe observed quote is ${position} the peer-implied price reference range of ${range.low.toFixed(2)}–${range.high.toFixed(2)} ${range.inputs.quoteCurrency}${date === undefined ? "" : ` as of ${date}`}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}\n`;
   }
-  const fundamentals = marketSnapshot?.fundamentals;
-  const metrics = [
-    ...(fundamentals?.trailingPE === undefined
-      ? []
-      : [`trailing P/E ${fundamentals.trailingPE.toFixed(2)}x`]),
-    ...(fundamentals?.forwardPE === undefined
-      ? []
-      : [`forward P/E ${fundamentals.forwardPE.toFixed(2)}x`]),
-    ...(fundamentals?.priceToBook === undefined
-      ? []
-      : [`price/book ${fundamentals.priceToBook.toFixed(2)}x`]),
-  ];
-  const refs =
-    marketSnapshot === undefined
-      ? ""
-      : sourceRefs(knownSourceIds(report, [marketSnapshot.sourceId]));
+  let metrics: readonly EquityReaderMarketMultiple[] = [];
+  let sourceIds: readonly string[] = [];
+  if (valuation.kind === "market-multiples") {
+    ({ metrics, sourceIds } = valuation);
+  } else if (valuation.kind === "peer-range") {
+    ({ fallbackMetrics: metrics, fallbackSourceIds: sourceIds } = valuation);
+  }
+  const renderedMetrics = metrics.map((metric) => {
+    let label = "price/book";
+    if (metric.key === "trailingPE") {
+      label = "trailing P/E";
+    } else if (metric.key === "forwardPE") {
+      label = "forward P/E";
+    }
+    return `${label} ${metric.value.toFixed(2)}x`;
+  });
+  const refs = sourceRefs(knownSourceIds(report, sourceIds));
   const context =
-    metrics.length === 0
+    renderedMetrics.length === 0
       ? "No peer-derived reference range or normalized market multiple is available"
-      : `Observed market multiples are ${metrics.join(", ")}`;
+      : `Observed market multiples are ${renderedMetrics.join(", ")}`;
   return `## Valuation Context\n\n${context}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}\n`;
 }
 
-function renderCompactEarningsAndConsensus(report: ResearchReport): string {
-  const rows: string[] = [];
-  const setup = report.extras?.earningsSetup;
-  if (isRecord(setup) && isRecord(setup.event)) {
-    const { event } = setup;
-    const symbol = typeof event.symbol === "string" ? event.symbol : report.symbol;
-    const date = typeof event.date === "string" ? event.date : undefined;
-    const timing = typeof event.timing === "string" ? event.timing : "unknown";
-    const status = event.eventDateStatus ?? event.dateStatus;
-    const refs = sourceRefs(knownSourceIds(report, event.sourceIds));
-    if (date !== undefined) {
-      rows.push(
-        `- **Upcoming earnings:** ${markdownText(symbol ?? "")} on ${date} (${timing}; ${typeof status === "string" ? status : "confirmation unavailable"})${refs === "" ? "" : ` ${refs}`}`,
-      );
-    }
-    if (typeof event.epsEstimate === "number") {
-      rows.push(`- **EPS consensus:** ${String(event.epsEstimate)} (single-provider snapshot)`);
-    }
-    if (typeof event.revenueEstimate === "number") {
-      rows.push(
-        `- **Revenue consensus:** ${compactNumber(event.revenueEstimate)} (single-provider snapshot)`,
-      );
-    }
+function renderConsensusItem(report: ResearchReport, item: EquityReaderConsensusItem): string {
+  const refs = sourceRefs(knownSourceIds(report, item.sourceIds));
+  const citation = refs === "" ? "" : ` ${refs}`;
+  if (item.kind === "earnings-date") {
+    return `- **Upcoming earnings:** ${markdownText(item.symbol)} on ${item.date} (${item.timing}; ${item.status})${citation}`;
   }
-  const consensusItems =
-    report.extendedEvidence?.items.filter((item) => item.category === "analyst-estimates") ?? [];
-  for (const item of consensusItems) {
-    const mean = item.metrics?.mean;
-    if (typeof mean !== "number") {
-      continue;
-    }
-    const period = item.metrics?.period;
-    const count = item.metrics?.count;
-    const refs = sourceRefs(item.sourceIds);
-    rows.push(
-      `- **${markdownText(item.title)}:** mean ${compactNumber(mean)}${typeof period === "string" ? ` for ${period}` : ""}${typeof count === "number" ? ` (${String(count)} estimates)` : ""}${refs === "" ? "" : ` ${refs}`}`,
-    );
+  if (item.kind === "eps-consensus") {
+    return `- **EPS consensus:** ${String(item.value)} (single-provider snapshot)${citation}`;
   }
+  if (item.kind === "revenue-consensus") {
+    return `- **Revenue consensus:** ${compactNumber(item.value)} (single-provider snapshot)${citation}`;
+  }
+  return `- **${markdownText(item.title)}:** mean ${compactNumber(item.mean)}${item.period === undefined ? "" : ` for ${item.period}`}${item.count === undefined ? "" : ` (${String(item.count)} estimates)`}${citation}`;
+}
+
+function renderCompactEarningsAndConsensus(
+  report: ResearchReport,
+  items: readonly EquityReaderConsensusItem[],
+): string {
+  const rows = items.map((item) => renderConsensusItem(report, item));
   return [
     "## Upcoming Earnings and Consensus",
     "",
@@ -492,11 +430,12 @@ function renderGapSection(
   gaps: readonly string[],
   emptyMessage: string,
   reportSymbol?: string,
+  placement?: GapTriage,
 ): string {
   const rows =
     gaps.length === 0
       ? `- ${emptyMessage}`
-      : gaps.map((gap) => renderGap(gap, reportSymbol)).join("\n");
+      : gaps.map((gap) => renderGap(gap, reportSymbol, placement)).join("\n");
   return `## ${title}\n\n${rows}\n`;
 }
 
@@ -526,6 +465,40 @@ function renderExtendedEvidence(
     })
     .join("\n");
   return `${renderAnalystEstimateContext(report)}${renderInstitutionalOwnershipContext(report)}## Extended Evidence\n\n${rows}\n`;
+}
+
+function formatDistributionValue(value: number | undefined): string {
+  return value === undefined ? "—" : compactNumber(value);
+}
+
+function renderAnalystEstimateDistributions(
+  report: ResearchReport,
+  distributions: readonly EquityReaderAnalystEstimateDistribution[],
+): string {
+  if (distributions.length === 0) {
+    return "";
+  }
+  const rows = distributions.flatMap((distribution) => {
+    const refs = sourceRefs(knownSourceIds(report, distribution.sourceIds));
+    return [
+      `### ${markdownText(distribution.title)}${refs === "" ? "" : ` ${refs}`}`,
+      "",
+      ...(distribution.period === undefined
+        ? []
+        : [`Period: ${markdownText(distribution.period)}`, ""]),
+      "Mean | Median | High | Low | Count",
+      "---: | ---: | ---: | ---: | ---:",
+      [
+        formatDistributionValue(distribution.mean),
+        formatDistributionValue(distribution.median),
+        formatDistributionValue(distribution.high),
+        formatDistributionValue(distribution.low),
+        distribution.count === undefined ? "—" : String(distribution.count),
+      ].join(" | "),
+      "",
+    ];
+  });
+  return ["## Analyst Estimate Distributions", "", ...rows].join("\n");
 }
 
 function renderAnalystEstimateContext(report: ResearchReport): string {
@@ -1303,23 +1276,30 @@ function renderEquityMarkdownReport(
     | undefined,
 ): string {
   const title = reportTitle(report);
-  const presentationGaps =
-    collectedSources?.fundamentalHistory === undefined
-      ? []
-      : financialTrendGaps(collectedSources.fundamentalHistory);
-  const allGaps = [...new Set([...report.dataGaps, ...presentationGaps])];
-  const materialGaps = allGaps.filter((gap) => classifyGap(gap, report.symbol) === "material");
-  const diagnosticGaps = allGaps.filter((gap) => classifyGap(gap, report.symbol) === "diagnostic");
+  const projection = projectEquityReader({
+    report,
+    ...(marketSnapshot === undefined ? {} : { marketSnapshot }),
+    ...(collectedSources?.fundamentalHistory === undefined
+      ? {}
+      : { fundamentalHistory: collectedSources.fundamentalHistory }),
+    ...(collectedSources?.financialStatements === undefined
+      ? {}
+      : { financialStatements: collectedSources.financialStatements }),
+    ...(collectedSources?.valuationWorkbench === undefined
+      ? {}
+      : { valuationWorkbench: collectedSources.valuationWorkbench }),
+  });
+  const diagnosticGaps = [
+    ...projection.appendix.predictionShortfalls,
+    ...projection.appendix.diagnosticGaps,
+  ];
   const additionalSourceIds = [
     ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
-    ...(collectedSources?.fundamentalHistory === undefined ||
-    trendPeriods(collectedSources.fundamentalHistory).length === 0
-      ? []
-      : [collectedSources.fundamentalHistory.sourceId]),
-    ...(collectedSources?.financialStatements === undefined ||
-    statementPeriods(collectedSources.financialStatements).length === 0
-      ? []
-      : [collectedSources.financialStatements.sourceId]),
+    ...(projection.defaultView.financialTrends?.sourceIds ?? []),
+    ...(projection.appendix.balanceSheetHistory?.sourceIds ?? []),
+    ...projection.defaultView.valuationContext.sourceIds,
+    ...projection.defaultView.earningsConsensus.flatMap((item) => item.sourceIds),
+    ...projection.appendix.analystEstimateDistributions.flatMap((item) => item.sourceIds),
   ];
   const sources = renderSources(report, additionalSourceIds);
   const valuationPriceAsOf =
@@ -1350,18 +1330,19 @@ function renderEquityMarkdownReport(
     "",
     renderCompanyDescription(report),
     renderPriceAndMarketDate(report, marketSnapshot),
-    renderFinancialTrends(report, collectedSources),
-    renderValuationContext(report, marketSnapshot, collectedSources),
+    renderProjectedFinancialTrends(report, projection.defaultView.financialTrends),
+    renderValuationContext(report, projection.defaultView.valuationContext),
     renderFindings("Catalysts", report.catalysts),
     renderCatalystCalendar(report),
     renderFindings("Key Findings", report.keyFindings),
     renderFindings("Risks", report.risks),
-    renderCompactEarningsAndConsensus(report),
+    renderCompactEarningsAndConsensus(report, projection.defaultView.earningsConsensus),
     renderGapSection(
       "Material Data Gaps",
-      materialGaps,
+      projection.defaultView.materialGaps,
       "No material gaps identified.",
       report.symbol,
+      "material",
     ),
     "## Appendix",
     "",
@@ -1369,12 +1350,22 @@ function renderEquityMarkdownReport(
     "",
     report.summary,
     "",
-    renderBalanceSheetAndShareCount(report, collectedSources),
+    renderBalanceSheetAndShareCount(report, projection.appendix.balanceSheetHistory),
     renderAppendixSection(renderFindings("Bull Case", report.bullCase)),
     renderAppendixSection(renderFindings("Bear Case", report.bearCase)),
     renderAppendixSection(renderScenarios(report.scenarios)),
     renderAppendixSection(renderBusinessFramework(report)),
     renderAppendixSection(renderWebSubjectProfile(report)),
+    ...(projection.appendix.analystEstimateDistributions.length === 0
+      ? []
+      : [
+          renderAppendixSection(
+            renderAnalystEstimateDistributions(
+              report,
+              projection.appendix.analystEstimateDistributions,
+            ),
+          ),
+        ]),
     renderAppendixSection(renderExtendedEvidence(report, marketSnapshot)),
     renderAppendixSection(renderEarningsSetup(report)),
     renderAppendixSection(renderHistoricalContext(report)),
@@ -1389,6 +1380,7 @@ function renderEquityMarkdownReport(
               diagnosticGaps,
               "No diagnostic gaps identified.",
               report.symbol,
+              "diagnostic",
             ),
           ),
         ]),

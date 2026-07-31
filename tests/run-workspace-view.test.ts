@@ -181,7 +181,9 @@ const BANNED_SNAPSHOT_CONSOLE_TOKENS =
   /\b(?:buy|sell|hold|price target|target price|fair value|intrinsic value|margin of safety|undervalued|overvalued|sizing|allocation|execution)\b|\bimplied price\b/iu;
 
 function withoutPermittedPeerPhrase(text: string): string {
-  return text.replaceAll(/peer-implied price reference range/giu, "");
+  return text
+    .replaceAll(/peer-implied price reference range/giu, "")
+    .replaceAll(/peer-derived reference range for context only; not a target price\./giu, "");
 }
 
 function fundamentalHistoryAnnualFacts(values: readonly number[]) {
@@ -1278,6 +1280,7 @@ describe("run workspace view", () => {
       detailSectionKey: "peerImpliedRange",
       display: "Low $39.00 · Mid $79.00 · High $119.00",
       positionLabel: "Within range",
+      disclosure: "Peer-derived reference range for context only; not a target price.",
     });
     expect(view?.keyDatedMetrics.detailSectionKey).toBe("fundamentalHistory");
     expect(view?.keyDatedMetrics.metrics.map((metric) => metric.key)).toEqual([
@@ -1398,7 +1401,14 @@ describe("run workspace view", () => {
             category: "analyst-estimates",
             title: "Analyst consensus sentinel",
             summary: "Distribution detail.",
-            metrics: { mean: 1.2, period: "FY 2027", count: 12 },
+            metrics: {
+              mean: 1.2,
+              median: 1.1,
+              high: 1.5,
+              low: 0.8,
+              period: "FY 2027",
+              count: 12,
+            },
             sourceIds: ["source-bull"],
           },
           {
@@ -1536,6 +1546,18 @@ describe("run workspace view", () => {
       "EPS consensus",
       "Revenue consensus",
       "Analyst consensus sentinel",
+    ]);
+    expect(advanced?.analystEstimateDistributions).toEqual([
+      {
+        title: "Analyst consensus sentinel",
+        period: "FY 2027",
+        mean: "1.2",
+        median: "1.1",
+        high: "1.5",
+        low: "0.8",
+        count: "12",
+        sourceIds: ["source-bull"],
+      },
     ]);
     expect(reader?.companySummary).toEqual({
       text: "Apple designs devices and digital services.",

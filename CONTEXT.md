@@ -323,6 +323,7 @@ in the Default View.
 A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
 provider, an entitlement 403, or an unconfigured operating-KPI registry, and appears only in the
 Appendix.
+Prediction shortfalls are run-output diagnostics disclosed in the Appendix, never Material Gaps.
 
 ## Source Plan
 

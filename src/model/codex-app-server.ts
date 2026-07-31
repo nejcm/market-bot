@@ -1,4 +1,5 @@
 import { rm } from "node:fs/promises";
+import type { ReasoningEffort } from "./types";
 
 const MAX_JSONL_BUFFER_CHARS = 1_048_576;
 const WORKING_DIRECTORY_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 1000] as const;
@@ -29,7 +30,7 @@ export interface CodexAppServerStreamOptions {
   readonly env: Record<string, string | undefined>;
   readonly model: string;
   readonly prompt: string;
-  readonly reasoningEffort?: "low" | "medium" | "high";
+  readonly reasoningEffort?: ReasoningEffort;
   readonly webSearch: boolean;
   readonly timeoutMs: number;
   readonly signal?: AbortSignal;

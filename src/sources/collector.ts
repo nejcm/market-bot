@@ -911,7 +911,13 @@ async function collectEquityEnrichment(
       : deriveFundamentalHistoryFromFinancialStatements(financialStatements);
   const financialLensResult =
     financialStatements === undefined
-      ? legacyFinancialLensResult
+      ? addFinancialLensEvidence(
+          input.command,
+          input.marketSnapshots,
+          evidenceWithYahooFundamentals,
+          input.verifiedMarketSnapshot,
+          input.fetchedAt,
+        )
       : addFinancialLensEvidence(
           input.command,
           input.marketSnapshots,

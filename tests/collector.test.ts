@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
@@ -376,6 +376,92 @@ describe("collectSources", () => {
       corePeerCount: 2,
       valuationSupportability: "supported",
     });
+  });
+
+  test("keeps valuation comps evidence in fallback financial lens consumption", async () => {
+    const financialStatementsModule =
+      await import("../src/sources/extended-evidence/financial-statements");
+    const marketCaps: Readonly<Record<string, number>> = {
+      NVDA: 1000,
+      AMD: 390,
+      AVGO: 590,
+      ANET: 790,
+      VRT: 990,
+    };
+    const cikBySymbol: Readonly<Record<string, number>> = {
+      NVDA: 1,
+      AMD: 2,
+      AVGO: 3,
+      ANET: 4,
+      VRT: 5,
+    };
+    const deriveFinancialStatements = spyOn(
+      financialStatementsModule,
+      "deriveFinancialStatements",
+    ).mockReturnValue(undefined as never);
+    const fetchImpl = async (request: RequestInfo | URL): Promise<Response> => {
+      const url = String(request);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: {
+            result: symbols.map((symbol) => collectorQuote(symbol, marketCaps[symbol] ?? 500)),
+          },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse(
+          Object.fromEntries(
+            Object.entries(cikBySymbol).map(([symbol, cik], index) => [
+              String(index),
+              { cik_str: cik, ticker: symbol, title: symbol },
+            ]),
+          ),
+        );
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({
+          sic: "3674",
+          sicDescription: "Semiconductors & Related Devices",
+          filings: { recent: { form: [], filingDate: [] } },
+        });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    try {
+      const result = await collectSources(
+        { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+        {
+          equityMoverLimit: 2,
+          cryptoMoverLimit: 2,
+          newsLimit: 2,
+          sourceTimeoutMs: 1000,
+          cacheDir: tempCacheDir(),
+        },
+        { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+      );
+
+      expect(result.financialStatements).toBeUndefined();
+      expect(result.valuationComps?.summary.valuationSupportability).toBe("supported");
+      expect(
+        result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,
+      ).toMatchObject({
+        corePeerCount: 2,
+        valuationSupportability: "supported",
+      });
+    } finally {
+      deriveFinancialStatements.mockRestore();
+    }
   });
 
   test("records a peer-valuation skip gap when target valuation is unavailable", async () => {

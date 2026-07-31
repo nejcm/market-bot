@@ -31,6 +31,7 @@ import {
   periodLabel,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
+  type EquityReaderAppendixCompleteness,
   type EquityReaderBalanceSheetHistory,
   type EquityReaderConsensusItem,
   type EquityReaderFinancialTrends,
@@ -79,19 +80,27 @@ function renderEquityCompletenessChips(report: ResearchReport): readonly string[
   if (completeness === undefined) {
     return [];
   }
-  const dimensions = [
-    ["Primary financials", completeness.dimensions.primaryFinancials],
-    ["Valuation", completeness.dimensions.valuation],
-    ["Expectations", completeness.dimensions.expectations],
-    ["Capital & ownership", completeness.dimensions.capitalOwnership],
-    ["Operating KPIs", completeness.dimensions.operatingKpis],
-  ] as const;
   return [
-    `Analysis Completeness: financial core ${completenessStatusChip(completeness.financialCoreStatus)} · coverage \`${completeness.coverageLevel}\``,
-    `Dimension Status: ${dimensions
-      .map(([label, dimension]) => `${label} ${completenessStatusChip(dimension.status)}`)
-      .join(" · ")}`,
+    `Analysis Completeness: financial core ${completenessStatusChip(completeness.financialCoreStatus)}`,
   ];
+}
+
+function renderCompletenessAppendix(
+  completeness: EquityReaderAppendixCompleteness | undefined,
+): string {
+  if (completeness === undefined) {
+    return "";
+  }
+  const dimensions = completeness.dimensions
+    .map((dimension) => `${dimension.label} ${completenessStatusChip(dimension.status)}`)
+    .join(" · ");
+  return [
+    "## Analysis Completeness",
+    "",
+    `Coverage: \`${completeness.coverageLevel}\``,
+    `Dimension Status: ${dimensions}`,
+    "",
+  ].join("\n");
 }
 
 // Diverges from guards.readStringArray (record+key, undefined on miss) and
@@ -1360,6 +1369,7 @@ function renderEquityMarkdownReport(
     "",
     report.summary,
     "",
+    renderAppendixSection(renderCompletenessAppendix(projection.appendix.completeness)),
     renderBalanceSheetAndShareCount(report, projection.appendix.balanceSheetHistory),
     renderAppendixSection(renderFindings("Bull Case", report.bullCase)),
     renderAppendixSection(renderFindings("Bear Case", report.bearCase)),

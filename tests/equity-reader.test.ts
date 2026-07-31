@@ -92,6 +92,10 @@ function divergentFilingArtifact(): FinancialStatementsArtifact {
   } as unknown as FinancialStatementsArtifact;
 }
 
+function completenessDimension(status: string) {
+  return { status, reasonCodes: [] as string[], asOf: "2026-07-04", sourceIds: [] as string[] };
+}
+
 describe("equity reader projection", () => {
   test("selects amended values and filing dates jointly before the analysis cutoff", () => {
     const projection = projectEquityReader({
@@ -208,6 +212,48 @@ describe("equity reader projection", () => {
       count: 10,
       sourceIds: ["finnhub-eps"],
     });
+  });
+
+  test("places financial core in the default view and coverage plus dimensions in the appendix", () => {
+    const projection = projectEquityReader({
+      report: {
+        symbol: "AAPL",
+        equityAnalysisCompleteness: {
+          version: 1,
+          financialCoreStatus: "partial",
+          coverageLevel: "substantial",
+          asOf: "2026-07-04",
+          dimensions: {
+            primaryFinancials: completenessDimension("partial"),
+            valuation: completenessDimension("complete"),
+            expectations: completenessDimension("not-assessed"),
+            capitalOwnership: completenessDimension("blocked"),
+            operatingKpis: completenessDimension("not-applicable"),
+          },
+        },
+      },
+    });
+
+    expect(projection.defaultView.financialCoreStatus).toBe("partial");
+    expect(projection.appendix.completeness?.coverageLevel).toBe("substantial");
+    expect(projection.appendix.completeness?.asOf).toBe("2026-07-04");
+    expect(projection.appendix.completeness?.dimensions.map((item) => item.key)).toEqual([
+      "primaryFinancials",
+      "valuation",
+      "expectations",
+      "capitalOwnership",
+      "operatingKpis",
+    ]);
+    expect(projection.appendix.completeness?.dimensions[0]).toMatchObject({
+      label: "Primary financials",
+      status: "partial",
+    });
+  });
+
+  test("omits completeness placement when the report has no completeness contract", () => {
+    const projection = projectEquityReader({ report: { symbol: "AAPL" } });
+    expect(projection.defaultView.financialCoreStatus).toBeUndefined();
+    expect(projection.appendix.completeness).toBeUndefined();
   });
 
   test("prefers persisted triage and falls back for legacy structured gaps", () => {

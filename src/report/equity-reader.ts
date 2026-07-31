@@ -1,5 +1,10 @@
 import { isRecord } from "../guards";
-import type { MarketSnapshot, MarketSnapshotPriceAsOf, SourceGap } from "../domain/types";
+import type {
+  EquityAnalysisDimensionStatus,
+  MarketSnapshot,
+  MarketSnapshotPriceAsOf,
+  SourceGap,
+} from "../domain/types";
 import type {
   FinancialStatementFact,
   FinancialStatementsArtifact,
@@ -135,20 +140,58 @@ export interface EquityReaderAnalystEstimateDistribution {
   readonly sourceIds: readonly string[];
 }
 
+export type EquityReaderFinancialCoreStatus = "complete" | "partial" | "blocked";
+export type EquityReaderCoverageLevel = "comprehensive" | "substantial" | "limited";
+
+export type EquityReaderCompletenessDimensionKey =
+  | "primaryFinancials"
+  | "valuation"
+  | "expectations"
+  | "capitalOwnership"
+  | "operatingKpis";
+
+export interface EquityReaderCompletenessDimension {
+  readonly key: EquityReaderCompletenessDimensionKey;
+  readonly label: string;
+  readonly status: EquityAnalysisDimensionStatus;
+  readonly reasonCodes: readonly string[];
+  readonly asOf: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface EquityReaderAppendixCompleteness {
+  readonly coverageLevel: EquityReaderCoverageLevel;
+  readonly asOf: string;
+  readonly dimensions: readonly EquityReaderCompletenessDimension[];
+}
+
 export interface EquityReaderProjection {
   readonly defaultView: {
+    readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
     readonly financialTrends?: EquityReaderFinancialTrends;
     readonly valuationContext: EquityReaderValuationContext;
     readonly earningsConsensus: readonly EquityReaderConsensusItem[];
     readonly materialGaps: readonly string[];
   };
   readonly appendix: {
+    readonly completeness?: EquityReaderAppendixCompleteness;
     readonly balanceSheetHistory?: EquityReaderBalanceSheetHistory;
     readonly analystEstimateDistributions: readonly EquityReaderAnalystEstimateDistribution[];
     readonly diagnosticGaps: readonly string[];
     readonly predictionShortfalls: readonly string[];
   };
 }
+
+export const COMPLETENESS_DIMENSION_LABELS: readonly {
+  readonly key: EquityReaderCompletenessDimensionKey;
+  readonly label: string;
+}[] = [
+  { key: "primaryFinancials", label: "Primary financials" },
+  { key: "valuation", label: "Valuation" },
+  { key: "expectations", label: "Expectations" },
+  { key: "capitalOwnership", label: "Capital & ownership" },
+  { key: "operatingKpis", label: "Operating KPIs" },
+];
 
 export interface EquityReaderProjectionInput {
   readonly report: unknown;
@@ -632,14 +675,86 @@ function projectedGaps(
   return { material, diagnostic, predictionShortfalls };
 }
 
+function isDimensionStatus(value: unknown): value is EquityAnalysisDimensionStatus {
+  return (
+    value === "complete" ||
+    value === "partial" ||
+    value === "blocked" ||
+    value === "not-applicable" ||
+    value === "not-assessed"
+  );
+}
+
+function completenessProjection(report: unknown): {
+  readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
+  readonly appendix?: EquityReaderAppendixCompleteness;
+} {
+  const record = reportRecord(report);
+  const completeness = record?.equityAnalysisCompleteness;
+  const rawDimensions = isRecord(completeness) ? completeness.dimensions : undefined;
+  if (
+    !isRecord(completeness) ||
+    completeness.version !== 1 ||
+    (completeness.financialCoreStatus !== "complete" &&
+      completeness.financialCoreStatus !== "partial" &&
+      completeness.financialCoreStatus !== "blocked") ||
+    (completeness.coverageLevel !== "comprehensive" &&
+      completeness.coverageLevel !== "substantial" &&
+      completeness.coverageLevel !== "limited") ||
+    typeof completeness.asOf !== "string" ||
+    !isRecord(rawDimensions)
+  ) {
+    return {};
+  }
+  const dimensions = COMPLETENESS_DIMENSION_LABELS.flatMap(
+    ({ key, label }): readonly EquityReaderCompletenessDimension[] => {
+      const dimension = rawDimensions[key];
+      if (
+        !isRecord(dimension) ||
+        !isDimensionStatus(dimension.status) ||
+        typeof dimension.asOf !== "string"
+      ) {
+        return [];
+      }
+      const reasonCodes = stringArrayValue(dimension.reasonCodes);
+      const sourceIds = stringArrayValue(dimension.sourceIds);
+      return [
+        {
+          key,
+          label,
+          status: dimension.status,
+          reasonCodes,
+          asOf: dimension.asOf,
+          sourceIds,
+        },
+      ];
+    },
+  );
+  if (dimensions.length !== COMPLETENESS_DIMENSION_LABELS.length) {
+    return {};
+  }
+  return {
+    financialCoreStatus: completeness.financialCoreStatus,
+    appendix: {
+      coverageLevel: completeness.coverageLevel,
+      asOf: completeness.asOf,
+      dimensions,
+    },
+  };
+}
+
 export function projectEquityReader(input: EquityReaderProjectionInput): EquityReaderProjection {
   const record = reportRecord(input.report);
   const generatedAt = typeof record?.generatedAt === "string" ? record.generatedAt : undefined;
   const gaps = projectedGaps(input.report, input.fundamentalHistory, input.sourceGaps ?? []);
   const projectedFinancialTrends = financialTrends(input.fundamentalHistory);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
+  const completeness = completenessProjection(input.report);
   return {
     defaultView: {
+      ...(completeness.financialCoreStatus === undefined
+        ? {}
+        : { financialCoreStatus: completeness.financialCoreStatus }),
       ...(projectedFinancialTrends === undefined
         ? {}
         : { financialTrends: projectedFinancialTrends }),
@@ -652,6 +767,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
       materialGaps: gaps.material,
     },
     appendix: {
+      ...(completeness.appendix === undefined ? {} : { completeness: completeness.appendix }),
       ...(projectedBalanceSheet === undefined
         ? {}
         : { balanceSheetHistory: projectedBalanceSheet }),

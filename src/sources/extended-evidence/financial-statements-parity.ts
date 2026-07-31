@@ -302,14 +302,19 @@ function latestCommonFacts(
     return undefined;
   }
   const facts = series.map((item) => [...item!.annual, ...item!.interim]);
-  const commonKeys = facts[0]
-    ?.map((fact) => fact.periodKey)
-    .filter((key) => facts.every((items) => items.some((fact) => fact.periodKey === key)))
-    .toSorted()
-    .at(-1);
-  return commonKeys === undefined
+  const latestCommonFact = facts[0]
+    ?.filter((fact) =>
+      facts.every((items) => items.some((item) => item.periodKey === fact.periodKey)),
+    )
+    .toSorted(
+      (left, right) =>
+        right.periodEnd.localeCompare(left.periodEnd) ||
+        (left.periodStart ?? "").localeCompare(right.periodStart ?? "") ||
+        right.filedAt.localeCompare(left.filedAt),
+    )[0];
+  return latestCommonFact === undefined
     ? undefined
-    : facts.map((items) => items.find((fact) => fact.periodKey === commonKeys)!);
+    : facts.map((items) => items.find((fact) => fact.periodKey === latestCommonFact.periodKey)!);
 }
 
 function hasLegacyMetricWindow(

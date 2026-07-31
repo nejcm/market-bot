@@ -725,6 +725,108 @@ describe("canonical financial statements", () => {
     );
   });
 
+  test("matches Financial Lens margins on the canonical cumulative interim window", () => {
+    const periodEnd = "2026-06-27";
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: {
+          USD: [
+            fact({
+              value: 364_357,
+              form: "10-Q",
+              fiscalYear: 2026,
+              fiscalPeriod: "Q3",
+              filedAt: "2026-07-31",
+              periodStart: "2025-09-28",
+              periodEnd,
+            }),
+            fact({
+              value: 109_417,
+              form: "10-Q",
+              fiscalYear: 2026,
+              fiscalPeriod: "Q3",
+              filedAt: "2026-07-31",
+              periodStart: "2026-03-29",
+              periodEnd,
+            }),
+          ],
+        },
+        GrossProfit: {
+          USD: [
+            fact({
+              value: 178_782,
+              form: "10-Q",
+              fiscalYear: 2026,
+              fiscalPeriod: "Q3",
+              filedAt: "2026-07-31",
+              periodStart: "2025-09-28",
+              periodEnd,
+            }),
+            fact({
+              value: 54_770,
+              form: "10-Q",
+              fiscalYear: 2026,
+              fiscalPeriod: "Q3",
+              filedAt: "2026-07-31",
+              periodStart: "2026-03-29",
+              periodEnd,
+            }),
+          ],
+        },
+      },
+    });
+    const artifact = derive(companyFacts, {
+      analysisAsOf: "2026-08-01T00:00:00.000Z",
+      generatedAt: "2026-08-01T00:00:00.000Z",
+    });
+    const history = deriveFundamentalHistory(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2026-08-01T00:00:00.000Z",
+      analysisAsOf: "2026-08-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const ytdGrossMargin = 178_782 / 364_357;
+
+    const parity = attachFinancialStatementParity(artifact, {
+      fundamentalHistory: history,
+      financialLenses: {
+        version: 1,
+        generatedAt: "2026-08-01T00:00:00.000Z",
+        symbol: "TEST",
+        lenses: [
+          {
+            name: "Quality",
+            posture: "criteria-mixed",
+            sourceIds: ["extended-sec-edgar-test-fundamentals"],
+            metrics: [
+              {
+                key: "grossMargin",
+                label: "Gross margin",
+                value: ytdGrossMargin,
+                unit: "ratio-percent",
+                periodEnd,
+                periodMonths: 9,
+                sourceIds: ["extended-sec-edgar-test-fundamentals"],
+              },
+            ],
+          },
+        ],
+        sourceIds: ["extended-sec-edgar-test-fundamentals"],
+      },
+    }).shadowParity;
+
+    expect(parity.status).toBe("matched");
+    expect(parity.unexplainedCount).toBe(0);
+    expect(parity.comparisons).toContainEqual({
+      consumer: "financial-lens",
+      field: "grossMargin",
+      status: "matched",
+      artifactValue: ytdGrossMargin,
+      legacyValue: ytdGrossMargin,
+      periodEnd,
+    });
+  });
+
   test("compares fundamental-history parity by exact start/end period key", () => {
     const companyFacts = payload({ "us-gaap": { Revenues: { USD: [annual(100, 2025)] } } });
     const artifact = derive(companyFacts);
@@ -830,7 +932,7 @@ describe("canonical financial statements", () => {
     );
   });
 
-  test("does not explain a Financial Lens window mismatch when that window exists", () => {
+  test("does not explain Financial Lens selection drift when the legacy window exists", () => {
     const companyFacts = payload({
       "us-gaap": {
         Revenues: {
@@ -881,7 +983,7 @@ describe("canonical financial statements", () => {
                 value: 0.4,
                 unit: "ratio-percent",
                 periodEnd: "2025-12-31",
-                periodMonths: 12,
+                periodMonths: 9,
                 sourceIds: ["extended-sec-edgar-test-fundamentals"],
               },
             ],

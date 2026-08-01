@@ -5979,30 +5979,7 @@
               "forms": ["6-K/A", "6-K"],
               "sourceIds": ["extended-sec-edgar-nbis-filings"]
             }
-          ],
-          "shadowParity": {
-            "version": 1,
-            "status": "explained",
-            "matchedCount": 0,
-            "explainedCount": 2,
-            "unexplainedCount": 0,
-            "comparisons": [
-              {
-                "consumer": "fundamental-history",
-                "field": "structured-financial-coverage",
-                "status": "explained",
-                "reasonCode": "legacy-form-unsupported",
-                "explanation": "The shadow artifact supports 20-F/6-K companyfacts while the Phase 1 legacy consumer remains limited to 10-K/10-Q."
-              },
-              {
-                "consumer": "financial-lens",
-                "field": "structured-financial-coverage",
-                "status": "explained",
-                "reasonCode": "legacy-form-unsupported",
-                "explanation": "The shadow artifact supports 20-F/6-K companyfacts while the Phase 1 legacy consumer remains limited to 10-K/10-Q."
-              }
-            ]
-          }
+          ]
         },
         "fundamentalHistory": {
           "version": 1,

@@ -164,14 +164,6 @@ function statements(): FinancialStatementsArtifact {
     validationNotes: [],
     omissionNotes: [],
     structuredFinancialGaps: [],
-    shadowParity: {
-      version: 1,
-      status: "matched",
-      matchedCount: 0,
-      explainedCount: 0,
-      unexplainedCount: 0,
-      comparisons: [],
-    },
   };
 }
 

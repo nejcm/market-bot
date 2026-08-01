@@ -109,34 +109,6 @@ export interface StructuredFinancialGap {
   readonly sourceIds: readonly string[];
 }
 
-export type ShadowParityConsumer = "fundamental-history" | "financial-lens";
-
-export interface FinancialStatementParityComparison {
-  readonly consumer: ShadowParityConsumer;
-  readonly field: string;
-  readonly status: "matched" | "explained" | "unexplained";
-  readonly artifactValue?: number | string;
-  readonly legacyValue?: number | string;
-  readonly periodEnd?: string;
-  readonly reasonCode?:
-    | "legacy-form-unsupported"
-    | "canonical-reporting-currency-isolation"
-    | "canonical-restatement-precedence"
-    | "canonical-amendment-presence-difference"
-    | "canonical-history-cap"
-    | "canonical-period-selection";
-  readonly explanation?: string;
-}
-
-export interface FinancialStatementShadowParity {
-  readonly version: 1;
-  readonly status: "matched" | "explained" | "not-applicable" | "unexplained";
-  readonly matchedCount: number;
-  readonly explainedCount: number;
-  readonly unexplainedCount: number;
-  readonly comparisons: readonly FinancialStatementParityComparison[];
-}
-
 export interface FinancialStatementsArtifact {
   readonly version: 1;
   readonly generatedAt: string;
@@ -175,7 +147,6 @@ export interface FinancialStatementsArtifact {
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
   readonly structuredFinancialGaps: readonly StructuredFinancialGap[];
-  readonly shadowParity: FinancialStatementShadowParity;
 }
 
 const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = [
@@ -328,8 +299,7 @@ export function readFinancialStatementsArtifact(
     !isRecord(value.statements) ||
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
-    !Array.isArray(value.structuredFinancialGaps) ||
-    !isRecord(value.shadowParity)
+    !Array.isArray(value.structuredFinancialGaps)
   ) {
     return undefined;
   }

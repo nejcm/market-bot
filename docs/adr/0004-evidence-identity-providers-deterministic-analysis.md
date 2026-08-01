@@ -26,7 +26,8 @@ amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2
 quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthenticated
 operator gate records; amended 2026-07-30: deterministic price-as-of labelling; amended 2026-07-30:
 not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage; amended
-2026-08-01: recipe-phased deep-equity provider dispatch)
+2026-08-01: recipe-phased deep-equity provider dispatch; amended 2026-08-02: runtime financial-
+statement parity retirement)
 
 ## Context
 
@@ -200,8 +201,8 @@ without pretending the project has a global security master.
   `us-gaap` and `ifrs-full` companyfacts from
   `10-K`, `10-Q`, `20-F`, and `6-K`, including amended forms. Fundamental History, Financial
   Lenses, valuation inputs, Run Artifact/API projections, and Console completeness views consume
-  the artifact through separately tested seams; legacy selectors remain available for parity and
-  tolerant historical reads.
+  the artifact through separately tested seams. When the artifact is unavailable, legacy
+  Fundamental History, Financial Lens, and valuation derivations remain as runtime fallback.
 - Canonical financial series apply the run analysis cutoff before selection, use one standard
   taxonomy and one reporting currency, and exclude issuer-extension concepts from primary statement
   totals. Matching period keys resolve by filed date, amendment status, and accession number; a
@@ -216,11 +217,10 @@ without pretending the project has a global security master.
   incomplete-statement, cutoff, history-cap, and unreconciled-TTM conditions. An untagged `6-K`
   remains filing evidence and produces an explicit structured-financial gap; model table extraction
   is outside this artifact's Phase 1 trust boundary.
-- Shadow parity telemetry compares selected concepts, overlapping canonical periods, values, TTM
-  derivations, and currency/unit basis with current fundamental-history and Financial Lens outputs.
-  Differences are either matched, assigned a deterministic explanation (including the legacy
-  `10-K`/`10-Q` form boundary), or marked unexplained; fixture gates require zero unexplained
-  differences before a consumer migration.
+- Runtime shadow parity and its duplicate legacy derivation pass are retired. Canonical artifacts
+  directly drive Fundamental History, Financial Lenses, completeness, and valuation. A test-only
+  offline corpus compares canonical and legacy projections across domestic and foreign-private-
+  issuer fixtures, with every difference matched or covered by an exact fixture-specific allowance.
 - Equity reports optionally expose versioned `equityAnalysisCompleteness`. Its
   `financialCoreStatus` is determined only by canonical primary financials; valuation,
   expectations, capital/ownership, and operating-KPI dimensions affect only `coverageLevel`.
@@ -244,11 +244,12 @@ without pretending the project has a global security master.
   dimension partial; historical statement omissions do not. Complete annual-as-current results
   retain an explicit informational reason code, and four retained quarter-only periods remain a
   valid alternative to reconciled TTM coverage.
-- Consumer adoption of the canonical artifact is incremental and parity-gated in this order:
-  fundamental history, Financial Lenses, valuation, Run Artifact/API projections, then Console.
-  Historical non-deep artifacts without the sidecar or completeness field remain readable.
-  The existing deep-equity artifact migration completed before the bundle-only reader cutover, and
-  the migrator was removed under ADR 0006.
+- Consumer adoption of the canonical artifact is complete for Fundamental History, Financial
+  Lenses, valuation, Run Artifact/API projections, and Console completeness. Runtime legacy
+  derivations execute only when the canonical artifact is genuinely unavailable. Historical
+  non-deep artifacts without the sidecar or completeness field remain readable. The existing deep-
+  equity artifact migration completed before the bundle-only reader cutover, and the migrator was
+  removed under ADR 0006.
 - Standard-taxonomy proceeds facts disclosed on a post-period `8-K` or `6-K` may produce a
   Subsequent Financing bridge inside the deep bundle or, for other equity runs, in
   `normalized/subsequent-financing.json`. Each event retains disclosure and event dates,
@@ -403,7 +404,8 @@ without pretending the project has a global security master.
 - `src/sources/verified-market-snapshot.ts` and `src/sources/indicators.ts` implement snapshots.
 - `src/sources/extended-evidence/` implements lenses, valuation, framework, and reconciliation.
 - `src/sources/extended-evidence/financial-statement*.ts` implements the canonical structured
-  financial contract, normalization, cadence/TTM derivation, and shadow parity telemetry.
+  financial contract, normalization, selection, and cadence/TTM derivation; the test-only offline
+  financial-statement corpus validates its consumer projections against legacy derivations.
 - `src/sources/extended-evidence/operating-kpi-registry.ts` implements checked-in issuer KPI
   applicability and declarative extraction metadata.
 - `src/research/peer-universe*.ts` implements deterministic, learned, and proposed peer tiers.

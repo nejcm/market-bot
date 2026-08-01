@@ -2097,15 +2097,7 @@
           "forms": [],
           "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
         }
-      ],
-      "shadowParity": {
-        "version": 1,
-        "status": "not-applicable",
-        "matchedCount": 0,
-        "explainedCount": 0,
-        "unexplainedCount": 0,
-        "comparisons": []
-      }
+      ]
     },
     "fundamental-history.json": {
       "version": 1,

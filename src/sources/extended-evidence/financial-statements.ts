@@ -778,14 +778,6 @@ export function deriveFinancialStatements(
       supportedSixKFacts(payload, input.analysisAsOf),
       input,
     ),
-    shadowParity: {
-      version: 1,
-      status: "not-applicable",
-      matchedCount: 0,
-      explainedCount: 0,
-      unexplainedCount: 0,
-      comparisons: [],
-    },
   };
 }
 

@@ -38,6 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  mock.restore();
   for (const dir of tmpDirs) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -211,7 +212,17 @@ describe("collectSources", () => {
     );
   });
 
-  test("merges valuation comps artifacts, peer sources, raw snapshots, and gaps", async () => {
+  test("uses canonical financial derivations without legacy comparison passes", async () => {
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const financialLensModule = await import("../src/sources/extended-evidence/financial-lens");
+    const valuationModule = await import("../src/sources/extended-evidence/valuation");
+    const deriveLegacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "deriveFundamentalHistory",
+    );
+    const addFinancialLensEvidence = spyOn(financialLensModule, "addFinancialLensEvidence");
+    const addValuationEvidence = spyOn(valuationModule, "addValuationEvidence");
     const marketCaps: Readonly<Record<string, number>> = {
       NVDA: 1000,
       AMD: 390,
@@ -307,10 +318,19 @@ describe("collectSources", () => {
         .flatMap((lens) => lens.metrics)
         .find((metric) => metric.key === "grossMargin")?.value,
     ).toBe(0.4);
-    expect(result.financialStatements?.shadowParity).toMatchObject({
-      status: "matched",
-      unexplainedCount: 0,
-    });
+    expect(deriveLegacyFundamentalHistory).not.toHaveBeenCalled();
+    expect(addFinancialLensEvidence).toHaveBeenCalledTimes(1);
+    expect(addValuationEvidence).toHaveBeenCalledTimes(1);
+    expect(
+      addValuationEvidence.mock.calls[0]?.[2]?.items.some(
+        (item) => item.metrics?.financialLensSelectionVersion === 1,
+      ),
+    ).toBe(true);
+    expect(
+      addFinancialLensEvidence.mock.calls[0]?.[2]?.items.some(
+        (item) => item.metrics?.financialLensSelectionVersion === 1,
+      ),
+    ).toBe(true);
     expect(nvdaCompanyFactsRequests).toBe(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(1);
     for (const cik of Object.values(cikBySymbol)) {
@@ -348,6 +368,10 @@ describe("collectSources", () => {
   test("keeps valuation comps evidence in fallback financial lens consumption", async () => {
     const financialStatementsModule =
       await import("../src/sources/extended-evidence/financial-statements");
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const financialLensModule = await import("../src/sources/extended-evidence/financial-lens");
+    const valuationModule = await import("../src/sources/extended-evidence/valuation");
     const marketCaps: Readonly<Record<string, number>> = {
       NVDA: 1000,
       AMD: 390,
@@ -366,6 +390,12 @@ describe("collectSources", () => {
       financialStatementsModule,
       "deriveFinancialStatements",
     ).mockReturnValue(undefined as never);
+    const deriveLegacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "deriveFundamentalHistory",
+    );
+    const addFinancialLensEvidence = spyOn(financialLensModule, "addFinancialLensEvidence");
+    const addValuationEvidence = spyOn(valuationModule, "addValuationEvidence");
     const fetchImpl = async (request: RequestInfo | URL): Promise<Response> => {
       const url = String(request);
       if (url.includes("/v7/finance/quote")) {
@@ -419,6 +449,21 @@ describe("collectSources", () => {
       );
 
       expect(result.financialStatements).toBeUndefined();
+      expect(result.fundamentalHistory).toBeDefined();
+      expect(result.financialLenses).toBeDefined();
+      expect(deriveLegacyFundamentalHistory).toHaveBeenCalledTimes(1);
+      expect(addFinancialLensEvidence).toHaveBeenCalledTimes(1);
+      expect(addValuationEvidence).toHaveBeenCalledTimes(1);
+      expect(
+        addValuationEvidence.mock.calls[0]?.[2]?.items.some(
+          (item) => item.metrics?.financialLensSelectionVersion === 1,
+        ),
+      ).toBe(false);
+      expect(
+        addFinancialLensEvidence.mock.calls[0]?.[2]?.items.some(
+          (item) => item.metrics?.financialLensSelectionVersion === 1,
+        ),
+      ).toBe(false);
       expect(result.valuationComps?.summary.valuationSupportability).toBe("supported");
       expect(
         result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,

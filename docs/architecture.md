@@ -104,12 +104,13 @@ Equity instrument runs also collect live Ticker Regime Context from the regime p
 
 Three more deterministic Extended Evidence items attach to equity runs. **Financial Lens Evidence** (`src/sources/extended-evidence/financial-lens.ts`) groups SEC/Yahoo-derived metrics into neutral Quality, Growth, Financial Strength, Value, and Momentum lenses, each carrying an evidence posture (`criteria-supported`/`criteria-mixed`/`criteria-not-supported`/`insufficient-data`) but no composite score, rank, or trade implication; price-level metrics render in the instrument's quote currency (LSE `GBp` pence is formatted distinctly from `GBP`). **Business Framework Evidence** (`src/sources/extended-evidence/business-framework.ts`) organizes already-collected SEC/Yahoo facts into Business, Phase, Moat, Growth, Management, Risk, and Valuation sections. Business Framework v2 persists qualitative gaps as stable code/text pairs while v1 string gaps remain readable. It exposes model-authored section explanations through `report.extras.businessFramework` and renders the same framework in the Research Console; lifecycle phase and section posture labels are descriptive only and do not score, rank, or imply actions. **Earnings Setup** ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)) is assembled for `equity --deep` when a Finnhub earnings record falls within 30 calendar days; it persists to `extras.earningsSetup` with event metadata and date certainty, an optional implied-move bar (ATM straddle midpoint / spot from the nearest post-event Tradier expiration), and model-authored sourced bullets. After Web Gather, deterministic confirmation checks direct issuer IR/press-release hosts established by SEC submissions metadata, explicit-future SEC 8-K/6-K text, and direct allowlisted exchange URLs. Only `issuer-confirmed` or `exchange-confirmed` setups advertise or retain event-anchored `earnings-direction` / `earnings-move` predictions; provider-estimated setups remain visible context with suppression telemetry.
 
-Equity runs additionally derive `normalized/financial-statements.json` from SEC companyfacts in
-shadow mode. The versioned artifact isolates one standard taxonomy and reporting currency, applies
+Equity runs additionally derive canonical `normalized/financial-statements.json` from SEC
+companyfacts. The versioned artifact isolates one standard taxonomy and reporting currency, applies
 the analysis cutoff before period/restatement selection, supports domestic and foreign-private-
-issuer periodic forms, records cadence and exact-component TTM derivations, and persists parity
-telemetry against current Financial Lens and fundamental-history outputs. Phase 2 consumers read it
-through parity-tested seams while tolerant readers preserve historical artifacts without it.
+issuer periodic forms, and records cadence and exact-component TTM derivations. When the artifact
+exists, Fundamental History, Financial Lenses, completeness, and valuation derive from it without
+running legacy financial derivations. Legacy derivations remain only as fallback when the canonical
+artifact is unavailable; the test-only offline corpus protects equivalence at this boundary.
 
 Equity runs also persist `normalized/valuation-workbench.json`. The workbench joins canonical annual
 or reconciled-TTM fundamentals to a verified close no earlier than the latest filing date among its

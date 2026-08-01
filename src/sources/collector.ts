@@ -52,7 +52,6 @@ import {
   collectFinancialStatements,
   deriveFinancialStatements,
 } from "./extended-evidence/financial-statements";
-import { attachFinancialStatementParity } from "./extended-evidence/financial-statements-parity";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { addValuationEvidence } from "./extended-evidence/valuation";
@@ -795,17 +794,9 @@ async function collectEquityEnrichment(
     };
   }
   const secFacts = input.secTargetPacket?.companyFacts;
-  let legacyFundamentalHistory: FundamentalHistoryArtifact | undefined = undefined;
-  let financialStatementsWithoutParity: FinancialStatementsArtifact | undefined = undefined;
+  let financialStatements: FinancialStatementsArtifact | undefined = undefined;
   if (collectStructuredSec && secFacts !== undefined) {
-    legacyFundamentalHistory = deriveFundamentalHistory(secFacts.payload, {
-      symbol: input.command.symbol,
-      generatedAt: input.fetchedAt,
-      analysisAsOf: input.fetchedAt,
-      sourceId: secFacts.sourceId,
-      ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
-    });
-    financialStatementsWithoutParity = deriveFinancialStatements(secFacts.payload, {
+    financialStatements = deriveFinancialStatements(secFacts.payload, {
       symbol: input.command.symbol,
       generatedAt: input.fetchedAt,
       analysisAsOf: input.fetchedAt,
@@ -819,51 +810,58 @@ async function collectEquityEnrichment(
         : {}),
     });
   } else if (collectStructuredSec) {
-    [legacyFundamentalHistory, financialStatementsWithoutParity] = await Promise.all([
-      collectFundamentalHistory(input.identityContext, input.command.symbol),
-      collectFinancialStatements(input.identityContext, input.command.symbol),
-    ]);
+    financialStatements = await collectFinancialStatements(
+      input.identityContext,
+      input.command.symbol,
+    );
   }
-  const legacyValuationResult = addValuationEvidence(
-    input.command,
-    input.marketSnapshots,
-    input.extendedEvidence,
-  );
+  let legacyFundamentalHistory: FundamentalHistoryArtifact | undefined = undefined;
+  if (collectStructuredSec && financialStatements === undefined && secFacts !== undefined) {
+    legacyFundamentalHistory = deriveFundamentalHistory(secFacts.payload, {
+      symbol: input.command.symbol,
+      generatedAt: input.fetchedAt,
+      analysisAsOf: input.fetchedAt,
+      sourceId: secFacts.sourceId,
+      ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
+    });
+  } else if (collectStructuredSec && financialStatements === undefined) {
+    legacyFundamentalHistory = await collectFundamentalHistory(
+      input.identityContext,
+      input.command.symbol,
+    );
+  }
   let subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined = undefined;
   let capitalOwnership: CapitalOwnershipArtifact | undefined = undefined;
-  if (financialStatementsWithoutParity !== undefined) {
+  if (financialStatements !== undefined) {
     subsequentFinancing =
       secFacts === undefined
         ? await collectSubsequentFinancingBridge(
             input.identityContext,
             input.command.symbol,
-            financialStatementsWithoutParity,
+            financialStatements,
           )
-        : deriveSubsequentFinancingBridge(secFacts.payload, financialStatementsWithoutParity);
+        : deriveSubsequentFinancingBridge(secFacts.payload, financialStatements);
     capitalOwnership =
       secFacts === undefined
         ? await collectCapitalOwnershipArtifact(
             input.identityContext,
             input.command.symbol,
-            financialStatementsWithoutParity,
+            financialStatements,
             subsequentFinancing,
           )
         : deriveCapitalOwnershipArtifact(
             secFacts.payload,
-            financialStatementsWithoutParity,
+            financialStatements,
             subsequentFinancing,
           );
   }
   const valuationResult =
-    financialStatementsWithoutParity === undefined
-      ? legacyValuationResult
+    financialStatements === undefined
+      ? addValuationEvidence(input.command, input.marketSnapshots, input.extendedEvidence)
       : addValuationEvidence(
           input.command,
           input.marketSnapshots,
-          withCanonicalFinancialLensInputs(
-            input.extendedEvidence,
-            financialStatementsWithoutParity,
-          ),
+          withCanonicalFinancialLensInputs(input.extendedEvidence, financialStatements),
         );
   const peerUniverseFallback =
     input.command.depth === "deep"
@@ -897,54 +895,25 @@ async function collectEquityEnrichment(
     evidenceWithComps,
     input.fetchedAt,
   );
-  const legacyEvidenceWithYahooFundamentals = addYahooFundamentals(
-    input.command,
-    input.marketSnapshots,
-    legacyValuationResult.extendedEvidence,
-    input.fetchedAt,
-  );
-  const legacyFinancialLensResult = addFinancialLensEvidence(
-    input.command,
-    input.marketSnapshots,
-    legacyEvidenceWithYahooFundamentals,
-    input.verifiedMarketSnapshot,
-    input.fetchedAt,
-  );
-  const financialStatements =
-    financialStatementsWithoutParity === undefined
-      ? undefined
-      : attachFinancialStatementParity(financialStatementsWithoutParity, {
-          ...(legacyFundamentalHistory !== undefined
-            ? { fundamentalHistory: legacyFundamentalHistory }
-            : {}),
-          ...(legacyFinancialLensResult.artifact !== undefined
-            ? { financialLenses: legacyFinancialLensResult.artifact }
-            : {}),
-        });
   const fundamentalHistory =
     financialStatements === undefined
       ? legacyFundamentalHistory
       : deriveFundamentalHistoryFromFinancialStatements(financialStatements);
-  const financialLensResult =
+  const financialLensEvidence =
     financialStatements === undefined
-      ? addFinancialLensEvidence(
-          input.command,
-          input.marketSnapshots,
-          evidenceWithYahooFundamentals,
-          input.verifiedMarketSnapshot,
-          input.fetchedAt,
-        )
-      : addFinancialLensEvidence(
-          input.command,
-          input.marketSnapshots,
-          withSubsequentFinancingEvidence(
-            withCanonicalFinancialLensInputs(evidenceWithYahooFundamentals, financialStatements),
-            subsequentFinancing,
-          ),
-          input.verifiedMarketSnapshot,
-          input.fetchedAt,
+      ? evidenceWithYahooFundamentals
+      : withSubsequentFinancingEvidence(
+          withCanonicalFinancialLensInputs(evidenceWithYahooFundamentals, financialStatements),
           subsequentFinancing,
         );
+  const financialLensResult = addFinancialLensEvidence(
+    input.command,
+    input.marketSnapshots,
+    financialLensEvidence,
+    input.verifiedMarketSnapshot,
+    input.fetchedAt,
+    subsequentFinancing,
+  );
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
     input.marketSnapshots,

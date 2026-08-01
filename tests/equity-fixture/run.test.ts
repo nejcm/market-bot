@@ -120,7 +120,6 @@ describe("static equity run fixtures", () => {
         expect(JSON.stringify(result.deepEquityEvidenceBundle)).not.toContain("rawSnapshots");
         const financialStatements = result.deepEquityEvidenceBundle?.derived.financialStatements;
         if (financialStatements !== undefined) {
-          expect(financialStatements.shadowParity.unexplainedCount).toBe(0);
           const fundamentalHistory = result.deepEquityEvidenceBundle?.derived.fundamentalHistory;
           if (fundamentalHistory !== undefined) {
             expect(fundamentalHistory).toEqual(

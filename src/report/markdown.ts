@@ -21,8 +21,7 @@ import {
 import { isRecord, readNumber } from "../guards";
 import { readGapTriage, type GapTriage } from "./gap-triage";
 import type { CollectedSources } from "../sources/types";
-import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
-import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
+import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";
 import {
   companyDescription,
   compactNumber,
@@ -1212,13 +1211,6 @@ function reportTitle(report: ResearchReport): string {
   return `${report.assetClass} Market Overview`;
 }
 
-type MarkdownCollectedSources = Pick<
-  CollectedSources,
-  "financialStatements" | "fundamentalHistory" | "valuationWorkbench" | "reverseDcf"
-> & {
-  readonly sourceGaps?: readonly SourceGap[];
-};
-
 export function renderMarkdownReport(
   report: ResearchReport,
   marketSnapshot?: MarketSnapshot,
@@ -1229,7 +1221,31 @@ export function renderMarkdownReport(
   }
 
   if (report.jobType === "equity" && report.assetClass === "equity") {
-    return renderEquityMarkdownReport(report, marketSnapshot, collectedSources);
+    return renderEquityMarkdownReport(report, marketSnapshot, collectedSources, {
+      reportTitle,
+      renderSources,
+      renderCompletenessChips: renderEquityCompletenessChips,
+      renderCompanyDescription,
+      renderPriceAndMarketDate,
+      renderFinancialTrends: renderProjectedFinancialTrends,
+      renderValuationContext,
+      renderFindings,
+      renderCatalystCalendar,
+      renderEarningsConsensus: renderCompactEarningsAndConsensus,
+      renderGapSection,
+      renderAppendixSection,
+      renderCompletenessAppendix,
+      renderBalanceSheet: renderBalanceSheetAndShareCount,
+      renderScenarios,
+      renderBusinessFramework,
+      renderWebSubjectProfile,
+      renderAnalystDistributions: renderAnalystEstimateDistributions,
+      renderExtendedEvidence,
+      renderEarningsSetup,
+      renderHistoricalContext,
+      renderSpotlights,
+      renderPredictions,
+    });
   }
 
   const title = reportTitle(report);
@@ -1283,129 +1299,5 @@ export function renderMarkdownReport(
     "",
     sources,
     "",
-  ].join("\n");
-}
-
-function renderEquityMarkdownReport(
-  report: ResearchReport,
-  marketSnapshot: MarketSnapshot | undefined,
-  collectedSources: MarkdownCollectedSources | undefined,
-): string {
-  const title = reportTitle(report);
-  const projection = projectEquityReader({
-    report,
-    ...(marketSnapshot === undefined ? {} : { marketSnapshot }),
-    ...(collectedSources?.fundamentalHistory === undefined
-      ? {}
-      : { fundamentalHistory: collectedSources.fundamentalHistory }),
-    ...(collectedSources?.financialStatements === undefined
-      ? {}
-      : { financialStatements: collectedSources.financialStatements }),
-    ...(collectedSources?.valuationWorkbench === undefined
-      ? {}
-      : { valuationWorkbench: collectedSources.valuationWorkbench }),
-    ...(collectedSources?.sourceGaps === undefined
-      ? {}
-      : { sourceGaps: collectedSources.sourceGaps }),
-  });
-  const { diagnosticGaps } = projection.appendix;
-  const additionalSourceIds = [
-    ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
-    ...(projection.defaultView.financialTrends?.sourceIds ?? []),
-    ...(projection.appendix.balanceSheetHistory?.sourceIds ?? []),
-    ...projection.defaultView.valuationContext.sourceIds,
-    ...projection.defaultView.earningsConsensus.flatMap((item) => item.sourceIds),
-    ...projection.appendix.analystEstimateDistributions.flatMap((item) => item.sourceIds),
-  ];
-  const sources = renderSources(report, additionalSourceIds);
-  const valuationPriceAsOf =
-    collectedSources?.valuationWorkbench?.peerComparison.status === "available"
-      ? collectedSources.valuationWorkbench.peerComparison.valuationComps.target.priceAsOf
-      : undefined;
-  const priceAsOf =
-    valuationPriceAsOf ??
-    (marketSnapshot === undefined ? undefined : resolveMarketSnapshotPriceAsOf(marketSnapshot));
-
-  return [
-    `# ${title}`,
-    "",
-    RESEARCH_ONLY_NOTE,
-    "",
-    `Generated: ${report.generatedAt}`,
-    `Evidence Quality: ${researchReportEvidenceQuality(report)}`,
-    ...(report.reportIntegrity !== undefined
-      ? [`Report Integrity: ${report.reportIntegrity}`]
-      : []),
-    ...(report.researchQuality !== undefined
-      ? [`Research Quality: ${report.researchQuality}`]
-      : []),
-    ...(report.researchQualityDriver !== undefined
-      ? [`Research Quality Driver: ${report.researchQualityDriver}`]
-      : []),
-    ...renderEquityCompletenessChips(report),
-    "",
-    renderCompanyDescription(report),
-    renderPriceAndMarketDate(report, marketSnapshot),
-    renderProjectedFinancialTrends(report, projection.defaultView.financialTrends),
-    renderValuationContext(report, projection.defaultView.valuationContext),
-    renderFindings("Catalysts", report.catalysts),
-    renderCatalystCalendar(report),
-    renderFindings("Key Findings", report.keyFindings),
-    renderFindings("Risks", report.risks),
-    renderCompactEarningsAndConsensus(report, projection.defaultView.earningsConsensus),
-    renderGapSection(
-      "Material Data Gaps",
-      projection.defaultView.materialGaps,
-      "No material gaps identified.",
-      report.symbol,
-      "material",
-    ),
-    "## Appendix",
-    "",
-    "### Summary",
-    "",
-    report.summary,
-    "",
-    renderAppendixSection(renderCompletenessAppendix(projection.appendix.completeness)),
-    renderBalanceSheetAndShareCount(report, projection.appendix.balanceSheetHistory),
-    renderAppendixSection(renderFindings("Bull Case", report.bullCase)),
-    renderAppendixSection(renderFindings("Bear Case", report.bearCase)),
-    renderAppendixSection(renderScenarios(report.scenarios)),
-    renderAppendixSection(renderBusinessFramework(report)),
-    renderAppendixSection(renderWebSubjectProfile(report)),
-    ...(projection.appendix.analystEstimateDistributions.length === 0
-      ? []
-      : [
-          renderAppendixSection(
-            renderAnalystEstimateDistributions(
-              report,
-              projection.appendix.analystEstimateDistributions,
-            ),
-          ),
-        ]),
-    renderAppendixSection(renderExtendedEvidence(report, marketSnapshot)),
-    renderAppendixSection(renderEarningsSetup(report)),
-    renderAppendixSection(renderHistoricalContext(report)),
-    renderAppendixSection(renderSpotlights(report)),
-    renderAppendixSection(renderPredictions(report.predictions)),
-    ...(diagnosticGaps.length === 0
-      ? []
-      : [
-          renderAppendixSection(
-            renderGapSection(
-              "Diagnostic Data Gaps",
-              diagnosticGaps,
-              "No diagnostic gaps identified.",
-              report.symbol,
-              "diagnostic",
-            ),
-          ),
-        ]),
-    "### Sources",
-    "",
-    sources,
-    "",
-    renderAppendixSection(renderValuationWorkbenchMarkdown(collectedSources?.valuationWorkbench)),
-    renderAppendixSection(renderReverseDcfMarkdown(collectedSources?.reverseDcf, priceAsOf)),
   ].join("\n");
 }

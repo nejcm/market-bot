@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence } from "../src/domain/types";
-import { readSubsequentFinancingBridgeArtifact } from "../src/run-artifacts";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   deriveSubsequentFinancingBridge,
+  readSubsequentFinancingBridgeArtifact,
   withSubsequentFinancingEvidence,
 } from "../src/sources/extended-evidence/subsequent-financing";
 import { marketSnapshot, verifiedMarketSnapshot } from "./support/fixtures";

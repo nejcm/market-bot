@@ -5,7 +5,6 @@ import { describe, expect, test } from "bun:test";
 import {
   COMPLETENESS_REASON_CODE_LABELS,
   completenessReasonCodeLabel,
-  equityCompletenessView,
   equitySnapshotView,
 } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
@@ -403,7 +402,6 @@ describe("provider dimension contracts", () => {
       const snapshot = equitySnapshotView(detail);
       const loaded = await loadRunArtifact(runDir);
 
-      expect(equityCompletenessView(detail)).toBeUndefined();
       expect(snapshot).toBeDefined();
       expect(snapshot?.pricePerformance.state).toBe("unavailable");
       expect(snapshot?.miniCharts.charts).toHaveLength(4);

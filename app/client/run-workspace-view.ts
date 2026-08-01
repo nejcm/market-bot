@@ -2,11 +2,9 @@ import type { RunDetail } from "../types";
 import { readGapTriage, type GapTriage } from "../../src/report/gap-triage";
 import {
   resolveMarketSnapshotPriceAsOf,
-  type EquityAnalysisDimensionStatus,
   type MarketSnapshot,
   type MarketSnapshotPriceAsOf,
 } from "../../src/domain/types";
-import { isRecord } from "../../src/guards";
 import type {
   FinancialLensName,
   FinancialLensPosture,
@@ -77,6 +75,11 @@ import {
   type SnapshotView,
   type WebSubjectProfileView,
 } from "./view-model";
+
+export {
+  COMPLETENESS_REASON_CODE_LABELS,
+  completenessReasonCodeLabel,
+} from "./run-workspace-completeness";
 
 export interface RunWorkspaceTextItem {
   readonly text: string;
@@ -255,27 +258,6 @@ export interface RunWorkspaceAnalystEstimateDistribution {
   readonly low: string;
   readonly count: string;
   readonly sourceIds: readonly string[];
-}
-
-export interface RunWorkspaceCompletenessDimension {
-  readonly key:
-    | "primaryFinancials"
-    | "valuation"
-    | "expectations"
-    | "capitalOwnership"
-    | "operatingKpis";
-  readonly label: string;
-  readonly status: EquityAnalysisDimensionStatus;
-  readonly reasonCodes: readonly string[];
-  readonly asOf: string;
-  readonly sourceIds: readonly string[];
-}
-
-export interface RunWorkspaceEquityCompletenessView {
-  readonly financialCoreStatus: "complete" | "partial" | "blocked";
-  readonly coverageLevel: "comprehensive" | "substantial" | "limited";
-  readonly asOf: string;
-  readonly dimensions: readonly RunWorkspaceCompletenessDimension[];
 }
 
 export interface RunWorkspacePeerImpliedRangeGeometry {
@@ -517,138 +499,6 @@ export interface RunWorkspaceView {
   readonly sources: RunWorkspaceSourcesView;
   readonly snapshot?: RunWorkspaceSnapshotView;
   readonly tableOfContents: readonly RunWorkspaceTableOfContentsEntry[];
-}
-
-const COMPLETENESS_DIMENSIONS: readonly {
-  readonly key: RunWorkspaceCompletenessDimension["key"];
-  readonly label: string;
-}[] = [
-  { key: "primaryFinancials", label: "Primary financials" },
-  { key: "valuation", label: "Valuation" },
-  { key: "expectations", label: "Expectations" },
-  { key: "capitalOwnership", label: "Capital & ownership" },
-  { key: "operatingKpis", label: "Operating KPIs" },
-];
-
-export const COMPLETENESS_REASON_CODE_LABELS: Readonly<Record<string, string>> = {
-  "annual-as-current": "Annual statement remains current",
-  "annual-history-insufficient": "Annual history is insufficient",
-  "cadence-unestablished": "Reporting cadence is not established",
-  "current-annual-statement-missing": "Current annual statement is missing",
-  "current-primary-statements-incomplete": "Current primary statements are incomplete",
-  "debt-maturity-untagged": "Debt maturity evidence is untagged",
-  "diluted-share-history-missing": "Diluted-share history is missing",
-  "expectations-evidence-missing": "Expectations evidence is missing",
-  "expectations-inputs-incomplete": "Expectations inputs are incomplete",
-  "expectations-provider-credential-missing": "Expectations provider credential is missing",
-  "expectations-provider-entitlement-blocked": "Expectations provider access is restricted",
-  "irregular-comparison-missing": "Comparable irregular-period evidence is missing",
-  "latest-due-interim-missing": "Latest due interim statement is missing",
-  "operating-kpi-not-applicable": "Operating KPIs are not applicable",
-  "operating-kpi-not-applicable-evidence-missing":
-    "Operating KPI non-applicability evidence is missing",
-  "operating-kpi-registry-unconfigured": "Operating KPI registry is not configured",
-  "operating-kpi-unverified": "Operating KPI is unverified",
-  "ownership-external-context-available": "External ownership context is available",
-  "ownership-provider-credential-missing": "Ownership provider credential is missing",
-  "ownership-provider-entitlement-blocked": "Ownership provider access is restricted",
-  "payout-evidence-missing": "Payout evidence is missing",
-  "per-share-evidence-missing": "Per-share evidence is missing",
-  "quarterly-periods-insufficient": "Quarterly history is insufficient",
-  "reporting-currency-incompatible": "Reporting currency evidence is inconsistent",
-  "reporting-currency-missing": "Reporting currency is missing",
-  "sbc-history-missing": "Stock-based compensation history is missing",
-  "semiannual-comparison-missing": "Comparable semiannual evidence is missing",
-  "subsequent-financing-unreconciled": "Subsequent financing is unreconciled",
-  "ttm-unreconciled": "Trailing twelve-month evidence is unreconciled",
-  "untagged-interim-evidence": "Interim evidence is untagged",
-  "valuation-evidence-missing": "Valuation evidence is missing",
-  "valuation-inputs-incomplete": "Valuation inputs are incomplete",
-};
-
-function readableReasonCodeFragment(value: string): string {
-  return value.replaceAll("-", " ").trim() || "Unspecified completeness detail";
-}
-
-export function completenessReasonCodeLabel(reasonCode: string): string {
-  const exactLabel = COMPLETENESS_REASON_CODE_LABELS[reasonCode];
-  if (exactLabel !== undefined) {
-    return exactLabel;
-  }
-  const separatorIndex = reasonCode.indexOf(":");
-  if (separatorIndex === -1) {
-    return readableReasonCodeFragment(reasonCode);
-  }
-  const prefix = reasonCode.slice(0, separatorIndex);
-  const suffix = reasonCode.slice(separatorIndex + 1);
-  const prefixLabel = COMPLETENESS_REASON_CODE_LABELS[prefix] ?? readableReasonCodeFragment(prefix);
-  return suffix.trim() === ""
-    ? prefixLabel
-    : `${prefixLabel}: ${readableReasonCodeFragment(suffix)}`;
-}
-
-function stringArrayValue(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) && value.every((item) => typeof item === "string")
-    ? value
-    : undefined;
-}
-
-export function equityCompletenessView(
-  detail: RunDetail,
-): RunWorkspaceEquityCompletenessView | undefined {
-  const completeness = detail.report?.equityAnalysisCompleteness;
-  const rawDimensions = isRecord(completeness) ? completeness.dimensions : undefined;
-  if (
-    !isRecord(completeness) ||
-    completeness.version !== 1 ||
-    (completeness.financialCoreStatus !== "complete" &&
-      completeness.financialCoreStatus !== "partial" &&
-      completeness.financialCoreStatus !== "blocked") ||
-    (completeness.coverageLevel !== "comprehensive" &&
-      completeness.coverageLevel !== "substantial" &&
-      completeness.coverageLevel !== "limited") ||
-    typeof completeness.asOf !== "string" ||
-    !isRecord(rawDimensions)
-  ) {
-    return undefined;
-  }
-  const dimensions = COMPLETENESS_DIMENSIONS.flatMap(({ key, label }) => {
-    const dimension = rawDimensions[key];
-    if (
-      !isRecord(dimension) ||
-      (dimension.status !== "complete" &&
-        dimension.status !== "partial" &&
-        dimension.status !== "blocked" &&
-        dimension.status !== "not-applicable" &&
-        dimension.status !== "not-assessed") ||
-      typeof dimension.asOf !== "string"
-    ) {
-      return [];
-    }
-    const reasonCodes = stringArrayValue(dimension.reasonCodes);
-    const sourceIds = stringArrayValue(dimension.sourceIds);
-    if (reasonCodes === undefined || sourceIds === undefined) {
-      return [];
-    }
-    const item: RunWorkspaceCompletenessDimension = {
-      key,
-      label,
-      status: dimension.status,
-      reasonCodes,
-      asOf: dimension.asOf,
-      sourceIds,
-    };
-    return [item];
-  });
-  if (dimensions.length !== COMPLETENESS_DIMENSIONS.length) {
-    return undefined;
-  }
-  return {
-    financialCoreStatus: completeness.financialCoreStatus,
-    coverageLevel: completeness.coverageLevel,
-    asOf: completeness.asOf,
-    dimensions,
-  };
 }
 
 function formatReferencePrice(value: number): string {
@@ -1720,7 +1570,6 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   }));
   const snapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
-  const equityCompleteness = equityCompletenessView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
   const valuationWorkbench = valuationWorkbenchView(detail);
   const reverseDcf = reverseDcfView(detail);
@@ -1805,11 +1654,6 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     equityPresentation === undefined
       ? [
           { key: "summary", label: "Summary", visible: summary !== "" },
-          {
-            key: "equityCompleteness",
-            label: "Analysis completeness",
-            visible: equityCompleteness !== undefined,
-          },
           {
             key: "financialLensStats",
             label: "Financial lens stats",

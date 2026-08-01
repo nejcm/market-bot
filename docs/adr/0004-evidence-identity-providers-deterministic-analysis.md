@@ -25,7 +25,8 @@ acquisition recipe and provider packets; amended 2026-07-25: bundle-only deep-eq
 amended 2026-07-27: clarified deep-equity model-pipeline cutover gate; amended 2026-07-29:
 quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthenticated
 operator gate records; amended 2026-07-30: deterministic price-as-of labelling; amended 2026-07-30:
-not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage)
+not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage; amended
+2026-08-01: recipe-phased deep-equity provider dispatch)
 
 ## Context
 
@@ -151,7 +152,9 @@ without pretending the project has a global security master.
 - Deep equity acquisition follows one explicit recipe: Yahoo target quote and identity, parallel
   provider packets, dependent peer and web acquisition, deterministic derivations, then one
   finalized in-memory `DeepEquityEvidenceBundleV1`. The same recipe supplies the frozen Source Plan
-  lanes and executable acquisition task keys; it is not a generic task graph.
+  lanes and executable acquisition task keys; it is not a generic task graph. The collector derives
+  its parallel-provider dispatch set from the recipe and starts supplemental market acquisition in
+  that batch rather than after SEC and Tradier packet finalization.
 - A deep US-equity `SecTargetPacket` fetches target CIK mapping, company facts, and submissions once,
   then retains SIC plus eligible 10-K, newer 10-Q, and recent 8-K/6-K filing packets. Statement,
   history, lens, financing, ownership, valuation, and framework derivations consume the shared

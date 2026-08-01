@@ -4,7 +4,6 @@ import { describe, expect, test } from "bun:test";
 import type { RunDetail, RunSummary } from "../app/types";
 import {
   buildRunWorkspaceView,
-  equityCompletenessView,
   equityHeaderView,
   equitySnapshotView,
   peerImpliedRangeView,
@@ -462,25 +461,8 @@ describe("run workspace view", () => {
       },
     };
 
-    const completeness = equityCompletenessView(detail);
     const workspace = buildRunWorkspaceView(detail);
 
-    expect(completeness).toMatchObject({
-      financialCoreStatus: "complete",
-      coverageLevel: "limited",
-      dimensions: [
-        {
-          key: "primaryFinancials",
-          status: "complete",
-          reasonCodes: primaryFinancials.reasonCodes,
-          sourceIds: primaryFinancials.sourceIds,
-        },
-        { key: "valuation", status: "partial" },
-        { key: "expectations", status: "partial" },
-        { key: "capitalOwnership", status: "partial" },
-        { key: "operatingKpis", status: "partial" },
-      ],
-    });
     expect(workspace.equityPresentation?.defaultView.financialCoreStatus).toBe("complete");
     expect(workspace.equityPresentation?.advanced.completeness).toMatchObject({
       coverageLevel: "limited",
@@ -503,7 +485,6 @@ describe("run workspace view", () => {
   test("suppresses completeness for historical reports without the field", () => {
     const detail: RunDetail = { summary: summary(), report: { summary: "Historical" } };
 
-    expect(equityCompletenessView(detail)).toBeUndefined();
     const workspace = buildRunWorkspaceView(detail);
     expect(workspace.equityPresentation?.defaultView.financialCoreStatus).toBeUndefined();
     expect(workspace.equityPresentation?.advanced.completeness).toBeUndefined();
@@ -1948,6 +1929,16 @@ describe("run workspace view", () => {
     expect(workspace.equityPresentation).toBeUndefined();
     expect(workspace.report.summary).toBe("Crypto summary.");
     expect(tocKeys(workspace)).toEqual(["summary"]);
+  });
+
+  test("does not advertise completeness when a research run has no equity presentation", () => {
+    const workspace = buildRunWorkspaceView({
+      summary: summary({ jobType: "research" }),
+      report: completenessReport(),
+    });
+
+    expect(workspace.equityPresentation).toBeUndefined();
+    expect(tocKeys(workspace)).not.toContain("equityCompleteness");
   });
 
   test("keeps the equity reader projection for legacy runs without assetClass", () => {

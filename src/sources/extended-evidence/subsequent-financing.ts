@@ -39,6 +39,67 @@ export interface SubsequentFinancingBridgeArtifact {
   readonly sourceIds: readonly string[];
 }
 
+function artifactString(value: Readonly<Record<string, unknown>>, key: string): string | undefined {
+  return typeof value[key] === "string" ? value[key] : undefined;
+}
+
+function artifactNumber(value: Readonly<Record<string, unknown>>, key: string): number | undefined {
+  return typeof value[key] === "number" ? value[key] : undefined;
+}
+
+function artifactStringArray(
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+): readonly string[] | undefined {
+  const field = value[key];
+  return Array.isArray(field) && field.every((item) => typeof item === "string")
+    ? field
+    : undefined;
+}
+
+export function readSubsequentFinancingBridgeArtifact(
+  value: unknown,
+): SubsequentFinancingBridgeArtifact | undefined {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    artifactString(value, "generatedAt") === undefined ||
+    artifactString(value, "symbol") === undefined ||
+    artifactString(value, "statementPeriodEnd") === undefined ||
+    !Array.isArray(value.events) ||
+    value.events.length === 0 ||
+    artifactStringArray(value, "sourceIds") === undefined
+  ) {
+    return undefined;
+  }
+  for (const event of value.events) {
+    if (
+      !isRecord(event) ||
+      artifactString(event, "disclosureDate") === undefined ||
+      artifactString(event, "eventDate") === undefined ||
+      (event.instrument !== "common-equity" &&
+        event.instrument !== "preferred-equity" &&
+        event.instrument !== "convertible-debt" &&
+        event.instrument !== "debt" &&
+        event.instrument !== "credit-facility") ||
+      !isRecord(event.proceeds) ||
+      artifactNumber(event.proceeds, "amount") === undefined ||
+      artifactString(event.proceeds, "currency") === undefined ||
+      (event.proceeds.basis !== "gross" && event.proceeds.basis !== "net") ||
+      (event.costs !== null &&
+        (!isRecord(event.costs) ||
+          artifactNumber(event.costs, "amount") === undefined ||
+          artifactString(event.costs, "currency") === undefined ||
+          event.costs.basis !== "cost")) ||
+      artifactStringArray(event, "sourceIds") === undefined ||
+      event.reconciled !== false
+    ) {
+      return undefined;
+    }
+  }
+  return value as unknown as SubsequentFinancingBridgeArtifact;
+}
+
 interface FinancingConcept {
   readonly taxonomy: "us-gaap" | "ifrs-full";
   readonly concept: string;

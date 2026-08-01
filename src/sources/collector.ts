@@ -101,7 +101,7 @@ import {
   type TradierPacket,
 } from "./tradier-packet";
 import { sourceGap } from "../domain/source-gaps";
-import { hasDeepEquityAcquisitionTask } from "../deep-equity/acquisition-recipe";
+import { deepEquityAcquisitionTasksForPhase } from "../deep-equity/acquisition-recipe";
 
 const DEEP_EQUITY_PROVIDER_ADAPTER = createMultiExtendedEvidenceAdapter("equity", [
   finnhubEventsExtendedEvidenceAdapter,
@@ -412,6 +412,11 @@ export async function collectSources(
   const isEquityTicker = isInstrumentCommand(command) && command.assetClass === "equity";
   const isTicker = isInstrumentCommand(command);
   const isDeepEquity = isEquityTicker && command.depth === "deep";
+  const deepEquityParallelExecutors = new Set(
+    isDeepEquity
+      ? deepEquityAcquisitionTasksForPhase("parallel-provider").map((task) => task.execute)
+      : [],
+  );
   const extendedEvidenceAdapter = isDeepEquity
     ? DEEP_EQUITY_PROVIDER_ADAPTER
     : registryExtendedEvidenceAdapter;
@@ -459,6 +464,7 @@ export async function collectSources(
     verifiedSnapshotResult,
     representativeVerifiedSnapshotResults,
     secTargetPacketBase,
+    deepSupplementalMarketResults,
   ] = await Promise.all([
     marketResult ?? marketAdapter.collect(marketCtx),
     newsAdapter.collect(newsContext),
@@ -480,8 +486,15 @@ export async function collectSources(
           })),
         )
       : [],
-    isDeepEquity && hasDeepEquityAcquisitionTask("sec-target-packet")
+    isDeepEquity && deepEquityParallelExecutors.has("sec-target-packet")
       ? collectSecTargetPacketBase(identityCtx, command)
+      : undefined,
+    isDeepEquity && deepEquityParallelExecutors.has("supplemental-market")
+      ? Promise.all(
+          supplementalMarketAdapters.map((adapter) =>
+            adapter.collect(marketCtx, marketResult?.marketSnapshots ?? []),
+          ),
+        )
       : undefined,
   ]);
   const earningsEvent = isDeepEquity
@@ -491,28 +504,31 @@ export async function collectSources(
     earningsEvent === undefined
       ? identityCtx
       : { ...identityCtx, earningsEventDate: earningsEvent.date };
-  const [secTargetPacket, tradierPacket] = isDeepEquity
-    ? await Promise.all([
-        finalizeSecTargetPacket(packetContext, secTargetPacketBase as SecTargetPacket),
-        hasDeepEquityAcquisitionTask("tradier-packet")
-          ? collectTradierPacket(
-              identityCtx,
-              command,
-              earningsEvent,
-              runtime.collectTradierTermStructure === true,
-            )
-          : undefined,
-      ])
-    : [undefined, undefined];
+  const [secTargetPacket, tradierPacket] =
+    isDeepEquity && secTargetPacketBase !== undefined
+      ? await Promise.all([
+          finalizeSecTargetPacket(packetContext, secTargetPacketBase),
+          deepEquityParallelExecutors.has("tradier-packet")
+            ? collectTradierPacket(
+                identityCtx,
+                command,
+                earningsEvent,
+                runtime.collectTradierTermStructure === true,
+              )
+            : undefined,
+        ])
+      : [undefined, undefined];
   const deepExtendedResult =
     isDeepEquity && secTargetPacket !== undefined && tradierPacket !== undefined
       ? mergeDeepEquityProviderResults(identityCtx, secTargetPacket, extendedResult, tradierPacket)
       : extendedResult;
-  const supplementalMarketResults = await Promise.all(
-    supplementalMarketAdapters.map((adapter) =>
-      adapter.collect(marketCtx, resolvedMarketResult.marketSnapshots),
-    ),
-  );
+  const supplementalMarketResults =
+    deepSupplementalMarketResults ??
+    (await Promise.all(
+      supplementalMarketAdapters.map((adapter) =>
+        adapter.collect(marketCtx, resolvedMarketResult.marketSnapshots),
+      ),
+    ));
   const promotedMarket = promoteRequiredMarketSnapshots(
     resolvedMarketResult.marketSnapshots,
     marketAdapter.name,

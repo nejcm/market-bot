@@ -105,6 +105,8 @@ export function deepEquityRecipeLanes(): ReadonlySet<EvidenceLane> {
   );
 }
 
-export function hasDeepEquityAcquisitionTask(execute: DeepEquityAcquisitionExecutor): boolean {
-  return DEEP_EQUITY_ACQUISITION_RECIPE.some((task) => task.execute === execute);
+export function deepEquityAcquisitionTasksForPhase(
+  phase: DeepEquityAcquisitionPhase,
+): readonly DeepEquityAcquisitionTask[] {
+  return DEEP_EQUITY_ACQUISITION_RECIPE.filter((task) => task.phase === phase);
 }

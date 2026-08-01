@@ -163,30 +163,27 @@ export interface FinancialTableValidationResult {
   readonly acceptedStatements: readonly FinancialStatementName[];
 }
 
-export type UntaggedFinancialStatementsArtifact = {
+export interface UntaggedFinancialExtractorEvaluation {
+  readonly status: "passed";
+  readonly corpusVersion: number;
+  readonly evaluatedAt: string;
+  readonly supportedCaseCount: number;
+  readonly acceptedCaseCount: number;
+  readonly silentMismatchCount: number;
+  readonly sourceCellMismatchCount: number;
+}
+
+export interface UntaggedFinancialExtractionExecutionPolicy {
+  readonly enabled: boolean;
+}
+
+export interface UntaggedFinancialStatementsArtifact {
   readonly version: 1;
   readonly generatedAt: string;
   readonly symbol: string;
   readonly filing: FinancialTableSourceLocator;
-  readonly completenessGate: {
-    readonly passed: boolean;
-    readonly corpusVersion: number;
-    readonly evaluatedAt: string;
-    readonly reason: string;
-  };
-} & (
-  | {
-      readonly status: "gated";
-      readonly validationAttempted: false;
-      readonly packet?: never;
-      readonly mapping?: never;
-      readonly validation?: never;
-    }
-  | {
-      readonly status?: never;
-      readonly validationAttempted?: never;
-      readonly packet: FinancialTablePacket;
-      readonly mapping: FinancialTableMappingOutput | null;
-      readonly validation: FinancialTableValidationResult;
-    }
-);
+  readonly packet: FinancialTablePacket;
+  readonly mapping: FinancialTableMappingOutput | null;
+  readonly validation: FinancialTableValidationResult;
+  readonly evaluation: UntaggedFinancialExtractorEvaluation;
+}

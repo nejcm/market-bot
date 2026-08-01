@@ -5,7 +5,10 @@ import {
   collectUntaggedFinancialExhibit,
   type CollectUntaggedFinancialExhibitInput,
 } from "../sources/extended-evidence/untagged-financial-exhibit";
-import { UNTAGGED_FINANCIAL_COMPLETENESS_GATE } from "../sources/extended-evidence/untagged-financial-evaluation-gate";
+import {
+  UNTAGGED_FINANCIAL_EXTRACTOR_EVALUATION,
+  UNTAGGED_FINANCIAL_PRODUCTION_EXECUTION_POLICY,
+} from "../sources/extended-evidence/untagged-financial-extraction-policy";
 import {
   parseFinancialTableMappingOutput,
   validateFinancialTableMapping,
@@ -15,6 +18,7 @@ import type {
   FinancialTablePacket,
   FinancialTableValidationIssue,
   FinancialTableValidationResult,
+  UntaggedFinancialExtractionExecutionPolicy,
   UntaggedFinancialStatementsArtifact,
 } from "../sources/extended-evidence/untagged-financial-tables-contract";
 import type { CollectedSources } from "../sources/types";
@@ -23,7 +27,7 @@ export interface FinancialTableExtractionPhaseInput {
   readonly symbol: string;
   readonly generatedAt: string;
   readonly collectedSources: CollectedSources;
-  readonly completenessGate?: UntaggedFinancialStatementsArtifact["completenessGate"];
+  readonly executionPolicy?: UntaggedFinancialExtractionExecutionPolicy;
   readonly collect: Omit<
     CollectUntaggedFinancialExhibitInput,
     "symbol" | "fetchedAt" | "rawSnapshots" | "financialStatements"
@@ -76,7 +80,6 @@ function artifact(
   packet: FinancialTablePacket,
   mapping: FinancialTableMappingOutput | null,
   validation: FinancialTableValidationResult,
-  completenessGate: UntaggedFinancialStatementsArtifact["completenessGate"],
 ): UntaggedFinancialStatementsArtifact {
   return {
     version: 1,
@@ -86,23 +89,7 @@ function artifact(
     packet,
     mapping,
     validation,
-    completenessGate,
-  };
-}
-
-function gatedArtifact(
-  input: FinancialTableExtractionPhaseInput,
-  packet: FinancialTablePacket,
-  completenessGate: UntaggedFinancialStatementsArtifact["completenessGate"],
-): UntaggedFinancialStatementsArtifact {
-  return {
-    version: 1,
-    generatedAt: input.generatedAt,
-    symbol: input.symbol.toUpperCase(),
-    status: "gated",
-    validationAttempted: false,
-    filing: packet.source,
-    completenessGate,
+    evaluation: UNTAGGED_FINANCIAL_EXTRACTOR_EVALUATION,
   };
 }
 
@@ -110,7 +97,6 @@ export async function runFinancialTableExtractionPhase(
   input: FinancialTableExtractionPhaseInput,
 ): Promise<FinancialTableExtractionPhaseResult> {
   const { collectedSources } = input;
-  const completenessGate = input.completenessGate ?? UNTAGGED_FINANCIAL_COMPLETENESS_GATE;
   const { financialStatements } = collectedSources;
   if (
     financialStatements === undefined ||
@@ -118,6 +104,17 @@ export async function runFinancialTableExtractionPhase(
   ) {
     return { collectedSources, stageOutputs: [] };
   }
+  const executionPolicy = input.executionPolicy ?? UNTAGGED_FINANCIAL_PRODUCTION_EXECUTION_POLICY;
+  if (!executionPolicy.enabled) {
+    return {
+      collectedSources: {
+        ...collectedSources,
+        sourceGaps: [...collectedSources.sourceGaps, gatedGap(input.symbol)],
+      },
+      stageOutputs: [],
+    };
+  }
+
   const discovery = await collectUntaggedFinancialExhibit({
     symbol: input.symbol,
     fetchedAt: input.generatedAt,
@@ -152,20 +149,7 @@ export async function runFinancialTableExtractionPhase(
           ...discovery.gaps,
           validationGap(input.symbol, validation),
         ],
-        untaggedFinancialStatements: artifact(input, packet, null, validation, completenessGate),
-      },
-      stageOutputs: [],
-    };
-  }
-
-  if (!completenessGate.passed) {
-    return {
-      collectedSources: {
-        ...collectedSources,
-        rawSnapshots: [...collectedSources.rawSnapshots, ...discovery.rawSnapshots],
-        extendedSources: [...collectedSources.extendedSources, discovery.exhibit.source],
-        sourceGaps: [...collectedSources.sourceGaps, ...discovery.gaps, gatedGap(input.symbol)],
-        untaggedFinancialStatements: gatedArtifact(input, packet, completenessGate),
+        untaggedFinancialStatements: artifact(input, packet, null, validation),
       },
       stageOutputs: [],
     };
@@ -198,7 +182,7 @@ export async function runFinancialTableExtractionPhase(
       rawSnapshots: [...collectedSources.rawSnapshots, ...discovery.rawSnapshots],
       extendedSources: [...collectedSources.extendedSources, discovery.exhibit.source],
       sourceGaps: [...collectedSources.sourceGaps, ...gaps],
-      untaggedFinancialStatements: artifact(input, packet, mapping, validation, completenessGate),
+      untaggedFinancialStatements: artifact(input, packet, mapping, validation),
     },
     stageOutputs: [output],
   };

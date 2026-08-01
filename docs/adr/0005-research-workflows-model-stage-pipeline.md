@@ -9,7 +9,8 @@ Accepted
 2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
 amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
 incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping;
-amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit)
+amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit;
+amended 2026-08-02: untagged extractor evaluation and production execution policy)
 
 ## Context
 
@@ -168,10 +169,14 @@ research boundaries without sharing persistence or scoring semantics.
   mismatches. A fresh SEC fetch of the NBIS exhibit was byte-identical to the fixture and produced
   the same 14 accepted cell mappings.
 - Passing this evaluation authorizes the extraction subsystem but does not make its facts canonical
-  financial evidence. Phase 3 persists a separate optional sidecar and leaves the canonical
-  `financial-statements.json` artifact and financial-core completeness contract unchanged. A later
-  explicit consumer migration must define canonical merge, precedence, and history semantics before
-  these values can satisfy completeness.
+  financial evidence. Immutable evaluation metadata records the corpus result independently from
+  the production execution policy. Production execution is disabled: after the canonical
+  `untagged-6-k` gap is detected, the workflow emits the material gated Source Gap before exhibit
+  discovery, HTTP fetches, packet construction, or model mapping, and emits no extraction sidecar.
+  Tests and evaluation tooling may explicitly enable execution to exercise the existing bounded
+  discovery, mapping, deterministic reread, validation, and optional sidecar flow. Canonical
+  admission remains a separate future decision that must define merge, precedence, completeness,
+  and history semantics.
 
 ## Current operational limitations
 
@@ -217,8 +222,9 @@ research boundaries without sharing persistence or scoring semantics.
 - `app/chat.ts`, `app/client/components/run-chat.svelte`, `run-chat-storage.ts`, and
   `src/model/codex.ts` implement Run Chat and gated live search.
 - `src/sources/extended-evidence/untagged-financial-table-packet.ts`,
-  `untagged-financial-table-validation.ts`, and `untagged-financial-exhibit.ts` implement bounded
-  discovery, source-cell parsing, and accounting validation.
+  `untagged-financial-table-validation.ts`, `untagged-financial-exhibit.ts`, and
+  `untagged-financial-extraction-policy.ts` implement bounded discovery, source-cell parsing,
+  accounting validation, and the evaluation/production execution split.
 - `prompts/financial-table-mapping/base.md` defines the constrained model authority;
   `tests/fixtures/untagged-financial-corpus/` and `scripts/evaluate-untagged-financial-corpus.ts`
-  record and enforce the pre-production gate.
+  record and enforce the extractor evaluation corpus.

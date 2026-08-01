@@ -346,6 +346,12 @@
             "netDebtSelectedPeriodEnd": "2025-12-31",
             "debtToEquitySelectedValue": 1.25,
             "debtToEquitySelectedPeriodEnd": "2025-12-31",
+            "roeSelectedValue": 0.275,
+            "roeSelectedPeriodEnd": "2025-12-31",
+            "roeSelectedPeriodMonths": 12,
+            "roaSelectedValue": 0.55,
+            "roaSelectedPeriodEnd": "2025-12-31",
+            "roaSelectedPeriodMonths": 12,
             "financialLensSelectionVersion": 1
           }
         },
@@ -1995,6 +2001,12 @@
                 "netDebtSelectedPeriodEnd": "2025-12-31",
                 "debtToEquitySelectedValue": 1.25,
                 "debtToEquitySelectedPeriodEnd": "2025-12-31",
+                "roeSelectedValue": 0.275,
+                "roeSelectedPeriodEnd": "2025-12-31",
+                "roeSelectedPeriodMonths": 12,
+                "roaSelectedValue": 0.55,
+                "roaSelectedPeriodEnd": "2025-12-31",
+                "roaSelectedPeriodMonths": 12,
                 "financialLensSelectionVersion": 1
               }
             },

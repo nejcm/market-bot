@@ -10,6 +10,7 @@ import {
   financialStatementPeriodsYearAligned,
   financialStatementSeriesByKey,
   latestCommonFinancialStatementFacts,
+  latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
 
@@ -161,6 +162,29 @@ function addCommonDerivedMetric(
   };
 }
 
+function addCommonPeriodEndDerivedMetric(
+  metrics: Record<string, CanonicalFinancialLensDerivedMetric>,
+  key: string,
+  left: FinancialStatementSeries | undefined,
+  right: FinancialStatementSeries | undefined,
+  derive: (left: FinancialStatementFact, right: FinancialStatementFact) => number | undefined,
+): void {
+  const facts = latestCommonFinancialStatementPeriodEndFacts([left, right]);
+  if (facts === undefined || facts[0] === undefined || facts[1] === undefined) {
+    return;
+  }
+  const value = derive(facts[0], facts[1]);
+  if (value === undefined || !Number.isFinite(value)) {
+    return;
+  }
+  const months = financialStatementPeriodMonths(facts[0]);
+  metrics[key] = {
+    value,
+    periodEnd: facts[0].periodEnd,
+    ...(months !== undefined ? { periodMonths: months } : {}),
+  };
+}
+
 function dividedBy(left: number, right: number): number | undefined {
   return right === 0 ? undefined : left / right;
 }
@@ -218,6 +242,31 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
     metrics[`${key}SelectedPeriodEnd`] = selected.periodEnd;
     if (selected.periodMonths !== undefined) {
       metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
+    }
+  }
+  for (const [key, denominatorKey] of [
+    ["roe", "stockholdersEquity"],
+    ["roa", "assets"],
+  ] as const) {
+    addCommonPeriodEndDerivedMetric(
+      derivedMetrics,
+      key,
+      byMetric.get("netIncome"),
+      byMetric.get(denominatorKey),
+      (netIncome, denominator) => {
+        const months = financialStatementPeriodMonths(netIncome);
+        return months === undefined || denominator.value === 0
+          ? undefined
+          : (netIncome.value * (12 / months)) / denominator.value;
+      },
+    );
+    const selected = derivedMetrics[key];
+    if (selected !== undefined) {
+      metrics[`${key}SelectedValue`] = selected.value;
+      metrics[`${key}SelectedPeriodEnd`] = selected.periodEnd;
+      if (selected.periodMonths !== undefined) {
+        metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
+      }
     }
   }
   if (Object.keys(metrics).length > 0) {

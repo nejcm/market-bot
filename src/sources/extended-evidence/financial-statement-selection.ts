@@ -16,8 +16,9 @@ const DAYS_PER_MONTH = 30.4368;
 const ALIGNMENT_MIN_DAYS = 350;
 const ALIGNMENT_MAX_DAYS = 380;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
-const MAX_ANNUAL_PERIODS = 10;
-const MAX_INTERIM_PERIODS = 12;
+// Each limit applies per shape (duration and instant): up to 20 annual and 24 interim keys.
+const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
+const MAX_INTERIM_PERIODS_PER_SHAPE = 12;
 
 function daysBetween(start: string, end: string): number | undefined {
   const startMs = Date.parse(start);
@@ -139,19 +140,26 @@ export function financialStatementTtmsAreCompatible(
   );
 }
 
-export function latestCommonFinancialStatementFacts(
+function latestCommonFinancialStatementFactsBy(
   series: readonly (FinancialStatementSeries | undefined)[],
+  candidateKey: (fact: FinancialStatementFact) => string,
+  selectForCandidate: (
+    facts: readonly FinancialStatementFact[],
+    candidate: string,
+  ) => FinancialStatementFact | undefined,
 ): readonly FinancialStatementFact[] | undefined {
   if (series.length === 0 || series.some((item) => item === undefined)) {
     return undefined;
   }
   const available = series as readonly FinancialStatementSeries[];
-  const periodKeys = [
-    ...new Set(financialStatementFacts(available[0]!).map((fact) => fact.periodKey)),
+  // Candidate keys come only from series[0]; argument order is semantically load-bearing.
+  // The first series defines the periods the remaining series may match.
+  const candidates = [
+    ...new Set(financialStatementFacts(available[0]!).map((fact) => candidateKey(fact))),
   ];
-  const common = periodKeys.flatMap((periodKey): readonly FinancialStatementFact[][] => {
+  const common = candidates.flatMap((candidate): readonly FinancialStatementFact[][] => {
     const facts = available.map((item) =>
-      financialStatementFactForPeriod(financialStatementFacts(item), periodKey),
+      selectForCandidate(financialStatementFacts(item), candidate),
     );
     if (
       facts.some((fact) => fact === undefined) ||
@@ -162,6 +170,27 @@ export function latestCommonFinancialStatementFacts(
     return [[...(facts as readonly FinancialStatementFact[])]];
   });
   return common.toSorted((left, right) => compareFinancialStatementFacts(left[0]!, right[0]!))[0];
+}
+
+export function latestCommonFinancialStatementFacts(
+  series: readonly (FinancialStatementSeries | undefined)[],
+): readonly FinancialStatementFact[] | undefined {
+  return latestCommonFinancialStatementFactsBy(
+    series,
+    (fact) => fact.periodKey,
+    financialStatementFactForPeriod,
+  );
+}
+
+export function latestCommonFinancialStatementPeriodEndFacts(
+  series: readonly (FinancialStatementSeries | undefined)[],
+): readonly FinancialStatementFact[] | undefined {
+  return latestCommonFinancialStatementFactsBy(
+    series,
+    (fact) => fact.periodEnd,
+    (facts, periodEnd) =>
+      latestFinancialStatementFact(facts.filter((fact) => fact.periodEnd === periodEnd)),
+  );
 }
 
 function isYearAligned(prior: string, latest: string): boolean {
@@ -380,35 +409,52 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
   readonly series: readonly FinancialStatementSeries[];
   readonly notes: readonly FinancialStatementNote[];
 } {
-  const limits = { annual: MAX_ANNUAL_PERIODS, interim: MAX_INTERIM_PERIODS } as const;
-  const allowed = new Map<"annual" | "interim", ReadonlySet<string>>();
+  const limits = {
+    annual: MAX_ANNUAL_PERIODS_PER_SHAPE,
+    interim: MAX_INTERIM_PERIODS_PER_SHAPE,
+  } as const;
+  const allowed = new Map<
+    "annual" | "interim",
+    Readonly<Record<"duration" | "instant", ReadonlySet<string>>>
+  >();
   const notes: FinancialStatementNote[] = [];
   for (const period of ["annual", "interim"] as const) {
-    const periodFacts = new Map<string, FinancialStatementFact>();
-    for (const fact of series.flatMap((item) => item[period])) {
-      periodFacts.set(fact.periodKey, fact);
+    const allowedByShape = { duration: new Set<string>(), instant: new Set<string>() };
+    for (const shape of ["duration", "instant"] as const) {
+      const periodFacts = new Map<string, FinancialStatementFact>();
+      for (const fact of series.flatMap((item) => item[period])) {
+        if ((fact.periodStart === undefined ? "instant" : "duration") === shape) {
+          periodFacts.set(fact.periodKey, fact);
+        }
+      }
+      const periodKeys = [...periodFacts.entries()]
+        .toSorted(
+          (left, right) =>
+            left[1].periodEnd.localeCompare(right[1].periodEnd) || left[0].localeCompare(right[0]),
+        )
+        .map(([key]) => key);
+      const omitted = periodKeys.slice(0, -limits[period]);
+      allowedByShape[shape] = new Set(periodKeys.slice(-limits[period]));
+      for (const periodKey of omitted) {
+        notes.push({
+          code: "history-cap",
+          periodKey: `${period}|${periodKey}`,
+          message: `Older ${period} ${shape} canonical period ${periodKey} omitted by the ${String(limits[period])}-period ${period} ${shape} cap`,
+        });
+      }
     }
-    const periodKeys = [...periodFacts.entries()]
-      .toSorted(
-        (left, right) =>
-          left[1].periodEnd.localeCompare(right[1].periodEnd) || left[0].localeCompare(right[0]),
-      )
-      .map(([key]) => key);
-    const omitted = periodKeys.slice(0, -limits[period]);
-    allowed.set(period, new Set(periodKeys.slice(-limits[period])));
-    for (const periodKey of omitted) {
-      notes.push({
-        code: "history-cap",
-        periodKey: `${period}|${periodKey}`,
-        message: `Older ${period} canonical period ${periodKey} omitted by the shared ${String(limits[period])}-period cap`,
-      });
-    }
+    allowed.set(period, allowedByShape);
   }
+  const keep = (period: "annual" | "interim", fact: FinancialStatementFact): boolean => {
+    const periods = allowed.get(period)!;
+    const shape = fact.periodStart === undefined ? "instant" : "duration";
+    return periods[shape].has(fact.periodKey);
+  };
   return {
     series: series.map((item) => ({
       ...item,
-      annual: item.annual.filter((fact) => allowed.get("annual")!.has(fact.periodKey)),
-      interim: item.interim.filter((fact) => allowed.get("interim")!.has(fact.periodKey)),
+      annual: item.annual.filter((fact) => keep("annual", fact)),
+      interim: item.interim.filter((fact) => keep("interim", fact)),
     })),
     notes,
   };

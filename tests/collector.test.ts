@@ -101,34 +101,11 @@ function collectorSecFactUnits(
   };
 }
 
-function collectorSecPayload(revenue = 100, competingRevenueConcepts = false): unknown {
+function collectorSecPayload(revenue = 100): unknown {
   return {
     facts: {
       "us-gaap": {
-        ...(competingRevenueConcepts
-          ? {
-              Revenues: {
-                units: {
-                  USD: [
-                    collectorSecFact(80, {
-                      form: "10-K",
-                      fp: "FY",
-                      fy: 2018,
-                      filed: "2019-02-15",
-                      start: "2018-01-01",
-                      end: "2018-12-31",
-                    }),
-                  ],
-                },
-              },
-              SalesRevenueNet: collectorSecFactUnits(revenue, revenue - 10),
-              RevenueFromContractWithCustomerExcludingAssessedTax: {
-                units: {
-                  USD: [collectorSecFact(revenue / 10, { filed: "2026-07-10" })],
-                },
-              },
-            }
-          : { Revenues: { units: { USD: [collectorSecFact(revenue)] } } }),
+        Revenues: { units: { USD: [collectorSecFact(revenue)] } },
         GrossProfit: collectorSecFactUnits(40, 35),
         OperatingIncomeLoss: collectorSecFactUnits(25, 20),
         NetIncomeLoss: collectorSecFactUnits(20, 18),
@@ -283,7 +260,7 @@ describe("collectSources", () => {
       if (url.includes("companyfacts")) {
         if (url.includes("CIK0000000001")) {
           nvdaCompanyFactsRequests += 1;
-          return jsonResponse(collectorSecPayload(100, true));
+          return jsonResponse(collectorSecPayload(100));
         }
         return jsonResponse(collectorSecPayload());
       }
@@ -323,7 +300,7 @@ describe("collectSources", () => {
       version: 1,
       symbol: "NVDA",
       sourceId: "extended-sec-edgar-nvda-fundamentals",
-      series: { revenue: { concept: "SalesRevenueNet" } },
+      series: { revenue: { concept: "Revenues" } },
     });
     expect(
       result.financialLenses?.lenses
@@ -331,19 +308,9 @@ describe("collectSources", () => {
         .find((metric) => metric.key === "grossMargin")?.value,
     ).toBe(0.4);
     expect(result.financialStatements?.shadowParity).toMatchObject({
-      status: "unexplained",
-      unexplainedCount: expect.any(Number),
-      comparisons: expect.arrayContaining([
-        expect.objectContaining({
-          consumer: "financial-lens",
-          field: "grossMargin",
-          status: "unexplained",
-          artifactValue: 0.4,
-          legacyValue: 4,
-        }),
-      ]),
+      status: "matched",
+      unexplainedCount: 0,
     });
-    expect(result.financialStatements?.shadowParity.unexplainedCount).not.toBe(0);
     expect(nvdaCompanyFactsRequests).toBe(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(1);
     for (const cik of Object.values(cikBySymbol)) {

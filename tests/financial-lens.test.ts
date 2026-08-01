@@ -971,6 +971,60 @@ describe("financial lens artifact compatibility", () => {
     });
   });
 
+  test("uses end-aligned canonical balance facts for ROE and ROA", () => {
+    const facts = {
+      facts: {
+        "us-gaap": {
+          Revenues: { units: { USD: [canonicalAnnualFact(100, 2025)] } },
+          NetIncomeLoss: { units: { USD: [canonicalAnnualFact(20, 2025)] } },
+          Assets: {
+            units: {
+              USD: [
+                canonicalInstantFact(100, "2025-12-31", "2026-02-15", "10-K", "FY"),
+                canonicalInstantFact(200, "2026-03-31", "2026-05-01", "10-Q", "Q1"),
+              ],
+            },
+          },
+          StockholdersEquity: {
+            units: {
+              USD: [
+                canonicalInstantFact(50, "2025-12-31", "2026-02-15", "10-K", "FY"),
+                canonicalInstantFact(75, "2026-03-31", "2026-05-01", "10-Q", "Q1"),
+              ],
+            },
+          },
+        },
+      },
+    };
+    const artifact = deriveFinancialStatements(facts, {
+      symbol: "AAPL",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      analysisAsOf: "2026-06-22T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    });
+    const result = addFinancialLensEvidence(
+      command,
+      [],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      undefined,
+      "2026-06-22T00:00:00.000Z",
+    );
+    const quality = result.artifact?.lenses.find((lens) => lens.name === "Quality");
+
+    expect(quality?.metrics.find((metric) => metric.key === "roe")).toMatchObject({
+      label: "ROE",
+      value: 0.4,
+      periodEnd: "2025-12-31",
+      periodMonths: 12,
+    });
+    expect(quality?.metrics.find((metric) => metric.key === "roa")).toMatchObject({
+      label: "ROA",
+      value: 0.2,
+      periodEnd: "2025-12-31",
+      periodMonths: 12,
+    });
+  });
+
   test("drops unavailable canonical ratios after serialization instead of mixing periods", () => {
     const canonicalEvidence = jsonRoundTrip<ExtendedEvidence>({
       instrument: { symbol: "AAPL", assetClass: "equity" },

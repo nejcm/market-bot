@@ -346,6 +346,12 @@
             "netDebtSelectedPeriodEnd": "2026-03-31",
             "debtToEquitySelectedValue": 1.25,
             "debtToEquitySelectedPeriodEnd": "2026-03-31",
+            "roeSelectedValue": 0.2961538461538462,
+            "roeSelectedPeriodEnd": "2026-03-31",
+            "roeSelectedPeriodMonths": 3,
+            "roaSelectedValue": 0.5923076923076924,
+            "roaSelectedPeriodEnd": "2026-03-31",
+            "roaSelectedPeriodMonths": 3,
             "financialLensSelectionVersion": 1
           }
         },
@@ -1985,6 +1991,12 @@
                 "netDebtSelectedPeriodEnd": "2026-03-31",
                 "debtToEquitySelectedValue": 1.25,
                 "debtToEquitySelectedPeriodEnd": "2026-03-31",
+                "roeSelectedValue": 0.2961538461538462,
+                "roeSelectedPeriodEnd": "2026-03-31",
+                "roeSelectedPeriodMonths": 3,
+                "roaSelectedValue": 0.5923076923076924,
+                "roaSelectedPeriodEnd": "2026-03-31",
+                "roaSelectedPeriodMonths": 3,
                 "financialLensSelectionVersion": 1
               }
             },

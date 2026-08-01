@@ -8,6 +8,7 @@ import type {
   SupportedSecForm,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import {
+  capFinancialStatementPeriods,
   financialStatementFactForPeriod,
   financialStatementFactsAreCompatible,
   financialStatementSeries,
@@ -15,6 +16,7 @@ import {
   financialStatementTtmsAreCompatible,
   financialStatementTtmsSharePeriod,
   latestCommonFinancialStatementFacts,
+  latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 
@@ -207,6 +209,104 @@ describe("financial statement selection", () => {
     expect(latestCommonFinancialStatementFacts([empty, populated])).toBeUndefined();
     expect(latestCommonFinancialStatementFacts([populated])?.map((item) => item.value)).toEqual([
       2,
+    ]);
+  });
+
+  test("selects the latest compatible common period end for flow-to-balance ratios", () => {
+    const netIncome = series("netIncome", [
+      fact({ periodEnd: "2024-12-31", periodKey: "2024-01-01|2024-12-31", value: 2 }),
+      fact({ periodEnd: "2025-12-31", periodKey: "2025-01-01|2025-12-31", value: 3 }),
+    ]);
+    const assets = series("totalAssets", [
+      fact({
+        periodStart: null,
+        periodEnd: "2025-12-31",
+        periodKey: "instant|2025-12-31",
+        value: 10,
+      }),
+      fact({
+        periodStart: null,
+        periodEnd: "2026-03-31",
+        periodKey: "instant|2026-03-31",
+        periodType: "interim",
+        value: 12,
+      }),
+    ]);
+
+    expect(
+      latestCommonFinancialStatementPeriodEndFacts([netIncome, assets])?.map((item) => item.value),
+    ).toEqual([3, 10]);
+  });
+
+  test("caps duration and instant periods independently", () => {
+    const years = Array.from({ length: 10 }, (_, index) => 2017 + index);
+    const durations = series(
+      "revenue",
+      years.map((year) =>
+        fact({
+          periodKey: `${String(year - 1)}-07-01|${String(year)}-06-30`,
+          periodStart: `${String(year - 1)}-07-01`,
+          periodEnd: `${String(year)}-06-30`,
+        }),
+      ),
+    );
+    const instants = series(
+      "totalAssets",
+      years.map((year) =>
+        fact({
+          periodKey: `instant|${String(year)}-06-30`,
+          periodStart: null,
+          periodEnd: `${String(year)}-06-30`,
+        }),
+      ),
+    );
+
+    const capped = capFinancialStatementPeriods([durations, instants]);
+
+    expect(capped.series[0]?.annual).toHaveLength(10);
+    expect(capped.series[1]?.annual).toHaveLength(10);
+    expect(capped.notes).toEqual([]);
+  });
+
+  test("evicts the oldest duration without consuming the instant-period budget", () => {
+    const durationYears = Array.from({ length: 11 }, (_, index) => 2016 + index);
+    const instantYears = Array.from({ length: 5 }, (_, index) => 2022 + index);
+    const durations = series(
+      "revenue",
+      durationYears.map((year) =>
+        fact({
+          periodKey: `${String(year - 1)}-07-01|${String(year)}-06-30`,
+          periodStart: `${String(year - 1)}-07-01`,
+          periodEnd: `${String(year)}-06-30`,
+        }),
+      ),
+    );
+    const instants = series(
+      "totalAssets",
+      instantYears.map((year) =>
+        fact({
+          periodKey: `instant|${String(year)}-06-30`,
+          periodStart: null,
+          periodEnd: `${String(year)}-06-30`,
+        }),
+      ),
+    );
+
+    const capped = capFinancialStatementPeriods([durations, instants]);
+
+    expect(capped.series[0]?.annual.map((item) => item.periodKey)).toEqual(
+      durationYears.slice(1).map((year) => `${String(year - 1)}-07-01|${String(year)}-06-30`),
+    );
+    expect(capped.series[1]?.annual.map((item) => item.periodKey)).toEqual(
+      instantYears.map((year) => `instant|${String(year)}-06-30`),
+    );
+    expect(capped.notes).toEqual([
+      {
+        code: "history-cap",
+        periodKey: "annual|2015-07-01|2016-06-30",
+        message:
+          "Older annual duration canonical period 2015-07-01|2016-06-30 omitted by the 10-period annual duration cap",
+      },
     ]);
   });
 

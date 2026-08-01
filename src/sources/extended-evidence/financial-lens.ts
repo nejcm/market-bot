@@ -141,6 +141,19 @@ function crossPeriodRatioLabel(
     : label;
 }
 
+function selectedRatioLabel(
+  label: string,
+  item: ExtendedEvidenceItem | undefined,
+  selectedKey: string,
+  numeratorKey: string,
+  denominatorKey: string,
+  denominatorLabel: string,
+): string {
+  return canonicalFinancialLensDerivedMetric(item, selectedKey) === undefined
+    ? crossPeriodRatioLabel(label, item, numeratorKey, denominatorKey, denominatorLabel)
+    : label;
+}
+
 // A P/E is "clean" (shown as a numeric multiple) only when it is a finite, positive
 // Ratio over positive earnings. Negative or non-computable P/Es render as annotated
 // Text via formatPeRatio instead of a bare multiple. See PE_NEGATIVE_CAVEAT rationale.
@@ -326,6 +339,16 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   // Annualized by net income's own periodMonths so a partial-year filing does not
   // Understate the return. See plan revision 2 / Q6.
   const annualizedNetIncome = annualize(netIncome, netIncomePeriodMonths);
+  const roe = selectedFinancialLensDerivedMetric(
+    secItem,
+    "roe",
+    ratio(annualizedNetIncome, stockholdersEquity),
+  );
+  const roa = selectedFinancialLensDerivedMetric(
+    secItem,
+    "roa",
+    ratio(annualizedNetIncome, assets),
+  );
   const hasDistinctConsolidatedNetIncome =
     netIncome !== undefined &&
     consolidatedNetIncome !== undefined &&
@@ -373,19 +396,19 @@ function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
     ),
     ...metric(
       "roe",
-      crossPeriodRatioLabel("ROE", secItem, "netIncome", "stockholdersEquity", "equity"),
-      ratio(annualizedNetIncome, stockholdersEquity),
+      selectedRatioLabel("ROE", secItem, "roe", "netIncome", "stockholdersEquity", "equity"),
+      roe,
       "ratio-percent",
       sourceIds,
-      secPeriod(secItem, "netIncome"),
+      selectedDerivedPeriod(secItem, "roe", "netIncome"),
     ),
     ...metric(
       "roa",
-      crossPeriodRatioLabel("ROA", secItem, "netIncome", "assets", "assets"),
-      ratio(annualizedNetIncome, assets),
+      selectedRatioLabel("ROA", secItem, "roa", "netIncome", "assets", "assets"),
+      roa,
       "ratio-percent",
       sourceIds,
-      secPeriod(secItem, "netIncome"),
+      selectedDerivedPeriod(secItem, "roa", "netIncome"),
     ),
     ...(hasDistinctConsolidatedNetIncome
       ? metric(

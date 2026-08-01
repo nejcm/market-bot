@@ -671,7 +671,7 @@ describe("canonical financial statements", () => {
     });
   });
 
-  test("explains amendment-only canonical annual coverage absent from legacy history", () => {
+  test("alarms on amendment-only canonical annual coverage absent from legacy history", () => {
     const companyFacts = payload({
       "us-gaap": {
         Revenues: { USD: [annual(100, 2025)] },
@@ -704,20 +704,50 @@ describe("canonical financial statements", () => {
     expect(parity.comparisons).toContainEqual({
       consumer: "fundamental-history",
       field: "grossProfit.annual",
-      status: "explained",
+      status: "unexplained",
       artifactValue: 40,
       legacyValue: "missing",
       periodEnd: "2025-12-31",
-      reasonCode: "canonical-restatement-precedence",
+      reasonCode: "canonical-amendment-presence-difference",
       explanation:
-        "The canonical selector applies accession/date/amendment precedence to the matching period before comparison.",
+        "The canonical fact is an amendment, but amendment precedence alone does not explain why the legacy consumer has no matching period.",
     });
-    expect(
-      parity.comparisons.filter(
-        (comparison) =>
-          comparison.consumer === "fundamental-history" && comparison.status === "unexplained",
-      ),
-    ).toHaveLength(0);
+    expect(parity.unexplainedCount).toBeGreaterThan(0);
+  });
+
+  test("alarms on non-amendment canonical annual coverage absent from legacy history", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        GrossProfit: { USD: [annual(40, 2025)] },
+      },
+    });
+    const artifact = derive(companyFacts);
+    const history = deriveFundamentalHistory(companyFacts, {
+      symbol: "TEST",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      analysisAsOf: "2026-06-15T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-test-fundamentals",
+    });
+    const parity = attachFinancialStatementParity(artifact, {
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          grossProfit: { ...history.series.grossProfit, annual: [] },
+        },
+      },
+    }).shadowParity;
+
+    expect(parity.comparisons).toContainEqual({
+      consumer: "fundamental-history",
+      field: "grossProfit.annual",
+      status: "unexplained",
+      artifactValue: 40,
+      legacyValue: "missing",
+      periodEnd: "2025-12-31",
+    });
+    expect(parity.unexplainedCount).toBeGreaterThan(0);
   });
 
   test("does not report a concept divergence when the artifact concept is missing", () => {

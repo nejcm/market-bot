@@ -627,6 +627,12 @@ describe("run workspace view", () => {
               summary: "Multiples remain elevated.",
               sourceIds: ["source-1"],
             },
+            {
+              category: "valuation",
+              title: "Market-cap timing",
+              summary: "market cap as of 2026-07-04; market cap (quote 2026-07-04).",
+              sourceIds: ["market-yahoo-equity-aapl"],
+            },
           ],
         },
       },
@@ -652,6 +658,7 @@ describe("run workspace view", () => {
           triage: "material",
         },
       ],
+      marketSnapshots: [marketSnapshot()],
       verifiedMarketSnapshot: snapshot(),
     };
 
@@ -667,10 +674,16 @@ describe("run workspace view", () => {
     expect(view.forecasts.stats).toMatchObject({ total: 1, resolved: 1, hits: 1 });
     expect(view.forecasts.targetHealth).toEqual({ count: 1, target: 3, targetMet: false });
     expect(view.evidence.extendedItems[0]?.title).toBe("Valuation");
+    expect(view.evidence.extendedItems[1]?.summary).toBe(
+      "market cap fetch time 2026-07-04T12:00:00.000Z; market cap (fetch time 2026-07-04T12:00:00.000Z).",
+    );
     expect(view.gaps).toMatchObject({
-      shortfalls: ["predictionShortfall: emitted 1 of 3"],
-      otherGaps: ["tradier-options: Persisted override"],
-      triagedGaps: [{ text: "tradier-options: Persisted override", triage: "material" }],
+      shortfalls: [],
+      otherGaps: ["predictionShortfall: emitted 1 of 3", "tradier-options: Persisted override"],
+      triagedGaps: [
+        { text: "predictionShortfall: emitted 1 of 3", triage: "material" },
+        { text: "tradier-options: Persisted override", triage: "material" },
+      ],
       visible: true,
     });
     expect(view.sources.items[0]?.id).toBe("source-1");
@@ -846,18 +859,27 @@ describe("run workspace view", () => {
     expect(symbolOnly?.displayName).toBe("AAPL");
   });
 
-  test("shows forecasts and table-of-contents entries for a disclosed forecast shortfall", () => {
-    const view = buildRunWorkspaceView({
+  test("renders a disclosed equity forecast shortfall as material and forecast context", async () => {
+    const shortfall = "predictionShortfall: emitted 0 of 3";
+    const detail = {
       summary: summary(),
       report: {
-        dataGaps: ["predictionShortfall: emitted 0 of 3"],
+        dataGaps: [shortfall],
       },
-    });
+    };
+    const view = buildRunWorkspaceView(detail);
 
     expect(view.forecasts.visible).toBe(true);
     expect(view.forecasts.items).toEqual([]);
+    expect(view.gaps.triagedGaps).toContainEqual({ text: shortfall, triage: "material" });
     expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
-  });
+    const html = await renderRunWorkspaceComponent(detail);
+    const reader = html.slice(0, html.indexOf("Advanced"));
+    const appendix = html.slice(html.indexOf("Advanced"));
+    expect(reader).toContain("MATERIAL");
+    expect(reader).toContain(shortfall);
+    expect(appendix).not.toContain("emitted 0 of 3");
+  }, 15_000);
 
   test("groups legacy financial lens metrics by lens and retains posture", () => {
     const view = buildRunWorkspaceView({
@@ -1136,15 +1158,14 @@ describe("run workspace view", () => {
     });
   });
 
-  test("projects suppression and omits an absent range block", () => {
+  test("renders peer suppression and omits an absent range block", async () => {
     const suppressed = derivePeerImpliedRange({
       supportability: "screening-only",
       usablePeerCount: 2,
     });
+    const detail = { summary: summary(), peerImpliedRange: suppressed };
 
-    expect(
-      buildRunWorkspaceView({ summary: summary(), peerImpliedRange: suppressed }).peerImpliedRange,
-    ).toEqual({
+    expect(buildRunWorkspaceView(detail).peerImpliedRange).toEqual({
       status: "suppressed",
       label: "peer-implied price reference range",
       sourceIds: [],
@@ -1152,7 +1173,13 @@ describe("run workspace view", () => {
       message: "Reference range suppressed: peer supportability is not supported.",
     });
     expect(buildRunWorkspaceView({ summary: summary() }).peerImpliedRange).toBeUndefined();
-  });
+    const html = await renderRunWorkspaceComponent(detail);
+    const text = html
+      .replaceAll(/<[^>]+>/gu, " ")
+      .replaceAll(/\s+/gu, " ")
+      .trim();
+    expect(text).toContain("N/M — peer evidence unavailable: peer supportability is not supported");
+  }, 15_000);
 
   test("keeps every peer-implied range view string inside the research-only boundary", () => {
     const derivedViews = [20, 79, 140].map((currentPrice) =>
@@ -1199,7 +1226,7 @@ describe("run workspace view", () => {
     }
   });
 
-  test("builds the six-section equity snapshot from existing projections", () => {
+  test("builds five live snapshot projections and renders completeness by its canonical route", async () => {
     const detail: RunDetail = {
       summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH] }),
       report: completenessReport(),
@@ -1274,8 +1301,6 @@ describe("run workspace view", () => {
 
     expect(view?.pricePerformance).toMatchObject({
       state: "available",
-      detailSectionKey: "snapshot",
-      detailSectionMounted: true,
       price: "$211",
       change24h: "+1.4%",
       quoteCurrency: "USD",
@@ -1283,24 +1308,12 @@ describe("run workspace view", () => {
       priceAsOf: { kind: "fetch-time-only", instant: "2026-07-04T12:00:00.000Z" },
       sourceIds: ["market-yahoo-equity-aapl"],
     });
-    expect(view?.analysisCompleteness).toMatchObject({
-      detailSectionKey: "equityCompleteness",
-      detailSectionMounted: true,
-      financialCoreStatus: "complete",
-      coverageLevel: "comprehensive",
-    });
-    expect(view?.analysisCompleteness.dimensions).toHaveLength(5);
-    expect(view?.analysisCompleteness.dimensions[0]?.reasons).toEqual([
-      "Annual statement remains current",
-    ]);
     expect(view?.peerReferenceRange).toMatchObject({
       state: "available",
-      detailSectionKey: "peerImpliedRange",
       display: "Low $39.00 · Mid $79.00 · High $119.00",
       positionLabel: "Within range",
       disclosure: "Peer-derived reference range for context only; not a target price.",
     });
-    expect(view?.keyDatedMetrics.detailSectionKey).toBe("fundamentalHistory");
     expect(view?.keyDatedMetrics.metrics.map((metric) => metric.key)).toEqual([
       "ttmRevenue",
       "ttmFreeCashFlowProxy",
@@ -1360,18 +1373,21 @@ describe("run workspace view", () => {
       "insufficient-data",
       "criteria-supported",
     ]);
-    expect(view?.financialLensDrivers.postures.detailSectionKey).toBe("financialLensStats");
     expect(view?.financialLensDrivers.bullCase).toMatchObject({
-      detailSectionKey: "cases",
-      detailSectionMounted: true,
       items: [{ text: "Revenue growth persists.", sourceIds: ["source-bull"] }],
     });
     expect(view?.financialLensDrivers.bearCase).toMatchObject({
-      detailSectionKey: "cases",
-      detailSectionMounted: true,
       items: [{ text: "Operating costs rise.", sourceIds: ["source-bear"] }],
     });
-  });
+    const html = await renderRunWorkspaceComponent(detail);
+    const text = html
+      .replaceAll(/<[^>]+>/gu, " ")
+      .replaceAll(/\s+/gu, " ")
+      .trim();
+    expect(text).toContain("financial core · complete");
+    expect(text).toContain("coverage · comprehensive");
+    expect(text).toContain("Annual statement remains current");
+  }, 15_000);
 
   test("partitions the equity reader view from Advanced without dropping content", () => {
     const report = {
@@ -1882,8 +1898,6 @@ describe("run workspace view", () => {
       key: "operatingMargin",
       label: "Operating margin",
       state: "unavailable",
-      detailSectionKey: "fundamentalHistory",
-      detailSectionMounted: true,
       sourceIds: [],
     });
     expect(view?.keyDatedMetrics.metrics[3]).toMatchObject({
@@ -1892,7 +1906,7 @@ describe("run workspace view", () => {
     });
   });
 
-  test("renders explicit unavailable states and no dangling detail links for historical equity runs", () => {
+  test("renders explicit unavailable states for historical equity runs", () => {
     const view = equitySnapshotView({
       summary: summary(),
       report: {
@@ -1903,38 +1917,24 @@ describe("run workspace view", () => {
     expect(view).toBeDefined();
     expect(view?.pricePerformance).toMatchObject({
       state: "unavailable",
-      detailSectionMounted: false,
       sourceIds: [],
-    });
-    expect(view?.analysisCompleteness).toMatchObject({
-      state: "unavailable",
-      detailSectionMounted: false,
-      dimensions: [],
     });
     expect(view?.peerReferenceRange).toMatchObject({
       state: "unavailable",
-      detailSectionMounted: false,
       display: "N/M — peer evidence unavailable: reference range is unavailable",
     });
     expect(
       view?.keyDatedMetrics.metrics.every((metric) => metric.state === "unavailable"),
     ).toBeTrue();
     expect(view?.miniCharts.charts.every((chart) => chart.state === "unavailable")).toBeTrue();
-    expect(view?.financialLensDrivers.postures.detailSectionMounted).toBe(false);
     expect(view?.financialLensDrivers.bullCase).toMatchObject({
       state: "unavailable",
-      detailSectionMounted: true,
       items: [],
     });
     expect(view?.financialLensDrivers.bearCase).toMatchObject({
       state: "unavailable",
-      detailSectionMounted: true,
       items: [],
     });
-
-    const withoutCases = equitySnapshotView({ summary: summary() });
-    expect(withoutCases?.financialLensDrivers.bullCase.detailSectionMounted).toBe(false);
-    expect(withoutCases?.financialLensDrivers.bearCase.detailSectionMounted).toBe(false);
   });
 
   test("does not add the equity snapshot to non-equity workspaces", () => {

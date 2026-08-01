@@ -61,6 +61,7 @@ function differenceComparison(input: {
   readonly currencyDifference?: boolean;
   readonly verifiedPeriodSelectionDifference?: boolean;
   readonly verifiedRestatementDifference?: boolean;
+  readonly amendmentPresenceDifference?: boolean;
   readonly verifiedHistoryCapDifference?: boolean;
 }): FinancialStatementParityComparison {
   if (input.currencyDifference === true) {
@@ -113,6 +114,19 @@ function differenceComparison(input: {
       reasonCode: "canonical-period-selection",
       explanation:
         "The canonical selector keeps start/end period keys isolated before selecting comparable periods; the legacy selector ranks by its current period heuristic.",
+    };
+  }
+  if (input.amendmentPresenceDifference === true) {
+    return {
+      consumer: input.consumer,
+      field: input.field,
+      status: "unexplained",
+      artifactValue: input.artifactValue,
+      legacyValue: input.legacyValue,
+      ...(input.periodEnd !== undefined ? { periodEnd: input.periodEnd } : {}),
+      reasonCode: "canonical-amendment-presence-difference",
+      explanation:
+        "The canonical fact is an amendment, but amendment precedence alone does not explain why the legacy consumer has no matching period.",
     };
   }
   return {
@@ -200,7 +214,7 @@ function fundamentalHistoryComparisons(
               artifact.omissionNotes.some(
                 (note) => note.code === "history-cap" && note.periodKey === capKey,
               ),
-            verifiedRestatementDifference:
+            amendmentPresenceDifference:
               legacyPoint === undefined && artifactFact?.amendment === true,
           }),
         );

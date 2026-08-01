@@ -120,6 +120,7 @@ export interface FinancialStatementParityComparison {
     | "legacy-form-unsupported"
     | "canonical-reporting-currency-isolation"
     | "canonical-restatement-precedence"
+    | "canonical-amendment-presence-difference"
     | "canonical-history-cap"
     | "canonical-period-selection";
   readonly explanation?: string;

@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 import {
   COMPLETENESS_REASON_CODE_LABELS,
@@ -43,6 +43,13 @@ const PROVIDER_DEGRADATION_REASON_CODES: ReadonlySet<string> = new Set([
   "ownership-provider-credential-missing",
   "ownership-provider-entitlement-blocked",
 ]);
+const COMPLETENESS_DIMENSION_DISPLAY_LABELS = [
+  "Primary financials",
+  "Valuation",
+  "Expectations",
+  "Capital & ownership",
+  "Operating KPIs",
+] as const;
 
 interface GoldenOutput {
   readonly report: ResearchReport;
@@ -122,6 +129,34 @@ function goldenRunDetail(golden: GoldenReport): RunDetail {
       : { peerImpliedRange: peerImpliedRange as PeerImpliedRange }),
     ...(valuationWorkbench === undefined ? {} : { valuationWorkbench }),
   };
+}
+
+async function renderRunWorkspaceComponent(detail: RunDetail): Promise<string> {
+  const subprocess = Bun.spawn(
+    [process.execPath, "run", resolve(import.meta.dir, "support/render-run-workspace.ts")],
+    {
+      stdin: new Blob([JSON.stringify(detail)]),
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  const [body, error, exitCode] = await Promise.all([
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(error);
+  }
+  return body;
+}
+
+function renderedText(html: string): string {
+  return html
+    .replaceAll(/<[^>]+>/gu, " ")
+    .replaceAll("&amp;", "&")
+    .replaceAll(/\s+/gu, " ")
+    .trim();
 }
 
 function snapshotCitationIds(value: unknown): readonly string[] {
@@ -251,41 +286,33 @@ describe("provider dimension contracts", () => {
     }
   });
 
-  test("keeps completeness and coverage states descriptive in snapshots", async () => {
+  test("renders completeness and coverage states for every replay golden", async () => {
     const goldens = await loadGoldenReports();
-    const financialCoreStates = new Set<string>();
-    const coverageStates = new Set<string>();
-    const dimensionStates = new Set<string>();
 
     for (const golden of goldens) {
-      const completeness = equitySnapshotView(goldenRunDetail(golden))?.analysisCompleteness;
-      if (completeness?.financialCoreStatus !== undefined) {
-        financialCoreStates.add(completeness.financialCoreStatus);
-      }
-      if (completeness?.coverageLevel !== undefined) {
-        coverageStates.add(completeness.coverageLevel);
-      }
-      for (const dimension of completeness?.dimensions ?? []) {
-        dimensionStates.add(dimension.status);
-        expect(dimension.label.trim()).not.toBe("");
-        expect(dimension.reasons.every((reason) => reason.trim() !== "")).toBeTrue();
+      const completeness = golden.report.equityAnalysisCompleteness;
+      const text = renderedText(await renderRunWorkspaceComponent(goldenRunDetail(golden)));
+
+      expect(text, `${golden.fixture}: financial core`).toContain(
+        `financial core · ${completeness.financialCoreStatus}`,
+      );
+      expect(text, `${golden.fixture}: coverage`).toContain(
+        `coverage · ${completeness.coverageLevel}`,
+      );
+      expect(text, `${golden.fixture}: as-of`).toContain(`as of ${completeness.asOf}`);
+      for (const [index, dimension] of completenessDimensions(completeness).entries()) {
+        const label = COMPLETENESS_DIMENSION_DISPLAY_LABELS[index] ?? "missing dimension label";
+        expect(text, `${golden.fixture}: dimension status`).toContain(
+          `${label} ${dimension.status.replaceAll("-", " ")}`,
+        );
+        for (const reasonCode of dimension.reasonCodes) {
+          expect(text, `${golden.fixture}: ${reasonCode}`).toContain(
+            completenessReasonCodeLabel(reasonCode),
+          );
+        }
       }
     }
-
-    expect(
-      [...financialCoreStates].every((state) => ["blocked", "partial", "complete"].includes(state)),
-    ).toBeTrue();
-    expect(
-      [...coverageStates].every((state) =>
-        ["limited", "substantial", "comprehensive"].includes(state),
-      ),
-    ).toBeTrue();
-    expect(
-      [...dimensionStates].every((state) =>
-        ["blocked", "partial", "complete", "not-applicable", "not-assessed"].includes(state),
-      ),
-    ).toBeTrue();
-  });
+  }, 30_000);
 
   test("normalizes provider access degradation without changing the financial core", async () => {
     const goldens = await loadGoldenReports();
@@ -379,7 +406,6 @@ describe("provider dimension contracts", () => {
       expect(equityCompletenessView(detail)).toBeUndefined();
       expect(snapshot).toBeDefined();
       expect(snapshot?.pricePerformance.state).toBe("unavailable");
-      expect(snapshot?.analysisCompleteness.state).toBe("unavailable");
       expect(snapshot?.miniCharts.charts).toHaveLength(4);
       expect(snapshotCitationIds(snapshot)).toEqual([]);
       expect(loaded.status.report).toBe("ok");

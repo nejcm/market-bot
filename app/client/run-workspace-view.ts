@@ -308,20 +308,10 @@ export type RunWorkspacePeerImpliedRangeView =
 
 export type RunWorkspaceEquitySnapshotState = "available" | "partial" | "unavailable";
 
-export type RunWorkspaceEquitySnapshotDetailSectionKey =
-  | "snapshot"
-  | "equityCompleteness"
-  | "peerImpliedRange"
-  | "fundamentalHistory"
-  | "financialLensStats"
-  | "cases";
-
 export interface RunWorkspaceEquitySnapshotCard {
   readonly key: string;
   readonly label: string;
   readonly state: RunWorkspaceEquitySnapshotState;
-  readonly detailSectionKey: RunWorkspaceEquitySnapshotDetailSectionKey;
-  readonly detailSectionMounted: boolean;
   readonly sourceIds: readonly string[];
 }
 
@@ -333,21 +323,6 @@ export interface RunWorkspaceEquitySnapshotPricePerformance extends RunWorkspace
   readonly quoteCurrency?: string;
   readonly observedAt?: string;
   readonly priceAsOf?: MarketSnapshotPriceAsOf;
-}
-
-export interface RunWorkspaceEquitySnapshotCompletenessDimension extends Omit<
-  RunWorkspaceCompletenessDimension,
-  "reasonCodes"
-> {
-  readonly reasons: readonly string[];
-}
-
-export interface RunWorkspaceEquitySnapshotCompleteness extends RunWorkspaceEquitySnapshotCard {
-  readonly key: "analysisCompleteness";
-  readonly financialCoreStatus?: RunWorkspaceEquityCompletenessView["financialCoreStatus"];
-  readonly coverageLevel?: RunWorkspaceEquityCompletenessView["coverageLevel"];
-  readonly asOf?: string;
-  readonly dimensions: readonly RunWorkspaceEquitySnapshotCompletenessDimension[];
 }
 
 export interface RunWorkspaceEquitySnapshotReferenceRange extends RunWorkspaceEquitySnapshotCard {
@@ -422,7 +397,6 @@ export interface RunWorkspaceEquitySnapshotFinancialLensDrivers {
 
 export interface RunWorkspaceEquitySnapshotView {
   readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
-  readonly analysisCompleteness: RunWorkspaceEquitySnapshotCompleteness;
   readonly peerReferenceRange: RunWorkspaceEquitySnapshotReferenceRange;
   readonly keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics;
   readonly miniCharts: RunWorkspaceEquitySnapshotMiniCharts;
@@ -1391,12 +1365,10 @@ function reportCaseSections(
 
 interface EquitySnapshotProjectionInputs {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
-  readonly equityCompleteness?: RunWorkspaceEquityCompletenessView;
   readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
   readonly cases: readonly RunWorkspaceCaseSection[];
-  readonly marketSnapshotMounted: boolean;
 }
 
 const SNAPSHOT_TTM_METRICS: readonly {
@@ -1530,8 +1502,6 @@ function snapshotDriverCard(
     key,
     label,
     state: items.length > 0 ? "available" : "unavailable",
-    detailSectionKey: "cases",
-    detailSectionMounted: cases.length > 0,
     sourceIds: uniqueSourceIds(items.flatMap((item) => item.sourceIds)),
     items,
   };
@@ -1546,8 +1516,6 @@ function snapshotReferenceRange(
       key: "peerReferenceRange",
       label: PEER_REFERENCE_RANGE_LABEL,
       state: "unavailable",
-      detailSectionKey: "peerImpliedRange",
-      detailSectionMounted: false,
       sourceIds: [],
       display: "N/M — peer evidence unavailable: reference range is unavailable",
       disclosure,
@@ -1558,8 +1526,6 @@ function snapshotReferenceRange(
       key: "peerReferenceRange",
       label: PEER_REFERENCE_RANGE_LABEL,
       state: "unavailable",
-      detailSectionKey: "peerImpliedRange",
-      detailSectionMounted: true,
       sourceIds: peerImpliedRange.sourceIds,
       display: `N/M — peer evidence unavailable: ${peerImpliedRange.suppressionReason}`,
       disclosure,
@@ -1569,8 +1535,6 @@ function snapshotReferenceRange(
     key: "peerReferenceRange",
     label: PEER_REFERENCE_RANGE_LABEL,
     state: "available",
-    detailSectionKey: "peerImpliedRange",
-    detailSectionMounted: true,
     sourceIds: peerImpliedRange.sourceIds,
     display: `${peerImpliedRange.lowLabel} · ${peerImpliedRange.midLabel} · ${peerImpliedRange.highLabel}`,
     positionLabel: peerImpliedRange.positionLabel,
@@ -1581,14 +1545,7 @@ function snapshotReferenceRange(
 function composeEquitySnapshot(
   inputs: EquitySnapshotProjectionInputs,
 ): RunWorkspaceEquitySnapshotView {
-  const {
-    equityHeader,
-    equityCompleteness,
-    peerImpliedRange,
-    fundamentalHistory,
-    financialLensGroups,
-    cases,
-  } = inputs;
+  const { equityHeader, peerImpliedRange, fundamentalHistory, financialLensGroups, cases } = inputs;
   const priceFieldCount = [
     equityHeader?.price,
     equityHeader?.dailyChange,
@@ -1600,8 +1557,6 @@ function composeEquitySnapshot(
     key: "pricePerformance",
     label: "Price",
     state: snapshotState(priceFieldCount, 5),
-    detailSectionKey: "snapshot",
-    detailSectionMounted: inputs.marketSnapshotMounted,
     sourceIds: equityHeader?.sourceIds ?? [],
     ...(equityHeader?.price === undefined ? {} : { price: equityHeader.price }),
     ...(equityHeader?.dailyChange === undefined ? {} : { change24h: equityHeader.dailyChange }),
@@ -1613,29 +1568,6 @@ function composeEquitySnapshot(
       : { quoteCurrency: equityHeader.quoteCurrency }),
     ...(equityHeader?.observedAt === undefined ? {} : { observedAt: equityHeader.observedAt }),
     ...(equityHeader?.priceAsOf === undefined ? {} : { priceAsOf: equityHeader.priceAsOf }),
-  };
-
-  const analysisCompleteness: RunWorkspaceEquitySnapshotCompleteness = {
-    key: "analysisCompleteness",
-    label: "Coverage",
-    state: equityCompleteness === undefined ? "unavailable" : "available",
-    detailSectionKey: "equityCompleteness",
-    detailSectionMounted: equityCompleteness !== undefined,
-    sourceIds: uniqueSourceIds(
-      equityCompleteness?.dimensions.flatMap((dimension) => dimension.sourceIds) ?? [],
-    ),
-    ...(equityCompleteness === undefined
-      ? {}
-      : {
-          financialCoreStatus: equityCompleteness.financialCoreStatus,
-          coverageLevel: equityCompleteness.coverageLevel,
-          asOf: equityCompleteness.asOf,
-        }),
-    dimensions:
-      equityCompleteness?.dimensions.map(({ reasonCodes, ...dimension }) => ({
-        ...dimension,
-        reasons: reasonCodes.map((reasonCode) => completenessReasonCodeLabel(reasonCode)),
-      })) ?? [],
   };
 
   const peerReferenceRange = snapshotReferenceRange(peerImpliedRange);
@@ -1656,8 +1588,6 @@ function composeEquitySnapshot(
       metrics.filter((metric) => metric.state === "available").length,
       metrics.length,
     ),
-    detailSectionKey: "fundamentalHistory",
-    detailSectionMounted: fundamentalHistory !== undefined,
     sourceIds: uniqueSourceIds(
       [...metrics, ...foldedYahooMetrics].flatMap((metric) => metric.sourceIds),
     ),
@@ -1672,8 +1602,6 @@ function composeEquitySnapshot(
         key,
         label,
         state: "unavailable",
-        detailSectionKey: "fundamentalHistory",
-        detailSectionMounted: fundamentalHistory !== undefined,
         sourceIds: [],
       };
     }
@@ -1681,8 +1609,6 @@ function composeEquitySnapshot(
       key,
       label,
       state: card.pointCount < 2 ? "partial" : "available",
-      detailSectionKey: "fundamentalHistory",
-      detailSectionMounted: true,
       sourceIds: card.sourceIds,
       value: card.value,
       period: card.valuePeriod,
@@ -1709,8 +1635,6 @@ function composeEquitySnapshot(
     key: "lensPostures" as const,
     label: "Financial Lens postures",
     state: postures.length > 0 ? ("available" as const) : ("unavailable" as const),
-    detailSectionKey: "financialLensStats" as const,
-    detailSectionMounted: financialLensGroups.length > 0,
     sourceIds: uniqueSourceIds(postures.flatMap((posture) => posture.sourceIds)),
     items: postures,
   };
@@ -1730,7 +1654,6 @@ function composeEquitySnapshot(
 
   return {
     pricePerformance,
-    analysisCompleteness,
     peerReferenceRange,
     keyDatedMetrics,
     miniCharts,
@@ -1742,19 +1665,15 @@ export function equitySnapshotView(detail: RunDetail): RunWorkspaceEquitySnapsho
   if (detail.summary.jobType !== "equity") {
     return undefined;
   }
-  const marketSnapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
-  const equityCompleteness = equityCompletenessView(detail);
   const peerImpliedRange = peerImpliedRangeView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
   return composeEquitySnapshot({
     ...(equityHeader === undefined ? {} : { equityHeader }),
-    ...(equityCompleteness === undefined ? {} : { equityCompleteness }),
     ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
     ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
     financialLensGroups: financialLensGroupViews(detail),
     cases: reportCaseSections(detail.report),
-    marketSnapshotMounted: marketSnapshot !== undefined,
   });
 }
 
@@ -1772,22 +1691,24 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
 
   const forecastItems = scoredForecasts(report, detail.score, detail.missAutopsy);
   const targetHealth = predictionTargetHealth(detail.analytics, report);
-  const splitGaps = splitDataGaps(
-    isEquityPresentation
-      ? [
-          ...readerProjection.defaultView.materialGaps,
-          ...readerProjection.appendix.diagnosticGaps,
-          ...readerProjection.appendix.predictionShortfalls,
-        ]
-      : stringArray(report, "dataGaps"),
-  );
+  const projectedGaps = isEquityPresentation
+    ? [...readerProjection.defaultView.materialGaps, ...readerProjection.appendix.diagnosticGaps]
+    : stringArray(report, "dataGaps");
+  const splitGaps = isEquityPresentation
+    ? { shortfalls: [], otherGaps: projectedGaps }
+    : splitDataGaps(projectedGaps);
+  const equityShortfallDisclosed =
+    isEquityPresentation && splitDataGaps(projectedGaps).shortfalls.length > 0;
   const reportSymbol = typeof report?.symbol === "string" ? report.symbol : detail.summary.symbol;
-  const triagedGaps = splitGaps.otherGaps.map((gap) => ({
+  const triagedGaps = (isEquityPresentation ? projectedGaps : splitGaps.otherGaps).map((gap) => ({
     text: gap,
     triage: readGapTriage(gap, detail.sourceGaps, reportSymbol),
   }));
   const forecastsVisible =
-    forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined;
+    forecastItems.length > 0 ||
+    splitGaps.shortfalls.length > 0 ||
+    equityShortfallDisclosed ||
+    targetHealth !== undefined;
 
   const historicalContext = historicalContextAuditView(detail.trace);
   const webSubjectProfile = webSubjectProfileView(report, detail.webSubjectProfile);
@@ -1821,12 +1742,10 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const equitySnapshot = isEquityPresentation
     ? composeEquitySnapshot({
         ...(equityHeader === undefined ? {} : { equityHeader }),
-        ...(equityCompleteness === undefined ? {} : { equityCompleteness }),
         ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
         ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
         financialLensGroups,
         cases,
-        marketSnapshotMounted: snapshot !== undefined,
       })
     : undefined;
   const materialGaps = isEquityPresentation

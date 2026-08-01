@@ -106,6 +106,24 @@ test("renders not-assessed completeness as a non-success status chip", () => {
   expect(markdown).not.toContain("Expectations `complete`");
 });
 
+test("renders prediction shortfalls as reader-visible material gaps", () => {
+  const shortfall =
+    "predictionShortfall: emitted 1 of 5 target predictions; evidence did not support more";
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    dataGaps: [shortfall],
+  });
+  const appendixAt = markdown.indexOf("## Appendix");
+  const reader = markdown.slice(0, appendixAt);
+  const appendix = markdown.slice(appendixAt);
+
+  expect(reader).toContain(`- **Material:** ${shortfall}`);
+  expect(appendix).not.toContain(shortfall);
+});
+
 test("renders an uncited real company description as a paragraph", () => {
   const description = "Apple designs and sells consumer technology products.";
   const markdown = renderMarkdownReport({

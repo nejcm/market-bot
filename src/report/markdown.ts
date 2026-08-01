@@ -1308,10 +1308,7 @@ function renderEquityMarkdownReport(
       ? {}
       : { sourceGaps: collectedSources.sourceGaps }),
   });
-  const diagnosticGaps = [
-    ...projection.appendix.predictionShortfalls,
-    ...projection.appendix.diagnosticGaps,
-  ];
+  const { diagnosticGaps } = projection.appendix;
   const additionalSourceIds = [
     ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
     ...(projection.defaultView.financialTrends?.sourceIds ?? []),

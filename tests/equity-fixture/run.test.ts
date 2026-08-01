@@ -193,8 +193,8 @@ describe("static equity run fixtures", () => {
     expect(reader).toContain(
       "**Revenue consensus:** 98.0B (single-provider snapshot) [extended-finnhub-events-aapl]",
     );
-    expect(reader).not.toContain("predictionShortfall:");
-    expect(appendix).toContain("**Diagnostic:** predictionShortfall: emitted 2 of 5");
+    expect(reader).toContain("**Material:** predictionShortfall: emitted 2 of 5");
+    expect(appendix).not.toContain("predictionShortfall:");
     expect(reader).not.toContain("fred-macro:");
     expect(appendix).toContain("fred-macro:");
     expect(appendix).toContain("**Diagnostic:** sec-edgar: Missing SEC company facts: grossProfit");

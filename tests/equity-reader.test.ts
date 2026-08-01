@@ -169,7 +169,7 @@ describe("equity reader projection", () => {
     ]);
   });
 
-  test("projects analyst distributions and prediction shortfalls into appendix groups", () => {
+  test("projects analyst distributions and prediction shortfalls by gap triage", () => {
     const projection = projectEquityReader({
       report: {
         symbol: "AAPL",
@@ -196,11 +196,11 @@ describe("equity reader projection", () => {
       },
     });
 
-    expect(projection.defaultView.materialGaps).toEqual(["Primary revenue evidence missing."]);
-    expect(projection.appendix.diagnosticGaps).toEqual(["tradier: API token missing"]);
-    expect(projection.appendix.predictionShortfalls).toEqual([
+    expect(projection.defaultView.materialGaps).toEqual([
       "predictionShortfall: emitted 1 of 3",
+      "Primary revenue evidence missing.",
     ]);
+    expect(projection.appendix.diagnosticGaps).toEqual(["tradier: API token missing"]);
     expect(projection.appendix.analystEstimateDistributions).toHaveLength(3);
     expect(projection.appendix.analystEstimateDistributions[0]).toEqual({
       title: "EPS estimates",

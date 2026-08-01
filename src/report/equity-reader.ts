@@ -178,7 +178,6 @@ export interface EquityReaderProjection {
     readonly balanceSheetHistory?: EquityReaderBalanceSheetHistory;
     readonly analystEstimateDistributions: readonly EquityReaderAnalystEstimateDistribution[];
     readonly diagnosticGaps: readonly string[];
-    readonly predictionShortfalls: readonly string[];
   };
 }
 
@@ -210,8 +209,6 @@ interface CompanyDescriptionReport {
 
 export const NO_COMPANY_DESCRIPTION = "No cited plain-language company description is available.";
 const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
-const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
-
 export function periodLabel(period: LabeledPeriod): string {
   if (period.kind === "ttm") {
     return `TTM (${period.periodEnd}; filed ${period.filedAt})`;
@@ -650,7 +647,6 @@ function projectedGaps(
 ): {
   readonly material: readonly string[];
   readonly diagnostic: readonly string[];
-  readonly predictionShortfalls: readonly string[];
 } {
   const record = reportRecord(report);
   const reportGaps = Array.isArray(record?.dataGaps)
@@ -662,17 +658,14 @@ function projectedGaps(
   const reportSymbol = typeof record?.symbol === "string" ? record.symbol : undefined;
   const material: string[] = [];
   const diagnostic: string[] = [];
-  const predictionShortfalls: string[] = [];
   for (const gap of gaps) {
-    if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
-      predictionShortfalls.push(gap);
-    } else if (readGapTriage(gap, sourceGaps, reportSymbol) === "diagnostic") {
+    if (readGapTriage(gap, sourceGaps, reportSymbol) === "diagnostic") {
       diagnostic.push(gap);
     } else {
       material.push(gap);
     }
   }
-  return { material, diagnostic, predictionShortfalls };
+  return { material, diagnostic };
 }
 
 function isDimensionStatus(value: unknown): value is EquityAnalysisDimensionStatus {
@@ -773,7 +766,6 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
         : { balanceSheetHistory: projectedBalanceSheet }),
       analystEstimateDistributions: analystEstimateDistributions(input.report),
       diagnosticGaps: gaps.diagnostic,
-      predictionShortfalls: gaps.predictionShortfalls,
     },
   };
 }

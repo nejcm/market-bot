@@ -15,6 +15,7 @@ import type {
   ResearchReport,
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
+import { validateResearchReport } from "../src/report/schema";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidence/fundamental-history";
 import type {
@@ -218,7 +219,311 @@ function hasConfiguredReasonLabel(reasonCode: string): boolean {
   );
 }
 
+function completenessContract(): EquityAnalysisCompleteness {
+  const dimension = {
+    status: "complete" as const,
+    reasonCodes: [] as string[],
+    asOf: "2026-07-04T00:00:00.000Z",
+    sourceIds: [] as string[],
+  };
+  return {
+    version: 1,
+    financialCoreStatus: "complete",
+    coverageLevel: "comprehensive",
+    asOf: "2026-07-04T00:00:00.000Z",
+    dimensions: {
+      primaryFinancials: { ...dimension },
+      valuation: { ...dimension },
+      expectations: { ...dimension },
+      capitalOwnership: { ...dimension },
+      operatingKpis: { ...dimension },
+    },
+  };
+}
+
+function historicalReport(completeness?: unknown): Record<string, unknown> {
+  return {
+    runId: "historical-run",
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "TEST",
+    generatedAt: "2026-07-04T00:00:00.000Z",
+    summary: "Historical equity research artifact.",
+    keyFindings: [],
+    bullCase: [],
+    bearCase: [],
+    risks: [],
+    catalysts: [],
+    scenarios: [],
+    confidence: "medium",
+    dataGaps: [],
+    predictions: [],
+    sources: [],
+    notFinancialAdvice: true,
+    ...(completeness === undefined ? {} : { equityAnalysisCompleteness: completeness }),
+  };
+}
+
+async function loadHistoricalCompleteness(completeness?: unknown): Promise<{
+  readonly reportStatus: string;
+  readonly completeness: EquityAnalysisCompleteness | undefined;
+}> {
+  const root = await mkdtemp(join(tmpdir(), "market-bot-completeness-reader-"));
+  const runDir = join(root, "historical-run");
+  try {
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "report.json"),
+      `${JSON.stringify(historicalReport(completeness), null, 2)}\n`,
+      "utf8",
+    );
+    const loaded = await loadRunArtifact(runDir);
+    return {
+      reportStatus: loaded.status.report,
+      completeness: loaded.artifact?.report.equityAnalysisCompleteness,
+    };
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+function strictReport(completeness: unknown): ResearchReport {
+  return {
+    runId: "strict-run",
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "TEST",
+    generatedAt: "2026-07-04T00:00:00.000Z",
+    summary: "Equity research artifact.",
+    keyFindings: [],
+    bullCase: [],
+    bearCase: [],
+    risks: [],
+    catalysts: [],
+    scenarios: [],
+    evidenceQuality: "medium",
+    dataGaps: [],
+    predictions: [],
+    sources: [
+      {
+        id: "source-1",
+        title: "Public filing",
+        fetchedAt: "2026-07-04T00:00:00.000Z",
+        kind: "extended-evidence",
+        assetClass: "equity",
+        symbol: "TEST",
+      },
+    ],
+    equityAnalysisCompleteness: completeness as EquityAnalysisCompleteness,
+    notFinancialAdvice: true,
+  };
+}
+
+function validationError(completeness: unknown): string {
+  try {
+    validateResearchReport(strictReport(completeness));
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("Expected completeness validation to fail");
+}
+
 describe("provider dimension contracts", () => {
+  test("omits absent or malformed optional completeness without failing the historical report", async () => {
+    const valid = completenessContract();
+    const malformed = [
+      { name: "wrong version", value: { ...valid, version: 2 } },
+      {
+        name: "missing dimension",
+        value: {
+          ...valid,
+          dimensions: {
+            primaryFinancials: valid.dimensions.primaryFinancials,
+            valuation: valid.dimensions.valuation,
+            expectations: valid.dimensions.expectations,
+            capitalOwnership: valid.dimensions.capitalOwnership,
+          },
+        },
+      },
+      {
+        name: "invalid status",
+        value: {
+          ...valid,
+          dimensions: {
+            ...valid.dimensions,
+            valuation: { ...valid.dimensions.valuation, status: "future-status" },
+          },
+        },
+      },
+      {
+        name: "invalid reason-code array",
+        value: {
+          ...valid,
+          dimensions: {
+            ...valid.dimensions,
+            valuation: { ...valid.dimensions.valuation, reasonCodes: [42] },
+          },
+        },
+      },
+      {
+        name: "invalid source-id array",
+        value: {
+          ...valid,
+          dimensions: {
+            ...valid.dimensions,
+            valuation: { ...valid.dimensions.valuation, sourceIds: "source-1" },
+          },
+        },
+      },
+      { name: "primary/core mismatch", value: { ...valid, financialCoreStatus: "partial" } },
+    ];
+
+    const absent = await loadHistoricalCompleteness();
+    const readable = await loadHistoricalCompleteness(valid);
+    expect(absent).toEqual({ reportStatus: "ok", completeness: undefined });
+    expect(readable).toEqual({ reportStatus: "ok", completeness: valid });
+    for (const { name, value } of malformed) {
+      const loaded = await loadHistoricalCompleteness(value);
+      expect(loaded.reportStatus, name).toBe("ok");
+      expect(loaded.completeness, name).toBeUndefined();
+    }
+  });
+
+  test("keeps structurally valid historical completeness readable without newer strict invariants", async () => {
+    const valid = completenessContract();
+    const historical: EquityAnalysisCompleteness = {
+      ...valid,
+      coverageLevel: "comprehensive",
+      asOf: "not-an-ISO-timestamp",
+      dimensions: {
+        ...valid.dimensions,
+        operatingKpis: {
+          status: "not-assessed",
+          reasonCodes: [],
+          asOf: "historical-date",
+          sourceIds: [],
+        },
+      },
+    };
+
+    const loaded = await loadHistoricalCompleteness(historical);
+
+    expect(loaded.reportStatus).toBe("ok");
+    expect(loaded.completeness).toEqual(historical);
+  });
+
+  test("preserves exact strict completeness validation errors", () => {
+    const cases: readonly {
+      readonly name: string;
+      readonly value: unknown;
+      readonly error: string;
+    }[] = [
+      {
+        name: "contract timestamp",
+        value: { ...completenessContract(), asOf: "2026-07-04" },
+        error: "Equity analysis completeness requires version 1 and an ISO asOf timestamp",
+      },
+      {
+        name: "dimension timestamp",
+        value: {
+          ...completenessContract(),
+          dimensions: {
+            ...completenessContract().dimensions,
+            valuation: { ...completenessContract().dimensions.valuation, asOf: "2026-07-04" },
+          },
+        },
+        error: "Equity analysis completeness valuation asOf must be an ISO timestamp",
+      },
+      {
+        name: "primary status",
+        value: {
+          ...completenessContract(),
+          dimensions: {
+            ...completenessContract().dimensions,
+            primaryFinancials: {
+              ...completenessContract().dimensions.primaryFinancials,
+              status: "not-assessed",
+            },
+          },
+        },
+        error: "Primary financial completeness status is invalid",
+      },
+      {
+        name: "primary/core mismatch",
+        value: { ...completenessContract(), financialCoreStatus: "partial" },
+        error: "Financial core status must equal the primaryFinancials status",
+      },
+      {
+        name: "blank reason code",
+        value: {
+          ...completenessContract(),
+          dimensions: {
+            ...completenessContract().dimensions,
+            valuation: { ...completenessContract().dimensions.valuation, reasonCodes: ["  "] },
+          },
+        },
+        error: "Equity analysis completeness valuation reason codes must be non-empty",
+      },
+      {
+        name: "not applicable without cited evidence",
+        value: {
+          ...completenessContract(),
+          dimensions: {
+            ...completenessContract().dimensions,
+            operatingKpis: {
+              ...completenessContract().dimensions.operatingKpis,
+              status: "not-applicable",
+              reasonCodes: ["issuer-has-no-material-operating-kpis"],
+            },
+          },
+        },
+        error:
+          "Equity analysis completeness operatingKpis not-applicable status requires affirmative evidence",
+      },
+      {
+        name: "not applicable with credential reason",
+        value: {
+          ...completenessContract(),
+          dimensions: {
+            ...completenessContract().dimensions,
+            operatingKpis: {
+              ...completenessContract().dimensions.operatingKpis,
+              status: "not-applicable",
+              reasonCodes: ["provider-entitlement-blocked"],
+              sourceIds: ["source-1"],
+            },
+          },
+        },
+        error:
+          "Equity analysis completeness operatingKpis not-applicable status requires affirmative evidence",
+      },
+      {
+        name: "not assessed without reason",
+        value: {
+          ...completenessContract(),
+          dimensions: {
+            ...completenessContract().dimensions,
+            expectations: {
+              ...completenessContract().dimensions.expectations,
+              status: "not-assessed",
+            },
+          },
+        },
+        error:
+          "Equity analysis completeness expectations not-assessed status requires a reason code",
+      },
+      {
+        name: "coverage mismatch",
+        value: { ...completenessContract(), coverageLevel: "limited" },
+        error: "Equity analysis completeness coverageLevel conflicts with dimension statuses",
+      },
+    ];
+
+    for (const item of cases) {
+      expect(validationError(item.value), item.name).toBe(item.error);
+    }
+  });
+
   test("resolves every completeness dimension citation in all replay goldens", async () => {
     const goldens = await loadGoldenReports();
 

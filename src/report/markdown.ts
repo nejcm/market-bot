@@ -23,15 +23,11 @@ import { readGapTriage, type GapTriage } from "./gap-triage";
 import type { CollectedSources } from "../sources/types";
 import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";
 import {
-  companyDescription,
-  compactNumber,
-  formatTrendAmount,
-  NO_COMPANY_DESCRIPTION,
-  periodLabel,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
   type EquityReaderAppendixCompleteness,
   type EquityReaderBalanceSheetHistory,
+  type EquityReaderCompanyDescription,
   type EquityReaderConsensusItem,
   type EquityReaderFinancialTrends,
   type EquityReaderMarketMultiple,
@@ -55,6 +51,25 @@ function markdownText(value: string): string {
     }
     return `${String.fromCodePoint(92)}${char}`;
   });
+}
+
+function compactNumber(value: number): string {
+  const absolute = Math.abs(value);
+  const units = [
+    [1_000_000_000_000, "T"],
+    [1_000_000_000, "B"],
+    [1_000_000, "M"],
+  ] as const;
+  for (const [scale, suffix] of units) {
+    if (absolute >= scale) {
+      return `${(value / scale).toFixed(1)}${suffix}`;
+    }
+  }
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+}
+
+function formatTrendAmount(value: number | undefined): string {
+  return value === undefined ? "—" : compactNumber(value);
 }
 
 function renderGap(
@@ -276,10 +291,9 @@ function renderPriceProvenance(
     .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
 }
 
-function renderCompanyDescription(report: ResearchReport): string {
-  const description = companyDescription(report);
+function renderCompanyDescription(description: EquityReaderCompanyDescription): string {
   const refs = sourceRefs(description.sourceIds);
-  return `## What the Company Does\n\n${description.text === NO_COMPANY_DESCRIPTION ? "- " : ""}${markdownText(description.text)}${refs === "" ? "" : ` ${refs}`}\n`;
+  return `## What the Company Does\n\n${description.status === "unavailable" ? "- " : ""}${markdownText(description.text)}${refs === "" ? "" : ` ${refs}`}\n`;
 }
 
 function quoteCurrency(snapshot: MarketSnapshot): string {
@@ -349,7 +363,7 @@ function renderBalanceSheetAndShareCount(
   }
   const rows = history.rows.map((row) =>
     [
-      periodLabel(row),
+      row.period,
       formatTrendAmount(row.cash?.value),
       formatTrendAmount(row.debt?.value),
       formatTrendAmount(row.dilutedShares?.value),

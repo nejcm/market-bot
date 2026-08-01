@@ -1,4 +1,5 @@
 import { isRecord } from "../guards";
+import { readEquityAnalysisCompleteness } from "../domain/equity-analysis-completeness";
 import type {
   EquityAnalysisDimensionStatus,
   MarketSnapshot,
@@ -18,13 +19,13 @@ import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-co
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
 import { readGapTriage } from "./gap-triage";
 
-export interface TrendPeriod {
+interface TrendPeriod {
   readonly kind: "annual" | "ttm";
   readonly periodEnd: string;
   readonly filedAt: string;
 }
 
-export interface LabeledPeriod {
+interface LabeledPeriod {
   readonly kind: "annual" | "interim" | "ttm";
   readonly periodEnd: string;
   readonly filedAt: string;
@@ -38,10 +39,17 @@ export interface FinancialTrendRow {
   readonly freeCashFlow: string;
 }
 
-export interface CompanyDescription {
-  readonly text: string;
-  readonly sourceIds: readonly string[];
-}
+export type EquityReaderCompanyDescription =
+  | {
+      readonly status: "available";
+      readonly text: string;
+      readonly sourceIds: readonly string[];
+    }
+  | {
+      readonly status: "unavailable";
+      readonly text: "No cited plain-language company description is available.";
+      readonly sourceIds: readonly [];
+    };
 
 export interface EquityReaderFinancialTrends {
   readonly reportingCurrency?: string;
@@ -57,8 +65,8 @@ export interface EquityReaderStatementValue {
   readonly sourceIds: readonly string[];
 }
 
-export interface EquityReaderBalanceSheetRow extends LabeledPeriod {
-  readonly kind: "annual" | "interim";
+export interface EquityReaderBalanceSheetRow {
+  readonly period: string;
   readonly cash?: EquityReaderStatementValue;
   readonly debt?: EquityReaderStatementValue;
   readonly dilutedShares?: EquityReaderStatementValue;
@@ -167,6 +175,7 @@ export interface EquityReaderAppendixCompleteness {
 
 export interface EquityReaderProjection {
   readonly defaultView: {
+    readonly companyDescription: EquityReaderCompanyDescription;
     readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
     readonly financialTrends?: EquityReaderFinancialTrends;
     readonly valuationContext: EquityReaderValuationContext;
@@ -181,7 +190,7 @@ export interface EquityReaderProjection {
   };
 }
 
-export const COMPLETENESS_DIMENSION_LABELS: readonly {
+const COMPLETENESS_DIMENSION_LABELS: readonly {
   readonly key: EquityReaderCompletenessDimensionKey;
   readonly label: string;
 }[] = [
@@ -207,16 +216,16 @@ interface CompanyDescriptionReport {
   readonly sources?: unknown;
 }
 
-export const NO_COMPANY_DESCRIPTION = "No cited plain-language company description is available.";
+const NO_COMPANY_DESCRIPTION = "No cited plain-language company description is available.";
 const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
-export function periodLabel(period: LabeledPeriod): string {
+function periodLabel(period: LabeledPeriod): string {
   if (period.kind === "ttm") {
     return `TTM (${period.periodEnd}; filed ${period.filedAt})`;
   }
   return `${period.kind === "annual" ? "FY" : "Interim"} ending ${period.periodEnd} (filed ${period.filedAt})`;
 }
 
-export function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod[] {
+function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod[] {
   const annual = new Map<string, TrendPeriod>();
   for (const key of TREND_SERIES_KEYS) {
     const series = history.series[key];
@@ -255,7 +264,7 @@ export function trendPeriods(history: FundamentalHistoryArtifact): readonly Tren
   return ttm === undefined ? annualRows : [...annualRows, ttm];
 }
 
-export function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {
+function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {
   const missingRevenuePeriods = trendPeriods(history).filter(
     (period) => historyPoint(history.series.revenue, period.periodEnd, period.kind) === undefined,
   ).length;
@@ -267,7 +276,7 @@ export function financialTrendGaps(history: FundamentalHistoryArtifact): readonl
   ];
 }
 
-export function historyPoint(
+function historyPoint(
   series: FundamentalHistorySeries,
   periodEnd: string,
   kind: TrendPeriod["kind"],
@@ -278,7 +287,7 @@ export function historyPoint(
   return series.annual.find((point) => point.periodEnd === periodEnd);
 }
 
-export function compactNumber(value: number): string {
+function compactNumber(value: number): string {
   const absolute = Math.abs(value);
   const units = [
     [1_000_000_000_000, "T"],
@@ -301,7 +310,7 @@ function trendValue(
   return historyPoint(history.series[key], period.periodEnd, period.kind)?.value;
 }
 
-export function formatTrendAmount(value: number | undefined): string {
+function formatTrendAmount(value: number | undefined): string {
   return value === undefined ? "—" : compactNumber(value);
 }
 
@@ -309,9 +318,7 @@ function formatTrendPercent(value: number | undefined): string {
   return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
 }
 
-export function financialTrendRows(
-  history: FundamentalHistoryArtifact,
-): readonly FinancialTrendRow[] {
+function financialTrendRows(history: FundamentalHistoryArtifact): readonly FinancialTrendRow[] {
   return trendPeriods(history).map((period) => ({
     period: periodLabel(period),
     revenue: formatTrendAmount(trendValue(history, "revenue", period)),
@@ -321,7 +328,7 @@ export function financialTrendRows(
   }));
 }
 
-export function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {
+function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {
   return history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
 }
 
@@ -432,9 +439,7 @@ function balanceSheetHistory(
     const { filedAt, periodType: kind } = filingFact;
     return [
       {
-        kind,
-        periodEnd,
-        filedAt,
+        period: periodLabel({ kind, periodEnd, filedAt }),
         ...(cashFact === undefined ? {} : { cash: statementValue(cashFact) }),
         ...(debtFact === undefined ? {} : { debt: statementValue(debtFact) }),
         ...(dilutedSharesFact === undefined
@@ -668,64 +673,26 @@ function projectedGaps(
   return { material, diagnostic };
 }
 
-function isDimensionStatus(value: unknown): value is EquityAnalysisDimensionStatus {
-  return (
-    value === "complete" ||
-    value === "partial" ||
-    value === "blocked" ||
-    value === "not-applicable" ||
-    value === "not-assessed"
-  );
-}
-
 function completenessProjection(report: unknown): {
   readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
   readonly appendix?: EquityReaderAppendixCompleteness;
 } {
   const record = reportRecord(report);
-  const completeness = record?.equityAnalysisCompleteness;
-  const rawDimensions = isRecord(completeness) ? completeness.dimensions : undefined;
-  if (
-    !isRecord(completeness) ||
-    completeness.version !== 1 ||
-    (completeness.financialCoreStatus !== "complete" &&
-      completeness.financialCoreStatus !== "partial" &&
-      completeness.financialCoreStatus !== "blocked") ||
-    (completeness.coverageLevel !== "comprehensive" &&
-      completeness.coverageLevel !== "substantial" &&
-      completeness.coverageLevel !== "limited") ||
-    typeof completeness.asOf !== "string" ||
-    !isRecord(rawDimensions)
-  ) {
+  const completeness = readEquityAnalysisCompleteness(record?.equityAnalysisCompleteness);
+  if (completeness === undefined) {
     return {};
   }
-  const dimensions = COMPLETENESS_DIMENSION_LABELS.flatMap(
-    ({ key, label }): readonly EquityReaderCompletenessDimension[] => {
-      const dimension = rawDimensions[key];
-      if (
-        !isRecord(dimension) ||
-        !isDimensionStatus(dimension.status) ||
-        typeof dimension.asOf !== "string"
-      ) {
-        return [];
-      }
-      const reasonCodes = stringArrayValue(dimension.reasonCodes);
-      const sourceIds = stringArrayValue(dimension.sourceIds);
-      return [
-        {
-          key,
-          label,
-          status: dimension.status,
-          reasonCodes,
-          asOf: dimension.asOf,
-          sourceIds,
-        },
-      ];
-    },
-  );
-  if (dimensions.length !== COMPLETENESS_DIMENSION_LABELS.length) {
-    return {};
-  }
+  const dimensions = COMPLETENESS_DIMENSION_LABELS.map(({ key, label }) => {
+    const dimension = completeness.dimensions[key];
+    return {
+      key,
+      label,
+      status: dimension.status,
+      reasonCodes: dimension.reasonCodes,
+      asOf: dimension.asOf,
+      sourceIds: dimension.sourceIds,
+    };
+  });
   return {
     financialCoreStatus: completeness.financialCoreStatus,
     appendix: {
@@ -745,6 +712,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   const completeness = completenessProjection(input.report);
   return {
     defaultView: {
+      companyDescription: companyDescription(record ?? {}),
       ...(completeness.financialCoreStatus === undefined
         ? {}
         : { financialCoreStatus: completeness.financialCoreStatus }),
@@ -797,7 +765,7 @@ function knownSourceIds(report: CompanyDescriptionReport, sourceIds: unknown): r
   );
 }
 
-export function companyDescription(report: CompanyDescriptionReport): CompanyDescription {
+function companyDescription(report: CompanyDescriptionReport): EquityReaderCompanyDescription {
   const extras = isRecord(report.extras) ? report.extras : undefined;
   const profile = isRecord(extras?.webSubjectProfile) ? extras.webSubjectProfile : undefined;
   if (profile !== undefined) {
@@ -810,6 +778,7 @@ export function companyDescription(report: CompanyDescriptionReport): CompanyDes
         continue;
       }
       return {
+        status: "available",
         text: candidate.answer,
         sourceIds: knownSourceIds(report, candidate.sourceIds),
       };
@@ -835,6 +804,7 @@ export function companyDescription(report: CompanyDescriptionReport): CompanyDes
       ).trim();
       if (plainText !== "" && hasPlainLanguageDescription(rawText)) {
         return {
+          status: "available",
           text: plainText,
           sourceIds: knownSourceIds(report, business.sourceIds),
         };
@@ -842,5 +812,5 @@ export function companyDescription(report: CompanyDescriptionReport): CompanyDes
     }
   }
 
-  return { text: NO_COMPANY_DESCRIPTION, sourceIds: [] };
+  return { status: "unavailable", text: NO_COMPANY_DESCRIPTION, sourceIds: [] };
 }

@@ -5,7 +5,6 @@ import {
   SOURCE_KINDS,
   isMarketRegimeLabel,
   type AssetClass,
-  type EquityAnalysisCompleteness,
   isReportIntegrity,
   type ExtendedEvidence,
   type ExtendedEvidenceCategory,
@@ -24,6 +23,7 @@ import {
   type SubjectKind,
   type VerifiedMarketSnapshot,
 } from "./domain/types";
+import { readEquityAnalysisCompleteness } from "./domain/equity-analysis-completeness";
 import {
   isSourceGapCapability,
   isSourceGapCause,
@@ -529,57 +529,6 @@ function readExtendedEvidence(value: unknown): ExtendedEvidence | undefined {
     items: readExtendedEvidenceItems(value.items),
     gaps: readSourceGaps(value.gaps),
   };
-}
-
-const EQUITY_COMPLETENESS_DIMENSIONS = [
-  "primaryFinancials",
-  "valuation",
-  "expectations",
-  "capitalOwnership",
-  "operatingKpis",
-] as const;
-
-function readEquityAnalysisCompleteness(value: unknown): EquityAnalysisCompleteness | undefined {
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    (value.financialCoreStatus !== "complete" &&
-      value.financialCoreStatus !== "partial" &&
-      value.financialCoreStatus !== "blocked") ||
-    (value.coverageLevel !== "comprehensive" &&
-      value.coverageLevel !== "substantial" &&
-      value.coverageLevel !== "limited") ||
-    readString(value, "asOf") === undefined ||
-    !isRecord(value.dimensions)
-  ) {
-    return undefined;
-  }
-  for (const key of EQUITY_COMPLETENESS_DIMENSIONS) {
-    const dimension = value.dimensions[key];
-    if (
-      !isRecord(dimension) ||
-      (dimension.status !== "complete" &&
-        dimension.status !== "partial" &&
-        dimension.status !== "blocked" &&
-        dimension.status !== "not-applicable" &&
-        dimension.status !== "not-assessed") ||
-      readStringArray(dimension, "reasonCodes") === undefined ||
-      readString(dimension, "asOf") === undefined ||
-      readStringArray(dimension, "sourceIds") === undefined
-    ) {
-      return undefined;
-    }
-  }
-  const { primaryFinancials } = value.dimensions;
-  if (
-    !isRecord(primaryFinancials) ||
-    primaryFinancials.status === "not-applicable" ||
-    primaryFinancials.status === "not-assessed" ||
-    value.financialCoreStatus !== primaryFinancials.status
-  ) {
-    return undefined;
-  }
-  return value as unknown as EquityAnalysisCompleteness;
 }
 
 function readReport(value: unknown): ResearchReport | undefined {

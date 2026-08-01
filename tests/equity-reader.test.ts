@@ -7,6 +7,12 @@ import type {
   FinancialStatementSeries,
   FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
+import type {
+  FundamentalHistoryArtifact,
+  FundamentalHistoryPoint,
+  FundamentalHistorySeries,
+  FundamentalHistorySeriesKey,
+} from "../src/sources/extended-evidence/fundamental-history";
 
 function statementFact(
   key: "cash" | "debt" | "dilutedShares",
@@ -96,7 +102,100 @@ function completenessDimension(status: string) {
   return { status, reasonCodes: [] as string[], asOf: "2026-07-04", sourceIds: [] as string[] };
 }
 
+function historyPoint(year: number, value: number): FundamentalHistoryPoint {
+  return {
+    value,
+    form: "10-K",
+    fy: year,
+    fp: "FY",
+    periodStart: `${String(year)}-01-01`,
+    periodEnd: `${String(year)}-12-31`,
+    periodMonths: 12,
+    filedAt: `${String(year + 1)}-02-01`,
+    currency: "USD",
+  };
+}
+
+function historySeries(
+  key: FundamentalHistorySeriesKey,
+  annual: readonly FundamentalHistoryPoint[],
+  ttm?: FundamentalHistoryPoint,
+): FundamentalHistorySeries {
+  return {
+    key,
+    label: key,
+    unit: key === "operatingMargin" ? "ratio" : "currency",
+    annual,
+    ...(ttm === undefined ? {} : { ttm }),
+    notes: [],
+  };
+}
+
+function annualAndTtmHistory(): FundamentalHistoryArtifact {
+  const annual = [2019, 2020, 2021, 2022, 2023, 2024].map((year, index) =>
+    historyPoint(year, (index + 1) * 1_000_000),
+  );
+  const revenueTtm = {
+    ...historyPoint(2025, 7_000_000),
+    form: "TTM" as const,
+    periodStart: "2024-10-01",
+    periodEnd: "2025-09-30",
+    periodMonths: 12,
+    filedAt: "2025-11-01",
+    currency: "EUR",
+  };
+  const netIncomeTtm = {
+    ...historyPoint(2025, 700_000),
+    form: "TTM" as const,
+    periodEnd: "2025-12-31",
+    filedAt: "2026-02-01",
+  };
+  const series = {
+    revenue: historySeries("revenue", annual, revenueTtm),
+    netIncome: historySeries("netIncome", annual, netIncomeTtm),
+    operatingMargin: historySeries(
+      "operatingMargin",
+      annual.map((point) => ({ ...point, value: 0.2 })),
+    ),
+    freeCashFlowProxy: historySeries("freeCashFlowProxy", annual),
+  };
+  return {
+    version: 1,
+    generatedAt: "2026-02-02T00:00:00.000Z",
+    symbol: "TEST",
+    sourceId: "sec-history",
+    series,
+  } as unknown as FundamentalHistoryArtifact;
+}
+
 describe("equity reader projection", () => {
+  test("selects the latest five annual periods and appends the latest available TTM period", () => {
+    const projection = projectEquityReader({
+      report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+      fundamentalHistory: annualAndTtmHistory(),
+    });
+
+    expect(projection.defaultView.financialTrends?.rows.map((row) => row.period)).toEqual([
+      "FY ending 2020-12-31 (filed 2021-02-01)",
+      "FY ending 2021-12-31 (filed 2022-02-01)",
+      "FY ending 2022-12-31 (filed 2023-02-01)",
+      "FY ending 2023-12-31 (filed 2024-02-01)",
+      "FY ending 2024-12-31 (filed 2025-02-01)",
+      "TTM (2025-12-31; filed 2026-02-01)",
+    ]);
+    expect(projection.defaultView.financialTrends?.rows.at(-1)).toEqual({
+      period: "TTM (2025-12-31; filed 2026-02-01)",
+      revenue: "—",
+      netIncome: "700,000",
+      operatingMargin: "—",
+      freeCashFlow: "—",
+    });
+    expect(projection.defaultView.financialTrends?.reportingCurrency).toBe("EUR");
+    expect(projection.defaultView.materialGaps).toEqual([
+      "fundamental-history-revenue: SEC revenue history is unavailable for 1 rendered period(s); affected revenue and derived operating-margin values are shown as unavailable",
+    ]);
+  });
+
   test("selects amended values and filing dates jointly before the analysis cutoff", () => {
     const projection = projectEquityReader({
       report: { generatedAt: "2025-04-01T12:00:00.000Z" },
@@ -105,9 +204,7 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
       {
-        kind: "annual",
-        periodEnd: "2024-12-31",
-        filedAt: "2025-03-01",
+        period: "FY ending 2024-12-31 (filed 2025-03-01)",
         cash: {
           value: 120,
           filedAt: "2025-03-01",
@@ -141,9 +238,7 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
       {
-        kind: "annual",
-        periodEnd: "2024-12-31",
-        filedAt: "2025-03-01",
+        period: "FY ending 2024-12-31 (filed 2025-03-01)",
         cash: {
           value: 100,
           filedAt: "2025-02-01",
@@ -287,5 +382,112 @@ describe("equity reader projection", () => {
     expect(projection.appendix.diagnosticGaps).toEqual([
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
     ]);
+  });
+});
+
+describe("equity reader company description", () => {
+  test("prioritizes the profile summary and filters citations to known report sources", () => {
+    const description = projectEquityReader({
+      report: {
+        sources: [{ id: "known-source" }],
+        extras: {
+          webSubjectProfile: {
+            subjectSummary: {
+              answer: "Profile summary wins.",
+              sourceIds: ["unknown-source", "known-source"],
+            },
+            questions: {
+              whatItDoes: { answer: "Question fallback.", sourceIds: ["known-source"] },
+            },
+          },
+          businessFramework: {
+            sections: [
+              { name: "Business", summary: "Framework fallback.", sourceIds: ["known-source"] },
+            ],
+          },
+        },
+      },
+    }).defaultView.companyDescription;
+
+    expect(description).toEqual({
+      status: "available",
+      text: "Profile summary wins.",
+      sourceIds: ["known-source"],
+    });
+  });
+
+  test("falls through from an empty profile answer to what-it-does, then to the framework", () => {
+    const questionDescription = projectEquityReader({
+      report: {
+        sources: [{ id: "question-source" }],
+        extras: {
+          webSubjectProfile: {
+            subjectSummary: { answer: "", sourceIds: [] },
+            questions: {
+              whatItDoes: {
+                answer: "Makes industrial sensors.",
+                sourceIds: ["question-source"],
+              },
+            },
+          },
+          businessFramework: {
+            sections: [{ name: "Business", summary: "Framework description." }],
+          },
+        },
+      },
+    }).defaultView.companyDescription;
+    const frameworkDescription = projectEquityReader({
+      report: {
+        sources: [{ id: "framework-source" }],
+        extras: {
+          businessFramework: {
+            sections: [
+              {
+                name: "Business",
+                posture: "supported",
+                text: "Business supported Builds satellite communications networks.",
+                sourceIds: ["framework-source", "unknown-source"],
+              },
+            ],
+          },
+        },
+      },
+    }).defaultView.companyDescription;
+
+    expect(questionDescription).toEqual({
+      status: "available",
+      text: "Makes industrial sensors.",
+      sourceIds: ["question-source"],
+    });
+    expect(frameworkDescription).toEqual({
+      status: "available",
+      text: "Builds satellite communications networks.",
+      sourceIds: ["framework-source"],
+    });
+  });
+
+  test("returns the deterministic unavailable description when no candidate is usable", () => {
+    expect(
+      projectEquityReader({
+        report: {
+          sources: [{ id: "known-source" }],
+          extras: {
+            businessFramework: {
+              sections: [
+                {
+                  name: "Business",
+                  text: "Business insufficient data",
+                  sourceIds: ["unknown-source"],
+                },
+              ],
+            },
+          },
+        },
+      }).defaultView.companyDescription,
+    ).toEqual({
+      status: "unavailable",
+      text: "No cited plain-language company description is available.",
+      sourceIds: [],
+    });
   });
 });

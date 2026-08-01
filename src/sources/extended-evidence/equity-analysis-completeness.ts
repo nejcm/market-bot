@@ -5,6 +5,7 @@ import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
 } from "../../domain/types";
+import { resolveCoverageLevel } from "../../domain/equity-analysis-completeness";
 import type { EarningsSetupCollected } from "../types";
 import type {
   FinancialStatementFact,
@@ -650,23 +651,6 @@ function nonCoreDimensions(
     ),
     operatingKpis: operatingKpisDimension(input),
   };
-}
-
-export function resolveCoverageLevel(
-  dimensions: readonly EquityAnalysisCompletenessDimension[],
-  financialCoreStatus: EquityAnalysisCompleteness["financialCoreStatus"],
-): EquityAnalysisCompleteness["coverageLevel"] {
-  // Not-assessed dimensions deliberately remain un-credited, so the label never moves a grade.
-  const completeOrNotApplicable = dimensions.filter(
-    (dimension) => dimension.status === "complete" || dimension.status === "not-applicable",
-  ).length;
-  if (financialCoreStatus !== "complete" || completeOrNotApplicable <= 1) {
-    return "limited";
-  }
-  if (completeOrNotApplicable === dimensions.length) {
-    return "comprehensive";
-  }
-  return "substantial";
 }
 
 export function deriveEquityAnalysisCompleteness(

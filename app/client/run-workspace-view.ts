@@ -15,8 +15,6 @@ import type {
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import {
-  companyDescription,
-  periodLabel,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
   type EquityReaderAppendixCompleteness,
@@ -857,12 +855,6 @@ export function fundamentalHistoryView(
   return cards.length === 0 ? undefined : { cards };
 }
 
-export function financialTrendView(detail: RunDetail): RunWorkspaceFinancialTrendView | undefined {
-  return financialTrendFromProjection(
-    projectEquityReaderForDetail(detail).defaultView.financialTrends,
-  );
-}
-
 function financialTrendFromProjection(
   trends: EquityReaderProjection["defaultView"]["financialTrends"],
 ): RunWorkspaceFinancialTrendView | undefined {
@@ -888,14 +880,6 @@ function statementAmount(value: number | undefined, currency: string | undefined
     : formatLensValue(value, "currency", currency);
 }
 
-export function balanceSheetHistoryView(
-  detail: RunDetail,
-): RunWorkspaceBalanceSheetHistoryView | undefined {
-  return balanceSheetHistoryFromProjection(
-    projectEquityReaderForDetail(detail).appendix.balanceSheetHistory,
-  );
-}
-
 function balanceSheetHistoryFromProjection(
   history: EquityReaderBalanceSheetHistory | undefined,
 ): RunWorkspaceBalanceSheetHistoryView | undefined {
@@ -908,7 +892,7 @@ function balanceSheetHistoryFromProjection(
       : { reportingCurrency: history.reportingCurrency }),
     sourceIds: history.sourceIds,
     rows: history.rows.map((row) => ({
-      period: periodLabel(row),
+      period: row.period,
       cash: statementAmount(row.cash?.value, history.reportingCurrency),
       debt: statementAmount(row.debt?.value, history.reportingCurrency),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
@@ -928,14 +912,6 @@ function compactNumber(value: number): string {
     }
   }
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
-}
-
-export function earningsConsensusView(
-  report: Record<string, unknown> | undefined,
-): RunWorkspaceEarningsConsensusView {
-  return earningsConsensusFromProjection(
-    projectEquityReader({ report }).defaultView.earningsConsensus,
-  );
 }
 
 function earningsConsensusFromProjection(
@@ -1603,14 +1579,14 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const diagnosticGaps = isEquityPresentation
     ? readerProjection.appendix.diagnosticGaps
     : triagedGaps.filter((gap) => gap.triage === "diagnostic").map((gap) => gap.text);
-  const description = companyDescription(report ?? {});
+  const description = readerProjection.defaultView.companyDescription;
   const equityPresentation: RunWorkspaceEquityPresentationView | undefined =
     equitySnapshot === undefined
       ? undefined
       : {
           defaultView: {
             pricePerformance: equitySnapshot.pricePerformance,
-            companySummary: description,
+            companySummary: { text: description.text, sourceIds: description.sourceIds },
             ...(financialTrends === undefined ? {} : { financialTrends }),
             valuationContext: {
               ...equitySnapshot.peerReferenceRange,

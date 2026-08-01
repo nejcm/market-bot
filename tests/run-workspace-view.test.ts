@@ -23,7 +23,7 @@ import { deriveFinancialStatements } from "../src/sources/extended-evidence/fina
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { renderFinancialTrends } from "../src/report/markdown";
-import { financialTrendRows, trendPeriods } from "../src/report/equity-reader";
+import { projectEquityReader } from "../src/report/equity-reader";
 import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
 
 async function renderRunWorkspaceComponent(detail: RunDetail): Promise<string> {
@@ -1645,18 +1645,21 @@ describe("run workspace view", () => {
       periodEnd: annualPeriodEnd,
       filedAt: "2026-11-01",
     };
-    const periods = trendPeriods({
-      ...history,
-      series: {
-        ...history.series,
-        grossProfit: {
-          ...history.series.grossProfit,
-          annual: [...history.series.grossProfit.annual, nonColumnAnnual],
+    const rows = projectEquityReader({
+      report: {},
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          grossProfit: {
+            ...history.series.grossProfit,
+            annual: [...history.series.grossProfit.annual, nonColumnAnnual],
+          },
         },
       },
-    });
+    }).defaultView.financialTrends?.rows;
 
-    expect(periods.some((period) => period.periodEnd === annualPeriodEnd)).toBe(false);
+    expect(rows?.some((row) => row.period.includes(annualPeriodEnd))).toBe(false);
   });
 
   test("ignores the TTM period from non-column fundamental series", () => {
@@ -1672,18 +1675,21 @@ describe("run workspace view", () => {
       periodEnd: ttmPeriodEnd,
       filedAt: "2027-02-01",
     };
-    const periods = trendPeriods({
-      ...history,
-      series: {
-        ...history.series,
-        dilutedEps: {
-          ...history.series.dilutedEps,
-          ttm: nonColumnTtm,
+    const rows = projectEquityReader({
+      report: {},
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          dilutedEps: {
+            ...history.series.dilutedEps,
+            ttm: nonColumnTtm,
+          },
         },
       },
-    });
+    }).defaultView.financialTrends?.rows;
 
-    expect(periods.some((period) => period.periodEnd === ttmPeriodEnd)).toBe(false);
+    expect(rows?.some((row) => row.period.includes(ttmPeriodEnd))).toBe(false);
   });
 
   test("labels each trend row with the latest filing among its displayed values", () => {
@@ -1694,32 +1700,37 @@ describe("run workspace view", () => {
       return;
     }
     const { periodEnd } = latestRevenue;
-    const periods = trendPeriods({
-      ...history,
-      series: {
-        ...history.series,
-        revenue: {
-          ...history.series.revenue,
-          annual: history.series.revenue.annual.map((point) =>
-            point.periodEnd === periodEnd ? { ...point, filedAt: "2025-11-02" } : point,
-          ),
-        },
-        netIncome: {
-          ...history.series.netIncome,
-          annual: history.series.netIncome.annual.map((point) =>
-            point.periodEnd === periodEnd ? { ...point, filedAt: "2025-11-03" } : point,
-          ),
-        },
-        dilutedEps: {
-          ...history.series.dilutedEps,
-          annual: history.series.dilutedEps.annual.map((point) =>
-            point.periodEnd === periodEnd ? { ...point, filedAt: "2026-01-15" } : point,
-          ),
+    const rows = projectEquityReader({
+      report: {},
+      fundamentalHistory: {
+        ...history,
+        series: {
+          ...history.series,
+          revenue: {
+            ...history.series.revenue,
+            annual: history.series.revenue.annual.map((point) =>
+              point.periodEnd === periodEnd ? { ...point, filedAt: "2025-11-02" } : point,
+            ),
+          },
+          netIncome: {
+            ...history.series.netIncome,
+            annual: history.series.netIncome.annual.map((point) =>
+              point.periodEnd === periodEnd ? { ...point, filedAt: "2025-11-03" } : point,
+            ),
+          },
+          dilutedEps: {
+            ...history.series.dilutedEps,
+            annual: history.series.dilutedEps.annual.map((point) =>
+              point.periodEnd === periodEnd ? { ...point, filedAt: "2026-01-15" } : point,
+            ),
+          },
         },
       },
-    });
+    }).defaultView.financialTrends?.rows;
 
-    expect(periods.find((period) => period.periodEnd === periodEnd)?.filedAt).toBe("2025-11-03");
+    expect(rows?.find((row) => row.period.includes(periodEnd))?.period).toBe(
+      `FY ending ${periodEnd} (filed 2025-11-03)`,
+    );
   });
 
   test("surfaces missing revenue history as a material reader gap", () => {
@@ -1992,21 +2003,23 @@ describe("run workspace view", () => {
       {},
       { revenue: 170, freeCashFlowProxy: 35, operatingMargin: 0.25 },
     );
-    const html = await renderRunWorkspaceComponent({
+    const detail = {
       summary: summary(),
       report: completenessReport(),
       marketSnapshots: [marketSnapshot()],
       fundamentalHistory: history,
-    });
+    };
+    const html = await renderRunWorkspaceComponent(detail);
     const text = html
       .replaceAll(/<[^>]+>/gu, " ")
       .replaceAll(/\s+/gu, " ")
       .trim();
-    const expectedRows = financialTrendRows(history);
+    const expectedRows =
+      buildRunWorkspaceView(detail).equityPresentation?.defaultView.financialTrends?.rows;
 
     expect(text).toContain("financial core · complete");
-    expect(expectedRows.length).toBeGreaterThan(0);
-    for (const row of expectedRows) {
+    expect(expectedRows?.length).toBeGreaterThan(0);
+    for (const row of expectedRows ?? []) {
       expect(text).toContain(row.period);
       expect(text).toContain(row.revenue);
     }

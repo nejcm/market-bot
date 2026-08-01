@@ -7,7 +7,7 @@ import {
   type SourceGap,
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
-import { projectEquityReader } from "./equity-reader";
+import { projectEquityReader, type EquityReaderCompanyDescription } from "./equity-reader";
 import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
@@ -24,7 +24,7 @@ export interface EquityMarkdownSections {
     additionalSourceIds?: readonly string[],
   ) => string;
   readonly renderCompletenessChips: (report: ResearchReport) => readonly string[];
-  readonly renderCompanyDescription: (report: ResearchReport) => string;
+  readonly renderCompanyDescription: (description: EquityReaderCompanyDescription) => string;
   readonly renderPriceAndMarketDate: (
     report: ResearchReport,
     marketSnapshot: MarketSnapshot | undefined,
@@ -120,6 +120,7 @@ export function renderEquityMarkdownReport(
   const { diagnosticGaps } = projection.appendix;
   const additionalSourceIds = [
     ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
+    ...projection.defaultView.companyDescription.sourceIds,
     ...(projection.defaultView.financialTrends?.sourceIds ?? []),
     ...(projection.appendix.balanceSheetHistory?.sourceIds ?? []),
     ...projection.defaultView.valuationContext.sourceIds,
@@ -150,7 +151,7 @@ export function renderEquityMarkdownReport(
       : [`Research Quality Driver: ${report.researchQualityDriver}`]),
     ...sections.renderCompletenessChips(report),
     "",
-    sections.renderCompanyDescription(report),
+    sections.renderCompanyDescription(projection.defaultView.companyDescription),
     sections.renderPriceAndMarketDate(report, marketSnapshot),
     sections.renderFinancialTrends(report, projection.defaultView.financialTrends),
     sections.renderValuationContext(report, projection.defaultView.valuationContext),

@@ -62,11 +62,7 @@ export function renderReverseDcfMarkdown(
     return "";
   }
   if (artifact.status === "suppressed") {
-    return [
-      "\n\n## Reverse DCF Input Sensitivity",
-      "",
-      `Suppressed (${artifact.reason}): ${artifact.detail}`,
-    ].join("\n");
+    return "";
   }
   return renderComputed(artifact, priceAsOf);
 }

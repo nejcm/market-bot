@@ -26,6 +26,17 @@ const FIXTURES = [
   "equity-web-fallback-deep",
 ] as const;
 
+const EXPECTED_COMPLETENESS_GRADES = {
+  "equity-aapl-brief": ["blocked", "limited"],
+  "equity-aapl-deep": ["complete", "limited"],
+  "equity-nbis-deep": ["partial", "limited"],
+  "equity-fpi-quarterly": ["complete", "limited"],
+  "equity-fpi-ifrs-semiannual": ["complete", "limited"],
+  "equity-analysis-comprehensive": ["complete", "substantial"],
+  "equity-analysis-estimated-suppressed": ["complete", "limited"],
+  "equity-web-fallback-deep": ["complete", "substantial"],
+} as const;
+
 const CAPTURE_EARNINGS_FIXTURES = new Set<string>([
   "equity-analysis-comprehensive",
   "equity-analysis-estimated-suppressed",
@@ -61,8 +72,13 @@ describe("static equity run fixtures", () => {
           : {}),
       });
       runResults.push(result);
+      const golden = await readGoldenOutput(name);
 
       assertInvariants(result, fixture.meta);
+      expect([
+        result.report.equityAnalysisCompleteness?.financialCoreStatus,
+        result.report.equityAnalysisCompleteness?.coverageLevel,
+      ]).toEqual([...EXPECTED_COMPLETENESS_GRADES[name]]);
       if (name === "equity-nbis-deep") {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
@@ -113,9 +129,7 @@ describe("static equity run fixtures", () => {
           }
         }
       }
-      expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(
-        await readGoldenOutput(name),
-      );
+      expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(golden);
     });
   }
 
@@ -155,14 +169,11 @@ describe("static equity run fixtures", () => {
       "\n### Analyst Estimate Distributions\n",
       "\n### External Analyst Estimate Context\n",
       "\n### External Ownership Context\n",
-      "\n### Extended Evidence\n",
       "\n### Earnings Setup\n",
       "\n### Historical Context\n",
       "\n### Scenarios\n",
       "\n### Predictions\n",
       "\n### Diagnostic Data Gaps\n",
-      "AAPL Financial Lens Evidence",
-      "AAPL options IV",
       "\n### Valuation Workbench\n",
       "DELL | secondary | excluded",
       "\n### Reverse DCF Input Sensitivity\n",
@@ -196,10 +207,13 @@ describe("static equity run fixtures", () => {
     expect(reader).toContain("**Material:** predictionShortfall: emitted 2 of 5");
     expect(appendix).not.toContain("predictionShortfall:");
     expect(reader).not.toContain("fred-macro:");
-    expect(appendix).toContain("fred-macro:");
-    expect(appendix).toContain("**Diagnostic:** sec-edgar: Missing SEC company facts: grossProfit");
+    expect(appendix).not.toContain("fred-macro:");
+    expect(appendix).not.toContain("**Diagnostic:** sec-edgar: Missing SEC company facts");
+    expect(appendix).toMatch(
+      /\d+ diagnostic data gaps; see the Research Console Advanced view or report\.json for details\./u,
+    );
     expect(reader).not.toContain("marketaux-news:");
-    expect(appendix).toContain("marketaux-news:");
+    expect(appendix).not.toContain("marketaux-news:");
     expect(reader).not.toContain("- **Median:**");
     expect(appendix).toContain("- **Median:**");
     for (const title of [
@@ -211,6 +225,18 @@ describe("static equity run fixtures", () => {
     }
     expect(appendix!.match(/Mean \| Median \| High \| Low \| Count/gu)).toHaveLength(3);
     expect(appendix).not.toMatch(/^## /mu);
+    expect(appendix).not.toContain("### Extended Evidence");
+    expect(appendix).not.toContain("#### Fact Ledger");
+    expect(appendix).not.toContain("- **Business** (criteria-supported):");
+    expect(appendix).not.toContain("- **Phase**:");
+    expect(appendix).not.toContain("- **Growth** (criteria-supported):");
+    expect(appendix).toContain("- **Moat** (criteria-supported):");
+    expect(appendix).toContain("- **Management** (insufficient-data):");
+    expect(appendix).toContain("- **Risk** (criteria-supported):");
+    expect(appendix).toContain("- **Valuation** (criteria-supported):");
+    expect(
+      appendix!.match(/^\| (?:8|9|10|11|12|13|14|15|16)% \|(?: \d+\.\d{2}% \|){5}$/gmu),
+    ).toHaveLength(9);
 
     const preservedReportContent = [
       result.report.summary,
@@ -220,7 +246,6 @@ describe("static equity run fixtures", () => {
       ...result.report.risks.map((item) => item.text),
       ...result.report.catalysts.map((item) => item.text),
       ...result.report.scenarios.map((item) => item.description),
-      ...(result.report.extendedEvidence?.items.map((item) => item.title) ?? []),
     ];
     for (const fragment of preservedReportContent) {
       expect(result.markdown, fragment).toContain(fragment);

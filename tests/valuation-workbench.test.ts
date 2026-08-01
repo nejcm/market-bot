@@ -393,6 +393,20 @@ describe("valuation workbench", () => {
     expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
   });
 
+  test("omits a suppressed trailing-basis disclosure from markdown", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: withoutTtm(statements()),
+      priceHistory: [{ date: "2025-05-01", close: 26 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+
+    expect(artifact.historicalMultiples.trailingBasis.status).toBe("suppressed");
+    expect(renderValuationWorkbenchMarkdown(artifact)).not.toContain("Trailing basis suppressed");
+  });
+
   test("labels a provider quote timestamp as quote time", () => {
     const base = reverseDcfWorkbench();
     if (base.peerComparison.status !== "available") {

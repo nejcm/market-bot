@@ -126,16 +126,17 @@ describe("reverse DCF input sensitivity", () => {
   });
 
   test("suppresses when reconciled trailing FCF is absent", () => {
-    expect(
-      buildReverseDcf({
-        generatedAt: "2026-05-19T00:00:00.000Z",
-        symbol: "AAPL",
-        valuationWorkbench: valuationWorkbench(),
-      }),
-    ).toMatchObject({
+    const artifact = buildReverseDcf({
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      symbol: "AAPL",
+      valuationWorkbench: valuationWorkbench(),
+    });
+
+    expect(artifact).toMatchObject({
       status: "suppressed",
       reason: "reconciled-ttm-fcf-unavailable",
     });
+    expect(renderReverseDcfMarkdown(artifact)).toBe("");
   });
 
   test("suppresses non-positive or incompatible inputs with explicit reasons", () => {

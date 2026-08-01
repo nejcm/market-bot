@@ -63,6 +63,21 @@ function validationErrorMessage(candidate: ResearchReport): string {
   throw new Error("Expected report validation to fail");
 }
 
+function equityEvidenceSource(id: string): Source {
+  return {
+    id,
+    title: id,
+    fetchedAt: "2026-05-19T00:00:00.000Z",
+    kind: "market-data",
+    assetClass: "equity",
+    symbol: "AAPL",
+  };
+}
+
+function observedMetricsRow(markdown: string): string | undefined {
+  return markdown.split("\n").find((line) => line.startsWith("- **Observed metrics:**"));
+}
+
 test("renders not-assessed completeness as a non-success status chip", () => {
   const asOf = "2026-05-19T00:00:00.000Z";
   const dimension = {
@@ -122,6 +137,35 @@ test("renders prediction shortfalls as reader-visible material gaps", () => {
 
   expect(reader).toContain(`- **Material:** ${shortfall}`);
   expect(appendix).not.toContain(shortfall);
+});
+
+test("summarizes diagnostic gaps with a pointer to retained artifacts", () => {
+  const diagnosticGaps = [
+    "finnhub-events: configured token returned 403",
+    "tradier-options: API token missing",
+  ];
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: diagnosticGaps,
+    },
+    undefined,
+    {
+      sourceGaps: diagnosticGaps.map((gap) => {
+        const [source, message] = gap.split(": ", 2);
+        return sourceGap({ source: source!, message: message!, triage: "diagnostic" });
+      }),
+    },
+  );
+
+  expect(markdown).toContain(
+    "2 diagnostic data gaps; see the Research Console Advanced view or report.json for details.",
+  );
+  expect(markdown).not.toContain("configured token returned 403");
+  expect(markdown).not.toContain("tradier-options: API token missing");
 });
 
 test("renders an uncited real company description as a paragraph", () => {
@@ -533,7 +577,7 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("date provider-estimated (Finnhub), unconfirmed");
   });
 
-  test("validates web sources and web-subject-profile extended evidence", () => {
+  test("keeps qualitative web profile answers while omitting equity reader duplicates", () => {
     const answer = {
       answer: "Apple sells devices and services.",
       sourceIds: ["web-aapl-12345678"],
@@ -608,13 +652,38 @@ describe("report schema and rendering", () => {
     const markdown = renderMarkdownReport(validateResearchReport(webReport));
 
     expect(markdown).toContain("AAPL web profile is cited. [web-aapl-12345678]");
-    expect(markdown).toContain("## Extended Evidence");
+    expect(markdown).not.toContain("## Extended Evidence");
     expect(markdown).toContain("## Web Subject Profile");
-    expect(markdown).toContain("**Management Track Record:**");
+    expect(markdown).toContain("**What It Does:**");
+    expect(markdown).toContain("**Customers:**");
+    expect(markdown).toContain("**Geography:**");
+    expect(markdown).toContain("**Pricing Power:**");
+    expect(markdown).toContain("**Recession Cyclicality:**");
+    expect(markdown).toContain("**Capital Allocation:**");
+    expect(markdown).toContain("**Company-specific KPIs:**");
     expect(markdown).toContain("**Disclosed Risk Factors:**");
-    expect(markdown).toContain("### Fact Ledger");
+    expect(markdown).toContain("**How It Makes Money:**");
+    expect(markdown).toContain("**Purchase Recurrence:**");
+    expect(markdown).toContain("**Management Track Record:**");
+    expect(markdown).not.toContain("### Fact Ledger");
+    expect(markdown).not.toContain("Public web evidence captured for AAPL.");
     expect(markdown).toContain("Apple sells devices and services. [web-aapl-12345678]");
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
+
+    const issuerMarkdown = renderMarkdownReport(
+      validateResearchReport({
+        ...webReport,
+        extras: {
+          webSubjectProfile: {
+            ...(webReport.extras?.webSubjectProfile as Record<string, unknown>),
+            subjectKind: "issuer",
+          },
+        },
+      }),
+    );
+    expect(issuerMarkdown).toContain("**How It Makes Money:**");
+    expect(issuerMarkdown).not.toContain("Public web evidence captured for AAPL.");
+    expect(issuerMarkdown).not.toContain("### Fact Ledger");
   });
 
   test("renders the SEC filing basis line for company profiles", () => {
@@ -2881,28 +2950,28 @@ describe("report schema and rendering", () => {
   });
 
   test("renders price-derived evidence with quote or fetch time provenance", () => {
-    const priceSourceId = "market-aapl";
-    const equityReport: ResearchReport = {
+    const priceSourceId = "market-btc";
+    const cryptoReport: ResearchReport = {
       ...report,
-      jobType: "equity",
-      assetClass: "equity",
-      symbol: "AAPL",
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
       sources: [
         {
           id: priceSourceId,
-          title: "AAPL market snapshot",
+          title: "BTC market snapshot",
           fetchedAt: "2026-05-19T14:31:00.000Z",
           kind: "market-data",
-          assetClass: "equity",
-          symbol: "AAPL",
+          assetClass: "crypto",
+          symbol: "BTC",
         },
       ],
       extendedEvidence: {
-        instrument: { assetClass: "equity", symbol: "AAPL" },
+        instrument: { assetClass: "crypto", symbol: "BTC" },
         items: [
           {
             category: "valuation",
-            title: "AAPL Valuation Evidence",
+            title: "BTC Valuation Evidence",
             summary: "Valuation Evidence: market cap as of 2026-05-19; cash/debt as of 2026-03-31.",
             sourceIds: [priceSourceId],
             observedAt: "2026-05-19T14:31:00.000Z",
@@ -2921,8 +2990,8 @@ describe("report schema and rendering", () => {
       quoteTimeUtc: "2026-05-19T14:29:07.000Z",
     });
 
-    const fetchedMarkdown = renderMarkdownReport(equityReport, fetchedSnapshot);
-    const quotedMarkdown = renderMarkdownReport(equityReport, quotedSnapshot);
+    const fetchedMarkdown = renderMarkdownReport(cryptoReport, fetchedSnapshot);
+    const quotedMarkdown = renderMarkdownReport(cryptoReport, quotedSnapshot);
 
     expect(fetchedMarkdown).toContain("market cap fetch time 2026-05-19T14:31:00.000Z");
     expect(fetchedMarkdown).not.toContain("market cap quote time");
@@ -3145,6 +3214,28 @@ describe("report schema and rendering", () => {
           symbol: "AAPL",
         },
       ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "options-iv",
+            title: "AAPL options IV",
+            summary: "Near-term option chain median implied volatility is 0.330.",
+            sourceIds: ["source-1"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { medianIv: 0.33 },
+          },
+          {
+            category: "yahoo-fundamentals",
+            title: "AAPL Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["source-1"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { priceToBook: 45, epsTrailingTwelveMonths: 6.4 },
+          },
+        ],
+        gaps: [],
+      },
       extras: {
         businessFramework: {
           phase: "capital-return",
@@ -3153,13 +3244,49 @@ describe("report schema and rendering", () => {
             {
               name: "Business",
               posture: "criteria-supported",
-              text: "Revenue evidence is available.",
+              text: "Business financial trend restatement.",
               sourceIds: ["source-1"],
             },
             {
               name: "Phase",
               posture: "criteria-supported",
-              summary: "Phase classification (Phase capital-return)",
+              summary: "Phase financial trend restatement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Moat",
+              posture: "criteria-supported",
+              text: "Moat criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: " growth ",
+              posture: "criteria-supported",
+              text: "Growth financial trend restatement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Management",
+              posture: "insufficient-data",
+              text: "Management criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Risk",
+              posture: "criteria-mixed",
+              text: "Risk criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Valuation",
+              posture: "criteria-not-supported",
+              text: "Valuation criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Unit Economics",
+              posture: "criteria-supported",
+              text: "Unit economics criteria judgement.",
               sourceIds: ["source-1"],
             },
           ],
@@ -3169,12 +3296,119 @@ describe("report schema and rendering", () => {
 
     expect(markdown).toContain("## Business Framework");
     expect(markdown).toContain("Phase: capital-return");
-    expect(markdown).toContain("Revenue evidence is available. [source-1]");
+    expect(markdown).toContain("Moat criteria judgement. [source-1]");
+    expect(markdown).toContain("Management criteria judgement. [source-1]");
+    expect(markdown).toContain("Risk criteria judgement. [source-1]");
+    expect(markdown).toContain("Valuation criteria judgement. [source-1]");
+    expect(markdown).toContain("Unit economics criteria judgement. [source-1]");
     expect(markdown).toContain(
-      String.raw`- **Phase**: Phase classification \(Phase capital-return\) [source-1]`,
+      "- **Observed metrics:** near-term options implied volatility 0.330, price/book 45.00x, EPS TTM 6.40 [source-1]",
     );
-    expect(markdown).not.toContain("**Phase** (criteria-supported)");
+    expect(markdown).not.toContain("- **Business** (criteria-supported):");
+    expect(markdown).not.toContain("- **Phase**:");
+    expect(markdown).not.toContain("Growth financial trend restatement.");
     expect(markdown).toContain("Management evidence unavailable");
+  });
+
+  test("renders readable IV from single-expiry and term-structure evidence", () => {
+    const renderEvidence = (
+      items: NonNullable<ResearchReport["extendedEvidence"]>["items"],
+    ): string =>
+      renderMarkdownReport({
+        ...report,
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        sources: [
+          equityEvidenceSource("term-iv"),
+          equityEvidenceSource("single-iv"),
+          equityEvidenceSource("malformed-iv"),
+          equityEvidenceSource("yahoo-fundamentals"),
+        ],
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items,
+          gaps: [],
+        },
+      });
+    const termStructure = {
+      category: "options-iv" as const,
+      title: "AAPL IV term structure",
+      summary: "Tradier IV term structure: 30D 0.310.",
+      sourceIds: ["term-iv"],
+      observedAt: "2026-05-19T00:00:00.000Z",
+      metrics: { medianIv30Dte: 0.31 },
+    };
+    const singleExpiry = {
+      category: "options-iv" as const,
+      title: "AAPL options IV",
+      summary: "Near-term option chain median implied volatility is 0.330.",
+      sourceIds: ["single-iv"],
+      observedAt: "2026-05-19T00:00:00.000Z",
+      metrics: { medianIv: 0.33 },
+    };
+
+    expect(observedMetricsRow(renderEvidence([termStructure]))).toEqual(
+      "- **Observed metrics:** 30-day options implied volatility 0.310 [term-iv]",
+    );
+    expect(observedMetricsRow(renderEvidence([termStructure, singleExpiry]))).toEqual(
+      "- **Observed metrics:** near-term options implied volatility 0.330 [single-iv]",
+    );
+    expect(
+      observedMetricsRow(
+        renderEvidence([
+          {
+            ...singleExpiry,
+            sourceIds: ["malformed-iv"],
+            metrics: { medianIv: Number.NaN },
+          },
+          {
+            category: "yahoo-fundamentals",
+            title: "AAPL Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["yahoo-fundamentals"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { priceToBook: 45 },
+          },
+        ]),
+      ),
+    ).toEqual("- **Observed metrics:** price/book 45.00x [yahoo-fundamentals]");
+  });
+
+  test("keeps no-snapshot valuation context consistent with persisted multiples", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      sources: [equityEvidenceSource("yahoo-fundamentals")],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "yahoo-fundamentals",
+            title: "AAPL Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["yahoo-fundamentals"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { priceToBook: 45 },
+          },
+        ],
+        gaps: [],
+      },
+    });
+
+    expect(markdown).toContain(
+      [
+        "## Valuation Context",
+        "",
+        "No peer-derived reference range is available; this is valuation context, not a target price.",
+        "",
+        "- **Observed metrics:** price/book 45.00x [yahoo-fundamentals]",
+        "",
+        "## Catalysts",
+      ].join("\n"),
+    );
   });
 
   test("renders only well-shaped alpha-search extras", () => {

@@ -163,7 +163,7 @@ describe("runResearchJob report assembly and market context", () => {
     expect(result.report.predictions[0]?.kind).toBe("macro");
   });
 
-  test("surfaces ticker Extended Evidence in prompt, report, and markdown", async () => {
+  test("surfaces ticker Extended Evidence in prompt and report but not equity markdown", async () => {
     const prompts: string[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -254,7 +254,7 @@ describe("runResearchJob report assembly and market context", () => {
       aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "AAPL" }],
     });
     expect(result.report.extendedEvidence).toBeDefined();
-    expect(result.markdown).toContain("## Extended Evidence");
+    expect(result.markdown).not.toContain("## Extended Evidence");
     expect(result.markdown).toContain("[extended-sec]");
   });
 

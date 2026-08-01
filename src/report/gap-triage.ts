@@ -18,6 +18,15 @@ const OPTIONAL_PROVIDER_CREDENTIAL =
 const OPTIONAL_PROVIDER_ABSENCE =
   /(?:credential|api[_ -]?token|api[_ -]?key).*(?:missing|not set)|missing.*(?:credential|api[_ -]?token|api[_ -]?key)/iu;
 const ENTITLEMENT_FAILURE = /(?:entitlement|status\s*403|\b403\b|access is restricted)/iu;
+const PROVIDER_NEUTRAL_UNAVAILABLE =
+  /^provider[- ‑]neutral\b.{0,240}\b(?:is|are|remains?)\s+(?:unavailable|not available)\s*$/iu;
+const PROVIDER_TECHNICAL_ACCESS_CONTEXT =
+  /\b(?:(?:api|access) token|api key|(?:provider|api) credential|(?:provider|api|account) entitlement|api (?:plan|quota))\b/iu;
+const PROVIDER_ACCESS_FAILURE =
+  /\b(?:unavailable|not available|missing|not set|not entitled|does not (?:expose|provide)|cannot (?:expose|provide)|blocks? access|restricts? access|limits? access|insufficient|restricted|blocked|exhausted|exceeded|reached|expired|invalid|403)\b/iu;
+const PROVIDER_ACCOUNT_NOT_ENTITLED =
+  /\baccount\b.{0,40}\bnot entitled\b.{0,80}\b(?:analyst|consensus|estimates?|endpoint|api|market data)\b/iu;
+const PROVIDER_HTTP_FORBIDDEN = /\b(?:(?:status|http)\s*403|403 forbidden)\b/iu;
 const SCOPED_SYMBOL = /\[([A-Z][A-Z0-9.-]*)\]\s*$/u;
 
 function sourceName(value: string): string {
@@ -48,12 +57,28 @@ export function classifyGap(gap: SourceGap | string, reportSymbol?: string): Gap
   if (typeof gap === "string") {
     const source = sourceName(gap);
     const scopedSymbol = SCOPED_SYMBOL.exec(gap)?.[1];
+    // Colons usually delimit structured or aggregated gaps.
+    // Multiple prose clauses can mix provider diagnostics with material research gaps.
+    // Preserve both classes as material; a false negative is safer than hiding a real gap.
+    const providerClauses = gap.includes(":")
+      ? []
+      : gap
+          .split(/[.;]/u)
+          .map((clause) => clause.trim())
+          .filter((clause) => clause.length > 0);
+    const providerClause = providerClauses.length === 1 ? providerClauses[0] : undefined;
     if (
       diagnosticReasonCode(gap) ||
       source === "valuation-peers" ||
       isPeerSecGap(source, scopedSymbol, reportSymbol) ||
       ((OPTIONAL_PROVIDER_SOURCE.test(source) || OPTIONAL_PROVIDER_CREDENTIAL.test(gap)) &&
-        (OPTIONAL_PROVIDER_ABSENCE.test(gap) || ENTITLEMENT_FAILURE.test(gap)))
+        (OPTIONAL_PROVIDER_ABSENCE.test(gap) || ENTITLEMENT_FAILURE.test(gap))) ||
+      (providerClause !== undefined &&
+        (PROVIDER_NEUTRAL_UNAVAILABLE.test(providerClause) ||
+          PROVIDER_ACCOUNT_NOT_ENTITLED.test(providerClause) ||
+          PROVIDER_HTTP_FORBIDDEN.test(providerClause) ||
+          (PROVIDER_TECHNICAL_ACCESS_CONTEXT.test(providerClause) &&
+            PROVIDER_ACCESS_FAILURE.test(providerClause))))
     ) {
       return "diagnostic";
     }

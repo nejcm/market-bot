@@ -494,7 +494,7 @@ describe("addFinancialLensEvidence", () => {
     expect(momentum?.metrics.find((m) => m.key === "sma200")).toBeUndefined();
   });
 
-  test("renders financial lens evidence in ticker markdown with citations", () => {
+  test("retains financial lens evidence while omitting the raw equity markdown dump", () => {
     const result = addFinancialLensEvidence(
       command,
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
@@ -532,7 +532,11 @@ describe("addFinancialLensEvidence", () => {
       }),
     );
 
-    expect(markdown).toContain("AAPL Financial Lens Evidence");
+    expect(extendedEvidence?.items.map((item) => item.title)).toContain(
+      "AAPL Financial Lens Evidence",
+    );
+    expect(markdown).not.toContain("AAPL Financial Lens Evidence");
+    expect(markdown).not.toContain("## Extended Evidence");
     expect(markdown).toContain("[verified-snapshot-AAPL]");
   });
 

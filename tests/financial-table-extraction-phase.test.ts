@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { collectUntaggedFinancialExhibit } from "../src/sources/extended-evidence/untagged-financial-exhibit";
 import { runFinancialTableExtractionPhase } from "../src/research/financial-table-extraction-phase";
+import { UNTAGGED_FINANCIAL_COMPLETENESS_GATE } from "../src/sources/extended-evidence/untagged-financial-evaluation-gate";
 import type { FinancialTableSemanticField } from "../src/sources/extended-evidence/untagged-financial-tables-contract";
 import type {
   CollectedSources,
@@ -200,21 +201,77 @@ describe("untagged financial exhibit discovery", () => {
 });
 
 describe("financial table extraction phase", () => {
-  test("persists validated facts but keeps completeness gated off", async () => {
+  test("keeps discovered untagged facts outside completeness without calling the model while gated", async () => {
     const initial = collectedSources();
+    const generateMapping = mock(async () => ({
+      stage: "financial-table-mapping" as const,
+      content: modelMapping(),
+      tokenEstimate: 100,
+      durationMs: 1,
+    }));
+
     const result = await runFinancialTableExtractionPhase({
       symbol: "TEST",
       generatedAt: "2026-05-02T00:00:00.000Z",
       collectedSources: initial,
       collect: { request: requestExecutor(), secUserAgent: "market-bot test@example.test" },
-      generateMapping: async () => ({
-        stage: "financial-table-mapping",
-        content: modelMapping(),
-        tokenEstimate: 100,
-        durationMs: 1,
-      }),
+      generateMapping,
     });
 
+    expect(generateMapping).not.toHaveBeenCalled();
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.collectedSources.untaggedFinancialStatements).toMatchObject({
+      version: 1,
+      generatedAt: "2026-05-02T00:00:00.000Z",
+      symbol: "TEST",
+      status: "gated",
+      validationAttempted: false,
+      filing: { sha256: "5c4dabe7a9d7ba2632b26a31db341fa4a9804e8914b6d07dc2b8009c28173bf1" },
+      completenessGate: UNTAGGED_FINANCIAL_COMPLETENESS_GATE,
+    });
+    expect(result.collectedSources.untaggedFinancialStatements).not.toHaveProperty("packet");
+    expect(result.collectedSources.untaggedFinancialStatements).not.toHaveProperty("mapping");
+    expect(result.collectedSources.untaggedFinancialStatements).not.toHaveProperty("validation");
+    expect(JSON.stringify(result.collectedSources.untaggedFinancialStatements)).not.toContain(
+      '"tables"',
+    );
+    expect(result.collectedSources.extendedSources).toContainEqual(
+      expect.objectContaining({ id: "sec-untagged-financial-test-000000123426000001" }),
+    );
+    expect(result.collectedSources.financialStatements).toBe(initial.financialStatements);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "sec-untagged-financials",
+        triage: "material",
+        message: expect.stringContaining(
+          "were not validated for TEST because the capability is gated",
+        ),
+      }),
+    );
+    expect(result.collectedSources.sourceGaps).not.toContainEqual(
+      expect.objectContaining({ cause: "validation-failed" }),
+    );
+  });
+
+  test("validates and persists discovered untagged facts when the gate is open", async () => {
+    const initial = collectedSources();
+    const generateMapping = mock(async () => ({
+      stage: "financial-table-mapping" as const,
+      content: modelMapping(),
+      tokenEstimate: 100,
+      durationMs: 1,
+    }));
+
+    const result = await runFinancialTableExtractionPhase({
+      symbol: "TEST",
+      generatedAt: "2026-05-02T00:00:00.000Z",
+      collectedSources: initial,
+      completenessGate: { ...UNTAGGED_FINANCIAL_COMPLETENESS_GATE, passed: true },
+      collect: { request: requestExecutor(), secUserAgent: "market-bot test@example.test" },
+      generateMapping,
+    });
+
+    expect(generateMapping).toHaveBeenCalledTimes(1);
     expect(result.stageOutputs).toEqual([
       expect.objectContaining({ stage: "financial-table-mapping" }),
     ]);
@@ -225,19 +282,20 @@ describe("financial table extraction phase", () => {
         status: "accepted",
         acceptedStatements: ["incomeStatement", "balanceSheet", "cashFlowStatement"],
       },
-      completenessGate: { passed: false },
+      completenessGate: { passed: true },
     });
+    expect(result.collectedSources.untaggedFinancialStatements).not.toHaveProperty("status");
+    expect(result.collectedSources.untaggedFinancialStatements).not.toHaveProperty(
+      "validationAttempted",
+    );
+    expect(result.collectedSources.untaggedFinancialStatements).toHaveProperty("packet.tables");
     expect(
-      result.collectedSources.untaggedFinancialStatements?.validation.values.every(
+      result.collectedSources.untaggedFinancialStatements?.validation?.values.every(
         (value) => value.extractionMethod === "model-validated-table",
       ),
     ).toBe(true);
-    expect(result.collectedSources.financialStatements).toBe(initial.financialStatements);
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        cause: "validation-failed",
-        message: expect.stringContaining("remain gated from financial-core completeness"),
-      }),
+    expect(result.collectedSources.sourceGaps).not.toContainEqual(
+      expect.objectContaining({ source: "sec-untagged-financials" }),
     );
   });
 });

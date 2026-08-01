@@ -3,6 +3,7 @@ import {
   resolveMarketSnapshotPriceAsOf,
   researchReportEvidenceQuality,
   type EquityAnalysisDimensionStatus,
+  type ExtendedEvidenceItem,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
@@ -399,7 +400,14 @@ function renderValuationContext(
         ? undefined
         : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
     const refs = sourceRefs(knownSourceIds(report, valuation.sourceIds));
-    return `## Valuation Context\n\nThe observed quote is ${position} the peer-implied price reference range of ${range.low.toFixed(2)}–${range.high.toFixed(2)} ${range.inputs.quoteCurrency}${date === undefined ? "" : ` as of ${date}`}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}\n`;
+    const compactMetrics = renderCompactValuationMetrics(report);
+    return [
+      "## Valuation Context",
+      "",
+      `The observed quote is ${position} the peer-implied price reference range of ${range.low.toFixed(2)}–${range.high.toFixed(2)} ${range.inputs.quoteCurrency}${date === undefined ? "" : ` as of ${date}`}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}`,
+      ...(compactMetrics.length === 0 ? [] : ["", ...compactMetrics]),
+      "",
+    ].join("\n");
   }
   let metrics: readonly EquityReaderMarketMultiple[] = [];
   let sourceIds: readonly string[] = [];
@@ -418,11 +426,29 @@ function renderValuationContext(
     return `${label} ${metric.value.toFixed(2)}x`;
   });
   const refs = sourceRefs(knownSourceIds(report, sourceIds));
-  const context =
-    renderedMetrics.length === 0
-      ? "No peer-derived reference range or normalized market multiple is available"
-      : `Observed market multiples are ${renderedMetrics.join(", ")}`;
-  return `## Valuation Context\n\n${context}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}\n`;
+  const includePriceToBook = !metrics.some((metric) => metric.key === "priceToBook");
+  const compactMetrics = renderCompactValuationMetrics(report, includePriceToBook);
+  const compactPriceToBookAvailable =
+    includePriceToBook &&
+    firstEvidenceMetric(
+      (report.extendedEvidence?.items ?? []).filter(
+        (item) => item.category === "yahoo-fundamentals",
+      ),
+      "priceToBook",
+    ) !== undefined;
+  let context = `Observed market multiples are ${renderedMetrics.join(", ")}`;
+  if (renderedMetrics.length === 0) {
+    context = compactPriceToBookAvailable
+      ? "No peer-derived reference range is available"
+      : "No peer-derived reference range or normalized market multiple is available";
+  }
+  return [
+    "## Valuation Context",
+    "",
+    `${context}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}`,
+    ...(compactMetrics.length === 0 ? [] : ["", ...compactMetrics]),
+    "",
+  ].join("\n");
 }
 
 function renderConsensusItem(report: ResearchReport, item: EquityReaderConsensusItem): string {
@@ -471,6 +497,11 @@ function renderAppendixSection(markdown: string): string {
   return markdown.replaceAll(/^(#{2,5})(?= )/gmu, "#$1");
 }
 
+function renderDiagnosticGapSummary(count: number): string {
+  const noun = count === 1 ? "gap" : "gaps";
+  return `## Diagnostic Data Gaps\n\n- ${String(count)} diagnostic data ${noun}; see the Research Console Advanced view or report.json for details.\n`;
+}
+
 function renderExtendedEvidence(
   report: ResearchReport,
   marketSnapshot: MarketSnapshot | undefined,
@@ -492,7 +523,11 @@ function renderExtendedEvidence(
       return `- **${markdownText(item.title)}:** ${markdownText(summary)}${refs === "" ? "" : ` ${refs}`}`;
     })
     .join("\n");
-  return `${renderAnalystEstimateContext(report)}${renderInstitutionalOwnershipContext(report)}## Extended Evidence\n\n${rows}\n`;
+  return `${renderAnalystAndOwnershipContext(report)}## Extended Evidence\n\n${rows}\n`;
+}
+
+function renderAnalystAndOwnershipContext(report: ResearchReport): string {
+  return `${renderAnalystEstimateContext(report)}${renderInstitutionalOwnershipContext(report)}`;
 }
 
 function formatDistributionValue(value: number | undefined): string {
@@ -896,6 +931,13 @@ function renderBusinessFramework(report: ResearchReport): string {
     if (!isRecord(section) || typeof section.name !== "string") {
       return [];
     }
+    if (
+      report.jobType === "equity" &&
+      report.assetClass === "equity" &&
+      ["business", "phase", "growth"].includes(section.name.trim().toLowerCase())
+    ) {
+      return [];
+    }
     const posture =
       section.name !== "Phase" && typeof section.posture === "string"
         ? ` (${markdownText(section.posture)})`
@@ -925,6 +967,66 @@ function renderBusinessFramework(report: ResearchReport): string {
     ...(gaps.length > 0 ? ["", "### Framework Data Gaps", "", ...gaps] : []),
     "",
   ].join("\n");
+}
+
+function firstEvidenceMetric(
+  items: readonly ExtendedEvidenceItem[],
+  key: string,
+): { readonly item: ExtendedEvidenceItem; readonly value: number } | undefined {
+  for (const item of items) {
+    const value = readNumber(item.metrics ?? {}, key);
+    if (value !== undefined) {
+      return { item, value };
+    }
+  }
+  return undefined;
+}
+
+function renderCompactValuationMetrics(
+  report: ResearchReport,
+  includePriceToBook = true,
+): readonly string[] {
+  if (report.jobType !== "equity" || report.assetClass !== "equity") {
+    return [];
+  }
+  const items = report.extendedEvidence?.items ?? [];
+  const options = items.filter((item) => item.category === "options-iv");
+  const plainIv = firstEvidenceMetric(options, "medianIv");
+  const ivBuckets = [
+    ["medianIv30Dte", "30-day"],
+    ["medianIv7Dte", "7-day"],
+    ["medianIv60Dte", "60-day"],
+    ["medianIv90Dte", "90-day"],
+  ] as const;
+  const [bucketedIv] = ivBuckets.flatMap(([key, tenor]) => {
+    const match = firstEvidenceMetric(options, key);
+    return match === undefined ? [] : [{ ...match, tenor }];
+  });
+  const iv = plainIv ?? bucketedIv;
+  const fundamentals = items.filter((item) => item.category === "yahoo-fundamentals");
+  const priceToBook = firstEvidenceMetric(fundamentals, "priceToBook");
+  const epsTtm = firstEvidenceMetric(fundamentals, "epsTrailingTwelveMonths");
+  const values = [
+    ...(iv === undefined
+      ? []
+      : [
+          `${"tenor" in iv ? `${iv.tenor} ` : "near-term "}options implied volatility ${iv.value.toFixed(3)}`,
+        ]),
+    ...(!includePriceToBook || priceToBook === undefined
+      ? []
+      : [`price/book ${priceToBook.value.toFixed(2)}x`]),
+    ...(epsTtm === undefined ? [] : [`EPS TTM ${epsTtm.value.toFixed(2)}`]),
+  ];
+  if (values.length === 0) {
+    return [];
+  }
+  const sourceIds = [
+    ...(iv?.item.sourceIds ?? []),
+    ...(includePriceToBook ? (priceToBook?.item.sourceIds ?? []) : []),
+    ...(epsTtm?.item.sourceIds ?? []),
+  ];
+  const refs = sourceRefs(knownSourceIds(report, [...new Set(sourceIds)]));
+  return [`- **Observed metrics:** ${values.join(", ")}${refs === "" ? "" : ` ${refs}`}`];
 }
 
 function readFrameworkGapTexts(value: unknown): readonly string[] {
@@ -1061,11 +1163,16 @@ function renderWebSubjectProfile(report: ResearchReport): string {
   }
   const { questions } = profile;
   const subjectKind = typeof profile.subjectKind === "string" ? profile.subjectKind : "company";
-  const labels =
-    WEB_SUBJECT_PROFILE_LABELS[subjectKind] ?? WEB_SUBJECT_PROFILE_LABELS.company ?? [];
+  const subjectLabels = WEB_SUBJECT_PROFILE_LABELS[subjectKind];
+  const usesCompanyLabels = subjectKind === "company" || subjectLabels === undefined;
+  const trimEquityReaderDuplicates =
+    report.jobType === "equity" && report.assetClass === "equity" && usesCompanyLabels;
+  const labels = subjectLabels ?? WEB_SUBJECT_PROFILE_LABELS.company ?? [];
   const subjectSummary = isRecord(profile.subjectSummary) ? profile.subjectSummary : undefined;
   const summary =
-    subjectSummary !== undefined && typeof subjectSummary.answer === "string"
+    !trimEquityReaderDuplicates &&
+    subjectSummary !== undefined &&
+    typeof subjectSummary.answer === "string"
       ? [
           `${markdownText(subjectSummary.answer)}${sourceRefs(
             knownSourceIds(report, subjectSummary.sourceIds),
@@ -1089,15 +1196,16 @@ function renderWebSubjectProfile(report: ResearchReport): string {
         return [`- ${markdownText(event.claim)}${refs === "" ? "" : ` ${refs}`}`];
       })
     : [];
-  const facts = Array.isArray(profile.factLedger)
-    ? profile.factLedger.flatMap((fact) => {
-        if (!isRecord(fact) || typeof fact.claim !== "string") {
-          return [];
-        }
-        const refs = sourceRefs(knownSourceIds(report, fact.sourceIds));
-        return [`- ${markdownText(fact.claim)}${refs === "" ? "" : ` ${refs}`}`];
-      })
-    : [];
+  const facts =
+    !trimEquityReaderDuplicates && Array.isArray(profile.factLedger)
+      ? profile.factLedger.flatMap((fact) => {
+          if (!isRecord(fact) || typeof fact.claim !== "string") {
+            return [];
+          }
+          const refs = sourceRefs(knownSourceIds(report, fact.sourceIds));
+          return [`- ${markdownText(fact.claim)}${refs === "" ? "" : ` ${refs}`}`];
+        })
+      : [];
   const gaps = readStringArray(profile.openGaps).map((gap) => `- ${markdownText(gap)}`);
   if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
     return "";
@@ -1254,7 +1362,8 @@ export function renderMarkdownReport(
       renderBusinessFramework,
       renderWebSubjectProfile,
       renderAnalystDistributions: renderAnalystEstimateDistributions,
-      renderExtendedEvidence,
+      renderAnalystAndOwnershipContext,
+      renderDiagnosticGapSummary,
       renderEarningsSetup,
       renderHistoricalContext,
       renderSpotlights,

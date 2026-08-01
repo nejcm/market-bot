@@ -192,11 +192,22 @@ Schema is the contract. Validation enforces the research-only boundary ([ADR 000
 Deep-equity markdown leads with a default reader block: company description, observed price with
 market date and freshness, a multi-year plus TTM trend table, valuation context that is explicitly
 not a target price, catalysts and risks, upcoming earnings and consensus, and material gaps.
-Specialist detail follows under `## Appendix`, including reverse DCF, full valuation and peer
-tables, ownership and analyst detail, options IV, financing and capital detail, Business Framework,
-Financial Lens posture labels, and diagnostic gaps. `src/report/equity-reader.ts` is the shared
-trend derivation used by markdown and the Console; `src/report/gap-triage.ts` is the shared
-material/diagnostic classifier.
+Specialist detail follows under `## Appendix`, including computed reverse DCF, full valuation and
+peer tables, ownership and analyst detail, Business Framework interpretation, and a diagnostic-gap
+count that points readers to the Console Advanced view or `report.json`. The markdown appendix
+omits raw Extended Evidence magnitude/citation dumps, financing/capital detail, Financial Lens
+posture dumps, duplicate Web Subject Profile summary/fact-ledger content, and Business Framework
+rows that only restate the financial trend table. Options IV and EPS TTM survive in a compact cited
+Valuation Context row; price/book is included there unless the section's market-multiple sentence
+already displays it. Suppressed reverse-DCF and trailing-basis computations remain in normalized
+artifacts but do not render suppression notices in markdown.
+`src/report/equity-reader.ts` is the shared trend and gap projection used by markdown and the
+Console; `src/report/gap-triage.ts` is the shared material/diagnostic classifier. Collection,
+`report.json`, and the Console Advanced content remain full fidelity.
+The free-prose backstop preserves colon-bearing or multi-clause gaps as Material. For a single
+clause, it demotes only anchored provider-neutral unavailability, explicit account-entitlement or
+HTTP 403 prose, or technical access context paired with an access failure; broader provider wording
+and synonym drift intentionally remain Material.
 
 ### Research Console App (`app/`)
 

@@ -157,16 +157,18 @@ export function renderValuationWorkbenchMarkdown(
         ].join("\n");
   const trailing =
     artifact.historicalMultiples.trailingBasis.status === "available"
-      ? `- Trailing basis: reconciled TTM through ${artifact.historicalMultiples.trailingBasis.periodEnd}, public ${artifact.historicalMultiples.trailingBasis.publicAt}.`
-      : `- Trailing basis suppressed: ${artifact.historicalMultiples.trailingBasis.detail}`;
+      ? [
+          `- Trailing basis: reconciled TTM through ${artifact.historicalMultiples.trailingBasis.periodEnd}, public ${artifact.historicalMultiples.trailingBasis.publicAt}.`,
+          "",
+        ]
+      : [];
   return [
     "",
     "## Valuation Workbench",
     "",
     `As-reported multiples use ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
     "",
-    trailing,
-    "",
+    ...trailing,
     historical,
     "",
     peerSection(artifact),

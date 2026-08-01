@@ -58,10 +58,8 @@ export interface EquityMarkdownSections {
   readonly renderAnalystDistributions: ReturnType<
     typeof equityProjectionRendererFactory
   >["analystDistributions"];
-  readonly renderExtendedEvidence: (
-    report: ResearchReport,
-    marketSnapshot?: MarketSnapshot,
-  ) => string;
+  readonly renderAnalystAndOwnershipContext: (report: ResearchReport) => string;
+  readonly renderDiagnosticGapSummary: (count: number) => string;
   readonly renderEarningsSetup: (report: ResearchReport) => string;
   readonly renderHistoricalContext: (report: ResearchReport) => string;
   readonly renderSpotlights: (report: ResearchReport) => string;
@@ -117,7 +115,7 @@ export function renderEquityMarkdownReport(
       ? {}
       : { sourceGaps: collectedSources.sourceGaps }),
   });
-  const { diagnosticGaps } = projection.appendix;
+  const diagnosticGapCount = projection.appendix.diagnosticGaps.length;
   const additionalSourceIds = [
     ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
     ...projection.defaultView.companyDescription.sourceIds,
@@ -192,24 +190,14 @@ export function renderEquityMarkdownReport(
             ),
           ),
         ]),
-    sections.renderAppendixSection(sections.renderExtendedEvidence(report, marketSnapshot)),
+    sections.renderAppendixSection(sections.renderAnalystAndOwnershipContext(report)),
     sections.renderAppendixSection(sections.renderEarningsSetup(report)),
     sections.renderAppendixSection(sections.renderHistoricalContext(report)),
     sections.renderAppendixSection(sections.renderSpotlights(report)),
     sections.renderAppendixSection(sections.renderPredictions(report.predictions)),
-    ...(diagnosticGaps.length === 0
+    ...(diagnosticGapCount === 0
       ? []
-      : [
-          sections.renderAppendixSection(
-            sections.renderGapSection(
-              "Diagnostic Data Gaps",
-              diagnosticGaps,
-              "No diagnostic gaps identified.",
-              report.symbol,
-              "diagnostic",
-            ),
-          ),
-        ]),
+      : [sections.renderAppendixSection(sections.renderDiagnosticGapSummary(diagnosticGapCount))]),
     "### Sources",
     "",
     sections.renderSources(report, additionalSourceIds),

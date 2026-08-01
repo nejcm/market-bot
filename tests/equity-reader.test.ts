@@ -49,8 +49,8 @@ function statementSeries(
     key,
     label: key,
     statement: key === "dilutedShares" ? "perShare" : "balanceSheet",
-    annual: values,
-    interim: [],
+    annual: values.filter((value) => value.periodType === "annual"),
+    interim: values.filter((value) => value.periodType === "interim"),
   };
 }
 
@@ -74,7 +74,9 @@ function amendedFilingArtifact(): FinancialStatementsArtifact {
     sourceId: "sec-statements",
     reportingCurrency: "USD",
     statements: {
+      incomeStatement: {},
       balanceSheet: { cash, debt },
+      cashFlowStatement: {},
       perShare: { dilutedShares },
     },
   } as unknown as FinancialStatementsArtifact;
@@ -92,7 +94,9 @@ function divergentFilingArtifact(): FinancialStatementsArtifact {
     sourceId: "sec-statements",
     reportingCurrency: "USD",
     statements: {
+      incomeStatement: {},
       balanceSheet: { cash, debt },
+      cashFlowStatement: {},
       perShare: { dilutedShares },
     },
   } as unknown as FinancialStatementsArtifact;
@@ -262,6 +266,47 @@ describe("equity reader projection", () => {
         },
       },
     ]);
+  });
+
+  test("prefers annual duration over a later-filed interim fact at the same period end", () => {
+    const annual = {
+      ...statementFact("cash", 100, "2025-02-01"),
+      periodKey: "2024-01-01|2024-12-31",
+      periodStart: "2024-01-01",
+    };
+    const interim = {
+      ...statementFact("cash", 200, "2025-05-01"),
+      periodKey: "2024-10-01|2024-12-31",
+      periodType: "interim" as const,
+      form: "10-Q" as const,
+      canonicalForm: "10-Q" as const,
+      periodStart: "2024-10-01",
+    };
+    const artifact = amendedFilingArtifact();
+    const financialStatements = {
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        balanceSheet: {
+          ...artifact.statements.balanceSheet,
+          cash: statementSeries("cash", [annual, interim]),
+        },
+      },
+    };
+
+    const projection = projectEquityReader({
+      report: { generatedAt: "2025-06-01T12:00:00.000Z" },
+      financialStatements,
+    });
+
+    expect(projection.appendix.balanceSheetHistory?.rows[0]).toMatchObject({
+      period: "FY ending 2024-12-31 (filed 2025-02-01)",
+      cash: {
+        value: 100,
+        filedAt: "2025-02-01",
+        sourceIds: ["sec-2025-02-01"],
+      },
+    });
   });
 
   test("projects analyst distributions and prediction shortfalls by gap triage", () => {

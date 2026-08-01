@@ -10,6 +10,11 @@ import type {
   FinancialStatementFact,
   FinancialStatementsArtifact,
 } from "../sources/extended-evidence/financial-statements-contract";
+import {
+  financialStatementFacts,
+  financialStatementSeriesByKey,
+  latestFinancialStatementFact,
+} from "../sources/extended-evidence/financial-statement-selection";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistoryPoint,
@@ -358,38 +363,8 @@ function financialTrends(
   };
 }
 
-function observableStatementFact(
-  fact: FinancialStatementFact,
-  cutoff: string,
-  periodEnd?: string,
-): boolean {
-  return (
-    fact.periodEnd <= cutoff &&
-    fact.filedAt <= cutoff &&
-    (periodEnd === undefined || fact.periodEnd === periodEnd)
-  );
-}
-
-function compareStatementFacts(
-  left: FinancialStatementFact,
-  right: FinancialStatementFact,
-): number {
-  return (
-    right.periodEnd.localeCompare(left.periodEnd) ||
-    right.filedAt.localeCompare(left.filedAt) ||
-    Number(right.periodType === "annual") - Number(left.periodType === "annual")
-  );
-}
-
-function selectedStatementFact(
-  facts: readonly FinancialStatementFact[],
-  cutoff: string,
-  periodEnd: string,
-): FinancialStatementFact | undefined {
-  return facts
-    .filter((candidate) => observableStatementFact(candidate, cutoff, periodEnd))
-    .toSorted(compareStatementFacts)
-    .at(0);
+function observableStatementFact(fact: FinancialStatementFact, cutoff: string): boolean {
+  return fact.periodEnd <= cutoff && fact.filedAt <= cutoff;
 }
 
 function statementValue(fact: FinancialStatementFact): EquityReaderStatementValue {
@@ -410,29 +385,38 @@ function balanceSheetHistory(
     return undefined;
   }
   const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
-  const { cash, debt } = artifact.statements.balanceSheet;
-  const { dilutedShares } = artifact.statements.perShare;
+  const cash = financialStatementSeriesByKey(artifact, "cash");
+  const debt = financialStatementSeriesByKey(artifact, "debt");
+  const dilutedShares = financialStatementSeriesByKey(artifact, "dilutedShares");
+  if (cash === undefined || debt === undefined || dilutedShares === undefined) {
+    return undefined;
+  }
   const series = [cash, debt, dilutedShares];
-  const facts = series.flatMap((item) => [...item.annual, ...item.interim]);
-  const periods = [
-    ...new Set(
-      facts.filter((fact) => observableStatementFact(fact, cutoff)).map((fact) => fact.periodEnd),
-    ),
-  ]
-    .toSorted()
-    .slice(-5);
+  const facts = series
+    .flatMap((item) => financialStatementFacts(item))
+    .filter((fact) => observableStatementFact(fact, cutoff));
+  const periods = [...new Set(facts.map((fact) => fact.periodEnd))].toSorted().slice(-5);
   const rows = periods.flatMap((periodEnd): readonly EquityReaderBalanceSheetRow[] => {
-    const cashFact = selectedStatementFact([...cash.annual, ...cash.interim], cutoff, periodEnd);
-    const debtFact = selectedStatementFact([...debt.annual, ...debt.interim], cutoff, periodEnd);
-    const dilutedSharesFact = selectedStatementFact(
-      [...dilutedShares.annual, ...dilutedShares.interim],
-      cutoff,
-      periodEnd,
+    const cashFact = latestFinancialStatementFact(
+      financialStatementFacts(cash).filter(
+        (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
+      ),
     );
-    const filingFact = [cashFact, debtFact, dilutedSharesFact]
-      .filter((fact): fact is FinancialStatementFact => fact !== undefined)
-      .toSorted(compareStatementFacts)
-      .at(0);
+    const debtFact = latestFinancialStatementFact(
+      financialStatementFacts(debt).filter(
+        (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
+      ),
+    );
+    const dilutedSharesFact = latestFinancialStatementFact(
+      financialStatementFacts(dilutedShares).filter(
+        (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
+      ),
+    );
+    const filingFact = latestFinancialStatementFact(
+      [cashFact, debtFact, dilutedSharesFact].filter(
+        (fact): fact is FinancialStatementFact => fact !== undefined,
+      ),
+    );
     if (filingFact === undefined) {
       return [];
     }

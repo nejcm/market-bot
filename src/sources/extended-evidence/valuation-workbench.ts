@@ -6,7 +6,14 @@ import type {
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
-import { deriveFinancialStatementTtm } from "./financial-statement-periods";
+import {
+  deriveFinancialStatementTtm,
+  financialStatementFactForPeriod,
+  financialStatementFacts,
+  financialStatementTtmsAreCompatible,
+  financialStatementTtmsSharePeriod,
+  latestFinancialStatementFact,
+} from "./financial-statement-selection";
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import type {
   HistoricalValuationObservation,
@@ -87,6 +94,13 @@ function fcfInput(
   if (operatingCashFlow === undefined || capitalExpenditure === undefined) {
     return undefined;
   }
+  if (
+    operatingCashFlow.periodEnd !== capitalExpenditure.periodEnd ||
+    operatingCashFlow.currency !== capitalExpenditure.currency ||
+    operatingCashFlow.unit !== capitalExpenditure.unit
+  ) {
+    return undefined;
+  }
   return {
     value: operatingCashFlow.value - capitalExpenditure.value,
     label: "Free cash flow proxy",
@@ -99,27 +113,6 @@ function fcfInput(
   };
 }
 
-function factForPeriod(
-  series: FinancialStatementSeries,
-  periodEnd: string,
-): FinancialStatementFact | undefined {
-  return series.annual.find((fact) => fact.periodEnd === periodEnd);
-}
-
-function latestBalanceFact(
-  series: FinancialStatementSeries,
-  periodEnd: string,
-  publicAt: string,
-): FinancialStatementFact | undefined {
-  return [...series.annual, ...series.interim]
-    .filter((fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt)
-    .toSorted(
-      (left, right) =>
-        right.periodEnd.localeCompare(left.periodEnd) || right.filedAt.localeCompare(left.filedAt),
-    )
-    .at(0);
-}
-
 function deriveShares(
   netIncome: ValuationFundamentalInput | undefined,
   dilutedEps: ValuationFundamentalInput | undefined,
@@ -128,6 +121,11 @@ function deriveShares(
     netIncome === undefined ||
     dilutedEps === undefined ||
     dilutedEps.value === 0 ||
+    netIncome.periodEnd !== dilutedEps.periodEnd ||
+    netIncome.currency === null ||
+    netIncome.currency !== dilutedEps.currency ||
+    netIncome.unit !== netIncome.currency ||
+    dilutedEps.unit !== `${netIncome.currency}/shares` ||
     !Number.isFinite(netIncome.value / dilutedEps.value)
   ) {
     return undefined;
@@ -149,13 +147,28 @@ function annualInputs(
   revenueFact: FinancialStatementFact,
 ): ValuationPeriodInputs {
   const { incomeStatement, balanceSheet, cashFlowStatement, perShare } = artifact.statements;
-  const { periodEnd } = revenueFact;
+  const { periodEnd, periodKey } = revenueFact;
   const revenue = factInput("Revenue", revenueFact);
-  const netIncomeFact = factForPeriod(incomeStatement.netIncome, periodEnd);
-  const dilutedEpsFact = factForPeriod(perShare.dilutedEps, periodEnd);
-  const dilutedSharesFact = factForPeriod(perShare.dilutedShares, periodEnd);
-  const operatingCashFlowFact = factForPeriod(cashFlowStatement.operatingCashFlow, periodEnd);
-  const capitalExpenditureFact = factForPeriod(cashFlowStatement.capitalExpenditure, periodEnd);
+  const netIncomeFact = financialStatementFactForPeriod(
+    financialStatementFacts(incomeStatement.netIncome),
+    periodKey,
+  );
+  const dilutedEpsFact = financialStatementFactForPeriod(
+    financialStatementFacts(perShare.dilutedEps),
+    periodKey,
+  );
+  const dilutedSharesFact = financialStatementFactForPeriod(
+    financialStatementFacts(perShare.dilutedShares),
+    periodKey,
+  );
+  const operatingCashFlowFact = financialStatementFactForPeriod(
+    financialStatementFacts(cashFlowStatement.operatingCashFlow),
+    periodKey,
+  );
+  const capitalExpenditureFact = financialStatementFactForPeriod(
+    financialStatementFacts(cashFlowStatement.capitalExpenditure),
+    periodKey,
+  );
   const netIncome =
     netIncomeFact === undefined ? undefined : factInput("Net income", netIncomeFact);
   const dilutedEps =
@@ -177,8 +190,16 @@ function annualInputs(
       (input) => (input === undefined ? [] : [input.publicAt]),
     ),
   );
-  const cashFact = latestBalanceFact(balanceSheet.cash, periodEnd, publicAt);
-  const debtFact = latestBalanceFact(balanceSheet.debt, periodEnd, publicAt);
+  const cashFact = latestFinancialStatementFact(
+    financialStatementFacts(balanceSheet.cash).filter(
+      (fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt,
+    ),
+  );
+  const debtFact = latestFinancialStatementFact(
+    financialStatementFacts(balanceSheet.debt).filter(
+      (fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt,
+    ),
+  );
   const dilutedShares = directShares ?? deriveShares(netIncome, dilutedEps);
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   return {
@@ -208,18 +229,40 @@ function periodInputsFromTtm(
 ): ValuationPeriodInputs {
   const { balanceSheet } = artifact.statements;
   const revenue = ttmInput("Revenue", values.revenue);
+  const compatibleNetIncome =
+    values.netIncome !== undefined &&
+    financialStatementTtmsAreCompatible([values.revenue, values.netIncome])
+      ? values.netIncome
+      : undefined;
+  const compatibleDilutedEps =
+    values.dilutedEps !== undefined &&
+    financialStatementTtmsSharePeriod([values.revenue, values.dilutedEps]) &&
+    values.dilutedEps.currency === values.revenue.currency &&
+    values.dilutedEps.unit === `${values.revenue.currency}/shares`
+      ? values.dilutedEps
+      : undefined;
+  const compatibleOperatingCashFlow =
+    values.operatingCashFlow !== undefined &&
+    financialStatementTtmsAreCompatible([values.revenue, values.operatingCashFlow])
+      ? values.operatingCashFlow
+      : undefined;
+  const compatibleCapitalExpenditure =
+    values.capitalExpenditure !== undefined &&
+    financialStatementTtmsAreCompatible([values.revenue, values.capitalExpenditure])
+      ? values.capitalExpenditure
+      : undefined;
   const netIncome =
-    values.netIncome === undefined ? undefined : ttmInput("Net income", values.netIncome);
+    compatibleNetIncome === undefined ? undefined : ttmInput("Net income", compatibleNetIncome);
   const dilutedEps =
-    values.dilutedEps === undefined ? undefined : ttmInput("Diluted EPS", values.dilutedEps);
+    compatibleDilutedEps === undefined ? undefined : ttmInput("Diluted EPS", compatibleDilutedEps);
   const operatingCashFlow =
-    values.operatingCashFlow === undefined
+    compatibleOperatingCashFlow === undefined
       ? undefined
-      : ttmInput("Operating cash flow", values.operatingCashFlow);
+      : ttmInput("Operating cash flow", compatibleOperatingCashFlow);
   const capitalExpenditure =
-    values.capitalExpenditure === undefined
+    compatibleCapitalExpenditure === undefined
       ? undefined
-      : ttmInput("Capital expenditure", values.capitalExpenditure);
+      : ttmInput("Capital expenditure", compatibleCapitalExpenditure);
   const dilutedShares = deriveShares(netIncome, dilutedEps);
   const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
   const publicAt = latest(
@@ -227,8 +270,16 @@ function periodInputsFromTtm(
       input === undefined ? [] : [input.publicAt],
     ),
   );
-  const cashFact = latestBalanceFact(balanceSheet.cash, revenue.periodEnd, publicAt);
-  const debtFact = latestBalanceFact(balanceSheet.debt, revenue.periodEnd, publicAt);
+  const cashFact = latestFinancialStatementFact(
+    financialStatementFacts(balanceSheet.cash).filter(
+      (fact) => fact.periodEnd <= revenue.periodEnd && fact.filedAt <= publicAt,
+    ),
+  );
+  const debtFact = latestFinancialStatementFact(
+    financialStatementFacts(balanceSheet.debt).filter(
+      (fact) => fact.periodEnd <= revenue.periodEnd && fact.filedAt <= publicAt,
+    ),
+  );
   return {
     basis: "ttm",
     periodEnd: revenue.periodEnd,

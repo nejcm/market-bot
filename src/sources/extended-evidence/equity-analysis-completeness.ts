@@ -13,9 +13,12 @@ import type {
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import {
+  financialStatementFacts,
   financialStatementPeriodMonths,
   financialStatementPeriodsYearAligned,
-} from "./financial-statement-periods";
+  financialStatementSeries,
+  latestFinancialStatementFact,
+} from "./financial-statement-selection";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
 import type {
   AnalystExpectationsArtifact,
@@ -102,13 +105,6 @@ function fullYearFacts(series: FinancialStatementSeries): readonly FinancialStat
   });
 }
 
-function latestFact(facts: readonly FinancialStatementFact[]): FinancialStatementFact | undefined {
-  return facts.toSorted(
-    (left, right) =>
-      right.periodEnd.localeCompare(left.periodEnd) || right.filedAt.localeCompare(left.filedAt),
-  )[0];
-}
-
 function alignedWithExpectedEnd(actual: string, expected: string): boolean {
   return Math.abs(daysBetween(actual, expected) ?? Infinity) <= PERIOD_END_TOLERANCE_DAYS;
 }
@@ -137,11 +133,9 @@ function hasCompatibleCurrency(artifact: FinancialStatementsArtifact): boolean {
   if (currency === undefined) {
     return false;
   }
-  const facts = [
-    ...Object.values(artifact.statements.incomeStatement),
-    ...Object.values(artifact.statements.balanceSheet),
-    ...Object.values(artifact.statements.cashFlowStatement),
-  ].flatMap((series) => [...series.annual, ...series.interim]);
+  const facts = financialStatementSeries(artifact)
+    .filter((series) => series.statement !== "perShare")
+    .flatMap((series) => financialStatementFacts(series));
   return facts.every((fact) => fact.currency === currency);
 }
 
@@ -188,7 +182,9 @@ function quarterlyReasons(
   if (expectedEnd === undefined) {
     return [];
   }
-  const latestInterim = latestFact(revenue.interim.filter((fact) => fact.periodEnd > annualEnd));
+  const latestInterim = latestFinancialStatementFact(
+    revenue.interim.filter((fact) => fact.periodEnd > annualEnd),
+  );
   const reasons: string[] = [];
   if (
     latestInterim === undefined ||
@@ -226,7 +222,7 @@ function currentStatementIncomplete(
   const currentDurationPeriodKeys = new Set([`annual|${currentAnnual.periodKey}`]);
   let currentBalancePeriodKey = `annual|${currentAnnual.periodKey}`;
   if (expectedInterimEnd !== undefined) {
-    const latestInterim = latestFact(
+    const latestInterim = latestFinancialStatementFact(
       artifact.statements.incomeStatement.revenue.interim.filter(
         (fact) =>
           fact.periodEnd > currentAnnual.periodEnd &&
@@ -266,11 +262,13 @@ function semiannualReasons(
   if (expectedEnd === undefined) {
     return [];
   }
-  const latest = latestFact(revenue.interim.filter((fact) => fact.periodEnd > annualEnd));
+  const latest = latestFinancialStatementFact(
+    revenue.interim.filter((fact) => fact.periodEnd > annualEnd),
+  );
   const prior =
     latest === undefined
       ? undefined
-      : latestFact(
+      : latestFinancialStatementFact(
           revenue.interim.filter(
             (fact) =>
               fact.periodEnd < annualEnd &&
@@ -292,11 +290,13 @@ function semiannualReasons(
 }
 
 function irregularReasons(revenue: FinancialStatementSeries, annualEnd: string): readonly string[] {
-  const latest = latestFact(revenue.interim.filter((fact) => fact.periodEnd > annualEnd));
+  const latest = latestFinancialStatementFact(
+    revenue.interim.filter((fact) => fact.periodEnd > annualEnd),
+  );
   const prior =
     latest === undefined
       ? undefined
-      : latestFact(
+      : latestFinancialStatementFact(
           revenue.interim.filter(
             (fact) =>
               fact.periodEnd < annualEnd && financialStatementPeriodsYearAligned(fact, latest),
@@ -327,7 +327,7 @@ function primaryFinancialsDimension(
   ]);
   const { revenue } = artifact.statements.incomeStatement;
   const annualFacts = fullYearFacts(revenue);
-  const currentAnnual = latestFact(annualFacts);
+  const currentAnnual = latestFinancialStatementFact(annualFacts);
   const annualAge =
     currentAnnual === undefined
       ? undefined
@@ -383,7 +383,7 @@ function primaryFinancialsDimension(
     }
     case "irregular": {
       cadenceReasons = irregularReasons(revenue, currentAnnual.periodEnd);
-      expectedInterimEnd = latestFact(
+      expectedInterimEnd = latestFinancialStatementFact(
         revenue.interim.filter((fact) => fact.periodEnd > currentAnnual.periodEnd),
       )?.periodEnd;
       break;

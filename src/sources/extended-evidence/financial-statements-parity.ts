@@ -2,11 +2,18 @@ import type {
   FinancialStatementFact,
   FinancialStatementParityComparison,
   FinancialStatementSeries,
+  FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
   FinancialStatementShadowParity,
 } from "./financial-statements-contract";
-import { financialStatementSeries } from "./financial-statements";
-import { financialStatementPeriodMonths } from "./financial-statement-periods";
+import {
+  financialStatementFacts,
+  financialStatementPeriodMonths,
+  financialStatementSeries,
+  financialStatementSeriesByKey,
+  latestCommonFinancialStatementFacts,
+  latestFinancialStatementFact,
+} from "./financial-statement-selection";
 import type { FundamentalHistoryArtifact } from "./fundamental-history";
 import type { FinancialLensArtifact, FinancialLensMetric } from "./financial-lens";
 
@@ -15,7 +22,7 @@ export interface FinancialStatementParityInput {
   readonly financialLenses?: FinancialLensArtifact;
 }
 
-const HISTORY_SERIES: Readonly<Record<string, string>> = {
+const HISTORY_SERIES: Readonly<Record<string, FinancialStatementSeriesKey>> = {
   revenue: "revenue",
   grossProfit: "grossProfit",
   operatingIncome: "operatingIncome",
@@ -32,7 +39,7 @@ function numbersMatch(left: number, right: number): boolean {
 
 function directFormsAreLegacySupported(series: readonly FinancialStatementSeries[]): boolean {
   return series.some((item) =>
-    [...item.annual, ...item.interim].some(
+    financialStatementFacts(item).some(
       (fact) => fact.canonicalForm === "10-K" || fact.canonicalForm === "10-Q",
     ),
   );
@@ -162,12 +169,14 @@ function fundamentalHistoryComparisons(
   }
   const comparisons: FinancialStatementParityComparison[] = [];
   for (const [historyKey, artifactKey] of Object.entries(HISTORY_SERIES)) {
-    const artifactSeries = series.find((item) => item.key === artifactKey);
+    const artifactSeries = financialStatementSeriesByKey(artifact, artifactKey);
     const historySeries = history.series[historyKey as keyof typeof history.series];
     if (artifactSeries === undefined) {
       continue;
     }
-    const artifactConcept = latestFact(artifactSeries)?.concept;
+    const artifactConcept = latestFinancialStatementFact(
+      financialStatementFacts(artifactSeries),
+    )?.concept;
     const legacyConcept = historySeries?.concept;
     if (
       artifactConcept !== undefined &&
@@ -298,41 +307,6 @@ function lensMetrics(
   );
 }
 
-function latestFact(
-  series: FinancialStatementSeries | undefined,
-): FinancialStatementFact | undefined {
-  return series === undefined
-    ? undefined
-    : [...series.annual, ...series.interim].toSorted(
-        (left, right) =>
-          right.periodEnd.localeCompare(left.periodEnd) ||
-          right.filedAt.localeCompare(left.filedAt) ||
-          (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? ""),
-      )[0];
-}
-
-function latestCommonFacts(
-  series: readonly (FinancialStatementSeries | undefined)[],
-): readonly FinancialStatementFact[] | undefined {
-  if (series.some((item) => item === undefined)) {
-    return undefined;
-  }
-  const facts = series.map((item) => [...item!.annual, ...item!.interim]);
-  const latestCommonFact = facts[0]
-    ?.filter((fact) =>
-      facts.every((items) => items.some((item) => item.periodKey === fact.periodKey)),
-    )
-    .toSorted(
-      (left, right) =>
-        right.periodEnd.localeCompare(left.periodEnd) ||
-        (left.periodStart ?? "").localeCompare(right.periodStart ?? "") ||
-        right.filedAt.localeCompare(left.filedAt),
-    )[0];
-  return latestCommonFact === undefined
-    ? undefined
-    : facts.map((items) => items.find((fact) => fact.periodKey === latestCommonFact.periodKey)!);
-}
-
 function hasLegacyMetricWindow(
   series: readonly (FinancialStatementSeries | undefined)[],
   metric: FinancialLensMetric,
@@ -341,7 +315,7 @@ function hasLegacyMetricWindow(
     return false;
   }
   return series.every((item) =>
-    [...(item?.annual ?? []), ...(item?.interim ?? [])].some(
+    (item === undefined ? [] : financialStatementFacts(item)).some(
       (fact) =>
         fact.periodEnd === metric.periodEnd &&
         (metric.periodMonths === undefined ||
@@ -361,7 +335,6 @@ function financialLensComparisons(
       : [];
   }
   const metrics = lensMetrics(financialLenses);
-  const byKey = new Map(series.map((item) => [item.key, item]));
   const candidates: readonly {
     readonly key: string;
     readonly fact: FinancialStatementFact | undefined;
@@ -370,25 +343,32 @@ function financialLensComparisons(
     readonly sourceSeries: readonly (FinancialStatementSeries | undefined)[];
   }[] = [
     (() => {
-      const fact = latestFact(byKey.get("cash"));
+      const cashSeries = financialStatementSeriesByKey(artifact, "cash");
+      const fact =
+        cashSeries === undefined
+          ? undefined
+          : latestFinancialStatementFact(financialStatementFacts(cashSeries));
       return {
         key: "cash",
         fact,
         artifactValue: fact?.value,
-        sourceSeries: [byKey.get("cash")],
+        sourceSeries: [cashSeries],
         ...(fact?.currency !== undefined ? { currency: fact.currency } : {}),
       };
     })(),
     (() => {
-      const facts = latestCommonFacts([
-        byKey.get("operatingCashFlow"),
-        byKey.get("capitalExpenditure"),
+      const facts = latestCommonFinancialStatementFacts([
+        financialStatementSeriesByKey(artifact, "operatingCashFlow"),
+        financialStatementSeriesByKey(artifact, "capitalExpenditure"),
       ]);
       return {
         key: "freeCashFlowProxy",
         fact: facts?.[0],
         artifactValue: facts === undefined ? undefined : facts[0]!.value - facts[1]!.value,
-        sourceSeries: [byKey.get("operatingCashFlow"), byKey.get("capitalExpenditure")],
+        sourceSeries: [
+          financialStatementSeriesByKey(artifact, "operatingCashFlow"),
+          financialStatementSeriesByKey(artifact, "capitalExpenditure"),
+        ],
         ...(facts?.[0]?.currency !== undefined ? { currency: facts[0].currency } : {}),
       };
     })(),
@@ -399,7 +379,10 @@ function financialLensComparisons(
         ["netMargin", "netIncome"],
       ] as const
     ).map(([key, numeratorKey]) => {
-      const facts = latestCommonFacts([byKey.get(numeratorKey), byKey.get("revenue")]);
+      const facts = latestCommonFinancialStatementFacts([
+        financialStatementSeriesByKey(artifact, numeratorKey),
+        financialStatementSeriesByKey(artifact, "revenue"),
+      ]);
       return {
         key,
         fact: facts?.[0],
@@ -407,13 +390,16 @@ function financialLensComparisons(
           facts === undefined || facts[1]!.value === 0
             ? undefined
             : facts[0]!.value / facts[1]!.value,
-        sourceSeries: [byKey.get(numeratorKey), byKey.get("revenue")],
+        sourceSeries: [
+          financialStatementSeriesByKey(artifact, numeratorKey),
+          financialStatementSeriesByKey(artifact, "revenue"),
+        ],
       };
     }),
     (() => {
-      const facts = latestCommonFacts([
-        byKey.get("currentAssets"),
-        byKey.get("currentLiabilities"),
+      const facts = latestCommonFinancialStatementFacts([
+        financialStatementSeriesByKey(artifact, "currentAssets"),
+        financialStatementSeriesByKey(artifact, "currentLiabilities"),
       ]);
       return {
         key: "currentRatio",
@@ -422,7 +408,10 @@ function financialLensComparisons(
           facts === undefined || facts[1]!.value === 0
             ? undefined
             : facts[0]!.value / facts[1]!.value,
-        sourceSeries: [byKey.get("currentAssets"), byKey.get("currentLiabilities")],
+        sourceSeries: [
+          financialStatementSeriesByKey(artifact, "currentAssets"),
+          financialStatementSeriesByKey(artifact, "currentLiabilities"),
+        ],
       };
     })(),
   ];

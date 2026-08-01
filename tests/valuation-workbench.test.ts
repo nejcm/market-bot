@@ -31,7 +31,7 @@ function fact(input: {
   const periodType = input.periodType ?? "annual";
   return {
     value: input.value,
-    periodKey: `${periodType}|${input.periodEnd}|${input.key}`,
+    periodKey: `${periodType}|${input.periodEnd}`,
     periodType,
     form: periodType === "annual" ? "10-K" : "10-Q",
     canonicalForm: periodType === "annual" ? "10-K" : "10-Q",
@@ -258,6 +258,52 @@ describe("valuation workbench", () => {
       enterpriseValueToRevenue: { status: "populated", value: 2.05 },
       priceToFreeCashFlow: { status: "populated", value: 20 },
     });
+  });
+
+  test("does not derive free cash flow across mismatched periods or units", () => {
+    const input = statements();
+    const latestCapex = input.statements.cashFlowStatement.capitalExpenditure.annual[1]!;
+    const capexTtm = input.statements.cashFlowStatement.capitalExpenditure.ttm!;
+    const mismatched = {
+      ...input,
+      statements: {
+        ...input.statements,
+        cashFlowStatement: {
+          ...input.statements.cashFlowStatement,
+          capitalExpenditure: {
+            ...input.statements.cashFlowStatement.capitalExpenditure,
+            annual: [
+              input.statements.cashFlowStatement.capitalExpenditure.annual[0]!,
+              { ...latestCapex, periodKey: "annual|2024-09-30" },
+            ],
+            ttm: { ...capexTtm, unit: "EUR" },
+          },
+        },
+      },
+    };
+
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: mismatched,
+      priceHistory: [
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+
+    for (const [basis, periodEnd] of [
+      ["annual", "2024-12-31"],
+      ["ttm", "2025-03-31"],
+    ] as const) {
+      expect(
+        artifact.historicalMultiples.observations.find(
+          (item) => item.basis === basis && item.periodEnd === periodEnd,
+        )?.metrics.priceToFreeCashFlow,
+      ).toMatchObject({ status: "suppressed", reason: "free-cash-flow-unavailable" });
+    }
   });
 
   test("uses N/M for negative denominators", () => {

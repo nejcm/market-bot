@@ -29,6 +29,11 @@ import { marketSnapshot, researchReport } from "./support/fixtures";
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 const tempDirs: string[] = [];
 
+function jsonRoundTrip<T>(value: T): T {
+  const serialized = JSON.stringify(value);
+  return JSON.parse(serialized) as T;
+}
+
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
@@ -694,6 +699,28 @@ function metricByKey(
   return lensByName(result, lensName)?.metrics.find((metric) => metric.key === key);
 }
 
+function canonicalAnnualFact(value: number, year: number) {
+  return {
+    val: value,
+    form: "10-K",
+    fp: "FY",
+    fy: year,
+    filed: `${String(year + 1)}-02-15`,
+    start: `${String(year)}-01-01`,
+    end: `${String(year)}-12-31`,
+  };
+}
+
+function canonicalInstantFact(
+  value: number,
+  end: string,
+  filed: string,
+  form: "10-K" | "10-Q",
+  fp: "FY" | "Q1",
+) {
+  return { val: value, form, fp, fy: Number(end.slice(0, 4)), filed, end };
+}
+
 describe("financial lens artifact compatibility", () => {
   test("preserves populated lens values at the canonical input seam", () => {
     const facts = {
@@ -853,6 +880,130 @@ describe("financial lens artifact compatibility", () => {
     }
   });
 
+  test("keeps latest standalone facts while deriving ratios at pairwise common periods", () => {
+    const facts = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: { USD: [canonicalAnnualFact(100, 2024), canonicalAnnualFact(120, 2025)] },
+          },
+          NetCashProvidedByUsedInOperatingActivities: {
+            units: { USD: [canonicalAnnualFact(20, 2024), canonicalAnnualFact(30, 2025)] },
+          },
+          PaymentsToAcquirePropertyPlantAndEquipment: {
+            units: { USD: [canonicalAnnualFact(5, 2024)] },
+          },
+          CashAndCashEquivalentsAtCarryingValue: {
+            units: {
+              USD: [
+                canonicalInstantFact(35, "2025-12-31", "2026-02-15", "10-K", "FY"),
+                canonicalInstantFact(40, "2026-03-31", "2026-05-01", "10-Q", "Q1"),
+              ],
+            },
+          },
+          LongTermDebt: {
+            units: {
+              USD: [canonicalInstantFact(20, "2025-12-31", "2026-02-15", "10-K", "FY")],
+            },
+          },
+          AssetsCurrent: {
+            units: {
+              USD: [
+                canonicalInstantFact(80, "2025-12-31", "2026-02-15", "10-K", "FY"),
+                canonicalInstantFact(90, "2026-03-31", "2026-05-01", "10-Q", "Q1"),
+              ],
+            },
+          },
+          LiabilitiesCurrent: {
+            units: {
+              USD: [canonicalInstantFact(40, "2025-12-31", "2026-02-15", "10-K", "FY")],
+            },
+          },
+        },
+      },
+    };
+    const artifact = deriveFinancialStatements(facts, {
+      symbol: "AAPL",
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      analysisAsOf: "2026-06-22T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    });
+    const canonicalEvidence = withCanonicalFinancialLensInputs(undefined, artifact);
+    const persistedCanonicalEvidence = jsonRoundTrip<ExtendedEvidence>(canonicalEvidence);
+    const secItem = persistedCanonicalEvidence.items.find((item) => item.category === "sec-edgar");
+
+    expect(secItem?.metrics).toMatchObject({
+      cash: 40,
+      cashPeriodEnd: "2026-03-31",
+      debt: 20,
+      debtPeriodEnd: "2025-12-31",
+      operatingCashFlow: 30,
+      operatingCashFlowPeriodEnd: "2025-12-31",
+      capex: 5,
+      capexPeriodEnd: "2024-12-31",
+      currentAssets: 90,
+      currentAssetsPeriodEnd: "2026-03-31",
+      financialLensSelectionVersion: 1,
+      freeCashFlowProxySelectedValue: 15,
+      freeCashFlowProxySelectedPeriodEnd: "2024-12-31",
+      currentRatioSelectedValue: 2,
+      currentRatioSelectedPeriodEnd: "2025-12-31",
+    });
+
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      persistedCanonicalEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+    expect(metricByKey(result, "Financial Strength", "cash")).toMatchObject({
+      value: 40,
+      periodEnd: "2026-03-31",
+    });
+    expect(metricByKey(result, "Financial Strength", "currentRatio")).toMatchObject({
+      value: 2,
+      periodEnd: "2025-12-31",
+    });
+    expect(metricByKey(result, "Quality", "freeCashFlowProxy")).toMatchObject({
+      value: 15,
+      periodEnd: "2024-12-31",
+    });
+  });
+
+  test("drops unavailable canonical ratios after serialization instead of mixing periods", () => {
+    const canonicalEvidence = jsonRoundTrip<ExtendedEvidence>({
+      instrument: { symbol: "AAPL", assetClass: "equity" },
+      items: [
+        {
+          category: "sec-edgar",
+          title: "AAPL canonical financial statements",
+          summary: "Canonical SEC financial statement inputs.",
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          observedAt: "2026-06-22T00:00:00.000Z",
+          metrics: {
+            financialLensSelectionVersion: 1,
+            revenue: 30,
+            revenuePeriodEnd: "2026-03-31",
+            grossProfit: 45,
+            grossProfitPeriodEnd: "2025-12-31",
+          },
+        },
+      ],
+      gaps: [],
+    });
+
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      canonicalEvidence,
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Quality", "grossMargin")).toBeUndefined();
+  });
+
   test("loads persisted metrics without optional period fields", async () => {
     const runDir = join(
       tmpdir(),
@@ -914,7 +1065,9 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
             netIncomePeriodMonths: 9,
             netIncomePeriodEnd: "2026-03-28",
             stockholdersEquity: 50,
+            stockholdersEquityPeriodEnd: "2025-12-31",
             assets: 120,
+            assetsPeriodEnd: "2025-12-31",
           }),
           valuationEvidence(),
         ],
@@ -927,12 +1080,14 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     const roe = metricByKey(result, "Quality", "roe");
     const roa = metricByKey(result, "Quality", "roa");
     expect(roe).toMatchObject({
+      label: "ROE (equity at 2025-12-31)",
       unit: "ratio-percent",
       sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
       periodEnd: "2026-03-28",
       periodMonths: 9,
     });
     expect(roe?.value).toBeCloseTo((71.7 * (12 / 9)) / 50, 5);
+    expect(roa?.label).toBe("ROA (assets at 2025-12-31)");
     expect(roa?.value).toBeCloseTo((71.7 * (12 / 9)) / 120, 5);
     // Display-only: Quality posture is unaffected by ROE/ROA (no threshold).
     expect(lensByName(result, "Quality")?.posture).not.toBe("insufficient-data");

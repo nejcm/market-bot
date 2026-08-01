@@ -8,11 +8,12 @@ import {
 } from "./financial-statement-definitions";
 import {
   capFinancialStatementPeriods,
+  compareFinancialStatementFacts,
   deriveFinancialStatementTtm,
   detectFinancialStatementCadence,
   financialStatementPeriodMonths,
   incompleteFinancialStatementNotes,
-} from "./financial-statement-periods";
+} from "./financial-statement-selection";
 import {
   SEC_COMPANYFACTS_UNIT_SCALE,
   type CanonicalSecForm,
@@ -195,11 +196,7 @@ function factsForDefinition(
       const facts = unitFacts(taxonomy, root, concept);
       const [latest] = facts
         .filter((fact) => eligible(fact))
-        .toSorted(
-          (left, right) =>
-            right.periodEnd.localeCompare(left.periodEnd) ||
-            right.filedAt.localeCompare(left.filedAt),
-        );
+        .toSorted(compareFinancialStatementFacts);
       return { facts, latest, priority };
     })
     .filter(
@@ -426,14 +423,6 @@ function toSelectedFact(
   };
 }
 
-function compareRestatementPrecedence(left: ParsedFact, right: ParsedFact): number {
-  return (
-    right.filedAt.localeCompare(left.filedAt) ||
-    Number(right.amendment) - Number(left.amendment) ||
-    (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
-  );
-}
-
 function selectRestatements(
   facts: readonly ParsedFact[],
   seriesKey: FinancialStatementSeriesKey,
@@ -445,7 +434,7 @@ function selectRestatements(
   }
   const notes: FinancialStatementNote[] = [];
   const selected = [...groups.entries()].map(([key, matches]) => {
-    const ordered = matches.toSorted(compareRestatementPrecedence);
+    const ordered = matches.toSorted(compareFinancialStatementFacts);
     const winner = ordered[0]!;
     if (ordered.length > 1) {
       notes.push({
@@ -821,15 +810,4 @@ export async function collectFinancialStatements(
       ? { submissionsSourceId: facts.submissionsSourceId }
       : {}),
   });
-}
-
-export function financialStatementSeries(
-  artifact: FinancialStatementsArtifact,
-): readonly FinancialStatementSeries[] {
-  return [
-    ...Object.values(artifact.statements.incomeStatement),
-    ...Object.values(artifact.statements.balanceSheet),
-    ...Object.values(artifact.statements.cashFlowStatement),
-    ...Object.values(artifact.statements.perShare),
-  ];
 }

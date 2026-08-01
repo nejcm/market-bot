@@ -6,6 +6,10 @@ import {
   operatingKpisDimension,
 } from "../src/sources/extended-evidence/equity-analysis-completeness";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import {
+  financialStatementSeries,
+  incompleteFinancialStatementNotes,
+} from "../src/sources/extended-evidence/financial-statement-selection";
 import type {
   FinancialStatementSeries,
   FinancialStatementsArtifact,
@@ -526,25 +530,42 @@ describe("equity analysis completeness", () => {
     if (currentInterim === undefined) {
       throw new Error("Expected a current interim revenue fact");
     }
-    const currentNote = {
-      code: "incomplete-statement" as const,
-      periodKey: `interim|${currentInterim.periodKey}`,
-      message: `balanceSheet interim period ${currentInterim.periodKey} is missing cash, totalAssets, totalLiabilities, stockholdersEquity`,
+    const withoutCurrentEnd = (series: FinancialStatementSeries): FinancialStatementSeries => ({
+      ...series,
+      interim: series.interim.filter((item) => item.periodEnd !== currentInterim.periodEnd),
+    });
+    const originalBalance = artifact.statements.balanceSheet;
+    const balanceSheet: FinancialStatementsArtifact["statements"]["balanceSheet"] = {
+      cash: withoutCurrentEnd(originalBalance.cash),
+      currentAssets: withoutCurrentEnd(originalBalance.currentAssets),
+      currentLiabilities: withoutCurrentEnd(originalBalance.currentLiabilities),
+      totalAssets: withoutCurrentEnd(originalBalance.totalAssets),
+      totalLiabilities: withoutCurrentEnd(originalBalance.totalLiabilities),
+      stockholdersEquity: withoutCurrentEnd(originalBalance.stockholdersEquity),
+      debt: withoutCurrentEnd(originalBalance.debt),
     };
-    const historicalNote = {
-      ...currentNote,
-      periodKey: "annual|2023-01-01|2023-12-31",
+    const missingCurrentBalance = {
+      ...artifact,
+      statements: { ...artifact.statements, balanceSheet },
     };
+    const validationNotes = incompleteFinancialStatementNotes(
+      financialStatementSeries(missingCurrentBalance),
+    );
+    const incompleteArtifact = { ...missingCurrentBalance, validationNotes };
+    const currentBalanceNotes = validationNotes.filter(
+      (note) =>
+        note.message.startsWith("balanceSheet ") && note.message.includes(currentInterim.periodEnd),
+    );
 
-    expect(
-      primaryReasons({ ...artifact, validationNotes: [...artifact.validationNotes, currentNote] }),
-    ).toContain("current-primary-statements-incomplete");
-    expect(
-      primaryReasons({
-        ...artifact,
-        validationNotes: [...artifact.validationNotes, historicalNote],
-      }),
-    ).not.toContain("current-primary-statements-incomplete");
+    expect(currentBalanceNotes).toEqual([
+      {
+        code: "incomplete-statement",
+        periodKey: `interim|${currentInterim.periodKey}`,
+        message: `balanceSheet interim period ${currentInterim.periodKey} is missing cash, totalAssets, totalLiabilities, stockholdersEquity`,
+      },
+    ]);
+    expect(primaryReasons(incompleteArtifact)).toContain("current-primary-statements-incomplete");
+    expect(primaryReasons(artifact)).not.toContain("current-primary-statements-incomplete");
   });
 
   test("blocks a stale annual basis older than 550 days", () => {

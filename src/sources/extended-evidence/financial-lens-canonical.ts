@@ -5,9 +5,68 @@ import type {
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import {
+  financialStatementFacts,
   financialStatementPeriodMonths,
   financialStatementPeriodsYearAligned,
-} from "./financial-statement-periods";
+  financialStatementSeriesByKey,
+  latestCommonFinancialStatementFacts,
+  latestFinancialStatementFact,
+} from "./financial-statement-selection";
+
+const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION = 1;
+const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY = "financialLensSelectionVersion";
+
+export interface CanonicalFinancialLensDerivedMetric {
+  readonly value: number;
+  readonly periodEnd: string;
+  readonly periodMonths?: number;
+}
+
+export function canonicalFinancialLensDerivedMetric(
+  item: ExtendedEvidenceItem | undefined,
+  key: string,
+): CanonicalFinancialLensDerivedMetric | undefined {
+  if (!hasCanonicalFinancialLensSelection(item)) {
+    return;
+  }
+  const value = item?.metrics?.[`${key}SelectedValue`];
+  const periodEnd = item?.metrics?.[`${key}SelectedPeriodEnd`];
+  const periodMonths = item?.metrics?.[`${key}SelectedPeriodMonths`];
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    typeof periodEnd !== "string" ||
+    (periodMonths !== undefined &&
+      (typeof periodMonths !== "number" || !Number.isFinite(periodMonths)))
+  ) {
+    return;
+  }
+  return {
+    value,
+    periodEnd,
+    ...(periodMonths !== undefined ? { periodMonths } : {}),
+  };
+}
+
+export function hasCanonicalFinancialLensSelection(
+  item: ExtendedEvidenceItem | undefined,
+): boolean {
+  return (
+    item?.metrics?.[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] ===
+    CANONICAL_FINANCIAL_LENS_SELECTION_VERSION
+  );
+}
+
+export function selectedFinancialLensDerivedMetric(
+  item: ExtendedEvidenceItem | undefined,
+  key: string,
+  legacyFallback: number | undefined,
+): number | undefined {
+  if (hasCanonicalFinancialLensSelection(item)) {
+    return canonicalFinancialLensDerivedMetric(item, key)?.value;
+  }
+  return legacyFallback;
+}
 
 const FLOW_SERIES = [
   ["revenue", "revenue"],
@@ -29,46 +88,20 @@ const INSTANT_SERIES = [
   ["assets", "totalAssets"],
 ] as const;
 
-function allSeries(artifact: FinancialStatementsArtifact): readonly FinancialStatementSeries[] {
-  return [
-    ...Object.values(artifact.statements.incomeStatement),
-    ...Object.values(artifact.statements.balanceSheet),
-    ...Object.values(artifact.statements.cashFlowStatement),
-    ...Object.values(artifact.statements.perShare),
-  ];
-}
-
-function seriesByKey(
-  artifact: FinancialStatementsArtifact,
-  key: FinancialStatementSeries["key"],
-): FinancialStatementSeries {
-  const series = allSeries(artifact).find((candidate) => candidate.key === key);
-  if (series === undefined) {
-    throw new Error(`Canonical financial statements are missing ${key}`);
-  }
-  return series;
-}
-
-function latest(facts: readonly FinancialStatementFact[]): FinancialStatementFact | undefined {
-  return facts.toSorted(
-    (left, right) =>
-      right.periodEnd.localeCompare(left.periodEnd) ||
-      (left.periodStart ?? "").localeCompare(right.periodStart ?? "") ||
-      right.filedAt.localeCompare(left.filedAt),
-  )[0];
-}
-
 function priorComparable(
   series: FinancialStatementSeries,
   selected: FinancialStatementFact,
 ): FinancialStatementFact | undefined {
   const months = financialStatementPeriodMonths(selected);
-  return latest(
-    [...series.annual, ...series.interim].filter(
+  return latestFinancialStatementFact(
+    financialStatementFacts(series).filter(
       (fact) =>
         fact.periodEnd < selected.periodEnd &&
         financialStatementPeriodMonths(fact) === months &&
-        financialStatementPeriodsYearAligned(fact, selected),
+        financialStatementPeriodsYearAligned(fact, selected) &&
+        fact.currency === selected.currency &&
+        fact.unit === selected.unit &&
+        fact.unitScale === selected.unitScale,
     ),
   );
 }
@@ -97,30 +130,101 @@ function addFactMetrics(
   }
 }
 
-function canonicalMetrics(artifact: FinancialStatementsArtifact): Record<string, number | string> {
+function addCommonDerivedMetric(
+  metrics: Record<string, CanonicalFinancialLensDerivedMetric>,
+  key: string,
+  left: FinancialStatementSeries | undefined,
+  right: FinancialStatementSeries | undefined,
+  derive: (left: number, right: number) => number | undefined,
+): void {
+  if (left === undefined || right === undefined) {
+    return;
+  }
+  const facts = latestCommonFinancialStatementFacts([left, right]);
+  if (facts === undefined) {
+    return;
+  }
+  const [leftFact, rightFact] = facts;
+  if (leftFact === undefined || rightFact === undefined) {
+    return;
+  }
+  const value = derive(leftFact.value, rightFact.value);
+  if (value === undefined || !Number.isFinite(value)) {
+    return;
+  }
+  const { periodEnd } = leftFact;
+  const months = financialStatementPeriodMonths(leftFact);
+  metrics[key] = {
+    value,
+    periodEnd,
+    ...(months !== undefined ? { periodMonths: months } : {}),
+  };
+}
+
+function dividedBy(left: number, right: number): number | undefined {
+  return right === 0 ? undefined : left / right;
+}
+
+function canonicalMetrics(artifact: FinancialStatementsArtifact): {
+  readonly metrics: Record<string, number | string>;
+} {
   const metrics: Record<string, number | string> = {};
-  const revenueSeries = seriesByKey(artifact, "revenue");
-  const revenueFact = latest([...revenueSeries.annual, ...revenueSeries.interim]);
-  for (const [metricKey, seriesKey] of FLOW_SERIES) {
-    const series = seriesByKey(artifact, seriesKey);
-    const matchingRevenuePeriod =
-      revenueFact === undefined
-        ? undefined
-        : [...series.annual, ...series.interim].find(
-            (fact) => fact.periodKey === revenueFact.periodKey,
-          );
+  const derivedMetrics: Record<string, CanonicalFinancialLensDerivedMetric> = {};
+  const inputs = [...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey, seriesKey]) => {
+    const series = financialStatementSeriesByKey(artifact, seriesKey);
+    if (series === undefined) {
+      throw new Error(`Canonical financial statements are missing ${seriesKey}`);
+    }
     addFactMetrics(
       metrics,
       metricKey,
-      matchingRevenuePeriod ?? latest([...series.annual, ...series.interim]),
+      latestFinancialStatementFact(financialStatementFacts(series)),
       series,
     );
+    return [metricKey, series] as const;
+  });
+  const byMetric = new Map(inputs);
+  for (const [key, leftKey, rightKey, derive] of [
+    ["grossMargin", "grossProfit", "revenue", dividedBy],
+    ["operatingMargin", "operatingIncome", "revenue", dividedBy],
+    ["netMargin", "netIncome", "revenue", dividedBy],
+    [
+      "freeCashFlowProxy",
+      "operatingCashFlow",
+      "capex",
+      (left: number, right: number) => left - right,
+    ],
+    ["cashConversion", "operatingCashFlow", "netIncome", dividedBy],
+    ["netDebt", "debt", "cash", (left: number, right: number) => left - right],
+    ["currentRatio", "currentAssets", "currentLiabilities", dividedBy],
+    ["debtToEquity", "debt", "stockholdersEquity", dividedBy],
+    [
+      "payoutRatio",
+      "dividendsPaid",
+      "netIncome",
+      (left: number, right: number) => dividedBy(Math.abs(left), right),
+    ],
+  ] as const) {
+    addCommonDerivedMetric(
+      derivedMetrics,
+      key,
+      byMetric.get(leftKey),
+      byMetric.get(rightKey),
+      derive,
+    );
   }
-  for (const [metricKey, seriesKey] of INSTANT_SERIES) {
-    const series = seriesByKey(artifact, seriesKey);
-    addFactMetrics(metrics, metricKey, latest([...series.annual, ...series.interim]), series);
+  for (const [key, selected] of Object.entries(derivedMetrics)) {
+    metrics[`${key}SelectedValue`] = selected.value;
+    metrics[`${key}SelectedPeriodEnd`] = selected.periodEnd;
+    if (selected.periodMonths !== undefined) {
+      metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
+    }
   }
-  return metrics;
+  if (Object.keys(metrics).length > 0) {
+    metrics[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] =
+      CANONICAL_FINANCIAL_LENS_SELECTION_VERSION;
+  }
+  return { metrics };
 }
 
 function legacySecItem(evidence: ExtendedEvidence | undefined): ExtendedEvidenceItem | undefined {
@@ -138,7 +242,7 @@ export function withCanonicalFinancialLensInputs(
   artifact: FinancialStatementsArtifact,
 ): ExtendedEvidence {
   const legacy = legacySecItem(evidence);
-  const metrics = canonicalMetrics(artifact);
+  const { metrics } = canonicalMetrics(artifact);
   if (legacy === undefined && Object.keys(metrics).length === 0) {
     return evidence ?? { items: [], gaps: [] };
   }

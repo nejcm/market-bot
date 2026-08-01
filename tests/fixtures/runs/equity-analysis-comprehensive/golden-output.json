@@ -933,7 +933,25 @@
             "cash": 60000000000,
             "cashPeriodEnd": "2026-03-31",
             "debt": 100000000000,
-            "debtPeriodEnd": "2026-03-31"
+            "debtPeriodEnd": "2026-03-31",
+            "grossMarginSelectedValue": 0.47619047619047616,
+            "grossMarginSelectedPeriodEnd": "2026-03-31",
+            "grossMarginSelectedPeriodMonths": 6,
+            "operatingMarginSelectedValue": 0.3333333333333333,
+            "operatingMarginSelectedPeriodEnd": "2026-03-31",
+            "operatingMarginSelectedPeriodMonths": 6,
+            "netMarginSelectedValue": 0.2761904761904762,
+            "netMarginSelectedPeriodEnd": "2026-03-31",
+            "netMarginSelectedPeriodMonths": 6,
+            "freeCashFlowProxySelectedValue": 58000000000,
+            "freeCashFlowProxySelectedPeriodEnd": "2026-03-31",
+            "freeCashFlowProxySelectedPeriodMonths": 6,
+            "cashConversionSelectedValue": 1.1206896551724137,
+            "cashConversionSelectedPeriodEnd": "2026-03-31",
+            "cashConversionSelectedPeriodMonths": 6,
+            "netDebtSelectedValue": 40000000000,
+            "netDebtSelectedPeriodEnd": "2026-03-31",
+            "financialLensSelectionVersion": 1
           },
           "identity": {
             "displayName": "Apple Inc.",
@@ -3585,7 +3603,25 @@
                 "cash": 60000000000,
                 "cashPeriodEnd": "2026-03-31",
                 "debt": 100000000000,
-                "debtPeriodEnd": "2026-03-31"
+                "debtPeriodEnd": "2026-03-31",
+                "grossMarginSelectedValue": 0.47619047619047616,
+                "grossMarginSelectedPeriodEnd": "2026-03-31",
+                "grossMarginSelectedPeriodMonths": 6,
+                "operatingMarginSelectedValue": 0.3333333333333333,
+                "operatingMarginSelectedPeriodEnd": "2026-03-31",
+                "operatingMarginSelectedPeriodMonths": 6,
+                "netMarginSelectedValue": 0.2761904761904762,
+                "netMarginSelectedPeriodEnd": "2026-03-31",
+                "netMarginSelectedPeriodMonths": 6,
+                "freeCashFlowProxySelectedValue": 58000000000,
+                "freeCashFlowProxySelectedPeriodEnd": "2026-03-31",
+                "freeCashFlowProxySelectedPeriodMonths": 6,
+                "cashConversionSelectedValue": 1.1206896551724137,
+                "cashConversionSelectedPeriodEnd": "2026-03-31",
+                "cashConversionSelectedPeriodMonths": 6,
+                "netDebtSelectedValue": 40000000000,
+                "netDebtSelectedPeriodEnd": "2026-03-31",
+                "financialLensSelectionVersion": 1
               },
               "identity": {
                 "displayName": "Apple Inc.",
@@ -5564,11 +5600,6 @@
               "code": "incomplete-statement",
               "periodKey": "interim|2025-10-01|2026-03-31",
               "message": "balanceSheet interim period 2025-10-01|2026-03-31 is missing totalAssets, totalLiabilities, stockholdersEquity"
-            },
-            {
-              "code": "incomplete-statement",
-              "periodKey": "interim|instant|2026-03-31",
-              "message": "balanceSheet interim period instant|2026-03-31 is missing totalAssets, totalLiabilities, stockholdersEquity"
             }
           ],
           "omissionNotes": [

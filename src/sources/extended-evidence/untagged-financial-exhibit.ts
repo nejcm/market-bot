@@ -3,6 +3,7 @@ import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readString } from "../../guards";
 import { secRequestInit } from "./sec-edgar";
 import type { FinancialStatementsArtifact } from "./financial-statements-contract";
+import { latestFinancialStatementFact } from "./financial-statement-selection";
 import {
   buildFinancialTablePacket,
   financialTablePacketCells,
@@ -68,7 +69,8 @@ function submissionPayload(snapshots: readonly RawSourceSnapshot[]): unknown {
 }
 
 function latestAnnualEnd(artifact: FinancialStatementsArtifact): string | undefined {
-  return artifact.statements.incomeStatement.revenue.annual.at(-1)?.periodEnd;
+  return latestFinancialStatementFact(artifact.statements.incomeStatement.revenue.annual)
+    ?.periodEnd;
 }
 
 function filingCandidates(

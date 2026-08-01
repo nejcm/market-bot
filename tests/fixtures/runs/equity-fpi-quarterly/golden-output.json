@@ -329,7 +329,24 @@
             "stockholdersEquity": 3120000000,
             "stockholdersEquityPeriodEnd": "2026-03-31",
             "assets": 1560000000,
-            "assetsPeriodEnd": "2026-03-31"
+            "assetsPeriodEnd": "2026-03-31",
+            "grossMarginSelectedValue": 0.85,
+            "grossMarginSelectedPeriodEnd": "2026-03-31",
+            "grossMarginSelectedPeriodMonths": 3,
+            "operatingMarginSelectedValue": 0.7,
+            "operatingMarginSelectedPeriodEnd": "2026-03-31",
+            "operatingMarginSelectedPeriodMonths": 3,
+            "netMarginSelectedValue": 0.55,
+            "netMarginSelectedPeriodEnd": "2026-03-31",
+            "netMarginSelectedPeriodMonths": 3,
+            "cashConversionSelectedValue": 1.0909090909090908,
+            "cashConversionSelectedPeriodEnd": "2026-03-31",
+            "cashConversionSelectedPeriodMonths": 3,
+            "netDebtSelectedValue": 3120000000,
+            "netDebtSelectedPeriodEnd": "2026-03-31",
+            "debtToEquitySelectedValue": 1.25,
+            "debtToEquitySelectedPeriodEnd": "2026-03-31",
+            "financialLensSelectionVersion": 1
           }
         },
         {
@@ -1951,7 +1968,24 @@
                 "stockholdersEquity": 3120000000,
                 "stockholdersEquityPeriodEnd": "2026-03-31",
                 "assets": 1560000000,
-                "assetsPeriodEnd": "2026-03-31"
+                "assetsPeriodEnd": "2026-03-31",
+                "grossMarginSelectedValue": 0.85,
+                "grossMarginSelectedPeriodEnd": "2026-03-31",
+                "grossMarginSelectedPeriodMonths": 3,
+                "operatingMarginSelectedValue": 0.7,
+                "operatingMarginSelectedPeriodEnd": "2026-03-31",
+                "operatingMarginSelectedPeriodMonths": 3,
+                "netMarginSelectedValue": 0.55,
+                "netMarginSelectedPeriodEnd": "2026-03-31",
+                "netMarginSelectedPeriodMonths": 3,
+                "cashConversionSelectedValue": 1.0909090909090908,
+                "cashConversionSelectedPeriodEnd": "2026-03-31",
+                "cashConversionSelectedPeriodMonths": 3,
+                "netDebtSelectedValue": 3120000000,
+                "netDebtSelectedPeriodEnd": "2026-03-31",
+                "debtToEquitySelectedValue": 1.25,
+                "debtToEquitySelectedPeriodEnd": "2026-03-31",
+                "financialLensSelectionVersion": 1
               }
             },
             {

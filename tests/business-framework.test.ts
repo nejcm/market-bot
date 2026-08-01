@@ -4,10 +4,17 @@ import {
   addBusinessFrameworkEvidence,
   classifyBusinessLifecyclePhase,
 } from "../src/sources/extended-evidence/business-framework";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
 import { marketSnapshot } from "./support/fixtures";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
+
+function jsonRoundTrip<T>(value: T): T {
+  const serialized = JSON.stringify(value);
+  return JSON.parse(serialized) as T;
+}
 
 function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
   return {
@@ -147,6 +154,105 @@ describe("business framework evidence", () => {
         evidenceQualityImpact: "no-cap",
       }),
     ]);
+  });
+
+  test("uses persisted common-period margins when standalone flow facts diverge", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  {
+                    val: 100,
+                    form: "10-K",
+                    fp: "FY",
+                    fy: 2025,
+                    filed: "2026-02-15",
+                    start: "2025-01-01",
+                    end: "2025-12-31",
+                  },
+                  {
+                    val: 30,
+                    form: "10-Q",
+                    fp: "Q1",
+                    fy: 2026,
+                    filed: "2026-05-01",
+                    start: "2026-01-01",
+                    end: "2026-03-31",
+                  },
+                ],
+              },
+            },
+            GrossProfit: {
+              units: {
+                USD: [
+                  {
+                    val: 45,
+                    form: "10-K",
+                    fp: "FY",
+                    fy: 2025,
+                    filed: "2026-02-15",
+                    start: "2025-01-01",
+                    end: "2025-12-31",
+                  },
+                ],
+              },
+            },
+            OperatingIncomeLoss: {
+              units: {
+                USD: [
+                  {
+                    val: 20,
+                    form: "10-K",
+                    fp: "FY",
+                    fy: 2025,
+                    filed: "2026-02-15",
+                    start: "2025-01-01",
+                    end: "2025-12-31",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-22T00:00:00.000Z",
+        analysisAsOf: "2026-06-22T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    const canonicalEvidence = jsonRoundTrip<ExtendedEvidence>(
+      withCanonicalFinancialLensInputs(undefined, artifact),
+    );
+    const secItem = canonicalEvidence.items.find((item) => item.category === "sec-edgar");
+
+    expect(secItem?.metrics).toMatchObject({
+      revenue: 30,
+      revenuePeriodEnd: "2026-03-31",
+      grossProfit: 45,
+      grossProfitPeriodEnd: "2025-12-31",
+      grossMarginSelectedValue: 0.45,
+      grossMarginSelectedPeriodEnd: "2025-12-31",
+      operatingMarginSelectedValue: 0.2,
+      operatingMarginSelectedPeriodEnd: "2025-12-31",
+    });
+
+    const result = addBusinessFrameworkEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-aapl" })],
+      canonicalEvidence,
+      undefined,
+      "2026-06-22T00:00:00.000Z",
+    );
+    const moat = result.artifact?.sections.find((section) => section.name === "Moat");
+
+    expect(moat?.posture).toBe("criteria-supported");
+    expect(moat?.metrics.find((metric) => metric.key === "grossMargin")?.value).toBe(0.45);
+    expect(moat?.metrics.find((metric) => metric.key === "operatingMargin")?.value).toBe(0.2);
   });
 
   test("keeps lifecycle classification on parent-attributable net income", () => {

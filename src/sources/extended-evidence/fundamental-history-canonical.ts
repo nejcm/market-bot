@@ -12,7 +12,11 @@ import type {
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
-import { financialStatementPeriodMonths } from "./financial-statement-periods";
+import {
+  financialStatementFacts,
+  financialStatementPeriodMonths,
+  financialStatementSeriesByKey,
+} from "./financial-statement-selection";
 
 const EPS_TTM_APPROXIMATION_NOTE =
   "ttm:eps-approximation: diluted EPS TTM adds per-share periods and does not reweight diluted shares";
@@ -58,22 +62,6 @@ const DEFINITIONS: readonly CanonicalHistoryDefinition[] = [
     unit: "currency",
   },
 ];
-
-function canonicalSeries(
-  artifact: FinancialStatementsArtifact,
-  key: FinancialStatementSeriesKey,
-): FinancialStatementSeries {
-  const series = [
-    ...Object.values(artifact.statements.incomeStatement),
-    ...Object.values(artifact.statements.balanceSheet),
-    ...Object.values(artifact.statements.cashFlowStatement),
-    ...Object.values(artifact.statements.perShare),
-  ].find((candidate) => candidate.key === key);
-  if (series === undefined) {
-    throw new Error(`Canonical financial statements are missing ${key}`);
-  }
-  return series;
-}
 
 function annualPoint(fact: FinancialStatementFact): FundamentalHistoryPoint | undefined {
   const months = financialStatementPeriodMonths(fact);
@@ -124,7 +112,10 @@ function rawSeries(
   artifact: FinancialStatementsArtifact,
   definition: CanonicalHistoryDefinition,
 ): FundamentalHistorySeries {
-  const series = canonicalSeries(artifact, definition.canonicalKey);
+  const series = financialStatementSeriesByKey(artifact, definition.canonicalKey);
+  if (series === undefined) {
+    throw new Error(`Canonical financial statements are missing ${definition.canonicalKey}`);
+  }
   const notes: string[] = [];
   const annual = series.annual.flatMap((fact) => {
     const point = annualPoint(fact);
@@ -141,7 +132,7 @@ function rawSeries(
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
   }
   const growth = fundamentalHistoryCagr(annual, notes);
-  const concept = [...series.annual, ...series.interim][0]?.concept;
+  const concept = financialStatementFacts(series)[0]?.concept;
   return {
     key: definition.key,
     label: definition.label,

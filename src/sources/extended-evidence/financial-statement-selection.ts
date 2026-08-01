@@ -7,6 +7,7 @@ import {
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
   type FinancialStatementTtm,
+  type FinancialStatementsArtifact,
   type InterimCadence,
 } from "./financial-statements-contract";
 
@@ -36,6 +37,133 @@ export function financialStatementPeriodMonths(
   return days !== undefined && days > 0 ? Math.round(days / DAYS_PER_MONTH) : undefined;
 }
 
+function financialStatementDurationDays(fact: FinancialStatementSelectionFact): number {
+  return fact.periodStart === undefined ? 0 : (daysBetween(fact.periodStart, fact.periodEnd) ?? 0);
+}
+
+export type FinancialStatementSelectionFact = Pick<
+  FinancialStatementFact,
+  "periodStart" | "periodEnd" | "filedAt" | "amendment" | "accessionNumber"
+>;
+
+export function financialStatementSeries(
+  artifact: FinancialStatementsArtifact,
+): readonly FinancialStatementSeries[] {
+  return [
+    ...Object.values(artifact.statements.incomeStatement),
+    ...Object.values(artifact.statements.balanceSheet),
+    ...Object.values(artifact.statements.cashFlowStatement),
+    ...Object.values(artifact.statements.perShare),
+  ];
+}
+
+export function financialStatementSeriesByKey(
+  artifact: FinancialStatementsArtifact,
+  key: FinancialStatementSeriesKey,
+): FinancialStatementSeries | undefined {
+  return financialStatementSeries(artifact).find((series) => series.key === key);
+}
+
+export function compareFinancialStatementFacts(
+  left: FinancialStatementSelectionFact,
+  right: FinancialStatementSelectionFact,
+): number {
+  return (
+    right.periodEnd.localeCompare(left.periodEnd) ||
+    financialStatementDurationDays(right) - financialStatementDurationDays(left) ||
+    right.filedAt.localeCompare(left.filedAt) ||
+    Number(right.amendment) - Number(left.amendment) ||
+    (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
+  );
+}
+
+export function latestFinancialStatementFact(
+  facts: readonly FinancialStatementFact[],
+): FinancialStatementFact | undefined {
+  return facts.toSorted(compareFinancialStatementFacts).at(0);
+}
+
+export function financialStatementFacts(
+  series: FinancialStatementSeries,
+): readonly FinancialStatementFact[] {
+  return [...series.annual, ...series.interim];
+}
+
+export function financialStatementFactForPeriod(
+  facts: readonly FinancialStatementFact[],
+  periodKey: string,
+): FinancialStatementFact | undefined {
+  return latestFinancialStatementFact(facts.filter((fact) => fact.periodKey === periodKey));
+}
+
+export function financialStatementFactsAreCompatible(
+  facts: readonly FinancialStatementFact[],
+): boolean {
+  const [first] = facts;
+  return (
+    first !== undefined &&
+    facts.every(
+      (fact) =>
+        fact.currency === first.currency &&
+        fact.unit === first.unit &&
+        fact.unitScale === first.unitScale,
+    )
+  );
+}
+
+export function financialStatementTtmsSharePeriod(
+  values: readonly FinancialStatementTtm[],
+): boolean {
+  const [first] = values;
+  return (
+    first !== undefined &&
+    values.every(
+      (value) => value.periodStart === first.periodStart && value.periodEnd === first.periodEnd,
+    )
+  );
+}
+
+export function financialStatementTtmsAreCompatible(
+  values: readonly FinancialStatementTtm[],
+): boolean {
+  const [first] = values;
+  return (
+    first !== undefined &&
+    financialStatementTtmsSharePeriod(values) &&
+    values.every(
+      (value) =>
+        value.currency === first.currency &&
+        value.unit === first.unit &&
+        value.unitScale === first.unitScale,
+    )
+  );
+}
+
+export function latestCommonFinancialStatementFacts(
+  series: readonly (FinancialStatementSeries | undefined)[],
+): readonly FinancialStatementFact[] | undefined {
+  if (series.length === 0 || series.some((item) => item === undefined)) {
+    return undefined;
+  }
+  const available = series as readonly FinancialStatementSeries[];
+  const periodKeys = [
+    ...new Set(financialStatementFacts(available[0]!).map((fact) => fact.periodKey)),
+  ];
+  const common = periodKeys.flatMap((periodKey): readonly FinancialStatementFact[][] => {
+    const facts = available.map((item) =>
+      financialStatementFactForPeriod(financialStatementFacts(item), periodKey),
+    );
+    if (
+      facts.some((fact) => fact === undefined) ||
+      !financialStatementFactsAreCompatible(facts as readonly FinancialStatementFact[])
+    ) {
+      return [];
+    }
+    return [[...(facts as readonly FinancialStatementFact[])]];
+  });
+  return common.toSorted((left, right) => compareFinancialStatementFacts(left[0]!, right[0]!))[0];
+}
+
 function isYearAligned(prior: string, latest: string): boolean {
   const days = daysBetween(prior, latest);
   return days !== undefined && days >= ALIGNMENT_MIN_DAYS && days <= ALIGNMENT_MAX_DAYS;
@@ -63,17 +191,12 @@ export function deriveFinancialStatementTtm(
   if (!definition.deriveTtm || annual.length === 0) {
     return {};
   }
-  const fiscalYear = annual.at(-1)!;
-  const latestYearToDate = interim
-    .filter((fact) => fact.periodStart !== undefined && fact.periodEnd > fiscalYear.periodEnd)
-    .toSorted(
-      (left, right) =>
-        right.periodEnd.localeCompare(left.periodEnd) ||
-        (financialStatementPeriodMonths(right) ?? 0) -
-          (financialStatementPeriodMonths(left) ?? 0) ||
-        right.filedAt.localeCompare(left.filedAt),
-    )
-    .at(0);
+  const fiscalYear = latestFinancialStatementFact(annual)!;
+  const latestYearToDate = latestFinancialStatementFact(
+    interim.filter(
+      (fact) => fact.periodStart !== undefined && fact.periodEnd > fiscalYear.periodEnd,
+    ),
+  );
   if (latestYearToDate === undefined || latestYearToDate.periodStart === undefined) {
     return {
       note: {
@@ -84,20 +207,16 @@ export function deriveFinancialStatementTtm(
     };
   }
   const latestMonths = financialStatementPeriodMonths(latestYearToDate);
-  const priorYearToDate = interim
-    .filter(
+  const priorYearToDate = latestFinancialStatementFact(
+    interim.filter(
       (fact) =>
         fact.periodStart !== undefined &&
         fact.periodEnd < fiscalYear.periodEnd &&
         financialStatementPeriodMonths(fact) === latestMonths &&
         isYearAligned(fact.periodStart, latestYearToDate.periodStart!) &&
         isYearAligned(fact.periodEnd, latestYearToDate.periodEnd),
-    )
-    .toSorted(
-      (left, right) =>
-        right.periodEnd.localeCompare(left.periodEnd) || right.filedAt.localeCompare(left.filedAt),
-    )
-    .at(0);
+    ),
+  );
   if (priorYearToDate === undefined || priorYearToDate.periodStart === undefined) {
     return {
       note: {
@@ -124,6 +243,18 @@ export function deriveFinancialStatementTtm(
         code: "unreconciled-ttm",
         seriesKey: definition.key,
         message: "FY/latest-YTD/prior-YTD periods do not reconcile at the fiscal-year boundary",
+      },
+    };
+  }
+  if (
+    !financialStatementFactsAreCompatible([fiscalYear, latestYearToDate, priorYearToDate]) ||
+    fiscalYear.currency !== currency
+  ) {
+    return {
+      note: {
+        code: "unreconciled-ttm",
+        seriesKey: definition.key,
+        message: "FY/latest-YTD/prior-YTD facts do not use compatible units and currency",
       },
     };
   }
@@ -199,6 +330,7 @@ export function incompleteFinancialStatementNotes(
   const notes: FinancialStatementNote[] = [];
   for (const period of ["annual", "interim"] as const) {
     const periodFacts = new Map<string, FinancialStatementFact>();
+    const checkedBalancePeriodEnds = new Set<string>();
     for (const fact of series.flatMap((item) => item[period])) {
       periodFacts.set(fact.periodKey, fact);
     }
@@ -208,15 +340,13 @@ export function incompleteFinancialStatementNotes(
     )) {
       const statements = (
         anchor.periodStart === undefined
-          ? [["balanceSheet", required.balanceSheet]]
-          : Object.entries(required)
+          ? []
+          : Object.entries(required).filter(([statement]) => statement !== "balanceSheet")
       ) as readonly [FinancialStatementName, readonly FinancialStatementSeriesKey[]][];
       for (const [statement, keys] of statements) {
         const missing = keys.filter((key) => {
           const facts = series.find((item) => item.key === key)?.[period] ?? [];
-          return statement === "balanceSheet"
-            ? !facts.some((fact) => fact.periodEnd === anchor.periodEnd)
-            : !facts.some((fact) => fact.periodKey === canonicalPeriodKey);
+          return !facts.some((fact) => fact.periodKey === canonicalPeriodKey);
         });
         if (missing.length > 0) {
           notes.push({
@@ -225,6 +355,21 @@ export function incompleteFinancialStatementNotes(
             message: `${statement} ${period} period ${canonicalPeriodKey} is missing ${missing.join(", ")}`,
           });
         }
+      }
+      if (checkedBalancePeriodEnds.has(anchor.periodEnd)) {
+        continue;
+      }
+      checkedBalancePeriodEnds.add(anchor.periodEnd);
+      const missingBalance = required.balanceSheet.filter((key) => {
+        const facts = series.find((item) => item.key === key)?.[period] ?? [];
+        return !facts.some((fact) => fact.periodEnd === anchor.periodEnd);
+      });
+      if (missingBalance.length > 0) {
+        notes.push({
+          code: "incomplete-statement",
+          periodKey: `${period}|${canonicalPeriodKey}`,
+          message: `balanceSheet ${period} period ${canonicalPeriodKey} is missing ${missingBalance.join(", ")}`,
+        });
       }
     }
   }

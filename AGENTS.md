@@ -68,3 +68,4 @@ Requirements:
 - Include tests within the same commit as the code changes
 - Do not append `Co-authored-by` trailers to commit messages
 - Update docs/configuration.md when introducing new env variables
+- No backwards compatibility needed for changes for now

@@ -7,8 +7,9 @@ import { isRecord } from "../../../src/guards";
 import type { ModelRequest } from "../../../src/model/types";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import type { FixtureMeta, RunFixtureResult } from ".";
+import { assertFinancialRunInvariants } from "./financial-invariants";
 
-export function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): void {
+export async function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): Promise<void> {
   const report = validateResearchReport(result.report);
   assertSafeReportLanguage(report);
   for (const prediction of report.predictions) {
@@ -31,6 +32,7 @@ export function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): v
       );
     }
   }
+  await assertFinancialRunInvariants(result, meta);
 }
 
 export function factTaxonomies(result: RunFixtureResult): readonly string[] {

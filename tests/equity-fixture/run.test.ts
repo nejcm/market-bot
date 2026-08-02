@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { parseArgs } from "../../src/cli/args";
 import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
@@ -9,11 +10,14 @@ import {
   factTaxonomies,
 } from "../support/run-fixtures/assertions";
 import { readGoldenOutput, scrubbedRunArtifacts } from "../support/run-fixtures/artifacts";
+import { diffGolden, formatGoldenMismatch } from "../support/run-fixtures/golden-diff";
 import { loadFixture, runFixture, type RunFixtureResult } from "../support/run-fixtures";
 import { makeReplayProvider } from "../support/run-fixtures/llm-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
+import { addFinancialLensEvidence } from "../../src/sources/extended-evidence/financial-lens";
+import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
 
 const FIXTURES = [
   "equity-aapl-brief",
@@ -74,7 +78,7 @@ describe("static equity run fixtures", () => {
       runResults.push(result);
       const golden = await readGoldenOutput(name);
 
-      assertInvariants(result, fixture.meta);
+      await assertInvariants(result, fixture.meta);
       expect([
         result.report.equityAnalysisCompleteness?.financialCoreStatus,
         result.report.equityAnalysisCompleteness?.coverageLevel,
@@ -126,9 +130,35 @@ describe("static equity run fixtures", () => {
               deriveFundamentalHistoryFromFinancialStatements(financialStatements),
             );
           }
+          const command = parseArgs(fixture.meta.argv);
+          if (command.jobType !== "equity") {
+            throw new Error(`${name} financial statements require an equity command`);
+          }
+          const recomputedFinancialLenses = addFinancialLensEvidence(
+            command,
+            result.collectedSources.marketSnapshots,
+            withCanonicalFinancialLensInputs(
+              result.collectedSources.extendedEvidence,
+              financialStatements,
+            ),
+            result.collectedSources.verifiedMarketSnapshot,
+            financialStatements.generatedAt,
+            result.collectedSources.subsequentFinancing,
+          ).artifact;
+          expect(
+            result.deepEquityEvidenceBundle?.derived.financialLenses,
+            "[B11] financial lenses must rederive from canonical statement inputs",
+          ).toEqual(recomputedFinancialLenses);
         }
       }
-      expect(await scrubbedRunArtifacts(result.artifacts.runDir)).toEqual(golden);
+      const scrubbed = await scrubbedRunArtifacts(result.artifacts.runDir);
+      try {
+        expect(scrubbed).toEqual(golden);
+      } catch (error) {
+        throw new Error(formatGoldenMismatch(name, diffGolden(golden, scrubbed)), {
+          cause: error,
+        });
+      }
     });
   }
 

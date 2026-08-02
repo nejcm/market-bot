@@ -31,9 +31,53 @@
       "valueCellRef": "t009:r012:c008"
     },
     {
+      "field": "mezzanineEquity",
+      "displayedValue": 7845,
+      "valueCellRef": "t009:r016:c008"
+    },
+    {
       "field": "stockholdersEquity",
       "displayedValue": 1118425,
       "valueCellRef": "t009:r029:c008"
+    },
+    {
+      "field": "operatingCashFlow",
+      "displayedValue": 76213,
+      "valueCellRef": "t010:r005:c020"
+    },
+    {
+      "field": "investingCashFlow",
+      "displayedValue": -67336,
+      "valueCellRef": "t010:r006:c020",
+      "signCellRef": "t010:r006:c021"
+    },
+    {
+      "field": "financingCashFlow",
+      "displayedValue": -20573,
+      "valueCellRef": "t010:r007:c020",
+      "signCellRef": "t010:r007:c021"
+    },
+    {
+      "field": "foreignExchangeEffect",
+      "displayedValue": -4004,
+      "valueCellRef": "t010:r008:c020",
+      "signCellRef": "t010:r008:c021"
+    },
+    {
+      "field": "netCashChange",
+      "displayedValue": -15700,
+      "valueCellRef": "t010:r010:c020",
+      "signCellRef": "t010:r010:c021"
+    },
+    {
+      "field": "cashBeginning",
+      "displayedValue": 189268,
+      "valueCellRef": "t010:r011:c020"
+    },
+    {
+      "field": "cashEnding",
+      "displayedValue": 173568,
+      "valueCellRef": "t010:r013:c020"
     }
   ]
 }

@@ -18,6 +18,7 @@ import {
   SEC_COMPANYFACTS_UNIT_SCALE,
   type CanonicalSecForm,
   type FinancialStatementFact,
+  type FinancialStatementEquityStack,
   type FinancialStatementNote,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
@@ -69,6 +70,18 @@ export interface FinancialStatementsDeriveInput {
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
 const MIN_ANNUAL_DURATION_MONTHS = 10;
 const MAX_ANNUAL_DURATION_MONTHS = 14;
+const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
+  "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest";
+const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
+const TEMPORARY_EQUITY_CONCEPT_PRIORITY = [
+  "TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterests",
+  "TemporaryEquityCarryingAmount",
+  "RedeemableNoncontrollingInterestEquityCarryingAmount",
+] as const;
+type EquityStackComponentKey =
+  | "minorityInterest"
+  | "stockholdersEquityIncludingNoncontrollingInterest"
+  | "temporaryEquity";
 
 export function canonicalizeSecForm(value: string):
   | {
@@ -423,6 +436,167 @@ function toSelectedFact(
   };
 }
 
+function equityStackConcepts(
+  root: Record<string, unknown>,
+  component: EquityStackComponentKey,
+): readonly string[] {
+  if (component === "minorityInterest") {
+    return [MINORITY_INTEREST_CONCEPT];
+  }
+  if (component === "stockholdersEquityIncludingNoncontrollingInterest") {
+    return [EQUITY_INCLUDING_NONCONTROLLING_CONCEPT];
+  }
+  const discovered = Object.keys(root).filter(
+    (concept) =>
+      concept.startsWith("TemporaryEquity") ||
+      concept.startsWith("RedeemableNoncontrollingInterest"),
+  );
+  return [
+    ...TEMPORARY_EQUITY_CONCEPT_PRIORITY,
+    ...discovered
+      .filter(
+        (concept) => !TEMPORARY_EQUITY_CONCEPT_PRIORITY.some((candidate) => candidate === concept),
+      )
+      .toSorted(),
+  ];
+}
+
+function selectEquityStackComponent(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  reportingCurrency: string,
+  component: EquityStackComponentKey,
+  preferredAccessions: ReadonlyMap<string, string>,
+  input: FinancialStatementsDeriveInput,
+): readonly FinancialStatementFact[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  if (root === undefined) {
+    return [];
+  }
+  const priority = new Map(
+    equityStackConcepts(root, component).map((concept, index) => [concept, index]),
+  );
+  const candidates = [...priority.keys()].flatMap((concept) =>
+    unitFacts(taxonomy, root, concept).filter(
+      (fact) =>
+        fact.periodStart === undefined &&
+        fact.unit === reportingCurrency &&
+        isObservable(fact, input.analysisAsOf),
+    ),
+  );
+  const byPeriodEnd = new Map<string, ParsedFact[]>();
+  for (const fact of candidates) {
+    byPeriodEnd.set(fact.periodEnd, [...(byPeriodEnd.get(fact.periodEnd) ?? []), fact]);
+  }
+  const instantDefinition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+    (definition) => definition.key === "stockholdersEquity",
+  );
+  if (instantDefinition === undefined) {
+    throw new Error("Financial statement definitions must include stockholdersEquity");
+  }
+  return [...byPeriodEnd.values()]
+    .map(
+      (facts) =>
+        facts.toSorted(
+          (left, right) =>
+            Number(right.accessionNumber === preferredAccessions.get(right.periodEnd)) -
+              Number(left.accessionNumber === preferredAccessions.get(left.periodEnd)) ||
+            (priority.get(left.concept) ?? Number.MAX_SAFE_INTEGER) -
+              (priority.get(right.concept) ?? Number.MAX_SAFE_INTEGER) ||
+            compareFinancialStatementFacts(left, right),
+        )[0]!,
+    )
+    .toSorted(chronological)
+    .map((fact) => toSelectedFact(fact, instantDefinition, reportingCurrency, input.sourceId));
+}
+
+function selectEquityStack(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  reportingCurrency: string,
+  selected: readonly SelectedSeries[],
+  input: FinancialStatementsDeriveInput,
+): {
+  readonly equityStack?: FinancialStatementEquityStack;
+  readonly validationNotes: readonly FinancialStatementNote[];
+} {
+  const identityFacts = (key: FinancialStatementSeriesKey): readonly FinancialStatementFact[] => {
+    const series = selected.find((item) => item.series.key === key)?.series;
+    return series === undefined ? [] : [...series.annual, ...series.interim];
+  };
+  const totalAssets = identityFacts("totalAssets");
+  const totalLiabilities = identityFacts("totalLiabilities");
+  const stockholdersEquity = identityFacts("stockholdersEquity");
+  const preferredAccessions = new Map<string, string>();
+  for (const asset of totalAssets) {
+    const liability = totalLiabilities.find((fact) => fact.periodEnd === asset.periodEnd);
+    if (asset.accessionNumber !== null && liability?.accessionNumber === asset.accessionNumber) {
+      preferredAccessions.set(asset.periodEnd, asset.accessionNumber);
+    }
+  }
+  const equityStack: FinancialStatementEquityStack = {
+    totalAssets,
+    totalLiabilities,
+    stockholdersEquity,
+    minorityInterest: selectEquityStackComponent(
+      payload,
+      taxonomy,
+      reportingCurrency,
+      "minorityInterest",
+      preferredAccessions,
+      input,
+    ),
+    stockholdersEquityIncludingNoncontrollingInterest: selectEquityStackComponent(
+      payload,
+      taxonomy,
+      reportingCurrency,
+      "stockholdersEquityIncludingNoncontrollingInterest",
+      preferredAccessions,
+      input,
+    ),
+    temporaryEquity: selectEquityStackComponent(
+      payload,
+      taxonomy,
+      reportingCurrency,
+      "temporaryEquity",
+      preferredAccessions,
+      input,
+    ),
+  };
+  const hasComponents =
+    equityStack.minorityInterest.length > 0 ||
+    equityStack.stockholdersEquityIncludingNoncontrollingInterest.length > 0 ||
+    equityStack.temporaryEquity.length > 0;
+  if (!hasComponents) {
+    return { validationNotes: [] };
+  }
+  const componentPeriods = new Set(
+    [
+      ...equityStack.minorityInterest,
+      ...equityStack.stockholdersEquityIncludingNoncontrollingInterest,
+      ...equityStack.temporaryEquity,
+    ].map((fact) => fact.periodEnd),
+  );
+  const validationNotes: FinancialStatementNote[] = [];
+  for (const asset of totalAssets) {
+    const liability = totalLiabilities.find((fact) => fact.periodEnd === asset.periodEnd);
+    if (
+      liability !== undefined &&
+      componentPeriods.has(asset.periodEnd) &&
+      (asset.accessionNumber === null ||
+        liability.accessionNumber === null ||
+        asset.accessionNumber !== liability.accessionNumber)
+    ) {
+      validationNotes.push({
+        code: "mixed-accessions",
+        message: `Total assets and total liabilities for ${asset.periodEnd} do not share an SEC accession; equity-stack component selection uses standard precedence`,
+        periodKey: asset.periodKey,
+      });
+    }
+  }
+  return { equityStack, validationNotes };
+}
+
 function selectRestatements(
   facts: readonly ParsedFact[],
   seriesKey: FinancialStatementSeriesKey,
@@ -735,6 +909,10 @@ export function deriveFinancialStatements(
       : FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map((definition) =>
           selectSeries(payload, taxonomy, reportingCurrency, definition, input),
         );
+  const equityStackSelection =
+    taxonomy === undefined || reportingCurrency === undefined
+      ? { validationNotes: [] }
+      : selectEquityStack(payload, taxonomy, reportingCurrency, selected, input);
   const { series, notes: capNotes } = capFinancialStatementPeriods(
     selected.map((item) => item.series),
   );
@@ -765,9 +943,13 @@ export function deriveFinancialStatements(
     ...(reportingCurrency !== undefined ? { reportingCurrency } : {}),
     interimCadence: detectFinancialStatementCadence(series),
     extractionMethod: "sec-companyfacts",
+    ...(equityStackSelection.equityStack !== undefined
+      ? { equityStack: equityStackSelection.equityStack }
+      : {}),
     statements: seriesRecord(series),
     validationNotes: [
       ...taxonomyNotes,
+      ...equityStackSelection.validationNotes,
       ...selected.flatMap((item) => item.validationNotes),
       ...incompleteFinancialStatementNotes(series),
     ],

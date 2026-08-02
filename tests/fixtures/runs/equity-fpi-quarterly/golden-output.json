@@ -326,7 +326,7 @@
             "cashPeriodEnd": "2026-03-31",
             "debt": 3900000000,
             "debtPeriodEnd": "2026-03-31",
-            "stockholdersEquity": 3120000000,
+            "stockholdersEquity": 936000000,
             "stockholdersEquityPeriodEnd": "2026-03-31",
             "assets": 1560000000,
             "assetsPeriodEnd": "2026-03-31",
@@ -344,9 +344,9 @@
             "cashConversionSelectedPeriodMonths": 3,
             "netDebtSelectedValue": 3120000000,
             "netDebtSelectedPeriodEnd": "2026-03-31",
-            "debtToEquitySelectedValue": 1.25,
+            "debtToEquitySelectedValue": 4.166666666666667,
             "debtToEquitySelectedPeriodEnd": "2026-03-31",
-            "roeSelectedValue": 0.2961538461538462,
+            "roeSelectedValue": 0.9871794871794873,
             "roeSelectedPeriodEnd": "2026-03-31",
             "roeSelectedPeriodMonths": 3,
             "roaSelectedValue": 0.5923076923076924,
@@ -424,7 +424,7 @@
             "operatingMargin": 0.7,
             "netMargin": 0.55,
             "cashConversion": 1.0909090909090908,
-            "roe": 0.2961538461538462,
+            "roe": 0.9871794871794873,
             "roa": 0.5923076923076924,
             "growthPosture": "criteria-supported",
             "revenueDeltaPercent": 40,
@@ -439,7 +439,7 @@
             "netDebt": 3120000000,
             "debtToMarketCap": 0.195,
             "netDebtToMarketCap": 0.156,
-            "debtToEquity": 1.25,
+            "debtToEquity": 4.166666666666667,
             "valuePosture": "criteria-not-supported",
             "enterpriseValue": 23120000000,
             "annualizedRevenue": 1680000000,
@@ -1971,7 +1971,7 @@
                 "cashPeriodEnd": "2026-03-31",
                 "debt": 3900000000,
                 "debtPeriodEnd": "2026-03-31",
-                "stockholdersEquity": 3120000000,
+                "stockholdersEquity": 936000000,
                 "stockholdersEquityPeriodEnd": "2026-03-31",
                 "assets": 1560000000,
                 "assetsPeriodEnd": "2026-03-31",
@@ -1989,9 +1989,9 @@
                 "cashConversionSelectedPeriodMonths": 3,
                 "netDebtSelectedValue": 3120000000,
                 "netDebtSelectedPeriodEnd": "2026-03-31",
-                "debtToEquitySelectedValue": 1.25,
+                "debtToEquitySelectedValue": 4.166666666666667,
                 "debtToEquitySelectedPeriodEnd": "2026-03-31",
-                "roeSelectedValue": 0.2961538461538462,
+                "roeSelectedValue": 0.9871794871794873,
                 "roeSelectedPeriodEnd": "2026-03-31",
                 "roeSelectedPeriodMonths": 3,
                 "roaSelectedValue": 0.5923076923076924,
@@ -2069,7 +2069,7 @@
                 "operatingMargin": 0.7,
                 "netMargin": 0.55,
                 "cashConversion": 1.0909090909090908,
-                "roe": 0.2961538461538462,
+                "roe": 0.9871794871794873,
                 "roa": 0.5923076923076924,
                 "growthPosture": "criteria-supported",
                 "revenueDeltaPercent": 40,
@@ -2084,7 +2084,7 @@
                 "netDebt": 3120000000,
                 "debtToMarketCap": 0.195,
                 "netDebtToMarketCap": 0.156,
-                "debtToEquity": 1.25,
+                "debtToEquity": 4.166666666666667,
                 "valuePosture": "criteria-not-supported",
                 "enterpriseValue": 23120000000,
                 "annualizedRevenue": 1680000000,
@@ -3216,7 +3216,7 @@
                 "statement": "balanceSheet",
                 "annual": [
                   {
-                    "value": 1500000000,
+                    "value": 400000000,
                     "periodKey": "instant|2023-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3236,7 +3236,7 @@
                     "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"]
                   },
                   {
-                    "value": 1800000000,
+                    "value": 480000000,
                     "periodKey": "instant|2024-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3256,7 +3256,7 @@
                     "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"]
                   },
                   {
-                    "value": 2250000000,
+                    "value": 600000000,
                     "periodKey": "instant|2025-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3278,7 +3278,7 @@
                 ],
                 "interim": [
                   {
-                    "value": 2340000000,
+                    "value": 624000000,
                     "periodKey": "instant|2026-03-31",
                     "periodType": "interim",
                     "form": "6-K",
@@ -3305,7 +3305,7 @@
                 "statement": "balanceSheet",
                 "annual": [
                   {
-                    "value": 2000000000,
+                    "value": 600000000,
                     "periodKey": "instant|2023-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3325,7 +3325,7 @@
                     "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"]
                   },
                   {
-                    "value": 2400000000,
+                    "value": 720000000,
                     "periodKey": "instant|2024-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3345,7 +3345,7 @@
                     "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"]
                   },
                   {
-                    "value": 3000000000,
+                    "value": 900000000,
                     "periodKey": "instant|2025-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3367,7 +3367,7 @@
                 ],
                 "interim": [
                   {
-                    "value": 3120000000,
+                    "value": 936000000,
                     "periodKey": "instant|2026-03-31",
                     "periodType": "interim",
                     "form": "6-K",
@@ -4512,7 +4512,7 @@
                 {
                   "key": "roe",
                   "label": "ROE",
-                  "value": 0.2961538461538462,
+                  "value": 0.9871794871794873,
                   "unit": "ratio-percent",
                   "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"],
                   "periodEnd": "2026-03-31",
@@ -4638,7 +4638,7 @@
                 {
                   "key": "debtToEquity",
                   "label": "Debt/equity",
-                  "value": 1.25,
+                  "value": 4.166666666666667,
                   "unit": "ratio",
                   "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"],
                   "periodEnd": "2026-03-31"

@@ -58,6 +58,7 @@ const GRAB_CASH = ["t006:r002:c004", "t006:r003:c004"];
 const BABA_INCOME = ["t004:r001:c003", "t004:r002:c007"];
 const BABA_BALANCE = ["t008:r001:c007", "t008:r002:c007"];
 const BABA_BALANCE_CONTINUED = ["t009:r001:c007", "t009:r002:c007"];
+const BABA_CASH = ["t010:r001:c015", "t010:r002:c019"];
 const PDD_BALANCE = ["t001:r001:c003", "t001:r002:c007", "t001:r003:c007"];
 const PDD_BALANCE_CONTINUED = ["t002:r001:c003", "t002:r002:c007", "t002:r003:c007"];
 const PDD_INCOME = ["t003:r001:c003", "t003:r002:c007", "t003:r003:c007", "t003:r004:c007"];
@@ -203,6 +204,7 @@ const CASES: Readonly<Record<string, readonly MappingSpec[]>> = {
     spec("cash", "t008:r007:c001", "t008:r007:c008", BABA_BALANCE, 131_530),
     spec("totalAssets", "t008:r020:c001", "t008:r020:c008", BABA_BALANCE, 1_909_570),
     spec("totalLiabilities", "t009:r012:c001", "t009:r012:c008", BABA_BALANCE_CONTINUED, 783_300),
+    spec("mezzanineEquity", "t009:r016:c001", "t009:r016:c008", BABA_BALANCE_CONTINUED, 7845),
     spec(
       "stockholdersEquity",
       "t009:r029:c001",
@@ -210,6 +212,34 @@ const CASES: Readonly<Record<string, readonly MappingSpec[]>> = {
       BABA_BALANCE_CONTINUED,
       1_118_425,
     ),
+    spec("operatingCashFlow", "t010:r005:c001", "t010:r005:c020", BABA_CASH, 76_213),
+    spec(
+      "investingCashFlow",
+      "t010:r006:c001",
+      "t010:r006:c020",
+      BABA_CASH,
+      -67_336,
+      "t010:r006:c021",
+    ),
+    spec(
+      "financingCashFlow",
+      "t010:r007:c001",
+      "t010:r007:c020",
+      BABA_CASH,
+      -20_573,
+      "t010:r007:c021",
+    ),
+    spec(
+      "foreignExchangeEffect",
+      "t010:r008:c001",
+      "t010:r008:c020",
+      BABA_CASH,
+      -4004,
+      "t010:r008:c021",
+    ),
+    spec("netCashChange", "t010:r010:c001", "t010:r010:c020", BABA_CASH, -15_700, "t010:r010:c021"),
+    spec("cashBeginning", "t010:r011:c001", "t010:r011:c020", BABA_CASH, 189_268),
+    spec("cashEnding", "t010:r013:c001", "t010:r013:c020", BABA_CASH, 173_568),
   ],
 };
 

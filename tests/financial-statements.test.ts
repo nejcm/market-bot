@@ -76,6 +76,17 @@ function annual(value: number, year: number, form = "10-K"): Record<string, unkn
   });
 }
 
+function instant(value: number, year: number, form = "10-K"): Record<string, unknown> {
+  return fact({
+    value,
+    form,
+    fiscalYear: year,
+    fiscalPeriod: "FY",
+    filedAt: `${String(year + 1)}-02-15`,
+    periodEnd: `${String(year)}-12-31`,
+  });
+}
+
 function interim(input: {
   readonly value: number;
   readonly year: number;
@@ -109,6 +120,110 @@ describe("canonical financial statements", () => {
       });
     }
     expect(canonicalizeSecForm("40-F")).toBeUndefined();
+  });
+
+  test("surfaces standard noncontrolling and temporary-equity facts", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2024)] },
+          Assets: { USD: [instant(100, 2024)] },
+          Liabilities: { USD: [instant(30, 2024)] },
+          StockholdersEquity: { USD: [instant(55, 2024)] },
+          StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest: {
+            USD: [instant(60, 2024)],
+          },
+          MinorityInterest: { USD: [instant(5, 2024)] },
+          RedeemableNoncontrollingInterestEquityCarryingAmount: {
+            USD: [instant(10, 2024)],
+          },
+        },
+      }),
+    );
+
+    expect(artifact.equityStack).toMatchObject({
+      minorityInterest: [{ value: 5, concept: "MinorityInterest" }],
+      stockholdersEquityIncludingNoncontrollingInterest: [
+        {
+          value: 60,
+          concept: "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+        },
+      ],
+      temporaryEquity: [
+        {
+          value: 10,
+          concept: "RedeemableNoncontrollingInterestEquityCarryingAmount",
+        },
+      ],
+    });
+  });
+
+  test("keeps equity-stack components compatible with the identity accession", () => {
+    const identityFact = (value: number, accessionNumber: string, filedAt: string) =>
+      fact({
+        value,
+        form: "20-F",
+        fiscalYear: 2021,
+        fiscalPeriod: "FY",
+        filedAt,
+        periodEnd: "2021-12-31",
+        accessionNumber,
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2024)] },
+          Assets: { USD: [identityFact(100, "identity-accession", "2022-04-20")] },
+          Liabilities: { USD: [identityFact(30, "identity-accession", "2022-04-20")] },
+          StockholdersEquity: {
+            USD: [identityFact(55, "identity-accession", "2022-04-20")],
+          },
+          StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest: {
+            USD: [
+              identityFact(60, "identity-accession", "2022-04-20"),
+              identityFact(52, "later-incompatible-accession", "2025-04-30"),
+            ],
+          },
+          RedeemableNoncontrollingInterestEquityCarryingAmount: {
+            USD: [identityFact(10, "identity-accession", "2022-04-20")],
+          },
+        },
+      }),
+    );
+
+    expect(
+      artifact.equityStack?.stockholdersEquityIncludingNoncontrollingInterest[0],
+    ).toMatchObject({ value: 60, accessionNumber: "identity-accession" });
+  });
+
+  test("reports equity-stack selection when identity facts share no accession", () => {
+    const identityFact = (value: number, accessionNumber: string) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: 2025,
+        fiscalPeriod: "FY",
+        filedAt: "2026-02-15",
+        periodEnd: "2025-12-31",
+        accessionNumber,
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Assets: { USD: [identityFact(100, "assets-accession")] },
+          Liabilities: { USD: [identityFact(30, "liabilities-accession")] },
+          StockholdersEquity: { USD: [identityFact(60, "equity-accession")] },
+          TemporaryEquityCarryingAmount: { USD: [identityFact(10, "equity-accession")] },
+        },
+      }),
+    );
+
+    expect(artifact.validationNotes).toContainEqual({
+      code: "mixed-accessions",
+      message:
+        "Total assets and total liabilities for 2025-12-31 do not share an SEC accession; equity-stack component selection uses standard precedence",
+      periodKey: "instant|2025-12-31",
+    });
   });
 
   test("applies cutoff before period-key restatement precedence", () => {

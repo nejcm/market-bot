@@ -326,7 +326,7 @@
             "cashPeriodEnd": "2025-12-31",
             "debt": 3750000000,
             "debtPeriodEnd": "2025-12-31",
-            "stockholdersEquity": 3000000000,
+            "stockholdersEquity": 900000000,
             "stockholdersEquityPeriodEnd": "2025-12-31",
             "assets": 1500000000,
             "assetsPeriodEnd": "2025-12-31",
@@ -344,9 +344,9 @@
             "cashConversionSelectedPeriodMonths": 12,
             "netDebtSelectedValue": 3000000000,
             "netDebtSelectedPeriodEnd": "2025-12-31",
-            "debtToEquitySelectedValue": 1.25,
+            "debtToEquitySelectedValue": 4.166666666666667,
             "debtToEquitySelectedPeriodEnd": "2025-12-31",
-            "roeSelectedValue": 0.275,
+            "roeSelectedValue": 0.9166666666666669,
             "roeSelectedPeriodEnd": "2025-12-31",
             "roeSelectedPeriodMonths": 12,
             "roaSelectedValue": 0.55,
@@ -424,7 +424,7 @@
             "operatingMargin": 0.7,
             "netMargin": 0.55,
             "cashConversion": 1.0909090909090908,
-            "roe": 0.275,
+            "roe": 0.9166666666666669,
             "roa": 0.55,
             "growthPosture": "criteria-supported",
             "revenueDeltaPercent": 25,
@@ -439,7 +439,7 @@
             "netDebt": 3000000000,
             "debtToMarketCap": 0.1875,
             "netDebtToMarketCap": 0.15,
-            "debtToEquity": 1.25,
+            "debtToEquity": 4.166666666666667,
             "valuePosture": "criteria-not-supported",
             "evDateBasis": "EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
             "enterpriseValue": 23000000000,
@@ -1981,7 +1981,7 @@
                 "cashPeriodEnd": "2025-12-31",
                 "debt": 3750000000,
                 "debtPeriodEnd": "2025-12-31",
-                "stockholdersEquity": 3000000000,
+                "stockholdersEquity": 900000000,
                 "stockholdersEquityPeriodEnd": "2025-12-31",
                 "assets": 1500000000,
                 "assetsPeriodEnd": "2025-12-31",
@@ -1999,9 +1999,9 @@
                 "cashConversionSelectedPeriodMonths": 12,
                 "netDebtSelectedValue": 3000000000,
                 "netDebtSelectedPeriodEnd": "2025-12-31",
-                "debtToEquitySelectedValue": 1.25,
+                "debtToEquitySelectedValue": 4.166666666666667,
                 "debtToEquitySelectedPeriodEnd": "2025-12-31",
-                "roeSelectedValue": 0.275,
+                "roeSelectedValue": 0.9166666666666669,
                 "roeSelectedPeriodEnd": "2025-12-31",
                 "roeSelectedPeriodMonths": 12,
                 "roaSelectedValue": 0.55,
@@ -2079,7 +2079,7 @@
                 "operatingMargin": 0.7,
                 "netMargin": 0.55,
                 "cashConversion": 1.0909090909090908,
-                "roe": 0.275,
+                "roe": 0.9166666666666669,
                 "roa": 0.55,
                 "growthPosture": "criteria-supported",
                 "revenueDeltaPercent": 25,
@@ -2094,7 +2094,7 @@
                 "netDebt": 3000000000,
                 "debtToMarketCap": 0.1875,
                 "netDebtToMarketCap": 0.15,
-                "debtToEquity": 1.25,
+                "debtToEquity": 4.166666666666667,
                 "valuePosture": "criteria-not-supported",
                 "evDateBasis": "EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
                 "enterpriseValue": 23000000000,
@@ -2797,7 +2797,7 @@
                 "statement": "balanceSheet",
                 "annual": [
                   {
-                    "value": 1500000000,
+                    "value": 400000000,
                     "periodKey": "instant|2023-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -2817,7 +2817,7 @@
                     "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
                   },
                   {
-                    "value": 1800000000,
+                    "value": 480000000,
                     "periodKey": "instant|2024-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -2837,7 +2837,7 @@
                     "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
                   },
                   {
-                    "value": 2250000000,
+                    "value": 600000000,
                     "periodKey": "instant|2025-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -2865,7 +2865,7 @@
                 "statement": "balanceSheet",
                 "annual": [
                   {
-                    "value": 2000000000,
+                    "value": 600000000,
                     "periodKey": "instant|2023-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -2885,7 +2885,7 @@
                     "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
                   },
                   {
-                    "value": 2400000000,
+                    "value": 720000000,
                     "periodKey": "instant|2024-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -2905,7 +2905,7 @@
                     "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
                   },
                   {
-                    "value": 3000000000,
+                    "value": 900000000,
                     "periodKey": "instant|2025-12-31",
                     "periodType": "annual",
                     "form": "20-F",
@@ -3821,7 +3821,7 @@
                 {
                   "key": "roe",
                   "label": "ROE",
-                  "value": 0.275,
+                  "value": 0.9166666666666669,
                   "unit": "ratio-percent",
                   "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
                   "periodEnd": "2025-12-31",
@@ -3956,7 +3956,7 @@
                 {
                   "key": "debtToEquity",
                   "label": "Debt/equity",
-                  "value": 1.25,
+                  "value": 4.166666666666667,
                   "unit": "ratio",
                   "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
                   "periodEnd": "2025-12-31"

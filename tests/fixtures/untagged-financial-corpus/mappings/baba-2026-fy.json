@@ -38,10 +38,62 @@
       "periodHeaderCellRefs": ["t009:r001:c007", "t009:r002:c007"]
     },
     {
+      "field": "mezzanineEquity",
+      "labelCellRef": "t009:r016:c001",
+      "valueCellRef": "t009:r016:c008",
+      "periodHeaderCellRefs": ["t009:r001:c007", "t009:r002:c007"]
+    },
+    {
       "field": "stockholdersEquity",
       "labelCellRef": "t009:r029:c001",
       "valueCellRef": "t009:r029:c008",
       "periodHeaderCellRefs": ["t009:r001:c007", "t009:r002:c007"]
+    },
+    {
+      "field": "operatingCashFlow",
+      "labelCellRef": "t010:r005:c001",
+      "valueCellRef": "t010:r005:c020",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
+    },
+    {
+      "field": "investingCashFlow",
+      "labelCellRef": "t010:r006:c001",
+      "valueCellRef": "t010:r006:c020",
+      "signCellRef": "t010:r006:c021",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
+    },
+    {
+      "field": "financingCashFlow",
+      "labelCellRef": "t010:r007:c001",
+      "valueCellRef": "t010:r007:c020",
+      "signCellRef": "t010:r007:c021",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
+    },
+    {
+      "field": "foreignExchangeEffect",
+      "labelCellRef": "t010:r008:c001",
+      "valueCellRef": "t010:r008:c020",
+      "signCellRef": "t010:r008:c021",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
+    },
+    {
+      "field": "netCashChange",
+      "labelCellRef": "t010:r010:c001",
+      "valueCellRef": "t010:r010:c020",
+      "signCellRef": "t010:r010:c021",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
+    },
+    {
+      "field": "cashBeginning",
+      "labelCellRef": "t010:r011:c001",
+      "valueCellRef": "t010:r011:c020",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
+    },
+    {
+      "field": "cashEnding",
+      "labelCellRef": "t010:r013:c001",
+      "valueCellRef": "t010:r013:c020",
+      "periodHeaderCellRefs": ["t010:r001:c015", "t010:r002:c019"]
     }
   ]
 }

@@ -126,7 +126,8 @@ const RAW_SERIES: readonly RawSeriesDefinition[] = [
 
 const MAX_ANNUAL_POINTS = 10;
 const MAX_CAGR_YEARS = 5;
-const DAYS_PER_YEAR = 365.2425;
+export const DAYS_PER_YEAR = 365.2425;
+export const MIN_CAGR_ANNUAL_POINTS = 3;
 const ALIGNMENT_MIN_DAYS = 350;
 const ALIGNMENT_MAX_DAYS = 380;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
@@ -395,7 +396,7 @@ export function fundamentalHistoryCagr(
     const days = daysBetween(point.periodEnd, latest.periodEnd);
     return days !== undefined && days >= 0 && days / DAYS_PER_YEAR <= MAX_CAGR_YEARS;
   });
-  if (window.length < 3) {
+  if (window.length < MIN_CAGR_ANNUAL_POINTS) {
     notes.push(
       `cagr:insufficient-points: ${String(window.length)} annual point(s) in the <=5 FY window`,
     );

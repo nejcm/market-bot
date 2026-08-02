@@ -10,8 +10,8 @@
     "toppan-spacer-grid"
   ],
   "supportedFullStatementCount": 8,
-  "acceptedFullStatementCount": 7,
-  "acceptanceRate": 0.875,
+  "acceptedFullStatementCount": 8,
+  "acceptanceRate": 1,
   "insufficientCoverageCount": 1,
   "unsupportedLayoutCount": 1,
   "silentlyWrongValueCount": 0,
@@ -93,22 +93,8 @@
       "symbol": "BABA",
       "layoutFamily": "toppan-spacer-grid",
       "evaluationClass": "supported-full-statement",
-      "outcome": "rejected",
-      "validationIssues": [
-        {
-          "code": "balance-sheet-identity-failed",
-          "message": "assets do not equal liabilities plus equity for 2026-03-31",
-          "periodEnd": "2026-03-31"
-        },
-        {
-          "code": "incomplete-balance-sheet",
-          "message": "current balance sheet is incomplete for 2026-03-31"
-        },
-        {
-          "code": "incomplete-cash-flow-statement",
-          "message": "current cash-flow statement is incomplete for 2026-03-31"
-        }
-      ],
+      "outcome": "accepted",
+      "validationIssues": [],
       "silentlyWrongValueCount": 0,
       "sourceCellMismatchCount": 0
     },

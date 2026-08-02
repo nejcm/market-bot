@@ -205,6 +205,78 @@ describe("untagged financial table mapping validation", () => {
     });
   });
 
+  test("includes mezzanine equity in the balance-sheet identity when mapped", async () => {
+    const html = SUPPORTED_HTML.replace(
+      "<tr><td>Total shareholders' equity</td><td>60</td></tr>",
+      "<tr><td>Mezzanine equity</td><td>10</td></tr><tr><td>Total shareholders' equity</td><td>50</td></tr>",
+    );
+    const packet = await buildFinancialTablePacket(html, SOURCE);
+    const base = completeMapping();
+    const result = validateFinancialTableMapping({
+      packet,
+      mapping: {
+        ...base,
+        mappings: [
+          ...base.mappings.filter((item) => item.field !== "stockholdersEquity"),
+          mapping("mezzanineEquity", 1, 5),
+          mapping("stockholdersEquity", 1, 6),
+        ],
+      },
+      filingReportDate: "2026-03-31",
+      expectedCurrency: "USD",
+    });
+
+    expect(result.status).toBe("accepted");
+    expect(result.issues).toEqual([]);
+    expect(result.values.find((value) => value.field === "mezzanineEquity")).toMatchObject({
+      value: 10_000_000,
+      statement: "balanceSheet",
+    });
+  });
+
+  test("accepts a parenthetical note on a mezzanine equity label", async () => {
+    const html = SUPPORTED_HTML.replace(
+      "<tr><td>Total shareholders' equity</td><td>60</td></tr>",
+      "<tr><td>Mezzanine equity (Note 12)</td><td>10</td></tr><tr><td>Total shareholders' equity</td><td>50</td></tr>",
+    );
+    const packet = await buildFinancialTablePacket(html, SOURCE);
+    const base = completeMapping();
+    const result = validateFinancialTableMapping({
+      packet,
+      mapping: {
+        ...base,
+        mappings: [
+          ...base.mappings.filter((item) => item.field !== "stockholdersEquity"),
+          mapping("mezzanineEquity", 1, 5),
+          mapping("stockholdersEquity", 1, 6),
+        ],
+      },
+      filingReportDate: "2026-03-31",
+      expectedCurrency: "USD",
+    });
+
+    expect(result.status).toBe("accepted");
+    expect(result.issues).toEqual([]);
+  });
+
+  test("rejects narrative mezzanine labels as semantic line items", async () => {
+    const html = SUPPORTED_HTML.replace(
+      "<tr><td>Total shareholders' equity</td><td>60</td></tr>",
+      "<tr><td>Reversal of accretion of mezzanine equity</td><td>10</td></tr><tr><td>Total shareholders' equity</td><td>50</td></tr>",
+    );
+    const packet = await buildFinancialTablePacket(html, SOURCE);
+    const result = validateFinancialTableMapping({
+      packet,
+      mapping: { version: 1, mappings: [mapping("mezzanineEquity", 1, 5)] },
+      filingReportDate: "2026-03-31",
+      expectedCurrency: "USD",
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ code: "label-mismatch", field: "mezzanineEquity" }),
+    );
+  });
+
   test("rejects authoritative numeric values in model output", () => {
     const parsed = parseFinancialTableMappingOutput(
       JSON.stringify({

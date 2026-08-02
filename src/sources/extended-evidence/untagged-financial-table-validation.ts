@@ -52,6 +52,10 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
     /\btotal equity\b/iu,
     /\bequity attributable to owners of the parent\b/iu,
   ],
+  mezzanineEquity: [
+    /^\s*mezzanine equity(?:\s*(?:\([^()\r\n]+\)|\[[^\]\r\n]+\]|[*†‡§]+|[⁰¹²³⁴⁵⁶⁷⁸⁹]+))*\s*$/iu,
+    /^\s*redeemable non-?controlling interests?(?:\s*(?:\([^()\r\n]+\)|\[[^\]\r\n]+\]|[*†‡§]+|[⁰¹²³⁴⁵⁶⁷⁸⁹]+))*\s*$/iu,
+  ],
   debt: [/\btotal debt\b/iu, /\bborrowings\b/iu],
   operatingCashFlow: [
     new RegExp(`${NET_CASH_ACTIVITY} operating activities\\b`, "iu"),
@@ -70,6 +74,7 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
     /\bcash and cash equivalents at (?:january|february|march|april|may|june|july|august|september|october|november|december)\b/iu,
   ],
   netCashChange: [
+    /\b(?:decrease|increase)\)?\s+(?:increase|decrease)\s+in cash/iu,
     /\bnet (?:\(?(?:increase|decrease)\)?\/?)+(?:increase|decrease)? in cash/iu,
     /\bnet (?:increase|decrease) \((?:increase|decrease)\) in cash/iu,
     /\bnet (?:increase|decrease|change) in cash/iu,
@@ -79,6 +84,7 @@ const FIELD_ALIASES: Readonly<Record<FinancialTableSemanticField, readonly RegEx
   ],
   investingCashFlow: [
     new RegExp(`${NET_CASH_ACTIVITY} investing activities\\b`, "iu"),
+    /\bnet cash \(used in\) provided by investing activities\b/iu,
     /\bnet cash from\/\s*\(used in\) investing activities\b/iu,
     /\bnet cash \(used in\)\/generated from investing activities\b/iu,
     /\b(?:net )?cash flows? (?:from\/?\s*\(used in\)|from|used in) investing activities\b/iu,
@@ -461,7 +467,9 @@ function issue(
   };
 }
 
-function identityTolerance(values: readonly ValidatedFinancialTableValue[]): number {
+export function identityTolerance(
+  values: readonly Pick<ValidatedFinancialTableValue, "unitScale" | "value">[],
+): number {
   const scale = Math.max(...values.map((value) => value.unitScale));
   const magnitude = Math.max(...values.map((value) => Math.abs(value.value)));
   return Math.max(scale, magnitude * 0.001);
@@ -486,10 +494,16 @@ function validateIdentities(values: readonly ValidatedFinancialTableValue[]): {
     const assets = valueFor(values, "totalAssets", periodEnd);
     const liabilities = valueFor(values, "totalLiabilities", periodEnd);
     const equity = valueFor(values, "stockholdersEquity", periodEnd);
+    const mezzanine = valueFor(values, "mezzanineEquity", periodEnd);
     if (assets !== undefined && liabilities !== undefined && equity !== undefined) {
-      const identityValues = [assets, liabilities, equity];
+      const identityValues = [
+        assets,
+        liabilities,
+        equity,
+        ...(mezzanine !== undefined ? [mezzanine] : []),
+      ];
       if (
-        Math.abs(assets.value - liabilities.value - equity.value) >
+        Math.abs(assets.value - liabilities.value - (mezzanine?.value ?? 0) - equity.value) >
         identityTolerance(identityValues)
       ) {
         values
@@ -498,7 +512,7 @@ function validateIdentities(values: readonly ValidatedFinancialTableValue[]): {
         issues.push(
           issue(
             "balance-sheet-identity-failed",
-            `assets do not equal liabilities plus equity for ${periodEnd}`,
+            `assets do not equal liabilities plus mezzanine equity plus equity for ${periodEnd}`,
             undefined,
             periodEnd,
           ),

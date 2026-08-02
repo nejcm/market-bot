@@ -86,12 +86,22 @@ export interface FinancialStatementSeries {
   readonly ttm?: FinancialStatementTtm;
 }
 
+export interface FinancialStatementEquityStack {
+  readonly totalAssets: readonly FinancialStatementFact[];
+  readonly totalLiabilities: readonly FinancialStatementFact[];
+  readonly stockholdersEquity: readonly FinancialStatementFact[];
+  readonly minorityInterest: readonly FinancialStatementFact[];
+  readonly stockholdersEquityIncludingNoncontrollingInterest: readonly FinancialStatementFact[];
+  readonly temporaryEquity: readonly FinancialStatementFact[];
+}
+
 export interface FinancialStatementNote {
   readonly code:
     | "cutoff-exclusion"
     | "duplicate-superseded"
     | "mixed-periods"
     | "mixed-currencies"
+    | "mixed-accessions"
     | "mixed-taxonomies"
     | "incomplete-metadata"
     | "history-cap"
@@ -120,6 +130,7 @@ export interface FinancialStatementsArtifact {
   readonly reportingCurrency?: string;
   readonly interimCadence: InterimCadence;
   readonly extractionMethod: FinancialStatementExtractionMethod;
+  readonly equityStack?: FinancialStatementEquityStack;
   readonly statements: {
     readonly incomeStatement: Readonly<
       Record<"revenue" | "grossProfit" | "operatingIncome" | "netIncome", FinancialStatementSeries>
@@ -261,6 +272,24 @@ function hasFinancialStatementSeriesShape(
   );
 }
 
+function hasFinancialStatementEquityStackShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.totalAssets) &&
+    value.totalAssets.every(hasFinancialStatementFactShape) &&
+    Array.isArray(value.totalLiabilities) &&
+    value.totalLiabilities.every(hasFinancialStatementFactShape) &&
+    Array.isArray(value.stockholdersEquity) &&
+    value.stockholdersEquity.every(hasFinancialStatementFactShape) &&
+    Array.isArray(value.minorityInterest) &&
+    value.minorityInterest.every(hasFinancialStatementFactShape) &&
+    Array.isArray(value.stockholdersEquityIncludingNoncontrollingInterest) &&
+    value.stockholdersEquityIncludingNoncontrollingInterest.every(hasFinancialStatementFactShape) &&
+    Array.isArray(value.temporaryEquity) &&
+    value.temporaryEquity.every(hasFinancialStatementFactShape)
+  );
+}
+
 function financialStatementSeriesRecord(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -296,6 +325,8 @@ export function readFinancialStatementsArtifact(
       value.interimCadence !== "annual-only" &&
       value.interimCadence !== "unknown") ||
     value.extractionMethod !== "sec-companyfacts" ||
+    (value.equityStack !== undefined &&
+      !hasFinancialStatementEquityStackShape(value.equityStack)) ||
     !isRecord(value.statements) ||
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||

@@ -78,7 +78,8 @@ export type FinancialTableValidationField =
 
 export type FinancialTableSemanticField =
   | FinancialStatementSeriesKey
-  | FinancialTableValidationField;
+  | FinancialTableValidationField
+  | "mezzanineEquity";
 
 export interface FinancialTableCellMapping {
   readonly field: FinancialTableSemanticField;

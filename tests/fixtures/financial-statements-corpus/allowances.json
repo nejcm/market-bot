@@ -12,16 +12,16 @@
     "path": "fundamentalHistory.dilutedEps.annual",
     "canonicalSha256": "881871cfff9cf99ce9bbd433282b91f7bd28e4b5fe3c23164297d4c26a3543cd",
     "legacySha256": "e28b84c72b9065704cf2f8ffc2345f50da7507f6f719bb3a13d4dbf0caa34b10",
-    "kind": "selection-policy",
-    "justification": "MARA canonical dilutedEps.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
+    "kind": "history-property-not-rederivable",
+    "justification": "MARA canonical dilutedEps.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "mara",
     "path": "fundamentalHistory.freeCashFlowProxy.annual",
     "canonicalSha256": "6af58a55d40abf4a58c9ba25303a0f562b94f1d197519a02424003ff50bb5220",
     "legacySha256": "da2b9c762c12fdfb1d3a371f6d619e3a47fb3a0e1ffa4884deefe2e41755e85e",
-    "kind": "selection-policy",
-    "justification": "MARA canonical freeCashFlowProxy.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
+    "kind": "history-property-not-rederivable",
+    "justification": "MARA canonical freeCashFlowProxy.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "mara",
@@ -44,16 +44,16 @@
     "path": "fundamentalHistory.grossProfit.annual",
     "canonicalSha256": "d4e5219a187372f6f16805a7350afc71d656661cd588ea120541b00acc30a138",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "kind": "selection-policy",
-    "justification": "MARA canonical grossProfit.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
+    "kind": "history-property-not-rederivable",
+    "justification": "MARA canonical grossProfit.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "mara",
     "path": "fundamentalHistory.netIncome.annual",
     "canonicalSha256": "37b3cd7abbe9da0468a2a80f943c168645f17f7070ce81c4beac6559cf36fa7c",
     "legacySha256": "669db3814463a9e5aeb5507b117df3af16c766186a3e08791a1397268d0fe8f1",
-    "kind": "selection-policy",
-    "justification": "MARA canonical netIncome.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
+    "kind": "history-property-not-rederivable",
+    "justification": "MARA canonical netIncome.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "mara",
@@ -68,16 +68,16 @@
     "path": "fundamentalHistory.operatingCashFlow.annual",
     "canonicalSha256": "c4756527f0cef2ac83cb95513dff4ca745ecfd87164535d7c5ebf20bd89bb678",
     "legacySha256": "712a0c9b9a262f7ffa352118544539352b9c461ba0d3c9c66bf2107e45284b94",
-    "kind": "selection-policy",
-    "justification": "MARA canonical operatingCashFlow.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
+    "kind": "history-property-not-rederivable",
+    "justification": "MARA canonical operatingCashFlow.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "mara",
     "path": "fundamentalHistory.operatingIncome.annual",
     "canonicalSha256": "950c89350cddf97a74a956e252c9d0100f121abcafea8cff09640d59c0fb08a5",
     "legacySha256": "bcc75681421bf9dc33a544c1326f23b5170f4db89dd1e725da3c0209adfeaf50",
-    "kind": "selection-policy",
-    "justification": "MARA canonical operatingIncome.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
+    "kind": "history-property-not-rederivable",
+    "justification": "MARA canonical operatingIncome.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "mara",
@@ -156,8 +156,8 @@
     "path": "fundamentalHistory.capex.concept",
     "canonicalSha256": "959cc8519b2701b71d53f56abbc2622e1fdcb0dc595c3e2febce8b5a25f5c160",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical capex.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical capex.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "nbis",
@@ -180,40 +180,40 @@
     "path": "fundamentalHistory.dilutedEps.concept",
     "canonicalSha256": "32663200ebb423eb84efee87e5e91fd8b7a6128ccc6ca9a8cfedd0d4378df1ce",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical dilutedEps.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical dilutedEps.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.dilutedEps.annual",
     "canonicalSha256": "ee4e9de73a9d18d7dbcd0aa3808e9b569e1d0f8e708832d039a6862d57c41768",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical dilutedEps.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical dilutedEps.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.freeCashFlowProxy.annual",
     "canonicalSha256": "1e3bcdab568c070085cea20f2bff8fad7033a6491f9a69a3960c602954fe32b4",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical freeCashFlowProxy.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical freeCashFlowProxy.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.netIncome.concept",
     "canonicalSha256": "2d95b920dc0cf8776d82d20cd04e7cb8dded69b01e041317d03b5227fadc41c3",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical netIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical netIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.netIncome.annual",
     "canonicalSha256": "b73c09b49cf6d6c06839f718e02155d2f4412956c383062a128d7551298b80e9",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical netIncome.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical netIncome.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "nbis",
@@ -236,8 +236,8 @@
     "path": "fundamentalHistory.operatingCashFlow.concept",
     "canonicalSha256": "d68049b5ed10f5982286acc8440e547636ffda65d20d864740a1e9951a8255e6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "nbis",
@@ -260,16 +260,16 @@
     "path": "fundamentalHistory.operatingIncome.concept",
     "canonicalSha256": "57e7dbc8bc6d6aef273965e06167144370b86d917d5f5376a69bd235ee28d196",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical operatingIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical operatingIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingIncome.annual",
     "canonicalSha256": "62898aa7e8229e4f9f90cfe020b5d6f03c2df21ae8c8197e7bf77a42bd895854",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical operatingIncome.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical operatingIncome.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
   },
   {
     "fixture": "nbis",
@@ -292,8 +292,8 @@
     "path": "fundamentalHistory.revenue.concept",
     "canonicalSha256": "0e6f06a23565ec36c411fa574e4531d5bab992d1eb617b5a041cb4163277e5ff",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical revenue.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "nbis canonical revenue.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "nbis",
@@ -468,8 +468,8 @@
     "path": "fundamentalHistory.dilutedEps.concept",
     "canonicalSha256": "32663200ebb423eb84efee87e5e91fd8b7a6128ccc6ca9a8cfedd0d4378df1ce",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical dilutedEps.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-quarterly canonical dilutedEps.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-quarterly",
@@ -524,8 +524,8 @@
     "path": "fundamentalHistory.grossProfit.concept",
     "canonicalSha256": "7867e2d5145de5c21c490423a52a0b1d0b8dc91bd3d716dafd91a2d5e074bc73",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical grossProfit.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-quarterly canonical grossProfit.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-quarterly",
@@ -556,8 +556,8 @@
     "path": "fundamentalHistory.netIncome.concept",
     "canonicalSha256": "2d95b920dc0cf8776d82d20cd04e7cb8dded69b01e041317d03b5227fadc41c3",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical netIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-quarterly canonical netIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-quarterly",
@@ -612,8 +612,8 @@
     "path": "fundamentalHistory.operatingCashFlow.concept",
     "canonicalSha256": "d68049b5ed10f5982286acc8440e547636ffda65d20d864740a1e9951a8255e6",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-quarterly canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-quarterly",
@@ -644,8 +644,8 @@
     "path": "fundamentalHistory.operatingIncome.concept",
     "canonicalSha256": "57e7dbc8bc6d6aef273965e06167144370b86d917d5f5376a69bd235ee28d196",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical operatingIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-quarterly canonical operatingIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-quarterly",
@@ -700,8 +700,8 @@
     "path": "fundamentalHistory.revenue.concept",
     "canonicalSha256": "0e6f06a23565ec36c411fa574e4531d5bab992d1eb617b5a041cb4163277e5ff",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-quarterly canonical revenue.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-quarterly canonical revenue.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-quarterly",
@@ -884,8 +884,8 @@
     "path": "fundamentalHistory.dilutedEps.concept",
     "canonicalSha256": "8683e7085960761de633f3f940e58909e9cad0e806728011178ad24697dc1e95",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical dilutedEps.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-ifrs-semiannual canonical dilutedEps.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-ifrs-semiannual",
@@ -924,8 +924,8 @@
     "path": "fundamentalHistory.grossProfit.concept",
     "canonicalSha256": "7867e2d5145de5c21c490423a52a0b1d0b8dc91bd3d716dafd91a2d5e074bc73",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical grossProfit.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-ifrs-semiannual canonical grossProfit.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-ifrs-semiannual",
@@ -948,8 +948,8 @@
     "path": "fundamentalHistory.netIncome.concept",
     "canonicalSha256": "004df047671ee0d11df3e1c32cf0b68f72626985de400a4609f44752cf95a4a0",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical netIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-ifrs-semiannual canonical netIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-ifrs-semiannual",
@@ -988,8 +988,8 @@
     "path": "fundamentalHistory.operatingCashFlow.concept",
     "canonicalSha256": "9247465c474a0034cf8afc0287fb76d96ce2f1743ce2d59caf9dc33662a7cd41",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-ifrs-semiannual canonical operatingCashFlow.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-ifrs-semiannual",
@@ -1012,8 +1012,8 @@
     "path": "fundamentalHistory.operatingIncome.concept",
     "canonicalSha256": "aa33de8d743848753c9e2f8c5e11dd72d4355cfe495ae3dc6cdaa7b99bf42a6e",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical operatingIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-ifrs-semiannual canonical operatingIncome.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-ifrs-semiannual",
@@ -1052,8 +1052,8 @@
     "path": "fundamentalHistory.revenue.concept",
     "canonicalSha256": "0cd1908bc7c895f21ba96828acd348edd080ffd1f60c1bb7d3aeda0e6614d89b",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "fpi-ifrs-semiannual canonical revenue.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+    "kind": "history-property-not-rederivable",
+    "justification": "fpi-ifrs-semiannual canonical revenue.concept comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive concept because the summary builders consume annual points, not the selected concept string."
   },
   {
     "fixture": "fpi-ifrs-semiannual",

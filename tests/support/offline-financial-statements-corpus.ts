@@ -31,6 +31,7 @@ import {
   type FundamentalHistorySeries,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import { summarizeSecFundamentals } from "../../src/sources/extended-evidence/sec-edgar";
+import { verifyHistoryAllowanceProperties } from "./offline-financial-history-properties";
 
 export const OFFLINE_FINANCIAL_STATEMENT_FIXTURES = [
   "aapl",
@@ -144,7 +145,8 @@ export interface OfflineCorpusAllowance {
   readonly kind:
     | "legacy-form-unsupported"
     | "canonical-exact-period-correction"
-    | "selection-policy";
+    | "selection-policy"
+    | "history-property-not-rederivable";
   readonly justification: string;
 }
 
@@ -231,7 +233,8 @@ export async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCor
         /^[a-f0-9]{64}$/u.test(item.legacySha256) &&
         (item.kind === "legacy-form-unsupported" ||
           item.kind === "canonical-exact-period-correction" ||
-          item.kind === "selection-policy") &&
+          item.kind === "selection-policy" ||
+          item.kind === "history-property-not-rederivable") &&
         typeof item.justification === "string" &&
         item.justification !== "",
     )
@@ -678,6 +681,35 @@ export function classifyOfflineCorpusDifferences(
     if (allowance === undefined) {
       throw new Error(
         `Offline comparator alarm: unclassified ${execution.input.fixture} difference ${difference.path}: ${JSON.stringify(difference)}`,
+      );
+    }
+    const historyVerification = allowance.path.startsWith("fundamentalHistory.")
+      ? verifyHistoryAllowanceProperties(execution, allowance)
+      : undefined;
+    if (
+      historyVerification !== undefined &&
+      allowance.kind === "history-property-not-rederivable" &&
+      historyVerification !== "not-rederivable"
+    ) {
+      throw new Error(
+        `Offline comparator alarm: ${execution.input.fixture} ${difference.path} is not eligible for history-property reclassification`,
+      );
+    }
+    if (
+      historyVerification !== undefined &&
+      allowance.kind !== "history-property-not-rederivable" &&
+      historyVerification !== "verified"
+    ) {
+      throw new Error(
+        `Offline comparator alarm: unclassified ${execution.input.fixture} difference ${difference.path}: fundamental-history property re-derivation ${historyVerification}`,
+      );
+    }
+    if (
+      historyVerification === undefined &&
+      allowance.kind === "history-property-not-rederivable"
+    ) {
+      throw new Error(
+        `Offline comparator alarm: ${execution.input.fixture} ${difference.path} is not a fundamental-history difference`,
       );
     }
     if (

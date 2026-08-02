@@ -10,7 +10,7 @@ export type JsonValue =
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue };
 
-const VOLATILE_KEYS = new Set([
+export const VOLATILE_KEYS: ReadonlySet<string> = new Set([
   "runId",
   "generatedAt",
   "startedAt",

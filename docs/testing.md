@@ -51,16 +51,24 @@ Each fixture contains:
 ## Refreshing golden output
 
 When an intentional deterministic output change affects the fixture artifacts, refresh the golden
-output from the existing cassettes:
+output from the existing cassettes. Check the current output first; replay mode checks by default,
+and `--check-golden` makes that intent explicit:
 
 ```sh
+bun run scripts/replay-fixture-run.ts equity-aapl-brief --check-golden
+bun run scripts/replay-fixture-run.ts equity-aapl-brief --keep # check and retain the isolated temporary replay directory
 bun run scripts/replay-fixture-run.ts equity-aapl-brief --write-golden
 bun run scripts/replay-fixture-run.ts equity-aapl-deep --write-golden
 bun test tests/equity-fixture/run.test.ts
 ```
 
 `--write-golden` uses replayed data and replayed model output. It should not require live provider
-keys or live network access.
+keys or live network access. Before overwriting, it prints an identity-matched, bucketed summary
+against the existing golden. Sign flips, numeric deltas over 25%, sensitive financial fields,
+type changes, and removed warnings or gaps are always printed in full. Prose changes are counted
+and sampled under the normal top-N limit. Markdown uses line matching so inserted or removed lines
+do not shift every successor. Positional array fallbacks are called out and must be reviewed for a
+missing stable identity rule.
 
 ## Refreshing prompt baseline hashes
 
@@ -84,8 +92,11 @@ This writes a run under `data/runs/` and costs live model usage. It requires the
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
-The replay command accepts exactly one fixture name and the optional `--live` and `--write-golden`
-flags.
+The replay command accepts exactly one fixture name and one optional mode: `--live`,
+`--keep`, `--check-golden`, or `--write-golden`. Replay mode without a mode flag checks the golden.
+Checks and writes use temporary runs. `--keep` also checks the golden, then retains the replayed run
+in its isolated temporary directory and prints its path for inspection.
+Retained `--keep` directories are not removed automatically; delete them manually when finished.
 
 ## Deep-equity presentation assertions
 
@@ -135,6 +146,9 @@ intentional shared price-path change before replaying all six goldens.
   `tests/support/run-fixtures/assertions.ts`; do not mix test-only behavior into production
   pipeline code.
 - Do not hand-edit cassettes unless you are removing an obvious secret and will re-record afterward.
-- If `golden-output.json` changes, inspect the diff for real behavior changes before committing.
+- If `golden-output.json` changes, inspect the golden-diff summary before committing. Investigate
+  every escalated finding, especially sign flips, large numeric deltas, and removed validation
+  notes, omission notes, or data gaps. Do not accept a positional fallback without checking whether
+  the array now has a stable identity.
 - CI should use regression mode only; live fixture replay and recording are manual developer
   workflows.

@@ -1,34 +1,37 @@
 import { join } from "node:path";
 import { goldenOutputPath, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
+import {
+  formatGoldenDiff,
+  formatGoldenMismatch,
+  parseGoldenReplayArgs,
+  reviewFixtureGolden,
+} from "../tests/support/run-fixtures/golden-diff";
 import { runFixture } from "../tests/support/run-fixtures";
 import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
 
-const args = process.argv.slice(2);
-const fixtureNames = args.filter((argument) => !argument.startsWith("--"));
-const flags = args.filter((argument) => argument.startsWith("--"));
-if (
-  fixtureNames.length !== 1 ||
-  flags.some((flag) => flag !== "--live" && flag !== "--write-golden")
-) {
-  throw new Error(
-    "Usage: bun run scripts/replay-fixture-run.ts <fixture-name> [--live] [--write-golden]",
-  );
-}
-
-const fixtureName = fixtureNames[0]!;
-const writeGolden = flags.includes("--write-golden");
+const { fixtureName, mode } = parseGoldenReplayArgs(process.argv.slice(2));
 const result = await runFixture(fixtureName, {
-  llm: flags.includes("--live") ? "live" : "replay",
-  keepDataDir: !writeGolden,
-  ...(writeGolden ? {} : { dataDir: join("data", "runs") }),
+  llm: mode === "live" ? "live" : "replay",
+  keepDataDir: mode === "live" || mode === "keep",
+  ...(mode === "live" ? { dataDir: join("data", "runs") } : {}),
 });
 
 try {
-  if (writeGolden) {
+  if (mode !== "live") {
+    const review = await reviewFixtureGolden(result.artifacts.runDir, fixtureName);
+    if (mode === "keep") {
+      process.stdout.write(`${result.artifacts.runDir}\n`);
+    }
+    if ((mode === "check" || mode === "keep") && !review.equal) {
+      throw new Error(formatGoldenMismatch(fixtureName, review.diff));
+    }
+    process.stdout.write(`${formatGoldenDiff(review.diff)}\n`);
+  }
+  if (mode === "write") {
     await writeGoldenOutput(result.artifacts.runDir, fixtureName);
     await assertNoSecretsInFiles([goldenOutputPath(fixtureName)], knownSecretValues(process.env));
     process.stdout.write(`${goldenOutputPath(fixtureName)}\n`);
-  } else {
+  } else if (mode === "live") {
     process.stdout.write(`${result.artifacts.runDir}\n`);
   }
 } finally {

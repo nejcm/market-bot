@@ -8,6 +8,7 @@ import {
   equitySnapshotView,
 } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
+import type { DeepEquityEvidenceBundleV1 } from "../src/deep-equity/types";
 import type {
   EquityAnalysisCompleteness,
   EquityAnalysisCompletenessDimension,
@@ -64,6 +65,10 @@ interface GoldenReport {
   readonly normalized: Readonly<Record<string, unknown>>;
 }
 
+interface GoldenRunDetail extends RunDetail {
+  readonly valuationComps?: ValuationCompsArtifact;
+}
+
 function artifact<T>(value: unknown): T | undefined {
   return value !== null && typeof value === "object" ? (value as T) : undefined;
 }
@@ -89,20 +94,27 @@ async function loadGoldenReports(): Promise<readonly GoldenReport[]> {
   );
 }
 
-function goldenRunDetail(golden: GoldenReport): RunDetail {
+function goldenRunDetail(golden: GoldenReport): GoldenRunDetail {
   const { report, normalized } = golden;
-  const marketSnapshots = artifact<readonly MarketSnapshot[]>(normalized["market-snapshots.json"]);
-  const verifiedMarketSnapshot = artifact<VerifiedMarketSnapshot>(
-    normalized["verified-market-snapshot.json"],
-  );
-  const financialLenses = artifact<FinancialLensArtifact>(normalized["financial-lenses.json"]);
-  const fundamentalHistory = artifact<FundamentalHistoryArtifact>(
-    normalized["fundamental-history.json"],
-  );
-  const valuationComps = artifact<ValuationCompsArtifact>(normalized["valuation-comps.json"]);
-  const valuationWorkbench = artifact<ValuationWorkbenchArtifact>(
-    normalized["valuation-workbench.json"],
-  );
+  const evidenceBundle = artifact<DeepEquityEvidenceBundleV1>(normalized["evidence-bundle.json"]);
+  const marketSnapshots =
+    artifact<readonly MarketSnapshot[]>(normalized["market-snapshots.json"]) ??
+    evidenceBundle?.evidence.marketSnapshots;
+  const verifiedMarketSnapshot =
+    artifact<VerifiedMarketSnapshot>(normalized["verified-market-snapshot.json"]) ??
+    evidenceBundle?.evidence.verifiedMarketSnapshot;
+  const financialLenses =
+    artifact<FinancialLensArtifact>(normalized["financial-lenses.json"]) ??
+    evidenceBundle?.derived.financialLenses;
+  const fundamentalHistory =
+    artifact<FundamentalHistoryArtifact>(normalized["fundamental-history.json"]) ??
+    evidenceBundle?.derived.fundamentalHistory;
+  const valuationComps =
+    artifact<ValuationCompsArtifact>(normalized["valuation-comps.json"]) ??
+    evidenceBundle?.derived.valuationComps;
+  const valuationWorkbench =
+    artifact<ValuationWorkbenchArtifact>(normalized["valuation-workbench.json"]) ??
+    evidenceBundle?.derived.valuationWorkbench;
   const peerImpliedRange = valuationComps?.impliedPriceRange;
   return {
     summary: {
@@ -124,6 +136,7 @@ function goldenRunDetail(golden: GoldenReport): RunDetail {
     ...(verifiedMarketSnapshot === undefined ? {} : { verifiedMarketSnapshot }),
     ...(financialLenses === undefined ? {} : { financialLenses }),
     ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
+    ...(valuationComps === undefined ? {} : { valuationComps }),
     ...(peerImpliedRange === undefined
       ? {}
       : { peerImpliedRange: peerImpliedRange as PeerImpliedRange }),
@@ -541,7 +554,44 @@ describe("provider dimension contracts", () => {
     const goldens = await loadGoldenReports();
 
     for (const golden of goldens) {
-      const snapshot = equitySnapshotView(goldenRunDetail(golden));
+      const detail = goldenRunDetail(golden);
+      const evidenceBundle = artifact<DeepEquityEvidenceBundleV1>(
+        golden.normalized["evidence-bundle.json"],
+      );
+      const sidecarValuationComps = artifact<ValuationCompsArtifact>(
+        golden.normalized["valuation-comps.json"],
+      );
+      const bundleBacked = golden.normalized["evidence-bundle.json"] !== undefined;
+      const hasValuationComps =
+        sidecarValuationComps !== undefined || evidenceBundle?.derived.valuationComps !== undefined;
+      expect(detail.marketSnapshots, `${golden.fixture}: market snapshots missing`).toBeDefined();
+      // This guards the detail input only; availableFiles still gates off the rendered Console surface.
+      expect(
+        detail.verifiedMarketSnapshot,
+        `${golden.fixture}: verified market snapshot missing`,
+      ).toBeDefined();
+      expect(detail.financialLenses, `${golden.fixture}: financial lenses missing`).toBeDefined();
+      expect(
+        detail.fundamentalHistory,
+        `${golden.fixture}: fundamental history missing`,
+      ).toBeDefined();
+      expect(
+        detail.valuationWorkbench,
+        `${golden.fixture}: valuation workbench missing`,
+      ).toBeDefined();
+      // The equity-aapl-brief fixture ships no comps artifact in any form.
+      expect(
+        bundleBacked,
+        `${golden.fixture}: bundle-backed and genuinely-present comps sets differ`,
+      ).toBe(hasValuationComps);
+      if (bundleBacked) {
+        expect(detail.valuationComps, `${golden.fixture}: valuation comps missing`).toBeDefined();
+        expect(
+          detail.peerImpliedRange,
+          `${golden.fixture}: peer implied range missing`,
+        ).toBeDefined();
+      }
+      const snapshot = equitySnapshotView(detail);
       const knownSourceIds = new Set(golden.report.sources.map((source) => source.id));
       expect(snapshot, `${golden.fixture}: snapshot missing`).toBeDefined();
 

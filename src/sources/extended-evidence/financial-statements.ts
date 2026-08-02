@@ -1,6 +1,6 @@
 import { isRecord, readNumber, readString } from "../../guards";
 import type { CollectContext } from "../types";
-import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
+import { fetchSecCompanyFactsForSymbol, type SecCompanyFactsResult } from "./sec-edgar";
 import {
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   isRevenueConceptInRecencyBucket,
@@ -781,15 +781,20 @@ export function deriveFinancialStatements(
   };
 }
 
+export interface CollectedFinancialStatements {
+  readonly statements: FinancialStatementsArtifact | undefined;
+  readonly companyFacts: SecCompanyFactsResult;
+}
+
 export async function collectFinancialStatements(
   context: CollectContext,
   symbol: string,
-): Promise<FinancialStatementsArtifact | undefined> {
+): Promise<CollectedFinancialStatements> {
   const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
   if (facts.factsPayload === undefined || facts.sourceId === undefined) {
-    return undefined;
+    return { statements: undefined, companyFacts: facts };
   }
-  return deriveFinancialStatements(facts.factsPayload, {
+  const statements = deriveFinancialStatements(facts.factsPayload, {
     symbol,
     generatedAt: context.fetchedAt,
     analysisAsOf: context.fetchedAt,
@@ -802,4 +807,5 @@ export async function collectFinancialStatements(
       ? { submissionsSourceId: facts.submissionsSourceId }
       : {}),
   });
+  return { statements, companyFacts: facts };
 }

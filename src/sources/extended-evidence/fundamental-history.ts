@@ -3,10 +3,10 @@ import type { CollectContext } from "../types";
 import { readArray } from "./utils";
 import {
   SEC_METRIC_DEFINITIONS,
-  fetchSecCompanyFactsForSymbol,
   isFactObservableAsOf,
   periodMonths,
   readSecFactValue,
+  type SecCompanyFactsResult,
   type SecFactValue,
   type SecMetricDefinition,
 } from "./sec-edgar";
@@ -688,11 +688,11 @@ export function buildFundamentalHistorySeries(
   };
 }
 
-export async function collectFundamentalHistory(
+export function fundamentalHistoryFromCompanyFacts(
   context: CollectContext,
   symbol: string,
-): Promise<FundamentalHistoryArtifact | undefined> {
-  const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
+  facts: SecCompanyFactsResult,
+): FundamentalHistoryArtifact | undefined {
   if (facts.factsPayload === undefined || facts.sourceId === undefined) {
     return undefined;
   }

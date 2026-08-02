@@ -43,11 +43,12 @@ import {
   type CapitalOwnershipArtifact,
 } from "./extended-evidence/capital-ownership";
 import {
-  collectFundamentalHistory,
   deriveFundamentalHistory,
+  fundamentalHistoryFromCompanyFacts,
   type FundamentalHistoryArtifact,
 } from "./extended-evidence/fundamental-history";
 import { deriveFundamentalHistoryFromFinancialStatements } from "./extended-evidence/fundamental-history-canonical";
+import type { SecCompanyFactsResult } from "./extended-evidence/sec-edgar";
 import {
   collectFinancialStatements,
   deriveFinancialStatements,
@@ -795,6 +796,7 @@ async function collectEquityEnrichment(
   }
   const secFacts = input.secTargetPacket?.companyFacts;
   let financialStatements: FinancialStatementsArtifact | undefined = undefined;
+  let fallbackCompanyFacts: SecCompanyFactsResult | undefined = undefined;
   if (collectStructuredSec && secFacts !== undefined) {
     financialStatements = deriveFinancialStatements(secFacts.payload, {
       symbol: input.command.symbol,
@@ -810,10 +812,9 @@ async function collectEquityEnrichment(
         : {}),
     });
   } else if (collectStructuredSec) {
-    financialStatements = await collectFinancialStatements(
-      input.identityContext,
-      input.command.symbol,
-    );
+    const collected = await collectFinancialStatements(input.identityContext, input.command.symbol);
+    financialStatements = collected.statements;
+    fallbackCompanyFacts = collected.companyFacts;
   }
   let legacyFundamentalHistory: FundamentalHistoryArtifact | undefined = undefined;
   if (collectStructuredSec && financialStatements === undefined && secFacts !== undefined) {
@@ -824,10 +825,15 @@ async function collectEquityEnrichment(
       sourceId: secFacts.sourceId,
       ...(secFacts.sourceUrl !== undefined ? { sourceUrl: secFacts.sourceUrl } : {}),
     });
-  } else if (collectStructuredSec && financialStatements === undefined) {
-    legacyFundamentalHistory = await collectFundamentalHistory(
+  } else if (
+    collectStructuredSec &&
+    financialStatements === undefined &&
+    fallbackCompanyFacts !== undefined
+  ) {
+    legacyFundamentalHistory = fundamentalHistoryFromCompanyFacts(
       input.identityContext,
       input.command.symbol,
+      fallbackCompanyFacts,
     );
   }
   let subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined = undefined;

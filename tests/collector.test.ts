@@ -365,6 +365,106 @@ describe("collectSources", () => {
     });
   });
 
+  test("skips legacy fundamental history in the no-packet canonical path", async () => {
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const legacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "fundamentalHistoryFromCompanyFacts",
+    );
+    const recordedRequests: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      recordedRequests.push(url);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+        cacheDir: tempCacheDir(),
+      },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.secTargetPacket).toBeUndefined();
+    expect(result.financialStatements).toBeDefined();
+    expect(result.fundamentalHistory).toBeDefined();
+    expect(legacyFundamentalHistory).not.toHaveBeenCalled();
+    expect(
+      recordedRequests.filter((url) => url.includes("/companyfacts/CIK0000000001.json")),
+    ).toHaveLength(1);
+  });
+
+  test("derives the no-packet legacy fallback from a single company facts fetch", async () => {
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const legacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "fundamentalHistoryFromCompanyFacts",
+    );
+    const recordedRequests: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      recordedRequests.push(url);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({});
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+      },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.financialStatements).toBeUndefined();
+    expect(result.fundamentalHistory).toBeUndefined();
+    expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
+    expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(2);
+  });
+
   test("keeps valuation comps evidence in fallback financial lens consumption", async () => {
     const financialStatementsModule =
       await import("../src/sources/extended-evidence/financial-statements");

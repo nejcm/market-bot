@@ -177,4 +177,76 @@ describe("offline financial-statement corpus", () => {
       /Offline comparator alarm: unclassified msft difference financialLens\.Quality\.metrics\.roe/u,
     );
   });
+
+  test("rejects the original truncated-history defect on an allowance-backed path", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const maraExecution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("mara"),
+    );
+    const msftExecution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("msft"),
+    );
+    const { grossMargin: maraGrossMargin } = maraExecution.projection.canonical.fundamentalHistory;
+    const { grossMargin: msftGrossMargin } = msftExecution.projection.canonical.fundamentalHistory;
+    const originalMarginChange = msftGrossMargin?.marginChange;
+    const annual = msftGrossMargin?.annual.slice(Math.floor(msftGrossMargin.annual.length / 2));
+    const first = annual?.at(0);
+    const last = annual?.at(-1);
+    if (
+      maraGrossMargin === undefined ||
+      msftGrossMargin === undefined ||
+      originalMarginChange === null ||
+      originalMarginChange === undefined ||
+      annual === undefined ||
+      first === undefined ||
+      last === undefined
+    ) {
+      throw new Error("MSFT golden is missing gross-margin history");
+    }
+    expect(allowances).toContainEqual(
+      expect.objectContaining({
+        fixture: "mara",
+        path: "fundamentalHistory.grossMargin.annual",
+      }),
+    );
+    expect(allowances).toContainEqual(
+      expect.objectContaining({
+        fixture: "mara",
+        path: "fundamentalHistory.grossMargin.marginChange",
+      }),
+    );
+    expect(() => classifyOfflineCorpusDifferences(maraExecution, allowances)).not.toThrow();
+
+    const injectedMarginChange = {
+      percentagePoints: (last.value - first.value) * 100,
+      years:
+        (Date.parse(last.periodEnd) - Date.parse(first.periodEnd)) /
+        (365.2425 * 24 * 60 * 60 * 1000),
+      periodStart: first.periodEnd,
+      periodEnd: last.periodEnd,
+    };
+    const injectedProjection = {
+      ...maraExecution.projection,
+      canonical: {
+        ...maraExecution.projection.canonical,
+        fundamentalHistory: {
+          ...maraExecution.projection.canonical.fundamentalHistory,
+          grossMargin: {
+            ...maraGrossMargin,
+            annual,
+            marginChange: injectedMarginChange,
+          },
+        },
+      },
+    };
+    const injected = recompareOfflineCorpusProjection(maraExecution, injectedProjection);
+
+    expect(originalMarginChange.percentagePoints).toBeCloseTo(3.42, 2);
+    expect(originalMarginChange.years).toBeCloseTo(9, 2);
+    expect(injectedMarginChange.percentagePoints).toBeCloseTo(-0.46, 2);
+    expect(injectedMarginChange.years).toBeCloseTo(4, 2);
+    expect(() => classifyOfflineCorpusDifferences(injected, allowances)).toThrow(
+      /Offline comparator alarm: unclassified mara difference/u,
+    );
+  });
 });

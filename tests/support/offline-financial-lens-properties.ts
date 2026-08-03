@@ -49,6 +49,7 @@ type LensPosture =
 type ProjectedConsumers = OfflineCorpusExecution["projection"]["canonical"];
 type ProjectedLensMetrics = ProjectedConsumers["financialLens"][string]["metrics"];
 
+// Series selection (concept, unit, form, accession dedupe and period) reuses production's derived artifact; sourceContainsFact proves the fact exists in raw companyFacts, not that it is the correct fact.
 function sourceContainsFact(input: OfflineFinancialStatementInput, fact: FinancialStatementFact) {
   if (!isRecord(input.companyFacts) || !isRecord(input.companyFacts.facts)) {
     return false;
@@ -331,6 +332,7 @@ function verifyLensPosture(
   projection: ProjectedConsumers,
   lensName: LensName,
   posture: string,
+  canonicalInputCategories: readonly string[],
 ): boolean {
   const metrics = projection.financialLens[lensName]?.metrics;
   if (metrics === undefined) {
@@ -366,6 +368,11 @@ function verifyLensPosture(
       )
     );
   }
+  if (canonicalInputCategories.includes("valuation")) {
+    throw new Error(
+      "Offline financial-lens posture assertion: Financial Strength unexpectedly received valuation input",
+    );
+  }
   const forbidden = ["netDebtToMarketCap", "debtToMarketCap", "payoutRatio"].filter((key) =>
     Object.hasOwn(metrics, key),
   );
@@ -393,6 +400,10 @@ function isLensMetricKey(value: string | undefined): value is LensMetricKey {
   return value !== undefined && Object.hasOwn(LENS_METRIC_RELATIONS, value);
 }
 
+function unreachableLensMetricRelation(relation: never): never {
+  throw new Error(`Unknown financial-lens metric relation: ${String(relation)}`);
+}
+
 export function verifyLensAllowanceProperties(
   execution: OfflineCorpusExecution,
   allowance: OfflineCorpusAllowance,
@@ -407,18 +418,30 @@ export function verifyLensAllowanceProperties(
   }
   if (member === "posture" && metricKey === undefined) {
     return typeof difference.canonical === "string"
-      ? verifyLensPosture(execution.projection.canonical, lensName, difference.canonical)
+      ? verifyLensPosture(
+          execution.projection.canonical,
+          lensName,
+          difference.canonical,
+          execution.canonicalFinancialLensInputCategories,
+        )
       : false;
   }
   if (member !== "metrics" || !isLensMetricKey(metricKey)) {
     return false;
   }
   const relation = LENS_METRIC_RELATIONS[metricKey];
-  if (relation === "direct-leaf") {
-    return verifyDirectLeafMetric(execution, metricKey, difference);
+  switch (relation) {
+    case "direct-leaf": {
+      return verifyDirectLeafMetric(execution, metricKey, difference);
+    }
+    case "instant-pair": {
+      return verifyInstantPairMetric(execution, metricKey, difference);
+    }
+    case "exact-period": {
+      return verifyExactPeriodMetric(execution, allowance, difference);
+    }
+    default: {
+      return unreachableLensMetricRelation(relation);
+    }
   }
-  if (relation === "instant-pair") {
-    return verifyInstantPairMetric(execution, metricKey, difference);
-  }
-  return verifyExactPeriodMetric(execution, allowance, difference);
 }

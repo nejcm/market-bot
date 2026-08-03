@@ -1418,6 +1418,38 @@ describe("offline financial-statement corpus", () => {
     }
   });
 
+  test("fails loudly when Financial Strength receives valuation net-debt input", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const metricInjected = injectCanonicalLensMetricValue(
+      execution,
+      "Financial Strength",
+      "netDebt",
+      -1,
+    );
+    const injected = injectCanonicalLensPosture(
+      metricInjected,
+      "Financial Strength",
+      "criteria-supported",
+    );
+    const valuationCoupled = {
+      ...injected,
+      canonicalFinancialLensInputCategories: ["sec-edgar", "valuation"],
+    };
+    const path = "financialLens.Financial Strength.posture";
+    const allowance = allowances.find((item) => item.fixture === "nbis" && item.path === path);
+    const difference = injected.differences.find((item) => item.path === path);
+    if (allowance === undefined || difference === undefined) {
+      throw new Error("NBIS Financial Strength posture allowance is missing");
+    }
+
+    expect(() => verifyLensAllowanceProperties(valuationCoupled, allowance, difference)).toThrow(
+      /Financial Strength unexpectedly received valuation input/u,
+    );
+  });
+
   test("property-verifies all 64 financial-lens allowances and fails closed", async () => {
     const allowances = await loadOfflineCorpusAllowances();
     const lensAllowances = allowances.filter((allowance) =>

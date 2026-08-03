@@ -147,6 +147,7 @@ export interface OfflineCorpusAllowance {
 export interface OfflineCorpusExecution {
   readonly input: OfflineFinancialStatementInput;
   readonly artifact: FinancialStatementsArtifact;
+  readonly canonicalFinancialLensInputCategories: readonly string[];
   readonly projection: OfflineCorpusProjection;
   readonly differences: readonly OfflineCorpusDifference[];
 }
@@ -438,6 +439,7 @@ export function runOfflineFinancialStatementCorpus(
     submissionsSourceId: `offline-sec-submissions-${input.fixture}`,
   });
   const legacy = legacyEvidence(input);
+  const canonicalFinancialLensEvidence = withCanonicalFinancialLensInputs(legacy, artifact);
   const canonicalHistory = deriveFundamentalHistoryFromFinancialStatements(artifact);
   const legacyHistory = deriveFundamentalHistory(input.companyFacts, {
     symbol: input.symbol,
@@ -447,9 +449,7 @@ export function runOfflineFinancialStatementCorpus(
   });
   const canonicalConsumers: ProjectedConsumers = {
     fundamentalHistory: projectHistory(canonicalHistory),
-    financialLens: projectLenses(
-      deriveLens(input, withCanonicalFinancialLensInputs(legacy, artifact)),
-    ),
+    financialLens: projectLenses(deriveLens(input, canonicalFinancialLensEvidence)),
   };
   const legacyConsumers: ProjectedConsumers = {
     fundamentalHistory: projectHistory(legacyHistory),
@@ -469,6 +469,9 @@ export function runOfflineFinancialStatementCorpus(
   return {
     input,
     artifact,
+    canonicalFinancialLensInputCategories: canonicalFinancialLensEvidence.items.map(
+      (item) => item.category,
+    ),
     projection,
     differences: compareConsumers(canonicalConsumers, legacyConsumers),
   };

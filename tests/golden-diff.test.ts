@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readdir } from "node:fs/promises";
 import {
   diffGolden,
   formatGoldenDiff,
@@ -11,17 +12,6 @@ import {
 } from "./support/run-fixtures/golden-diff";
 import { readGoldenOutput, type JsonValue } from "./support/run-fixtures/artifacts";
 import { runFixture } from "./support/run-fixtures";
-
-const GOLDEN_FIXTURES = [
-  "equity-aapl-brief",
-  "equity-aapl-deep",
-  "equity-nbis-deep",
-  "equity-fpi-quarterly",
-  "equity-fpi-ifrs-semiannual",
-  "equity-analysis-comprehensive",
-  "equity-analysis-estimated-suppressed",
-  "equity-web-fallback-deep",
-] as const;
 
 function statementFact(year: number, value: number): JsonValue {
   return {
@@ -299,11 +289,41 @@ describe("golden diff negative controls", () => {
       'artifact.validationNotes (positional matching used within a repeated identity: validation notes rule matched, but identity "incomplete-statement|annual|2016-01-01|2016-12-31|" occurs 1 time before / 2 times after; occurrence order decides the match - strengthen this identity rule with a stable discriminator, or verify ambiguous ordering is intentional)',
     ]);
   });
+
+  test("reports a repeated identity present only before the change", () => {
+    const periodKey = "annual|2016-01-01|2016-12-31";
+    const retained = {
+      code: "incomplete-statement",
+      periodKey,
+      message: "incomeStatement is incomplete",
+    };
+    const removed = {
+      code: "incomplete-statement",
+      periodKey,
+      message: "cashFlowStatement is incomplete",
+    };
+    const diff = diffGolden(
+      validationNotesGolden([retained, removed]),
+      validationNotesGolden([retained]),
+    );
+
+    expect(diff.summary).toEqual({ changed: 0, added: 0, removed: 1 });
+    expect(diff.positionalFallbacks).toEqual([
+      'artifact.validationNotes (positional matching used within a repeated identity: validation notes rule matched, but identity "incomplete-statement|annual|2016-01-01|2016-12-31|" occurs 2 times before / 1 time after; occurrence order decides the match - strengthen this identity rule with a stable discriminator, or verify ambiguous ordering is intentional)',
+    ]);
+  });
 });
 
 test("pins duplicate-bearing identities across every golden", async () => {
+  const fixtureEntries = await readdir(new URL("fixtures/runs/", import.meta.url), {
+    withFileTypes: true,
+  });
+  const goldenFixtures = fixtureEntries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .toSorted();
   const census = await Promise.all(
-    GOLDEN_FIXTURES.map(async (fixtureName) =>
+    goldenFixtures.map(async (fixtureName) =>
       identityCensus(fixtureName, await readGoldenOutput(fixtureName)),
     ),
   );

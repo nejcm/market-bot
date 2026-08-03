@@ -29,6 +29,7 @@ import {
   buildSyntheticAliasPayloads,
   type SyntheticAliasVariant,
 } from "./support/synthetic-alias-companyfacts";
+import { verifyLensAllowanceProperties } from "./support/offline-financial-lens-properties";
 
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365.2425;
@@ -124,6 +125,70 @@ function regenerateCanonicalAllowanceHashes(
     }
     return { ...allowance, canonicalSha256: exactValueHash(changed.canonical) };
   });
+}
+
+function injectCanonicalLensMetricValue(
+  execution: OfflineCorpusExecution,
+  lensName: string,
+  metricKey: string,
+  value: number,
+): OfflineCorpusExecution {
+  const lens = execution.projection.canonical.financialLens[lensName];
+  const metric = lens?.metrics[metricKey];
+  if (lens === undefined || metric === undefined) {
+    throw new Error(`${execution.input.fixture} is missing ${lensName}.${metricKey}`);
+  }
+  return recompareOfflineCorpusProjection(execution, {
+    ...execution.projection,
+    canonical: {
+      ...execution.projection.canonical,
+      financialLens: {
+        ...execution.projection.canonical.financialLens,
+        [lensName]: {
+          ...lens,
+          metrics: { ...lens.metrics, [metricKey]: { ...metric, value } },
+        },
+      },
+    },
+  });
+}
+
+function injectCanonicalLensPosture(
+  execution: OfflineCorpusExecution,
+  lensName: string,
+  posture: string,
+): OfflineCorpusExecution {
+  const lens = execution.projection.canonical.financialLens[lensName];
+  if (lens === undefined) {
+    throw new Error(`${execution.input.fixture} is missing ${lensName}`);
+  }
+  return recompareOfflineCorpusProjection(execution, {
+    ...execution.projection,
+    canonical: {
+      ...execution.projection.canonical,
+      financialLens: {
+        ...execution.projection.canonical.financialLens,
+        [lensName]: { ...lens, posture },
+      },
+    },
+  });
+}
+
+function expectPreChangeLensClassifierAcceptance(
+  execution: OfflineCorpusExecution,
+  allowances: readonly OfflineCorpusAllowance[],
+  path: string,
+): void {
+  const difference = execution.differences.find((item) => item.path === path);
+  const allowance = allowances.find(
+    (item) => item.fixture === execution.input.fixture && item.path === path,
+  );
+  if (difference === undefined || allowance === undefined) {
+    throw new Error(`Missing regenerated allowance-backed difference: ${path}`);
+  }
+  expect(allowance.kind).toBe("legacy-form-unsupported");
+  expect(allowance.canonicalSha256).toBe(exactValueHash(difference.canonical));
+  expect(allowance.legacySha256).toBe(exactValueHash(difference.legacy));
 }
 
 describe("offline financial-statement corpus", () => {
@@ -1156,6 +1221,312 @@ describe("offline financial-statement corpus", () => {
     expect(() => classifyOfflineCorpusDifferences(fpiExecution, invalidFpiAllowances)).toThrow(
       /fpi-quarterly fundamentalHistory\.revenue\.ttm is not eligible for history-property reclassification/u,
     );
+  });
+
+  test("rejects a corrupted exact-period lens metric after its hash is regenerated", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const path = "financialLens.Quality.metrics.roa";
+    const injected = injectCanonicalLensMetricValue(execution, "Quality", "roa", 999.5);
+    const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [path]);
+
+    expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
+    expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
+      /nbis financialLens\.Quality\.metrics\.roa is not reproduced by financial-lens properties/u,
+    );
+  });
+
+  test("rejects a corrupted instant-pair lens metric after its hash is regenerated", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const path = "financialLens.Financial Strength.metrics.netDebt";
+    const metricInjected = injectCanonicalLensMetricValue(
+      execution,
+      "Financial Strength",
+      "netDebt",
+      -1,
+    );
+    const posturePath = "financialLens.Financial Strength.posture";
+    const injected = injectCanonicalLensPosture(
+      metricInjected,
+      "Financial Strength",
+      "criteria-supported",
+    );
+    const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [
+      path,
+      posturePath,
+    ]);
+
+    expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
+    expectPreChangeLensClassifierAcceptance(injected, regenerated, posturePath);
+    expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
+      /nbis financialLens\.Financial Strength\.metrics\.netDebt is not reproduced by financial-lens properties/u,
+    );
+  });
+
+  test("rejects a corrupted lens posture after its hash is regenerated", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const path = "financialLens.Growth.posture";
+    const injected = injectCanonicalLensPosture(execution, "Growth", "criteria-supported");
+    const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [path]);
+
+    expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
+    expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
+      /nbis financialLens\.Growth\.posture is not reproduced by financial-lens properties/u,
+    );
+  });
+
+  for (const [metricKey, value] of [
+    ["cash", 1],
+    ["debt", 2],
+    ["debtToEquity", 3],
+  ] as const) {
+    test(`rejects corrupted ${metricKey} after its hash is regenerated`, async () => {
+      const allowances = await loadOfflineCorpusAllowances();
+      const execution = runOfflineFinancialStatementCorpus(
+        await loadOfflineFinancialStatementInput("fpi-quarterly"),
+      );
+      const path = `financialLens.Financial Strength.metrics.${metricKey}`;
+      const injected = injectCanonicalLensMetricValue(
+        execution,
+        "Financial Strength",
+        metricKey,
+        value,
+      );
+      const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [path]);
+
+      expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
+      expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
+        new RegExp(
+          `fpi-quarterly financialLens\\.Financial Strength\\.metrics\\.${metricKey} is not reproduced by financial-lens properties`,
+          "u",
+        ),
+      );
+    });
+  }
+
+  test("pins the complete canonical financial-lens metric-key inventory", async () => {
+    const keys = new Set<string>();
+    for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
+      const execution = runOfflineFinancialStatementCorpus(
+        await loadOfflineFinancialStatementInput(fixture),
+      );
+      for (const lens of Object.values(execution.projection.canonical.financialLens)) {
+        for (const key of Object.keys(lens.metrics)) {
+          keys.add(key);
+        }
+      }
+    }
+
+    expect([...keys].toSorted()).toEqual([
+      "cash",
+      "cashConversion",
+      "currentRatio",
+      "debt",
+      "debtToEquity",
+      "dilutedEpsDeltaPercent",
+      "freeCashFlowProxy",
+      "grossMargin",
+      "grossProfitDeltaPercent",
+      "netDebt",
+      "netIncomeDeltaPercent",
+      "netMargin",
+      "operatingCashFlowDeltaPercent",
+      "operatingIncomeDeltaPercent",
+      "operatingMargin",
+      "revenueDeltaPercent",
+      "roa",
+      "roe",
+    ]);
+  });
+
+  test("pins every allowance-backed canonical lens posture", async () => {
+    const postures: string[] = [];
+    for (const fixture of ["nbis", "fpi-quarterly", "fpi-ifrs-semiannual"] as const) {
+      const execution = runOfflineFinancialStatementCorpus(
+        await loadOfflineFinancialStatementInput(fixture),
+      );
+      for (const lensName of ["Quality", "Growth", "Financial Strength"] as const) {
+        postures.push(
+          `${fixture}:${lensName}:${execution.projection.canonical.financialLens[lensName]?.posture}`,
+        );
+      }
+    }
+
+    expect(postures.toSorted()).toEqual([
+      "fpi-ifrs-semiannual:Financial Strength:criteria-not-supported",
+      "fpi-ifrs-semiannual:Growth:criteria-supported",
+      "fpi-ifrs-semiannual:Quality:criteria-supported",
+      "fpi-quarterly:Financial Strength:criteria-not-supported",
+      "fpi-quarterly:Growth:criteria-supported",
+      "fpi-quarterly:Quality:criteria-supported",
+      "nbis:Financial Strength:criteria-mixed",
+      "nbis:Growth:criteria-mixed",
+      "nbis:Quality:criteria-mixed",
+    ]);
+  });
+
+  test("fails loudly when a projected Financial Strength valuation criterion appears", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const strength = execution.projection.canonical.financialLens["Financial Strength"];
+    if (strength === undefined) {
+      throw new Error("NBIS golden is missing Financial Strength");
+    }
+    for (const criterion of ["netDebtToMarketCap", "debtToMarketCap", "payoutRatio"] as const) {
+      const injected = recompareOfflineCorpusProjection(execution, {
+        ...execution.projection,
+        canonical: {
+          ...execution.projection.canonical,
+          financialLens: {
+            ...execution.projection.canonical.financialLens,
+            "Financial Strength": {
+              ...strength,
+              metrics: {
+                ...strength.metrics,
+                [criterion]: {
+                  key: criterion,
+                  label: criterion,
+                  value: 0.1,
+                  unit: "ratio",
+                  sourceIds: [],
+                },
+              },
+            },
+          },
+        },
+      });
+      const path = "financialLens.Financial Strength.posture";
+      const allowance = allowances.find((item) => item.fixture === "nbis" && item.path === path);
+      const difference = injected.differences.find((item) => item.path === path);
+      if (allowance === undefined || difference === undefined) {
+        throw new Error("NBIS Financial Strength posture allowance is missing");
+      }
+
+      expect(() => verifyLensAllowanceProperties(injected, allowance, difference)).toThrow(
+        new RegExp(`Financial Strength projected metrics unexpectedly contain ${criterion}`, "u"),
+      );
+    }
+  });
+
+  test("property-verifies all 64 financial-lens allowances and fails closed", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const lensAllowances = allowances.filter((allowance) =>
+      allowance.path.startsWith("financialLens."),
+    );
+    const executions = new Map(
+      await Promise.all(
+        OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
+          async (fixture) =>
+            [
+              fixture,
+              runOfflineFinancialStatementCorpus(await loadOfflineFinancialStatementInput(fixture)),
+            ] as const,
+        ),
+      ),
+    );
+    const failed = lensAllowances.flatMap((allowance) => {
+      const execution = executions.get(allowance.fixture);
+      const difference = execution?.differences.find((item) => item.path === allowance.path);
+      return execution === undefined ||
+        difference === undefined ||
+        !verifyLensAllowanceProperties(execution, allowance, difference)
+        ? [`${allowance.fixture}:${allowance.path}`]
+        : [];
+    });
+    const nbisExecution = executions.get("nbis");
+    const sampleAllowance = lensAllowances.find((allowance) => allowance.fixture === "nbis");
+    if (nbisExecution === undefined || sampleAllowance === undefined) {
+      throw new Error("NBIS financial-lens allowance is missing");
+    }
+
+    expect(lensAllowances).toHaveLength(64);
+    expect(failed).toEqual([]);
+    expect(
+      verifyLensAllowanceProperties(
+        nbisExecution,
+        { ...sampleAllowance, path: "financialLens.Quality.metrics.unknownMetric" },
+        {
+          path: "financialLens.Quality.metrics.unknownMetric",
+          canonical: { value: 1, periodEnd: "2025-12-31" },
+          legacy: null,
+        },
+      ),
+    ).toBeFalse();
+    expect(
+      verifyLensAllowanceProperties(
+        nbisExecution,
+        { ...sampleAllowance, path: "financialLens.Unknown.posture" },
+        { path: "financialLens.Unknown.posture", canonical: "criteria-supported", legacy: null },
+      ),
+    ).toBeFalse();
+  });
+
+  test("keeps coincidentally equal FPI net debt and equity relations independently discriminating", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("fpi-quarterly"),
+    );
+    const metrics = execution.projection.canonical.financialLens["Financial Strength"]?.metrics;
+    const netDebt = metrics?.netDebt;
+    const debtToEquity = metrics?.debtToEquity;
+    const debt = metrics?.debt;
+    if (
+      netDebt === undefined ||
+      debtToEquity === undefined ||
+      debt === undefined ||
+      typeof netDebt.value !== "number" ||
+      typeof debtToEquity.value !== "number" ||
+      typeof debt.value !== "number"
+    ) {
+      throw new Error("FPI quarterly golden is missing balance metrics");
+    }
+    const impliedEquity = debt.value / debtToEquity.value;
+    const netDebtPath = "financialLens.Financial Strength.metrics.netDebt";
+    const ratioPath = "financialLens.Financial Strength.metrics.debtToEquity";
+    const netDebtInjected = injectCanonicalLensMetricValue(
+      execution,
+      "Financial Strength",
+      "netDebt",
+      debtToEquity.value,
+    );
+    const ratioInjected = injectCanonicalLensMetricValue(
+      execution,
+      "Financial Strength",
+      "debtToEquity",
+      netDebt.value,
+    );
+
+    expect(netDebt.value).toBe(3_120_000_000);
+    expect(impliedEquity).toBe(3_120_000_000);
+    expect(
+      netDebtInjected.projection.canonical.financialLens["Financial Strength"]?.metrics
+        .debtToEquity,
+    ).toEqual(debtToEquity);
+    expect(
+      ratioInjected.projection.canonical.financialLens["Financial Strength"]?.metrics.netDebt,
+    ).toEqual(netDebt);
+    expect(() =>
+      classifyOfflineCorpusDifferences(
+        netDebtInjected,
+        regenerateCanonicalAllowanceHashes(allowances, netDebtInjected, [netDebtPath]),
+      ),
+    ).toThrow(/financialLens\.Financial Strength\.metrics\.netDebt/u);
+    expect(() =>
+      classifyOfflineCorpusDifferences(
+        ratioInjected,
+        regenerateCanonicalAllowanceHashes(allowances, ratioInjected, [ratioPath]),
+      ),
+    ).toThrow(/financialLens\.Financial Strength\.metrics\.debtToEquity/u);
   });
 
   test("rejects dumping an unsupported concept shape into the reclassification bucket", async () => {

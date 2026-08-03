@@ -94,3 +94,6 @@ golden, the golden diff and the independently computed invariants must both be r
   balance-sheet identity, and normalized citation closure.
 - The fixture suite records no invariant exceptions; any intentional golden regeneration remains a
   separately reviewed invariance change.
+- The offline corpus ledger is not a live-run invariant and does not violate the live-invariant
+  allowance-ledger prohibition; all 64 financial-lens entries are now property-backed rather than
+  hash-only, moving the ledger closer to the same standard.

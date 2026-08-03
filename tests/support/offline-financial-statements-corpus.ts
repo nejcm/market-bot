@@ -25,7 +25,7 @@ import {
 } from "../../src/sources/extended-evidence/fundamental-history";
 import { summarizeSecFundamentals } from "../../src/sources/extended-evidence/sec-edgar";
 import { verifyHistoryAllowanceProperties } from "./offline-financial-history-properties";
-import { verifyExactPeriodMetric } from "./offline-financial-lens-properties";
+import { verifyLensAllowanceProperties } from "./offline-financial-lens-properties";
 
 export const OFFLINE_FINANCIAL_STATEMENT_FIXTURES = [
   "aapl",
@@ -550,11 +550,11 @@ export function classifyOfflineCorpusDifferences(
       );
     }
     if (
-      allowance.kind === "canonical-exact-period-correction" &&
-      !verifyExactPeriodMetric(execution, allowance, difference)
+      allowance.path.startsWith("financialLens.") &&
+      !verifyLensAllowanceProperties(execution, allowance, difference)
     ) {
       throw new Error(
-        `Offline comparator alarm: ${execution.input.fixture} ${difference.path} is not reproduced by compatible exact-period source facts`,
+        `Offline comparator alarm: ${execution.input.fixture} ${difference.path} is not reproduced by financial-lens properties`,
       );
     }
     return allowance;

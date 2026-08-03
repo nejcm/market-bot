@@ -10,7 +10,8 @@ export type GoldenDiffBucket =
 
 export type GoldenChangeKind = "changed" | "added" | "removed";
 
-type GoldenArrayIdentityStrategy =
+export type GoldenArrayIdentityStrategy =
+  | "code"
   | "code-period"
   | "id"
   | "key-name"
@@ -59,6 +60,11 @@ export const GOLDEN_ARRAY_IDENTITIES: readonly GoldenArrayIdentityRule[] = [
     label: "run stages",
     path: /^analytics\.runShape\.stages$/u,
     strategy: "stage",
+  },
+  {
+    label: "structured financial gaps",
+    path: /\.structuredFinancialGaps$/u,
+    strategy: "code",
   },
   {
     label: "validation notes",
@@ -156,6 +162,9 @@ function identityFor(strategy: GoldenArrayIdentityStrategy, value: JsonValue): s
   }
   if (strategy === "stage") {
     return stringField(value, "stage");
+  }
+  if (strategy === "code") {
+    return stringField(value, "code");
   }
   if (strategy === "code-period") {
     const code = stringField(value, "code");
@@ -420,8 +429,8 @@ function diffArray(
   }
   state.positionalFallbacks.add(
     rule === undefined
-      ? `${path} (no stable identity rule)`
-      : `${path} (${rule.label} identity missing)`,
+      ? `${path} (positional matching used: no identity rule matched this array path)`
+      : `${path} (positional matching used: ${rule.label} rule matched, but at least one item lacked its identity)`,
   );
   const length = Math.max(before.length, after.length);
   for (let index = 0; index < length; index += 1) {
@@ -589,7 +598,7 @@ export function formatGoldenDiff(
   ];
   if (diff.positionalFallbacks.length > 0) {
     lines.push(
-      "Positional array fallbacks (review identity coverage):",
+      "Positional array fallbacks (action: add a stable identity rule, or verify positional matching is intentional):",
       ...diff.positionalFallbacks.map((path) => `- ${path}`),
     );
   }

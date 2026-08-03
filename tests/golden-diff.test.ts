@@ -6,6 +6,7 @@ import {
   parseGoldenReplayArgs,
   reviewFixtureGolden,
   reviewGolden,
+  type GoldenArrayIdentityStrategy,
 } from "./support/run-fixtures/golden-diff";
 import type { JsonValue } from "./support/run-fixtures/artifacts";
 import { runFixture } from "./support/run-fixtures";
@@ -26,6 +27,16 @@ function statementGolden(facts: readonly JsonValue[]): JsonValue {
         financialStatements: {
           statements: { incomeStatement: { revenue: { annual: facts } } },
         },
+      },
+    },
+  };
+}
+
+function financialStatementsWithGaps(structuredFinancialGaps: readonly JsonValue[]): JsonValue {
+  return {
+    normalized: {
+      "evidence-bundle.json": {
+        derived: { financialStatements: { structuredFinancialGaps } },
       },
     },
   };
@@ -108,6 +119,31 @@ describe("golden diff negative controls", () => {
     expect(diff.escalated).toHaveLength(1);
     expect(diff.escalated[0]?.escalationReasons).toContain("warning or data gap removed");
   });
+
+  test("identity-matches a structured financial gap insertion by stable code", () => {
+    const retained = {
+      code: "untagged-6-k",
+      message: "Untagged filing evidence remains",
+      forms: ["6-K"],
+      sourceIds: ["filing-source"],
+    };
+    const inserted = {
+      code: "no-standard-taxonomy",
+      message: "No supported standard taxonomy",
+      forms: [],
+      sourceIds: ["facts-source"],
+    };
+    const diff = diffGolden(
+      financialStatementsWithGaps([retained]),
+      financialStatementsWithGaps([inserted, retained]),
+    );
+
+    expect(diff.summary).toEqual({ changed: 0, added: 1, removed: 0 });
+    expect(diff.positionalFallbacks).toEqual([]);
+    expect(diff.findings[0]?.path).toContain(
+      'structuredFinancialGaps[structured financial gaps="no-standard-taxonomy"]',
+    );
+  });
 });
 
 describe("golden diff reporting", () => {
@@ -177,16 +213,20 @@ describe("golden diff reporting", () => {
     expect(
       diff.findings.find((finding) => finding.path === "analytics.runShape.durationMs")?.bucket,
     ).toBe("changed-value");
-    expect(diff.positionalFallbacks).toEqual(["unknown (no stable identity rule)"]);
+    expect(diff.positionalFallbacks).toEqual([
+      "unknown (positional matching used: no identity rule matched this array path)",
+    ]);
     expect(
       diff.escalated.some((finding) =>
         finding.escalationReasons.includes("numeric relative delta exceeds 25%"),
       ),
     ).toBe(true);
-    expect(formatGoldenDiff(diff, { topN: 0 })).toContain("Positional array fallbacks");
+    expect(formatGoldenDiff(diff, { topN: 0 })).toContain(
+      "action: add a stable identity rule, or verify positional matching is intentional",
+    );
   });
 
-  test("exercises every stable identity strategy and reports identity-preserving reorder", () => {
+  test("registers every stable identity strategy and reports identity-preserving reorder", () => {
     const before = {
       report: {
         sources: [
@@ -276,7 +316,20 @@ describe("golden diff reporting", () => {
     expect(review.diff.reorderedArrays).toEqual(["report.sources"]);
     expect(review.diff.positionalFallbacks).toEqual([]);
     expect(formatGoldenDiff(review.diff)).toContain("Identity-matched array order changes");
-    expect(GOLDEN_ARRAY_IDENTITIES.map((rule) => rule.label)).toContain("run stages");
+    const expectedStrategies: Record<GoldenArrayIdentityStrategy, true> = {
+      code: true,
+      "code-period": true,
+      id: true,
+      "key-name": true,
+      period: true,
+      prediction: true,
+      stage: true,
+      string: true,
+      text: true,
+    };
+    expect(new Set(GOLDEN_ARRAY_IDENTITIES.map((rule) => rule.strategy))).toEqual(
+      new Set(Object.keys(expectedStrategies) as GoldenArrayIdentityStrategy[]),
+    );
   });
 
   test("prints every escalated finding while applying top-n to prose and other findings", () => {
@@ -327,15 +380,15 @@ describe("golden diff reporting", () => {
     );
 
     expect(unusableIdentity.positionalFallbacks).toEqual([
-      "report.dataGaps (data gaps identity missing)",
+      "report.dataGaps (positional matching used: data gaps rule matched, but at least one item lacked its identity)",
     ]);
     expect(additions.summary).toEqual({ changed: 0, added: 2, removed: 1 });
     expect(removal.summary).toEqual({ changed: 0, added: 0, removed: 1 });
     expect(nonRecordIdentity.positionalFallbacks).toEqual([
-      "report.sources (report sources identity missing)",
+      "report.sources (positional matching used: report sources rule matched, but at least one item lacked its identity)",
     ]);
     expect(missingPeriodIdentity.positionalFallbacks).toEqual([
-      "normalized.bundle.valuationWorkbench.historicalMultiples.observations (valuation observations identity missing)",
+      "normalized.bundle.valuationWorkbench.historicalMultiples.observations (positional matching used: valuation observations rule matched, but at least one item lacked its identity)",
     ]);
   });
 

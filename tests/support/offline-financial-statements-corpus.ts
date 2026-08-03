@@ -203,11 +203,15 @@ export async function loadOfflineCorpusGolden(
     typeof value.symbol !== "string" ||
     !isRecord(value.statements) ||
     !isRecord(value.canonical) ||
-    !isRecord(value.legacy)
+    (value.legacy !== undefined && !isRecord(value.legacy))
   ) {
     throw new Error(`Invalid offline corpus golden: ${fixture}`);
   }
-  return value as unknown as OfflineCorpusProjection;
+  // A golden without a legacy block asserts legacy === canonical (zero-difference fixtures).
+  return {
+    ...value,
+    legacy: value.legacy ?? structuredClone(value.canonical),
+  } as unknown as OfflineCorpusProjection;
 }
 
 export async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCorpusAllowance[]> {

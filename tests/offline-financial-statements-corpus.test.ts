@@ -2,6 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { isRecord } from "../src/guards";
 import {
+  isFactObservableAsOf,
+  periodMonths,
+  readSecFactValue,
+} from "../src/sources/extended-evidence/sec-edgar";
+import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
   classifyOfflineCorpusDifferences,
   loadOfflineCorpusAllowances,
@@ -11,11 +16,19 @@ import {
   runOfflineFinancialStatementCorpus,
   type OfflineCorpusAllowance,
   type OfflineCorpusExecution,
+  type OfflineFinancialStatementInput,
 } from "./support/offline-financial-statements-corpus";
 import {
+  detectEligibleRevenueAliasAlternatives,
+  detectInterchangeableAliasCandidates,
   verifyHistoryAnnualRosters,
+  type AliasVerdict,
   type RosterVerdict,
 } from "./support/offline-financial-history-roster";
+import {
+  buildSyntheticAliasPayloads,
+  type SyntheticAliasVariant,
+} from "./support/synthetic-alias-companyfacts";
 
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365.2425;
@@ -36,6 +49,59 @@ function exactValueHash(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(value ?? null))
     .digest("hex");
+}
+
+function eligibleMaraRevenueFacts(
+  companyFacts: unknown,
+  concept: string,
+  analysisAsOf: string,
+): readonly { readonly value: number; readonly periodEnd: string; readonly filedAt: string }[] {
+  if (
+    !isRecord(companyFacts) ||
+    !isRecord(companyFacts.facts) ||
+    !isRecord(companyFacts.facts["us-gaap"])
+  ) {
+    throw new Error("MARA fixture is missing us-gaap companyfacts");
+  }
+  const rawConcept = companyFacts.facts["us-gaap"][concept];
+  if (
+    !isRecord(rawConcept) ||
+    !isRecord(rawConcept.units) ||
+    !Array.isArray(rawConcept.units.USD)
+  ) {
+    throw new Error(`MARA fixture is missing USD ${concept} facts`);
+  }
+  const candidates = rawConcept.units.USD.flatMap((value) => {
+    const fact = readSecFactValue(value);
+    const months = fact === undefined ? undefined : periodMonths(fact);
+    return fact?.form === "10-K" &&
+      fact.end !== undefined &&
+      fact.filed !== undefined &&
+      months !== undefined &&
+      months >= 10 &&
+      months <= 14 &&
+      isFactObservableAsOf(fact, analysisAsOf)
+      ? [{ value: fact.val, periodEnd: fact.end, filedAt: fact.filed }]
+      : [];
+  });
+  const byPeriodEnd = new Map<string, (typeof candidates)[number][]>();
+  for (const fact of candidates) {
+    byPeriodEnd.set(fact.periodEnd, [...(byPeriodEnd.get(fact.periodEnd) ?? []), fact]);
+  }
+  return [...byPeriodEnd.values()]
+    .map((facts) => facts.toSorted((left, right) => right.filedAt.localeCompare(left.filedAt))[0]!)
+    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
+}
+
+function syntheticAliasExecution(
+  input: OfflineFinancialStatementInput,
+  variant: SyntheticAliasVariant,
+): OfflineCorpusExecution {
+  return runOfflineFinancialStatementCorpus({
+    ...input,
+    symbol: "ALIAS",
+    ...buildSyntheticAliasPayloads(variant),
+  });
 }
 
 function yearsBetween(periodStart: string, periodEnd: string): number {
@@ -115,6 +181,7 @@ describe("offline financial-statement corpus", () => {
     for (const path of [
       "support/offline-financial-statements-corpus.ts",
       "support/offline-financial-history-roster.ts",
+      "support/synthetic-alias-companyfacts.ts",
     ]) {
       const source = await Bun.file(new URL(path, import.meta.url)).text();
 
@@ -123,6 +190,212 @@ describe("offline financial-statement corpus", () => {
       );
       expect(source).not.toContain("process.env");
     }
+  });
+
+  test("pins the interchangeable-alias candidate set across the corpus", async () => {
+    const verdicts: Record<string, AliasVerdict> = {};
+    for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
+      const execution = runOfflineFinancialStatementCorpus(
+        await loadOfflineFinancialStatementInput(fixture),
+      );
+      for (const [key, verdict] of detectInterchangeableAliasCandidates(execution)) {
+        verdicts[`${fixture}.${key}`] = verdict;
+      }
+    }
+
+    expect(verdicts).toEqual({
+      "aapl.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
+      "aapl.legacy.revenue": { kind: "no-alternative-concept-with-facts" },
+      "msft.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
+      "msft.legacy.revenue": { kind: "no-alternative-concept-with-facts" },
+      "mara.canonical.revenue": {
+        kind: "rejected",
+        candidateConcept: ASC_606_REVENUE_CONCEPT,
+        reasons: ["not-a-superset", "disagrees-on-shared-periods"],
+      },
+      "mara.legacy.revenue": {
+        kind: "rejected",
+        candidateConcept: ASC_606_REVENUE_CONCEPT,
+        reasons: ["not-a-superset", "disagrees-on-shared-periods"],
+      },
+      "nbis.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
+      "nbis.legacy.revenue": { kind: "no-selected-concept" },
+      "fpi-quarterly.canonical.revenue": { kind: "no-alternative-concept-with-facts" },
+      "fpi-quarterly.legacy.revenue": { kind: "no-selected-concept" },
+      "fpi-ifrs-semiannual.canonical.revenue": {
+        kind: "no-alternative-concept-with-facts",
+      },
+      "fpi-ifrs-semiannual.legacy.revenue": { kind: "no-selected-concept" },
+    });
+    expect(
+      Object.entries(verdicts)
+        .filter(([, verdict]) => verdict.kind === "alias-substitutable")
+        .map(([key]) => key),
+    ).toEqual([]);
+    expect(Object.values(verdicts).filter((verdict) => verdict.kind === "rejected")).toHaveLength(
+      2,
+    );
+    expect(
+      Object.values(verdicts).filter(
+        (verdict) => verdict.kind === "no-alternative-concept-with-facts",
+      ),
+    ).toHaveLength(7);
+    expect(
+      Object.values(verdicts).filter((verdict) => verdict.kind === "no-selected-concept"),
+    ).toHaveLength(3);
+
+    const input = await loadOfflineFinancialStatementInput("mara");
+    const revenues = eligibleMaraRevenueFacts(input.companyFacts, "Revenues", input.analysisAsOf);
+    const contractRevenue = eligibleMaraRevenueFacts(
+      input.companyFacts,
+      ASC_606_REVENUE_CONCEPT,
+      input.analysisAsOf,
+    );
+    expect(revenues.map((fact) => fact.periodEnd)).toEqual([
+      "2013-12-31",
+      "2014-12-31",
+      "2015-12-31",
+      "2016-12-31",
+      "2017-12-31",
+      "2021-12-31",
+      "2022-12-31",
+      "2023-12-31",
+      "2024-12-31",
+      "2025-12-31",
+    ]);
+    expect(contractRevenue.map((fact) => fact.periodEnd)).toEqual([
+      "2022-12-31",
+      "2023-12-31",
+      "2024-12-31",
+      "2025-12-31",
+    ]);
+    const revenueByEnd = new Map(revenues.map((fact) => [fact.periodEnd, fact.value]));
+    expect(
+      contractRevenue.map((fact) =>
+        Number((revenueByEnd.get(fact.periodEnd)! / fact.value).toFixed(2)),
+      ),
+    ).toEqual([11.91, 6.72, 6.8, 15.45]);
+  });
+
+  test("pins at most one eligible alternative revenue concept per corpus side", async () => {
+    const alternatives: Record<string, readonly string[] | undefined> = {};
+    for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
+      const execution = runOfflineFinancialStatementCorpus(
+        await loadOfflineFinancialStatementInput(fixture),
+      );
+      for (const [key, concepts] of detectEligibleRevenueAliasAlternatives(execution)) {
+        alternatives[`${fixture}.${key}`] = concepts;
+      }
+    }
+    expect(alternatives).toEqual({
+      "aapl.canonical.revenue": [],
+      "aapl.legacy.revenue": [],
+      "msft.canonical.revenue": [],
+      "msft.legacy.revenue": [],
+      "mara.canonical.revenue": [ASC_606_REVENUE_CONCEPT],
+      "mara.legacy.revenue": [ASC_606_REVENUE_CONCEPT],
+      "nbis.canonical.revenue": [],
+      "nbis.legacy.revenue": undefined,
+      "fpi-quarterly.canonical.revenue": [],
+      "fpi-quarterly.legacy.revenue": undefined,
+      "fpi-ifrs-semiannual.canonical.revenue": [],
+      "fpi-ifrs-semiannual.legacy.revenue": undefined,
+    });
+    expect(Object.keys(alternatives)).toHaveLength(12);
+    expect(
+      Object.values(alternatives).every(
+        (concepts) => concepts === undefined || concepts.length <= 1,
+      ),
+    ).toBe(true);
+  });
+
+  test("the synthetic alias issuer fires the interchangeable-alias detector", async () => {
+    const input = await loadOfflineFinancialStatementInput("mara");
+    expect(
+      Object.fromEntries(
+        detectInterchangeableAliasCandidates(syntheticAliasExecution(input, "alias")),
+      ),
+    ).toEqual({
+      "canonical.revenue": {
+        kind: "alias-substitutable",
+        candidateConcept: "SalesRevenueNet",
+        addedPeriodEnds: ["2016-12-31", "2017-12-31", "2018-12-31"],
+      },
+      "legacy.revenue": {
+        kind: "alias-substitutable",
+        candidateConcept: "SalesRevenueNet",
+        addedPeriodEnds: ["2016-12-31", "2017-12-31", "2018-12-31"],
+      },
+    });
+  });
+
+  test("counts a newer strict-superset alias when the selected series is cap-saturated", async () => {
+    const input = await loadOfflineFinancialStatementInput("mara");
+    const execution = syntheticAliasExecution(input, "newer-alias");
+    for (const side of ["canonical", "legacy"] as const) {
+      const selected = execution.projection[side].fundamentalHistory.revenue;
+      expect(selected?.concept).toBe("Revenues");
+      expect(selected?.annual.map((point) => point.periodEnd)).toEqual([
+        "2013-12-31",
+        "2014-12-31",
+        "2015-12-31",
+        "2016-12-31",
+        "2017-12-31",
+        "2018-12-31",
+        "2019-12-31",
+        "2020-12-31",
+        "2021-12-31",
+        "2022-12-31",
+      ]);
+    }
+    expect(Object.fromEntries(detectInterchangeableAliasCandidates(execution))).toEqual({
+      "canonical.revenue": {
+        kind: "alias-substitutable",
+        candidateConcept: "SalesRevenueNet",
+        addedPeriodEnds: ["2023-12-31"],
+      },
+      "legacy.revenue": {
+        kind: "alias-substitutable",
+        candidateConcept: "SalesRevenueNet",
+        addedPeriodEnds: ["2023-12-31"],
+      },
+    });
+  });
+
+  test("the component and renamed-disjoint shapes do not fire, with disjoint kill sets", async () => {
+    const input = await loadOfflineFinancialStatementInput("mara");
+    expect(
+      Object.fromEntries(
+        detectInterchangeableAliasCandidates(syntheticAliasExecution(input, "component")),
+      ),
+    ).toEqual({
+      "canonical.revenue": {
+        kind: "rejected",
+        candidateConcept: "SalesRevenueNet",
+        reasons: ["disagrees-on-shared-periods"],
+      },
+      "legacy.revenue": {
+        kind: "rejected",
+        candidateConcept: "SalesRevenueNet",
+        reasons: ["disagrees-on-shared-periods"],
+      },
+    });
+    expect(
+      Object.fromEntries(
+        detectInterchangeableAliasCandidates(syntheticAliasExecution(input, "renamed-disjoint")),
+      ),
+    ).toEqual({
+      "canonical.revenue": {
+        kind: "rejected",
+        candidateConcept: "SalesRevenueNet",
+        reasons: ["not-a-superset"],
+      },
+      "legacy.revenue": {
+        kind: "rejected",
+        candidateConcept: "SalesRevenueNet",
+        reasons: ["not-a-superset"],
+      },
+    });
   });
 
   test("anchors base annual rosters to raw facts and derived rosters through base series", async () => {

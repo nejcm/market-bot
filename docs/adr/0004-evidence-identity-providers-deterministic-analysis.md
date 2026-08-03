@@ -27,7 +27,7 @@ quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthe
 operator gate records; amended 2026-07-30: deterministic price-as-of labelling; amended 2026-07-30:
 not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage; amended
 2026-08-01: recipe-phased deep-equity provider dispatch; amended 2026-08-02: runtime financial-
-statement parity retirement)
+statement parity retirement; amended 2026-08-03: interchangeable-alias offline detection)
 
 ## Context
 
@@ -369,6 +369,20 @@ without pretending the project has a global security master.
   a preference change; exact definition contents and order are pinned by test. Accepting shortened
   history remains preferable to substituting a differently scoped series; when an alternative tag
   would extend history, the shortening stays silent by design and is not reported as a gap.
+  Offline corpus verification now enumerates the interchangeable-alias shape — a lower-priority
+  allow-listed tag whose eligible annual periods strictly contain the selected tag's with exact
+  agreement on every shared period — and pins it at zero occurrences among the nine corpus sides
+  with a selected concept; three legacy foreign-form sides are pinned separately as having no
+  selected concept. Unit/currency compatibility is a precondition to candidacy: a concept present
+  only under a non-selected unit is not an alternative concept with eligible facts. The exact
+  shared-point tuple retains value, normalized form, fiscal year/period, period start/end/months,
+  filing date, and currency. Selected currency and legacy 10-K form are structurally fixed before
+  comparison; legacy period end and canonical start/end are identity, and canonical amendments
+  normalize to their base form.
+  Substitution was evaluated and rejected: the strict-superset form cannot detect a renamed tag with
+  no period overlap, which is the shape the concern names, and the corpus's only alternative is
+  MARA's materially disagreeing transition-window component. Synthetic exact aliases exercise the
+  predicate but are not evidence that two tags are interchangeable for a real issuer.
   Diluted-EPS TTM remains approximate when share counts vary across component periods. Because each
   period independently selects its latest-filed fact, a TTM calculation can combine a restated
   latest YTD with a prior-year YTD that was not restated in the same filing.

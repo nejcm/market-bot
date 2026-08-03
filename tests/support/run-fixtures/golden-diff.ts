@@ -145,7 +145,10 @@ function numberField(value: JsonValue, key: string): number | undefined {
   return isRecord(value) && typeof value[key] === "number" ? value[key] : undefined;
 }
 
-function identityFor(strategy: GoldenArrayIdentityStrategy, value: JsonValue): string | undefined {
+export function identityFor(
+  strategy: GoldenArrayIdentityStrategy,
+  value: JsonValue,
+): string | undefined {
   if (strategy === "string") {
     return typeof value === "string" ? value : undefined;
   }
@@ -167,7 +170,7 @@ function identityFor(strategy: GoldenArrayIdentityStrategy, value: JsonValue): s
   if (strategy === "stage") {
     const stage = stringField(value, "stage");
     const attempt = numberField(value, "attempt");
-    return stage === undefined || attempt === undefined ? undefined : `${stage}|${attempt}`;
+    return stage === undefined ? undefined : `${stage}|${attempt ?? ""}`;
   }
   if (strategy === "code") {
     return stringField(value, "code");
@@ -405,6 +408,16 @@ function diffIdentityArray(
     state.reorderedArrays.add(path);
   }
   const identities = [...new Set([...beforeGroups.keys(), ...afterGroups.keys()])].toSorted();
+  for (const identity of identities) {
+    const beforeCount = beforeGroups.get(identity)?.length ?? 0;
+    const afterCount = afterGroups.get(identity)?.length ?? 0;
+    if (beforeCount <= 1 && afterCount <= 1) {
+      continue;
+    }
+    state.positionalFallbacks.add(
+      `${path} (positional matching used within a repeated identity: ${rule.label} rule matched, but identity ${JSON.stringify(identity)} occurs ${String(beforeCount)} ${beforeCount === 1 ? "time" : "times"} before / ${String(afterCount)} ${afterCount === 1 ? "time" : "times"} after; occurrence order decides the match - strengthen this identity rule with a stable discriminator, or verify ambiguous ordering is intentional)`,
+    );
+  }
   for (const identity of identities) {
     const beforeValues = beforeGroups.get(identity) ?? [];
     const afterValues = afterGroups.get(identity) ?? [];

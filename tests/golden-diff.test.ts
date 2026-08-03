@@ -3,13 +3,25 @@ import {
   diffGolden,
   formatGoldenDiff,
   GOLDEN_ARRAY_IDENTITIES,
+  identityFor,
   parseGoldenReplayArgs,
   reviewFixtureGolden,
   reviewGolden,
   type GoldenArrayIdentityStrategy,
 } from "./support/run-fixtures/golden-diff";
-import type { JsonValue } from "./support/run-fixtures/artifacts";
+import { readGoldenOutput, type JsonValue } from "./support/run-fixtures/artifacts";
 import { runFixture } from "./support/run-fixtures";
+
+const GOLDEN_FIXTURES = [
+  "equity-aapl-brief",
+  "equity-aapl-deep",
+  "equity-nbis-deep",
+  "equity-fpi-quarterly",
+  "equity-fpi-ifrs-semiannual",
+  "equity-analysis-comprehensive",
+  "equity-analysis-estimated-suppressed",
+  "equity-web-fallback-deep",
+] as const;
 
 function statementFact(year: number, value: number): JsonValue {
   return {
@@ -44,6 +56,58 @@ function financialStatementsWithGaps(structuredFinancialGaps: readonly JsonValue
 
 function validationNotesGolden(validationNotes: readonly JsonValue[]): JsonValue {
   return { artifact: { validationNotes } };
+}
+
+function identityCensus(
+  fixtureName: string,
+  golden: JsonValue,
+): {
+  readonly duplicateBearingArrays: readonly string[];
+  readonly missingIdentityCount: number;
+} {
+  const duplicateBearingArrays = new Set<string>();
+  let missingIdentityCount = 0;
+
+  function walk(value: JsonValue, path: string): void {
+    if (Array.isArray(value)) {
+      const rule = GOLDEN_ARRAY_IDENTITIES.find((candidate) => candidate.path.test(path));
+      if (rule !== undefined) {
+        const identities = value.map((item) => identityFor(rule.strategy, item));
+        missingIdentityCount += identities.filter((identity) => identity === undefined).length;
+        if (identities.every((identity): identity is string => identity !== undefined)) {
+          const counts = new Map<string, number>();
+          for (const identity of identities) {
+            counts.set(identity, (counts.get(identity) ?? 0) + 1);
+          }
+          if ([...counts.values()].some((count) => count > 1)) {
+            duplicateBearingArrays.add(`${fixtureName}:${path}`);
+          }
+          const occurrences = new Map<string, number>();
+          value.forEach((item, index) => {
+            const identity = identities[index]!;
+            const occurrence = occurrences.get(identity) ?? 0;
+            occurrences.set(identity, occurrence + 1);
+            const suffix = occurrence === 0 ? "" : `#${String(occurrence + 1)}`;
+            walk(item, `${path}[${rule.label}=${JSON.stringify(identity)}${suffix}]`);
+          });
+          return;
+        }
+      }
+      value.forEach((item, index) => walk(item, `${path}[${String(index)}]`));
+      return;
+    }
+    if (value !== null && typeof value === "object") {
+      for (const [key, item] of Object.entries(value)) {
+        walk(item, path === "" ? key : `${path}.${key}`);
+      }
+    }
+  }
+
+  walk(golden, "");
+  return {
+    duplicateBearingArrays: [...duplicateBearingArrays].toSorted(),
+    missingIdentityCount,
+  };
 }
 
 describe("golden diff negative controls", () => {
@@ -195,6 +259,64 @@ describe("golden diff negative controls", () => {
     );
 
     expect(diff.reorderedArrays).toEqual(["artifact.validationNotes"]);
+  });
+
+  test("reports positional matching within a repeated validation-note identity", () => {
+    const periodKey = "annual|2016-01-01|2016-12-31";
+    const before = [
+      { code: "incomplete-statement", periodKey, message: "incomeStatement is incomplete" },
+      { code: "incomplete-statement", periodKey, message: "cashFlowStatement is incomplete" },
+    ];
+    const after = [
+      before[0]!,
+      { code: "incomplete-statement", periodKey, message: "cashFlowStatement remains incomplete" },
+    ];
+    const diff = diffGolden(validationNotesGolden(before), validationNotesGolden(after));
+
+    expect(diff.positionalFallbacks).toEqual([
+      'artifact.validationNotes (positional matching used within a repeated identity: validation notes rule matched, but identity "incomplete-statement|annual|2016-01-01|2016-12-31|" occurs 2 times before / 2 times after; occurrence order decides the match - strengthen this identity rule with a stable discriminator, or verify ambiguous ordering is intentional)',
+    ]);
+  });
+
+  test("reports a repeated identity created only after the change", () => {
+    const periodKey = "annual|2016-01-01|2016-12-31";
+    const retained = {
+      code: "incomplete-statement",
+      periodKey,
+      message: "incomeStatement is incomplete",
+    };
+    const inserted = {
+      code: "incomplete-statement",
+      periodKey,
+      message: "cashFlowStatement is incomplete",
+    };
+    const diff = diffGolden(
+      validationNotesGolden([retained]),
+      validationNotesGolden([retained, inserted]),
+    );
+
+    expect(diff.positionalFallbacks).toEqual([
+      'artifact.validationNotes (positional matching used within a repeated identity: validation notes rule matched, but identity "incomplete-statement|annual|2016-01-01|2016-12-31|" occurs 1 time before / 2 times after; occurrence order decides the match - strengthen this identity rule with a stable discriminator, or verify ambiguous ordering is intentional)',
+    ]);
+  });
+});
+
+test("pins duplicate-bearing identities across every golden", async () => {
+  const census = await Promise.all(
+    GOLDEN_FIXTURES.map(async (fixtureName) =>
+      identityCensus(fixtureName, await readGoldenOutput(fixtureName)),
+    ),
+  );
+  const actual = {
+    duplicateBearingArrays: census.flatMap((entry) => entry.duplicateBearingArrays).toSorted(),
+    missingIdentityCount: census.reduce((total, entry) => total + entry.missingIdentityCount, 0),
+  };
+
+  expect(actual).toEqual({
+    duplicateBearingArrays: [
+      "equity-nbis-deep:normalized.evidence-bundle.json.derived.financialStatements.validationNotes",
+    ],
+    missingIdentityCount: 0,
   });
 });
 

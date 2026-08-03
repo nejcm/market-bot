@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { isRecord } from "../src/guards";
 import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
   classifyOfflineCorpusDifferences,
@@ -18,6 +19,18 @@ import {
 
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365.2425;
+const ASC_606_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax";
+
+function cloneCompanyFactsWithMutableUsGaap(companyFacts: unknown): {
+  readonly payload: unknown;
+  readonly usGaap: Record<string, unknown>;
+} {
+  const payload: unknown = structuredClone(companyFacts);
+  if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
+    throw new Error("MARA fixture is missing us-gaap companyfacts");
+  }
+  return { payload, usGaap: payload.facts["us-gaap"] };
+}
 
 function exactValueHash(value: unknown): string {
   return createHash("sha256")
@@ -189,6 +202,103 @@ describe("offline financial-statement corpus", () => {
       kind: "verified-cap-displaced",
       droppedPeriodEnds: ["2014-12-31", "2015-12-31"],
       newerUnionPeriods: 10,
+    });
+  });
+
+  test("rejects a faithful MARA legacy revenue substitution to the ASC 606 component", async () => {
+    const input = await loadOfflineFinancialStatementInput("mara");
+    const execution = runOfflineFinancialStatementCorpus(input);
+    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(input.companyFacts);
+    delete usGaap.Revenues;
+    delete usGaap.SalesRevenueNet;
+    const substituted = runOfflineFinancialStatementCorpus({ ...input, companyFacts: payload });
+    const substitutedHistory = substituted.projection.legacy.fundamentalHistory;
+    const { revenue } = substitutedHistory;
+    if (revenue === undefined) {
+      throw new Error("MARA substitution did not produce legacy revenue history");
+    }
+    const injected: OfflineCorpusExecution = {
+      ...execution,
+      projection: {
+        ...execution.projection,
+        legacy: {
+          ...execution.projection.legacy,
+          fundamentalHistory: {
+            ...execution.projection.legacy.fundamentalHistory,
+            revenue,
+            grossMargin: substitutedHistory.grossMargin!,
+            operatingMargin: substitutedHistory.operatingMargin!,
+            netMargin: substitutedHistory.netMargin!,
+          },
+        },
+      },
+    };
+    const failed = [...verifyHistoryAnnualRosters(injected)]
+      .filter(([, verdict]) => verdict.kind === "failed")
+      .map(([key]) => key);
+
+    expect(revenue.concept).toBe(ASC_606_REVENUE_CONCEPT);
+    expect(failed).toEqual(["legacy.revenue"]);
+    expect(verifyHistoryAnnualRosters(injected).get("legacy.revenue")).toEqual({
+      kind: "failed",
+      reason: `legacy.revenue emitted concept ${ASC_606_REVENUE_CONCEPT} but selection policy yields Revenues`,
+    });
+  });
+
+  test("rejects a revenue concept outside the 100-day recency bucket", async () => {
+    const input = await loadOfflineFinancialStatementInput("mara");
+    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(input.companyFacts);
+    const revenues = usGaap.Revenues;
+    if (!isRecord(revenues) || !isRecord(revenues.units) || !Array.isArray(revenues.units.USD)) {
+      throw new Error("MARA fixture is missing USD Revenues facts");
+    }
+    revenues.units.USD = revenues.units.USD.filter(
+      (fact) => isRecord(fact) && typeof fact.end === "string" && fact.end <= "2024-12-31",
+    );
+    const execution = runOfflineFinancialStatementCorpus({ ...input, companyFacts: payload });
+    const { payload: staleOnlyPayload, usGaap: staleOnlyUsGaap } =
+      cloneCompanyFactsWithMutableUsGaap(payload);
+    delete staleOnlyUsGaap[ASC_606_REVENUE_CONCEPT];
+    delete staleOnlyUsGaap.SalesRevenueNet;
+    delete staleOnlyUsGaap.RevenueFromContractWithCustomerIncludingAssessedTax;
+    const staleOnly = runOfflineFinancialStatementCorpus({
+      ...input,
+      companyFacts: staleOnlyPayload,
+    });
+    const staleHistory = staleOnly.projection.legacy.fundamentalHistory;
+    const staleRevenue = staleHistory.revenue;
+    if (staleRevenue === undefined) {
+      throw new Error("MARA stale-only input did not produce legacy revenue history");
+    }
+    const injected: OfflineCorpusExecution = {
+      ...execution,
+      projection: {
+        ...execution.projection,
+        legacy: {
+          ...execution.projection.legacy,
+          fundamentalHistory: {
+            ...execution.projection.legacy.fundamentalHistory,
+            revenue: staleRevenue,
+            grossMargin: staleHistory.grossMargin!,
+            operatingMargin: staleHistory.operatingMargin!,
+            netMargin: staleHistory.netMargin!,
+          },
+        },
+      },
+    };
+    const failed = [...verifyHistoryAnnualRosters(injected)]
+      .filter(([, verdict]) => verdict.kind === "failed")
+      .map(([key]) => key)
+      .toSorted();
+
+    expect(execution.projection.legacy.fundamentalHistory.revenue?.concept).toBe(
+      ASC_606_REVENUE_CONCEPT,
+    );
+    expect(staleRevenue.concept).toBe("Revenues");
+    expect(failed).toEqual(["legacy.revenue"]);
+    expect(verifyHistoryAnnualRosters(injected).get("legacy.revenue")).toEqual({
+      kind: "failed",
+      reason: `legacy.revenue emitted concept Revenues but selection policy yields ${ASC_606_REVENUE_CONCEPT}`,
     });
   });
 

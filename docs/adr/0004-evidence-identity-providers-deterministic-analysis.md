@@ -190,12 +190,17 @@ without pretending the project has a global security master.
   `report.json`: inside the bundle for deep equity and in `normalized/fundamental-history.json` for
   other equity runs. Each revenue series buckets concepts whose latest eligible period is within 100
   days of the most recent candidate, then selects the first by configured order; other series select
-  the first configured concept with facts. Selection then filters by the analysis cutoff, retains
-  up to ten 10-14-month 10-K periods, and resolves duplicate period ends to the latest-filed
-  restatement. TTM flows use full FY plus latest YTD less aligned prior-year YTD; mismatched periods
-  are omitted with an audit note. Diluted-EPS TTM is explicitly labeled an approximation because
-  per-share periods are added without reweighting diluted shares. FCF proxy, margins, annual-only
-  CAGR, and margin change are derived only from matched periods and compatible units.
+  the first configured concept with facts. Configured concept order is load-bearing semantics rather
+  than a tie-break of convenience: it ranks total-revenue tags above narrower contract-revenue tags,
+  which for some issuers differ by an order of magnitude. Observed history depth never overrides
+  selection because a deeper tag may represent a narrower measure. Offline corpus roster
+  verification re-derives the selected concept for roster-covered series from this rule rather than
+  checking allow-list membership alone. Selection then filters by the analysis cutoff, retains up to
+  ten 10-14-month 10-K periods, and resolves duplicate period ends to the latest-filed restatement.
+  TTM flows use full FY plus latest YTD less aligned prior-year YTD; mismatched periods are omitted
+  with an audit note. Diluted-EPS TTM is explicitly labeled an approximation because per-share
+  periods are added without reweighting diluted shares. FCF proxy, margins, annual-only CAGR, and
+  margin change are derived only from matched periods and compatible units.
 - Equity runs also persist the versioned canonical structured-financial artifact inside the deep
   bundle or, for other equity runs, as `normalized/financial-statements.json`. It accepts standard
   `us-gaap` and `ifrs-full` companyfacts from
@@ -360,10 +365,13 @@ without pretending the project has a global security master.
 - Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
   series. Revenue buckets concepts whose latest eligible period is within 100 days of the most
   recent candidate, then uses configured order; other series use the first configured concept with
-  facts. This keeps selection consistent and deterministic but can shorten history. Diluted-EPS TTM
-  remains approximate when share counts vary across component periods. Because each period
-  independently selects its latest-filed fact, a TTM calculation can combine a restated latest YTD
-  with a prior-year YTD that was not restated in the same filing.
+  facts. Because order encodes measure scope, reordering a concept list is a correctness change, not
+  a preference change; exact definition contents and order are pinned by test. Accepting shortened
+  history remains preferable to substituting a differently scoped series; when an alternative tag
+  would extend history, the shortening stays silent by design and is not reported as a gap.
+  Diluted-EPS TTM remains approximate when share counts vary across component periods. Because each
+  period independently selects its latest-filed fact, a TTM calculation can combine a restated
+  latest YTD with a prior-year YTD that was not restated in the same filing.
 - The canonical financial-statements artifact drives the optional equity completeness contract and
   its Phase 2 consumers. Companyfacts current-report financing coverage is limited to explicitly
   tagged standard-taxonomy proceeds and cost facts; untagged narrative disclosures remain outside

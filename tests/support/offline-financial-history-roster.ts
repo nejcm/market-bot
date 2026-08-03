@@ -88,6 +88,8 @@ interface DerivedDefinition {
 
 const MAX_ANNUAL_POINTS = 10;
 const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
+const DAY_MS = 86_400_000;
+const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
 const RAW_HISTORY_DEFINITIONS: readonly RawHistoryDefinition[] = [
   {
     key: "revenue",
@@ -256,6 +258,11 @@ function conceptUnitValues(
   }
   const values = fact.units[unit];
   return Array.isArray(values) ? values : [];
+}
+
+function isInRevenueRecencyBucket(periodEnd: string, latestPeriodEnd: string): boolean {
+  const ageDays = (Date.parse(latestPeriodEnd) - Date.parse(periodEnd)) / DAY_MS;
+  return Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= REVENUE_CONCEPT_RECENCY_BUCKET_DAYS;
 }
 
 function completeLegacyFact(fact: SecFactValue): CompleteLegacyFact | undefined {
@@ -469,6 +476,88 @@ function expectedCanonicalUnit(
   return definition.unitKind === "per-share" ? `${reportingCurrency}/shares` : reportingCurrency;
 }
 
+function expectedSelectedConcept(
+  execution: OfflineCorpusExecution,
+  definition: RawHistoryDefinition,
+  side: HistorySide,
+): string | undefined {
+  if (side === "legacy") {
+    if (definition.key !== "revenue") {
+      return definition.legacyConcepts.find((concept) =>
+        conceptUnitValues(
+          execution.input.companyFacts,
+          "us-gaap",
+          concept,
+          definition.legacyUnit,
+        ).some((value) => readSecFactValue(value) !== undefined),
+      );
+    }
+    const ranked = definition.legacyConcepts.flatMap((concept) => {
+      const [latest] = conceptUnitValues(
+        execution.input.companyFacts,
+        "us-gaap",
+        concept,
+        definition.legacyUnit,
+      )
+        .flatMap((value) => {
+          const fact = readSecFactValue(value);
+          return fact === undefined ? [] : [fact];
+        })
+        .filter((fact) => isFactObservableAsOf(fact, execution.input.analysisAsOf))
+        .toSorted(
+          (left, right) =>
+            (right.end ?? "").localeCompare(left.end ?? "") ||
+            (right.filed ?? "").localeCompare(left.filed ?? ""),
+        );
+      return latest?.end === undefined ? [] : [{ concept, latestPeriodEnd: latest.end }];
+    });
+    const latestPeriodEnd = ranked
+      .map((candidate) => candidate.latestPeriodEnd)
+      .toSorted()
+      .at(-1);
+    return latestPeriodEnd === undefined
+      ? undefined
+      : ranked.find((candidate) =>
+          isInRevenueRecencyBucket(candidate.latestPeriodEnd, latestPeriodEnd),
+        )?.concept;
+  }
+
+  const { taxonomy, reportingCurrency } = execution.artifact;
+  if (taxonomy === undefined || reportingCurrency === undefined) {
+    return undefined;
+  }
+  const canonicalDefinition = CANONICAL_DURATION_DEFINITIONS.find(
+    (candidate) => candidate.key === definition.canonicalKey,
+  )!;
+  const concepts = canonicalDefinition.concepts[taxonomy];
+  const unit = expectedCanonicalUnit(canonicalDefinition, reportingCurrency);
+  const eligibleFacts = (concept: string): readonly CanonicalFact[] => {
+    const cutoff = execution.input.analysisAsOf.slice(0, 10);
+    return conceptUnitValues(execution.input.companyFacts, taxonomy, concept, unit)
+      .flatMap((value) => {
+        const fact = parseCanonicalFact(value, concept, unit);
+        return fact === undefined ? [] : [fact];
+      })
+      .filter((fact) => fact.periodEnd <= cutoff && fact.filedAt <= cutoff);
+  };
+  if (definition.key !== "revenue") {
+    return concepts.find((concept) => eligibleFacts(concept).length > 0);
+  }
+  const ranked = concepts.flatMap((concept) => {
+    const [latest] = eligibleFacts(concept).toSorted(compareCanonicalFacts);
+    return latest === undefined ? [] : [{ concept, latestPeriodEnd: latest.periodEnd }];
+  });
+  const latestPeriodEnd = ranked
+    .map((candidate) => candidate.latestPeriodEnd)
+    .toSorted()
+    .at(-1);
+  return latestPeriodEnd === undefined
+    ? undefined
+    : ranked.find((candidate) =>
+        isInRevenueRecencyBucket(candidate.latestPeriodEnd, latestPeriodEnd),
+      )?.concept;
+}
+
 function canonicalUnion(execution: OfflineCorpusExecution): readonly EligibleCanonicalPoint[] {
   const { reportingCurrency } = execution.artifact;
   if (reportingCurrency === undefined) {
@@ -587,10 +676,11 @@ function verifyLegacyRaw(
           reason: `legacy.${definition.key} selected no concept despite ${String(eligibleAcrossDefinitions.length)} eligible source point(s)`,
         };
   }
-  if (!definition.legacyConcepts.includes(series.concept)) {
+  const expectedConcept = expectedSelectedConcept(execution, definition, "legacy");
+  if (series.concept !== expectedConcept) {
     return {
       kind: "failed",
-      reason: `legacy.${definition.key} selected unknown concept ${series.concept}`,
+      reason: `legacy.${definition.key} emitted concept ${series.concept} but selection policy yields ${String(expectedConcept)}`,
     };
   }
   const eligible = legacyEligiblePoints(execution, series.concept, definition.legacyUnit);
@@ -639,10 +729,11 @@ function verifyCanonicalRaw(
       reason: `canonical.${definition.key} selected a concept without taxonomy/currency`,
     };
   }
-  if (!canonicalDefinition.concepts[taxonomy].includes(series.concept)) {
+  const expectedConcept = expectedSelectedConcept(execution, definition, "canonical");
+  if (series.concept !== expectedConcept) {
     return {
       kind: "failed",
-      reason: `canonical.${definition.key} selected unknown concept ${series.concept}`,
+      reason: `canonical.${definition.key} emitted concept ${series.concept} but selection policy yields ${String(expectedConcept)}`,
     };
   }
   const unit = expectedCanonicalUnit(canonicalDefinition, reportingCurrency);

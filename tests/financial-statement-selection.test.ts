@@ -19,6 +19,8 @@ import {
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
+import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../src/sources/extended-evidence/financial-statement-definitions";
+import { SEC_METRIC_DEFINITIONS } from "../src/sources/extended-evidence/sec-edgar";
 
 interface FactOverrides {
   readonly value?: number;
@@ -110,6 +112,353 @@ function series(
 }
 
 describe("financial statement selection", () => {
+  test("pins complete legacy and canonical financial-statement definitions", () => {
+    // Concept order encodes measure scope (total -> net -> ASC606 for revenue); reordering can swap a total measure for a component.
+    expect(SEC_METRIC_DEFINITIONS).toEqual([
+      {
+        key: "revenue",
+        label: "revenue",
+        concepts: [
+          "Revenues",
+          "SalesRevenueNet",
+          "RevenueFromContractWithCustomerExcludingAssessedTax",
+          "RevenueFromContractWithCustomerIncludingAssessedTax",
+        ],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "grossProfit",
+        label: "gross profit",
+        concepts: ["GrossProfit"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "operatingIncome",
+        label: "operating income",
+        concepts: ["OperatingIncomeLoss"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "netIncome",
+        label: "net income attributable to parent",
+        concepts: ["NetIncomeLoss"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "consolidatedNetIncome",
+        label: "net income consolidated including NCI",
+        concepts: ["ProfitLoss"],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
+        key: "dilutedEps",
+        label: "diluted EPS",
+        concepts: ["EarningsPerShareDiluted"],
+        unitKeys: ["USD/shares"],
+      },
+      {
+        key: "cash",
+        label: "cash",
+        concepts: [
+          "CashAndCashEquivalentsAtCarryingValue",
+          "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+        ],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "operatingCashFlow",
+        label: "operating cash flow",
+        concepts: ["NetCashProvidedByUsedInOperatingActivities"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "capex",
+        label: "capex",
+        concepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "dilutedShares",
+        label: "diluted shares",
+        concepts: ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+        unitKeys: ["shares"],
+      },
+      {
+        key: "currentAssets",
+        label: "current assets",
+        concepts: ["AssetsCurrent"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "currentLiabilities",
+        label: "current liabilities",
+        concepts: ["LiabilitiesCurrent"],
+        unitKeys: ["USD"],
+      },
+      {
+        key: "stockholdersEquity",
+        label: "stockholders' equity",
+        concepts: [
+          "StockholdersEquity",
+          "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+        ],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
+        key: "assets",
+        label: "total assets",
+        concepts: ["Assets"],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
+        key: "dividendsPaid",
+        label: "dividends paid",
+        concepts: ["PaymentsForDividends", "DividendsPaid"],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
+        key: "shareRepurchases",
+        label: "share repurchases",
+        concepts: [
+          "PaymentsForRepurchaseOfCommonStock",
+          "PaymentsForRepurchaseOfEquity",
+          "PaymentsForRepurchaseOfCommonStockAndPreferredStock",
+        ],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+    ]);
+    expect(FINANCIAL_STATEMENT_SERIES_DEFINITIONS).toEqual([
+      {
+        key: "revenue",
+        label: "Revenue",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": [
+            "Revenues",
+            "SalesRevenueNet",
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "RevenueFromContractWithCustomerIncludingAssessedTax",
+          ],
+          "ifrs-full": ["Revenue"],
+        },
+      },
+      {
+        key: "grossProfit",
+        label: "Gross profit",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: { "us-gaap": ["GrossProfit"], "ifrs-full": ["GrossProfit"] },
+      },
+      {
+        key: "operatingIncome",
+        label: "Operating income",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["OperatingIncomeLoss"],
+          "ifrs-full": ["ProfitLossFromOperatingActivities"],
+        },
+      },
+      {
+        key: "netIncome",
+        label: "Net income",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: { "us-gaap": ["NetIncomeLoss"], "ifrs-full": ["ProfitLoss"] },
+      },
+      {
+        key: "cash",
+        label: "Cash and cash equivalents",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": [
+            "CashAndCashEquivalentsAtCarryingValue",
+            "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+          ],
+          "ifrs-full": ["CashAndCashEquivalents"],
+        },
+      },
+      {
+        key: "currentAssets",
+        label: "Current assets",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: { "us-gaap": ["AssetsCurrent"], "ifrs-full": ["CurrentAssets"] },
+      },
+      {
+        key: "currentLiabilities",
+        label: "Current liabilities",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["LiabilitiesCurrent"],
+          "ifrs-full": ["CurrentLiabilities"],
+        },
+      },
+      {
+        key: "totalAssets",
+        label: "Total assets",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: { "us-gaap": ["Assets"], "ifrs-full": ["Assets"] },
+      },
+      {
+        key: "totalLiabilities",
+        label: "Total liabilities",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: { "us-gaap": ["Liabilities"], "ifrs-full": ["Liabilities"] },
+      },
+      {
+        key: "stockholdersEquity",
+        label: "Stockholders' equity",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": [
+            "StockholdersEquity",
+            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+          ],
+          "ifrs-full": ["Equity"],
+        },
+      },
+      {
+        key: "debt",
+        label: "Debt",
+        statement: "balanceSheet",
+        kind: "instant",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: { "us-gaap": ["LongTermDebt"], "ifrs-full": ["Borrowings"] },
+      },
+      {
+        key: "operatingCashFlow",
+        label: "Operating cash flow",
+        statement: "cashFlowStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["NetCashProvidedByUsedInOperatingActivities"],
+          "ifrs-full": ["CashFlowsFromUsedInOperatingActivities"],
+        },
+      },
+      {
+        key: "capitalExpenditure",
+        label: "Capital expenditure",
+        statement: "cashFlowStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+          "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
+        },
+      },
+      {
+        key: "dividendsPaid",
+        label: "Dividends paid",
+        statement: "cashFlowStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["PaymentsForDividends", "DividendsPaid"],
+          "ifrs-full": ["DividendsPaidClassifiedAsFinancingActivities"],
+        },
+      },
+      {
+        key: "shareRepurchases",
+        label: "Share repurchases",
+        statement: "cashFlowStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"],
+          "ifrs-full": ["PaymentsToAcquireOrRedeemEntitysShares"],
+        },
+      },
+      {
+        key: "dilutedEps",
+        label: "Diluted EPS",
+        statement: "perShare",
+        kind: "duration",
+        unitKind: "per-share",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["EarningsPerShareDiluted"],
+          "ifrs-full": ["DilutedEarningsLossPerShare"],
+        },
+      },
+      {
+        key: "dilutedShares",
+        label: "Diluted weighted-average shares",
+        statement: "perShare",
+        kind: "duration",
+        unitKind: "shares",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+          "ifrs-full": ["AdjustedWeightedAverageShares"],
+        },
+      },
+    ]);
+  });
+
+  test("pins roster-covered non-revenue series to one concept per taxonomy", () => {
+    const legacyKeys = new Set([
+      "grossProfit",
+      "operatingIncome",
+      "netIncome",
+      "dilutedEps",
+      "operatingCashFlow",
+      "capex",
+    ]);
+    const canonicalKeys = new Set(
+      [...legacyKeys].map((key) => (key === "capex" ? "capitalExpenditure" : key)),
+    );
+    expect(
+      SEC_METRIC_DEFINITIONS.filter((definition) => legacyKeys.has(definition.key)).every(
+        (definition) => definition.concepts.length === 1,
+      ),
+    ).toBe(true);
+    expect(
+      FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter((definition) =>
+        canonicalKeys.has(definition.key),
+      ).every((definition) =>
+        Object.values(definition.concepts).every((concepts) => concepts.length === 1),
+      ),
+    ).toBe(true);
+  });
+
   test("uses filing, amendment, then accession tie breakers after period and duration", () => {
     const selected = latestFinancialStatementFact([
       fact({ filedAt: "2025-03-01", accessionNumber: "accession-z" }),

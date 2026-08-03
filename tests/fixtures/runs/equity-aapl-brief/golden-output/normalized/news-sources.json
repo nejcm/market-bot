@@ -1,0 +1,20 @@
+[
+  {
+    "id": "news-equity-1",
+    "fetchedAt": "2026-06-15T13:30:00.000Z",
+    "kind": "news",
+    "assetClass": "equity",
+    "provider": "yahoo-news",
+    "title": "Apple fixture headline",
+    "url": "https://example.com/apple-fixture",
+    "canonicalUrl": "https://example.com/apple-fixture",
+    "publisher": "Example News",
+    "providerAliases": [
+      {
+        "provider": "yahoo-news",
+        "publisher": "Example News",
+        "fetchedAt": "2026-06-15T13:30:00.000Z"
+      }
+    ]
+  }
+]

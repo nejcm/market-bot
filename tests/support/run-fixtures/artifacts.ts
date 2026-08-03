@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { format } from "oxfmt";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
@@ -10,6 +10,16 @@ export type JsonValue =
   | string
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue };
+
+export interface GoldenOutput {
+  readonly [key: string]: JsonValue;
+  readonly report: JsonValue;
+  readonly analytics: JsonValue;
+  readonly markdown: string;
+  readonly normalized: Readonly<Record<string, JsonValue>>;
+}
+
+const GOLDEN_ROOT_FILES = ["analytics.json", "report.json", "report.md"] as const;
 
 export const VOLATILE_KEYS: ReadonlySet<string> = new Set([
   "runId",
@@ -27,6 +37,44 @@ const OPTIONAL_VOLATILE_KEYS = new Set(["dirtySourceHash"]);
 
 async function readJson(path: string): Promise<JsonValue> {
   return JSON.parse(await readFile(path, "utf8")) as JsonValue;
+}
+
+function entryKind(entry: { isDirectory(): boolean; isFile(): boolean }): "dir" | "file" | "other" {
+  if (entry.isDirectory()) {
+    return "dir";
+  }
+  if (entry.isFile()) {
+    return "file";
+  }
+  return "other";
+}
+
+async function readGoldenDirectoryEntries(path: string): Promise<void> {
+  const entries = await readdir(path, { withFileTypes: true });
+  const actual = entries.map((entry) => `${entryKind(entry)}:${entry.name}`).toSorted();
+  const expected = [
+    ...GOLDEN_ROOT_FILES.map((name) => `file:${name}`),
+    "dir:normalized",
+  ].toSorted();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(
+      `Invalid golden output at ${path}: expected entries ${expected.join(", ")}; received ${actual.join(", ")}`,
+    );
+  }
+}
+
+async function readNormalizedGolden(path: string): Promise<Readonly<Record<string, JsonValue>>> {
+  const entries = await readdir(path, { withFileTypes: true });
+  const names = entries.map((entry) => entry.name);
+  const invalidEntry = entries.find((entry) => !entry.isFile() || !entry.name.endsWith(".json"));
+  if (invalidEntry !== undefined) {
+    throw new Error(`Invalid golden output at ${path}: unexpected entry ${invalidEntry.name}`);
+  }
+  const sortedNames = names.toSorted();
+  const entriesByName = await Promise.all(
+    sortedNames.map(async (name) => [name, await readJson(join(path, name))] as const),
+  );
+  return Object.fromEntries(entriesByName);
 }
 
 async function readNormalizedArtifacts(runDir: string): Promise<Record<string, JsonValue>> {
@@ -61,32 +109,74 @@ function scrub(value: JsonValue): JsonValue {
   return value;
 }
 
-export function goldenOutputPath(fixtureName: string): string {
-  return join(import.meta.dir, "../../fixtures/runs", fixtureName, "golden-output.json");
+export function goldenOutputDirectory(fixtureName: string): string {
+  return join(import.meta.dir, "../../fixtures/runs", fixtureName, "golden-output");
 }
 
-export async function scrubbedRunArtifacts(runDir: string): Promise<JsonValue> {
+export async function scrubbedRunArtifacts(runDir: string): Promise<GoldenOutput> {
   const markdown = await readFile(join(runDir, RUN_ARTIFACT_FILES.reportMarkdown), "utf8");
   return scrub({
     report: await readJson(join(runDir, RUN_ARTIFACT_FILES.report)),
     analytics: await readJson(join(runDir, RUN_ARTIFACT_FILES.analytics)),
     markdown,
     normalized: await readNormalizedArtifacts(runDir),
-  });
+  }) as GoldenOutput;
 }
 
-export async function readGoldenOutput(fixtureName: string): Promise<JsonValue> {
-  return readJson(goldenOutputPath(fixtureName));
+export async function readGoldenOutput(fixtureName: string): Promise<GoldenOutput> {
+  const directory = goldenOutputDirectory(fixtureName);
+  await readGoldenDirectoryEntries(directory);
+  const normalized = await readNormalizedGolden(join(directory, "normalized"));
+  return {
+    report: await readJson(join(directory, "report.json")),
+    analytics: await readJson(join(directory, "analytics.json")),
+    markdown: await readFile(join(directory, "report.md"), "utf8"),
+    normalized,
+  };
 }
 
-export async function writeGoldenOutput(runDir: string, fixtureName: string): Promise<void> {
-  const path = goldenOutputPath(fixtureName);
-  const serialized = JSON.stringify(await scrubbedRunArtifacts(runDir), null, 2);
-  const formatted = await format(path, serialized);
+async function formatJson(path: string, value: JsonValue): Promise<string> {
+  const formatted = await format(path, JSON.stringify(value, null, 2));
   if (formatted.errors.length > 0) {
     throw new Error(
-      `Failed to format golden output: ${formatted.errors.map((error) => error.message).join("; ")}`,
+      `Failed to format golden output ${path}: ${formatted.errors
+        .map((error) => error.message)
+        .join("; ")}`,
     );
   }
-  await writeFile(path, formatted.code, "utf8");
+  return formatted.code;
+}
+
+export async function writeGoldenOutput(
+  runDir: string,
+  fixtureName: string,
+): Promise<readonly string[]> {
+  const directory = goldenOutputDirectory(fixtureName);
+  const normalizedDirectory = join(directory, "normalized");
+  const golden = await scrubbedRunArtifacts(runDir);
+  const normalizedNames = Object.keys(golden.normalized).toSorted();
+  await rm(directory, { recursive: true, force: true });
+  await mkdir(normalizedDirectory, { recursive: true });
+
+  const paths = [
+    join(directory, "analytics.json"),
+    join(directory, "report.json"),
+    join(directory, "report.md"),
+    ...normalizedNames.map((name) => join(normalizedDirectory, name)),
+  ].toSorted();
+  await Promise.all([
+    formatJson(join(directory, "report.json"), golden.report).then((value) =>
+      writeFile(join(directory, "report.json"), value, "utf8"),
+    ),
+    formatJson(join(directory, "analytics.json"), golden.analytics).then((value) =>
+      writeFile(join(directory, "analytics.json"), value, "utf8"),
+    ),
+    writeFile(join(directory, "report.md"), golden.markdown, "utf8"),
+    ...normalizedNames.map((name) =>
+      formatJson(join(normalizedDirectory, name), golden.normalized[name]!).then((value) =>
+        writeFile(join(normalizedDirectory, name), value, "utf8"),
+      ),
+    ),
+  ]);
+  return paths;
 }

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "extended-sec-edgar-aapl-filings",
+    "title": "AAPL SEC filings",
+    "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+    "fetchedAt": "2026-06-15T14:30:00.000Z",
+    "kind": "extended-evidence",
+    "assetClass": "equity",
+    "symbol": "AAPL",
+    "provider": "sec-edgar",
+    "identity": {
+      "displayName": "Apple Inc.",
+      "providerIds": [
+        {
+          "provider": "sec-edgar",
+          "idKind": "cik",
+          "value": "0000320193"
+        }
+      ],
+      "aliases": [
+        {
+          "provider": "sec-edgar",
+          "idKind": "ticker",
+          "value": "AAPL"
+        }
+      ]
+    }
+  }
+]

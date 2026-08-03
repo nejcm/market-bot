@@ -46,7 +46,8 @@ Each fixture contains:
 - `data-cassette.json` — scrubbed HTTP responses keyed by canonical request.
 - `llm-cassette.json` — ordered model responses keyed by stage and model.
 - `meta.json` — pinned run config, clock, command, and model settings.
-- `golden-output.json` — scrubbed deterministic run output used by the regression test.
+- `golden-output/` — scrubbed deterministic run output used by the regression test:
+  `report.json`, `analytics.json`, exact-text `report.md`, and `normalized/*.json` sidecars.
 
 ## Refreshing golden output
 
@@ -139,14 +140,14 @@ intentional shared price-path change before replaying all six goldens.
 ## Fixture maintenance rules
 
 - Keep harness helpers in `tests/support/run-fixtures/`.
-- Treat each fixture's `golden-output.json` as its value coverage. Assertions cover only
+- Treat each fixture's `golden-output/` as its value coverage. Assertions cover only
   non-golden checks such as raw snapshots, separate-file hashes, prompt/model behavior, fields
   without normalized sidecars, and cross-cutting invariants.
 - Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in
   `tests/support/run-fixtures/assertions.ts`; do not mix test-only behavior into production
   pipeline code.
 - Do not hand-edit cassettes unless you are removing an obvious secret and will re-record afterward.
-- If `golden-output.json` changes, inspect the golden-diff summary before committing. Investigate
+- If files under `golden-output/` change, inspect the golden-diff summary before committing. Investigate
   every escalated finding, especially sign flips, large numeric deltas, and removed validation
   notes, omission notes, or data gaps. Do not accept a positional fallback without checking whether
   the array now has a stable identity.

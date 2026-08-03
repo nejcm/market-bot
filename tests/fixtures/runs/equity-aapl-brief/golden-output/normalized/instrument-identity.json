@@ -1,0 +1,12 @@
+{
+  "quoteCurrency": "USD",
+  "aliases": [
+    {
+      "provider": "yahoo",
+      "idKind": "symbol",
+      "value": "AAPL"
+    }
+  ],
+  "displayName": "Apple Inc.",
+  "exchange": "NasdaqGS"
+}

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { goldenOutputPath, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
+import { goldenOutputDirectory, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
 import {
   formatGoldenDiff,
   formatGoldenMismatch,
@@ -28,9 +28,9 @@ try {
     process.stdout.write(`${formatGoldenDiff(review.diff)}\n`);
   }
   if (mode === "write") {
-    await writeGoldenOutput(result.artifacts.runDir, fixtureName);
-    await assertNoSecretsInFiles([goldenOutputPath(fixtureName)], knownSecretValues(process.env));
-    process.stdout.write(`${goldenOutputPath(fixtureName)}\n`);
+    const goldenFiles = await writeGoldenOutput(result.artifacts.runDir, fixtureName);
+    await assertNoSecretsInFiles(goldenFiles, knownSecretValues(process.env));
+    process.stdout.write(`${goldenOutputDirectory(fixtureName)}\n`);
   } else if (mode === "live") {
     process.stdout.write(`${result.artifacts.runDir}\n`);
   }

@@ -33,6 +33,7 @@ import type {
   SourceRequestExecutor,
 } from "../src/sources/types";
 import type { MarketSnapshot } from "../src/domain/types";
+import { readGoldenOutput } from "./support/run-fixtures/artifacts";
 
 interface GoldenEvidenceBundle {
   readonly normalized: {
@@ -337,9 +338,7 @@ describe("source normalization", () => {
   });
 
   test("preserves sanitized snapshot bytes while stripping quoteTimeUtc for prompts", async () => {
-    const golden = (await Bun.file(
-      join(import.meta.dir, "fixtures", "runs", "equity-nbis-deep", "golden-output.json"),
-    ).json()) as GoldenEvidenceBundle;
+    const golden = (await readGoldenOutput("equity-nbis-deep")) as unknown as GoldenEvidenceBundle;
     const [snapshot] = golden.normalized["evidence-bundle.json"].evidence.marketSnapshots;
     expect(snapshot).toBeDefined();
 

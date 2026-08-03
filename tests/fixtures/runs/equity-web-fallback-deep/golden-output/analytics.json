@@ -1,0 +1,789 @@
+{
+  "version": 2,
+  "runId": "<runId>",
+  "generatedAt": "<generatedAt>",
+  "jobType": "equity",
+  "assetClass": "equity",
+  "symbol": "AAPL",
+  "depth": "deep",
+  "codeVersion": "<codeVersion>",
+  "reproducibility": {
+    "effectiveConfigHash": "<effectiveConfigHash>"
+  },
+  "modelInputSanitization": {
+    "entries": [
+      {
+        "provider": "finnhub",
+        "ingress": "news",
+        "profile": "news",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 55,
+        "outputChars": 55,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "finnhub",
+        "ingress": "news",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 14,
+        "outputChars": 14,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "finnhub",
+        "ingress": "news",
+        "profile": "news",
+        "fieldRole": "summary",
+        "droppedItemCount": 0,
+        "inputChars": 73,
+        "outputChars": 73,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo-news",
+        "ingress": "news",
+        "profile": "news",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 22,
+        "outputChars": 22,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo-news",
+        "ingress": "news",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 12,
+        "outputChars": 12,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo",
+        "ingress": "market-snapshot",
+        "profile": "short-metadata",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 136,
+        "outputChars": 136,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo",
+        "ingress": "market-snapshot",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 48,
+        "outputChars": 48,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "instrument-identity",
+        "ingress": "instrument-identity",
+        "profile": "short-metadata",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 10,
+        "outputChars": 10,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "instrument-identity",
+        "ingress": "instrument-identity",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 8,
+        "outputChars": 8,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "firecrawl",
+        "ingress": "web-gather",
+        "profile": "open-web",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 97,
+        "outputChars": 97,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "firecrawl",
+        "ingress": "web-gather",
+        "profile": "open-web",
+        "fieldRole": "summary",
+        "droppedItemCount": 0,
+        "inputChars": 225,
+        "outputChars": 180,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 1,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "firecrawl",
+        "ingress": "web-gather",
+        "profile": "open-web",
+        "fieldRole": "snippet",
+        "droppedItemCount": 0,
+        "inputChars": 276,
+        "outputChars": 217,
+        "removedInstructionSpanCount": 1,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "exa",
+        "ingress": "web-gather",
+        "profile": "open-web",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 66,
+        "outputChars": 66,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "exa",
+        "ingress": "web-gather",
+        "profile": "open-web",
+        "fieldRole": "summary",
+        "droppedItemCount": 0,
+        "inputChars": 142,
+        "outputChars": 97,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 1,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "exa",
+        "ingress": "web-gather",
+        "profile": "open-web",
+        "fieldRole": "snippet",
+        "droppedItemCount": 0,
+        "inputChars": 182,
+        "outputChars": 123,
+        "removedInstructionSpanCount": 1,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "historical-artifact",
+        "ingress": "historical-context",
+        "profile": "legacy-history",
+        "fieldRole": "prose",
+        "droppedItemCount": 0,
+        "inputChars": 75,
+        "outputChars": 75,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      }
+    ]
+  },
+  "sourceFunnel": {
+    "rawSnapshots": {
+      "total": 34,
+      "byAdapter": {
+        "yahoo-ticker": 1,
+        "yahoo-regime": 1,
+        "finnhub-news": 1,
+        "yahoo-news": 1,
+        "sec-tickers": 1,
+        "sec-companyfacts": 6,
+        "sec-submissions": 6,
+        "finnhub-events-1": 1,
+        "finnhub-events-2": 1,
+        "finnhub-events-3": 1,
+        "finnhub-eps-estimate": 1,
+        "finnhub-revenue-estimate": 1,
+        "finnhub-ebitda-estimate": 1,
+        "finnhub-analyst-range": 1,
+        "finnhub-institutional-ownership": 1,
+        "finnhub-insider-transactions": 1,
+        "tradier-expirations": 1,
+        "tradier-options": 1,
+        "yahoo-valuation-peers": 1,
+        "yahoo-verified-chart": 1,
+        "exa-search": 1,
+        "firecrawl-search": 1,
+        "exa-contents": 2
+      }
+    },
+    "reportSources": {
+      "total": 38,
+      "byKind": {
+        "market-data": 13,
+        "news": 2,
+        "extended-evidence": 21,
+        "web": 2
+      },
+      "byProvider": {
+        "yahoo": 13,
+        "finnhub": 8,
+        "yahoo-news": 1,
+        "sec-edgar": 12,
+        "tradier": 2,
+        "firecrawl": 2
+      }
+    },
+    "sourceGaps": {
+      "total": 18,
+      "bySource": {
+        "marketaux-news": 1,
+        "sec-edgar": 12,
+        "fred-macro": 1,
+        "valuation-peers": 1,
+        "web-gather": 2,
+        "business-framework": 1
+      }
+    },
+    "sourceGapClasses": {
+      "missingCredential": 2,
+      "fetchFailed": 0,
+      "unsupportedCoverage": 0,
+      "other": 16
+    },
+    "dataGaps": {
+      "total": 20
+    }
+  },
+  "providerEndpointAvailability": {
+    "yahooQuote": {
+      "status": "available",
+      "evidence": ["yahoo-ticker"]
+    },
+    "yahooNews": {
+      "status": "available",
+      "evidence": ["yahoo-news"]
+    },
+    "secCompanyTickers": {
+      "status": "available",
+      "evidence": ["sec-tickers"]
+    },
+    "secCompanyFacts": {
+      "status": "available",
+      "evidence": ["sec-companyfacts"]
+    },
+    "secSubmissions": {
+      "status": "available",
+      "evidence": ["sec-submissions"]
+    },
+    "finnhubNews": {
+      "status": "available",
+      "evidence": ["finnhub-news"]
+    },
+    "finnhubEvents": {
+      "status": "available",
+      "evidence": ["finnhub-events-1", "finnhub-events-2", "finnhub-events-3"]
+    },
+    "finnhubEpsEstimate": {
+      "status": "available",
+      "evidence": ["finnhub-eps-estimate"]
+    },
+    "finnhubRevenueEstimate": {
+      "status": "available",
+      "evidence": ["finnhub-revenue-estimate"]
+    },
+    "finnhubEbitdaEstimate": {
+      "status": "available",
+      "evidence": ["finnhub-ebitda-estimate"]
+    },
+    "finnhubPriceTarget": {
+      "status": "available",
+      "evidence": ["finnhub-analyst-range"]
+    },
+    "finnhubInstitutionalOwnership": {
+      "status": "available",
+      "evidence": ["finnhub-institutional-ownership"]
+    },
+    "finnhubInsiderTransactions": {
+      "status": "available",
+      "evidence": ["finnhub-insider-transactions"]
+    },
+    "tradierOptions": {
+      "status": "available",
+      "evidence": ["tradier-options"]
+    },
+    "tradierEarningsImpliedMove": {
+      "status": "available",
+      "evidence": ["earningsSetup.impliedMove"]
+    },
+    "fredMacro": {
+      "status": "missing-credential",
+      "evidence": ["fred-macro"],
+      "reason": "MARKET_BOT_FRED_API_KEY is not set"
+    },
+    "marketauxNews": {
+      "status": "missing-credential",
+      "evidence": ["marketaux-news"],
+      "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+    }
+  },
+  "newsDedupe": {
+    "fetchedNewsSourcesByProvider": {
+      "marketaux": 0,
+      "finnhub": 1,
+      "yahoo-news": 1,
+      "massive": 0
+    },
+    "fetchedNewsSourceCount": 2,
+    "canonicalDedupedNewsSourceCount": 2,
+    "canonicalDuplicateNewsSourceCount": 0,
+    "persistentSuppressedNewsSourceCount": 0,
+    "relevantBeforeSeenFilterCount": 2,
+    "relevantSuppressedBySeenFilterCount": 0,
+    "relevantSelectedCount": 2,
+    "repeatFallbackKeptCount": 0,
+    "relevantRepeatKeptCount": 0,
+    "selectedNewsSourceCount": 2,
+    "selectedRelevantTickerNewsSourceCount": 2,
+    "selectedGenericTickerNewsSourceCount": 0,
+    "repeatFallbackUsed": false
+  },
+  "evidenceQuality": {
+    "label": "medium",
+    "assessment": {
+      "version": 1,
+      "rubricVersion": 2,
+      "label": "medium",
+      "checks": [
+        {
+          "capability": "market-data",
+          "evidenceClass": "core",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "supplemental-market",
+          "evidenceClass": "supplemental",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["supplemental-market: evidence missing or unusable"]
+        },
+        {
+          "capability": "news",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "pass",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "verified-price-history",
+          "evidenceClass": "core",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "regulatory-filings",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "corporate-events",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "macro-indicators",
+          "evidenceClass": "material",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["macro-indicators: evidence missing or unusable"]
+        },
+        {
+          "capability": "derivatives-volatility",
+          "evidenceClass": "supplemental",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "target-valuation",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "peer-valuation",
+          "evidenceClass": "supplemental",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "subject-profile",
+          "evidenceClass": "supplemental",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        }
+      ],
+      "limitingReasons": ["macro-indicators: evidence missing or unusable"]
+    },
+    "dataGapCount": 20,
+    "extendedEvidence": {
+      "itemCount": 14,
+      "gapCount": 17,
+      "itemsByCategory": {
+        "sec-edgar": 1,
+        "equity-events": 1,
+        "analyst-estimates": 3,
+        "analyst-estimate-context": 1,
+        "institutional-ownership": 2,
+        "options-iv": 1,
+        "valuation": 1,
+        "yahoo-fundamentals": 1,
+        "financial-lens": 1,
+        "business-framework": 1,
+        "web-subject-profile": 1
+      },
+      "gapsBySource": {
+        "sec-edgar": 12,
+        "fred-macro": 1,
+        "valuation-peers": 1,
+        "web-gather": 2,
+        "business-framework": 1
+      }
+    },
+    "marketContext": {
+      "itemCount": 0,
+      "gapCount": 0,
+      "itemsByCategory": {},
+      "gapsBySource": {}
+    }
+  },
+  "predictions": {
+    "count": 2,
+    "retryErrorCount": 0,
+    "validationErrorCount": 0,
+    "trimWarningCount": 0,
+    "completion": {
+      "attempted": true,
+      "initialCount": 2,
+      "acceptedCount": 0,
+      "rejectedCount": 0,
+      "outcome": "no-eligible-candidates"
+    },
+    "replacementAttempted": false,
+    "byKind": {
+      "earnings-direction": 1,
+      "earnings-move": 1
+    },
+    "horizonTradingDays": {
+      "min": 1,
+      "max": 1,
+      "average": 1
+    },
+    "citedCount": 2,
+    "uncitedCount": 0,
+    "targetCount": 5,
+    "targetMet": false,
+    "shortfall": {
+      "emittedCount": 2,
+      "targetCount": 5,
+      "missingCount": 3,
+      "disclosed": true
+    },
+    "nearBaseRateCount": 2,
+    "informativeCount": 0,
+    "signalTargetMet": false,
+    "mixWarnings": [
+      "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal"
+    ]
+  },
+  "earningsForecasts": {
+    "eventDateStatus": "issuer-confirmed",
+    "policy": "confirmed-only",
+    "grammarEligible": true,
+    "eligiblePredictionCount": 2,
+    "suppressedPredictionCount": 0
+  },
+  "postSynthesisAudit": {
+    "warningCount": 1,
+    "byCode": {
+      "weak-evidence-posture-missing": 1
+    }
+  },
+  "reportIntegrity": {
+    "label": "high",
+    "researchQuality": "medium",
+    "prunedItemCount": 0,
+    "advisoryWarningCount": 1,
+    "advisories": [
+      {
+        "code": "weak-evidence-posture-missing",
+        "location": "risks[0]"
+      }
+    ]
+  },
+  "sourcePlan": {
+    "plannedLaneCount": 11,
+    "coreLaneCount": 2,
+    "materialLaneCount": 5,
+    "supplementalLaneCount": 4
+  },
+  "evidenceLanes": {
+    "coveredLaneCount": 9,
+    "gapLaneCount": 2,
+    "coreGapLaneCount": 0,
+    "materialGapLaneCount": 1,
+    "sourceCount": 34,
+    "gapCount": 18,
+    "coverageRatio": 0.8181818181818182
+  },
+  "calibrationAtGeneration": {
+    "generatedAt": "<generatedAt>",
+    "resolvedCount": 0,
+    "guidanceAssessments": [
+      {
+        "dimension": "assetClass",
+        "key": "equity",
+        "actionable": false,
+        "reason": "slice-unavailable"
+      },
+      {
+        "dimension": "jobType",
+        "key": "equity",
+        "actionable": false,
+        "reason": "slice-unavailable"
+      },
+      {
+        "dimension": "predictionHorizon",
+        "key": "1-5d",
+        "actionable": false,
+        "reason": "slice-unavailable"
+      },
+      {
+        "dimension": "marketRegime",
+        "key": "risk-on",
+        "actionable": false,
+        "reason": "slice-unavailable"
+      }
+    ]
+  },
+  "verifiedMarketSnapshot": {
+    "symbol": "AAPL",
+    "analysisDate": "2026-06-15",
+    "latestSessionDate": "2026-05-01",
+    "fetchedAt": "2026-06-15T14:30:00.000Z",
+    "latestSessionAgeDays": 45
+  },
+  "webSources": {
+    "accepted": 2,
+    "profileUsed": 2,
+    "reportCited": 0,
+    "extrasCited": 0,
+    "unused": 0,
+    "usageRatio": 1,
+    "fallback": {
+      "attempted": ["exa", "firecrawl"],
+      "servedBy": "firecrawl",
+      "failedExaRequests": 0
+    }
+  },
+  "webEvidenceUtilization": {
+    "version": 1,
+    "acceptedCurrentRun": 2,
+    "usedCurrentRun": 2,
+    "profileUsed": 2,
+    "primaryReportCited": 0,
+    "structuredExtraCited": 0,
+    "unusedCurrentRun": 0,
+    "ratio": 1,
+    "level": "insufficient-sample"
+  },
+  "runShape": {
+    "traceStages": [
+      "source-collection",
+      "web-gather",
+      "web-subject-profile",
+      "playbook-selection",
+      "specialist-analysis",
+      "instrument-evidence-analysis",
+      "market-behavior-analysis",
+      "critique",
+      "final-synthesis",
+      "final-synthesis"
+    ],
+    "stages": [
+      {
+        "stage": "web-gather",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "web-subject-profile",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "playbook-selection",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "specialist-analysis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "instrument-evidence-analysis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "market-behavior-analysis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "critique",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "costEstimateUsd": "<costEstimateUsd>"
+      },
+      {
+        "stage": "final-synthesis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "attempt": 1
+      },
+      {
+        "stage": "final-synthesis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "attempt": 2,
+        "repromptReason": {
+          "predictionCompletion": {
+            "requestedCount": 3,
+            "existingPredictions": [
+              {
+                "id": "aapl-earnings-direction",
+                "claim": "AAPL closes higher than its pre-earnings close 1 trading days after the 2026-07-10 earnings event",
+                "kind": "earnings-direction",
+                "subject": "AAPL",
+                "measurableAs": "earningsReturn(AAPL, 2026-07-10, +1) > 0",
+                "horizonTradingDays": 1,
+                "probability": 0.58,
+                "sourceIds": ["news-equity-1", "extended-finnhub-events-aapl"],
+                "eventDateStatus": "issuer-confirmed",
+                "scoringPolicyVersion": 3
+              },
+              {
+                "id": "aapl-earnings-move",
+                "claim": "AAPL moves more than 3.5% from its pre-earnings close 1 trading days after the 2026-07-10 earnings event",
+                "kind": "earnings-move",
+                "subject": "AAPL",
+                "measurableAs": "abs(earningsReturn(AAPL, 2026-07-10, +1)) > 0.035",
+                "horizonTradingDays": 1,
+                "probability": 0.55,
+                "sourceIds": [
+                  "news-equity-1",
+                  "extended-finnhub-events-aapl",
+                  "extended-tradier-earnings-implied-move-aapl"
+                ],
+                "eventDateStatus": "issuer-confirmed",
+                "scoringPolicyVersion": 3
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "tokenEstimate": "<tokenEstimate>",
+    "durationMs": 0
+  }
+}

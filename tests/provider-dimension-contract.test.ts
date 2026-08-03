@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -27,6 +27,7 @@ import type {
 import type { ValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { loadRunArtifact } from "../src/run-artifacts";
+import { readGoldenOutput } from "./support/run-fixtures/artifacts";
 
 const REPLAY_FIXTURES = [
   "equity-aapl-brief",
@@ -77,8 +78,7 @@ function artifact<T>(value: unknown): T | undefined {
 async function loadGoldenReports(): Promise<readonly GoldenReport[]> {
   return Promise.all(
     REPLAY_FIXTURES.map(async (fixture) => {
-      const path = join(import.meta.dir, "fixtures", "runs", fixture, "golden-output.json");
-      const output = JSON.parse(await readFile(path, "utf8")) as GoldenOutput;
+      const output = (await readGoldenOutput(fixture)) as unknown as GoldenOutput;
       const completeness = output.report.equityAnalysisCompleteness;
       if (completeness === undefined) {
         throw new Error(`${fixture} has no equity analysis completeness contract`);

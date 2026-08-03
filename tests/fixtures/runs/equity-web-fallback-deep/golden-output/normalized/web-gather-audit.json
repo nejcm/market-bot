@@ -1,0 +1,136 @@
+{
+  "rounds": 1,
+  "acceptedRequests": [
+    {
+      "round": 1,
+      "tool": "web_search",
+      "args": {
+        "query": "AAPL recent capital allocation and services KPI updates",
+        "searchType": "background"
+      },
+      "rationale": "Find recent corroboration and explicit gaps beyond filed company background.",
+      "status": "accepted",
+      "sourceUnits": 2,
+      "sanitizer": {
+        "sourceCount": 3,
+        "sanitizedSourceCount": 3,
+        "emptyAfterSanitizeCount": 0,
+        "inputCharCount": 598,
+        "outputCharCount": 494,
+        "removedInstructionSpanCount": 1,
+        "removedChromeHtmlCount": 1
+      },
+      "freshness": {
+        "searchType": "background",
+        "endPublishedDate": "2026-06-15T14:30:00.000Z",
+        "livecrawl": false,
+        "widened": false
+      },
+      "fallback": {
+        "attemptedProviders": ["exa", "firecrawl"],
+        "servedProvider": "firecrawl",
+        "fallbackReason": "empty",
+        "firecrawlCreditsUsed": 3
+      },
+      "duplicateResults": [
+        {
+          "reason": "duplicate-headline",
+          "sourceId": "web-aapl-9749e540",
+          "title": "Apple capital allocation update",
+          "duplicateOfSourceId": "web-aapl-6c345d05",
+          "duplicateOfTitle": "Apple capital allocation update"
+        }
+      ]
+    },
+    {
+      "round": 1,
+      "tool": "web_fetch",
+      "args": {
+        "url": "https://investor.example/aapl-capital-allocation"
+      },
+      "rationale": "Fetch the surfaced issuer capital-allocation source.",
+      "status": "accepted",
+      "sourceUnits": 1,
+      "sanitizer": {
+        "sourceCount": 1,
+        "sanitizedSourceCount": 1,
+        "emptyAfterSanitizeCount": 0,
+        "inputCharCount": 221,
+        "outputCharCount": 117,
+        "removedInstructionSpanCount": 1,
+        "removedChromeHtmlCount": 1
+      }
+    },
+    {
+      "round": 1,
+      "tool": "web_fetch",
+      "args": {
+        "url": "https://industry.example/apple-services-kpis"
+      },
+      "rationale": "Fetch the surfaced services KPI source.",
+      "status": "accepted",
+      "sourceUnits": 1,
+      "sanitizer": {
+        "sourceCount": 1,
+        "sanitizedSourceCount": 1,
+        "emptyAfterSanitizeCount": 0,
+        "inputCharCount": 169,
+        "outputCharCount": 169,
+        "removedInstructionSpanCount": 0,
+        "removedChromeHtmlCount": 0
+      }
+    }
+  ],
+  "rejectedRequests": [
+    {
+      "round": 1,
+      "tool": "web_search",
+      "args": {
+        "query": "unrelated semiconductor supply chain",
+        "searchType": "background"
+      },
+      "rationale": "Collect unrelated industry context.",
+      "status": "rejected",
+      "reason": "web_search query must mention the run subject"
+    },
+    {
+      "round": 1,
+      "tool": "web_fetch",
+      "args": {
+        "url": "https://investor.example/aapl-capital-allocation"
+      },
+      "rationale": "Fetch the same surfaced source again.",
+      "status": "rejected",
+      "reason": "duplicate web gather request"
+    }
+  ],
+  "sourceUnitsUsed": 4,
+  "executedTools": ["web_search", "web_fetch", "web_fetch"],
+  "emittedGaps": [
+    {
+      "source": "web-gather",
+      "message": "a model web query was rejected for drifting off-subject",
+      "provider": "exa",
+      "capability": "web-gather",
+      "cause": "validation-failed",
+      "evidenceQualityImpact": "extended-evidence-cap"
+    },
+    {
+      "source": "web-gather",
+      "message": "a repeated model web request was skipped",
+      "provider": "exa",
+      "capability": "web-gather",
+      "cause": "validation-failed",
+      "evidenceQualityImpact": "extended-evidence-cap"
+    }
+  ],
+  "sanitizer": {
+    "sourceCount": 5,
+    "sanitizedSourceCount": 5,
+    "emptyAfterSanitizeCount": 0,
+    "inputCharCount": 988,
+    "outputCharCount": 780,
+    "removedInstructionSpanCount": 2,
+    "removedChromeHtmlCount": 2
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "generatedAt": "<generatedAt>",
+  "sources": [
+    {
+      "id": "market-yahoo-equity-aapl",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "market-yahoo-equity-spy",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "market-yahoo-equity-qqq",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "market-yahoo-equity-iwm",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "market-yahoo-equity-dia",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "market-yahoo-equity-^vix",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "market-yahoo-equity-^vix3m",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "market-data",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "news-equity-1",
+      "kind": "news",
+      "provider": "yahoo-news",
+      "fetchedAt": "2026-06-15T13:30:00.000Z",
+      "lane": "news",
+      "posture": "covered",
+      "relatedGapIds": ["news:gap:1", "news:gap:2"]
+    },
+    {
+      "id": "verified-snapshot-AAPL",
+      "kind": "market-data",
+      "provider": "yahoo",
+      "observedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "verified-price-history",
+      "posture": "covered",
+      "relatedGapIds": []
+    },
+    {
+      "id": "extended-sec-edgar-aapl-filings",
+      "kind": "extended-evidence",
+      "provider": "sec-edgar",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "lane": "regulatory-filings",
+      "posture": "covered",
+      "relatedGapIds": ["regulatory-filings:gap:1"]
+    }
+  ]
+}

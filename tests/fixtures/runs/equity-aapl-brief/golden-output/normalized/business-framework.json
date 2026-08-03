@@ -1,0 +1,207 @@
+{
+  "version": 2,
+  "generatedAt": "<generatedAt>",
+  "symbol": "AAPL",
+  "phase": "operating-leverage",
+  "sections": [
+    {
+      "name": "Business",
+      "posture": "insufficient-data",
+      "summary": "Business insufficient-data",
+      "metrics": [],
+      "sourceIds": ["extended-sec-edgar-aapl-filings"],
+      "gaps": [
+        {
+          "code": "business-description",
+          "text": "Business description is not available from current normalized sources"
+        },
+        {
+          "code": "geographic-mix",
+          "text": "Geographic revenue mix is not available from current normalized sources"
+        },
+        {
+          "code": "segment-mix",
+          "text": "Segment mix is not available from current normalized sources"
+        },
+        {
+          "code": "customer-concentration",
+          "text": "Customer concentration is not available from current normalized sources"
+        },
+        {
+          "code": "purchase-recurrence",
+          "text": "Purchase recurrence is not available from current normalized sources"
+        }
+      ]
+    },
+    {
+      "name": "Phase",
+      "posture": "insufficient-data",
+      "summary": "Phase classification (Phase operating-leverage)",
+      "metrics": [
+        {
+          "key": "phase",
+          "label": "Phase",
+          "value": "operating-leverage",
+          "unit": "text",
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "market-yahoo-equity-aapl"]
+        }
+      ],
+      "sourceIds": ["extended-sec-edgar-aapl-filings", "market-yahoo-equity-aapl"],
+      "gaps": []
+    },
+    {
+      "name": "Moat",
+      "posture": "insufficient-data",
+      "summary": "Moat insufficient-data",
+      "metrics": [],
+      "sourceIds": ["extended-sec-edgar-aapl-filings"],
+      "gaps": [
+        {
+          "code": "segment-mix",
+          "text": "Segment mix is not available from current normalized sources"
+        },
+        {
+          "code": "customer-concentration",
+          "text": "Customer concentration is not available from current normalized sources"
+        },
+        {
+          "code": "purchase-recurrence",
+          "text": "Purchase recurrence is not available from current normalized sources"
+        },
+        {
+          "code": "pricing-power",
+          "text": "Pricing power evidence is not available from current normalized sources"
+        }
+      ]
+    },
+    {
+      "name": "Growth",
+      "posture": "insufficient-data",
+      "summary": "Growth insufficient-data",
+      "metrics": [],
+      "sourceIds": ["extended-sec-edgar-aapl-filings"],
+      "gaps": [
+        {
+          "code": "company-kpis",
+          "text": "Company-specific KPI evidence is not available from current normalized sources"
+        },
+        {
+          "code": "analyst-consensus",
+          "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+        }
+      ]
+    },
+    {
+      "name": "Management",
+      "posture": "insufficient-data",
+      "summary": "Management insufficient-data",
+      "metrics": [],
+      "sourceIds": [],
+      "gaps": [
+        {
+          "code": "management-track-record",
+          "text": "Management track record is not available from current normalized sources"
+        },
+        {
+          "code": "capital-allocation",
+          "text": "Capital allocation commentary is not available from current normalized sources"
+        }
+      ]
+    },
+    {
+      "name": "Risk",
+      "posture": "insufficient-data",
+      "summary": "Risk insufficient-data",
+      "metrics": [],
+      "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"],
+      "gaps": [
+        {
+          "code": "risk-factors",
+          "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+        },
+        {
+          "code": "cyclicality",
+          "text": "Recession cyclicality evidence is not available from current normalized sources"
+        }
+      ]
+    },
+    {
+      "name": "Valuation",
+      "posture": "insufficient-data",
+      "summary": "Valuation insufficient-data (Trailing PE 31.00x, Forward PE 28.00x)",
+      "metrics": [
+        {
+          "key": "trailingPE",
+          "label": "Trailing PE",
+          "value": 31,
+          "unit": "ratio",
+          "sourceIds": ["market-yahoo-equity-aapl"]
+        },
+        {
+          "key": "forwardPE",
+          "label": "Forward PE",
+          "value": 28,
+          "unit": "ratio",
+          "sourceIds": ["market-yahoo-equity-aapl"]
+        }
+      ],
+      "sourceIds": ["market-yahoo-equity-aapl"],
+      "gaps": []
+    }
+  ],
+  "sourceIds": [
+    "extended-sec-edgar-aapl-filings",
+    "market-yahoo-equity-aapl",
+    "verified-snapshot-AAPL"
+  ],
+  "gaps": [
+    {
+      "code": "business-description",
+      "text": "Business description is not available from current normalized sources"
+    },
+    {
+      "code": "geographic-mix",
+      "text": "Geographic revenue mix is not available from current normalized sources"
+    },
+    {
+      "code": "segment-mix",
+      "text": "Segment mix is not available from current normalized sources"
+    },
+    {
+      "code": "customer-concentration",
+      "text": "Customer concentration is not available from current normalized sources"
+    },
+    {
+      "code": "purchase-recurrence",
+      "text": "Purchase recurrence is not available from current normalized sources"
+    },
+    {
+      "code": "pricing-power",
+      "text": "Pricing power evidence is not available from current normalized sources"
+    },
+    {
+      "code": "company-kpis",
+      "text": "Company-specific KPI evidence is not available from current normalized sources"
+    },
+    {
+      "code": "analyst-consensus",
+      "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+    },
+    {
+      "code": "management-track-record",
+      "text": "Management track record is not available from current normalized sources"
+    },
+    {
+      "code": "capital-allocation",
+      "text": "Capital allocation commentary is not available from current normalized sources"
+    },
+    {
+      "code": "risk-factors",
+      "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+    },
+    {
+      "code": "cyclicality",
+      "text": "Recession cyclicality evidence is not available from current normalized sources"
+    }
+  ]
+}

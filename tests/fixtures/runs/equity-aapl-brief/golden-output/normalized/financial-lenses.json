@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "generatedAt": "<generatedAt>",
+  "symbol": "AAPL",
+  "lenses": [
+    {
+      "name": "Quality",
+      "posture": "insufficient-data",
+      "metrics": [],
+      "sourceIds": []
+    },
+    {
+      "name": "Growth",
+      "posture": "insufficient-data",
+      "metrics": [],
+      "sourceIds": []
+    },
+    {
+      "name": "Financial Strength",
+      "posture": "insufficient-data",
+      "metrics": [],
+      "sourceIds": ["market-yahoo-equity-aapl"]
+    },
+    {
+      "name": "Value",
+      "posture": "insufficient-data",
+      "metrics": [
+        {
+          "key": "peRatio",
+          "label": "PE",
+          "value": 31,
+          "unit": "ratio",
+          "sourceIds": ["market-yahoo-equity-aapl"],
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        },
+        {
+          "key": "forwardPe",
+          "label": "Forward PE",
+          "value": 28,
+          "unit": "ratio",
+          "sourceIds": ["market-yahoo-equity-aapl"],
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        },
+        {
+          "key": "priceToBook",
+          "label": "Price/book",
+          "value": 45,
+          "unit": "ratio",
+          "sourceIds": ["market-yahoo-equity-aapl"],
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        }
+      ],
+      "sourceIds": ["market-yahoo-equity-aapl"]
+    },
+    {
+      "name": "Momentum",
+      "posture": "criteria-supported",
+      "metrics": [
+        {
+          "key": "latestClose",
+          "label": "Latest close",
+          "value": 216.6,
+          "unit": "currency",
+          "sourceIds": ["verified-snapshot-AAPL"],
+          "currency": "USD",
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        },
+        {
+          "key": "sma50",
+          "label": "SMA50",
+          "value": 212.5128,
+          "unit": "number",
+          "sourceIds": ["verified-snapshot-AAPL"],
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        },
+        {
+          "key": "rsi14",
+          "label": "RSI14",
+          "value": 52.73342335536868,
+          "unit": "number",
+          "sourceIds": ["verified-snapshot-AAPL"],
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        },
+        {
+          "key": "macdHistogram",
+          "label": "MACD histogram",
+          "value": 0.07721083702343323,
+          "unit": "number",
+          "sourceIds": ["verified-snapshot-AAPL"],
+          "periodEnd": "2026-06-15T14:30:00.000Z"
+        }
+      ],
+      "sourceIds": ["verified-snapshot-AAPL"]
+    }
+  ],
+  "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"]
+}

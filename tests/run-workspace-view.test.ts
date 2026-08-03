@@ -920,7 +920,7 @@ describe("run workspace view", () => {
     expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
   });
 
-  test("requires snapshot job type, file availability, and valid content", () => {
+  test("requires snapshot job type and valid content", () => {
     const eligible: RunDetail = {
       summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH] }),
       verifiedMarketSnapshot: snapshot(),
@@ -941,6 +941,12 @@ describe("run workspace view", () => {
       buildRunWorkspaceView({
         ...eligible,
         summary: summary({ availableFiles: [] }),
+      }).snapshot?.value.symbol,
+    ).toBe("AAPL");
+
+    expect(
+      buildRunWorkspaceView({
+        summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH] }),
       }).snapshot,
     ).toBeUndefined();
 

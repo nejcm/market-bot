@@ -27,7 +27,8 @@ quote-own timestamp on market snapshots; amended 2026-07-29: fail-closed unauthe
 operator gate records; amended 2026-07-30: deterministic price-as-of labelling; amended 2026-07-30:
 not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage; amended
 2026-08-01: recipe-phased deep-equity provider dispatch; amended 2026-08-02: runtime financial-
-statement parity retirement; amended 2026-08-03: interchangeable-alias offline detection)
+statement parity retirement; amended 2026-08-03: interchangeable-alias offline detection; amended
+2026-08-03: parsed-artifact authority for Research Console snapshot rendering)
 
 ## Context
 
@@ -175,6 +176,9 @@ without pretending the project has a global security master.
   runs persist it inside the evidence bundle; other equity runs retain the normalized snapshot
   sidecar. Failure emits a core evidence gap; Massive closes are not an acceptable substitute for
   OHLCV.
+  Research Console rendering keys off the parsed artifact, never the persistence path. A run's file
+  layout (sidecar versus evidence bundle) must not gate whether a surface renders, because
+  deep-equity runs subsume the snapshot into the bundle and emit no sidecar.
 - Deep `research` runs additionally attempt Verified Market Snapshots for checked-in
   subject-registry representatives. Successful representative snapshots are citeable market-data
   sources and persist as a plural normalized sidecar; failures emit per-representative gaps but do

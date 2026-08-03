@@ -49,7 +49,6 @@ import type {
   SourceView,
 } from "../report-artifact-view";
 import {
-  VERIFIED_SNAPSHOT_PATH,
   businessFrameworkView,
   extendedEvidenceItems,
   financialLensStatTiles,
@@ -1147,11 +1146,8 @@ export function equityHeaderView(detail: RunDetail): RunWorkspaceEquityHeaderVie
 }
 
 function snapshotView(detail: RunDetail): RunWorkspaceSnapshotView | undefined {
-  const { jobType, availableFiles } = detail.summary;
-  if (
-    (jobType !== "equity" && jobType !== "crypto") ||
-    !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)
-  ) {
+  const { jobType } = detail.summary;
+  if (jobType !== "equity" && jobType !== "crypto") {
     return undefined;
   }
 

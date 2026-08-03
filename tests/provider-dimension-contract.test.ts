@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 import {
+  buildRunWorkspaceView,
   COMPLETENESS_REASON_CODE_LABELS,
   completenessReasonCodeLabel,
   equitySnapshotView,
@@ -565,11 +566,14 @@ describe("provider dimension contracts", () => {
       const hasValuationComps =
         sidecarValuationComps !== undefined || evidenceBundle?.derived.valuationComps !== undefined;
       expect(detail.marketSnapshots, `${golden.fixture}: market snapshots missing`).toBeDefined();
-      // This guards the detail input only; availableFiles still gates off the rendered Console surface.
       expect(
         detail.verifiedMarketSnapshot,
         `${golden.fixture}: verified market snapshot missing`,
       ).toBeDefined();
+      const workspace = buildRunWorkspaceView(detail);
+      expect(workspace.snapshot, `${golden.fixture}: verified snapshot not rendered`).toBeDefined();
+      expect(workspace.snapshot?.value.symbol).toBe(detail.verifiedMarketSnapshot?.symbol);
+      expect(workspace.snapshot?.tradingViewUrl).toContain(detail.verifiedMarketSnapshot?.symbol);
       expect(detail.financialLenses, `${golden.fixture}: financial lenses missing`).toBeDefined();
       expect(
         detail.fundamentalHistory,
@@ -645,8 +649,13 @@ describe("provider dimension contracts", () => {
 
     for (const golden of goldens) {
       const completeness = golden.report.equityAnalysisCompleteness;
-      const text = renderedText(await renderRunWorkspaceComponent(goldenRunDetail(golden)));
+      const detail = goldenRunDetail(golden);
+      const text = renderedText(await renderRunWorkspaceComponent(detail));
 
+      expect(text, `${golden.fixture}: market snapshot heading`).toContain(
+        `Market snapshot · ${detail.verifiedMarketSnapshot?.symbol}`,
+      );
+      expect(text, `${golden.fixture}: TradingView link`).toContain("TradingView");
       expect(text, `${golden.fixture}: financial core`).toContain(
         `financial core · ${completeness.financialCoreStatus}`,
       );

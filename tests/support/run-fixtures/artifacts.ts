@@ -1,5 +1,6 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { format } from "oxfmt";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 
 export type JsonValue =
@@ -79,9 +80,13 @@ export async function readGoldenOutput(fixtureName: string): Promise<JsonValue> 
 }
 
 export async function writeGoldenOutput(runDir: string, fixtureName: string): Promise<void> {
-  await writeFile(
-    goldenOutputPath(fixtureName),
-    `${JSON.stringify(await scrubbedRunArtifacts(runDir), null, 2)}\n`,
-    "utf8",
-  );
+  const path = goldenOutputPath(fixtureName);
+  const serialized = JSON.stringify(await scrubbedRunArtifacts(runDir), null, 2);
+  const formatted = await format(path, serialized);
+  if (formatted.errors.length > 0) {
+    throw new Error(
+      `Failed to format golden output: ${formatted.errors.map((error) => error.message).join("; ")}`,
+    );
+  }
+  await writeFile(path, formatted.code, "utf8");
 }

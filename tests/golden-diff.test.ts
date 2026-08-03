@@ -42,6 +42,10 @@ function financialStatementsWithGaps(structuredFinancialGaps: readonly JsonValue
   };
 }
 
+function validationNotesGolden(validationNotes: readonly JsonValue[]): JsonValue {
+  return { artifact: { validationNotes } };
+}
+
 describe("golden diff negative controls", () => {
   test("always escalates a numeric sign flip", () => {
     const diff = diffGolden({ metric: { value: 12 } }, { metric: { value: -12 } });
@@ -144,6 +148,54 @@ describe("golden diff negative controls", () => {
       'structuredFinancialGaps[structured financial gaps="no-standard-taxonomy"]',
     );
   });
+
+  test("identity-matches a validation note insertion by series", () => {
+    const notes = [
+      { code: "unreconciled-ttm", message: "Revenue", seriesKey: "revenue" },
+      { code: "unreconciled-ttm", message: "Operating income", seriesKey: "operatingIncome" },
+      { code: "unreconciled-ttm", message: "Net income", seriesKey: "netIncome" },
+    ];
+    const inserted = {
+      code: "unreconciled-ttm",
+      message: "Gross profit",
+      seriesKey: "grossProfit",
+    };
+    const diff = diffGolden(
+      validationNotesGolden(notes),
+      validationNotesGolden([inserted, ...notes]),
+    );
+
+    expect(diff.summary).toEqual({ changed: 0, added: 1, removed: 0 });
+  });
+
+  test("identity-matches a run stage insertion by attempt", () => {
+    const stages = [
+      { stage: "final-synthesis", attempt: 1 },
+      { stage: "final-synthesis", attempt: 2 },
+    ];
+    const inserted = { stage: "final-synthesis", attempt: 3 };
+    const diff = diffGolden(
+      { analytics: { runShape: { stages } } },
+      { analytics: { runShape: { stages: [inserted, ...stages] } } },
+    );
+
+    expect(diff.summary).toEqual({ changed: 0, added: 1, removed: 0 });
+  });
+
+  test("detects a validation note reorder within a shared code", () => {
+    const first = { code: "mixed-currencies", message: "Revenue", seriesKey: "revenue" };
+    const second = {
+      code: "mixed-currencies",
+      message: "Operating income",
+      seriesKey: "operatingIncome",
+    };
+    const diff = diffGolden(
+      validationNotesGolden([first, second]),
+      validationNotesGolden([second, first]),
+    );
+
+    expect(diff.reorderedArrays).toEqual(["artifact.validationNotes"]);
+  });
 });
 
 describe("golden diff reporting", () => {
@@ -191,7 +243,7 @@ describe("golden diff reporting", () => {
       analytics: {
         runShape: {
           durationMs: 0,
-          stages: [{ stage: "collect", durationMs: 1 }],
+          stages: [{ stage: "collect", attempt: 1, durationMs: 1 }],
         },
       },
       unknown: [{ value: 1 }, { value: 2 }],
@@ -202,7 +254,7 @@ describe("golden diff reporting", () => {
       analytics: {
         runShape: {
           durationMs: 1,
-          stages: [{ stage: "collect", durationMs: 2 }],
+          stages: [{ stage: "collect", attempt: 1, durationMs: 2 }],
         },
       },
       unknown: [{ value: 2 }, { value: 3 }],
@@ -240,7 +292,7 @@ describe("golden diff reporting", () => {
         keyFindings: [{ text: "Finding", importance: 1 }],
         dataGaps: ["Gap A"],
       },
-      analytics: { runShape: { stages: [{ stage: "collect", attempts: 1 }] } },
+      analytics: { runShape: { stages: [{ stage: "collect", attempt: 1 }] } },
       normalized: {
         bundle: {
           financialLenses: {
@@ -281,7 +333,7 @@ describe("golden diff reporting", () => {
         keyFindings: [{ text: "Finding", importance: 2 }],
         dataGaps: ["Gap A", "Gap B"],
       },
-      analytics: { runShape: { stages: [{ stage: "collect", attempts: 2 }] } },
+      analytics: { runShape: { stages: [{ stage: "collect", attempt: 2 }] } },
       normalized: {
         bundle: {
           financialLenses: {
@@ -312,13 +364,13 @@ describe("golden diff reporting", () => {
     const review = reviewGolden(before, after);
 
     expect(review.equal).toBe(false);
-    expect(review.diff.summary).toEqual({ changed: 7, added: 2, removed: 0 });
+    expect(review.diff.summary).toEqual({ changed: 6, added: 3, removed: 1 });
     expect(review.diff.reorderedArrays).toEqual(["report.sources"]);
     expect(review.diff.positionalFallbacks).toEqual([]);
     expect(formatGoldenDiff(review.diff)).toContain("Identity-matched array order changes");
     const expectedStrategies: Record<GoldenArrayIdentityStrategy, true> = {
       code: true,
-      "code-period": true,
+      "code-period-series": true,
       id: true,
       "key-name": true,
       period: true,

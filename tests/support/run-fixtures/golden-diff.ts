@@ -12,7 +12,7 @@ export type GoldenChangeKind = "changed" | "added" | "removed";
 
 export type GoldenArrayIdentityStrategy =
   | "code"
-  | "code-period"
+  | "code-period-series"
   | "id"
   | "key-name"
   | "period"
@@ -69,7 +69,7 @@ export const GOLDEN_ARRAY_IDENTITIES: readonly GoldenArrayIdentityRule[] = [
   {
     label: "validation notes",
     path: /\.(?:validationNotes|omissionNotes)$/u,
-    strategy: "code-period",
+    strategy: "code-period-series",
   },
   {
     label: "history notes",
@@ -141,6 +141,10 @@ function stringField(value: JsonValue, key: string): string | undefined {
   return isRecord(value) && typeof value[key] === "string" ? value[key] : undefined;
 }
 
+function numberField(value: JsonValue, key: string): number | undefined {
+  return isRecord(value) && typeof value[key] === "number" ? value[key] : undefined;
+}
+
 function identityFor(strategy: GoldenArrayIdentityStrategy, value: JsonValue): string | undefined {
   if (strategy === "string") {
     return typeof value === "string" ? value : undefined;
@@ -161,14 +165,18 @@ function identityFor(strategy: GoldenArrayIdentityStrategy, value: JsonValue): s
     return stringField(value, "key") ?? stringField(value, "name");
   }
   if (strategy === "stage") {
-    return stringField(value, "stage");
+    const stage = stringField(value, "stage");
+    const attempt = numberField(value, "attempt");
+    return stage === undefined || attempt === undefined ? undefined : `${stage}|${attempt}`;
   }
   if (strategy === "code") {
     return stringField(value, "code");
   }
-  if (strategy === "code-period") {
+  if (strategy === "code-period-series") {
     const code = stringField(value, "code");
-    return code === undefined ? undefined : `${code}|${stringField(value, "periodKey") ?? ""}`;
+    const periodKey = stringField(value, "periodKey");
+    const seriesKey = stringField(value, "seriesKey");
+    return code === undefined ? undefined : `${code}|${periodKey ?? ""}|${seriesKey ?? ""}`;
   }
   const periodKey = stringField(value, "periodKey");
   if (periodKey !== undefined) {

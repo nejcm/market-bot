@@ -215,7 +215,7 @@ function firstJsonDifference(expected: unknown, actual: unknown, path = "$"): st
         return difference;
       }
     }
-    return path;
+    return undefined;
   }
   if (isRecord(expected) && isRecord(actual)) {
     const expectedKeys = Object.keys(expected);
@@ -233,6 +233,7 @@ function firstJsonDifference(expected: unknown, actual: unknown, path = "$"): st
         }
       }
     }
+    return undefined;
   }
   return path;
 }

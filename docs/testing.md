@@ -71,6 +71,12 @@ and sampled under the normal top-N limit. Markdown uses line matching so inserte
 do not shift every successor. Positional array fallbacks are called out and must be reviewed for a
 missing stable identity rule.
 
+Write mode runs the strict golden reader before replacing any files. A layout-invalid entry at the
+`golden-output/` root, such as a stray file or any unexpected root entry, therefore aborts
+`--write-golden` and must be removed by hand. A layout-valid stale `.json` file under
+`golden-output/normalized/` is readable, appears in the pre-write diff, and is removed when the
+writer recreates the normalized file set.
+
 ## Refreshing prompt baseline hashes
 
 `tests/prompt-baseline.test.ts` compares SHA-256 hashes of the prompts built from a deterministic

@@ -5,7 +5,7 @@
     "coverage/**",
     "research/**",
     "plans/**",
-    "tests/fixtures/runs/**/golden-output/**",
+    "tests/fixtures/runs/**/golden-output/report.md",
     "tests/fixtures/untagged-financial-corpus/raw/**"
   ]
 }

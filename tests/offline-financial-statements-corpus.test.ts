@@ -8,12 +8,43 @@ import {
   loadOfflineFinancialStatementInput,
   recompareOfflineCorpusProjection,
   runOfflineFinancialStatementCorpus,
+  type OfflineCorpusAllowance,
+  type OfflineCorpusExecution,
 } from "./support/offline-financial-statements-corpus";
+import {
+  verifyHistoryAnnualRosters,
+  type RosterVerdict,
+} from "./support/offline-financial-history-roster";
+
+const DAY_MS = 86_400_000;
+const DAYS_PER_YEAR = 365.2425;
 
 function exactValueHash(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(value ?? null))
     .digest("hex");
+}
+
+function yearsBetween(periodStart: string, periodEnd: string): number {
+  return (Date.parse(periodEnd) - Date.parse(periodStart)) / DAY_MS / DAYS_PER_YEAR;
+}
+
+function regenerateCanonicalAllowanceHashes(
+  allowances: readonly OfflineCorpusAllowance[],
+  execution: OfflineCorpusExecution,
+  paths: readonly string[],
+): readonly OfflineCorpusAllowance[] {
+  const affected = new Set(paths);
+  return allowances.map((allowance) => {
+    if (allowance.fixture !== execution.input.fixture || !affected.has(allowance.path)) {
+      return allowance;
+    }
+    const changed = execution.differences.find((difference) => difference.path === allowance.path);
+    if (changed === undefined) {
+      throw new Error(`Injected difference is missing: ${allowance.path}`);
+    }
+    return { ...allowance, canonicalSha256: exactValueHash(changed.canonical) };
+  });
 }
 
 describe("offline financial-statement corpus", () => {
@@ -68,14 +99,275 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("uses no collector, credential, network, or model seam", async () => {
-    const source = await Bun.file(
-      new URL("support/offline-financial-statements-corpus.ts", import.meta.url),
-    ).text();
+    for (const path of [
+      "support/offline-financial-statements-corpus.ts",
+      "support/offline-financial-history-roster.ts",
+    ]) {
+      const source = await Bun.file(new URL(path, import.meta.url)).text();
 
-    expect(source).not.toMatch(
-      /financial-statements-parity|collectSources|ModelProvider|\/model\/|\.generate\(|\bfetch\(/u,
+      expect(source).not.toMatch(
+        /financial-statements-parity|collectSources|ModelProvider|\/model\/|\.generate\(|\bfetch\(/u,
+      );
+      expect(source).not.toContain("process.env");
+    }
+  });
+
+  test("anchors base annual rosters to raw facts and derived rosters through base series", async () => {
+    const failed: string[] = [];
+    const excluded: string[] = [];
+    const capDisplaced: string[] = [];
+    let maraDilutedEps: RosterVerdict | null = null;
+
+    for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
+      const execution = runOfflineFinancialStatementCorpus(
+        await loadOfflineFinancialStatementInput(fixture),
+      );
+      for (const [key, verdict] of verifyHistoryAnnualRosters(execution)) {
+        const id = `${fixture}:${key}`;
+        if (verdict.kind === "failed") {
+          failed.push(`${id}:${verdict.reason}`);
+        } else if (verdict.kind === "vacuous-empty" || verdict.kind === "unanchored-empty") {
+          excluded.push(`${id}:${verdict.kind}`);
+        } else if (verdict.kind === "verified-cap-displaced") {
+          capDisplaced.push(`${id}:${JSON.stringify(verdict)}`);
+        }
+        if (fixture === "mara" && key === "canonical.dilutedEps") {
+          maraDilutedEps = verdict;
+        }
+      }
+    }
+
+    expect(failed).toEqual([]);
+    expect(capDisplaced.toSorted()).toEqual([
+      'mara:canonical.dilutedEps:{"kind":"verified-cap-displaced","droppedPeriodEnds":["2014-12-31","2015-12-31"],"newerUnionPeriods":10}',
+      'mara:canonical.revenue:{"kind":"verified-cap-displaced","droppedPeriodEnds":["2013-12-31","2014-12-31","2015-12-31"],"newerUnionPeriods":10}',
+    ]);
+    expect(excluded.toSorted()).toEqual([
+      "fpi-ifrs-semiannual:canonical.capex:unanchored-empty",
+      "fpi-ifrs-semiannual:canonical.freeCashFlowProxy:vacuous-empty",
+      "fpi-ifrs-semiannual:legacy.capex:unanchored-empty",
+      "fpi-ifrs-semiannual:legacy.dilutedEps:unanchored-empty",
+      "fpi-ifrs-semiannual:legacy.freeCashFlowProxy:vacuous-empty",
+      "fpi-ifrs-semiannual:legacy.grossMargin:vacuous-empty",
+      "fpi-ifrs-semiannual:legacy.grossProfit:unanchored-empty",
+      "fpi-ifrs-semiannual:legacy.netIncome:unanchored-empty",
+      "fpi-ifrs-semiannual:legacy.netMargin:vacuous-empty",
+      "fpi-ifrs-semiannual:legacy.operatingCashFlow:unanchored-empty",
+      "fpi-ifrs-semiannual:legacy.operatingIncome:unanchored-empty",
+      "fpi-ifrs-semiannual:legacy.operatingMargin:vacuous-empty",
+      "fpi-ifrs-semiannual:legacy.revenue:unanchored-empty",
+      "fpi-quarterly:canonical.capex:unanchored-empty",
+      "fpi-quarterly:canonical.freeCashFlowProxy:vacuous-empty",
+      "fpi-quarterly:legacy.capex:unanchored-empty",
+      "fpi-quarterly:legacy.dilutedEps:unanchored-empty",
+      "fpi-quarterly:legacy.freeCashFlowProxy:vacuous-empty",
+      "fpi-quarterly:legacy.grossMargin:vacuous-empty",
+      "fpi-quarterly:legacy.grossProfit:unanchored-empty",
+      "fpi-quarterly:legacy.netIncome:unanchored-empty",
+      "fpi-quarterly:legacy.netMargin:vacuous-empty",
+      "fpi-quarterly:legacy.operatingCashFlow:unanchored-empty",
+      "fpi-quarterly:legacy.operatingIncome:unanchored-empty",
+      "fpi-quarterly:legacy.operatingMargin:vacuous-empty",
+      "fpi-quarterly:legacy.revenue:unanchored-empty",
+      "mara:legacy.grossMargin:vacuous-empty",
+      "mara:legacy.grossProfit:vacuous-empty",
+      "nbis:canonical.grossMargin:vacuous-empty",
+      "nbis:canonical.grossProfit:unanchored-empty",
+      "nbis:legacy.capex:unanchored-empty",
+      "nbis:legacy.dilutedEps:unanchored-empty",
+      "nbis:legacy.freeCashFlowProxy:vacuous-empty",
+      "nbis:legacy.grossMargin:vacuous-empty",
+      "nbis:legacy.grossProfit:unanchored-empty",
+      "nbis:legacy.netIncome:unanchored-empty",
+      "nbis:legacy.netMargin:vacuous-empty",
+      "nbis:legacy.operatingCashFlow:unanchored-empty",
+      "nbis:legacy.operatingIncome:unanchored-empty",
+      "nbis:legacy.operatingMargin:vacuous-empty",
+      "nbis:legacy.revenue:unanchored-empty",
+    ]);
+    expect(maraDilutedEps).toEqual({
+      kind: "verified-cap-displaced",
+      droppedPeriodEnds: ["2014-12-31", "2015-12-31"],
+      newerUnionPeriods: 10,
+    });
+  });
+
+  test("rejects source-derivable annual metadata corruption", async () => {
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
     );
-    expect(source).not.toContain("process.env");
+    const { revenue } = execution.projection.canonical.fundamentalHistory;
+    const original = revenue?.annual.at(0);
+    if (revenue === undefined || original === undefined) {
+      throw new Error("NBIS golden is missing revenue history");
+    }
+    const corrupted = {
+      ...original,
+      fy: original.fy + 1,
+      fp: "Q1",
+      periodMonths: 3,
+      currency: "EUR",
+    };
+    const injected = recompareOfflineCorpusProjection(execution, {
+      ...execution.projection,
+      canonical: {
+        ...execution.projection.canonical,
+        fundamentalHistory: {
+          ...execution.projection.canonical.fundamentalHistory,
+          revenue: { ...revenue, annual: [corrupted, ...revenue.annual.slice(1)] },
+        },
+      },
+    });
+
+    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.revenue");
+    expect(verdict?.kind).toBe("failed");
+    if (verdict?.kind !== "failed") {
+      throw new Error("Corrupted NBIS revenue metadata was not rejected");
+    }
+    expect(verdict.reason).toContain(
+      'missingPeriodEnds=["2021-12-31"] extraPeriodEnds=["2021-12-31"]',
+    );
+  });
+
+  test("catches consistently truncated NBIS net-margin history after hashes are regenerated", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const { netMargin } = execution.projection.canonical.fundamentalHistory;
+    const annual = netMargin?.annual.slice(-3);
+    const first = annual?.at(0);
+    const last = annual?.at(-1);
+    if (
+      netMargin === undefined ||
+      annual === undefined ||
+      first === undefined ||
+      last === undefined
+    ) {
+      throw new Error("NBIS golden is missing net-margin history");
+    }
+    const marginChange = {
+      percentagePoints: (last.value - first.value) * 100,
+      years: yearsBetween(first.periodEnd, last.periodEnd),
+      periodStart: first.periodEnd,
+      periodEnd: last.periodEnd,
+    };
+    const injected = recompareOfflineCorpusProjection(execution, {
+      ...execution.projection,
+      canonical: {
+        ...execution.projection.canonical,
+        fundamentalHistory: {
+          ...execution.projection.canonical.fundamentalHistory,
+          netMargin: { ...netMargin, annual, marginChange },
+        },
+      },
+    });
+    const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
+      "fundamentalHistory.netMargin.annual",
+      "fundamentalHistory.netMargin.marginChange",
+    ]);
+
+    expect(netMargin.annual).toHaveLength(5);
+    expect(annual).toHaveLength(3);
+    expect(marginChange.percentagePoints).toBeCloseTo(-2446.67, 2);
+    expect(marginChange.years).toBeCloseTo(2.001, 3);
+    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).not.toThrow();
+    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.netMargin");
+    expect(verdict?.kind).toBe("failed");
+    if (verdict?.kind !== "failed") {
+      throw new Error("Truncated NBIS net-margin roster was not rejected");
+    }
+    expect(verdict.reason).toContain('missingPeriodEnds=["2021-12-31","2022-12-31"]');
+  });
+
+  test("catches consistently truncated NBIS revenue history after hashes are regenerated", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("nbis"),
+    );
+    const { revenue } = execution.projection.canonical.fundamentalHistory;
+    const annual = revenue?.annual.slice(-3);
+    const first = annual?.at(0);
+    const last = annual?.at(-1);
+    if (
+      revenue === undefined ||
+      annual === undefined ||
+      first === undefined ||
+      last === undefined
+    ) {
+      throw new Error("NBIS golden is missing revenue history");
+    }
+    const years = yearsBetween(first.periodEnd, last.periodEnd);
+    const cagr = {
+      percent: ((last.value / first.value) ** (1 / years) - 1) * 100,
+      years,
+      periodStart: first.periodEnd,
+      periodEnd: last.periodEnd,
+    };
+    const injected = recompareOfflineCorpusProjection(execution, {
+      ...execution.projection,
+      canonical: {
+        ...execution.projection.canonical,
+        fundamentalHistory: {
+          ...execution.projection.canonical.fundamentalHistory,
+          revenue: { ...revenue, annual, cagr },
+        },
+      },
+    });
+    const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
+      "fundamentalHistory.revenue.annual",
+      "fundamentalHistory.revenue.cagr",
+    ]);
+
+    expect(revenue.annual).toHaveLength(5);
+    expect(annual).toHaveLength(3);
+    expect(cagr.percent).toBeCloseTo(634.23, 2);
+    expect(cagr.years).toBeCloseTo(2, 2);
+    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).not.toThrow();
+    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.revenue");
+    expect(verdict?.kind).toBe("failed");
+    if (verdict?.kind !== "failed") {
+      throw new Error("Truncated NBIS revenue roster was not rejected");
+    }
+    expect(verdict.reason).toContain('missingPeriodEnds=["2021-12-31","2022-12-31"]');
+  });
+
+  test("catches MARA diluted-EPS truncation beyond legitimate joint-cap displacement", async () => {
+    const allowances = await loadOfflineCorpusAllowances();
+    const execution = runOfflineFinancialStatementCorpus(
+      await loadOfflineFinancialStatementInput("mara"),
+    );
+    const { dilutedEps } = execution.projection.canonical.fundamentalHistory;
+    const annual = dilutedEps?.annual.slice(-5);
+    if (dilutedEps === undefined || annual === undefined) {
+      throw new Error("MARA golden is missing diluted-EPS history");
+    }
+    const injected = recompareOfflineCorpusProjection(execution, {
+      ...execution.projection,
+      canonical: {
+        ...execution.projection.canonical,
+        fundamentalHistory: {
+          ...execution.projection.canonical.fundamentalHistory,
+          dilutedEps: { ...dilutedEps, annual },
+        },
+      },
+    });
+    const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
+      "fundamentalHistory.dilutedEps.annual",
+    ]);
+
+    expect(dilutedEps.annual).toHaveLength(8);
+    expect(annual).toHaveLength(5);
+    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).not.toThrow();
+    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.dilutedEps");
+    expect(verdict?.kind).toBe("failed");
+    if (verdict?.kind !== "failed") {
+      throw new Error("Over-truncated MARA diluted-EPS roster was not rejected");
+    }
+    expect(verdict.reason).toContain('missingPeriodEnds=["2016-12-31","2019-12-31","2020-12-31"]');
+    expect(verdict.reason).toContain(
+      'admissibleCapDisplacedPeriodEnds=["2014-12-31","2015-12-31"]',
+    );
   });
 
   test("keeps MARA allowances fixture-specific and source-reproduced", async () => {

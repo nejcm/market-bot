@@ -34,6 +34,7 @@ import { verifyLensAllowanceProperties } from "./support/offline-financial-lens-
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365.2425;
 const ASC_606_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax";
+type FixtureName = OfflineFinancialStatementInput["fixture"];
 
 function cloneCompanyFactsWithMutableUsGaap(companyFacts: unknown): {
   readonly payload: unknown;
@@ -105,6 +106,10 @@ function syntheticAliasExecution(
   });
 }
 
+async function runFixture(fixture: FixtureName): Promise<OfflineCorpusExecution> {
+  return runOfflineFinancialStatementCorpus(await loadOfflineFinancialStatementInput(fixture));
+}
+
 function yearsBetween(periodStart: string, periodEnd: string): number {
   return (Date.parse(periodEnd) - Date.parse(periodStart)) / DAY_MS / DAYS_PER_YEAR;
 }
@@ -127,51 +132,78 @@ function regenerateCanonicalAllowanceHashes(
   });
 }
 
-function injectCanonicalLensMetricValue(
-  execution: OfflineCorpusExecution,
-  lensName: string,
-  metricKey: string,
-  value: number,
-): OfflineCorpusExecution {
-  const lens = execution.projection.canonical.financialLens[lensName];
-  const metric = lens?.metrics[metricKey];
-  if (lens === undefined || metric === undefined) {
-    throw new Error(`${execution.input.fixture} is missing ${lensName}.${metricKey}`);
+type CanonicalMutation =
+  | readonly [path: string, operation: "set", value: unknown]
+  | readonly [path: string, operation: "copy", sourcePath: string]
+  | readonly [path: string, operation: "zero-margin-last", annualPath: string]
+  | readonly [
+      path: string,
+      operation: "negate" | "increment" | "double" | "add-cent" | "last-only",
+    ];
+
+function readCanonicalPath(execution: OfflineCorpusExecution, path: string): unknown {
+  let value: unknown = execution.projection.canonical;
+  for (const segment of path.split(".")) {
+    if (!isRecord(value)) {
+      throw new Error(`Injected projection path is missing: ${path}`);
+    }
+    value = value[segment];
   }
-  return recompareOfflineCorpusProjection(execution, {
-    ...execution.projection,
-    canonical: {
-      ...execution.projection.canonical,
-      financialLens: {
-        ...execution.projection.canonical.financialLens,
-        [lensName]: {
-          ...lens,
-          metrics: { ...lens.metrics, [metricKey]: { ...metric, value } },
-        },
-      },
-    },
-  });
+  return value;
 }
 
-function injectCanonicalLensPosture(
-  execution: OfflineCorpusExecution,
-  lensName: string,
-  posture: string,
-): OfflineCorpusExecution {
-  const lens = execution.projection.canonical.financialLens[lensName];
-  if (lens === undefined) {
-    throw new Error(`${execution.input.fixture} is missing ${lensName}`);
+function requiredCanonicalNumber(execution: OfflineCorpusExecution, path: string): number {
+  const value = readCanonicalPath(execution, path);
+  if (typeof value !== "number") {
+    throw new TypeError(`Injected projection number is missing: ${path}`);
   }
-  return recompareOfflineCorpusProjection(execution, {
-    ...execution.projection,
-    canonical: {
-      ...execution.projection.canonical,
-      financialLens: {
-        ...execution.projection.canonical.financialLens,
-        [lensName]: { ...lens, posture },
-      },
-    },
-  });
+  return value;
+}
+
+function injectCanonicalMutations(
+  execution: OfflineCorpusExecution,
+  mutations: readonly CanonicalMutation[],
+): OfflineCorpusExecution {
+  const projection = structuredClone(execution.projection);
+  for (const mutation of mutations) {
+    const [path, operation, operand] = mutation;
+    const segments = path.split(".");
+    const property = segments.pop();
+    let target: unknown = projection.canonical;
+    for (const segment of segments) {
+      if (!isRecord(target)) {
+        throw new Error(`Injected projection path is missing: ${path}`);
+      }
+      target = target[segment];
+    }
+    if (property === undefined || !isRecord(target)) {
+      throw new Error(`Injected projection path is missing: ${path}`);
+    }
+    if (operation === "set") {
+      target[property] = operand;
+    } else if (operation === "copy") {
+      target[property] = readCanonicalPath(execution, operand);
+    } else if (operation === "last-only") {
+      target[property] = [lastAnnualPoint(execution, path)];
+    } else if (operation === "zero-margin-last") {
+      const point = lastAnnualPoint(execution, operand);
+      target[property] = {
+        percentagePoints: 0,
+        years: 0,
+        periodStart: point.periodEnd,
+        periodEnd: point.periodEnd,
+      };
+    } else {
+      const value = requiredCanonicalNumber(execution, path);
+      target[property] = {
+        negate: -value,
+        increment: value + 1,
+        double: value * 2,
+        "add-cent": value + 0.01,
+      }[operation];
+    }
+  }
+  return recompareOfflineCorpusProjection(execution, projection);
 }
 
 function expectPreChangeLensClassifierAcceptance(
@@ -190,6 +222,198 @@ function expectPreChangeLensClassifierAcceptance(
   expect(allowance.canonicalSha256).toBe(exactValueHash(difference.canonical));
   expect(allowance.legacySha256).toBe(exactValueHash(difference.legacy));
 }
+
+type ClassifierFaultScenario = readonly [
+  name: string,
+  fixture: FixtureName,
+  mutations: readonly CanonicalMutation[],
+  regeneratedHashPaths: readonly string[],
+  expected: RegExp,
+  preChangeLensPaths?: readonly string[] | undefined,
+  balanceUnchangedPath?: string,
+];
+
+function lastAnnualPoint(execution: OfflineCorpusExecution, path: string): Record<string, unknown> {
+  const annual = readCanonicalPath(execution, path);
+  const point = Array.isArray(annual) ? annual.at(-1) : undefined;
+  if (!isRecord(point) || typeof point.periodEnd !== "string") {
+    throw new Error(`Golden is missing annual history: ${path}`);
+  }
+  return point;
+}
+
+function classifierPattern(prefix: string, path: string, suffix = ""): RegExp {
+  return new RegExp(`${prefix}${path.replaceAll(".", String.raw`\.`)}${suffix}`, "u");
+}
+
+function expectFpiBalanceRelations(
+  execution: OfflineCorpusExecution,
+  injected: OfflineCorpusExecution,
+  unchangedPath: string,
+): void {
+  const strengthPath = "financialLens.Financial Strength.metrics";
+  const netDebt = requiredCanonicalNumber(execution, `${strengthPath}.netDebt.value`);
+  const debtToEquity = requiredCanonicalNumber(execution, `${strengthPath}.debtToEquity.value`);
+  const debt = requiredCanonicalNumber(execution, `${strengthPath}.debt.value`);
+  expect(netDebt).toBe(3_120_000_000);
+  expect(debt / debtToEquity).toBe(3_120_000_000);
+  expect(readCanonicalPath(injected, unchangedPath)).toEqual(
+    readCanonicalPath(execution, unchangedPath),
+  );
+}
+
+const MARGIN_ANNUAL_PATH = "fundamentalHistory.grossMargin.annual";
+const MARGIN_CHANGE_PATH = "fundamentalHistory.grossMargin.marginChange";
+const FINANCIAL_STRENGTH_PATH = "financialLens.Financial Strength";
+
+const CLASSIFIER_FAULT_SCENARIOS: readonly ClassifierFaultScenario[] = [
+  [
+    "rejects a history defect when a regenerated hash hides a margin sign flip",
+    "mara",
+    [[`${MARGIN_CHANGE_PATH}.percentagePoints`, "negate"]],
+    [MARGIN_CHANGE_PATH],
+    classifierPattern(
+      "unclassified mara difference ",
+      MARGIN_ANNUAL_PATH,
+      ": fundamental-history property re-derivation failed",
+    ),
+  ],
+  [
+    "rejects a history defect when a regenerated hash hides a margin-years mutation",
+    "mara",
+    [[`${MARGIN_CHANGE_PATH}.years`, "increment"]],
+    [MARGIN_CHANGE_PATH],
+    classifierPattern(
+      "unclassified mara difference ",
+      MARGIN_ANNUAL_PATH,
+      ": fundamental-history property re-derivation failed",
+    ),
+  ],
+  [
+    "catches a CAGR percent sign flip after its allowance hash is regenerated",
+    "nbis",
+    [["fundamentalHistory.revenue.cagr.percent", "negate"]],
+    ["fundamentalHistory.revenue.cagr"],
+    classifierPattern(
+      "unclassified nbis difference ",
+      "fundamentalHistory.revenue.annual",
+      ": fundamental-history property re-derivation failed",
+    ),
+  ],
+  [
+    "rejects a degenerate single-point margin summary with regenerated hashes",
+    "mara",
+    [
+      [MARGIN_ANNUAL_PATH, "last-only"],
+      [MARGIN_CHANGE_PATH, "zero-margin-last", MARGIN_ANNUAL_PATH],
+    ],
+    [MARGIN_ANNUAL_PATH, MARGIN_CHANGE_PATH],
+    classifierPattern(
+      "unclassified mara difference ",
+      MARGIN_ANNUAL_PATH,
+      ": fundamental-history property re-derivation failed",
+    ),
+  ],
+  ...(["dilutedEps", "grossMargin"] as const).map((seriesKey): ClassifierFaultScenario => {
+    const path = `fundamentalHistory.${seriesKey}.ttm`;
+    return [
+      `rejects malformed raw and derived TTM values with regenerated hashes (${seriesKey})`,
+      "fpi-quarterly",
+      [
+        seriesKey === "dilutedEps"
+          ? [`${path}.form`, "set", "20-F"]
+          : [`${path}.value`, "add-cent"],
+      ],
+      [path],
+      classifierPattern(
+        "unclassified fpi-quarterly difference ",
+        path,
+        ": fundamental-history property re-derivation failed",
+      ),
+    ];
+  }),
+  [
+    "catches an operating-cash-flow TTM value mutation with regenerated hashes",
+    "fpi-quarterly",
+    [["fundamentalHistory.operatingCashFlow.ttm.value", "double"]],
+    ["fundamentalHistory.operatingCashFlow.ttm"],
+    classifierPattern(
+      "unclassified fpi-quarterly difference ",
+      "fundamentalHistory.operatingCashFlow.ttm",
+      ": fundamental-history property re-derivation failed",
+    ),
+  ],
+  [
+    "rejects a corrupted exact-period lens metric after its hash is regenerated",
+    "nbis",
+    [["financialLens.Quality.metrics.roa.value", "set", 999.5]],
+    ["financialLens.Quality.metrics.roa"],
+    classifierPattern(
+      "nbis ",
+      "financialLens.Quality.metrics.roa",
+      " is not reproduced by financial-lens properties",
+    ),
+    ["financialLens.Quality.metrics.roa"],
+  ],
+  [
+    "rejects a corrupted instant-pair lens metric after its hash is regenerated",
+    "nbis",
+    [
+      [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
+      [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
+    ],
+    [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`, `${FINANCIAL_STRENGTH_PATH}.posture`],
+    classifierPattern(
+      "nbis ",
+      `${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`,
+      " is not reproduced by financial-lens properties",
+    ),
+    [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`, `${FINANCIAL_STRENGTH_PATH}.posture`],
+  ],
+  [
+    "rejects a corrupted lens posture after its hash is regenerated",
+    "nbis",
+    [["financialLens.Growth.posture", "set", "criteria-supported"]],
+    ["financialLens.Growth.posture"],
+    classifierPattern(
+      "nbis ",
+      "financialLens.Growth.posture",
+      " is not reproduced by financial-lens properties",
+    ),
+    ["financialLens.Growth.posture"],
+  ],
+  ...(["cash", "debt", "debtToEquity"] as const).map(
+    (metricKey, index): ClassifierFaultScenario => {
+      const path = `${FINANCIAL_STRENGTH_PATH}.metrics.${metricKey}`;
+      return [
+        `rejects corrupted ${metricKey} after its hash is regenerated`,
+        "fpi-quarterly",
+        [[`${path}.value`, "set", index + 1]],
+        [path],
+        classifierPattern(
+          "fpi-quarterly ",
+          path,
+          " is not reproduced by financial-lens properties",
+        ),
+        [path],
+      ];
+    },
+  ),
+  ...(["netDebt", "debtToEquity"] as const).map((metricKey): ClassifierFaultScenario => {
+    const path = `${FINANCIAL_STRENGTH_PATH}.metrics.${metricKey}`;
+    const otherKey = metricKey === "netDebt" ? "debtToEquity" : "netDebt";
+    const otherPath = `${FINANCIAL_STRENGTH_PATH}.metrics.${otherKey}`;
+    return [
+      `keeps coincidentally equal FPI net debt and equity relations independently discriminating (${metricKey})`,
+      "fpi-quarterly",
+      [[`${path}.value`, "copy", `${otherPath}.value`]],
+      [path],
+      classifierPattern("", path),
+      undefined,
+      otherPath,
+    ];
+  }),
+];
 
 describe("offline financial-statement corpus", () => {
   test("locks every issuer projection and classifies every consumer difference offline", async () => {
@@ -260,9 +484,7 @@ describe("offline financial-statement corpus", () => {
   test("pins the interchangeable-alias candidate set across the corpus", async () => {
     const verdicts: Record<string, AliasVerdict> = {};
     for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
-      const execution = runOfflineFinancialStatementCorpus(
-        await loadOfflineFinancialStatementInput(fixture),
-      );
+      const execution = await runFixture(fixture);
       for (const [key, verdict] of detectInterchangeableAliasCandidates(execution)) {
         verdicts[`${fixture}.${key}`] = verdict;
       }
@@ -656,16 +878,9 @@ describe("offline financial-statement corpus", () => {
       periodMonths: 3,
       currency: "EUR",
     };
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          revenue: { ...revenue, annual: [corrupted, ...revenue.annual.slice(1)] },
-        },
-      },
-    });
+    const injected = injectCanonicalMutations(execution, [
+      ["fundamentalHistory.revenue.annual", "set", [corrupted, ...revenue.annual.slice(1)]],
+    ]);
 
     const verdict = verifyHistoryAnnualRosters(injected).get("canonical.revenue");
     expect(verdict?.kind).toBe("failed");
@@ -700,16 +915,10 @@ describe("offline financial-statement corpus", () => {
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          netMargin: { ...netMargin, annual, marginChange },
-        },
-      },
-    });
+    const injected = injectCanonicalMutations(execution, [
+      ["fundamentalHistory.netMargin.annual", "set", annual],
+      ["fundamentalHistory.netMargin.marginChange", "set", marginChange],
+    ]);
     const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
       "fundamentalHistory.netMargin.annual",
       "fundamentalHistory.netMargin.marginChange",
@@ -752,16 +961,10 @@ describe("offline financial-statement corpus", () => {
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          revenue: { ...revenue, annual, cagr },
-        },
-      },
-    });
+    const injected = injectCanonicalMutations(execution, [
+      ["fundamentalHistory.revenue.annual", "set", annual],
+      ["fundamentalHistory.revenue.cagr", "set", cagr],
+    ]);
     const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
       "fundamentalHistory.revenue.annual",
       "fundamentalHistory.revenue.cagr",
@@ -782,24 +985,15 @@ describe("offline financial-statement corpus", () => {
 
   test("catches MARA diluted-EPS truncation beyond legitimate joint-cap displacement", async () => {
     const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("mara"),
-    );
+    const execution = await runFixture("mara");
     const { dilutedEps } = execution.projection.canonical.fundamentalHistory;
     const annual = dilutedEps?.annual.slice(-5);
     if (dilutedEps === undefined || annual === undefined) {
       throw new Error("MARA golden is missing diluted-EPS history");
     }
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          dilutedEps: { ...dilutedEps, annual },
-        },
-      },
-    });
+    const injected = injectCanonicalMutations(execution, [
+      ["fundamentalHistory.dilutedEps.annual", "set", annual],
+    ]);
     const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
       "fundamentalHistory.dilutedEps.annual",
     ]);
@@ -899,14 +1093,10 @@ describe("offline financial-statement corpus", () => {
     );
     const projections = new Map(
       await Promise.all(
-        OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
-          async (fixture) =>
-            [
-              fixture,
-              runOfflineFinancialStatementCorpus(await loadOfflineFinancialStatementInput(fixture))
-                .projection,
-            ] as const,
-        ),
+        OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(async (fixture) => {
+          const { projection } = await runFixture(fixture);
+          return [fixture, projection] as const;
+        }),
       ),
     );
     const reclassified = historyAllowances.filter(
@@ -957,258 +1147,34 @@ describe("offline financial-statement corpus", () => {
     ).toEqual({ annual: 10, concept: 18 });
   });
 
-  test("rejects a history defect even when its whole-value allowance hash is regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("mara"),
-    );
-    const { grossMargin } = execution.projection.canonical.fundamentalHistory;
-    const originalMarginChange = grossMargin?.marginChange;
-    if (
-      grossMargin === undefined ||
-      originalMarginChange === null ||
-      originalMarginChange === undefined
-    ) {
-      throw new Error("MARA golden is missing gross-margin history");
-    }
-    for (const marginChange of [
-      {
-        ...originalMarginChange,
-        percentagePoints: originalMarginChange.percentagePoints * -1,
-      },
-      { ...originalMarginChange, years: originalMarginChange.years + 1 },
-    ]) {
-      const injectedProjection = {
-        ...execution.projection,
-        canonical: {
-          ...execution.projection.canonical,
-          fundamentalHistory: {
-            ...execution.projection.canonical.fundamentalHistory,
-            grossMargin: {
-              ...grossMargin,
-              marginChange,
-            },
-          },
-        },
-      };
-      const injected = recompareOfflineCorpusProjection(execution, injectedProjection);
-      const changed = injected.differences.find(
-        (difference) => difference.path === "fundamentalHistory.grossMargin.marginChange",
-      );
-      if (changed === undefined) {
-        throw new Error("Injected MARA margin-change difference is missing");
+  for (const scenario of CLASSIFIER_FAULT_SCENARIOS) {
+    const [name, fixture, mutations, hashPaths, expected, lensPaths, balanceUnchangedPath] =
+      scenario;
+    test(name, async () => {
+      const allowances = await loadOfflineCorpusAllowances();
+      const execution = await runFixture(fixture);
+      const injected = injectCanonicalMutations(execution, mutations);
+      const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, hashPaths);
+
+      if (balanceUnchangedPath !== undefined) {
+        expectFpiBalanceRelations(execution, injected, balanceUnchangedPath);
       }
-      const regeneratedAllowances = allowances.map((allowance) =>
-        allowance.fixture === "mara" &&
-        allowance.path === "fundamentalHistory.grossMargin.marginChange"
-          ? { ...allowance, canonicalSha256: exactValueHash(changed.canonical) }
-          : allowance,
-      );
-
-      expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).toThrow(
-        /unclassified mara difference fundamentalHistory\.grossMargin\.annual: fundamental-history property re-derivation failed/u,
-      );
-    }
-  });
-
-  test("catches a CAGR percent sign flip after its allowance hash is regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const { revenue } = execution.projection.canonical.fundamentalHistory;
-    const cagr = revenue?.cagr;
-    if (revenue === undefined || cagr === null || cagr === undefined) {
-      throw new Error("NBIS golden is missing revenue CAGR history");
-    }
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          revenue: { ...revenue, cagr: { ...cagr, percent: cagr.percent * -1 } },
-        },
-      },
-    });
-    const changed = injected.differences.find(
-      (difference) => difference.path === "fundamentalHistory.revenue.cagr",
-    );
-    if (changed === undefined) {
-      throw new Error("Injected NBIS revenue CAGR difference is missing");
-    }
-    const regeneratedAllowances = allowances.map((allowance) =>
-      allowance.fixture === "nbis" && allowance.path === "fundamentalHistory.revenue.cagr"
-        ? { ...allowance, canonicalSha256: exactValueHash(changed.canonical) }
-        : allowance,
-    );
-
-    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).toThrow(
-      /unclassified nbis difference fundamentalHistory\.revenue\.annual: fundamental-history property re-derivation failed/u,
-    );
-  });
-
-  test("rejects a degenerate single-point margin summary with regenerated hashes", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("mara"),
-    );
-    const { grossMargin } = execution.projection.canonical.fundamentalHistory;
-    const point = grossMargin?.annual.at(-1);
-    if (grossMargin === undefined || point === undefined) {
-      throw new Error("MARA golden is missing gross-margin history");
-    }
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          grossMargin: {
-            ...grossMargin,
-            annual: [point],
-            marginChange: {
-              percentagePoints: 0,
-              years: 0,
-              periodStart: point.periodEnd,
-              periodEnd: point.periodEnd,
-            },
-          },
-        },
-      },
-    });
-    const regeneratedAllowances = allowances.map((allowance) => {
-      if (
-        allowance.fixture !== "mara" ||
-        (allowance.path !== "fundamentalHistory.grossMargin.annual" &&
-          allowance.path !== "fundamentalHistory.grossMargin.marginChange")
-      ) {
-        return allowance;
+      for (const path of lensPaths ?? []) {
+        expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
       }
-      const changed = injected.differences.find((difference) => difference.path === allowance.path);
-      if (changed === undefined) {
-        throw new Error(`Injected MARA difference is missing: ${allowance.path}`);
-      }
-      return { ...allowance, canonicalSha256: exactValueHash(changed.canonical) };
+      expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(expected);
     });
-
-    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).toThrow(
-      /unclassified mara difference fundamentalHistory\.grossMargin\.annual: fundamental-history property re-derivation failed/u,
-    );
-  });
-
-  test("rejects malformed raw and derived TTM values with regenerated hashes", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("fpi-quarterly"),
-    );
-    const { dilutedEps, grossMargin } = execution.projection.canonical.fundamentalHistory;
-    const dilutedEpsTtm = dilutedEps?.ttm;
-    const grossMarginTtm = grossMargin?.ttm;
-    if (
-      dilutedEps === undefined ||
-      dilutedEpsTtm === null ||
-      dilutedEpsTtm === undefined ||
-      grossMargin === undefined ||
-      grossMarginTtm === null ||
-      grossMarginTtm === undefined
-    ) {
-      throw new Error("FPI quarterly golden is missing TTM history");
-    }
-    for (const { seriesKey, series, ttm } of [
-      {
-        seriesKey: "dilutedEps",
-        series: dilutedEps,
-        ttm: { ...dilutedEpsTtm, form: "20-F" as const },
-      },
-      {
-        seriesKey: "grossMargin",
-        series: grossMargin,
-        ttm: { ...grossMarginTtm, value: grossMarginTtm.value + 0.01 },
-      },
-    ] as const) {
-      const injected = recompareOfflineCorpusProjection(execution, {
-        ...execution.projection,
-        canonical: {
-          ...execution.projection.canonical,
-          fundamentalHistory: {
-            ...execution.projection.canonical.fundamentalHistory,
-            [seriesKey]: { ...series, ttm },
-          },
-        },
-      });
-      const path = `fundamentalHistory.${seriesKey}.ttm`;
-      const changed = injected.differences.find((difference) => difference.path === path);
-      if (changed === undefined) {
-        throw new Error(`Injected FPI quarterly difference is missing: ${path}`);
-      }
-      const regeneratedAllowances = allowances.map((allowance) =>
-        allowance.fixture === "fpi-quarterly" && allowance.path === path
-          ? { ...allowance, canonicalSha256: exactValueHash(changed.canonical) }
-          : allowance,
-      );
-
-      expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).toThrow(
-        new RegExp(
-          `unclassified fpi-quarterly difference ${path.replaceAll(".", String.raw`\.`)}: fundamental-history property re-derivation failed`,
-          "u",
-        ),
-      );
-    }
-  });
-
-  test("catches an operating-cash-flow TTM value mutation with regenerated hashes", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("fpi-quarterly"),
-    );
-    const { operatingCashFlow } = execution.projection.canonical.fundamentalHistory;
-    const ttm = operatingCashFlow?.ttm;
-    if (operatingCashFlow === undefined || ttm === null || ttm === undefined) {
-      throw new Error("FPI quarterly golden is missing operating-cash-flow TTM history");
-    }
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          operatingCashFlow: {
-            ...operatingCashFlow,
-            ttm: { ...ttm, value: ttm.value * 2 },
-          },
-        },
-      },
-    });
-    const path = "fundamentalHistory.operatingCashFlow.ttm";
-    const changed = injected.differences.find((difference) => difference.path === path);
-    if (changed === undefined) {
-      throw new Error(`Injected FPI quarterly difference is missing: ${path}`);
-    }
-    const regeneratedAllowances = allowances.map((allowance) =>
-      allowance.fixture === "fpi-quarterly" && allowance.path === path
-        ? { ...allowance, canonicalSha256: exactValueHash(changed.canonical) }
-        : allowance,
-    );
-
-    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).toThrow(
-      /unclassified fpi-quarterly difference fundamentalHistory\.operatingCashFlow\.ttm: fundamental-history property re-derivation failed/u,
-    );
-  });
+  }
 
   test("does not permit property-bearing annual or TTM allowances to claim reclassification", async () => {
     const allowances = await loadOfflineCorpusAllowances();
-    const maraExecution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("mara"),
-    );
+    const maraExecution = await runFixture("mara");
     const invalidMaraAllowances = allowances.map((allowance) =>
       allowance.fixture === "mara" && allowance.path === "fundamentalHistory.capex.annual"
         ? { ...allowance, kind: "history-property-not-rederivable" as const }
         : allowance,
     );
-    const fpiExecution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("fpi-quarterly"),
-    );
+    const fpiExecution = await runFixture("fpi-quarterly");
     const invalidFpiAllowances = allowances.map((allowance) =>
       allowance.fixture === "fpi-quarterly" && allowance.path === "fundamentalHistory.revenue.ttm"
         ? { ...allowance, kind: "history-property-not-rederivable" as const }
@@ -1223,101 +1189,10 @@ describe("offline financial-statement corpus", () => {
     );
   });
 
-  test("rejects a corrupted exact-period lens metric after its hash is regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const path = "financialLens.Quality.metrics.roa";
-    const injected = injectCanonicalLensMetricValue(execution, "Quality", "roa", 999.5);
-    const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [path]);
-
-    expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
-    expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
-      /nbis financialLens\.Quality\.metrics\.roa is not reproduced by financial-lens properties/u,
-    );
-  });
-
-  test("rejects a corrupted instant-pair lens metric after its hash is regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const path = "financialLens.Financial Strength.metrics.netDebt";
-    const metricInjected = injectCanonicalLensMetricValue(
-      execution,
-      "Financial Strength",
-      "netDebt",
-      -1,
-    );
-    const posturePath = "financialLens.Financial Strength.posture";
-    const injected = injectCanonicalLensPosture(
-      metricInjected,
-      "Financial Strength",
-      "criteria-supported",
-    );
-    const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [
-      path,
-      posturePath,
-    ]);
-
-    expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
-    expectPreChangeLensClassifierAcceptance(injected, regenerated, posturePath);
-    expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
-      /nbis financialLens\.Financial Strength\.metrics\.netDebt is not reproduced by financial-lens properties/u,
-    );
-  });
-
-  test("rejects a corrupted lens posture after its hash is regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const path = "financialLens.Growth.posture";
-    const injected = injectCanonicalLensPosture(execution, "Growth", "criteria-supported");
-    const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [path]);
-
-    expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
-    expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
-      /nbis financialLens\.Growth\.posture is not reproduced by financial-lens properties/u,
-    );
-  });
-
-  for (const [metricKey, value] of [
-    ["cash", 1],
-    ["debt", 2],
-    ["debtToEquity", 3],
-  ] as const) {
-    test(`rejects corrupted ${metricKey} after its hash is regenerated`, async () => {
-      const allowances = await loadOfflineCorpusAllowances();
-      const execution = runOfflineFinancialStatementCorpus(
-        await loadOfflineFinancialStatementInput("fpi-quarterly"),
-      );
-      const path = `financialLens.Financial Strength.metrics.${metricKey}`;
-      const injected = injectCanonicalLensMetricValue(
-        execution,
-        "Financial Strength",
-        metricKey,
-        value,
-      );
-      const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, [path]);
-
-      expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
-      expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(
-        new RegExp(
-          `fpi-quarterly financialLens\\.Financial Strength\\.metrics\\.${metricKey} is not reproduced by financial-lens properties`,
-          "u",
-        ),
-      );
-    });
-  }
-
   test("pins the complete canonical financial-lens metric-key inventory", async () => {
     const keys = new Set<string>();
     for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
-      const execution = runOfflineFinancialStatementCorpus(
-        await loadOfflineFinancialStatementInput(fixture),
-      );
+      const execution = await runFixture(fixture);
       for (const lens of Object.values(execution.projection.canonical.financialLens)) {
         for (const key of Object.keys(lens.metrics)) {
           keys.add(key);
@@ -1350,9 +1225,7 @@ describe("offline financial-statement corpus", () => {
   test("pins every allowance-backed canonical lens posture", async () => {
     const postures: string[] = [];
     for (const fixture of ["nbis", "fpi-quarterly", "fpi-ifrs-semiannual"] as const) {
-      const execution = runOfflineFinancialStatementCorpus(
-        await loadOfflineFinancialStatementInput(fixture),
-      );
+      const execution = await runFixture(fixture);
       for (const lensName of ["Quality", "Growth", "Financial Strength"] as const) {
         postures.push(
           `${fixture}:${lensName}:${execution.projection.canonical.financialLens[lensName]?.posture}`,
@@ -1375,36 +1248,25 @@ describe("offline financial-statement corpus", () => {
 
   test("fails loudly when a projected Financial Strength valuation criterion appears", async () => {
     const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
+    const execution = await runFixture("nbis");
     const strength = execution.projection.canonical.financialLens["Financial Strength"];
     if (strength === undefined) {
       throw new Error("NBIS golden is missing Financial Strength");
     }
     for (const criterion of ["netDebtToMarketCap", "debtToMarketCap", "payoutRatio"] as const) {
-      const injected = recompareOfflineCorpusProjection(execution, {
-        ...execution.projection,
-        canonical: {
-          ...execution.projection.canonical,
-          financialLens: {
-            ...execution.projection.canonical.financialLens,
-            "Financial Strength": {
-              ...strength,
-              metrics: {
-                ...strength.metrics,
-                [criterion]: {
-                  key: criterion,
-                  label: criterion,
-                  value: 0.1,
-                  unit: "ratio",
-                  sourceIds: [],
-                },
-              },
-            },
+      const injected = injectCanonicalMutations(execution, [
+        [
+          `financialLens.Financial Strength.metrics.${criterion}`,
+          "set",
+          {
+            key: criterion,
+            label: criterion,
+            value: 0.1,
+            unit: "ratio",
+            sourceIds: [],
           },
-        },
-      });
+        ],
+      ]);
       const path = "financialLens.Financial Strength.posture";
       const allowance = allowances.find((item) => item.fixture === "nbis" && item.path === path);
       const difference = injected.differences.find((item) => item.path === path);
@@ -1420,20 +1282,11 @@ describe("offline financial-statement corpus", () => {
 
   test("fails loudly when Financial Strength receives valuation net-debt input", async () => {
     const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const metricInjected = injectCanonicalLensMetricValue(
-      execution,
-      "Financial Strength",
-      "netDebt",
-      -1,
-    );
-    const injected = injectCanonicalLensPosture(
-      metricInjected,
-      "Financial Strength",
-      "criteria-supported",
-    );
+    const execution = await runFixture("nbis");
+    const injected = injectCanonicalMutations(execution, [
+      [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
+      [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
+    ]);
     const valuationCoupled = {
       ...injected,
       canonicalFinancialLensInputCategories: ["sec-edgar", "valuation"],
@@ -1458,11 +1311,7 @@ describe("offline financial-statement corpus", () => {
     const executions = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
-          async (fixture) =>
-            [
-              fixture,
-              runOfflineFinancialStatementCorpus(await loadOfflineFinancialStatementInput(fixture)),
-            ] as const,
+          async (fixture) => [fixture, await runFixture(fixture)] as const,
         ),
       ),
     );
@@ -1503,82 +1352,15 @@ describe("offline financial-statement corpus", () => {
     ).toBeFalse();
   });
 
-  test("keeps coincidentally equal FPI net debt and equity relations independently discriminating", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("fpi-quarterly"),
-    );
-    const metrics = execution.projection.canonical.financialLens["Financial Strength"]?.metrics;
-    const netDebt = metrics?.netDebt;
-    const debtToEquity = metrics?.debtToEquity;
-    const debt = metrics?.debt;
-    if (
-      netDebt === undefined ||
-      debtToEquity === undefined ||
-      debt === undefined ||
-      typeof netDebt.value !== "number" ||
-      typeof debtToEquity.value !== "number" ||
-      typeof debt.value !== "number"
-    ) {
-      throw new Error("FPI quarterly golden is missing balance metrics");
-    }
-    const impliedEquity = debt.value / debtToEquity.value;
-    const netDebtPath = "financialLens.Financial Strength.metrics.netDebt";
-    const ratioPath = "financialLens.Financial Strength.metrics.debtToEquity";
-    const netDebtInjected = injectCanonicalLensMetricValue(
-      execution,
-      "Financial Strength",
-      "netDebt",
-      debtToEquity.value,
-    );
-    const ratioInjected = injectCanonicalLensMetricValue(
-      execution,
-      "Financial Strength",
-      "debtToEquity",
-      netDebt.value,
-    );
-
-    expect(netDebt.value).toBe(3_120_000_000);
-    expect(impliedEquity).toBe(3_120_000_000);
-    expect(
-      netDebtInjected.projection.canonical.financialLens["Financial Strength"]?.metrics
-        .debtToEquity,
-    ).toEqual(debtToEquity);
-    expect(
-      ratioInjected.projection.canonical.financialLens["Financial Strength"]?.metrics.netDebt,
-    ).toEqual(netDebt);
-    expect(() =>
-      classifyOfflineCorpusDifferences(
-        netDebtInjected,
-        regenerateCanonicalAllowanceHashes(allowances, netDebtInjected, [netDebtPath]),
-      ),
-    ).toThrow(/financialLens\.Financial Strength\.metrics\.netDebt/u);
-    expect(() =>
-      classifyOfflineCorpusDifferences(
-        ratioInjected,
-        regenerateCanonicalAllowanceHashes(allowances, ratioInjected, [ratioPath]),
-      ),
-    ).toThrow(/financialLens\.Financial Strength\.metrics\.debtToEquity/u);
-  });
-
   test("rejects dumping an unsupported concept shape into the reclassification bucket", async () => {
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("msft"),
-    );
+    const execution = await runFixture("msft");
     const { revenue } = execution.projection.canonical.fundamentalHistory;
     if (revenue === undefined) {
       throw new Error("MSFT golden is missing revenue history");
     }
-    const injected = recompareOfflineCorpusProjection(execution, {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        fundamentalHistory: {
-          ...execution.projection.canonical.fundamentalHistory,
-          revenue: { ...revenue, concept: "InjectedConcept" },
-        },
-      },
-    });
+    const injected = injectCanonicalMutations(execution, [
+      ["fundamentalHistory.revenue.concept", "set", "InjectedConcept"],
+    ]);
     const changed = injected.differences.find(
       (difference) => difference.path === "fundamentalHistory.revenue.concept",
     );
@@ -1601,31 +1383,15 @@ describe("offline financial-statement corpus", () => {
 
   test("fires the test-only comparator alarm on an injected ROE mismatch", async () => {
     const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("msft"),
-    );
+    const execution = await runFixture("msft");
     const quality = execution.projection.canonical.financialLens.Quality;
     const roe = quality?.metrics.roe;
     if (quality === undefined || roe === undefined || typeof roe.value !== "number") {
       throw new Error("MSFT golden is missing canonical ROE");
     }
-    const injectedProjection = {
-      ...execution.projection,
-      canonical: {
-        ...execution.projection.canonical,
-        financialLens: {
-          ...execution.projection.canonical.financialLens,
-          Quality: {
-            ...quality,
-            metrics: {
-              ...quality.metrics,
-              roe: { ...roe, value: roe.value + 0.01 },
-            },
-          },
-        },
-      },
-    };
-    const injected = recompareOfflineCorpusProjection(execution, injectedProjection);
+    const injected = injectCanonicalMutations(execution, [
+      ["financialLens.Quality.metrics.roe.value", "add-cent"],
+    ]);
 
     expect(() => classifyOfflineCorpusDifferences(injected, allowances)).toThrow(
       /Offline comparator alarm: unclassified msft difference financialLens\.Quality\.metrics\.roe/u,
@@ -1634,12 +1400,8 @@ describe("offline financial-statement corpus", () => {
 
   test("rejects the original truncated-history defect on an allowance-backed path", async () => {
     const allowances = await loadOfflineCorpusAllowances();
-    const maraExecution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("mara"),
-    );
-    const msftExecution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("msft"),
-    );
+    const maraExecution = await runFixture("mara");
+    const msftExecution = await runFixture("msft");
     const { grossMargin: maraGrossMargin } = maraExecution.projection.canonical.fundamentalHistory;
     const { grossMargin: msftGrossMargin } = msftExecution.projection.canonical.fundamentalHistory;
     const originalMarginChange = msftGrossMargin?.marginChange;
@@ -1679,21 +1441,10 @@ describe("offline financial-statement corpus", () => {
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };
-    const injectedProjection = {
-      ...maraExecution.projection,
-      canonical: {
-        ...maraExecution.projection.canonical,
-        fundamentalHistory: {
-          ...maraExecution.projection.canonical.fundamentalHistory,
-          grossMargin: {
-            ...maraGrossMargin,
-            annual,
-            marginChange: injectedMarginChange,
-          },
-        },
-      },
-    };
-    const injected = recompareOfflineCorpusProjection(maraExecution, injectedProjection);
+    const injected = injectCanonicalMutations(maraExecution, [
+      [MARGIN_ANNUAL_PATH, "set", annual],
+      [MARGIN_CHANGE_PATH, "set", injectedMarginChange],
+    ]);
 
     expect(originalMarginChange.percentagePoints).toBeCloseTo(3.42, 2);
     expect(originalMarginChange.years).toBeCloseTo(9, 2);

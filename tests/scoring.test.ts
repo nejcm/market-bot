@@ -6,8 +6,8 @@ import {
   renderCalibrationConsole,
   MIN_CALIBRATION_SAMPLE,
 } from "../src/scoring/calibration-console";
-import { forecastErrorDirection } from "../src/scoring/miss-autopsy";
-import type { MarketRegimeLabel, Prediction } from "../src/domain/types";
+import { buildMissAutopsyFile, forecastErrorDirection } from "../src/scoring/miss-autopsy";
+import type { MarketRegimeLabel, Prediction, ResearchReport } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
 
@@ -1211,6 +1211,99 @@ describe("forecastErrorDirection", () => {
         predictionScore("miss", { resolved: false, outcome: undefined }),
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("buildMissAutopsyFile cause classification", () => {
+  const unrelatedDataGaps = Array.from(
+    { length: 40 },
+    (_, index) => `unrelated-lane-${String(index)}: provider unavailable`,
+  );
+  const citedSource = {
+    id: "extended-sec-edgar-spy-fundamentals",
+    title: "SPY SEC fundamentals",
+    fetchedAt: "2026-05-01T00:00:00.000Z",
+    kind: "extended-evidence" as const,
+    provider: "sec-edgar",
+    symbol: "SPY",
+  };
+
+  function autopsyCause(input: {
+    readonly probability: number;
+    readonly outcome: "hit" | "miss";
+    readonly sourceIds?: readonly string[];
+    readonly dataGaps?: readonly string[];
+    readonly source?: ResearchReport["sources"][number];
+  }) {
+    const source = input.source ?? citedSource;
+    const pred = prediction({
+      probability: input.probability,
+      sourceIds: input.sourceIds ?? [source.id],
+    });
+    const result = buildMissAutopsyFile(
+      researchReport({
+        dataGaps: input.dataGaps ?? unrelatedDataGaps,
+        predictions: [pred],
+        sources: [source],
+      }),
+      [predictionScore(input.outcome, { predictionId: pred.id })],
+      now,
+    );
+    return result.autopsies[0]?.cause;
+  }
+
+  test("classifies extreme misses as model_overconfidence despite unrelated report gaps", () => {
+    expect(autopsyCause({ probability: 0.75, outcome: "miss" })).toBe("model_overconfidence");
+  });
+
+  test("classifies uncited misses as data_gap despite unrelated report gaps", () => {
+    expect(autopsyCause({ probability: 0.65, outcome: "miss", sourceIds: [] })).toBe("data_gap");
+  });
+
+  test("classifies a gap in a cited source lane as source_gap", () => {
+    expect(
+      autopsyCause({
+        probability: 0.65,
+        outcome: "miss",
+        dataGaps: [...unrelatedDataGaps.slice(1), "sec-edgar: provider data missing"],
+      }),
+    ).toBe("source_gap");
+  });
+
+  test("matches a suffixed Finnhub events gap through the cited source id", () => {
+    expect(
+      autopsyCause({
+        probability: 0.65,
+        outcome: "miss",
+        dataGaps: [...unrelatedDataGaps.slice(1), "finnhub-events-2: endpoint unavailable"],
+        source: {
+          ...citedSource,
+          id: "extended-finnhub-events-aapl",
+          provider: "finnhub",
+          symbol: "AAPL",
+        },
+      }),
+    ).toBe("source_gap");
+  });
+
+  test("matches a gap through the cited source provider and kind", () => {
+    expect(
+      autopsyCause({
+        probability: 0.65,
+        outcome: "miss",
+        dataGaps: [...unrelatedDataGaps.slice(1), "finnhub-news: provider unavailable"],
+        source: {
+          ...citedSource,
+          id: "news-equity-1",
+          kind: "news",
+          provider: "finnhub",
+        },
+      }),
+    ).toBe("source_gap");
+  });
+
+  test("classifies misses with only unrelated report gaps as insufficient_evidence", () => {
+    expect(autopsyCause({ probability: 0.65, outcome: "miss" })).toBe("insufficient_evidence");
   });
 });
 

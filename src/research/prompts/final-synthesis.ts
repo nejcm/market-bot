@@ -157,7 +157,7 @@ function buildForecastDiversityGuidance(
   }
   shapes.push("conditional (if-then when evidence supports a setup)");
 
-  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Consider whether the evidence supports distinct resolution windows as well as distinct shapes, rather than defaulting to the same kind repeatedly; never vary the horizon without evidence behind it. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
+  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
 }
 
 // The observable grammar only ever asserts the positive side of a comparison, so a bearish or

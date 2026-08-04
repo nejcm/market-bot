@@ -466,7 +466,7 @@
       "initialCount": 0,
       "acceptedCount": 0,
       "rejectedCount": 0,
-      "outcome": "no-eligible-candidates"
+      "outcome": "no-candidates-returned"
     },
     "replacementAttempted": false,
     "byKind": {},

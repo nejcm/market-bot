@@ -63,7 +63,7 @@ describe("runResearchJob completion and redundancy", () => {
       initialCount: 0,
       targetCount: 2,
       acceptedPredictionIds: [],
-      outcome: "no-eligible-candidates",
+      outcome: "no-candidates-returned",
     });
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.dataGaps.filter((gap) => gap.includes("prediction"))).toEqual([
@@ -520,7 +520,7 @@ describe("runResearchJob completion and redundancy", () => {
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
   });
 
-  test("attempts completion for a clean shortfall without replacing accepted predictions", async () => {
+  test("records all candidates rejected for a clean shortfall without replacing accepted predictions", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -574,7 +574,8 @@ describe("runResearchJob completion and redundancy", () => {
     expect(finalPrompts).toHaveLength(2);
     expect(result.trace.predictionCompletion).toMatchObject({
       acceptedPredictionIds: [],
-      outcome: "no-eligible-candidates",
+      rejectedCandidateCount: 1,
+      outcome: "all-candidates-rejected",
     });
     expect(result.report.predictions).toHaveLength(1);
     expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);

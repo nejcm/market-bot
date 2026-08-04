@@ -635,7 +635,7 @@ export interface PredictionCompletionAudit {
   readonly acceptedPredictionIds: readonly string[];
   readonly rejectedCandidateCount: number;
   readonly rejectionReasons: readonly string[];
-  readonly outcome: "improved" | "no-eligible-candidates" | "failed";
+  readonly outcome: "improved" | "no-candidates-returned" | "all-candidates-rejected" | "failed";
   readonly failureReason?: string;
 }
 

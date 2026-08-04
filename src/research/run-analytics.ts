@@ -134,7 +134,11 @@ export interface RunAnalytics {
       readonly initialCount: number;
       readonly acceptedCount: number;
       readonly rejectedCount: number;
-      readonly outcome: "improved" | "no-eligible-candidates" | "failed";
+      readonly outcome:
+        | "improved"
+        | "no-candidates-returned"
+        | "all-candidates-rejected"
+        | "failed";
     };
     /** Legacy artifact compatibility. */
     readonly replacementAttempted: boolean;

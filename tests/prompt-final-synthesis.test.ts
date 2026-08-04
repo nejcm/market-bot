@@ -210,7 +210,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).toContain("conditional");
     expect(instruction).toContain("soft target");
     expect(instruction).toContain(
-      "Consider whether the evidence supports distinct resolution windows as well as distinct shapes, rather than defaulting to the same kind repeatedly; never vary the horizon without evidence behind it.",
+      "Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.",
     );
     // Distinguishes informative kind from informative probability: a better-measured
     // Kind near 0.5 against correlated benchmarks is not automatically informative.
@@ -536,7 +536,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     ) as { readonly instruction?: string };
 
     expect(parsed.instruction).toContain(
-      "Consider whether the evidence supports distinct resolution windows as well as distinct shapes, rather than defaulting to the same kind repeatedly; never vary the horizon without evidence behind it.",
+      "Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.",
     );
   });
 

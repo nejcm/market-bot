@@ -575,6 +575,9 @@ async function runPredictionCompletion(
       },
     });
     const payload = parseModelPayload(output.content);
+    const returnedCandidateCount = Array.isArray(payload.predictions)
+      ? payload.predictions.length
+      : 0;
     const merged = mergeCompletionCandidates({
       candidates: payload.predictions,
       existing: report.predictions,
@@ -596,6 +599,12 @@ async function runPredictionCompletion(
         ? { suppressedEarningsPredictionCountOffset }
         : {}),
     };
+    let outcome: PredictionCompletionAudit["outcome"] = "no-candidates-returned";
+    if (merged.acceptedPredictionIds.length > 0) {
+      outcome = "improved";
+    } else if (returnedCandidateCount > 0) {
+      outcome = "all-candidates-rejected";
+    }
     return {
       progress: {
         state,
@@ -612,7 +621,7 @@ async function runPredictionCompletion(
         acceptedPredictionIds: merged.acceptedPredictionIds,
         rejectedCandidateCount: merged.rejectedCandidateCount,
         rejectionReasons: merged.rejectionReasons,
-        outcome: merged.acceptedPredictionIds.length > 0 ? "improved" : "no-eligible-candidates",
+        outcome,
       },
     };
   } catch (error: unknown) {

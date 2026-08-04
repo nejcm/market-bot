@@ -328,7 +328,9 @@ function equityContext(): ResearchContext {
       drivers: ["breadth"],
       sourceIds: ["market-spy"],
     },
-    calibrationContext: undefined,
+    calibrationContext: {
+      conditionalPredictions: { activatedCount: 4, voidedCount: 13 },
+    },
     evidenceRequest: evidenceRequestContext,
     webGather: webGatherContext,
     historicalContext,

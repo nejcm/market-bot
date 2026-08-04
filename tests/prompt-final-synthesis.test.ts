@@ -177,6 +177,21 @@ function finalSynthesisInstruction(
 }
 
 describe("buildStagePrompt forecast diversity guidance", () => {
+  test("uses the default horizon as an evidence-dependent starting point", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).toContain(
+      "a starting horizon of 5 trading days; a forecast may depart from it when the cited evidence supports a different resolution window.",
+    );
+    expect(instruction).not.toContain("a default horizon near 5 trading days");
+  });
+
   test("deep instrument runs include forecast-shape diversity guidance", () => {
     const command: ResearchCommand = {
       jobType: "equity",
@@ -194,6 +209,9 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).toContain("range (outside [Lo, Hi])");
     expect(instruction).toContain("conditional");
     expect(instruction).toContain("soft target");
+    expect(instruction).toContain(
+      "Consider whether the evidence supports distinct resolution windows as well as distinct shapes, rather than defaulting to the same kind repeatedly; never vary the horizon without evidence behind it.",
+    );
     // Distinguishes informative kind from informative probability: a better-measured
     // Kind near 0.5 against correlated benchmarks is not automatically informative.
     expect(instruction).toContain("informative only when its probability departs from 0.5");
@@ -405,17 +423,20 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     ],
   });
 
-  function buildPrompt(predictionCompletion?: {
-    readonly requestedCount: number;
-    readonly existingPredictions: readonly Prediction[];
-    readonly reportDraft: typeof reportDraft;
-  }): string {
+  function buildPrompt(
+    predictionCompletion?: {
+      readonly requestedCount: number;
+      readonly existingPredictions: readonly Prediction[];
+      readonly reportDraft: typeof reportDraft;
+    },
+    calibrationContext: ResearchContext["calibrationContext"] = context.calibrationContext,
+  ): string {
     return stagePromptFromArgs(
       "final-synthesis",
       command,
       sources,
       config,
-      context,
+      { ...context, calibrationContext },
       loaded,
       priorStages,
       [],
@@ -503,6 +524,74 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       "must differ in probability by more than 0.005, backed by a stated evidence-based differentiation",
     );
     expect(parsed.instruction).toContain("changing only the benchmark ticker does not add signal");
+  });
+
+  test("completion steering permits evidence-backed horizon variety without requiring it", () => {
+    const parsed = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(parsed.instruction).toContain(
+      "Consider whether the evidence supports distinct resolution windows as well as distinct shapes, rather than defaulting to the same kind repeatedly; never vary the horizon without evidence behind it.",
+    );
+  });
+
+  test("completion instruction explains the positive-only grammar polarity contract", () => {
+    const parsed = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(parsed.instruction).toContain(
+      "The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.40 on the up/outside expression.",
+    );
+  });
+
+  test("includes material conditional activation history in primary and completion instructions", () => {
+    const calibrationContext = {
+      conditionalPredictions: { activatedCount: 4, voidedCount: 13 },
+    };
+    const primary = JSON.parse(buildPrompt(undefined, calibrationContext)) as {
+      readonly instruction?: string;
+    };
+    const completion = JSON.parse(
+      buildPrompt(
+        {
+          requestedCount: 2,
+          existingPredictions: reportDraft.predictions,
+          reportDraft,
+        },
+        calibrationContext,
+      ),
+    ) as { readonly instruction?: string };
+    const clause =
+      "Observed conditional-prediction activation history: 4 of 17 resolved conditionals activated; 13 voided because their antecedents did not occur. For new Conditional Predictions, prefer antecedents anchored to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited evidence shows were reached at least once in the price history you cite; avoid threshold crossings with no observed precedent. The remedy is a better antecedent, not fewer conditionals: Conditional Predictions remain worth emitting when the evidence supports a genuinely conditional setup.";
+
+    expect(primary.instruction).toContain(clause);
+    expect(completion.instruction).toContain(clause);
+  });
+
+  test("omits conditional activation guidance when counts are missing", () => {
+    const primary = JSON.parse(buildPrompt()) as { readonly instruction?: string };
+    const completion = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(primary.instruction).not.toContain("Observed conditional-prediction activation history");
+    expect(completion.instruction).not.toContain(
+      "Observed conditional-prediction activation history",
+    );
   });
 
   test("completion instruction references deterministic anchors present in the distilled evidence", () => {

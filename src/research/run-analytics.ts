@@ -166,7 +166,7 @@ export interface RunAnalytics {
     readonly informativeCount: number;
     /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count. */
     readonly signalTargetMet: boolean;
-    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
+    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate, same horizon). */
     readonly mixWarnings: readonly string[];
   };
   readonly earningsForecasts?: EarningsForecastTelemetry;
@@ -663,6 +663,16 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   if (emittedPredictions.length > 0 && nearBaseRateCount === emittedPredictions.length) {
     mixWarnings.push(
       "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal",
+    );
+  }
+  if (
+    emittedPredictions.length > 1 &&
+    emittedPredictions.every(
+      (prediction) => prediction.horizonTradingDays === emittedPredictions[0]?.horizonTradingDays,
+    )
+  ) {
+    mixWarnings.push(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
     );
   }
   const calibrationSnapshot = calibrationAtGeneration(input);

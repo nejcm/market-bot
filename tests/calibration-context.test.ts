@@ -9,6 +9,7 @@ import {
   parseCalibrationContext,
   refreshCalibrationContext,
 } from "../src/research/calibration-context";
+import { buildConditionalPredictionActivationGuidance } from "../src/research/prompts/final-synthesis";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { CalibrationSummary } from "../src/scoring/types";
 
@@ -179,6 +180,41 @@ describe("parseCalibrationContext", () => {
     const parsed = parseCalibrationContext(structuredClone(summary) as unknown);
 
     expect(parsed).toEqual(summary);
+  });
+
+  test("preserves conditional prediction counts for activation guidance", () => {
+    const parsed = parseCalibrationContext({
+      conditionalPredictions: { activatedCount: 4, voidedCount: 13 },
+    });
+
+    expect(parsed?.conditionalPredictions).toEqual({ activatedCount: 4, voidedCount: 13 });
+    expect(buildConditionalPredictionActivationGuidance(parsed?.conditionalPredictions)).toContain(
+      "4 of 17 resolved conditionals activated; 13 voided",
+    );
+  });
+
+  test("returns no activation guidance for fresh-corpus zero counts", () => {
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 0, voidedCount: 0 }),
+    ).toBeUndefined();
+  });
+
+  test("requires at least ten resolved conditionals for activation guidance", () => {
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 4, voidedCount: 4 }),
+    ).toBeUndefined();
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 5, voidedCount: 5 }),
+    ).toBeDefined();
+  });
+
+  test("requires a void rate of at least fifty percent for activation guidance", () => {
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 95, voidedCount: 5 }),
+    ).toBeUndefined();
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 5, voidedCount: 5 }),
+    ).toBeDefined();
   });
 
   test("drops fields with the wrong primitive type instead of trusting them", () => {

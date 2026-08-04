@@ -575,7 +575,8 @@
     "informativeCount": 0,
     "signalTargetMet": false,
     "mixWarnings": [
-      "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal"
+      "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal",
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety"
     ]
   },
   "earningsForecasts": {

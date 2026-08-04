@@ -94,6 +94,37 @@ describe("parseObservableExpression", () => {
         horizonTradingDays: 5,
       });
     });
+
+    test("parses no-space relative expressions", () => {
+      expect(
+        parseObservableExpression("close(AAPL,+10)/close(AAPL,0) > close(QQQ,+10)/close(QQQ,0)"),
+      ).toEqual({
+        kind: "relative",
+        subjectA: "AAPL",
+        subjectB: "QQQ",
+        horizonTradingDays: 10,
+      });
+    });
+
+    test("rejects less-than expressions under the positive-only grammar", () => {
+      const measurableAs = "close(AAPL,+10)/close(AAPL,0) < close(QQQ,+10)/close(QQQ,0)";
+      const result = readObservableForecasts([
+        {
+          id: "p1",
+          kind: "relative",
+          subject: "AAPL:QQQ",
+          measurableAs,
+          horizonTradingDays: 10,
+          probability: 0.4,
+          sourceIds: [],
+        },
+      ]);
+
+      expect(result.predictions).toEqual([]);
+      expect(result.issues.map((issue) => issue.message)).toContain(
+        `Prediction p1: unparseable measurableAs: "${measurableAs}"`,
+      );
+    });
   });
 
   describe("volatility", () => {

@@ -478,7 +478,8 @@ describe("forecast quality telemetry (3.2)", () => {
         id: "p4",
         kind: "range",
         subject: "AAPL",
-        measurableAs: "close(AAPL, +5) outside [170, 230]",
+        measurableAs: "close(AAPL, +10) outside [170, 230]",
+        horizonTradingDays: 10,
         probability: 0.35,
       }),
     ];
@@ -556,6 +557,36 @@ describe("forecast quality telemetry (3.2)", () => {
     ];
     const result = predictionsFor(preds);
     expect(result.mixWarnings.every((w) => !w.includes("direction kind"))).toBe(true);
+  });
+
+  test("multiple identical horizons produce a horizon-monoculture mix warning", () => {
+    const result = predictionsFor([
+      prediction({ id: "p1", horizonTradingDays: 5 }),
+      prediction({ id: "p2", horizonTradingDays: 5 }),
+    ]);
+
+    expect(result.mixWarnings).toContain(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
+  });
+
+  test("a single prediction does not produce a horizon-monoculture mix warning", () => {
+    const result = predictionsFor([prediction({ id: "p1", horizonTradingDays: 5 })]);
+
+    expect(result.mixWarnings).not.toContain(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
+  });
+
+  test("different horizons do not produce a horizon-monoculture mix warning", () => {
+    const result = predictionsFor([
+      prediction({ id: "p1", horizonTradingDays: 5 }),
+      prediction({ id: "p2", horizonTradingDays: 10 }),
+    ]);
+
+    expect(result.mixWarnings).not.toContain(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
   });
 
   test("zero predictions yields signalTargetMet: true with empty warnings", () => {

@@ -71,6 +71,10 @@ export interface SecCompanyFactsResult {
   readonly gaps: readonly SourceGap[];
 }
 
+export interface SecProviderResult extends ProviderResult {
+  readonly sicClassification?: SecSicClassification;
+}
+
 export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
   {
     key: "revenue",
@@ -813,7 +817,7 @@ export async function fetchSecCompanyFactsForSymbol(
   };
 }
 
-export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
+export async function collectSec(ctx: CollectContext): Promise<SecProviderResult> {
   const { command } = ctx;
   if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
@@ -846,14 +850,28 @@ function tagSecTargetGaps(symbol: string, gaps: readonly SourceGap[]): readonly 
 export function secProviderResultFromCompanyFacts(
   ctx: CollectContext,
   factsResult: SecCompanyFactsResult,
-): ProviderResult {
+): SecProviderResult {
   const { command } = ctx;
   if (!isInstrumentCommand(command)) {
-    return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps: factsResult.gaps };
+    return {
+      rawSnapshots: factsResult.rawSnapshots,
+      items: [],
+      gaps: factsResult.gaps,
+      ...(factsResult.sicClassification !== undefined
+        ? { sicClassification: factsResult.sicClassification }
+        : {}),
+    };
   }
   const gaps = tagSecTargetGaps(command.symbol, factsResult.gaps);
   if (factsResult.cik === undefined || factsResult.identity === undefined) {
-    return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps };
+    return {
+      rawSnapshots: factsResult.rawSnapshots,
+      items: [],
+      gaps,
+      ...(factsResult.sicClassification !== undefined
+        ? { sicClassification: factsResult.sicClassification }
+        : {}),
+    };
   }
 
   const { rawSnapshots, filingsSummary } = factsResult;
@@ -934,5 +952,8 @@ export function secProviderResultFromCompanyFacts(
     rawSnapshots,
     items,
     gaps,
+    ...(factsResult.sicClassification !== undefined
+      ? { sicClassification: factsResult.sicClassification }
+      : {}),
   };
 }

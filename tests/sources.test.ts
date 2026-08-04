@@ -21,6 +21,8 @@ import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { normalizeTitle } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
 import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
 import { forPrompt } from "../src/research/verified-snapshot-contract";
@@ -150,6 +152,31 @@ function secCompanyFactsPayload(): unknown {
             shares: [secFact(10, { fy: 2025, filed: "2025-07-30", end: "2025-06-29" }), secFact(9)],
           },
         },
+      },
+    },
+  };
+}
+
+function fpiAnnualFact(val: number, instant = false): Record<string, number | string> {
+  return {
+    val,
+    form: "20-F",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-04-30",
+    ...(!instant ? { start: "2025-01-01" } : {}),
+    end: "2025-12-31",
+    accn: "0001104659-26-052948",
+  };
+}
+
+function fpiCompanyFactsPayload(): unknown {
+  return {
+    facts: {
+      "ifrs-full": {
+        Revenue: { units: { USD: [fpiAnnualFact(529_800_000)] } },
+        CashAndCashEquivalents: { units: { USD: [fpiAnnualFact(3_678_100_000, true)] } },
+        Borrowings: { units: { USD: [fpiAnnualFact(4_103_200_000, true)] } },
       },
     },
   };
@@ -1929,6 +1956,63 @@ describe("extended evidence provider collection", () => {
     expect(
       result.sources.find((source) => source.id === "extended-sec-edgar-aapl-filings")?.url,
     ).toBe("https://data.sec.gov/submissions/CIK0000320193.json");
+  });
+
+  test("retains target SIC when FPI submissions resolve without legacy facts metrics", async () => {
+    const factsPayload = fpiCompanyFactsPayload();
+    const submissionsPayload = {
+      sic: "7370",
+      sicDescription: "Services-Computer Programming, Data Processing, Etc.",
+      filings: {
+        recent: {
+          form: ["20-F", "6-K"],
+          filingDate: ["2026-04-30", "2026-03-31"],
+        },
+      },
+    };
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "nbis", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 1_513_845, ticker: "NBIS", title: "Nebius Group N.V." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              return rawJson(adapter, submissionsPayload);
+            }
+            if (adapter === "sec-companyfacts") {
+              return rawJson(adapter, factsPayload);
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    expect(result.items).toEqual([]);
+    expect(result.sicClassification).toEqual({
+      sic: "7370",
+      sicDescription: "Services-Computer Programming, Data Processing, Etc.",
+    });
+    const artifact = deriveFinancialStatements(factsPayload, {
+      symbol: "NBIS",
+      generatedAt: fetchedAt,
+      analysisAsOf: fetchedAt,
+      sourceId: "extended-sec-edgar-nbis-fundamentals",
+      submissionsPayload,
+      submissionsSourceId: "extended-sec-edgar-nbis-filings",
+    });
+    const canonical = withCanonicalFinancialLensInputs(
+      { instrument: { symbol: "NBIS", assetClass: "equity" }, items: [], gaps: [] },
+      artifact,
+      result.sicClassification,
+    );
+    expect(canonical.items).toHaveLength(1);
+    expect(canonical.items[0]?.metrics).toMatchObject({ sic: "7370" });
   });
 
   test("collectSec tags target SEC gaps with the upper-cased target symbol", async () => {

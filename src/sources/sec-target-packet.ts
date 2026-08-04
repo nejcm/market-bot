@@ -6,9 +6,9 @@ import {
   fetchSecCompanyFactsForSymbol,
   secProviderResultFromCompanyFacts,
   type SecCompanyFactsResult,
+  type SecProviderResult,
   type SecSicClassification,
 } from "./extended-evidence/sec-edgar";
-import type { ProviderResult } from "./extended-evidence/common";
 import { isUsListing } from "./instrument-capability";
 import type { CollectContext, RawSourceSnapshot } from "./types";
 
@@ -53,7 +53,7 @@ export interface SecTargetPacket {
   readonly recent8Ks: readonly SecFilingPacket[];
   readonly recent6Ks: readonly SecFilingPacket[];
   readonly companyFactsResult?: SecCompanyFactsResult;
-  readonly providerResult: ProviderResult;
+  readonly providerResult: SecProviderResult;
   readonly filingEvidence: EvidenceRequestToolOutput;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];

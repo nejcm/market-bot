@@ -4,6 +4,7 @@ import type {
   FinancialStatementSeries,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
+import type { SecSicClassification } from "./sec-edgar";
 import {
   financialStatementFacts,
   financialStatementPeriodMonths,
@@ -289,6 +290,7 @@ function unique(values: readonly string[]): readonly string[] {
 export function withCanonicalFinancialLensInputs(
   evidence: ExtendedEvidence | undefined,
   artifact: FinancialStatementsArtifact,
+  sicClassification?: SecSicClassification,
 ): ExtendedEvidence {
   const legacy = legacySecItem(evidence);
   const { metrics } = canonicalMetrics(artifact);
@@ -306,7 +308,18 @@ export function withCanonicalFinancialLensInputs(
     summary: legacy?.summary ?? "Canonical SEC financial statement inputs.",
     sourceIds: unique([...(legacy?.sourceIds ?? []), artifact.sourceId]),
     observedAt: legacy?.observedAt ?? artifact.analysisAsOf,
-    metrics: { ...classificationMetrics, ...metrics },
+    metrics: {
+      ...classificationMetrics,
+      ...(sicClassification !== undefined
+        ? {
+            sic: sicClassification.sic,
+            ...(sicClassification.sicDescription !== undefined
+              ? { sicDescription: sicClassification.sicDescription }
+              : {}),
+          }
+        : {}),
+      ...metrics,
+    },
     ...(legacy?.identity !== undefined ? { identity: legacy.identity } : {}),
   };
   const items = evidence?.items ?? [];

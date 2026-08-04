@@ -867,7 +867,11 @@ async function collectEquityEnrichment(
       : addValuationEvidence(
           input.command,
           input.marketSnapshots,
-          withCanonicalFinancialLensInputs(input.extendedEvidence, financialStatements),
+          withCanonicalFinancialLensInputs(
+            input.extendedEvidence,
+            financialStatements,
+            input.secTargetPacket?.providerResult.sicClassification,
+          ),
         );
   const peerUniverseFallback =
     input.command.depth === "deep"
@@ -909,7 +913,11 @@ async function collectEquityEnrichment(
     financialStatements === undefined
       ? evidenceWithYahooFundamentals
       : withSubsequentFinancingEvidence(
-          withCanonicalFinancialLensInputs(evidenceWithYahooFundamentals, financialStatements),
+          withCanonicalFinancialLensInputs(
+            evidenceWithYahooFundamentals,
+            financialStatements,
+            input.secTargetPacket?.providerResult.sicClassification,
+          ),
           subsequentFinancing,
         );
   const financialLensResult = addFinancialLensEvidence(

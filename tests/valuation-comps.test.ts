@@ -7,6 +7,13 @@ import {
   MIXED_PERIOD_METRIC,
   type ValuationCompsOptions,
 } from "../src/sources/extended-evidence/valuation-comps";
+import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import {
+  secProviderResultFromCompanyFacts,
+  type SecCompanyFactsResult,
+} from "../src/sources/extended-evidence/sec-edgar";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 import type { PeerUniverse } from "../src/research/peer-universe";
 import { marketSnapshot } from "./support/fixtures";
@@ -111,6 +118,31 @@ function secPayload(
         WeightedAverageNumberOfDilutedSharesOutstanding: {
           units: { shares: [secFact(9), secFact(10, { fy: 2025 })] },
         },
+      },
+    },
+  };
+}
+
+function fpiAnnualFact(val: number, instant = false): Record<string, number | string> {
+  return {
+    val,
+    form: "20-F",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-04-30",
+    ...(!instant ? { start: "2025-01-01" } : {}),
+    end: "2025-12-31",
+    accn: "0001104659-26-052948",
+  };
+}
+
+function fpiSecPayload(): unknown {
+  return {
+    facts: {
+      "ifrs-full": {
+        Revenue: { units: { USD: [fpiAnnualFact(58_900_000)] } },
+        CashAndCashEquivalents: { units: { USD: [fpiAnnualFact(141_560_000, true)] } },
+        Borrowings: { units: { USD: [fpiAnnualFact(500_000_000, true)] } },
       },
     },
   };
@@ -804,6 +836,95 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.usablePeerCount).toBe(0);
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
     expect(result.artifact.excludedPeers[0]?.reason).toBe("target SIC classification unavailable");
+  });
+
+  test("uses a submissions-only target SIC for revenue-exempt peer gating", async () => {
+    const astsCommand = { ...command, symbol: "ASTS" };
+    const factsPayload = fpiSecPayload();
+    const companyFactsResult: SecCompanyFactsResult = {
+      symbol: "ASTS",
+      cik: "0001780312",
+      identity: {
+        providerIds: [{ provider: "sec-edgar", idKind: "cik", value: "0001780312" }],
+        aliases: [{ provider: "sec-edgar", idKind: "ticker", value: "ASTS" }],
+      },
+      sourceId: "extended-sec-edgar-asts-fundamentals",
+      sourceUrl: "https://data.sec.gov/api/xbrl/companyfacts/CIK0001780312.json",
+      fetchedAt: generatedAt,
+      factsPayload,
+      sicClassification: {
+        sic: "4899",
+        sicDescription: "Communications Services, Not Elsewhere Classified",
+      },
+      submissionsUrl: "https://data.sec.gov/submissions/CIK0001780312.json",
+      submissionsPayload: {
+        filings: { recent: { form: ["20-F", "6-K"], filingDate: ["2026-04-30", "2026-03-31"] } },
+      },
+      submissionsSourceId: "extended-sec-edgar-asts-filings",
+      submissionsFetchedAt: generatedAt,
+      rawSnapshots: [],
+      gaps: [],
+    };
+    const providerResult = secProviderResultFromCompanyFacts(
+      collectContext(requestExecutor(), astsCommand),
+      companyFactsResult,
+    );
+    expect(providerResult.items).toEqual([]);
+    const financialStatements = deriveFinancialStatements(factsPayload, {
+      symbol: "ASTS",
+      generatedAt,
+      analysisAsOf: generatedAt,
+      sourceId: "extended-sec-edgar-asts-fundamentals",
+      submissionsPayload: companyFactsResult.submissionsPayload,
+      submissionsSourceId: "extended-sec-edgar-asts-filings",
+    });
+    const snapshot = marketSnapshot({
+      sourceId: "market-yahoo-equity-asts",
+      symbol: "ASTS",
+      marketCap: 22_000_000_000,
+      observedAt: generatedAt,
+    });
+    const canonicalEvidence = withCanonicalFinancialLensInputs(
+      { instrument: { symbol: "ASTS", assetClass: "equity" }, items: [], gaps: [] },
+      financialStatements,
+      providerResult.sicClassification,
+    );
+    const targetEvidence = addValuationEvidence(
+      astsCommand,
+      [snapshot],
+      canonicalEvidence,
+    ).extendedEvidence;
+    expect(targetEvidence?.items.find((item) => item.category === "valuation")?.metrics?.sic).toBe(
+      "4899",
+    );
+    if (targetEvidence === undefined) {
+      throw new Error("expected target valuation evidence");
+    }
+
+    const result = await collectValuationComps(
+      collectContext(astsRequestExecutor({ sicOverrides: { IRDM: "7372" } }), astsCommand),
+      astsCommand,
+      [snapshot],
+      targetEvidence,
+      astsOptions,
+    );
+
+    expect(result.artifact.target.sic).toBe("4899");
+    expect(result.artifact.summary.gateProfile).toBe("revenue-exempt");
+    expect(result.artifact.summary.usablePeerCount).toBe(2);
+    expect(result.artifact.summary.corePeerCount).toBe(1);
+    expect(result.artifact.summary.valuationSupportability).toBe("not-meaningful");
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "IRDM",
+        reason: "SIC gate (revenue-exempt profile): SIC group mismatch (peer 73 vs target 48)",
+      }),
+    );
+    expect(
+      result.artifact.excludedPeers.some((peer) =>
+        peer.reason.includes("target SIC classification unavailable"),
+      ),
+    ).toBe(false);
   });
 
   test("subject-registry peers retain full SIC and size gates", async () => {

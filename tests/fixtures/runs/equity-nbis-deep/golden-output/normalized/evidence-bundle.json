@@ -566,6 +566,8 @@
           "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
           "observedAt": "2026-07-22T16:16:13.510Z",
           "metrics": {
+            "sic": "7370",
+            "sicDescription": "Services-Computer Programming, Data Processing, Etc.",
             "revenue": 529800000,
             "revenuePeriodEnd": "2025-12-31",
             "revenuePeriodMonths": 12,
@@ -654,6 +656,8 @@
             "revenuePeriodEnd": "2025-12-31",
             "cashPeriodEnd": "2025-12-31",
             "debtPeriodEnd": "2025-12-31",
+            "sic": "7370",
+            "sicDescription": "Services-Computer Programming, Data Processing, Etc.",
             "evToAnnualizedRevenue": 108.77380415251038,
             "marketCapToAnnualizedRevenue": 107.97142589656474,
             "debtToMarketCap": 0.07173017581005954,
@@ -7331,6 +7335,8 @@
       "generatedAt": "<generatedAt>",
       "target": {
         "symbol": "NBIS",
+        "sic": "7370",
+        "sicDescription": "Services-Computer Programming, Data Processing, Etc.",
         "marketCap": 57203261440,
         "cash": 3678100000,
         "debt": 4103200000,
@@ -8373,6 +8379,8 @@
           "generatedAt": "<generatedAt>",
           "target": {
             "symbol": "NBIS",
+            "sic": "7370",
+            "sicDescription": "Services-Computer Programming, Data Processing, Etc.",
             "marketCap": 57203261440,
             "cash": 3678100000,
             "debt": 4103200000,

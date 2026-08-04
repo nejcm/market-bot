@@ -291,6 +291,7 @@
         "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"],
         "observedAt": "2026-06-15T14:30:00.000Z",
         "metrics": {
+          "sic": "7372",
           "revenue": 1500000000,
           "revenuePeriodEnd": "2025-12-31",
           "revenuePeriodMonths": 12,
@@ -373,6 +374,7 @@
           "revenuePeriodEnd": "2025-12-31",
           "cashPeriodEnd": "2025-12-31",
           "debtPeriodEnd": "2025-12-31",
+          "sic": "7372",
           "evToAnnualizedRevenue": 15.333333333333334,
           "marketCapToAnnualizedRevenue": 13.333333333333334,
           "debtToMarketCap": 0.1875,

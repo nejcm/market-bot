@@ -394,6 +394,7 @@
           "sourceIds": ["extended-sec-edgar-fpiq-fundamentals"],
           "observedAt": "2026-06-15T14:30:00.000Z",
           "metrics": {
+            "sic": "7372",
             "revenue": 420000000,
             "revenuePeriodEnd": "2026-03-31",
             "revenuePeriodMonths": 3,
@@ -476,6 +477,7 @@
             "revenuePeriodEnd": "2026-03-31",
             "cashPeriodEnd": "2026-03-31",
             "debtPeriodEnd": "2026-03-31",
+            "sic": "7372",
             "evToAnnualizedRevenue": 13.761904761904763,
             "marketCapToAnnualizedRevenue": 11.904761904761905,
             "debtToMarketCap": 0.195,
@@ -3262,6 +3264,7 @@
       "generatedAt": "<generatedAt>",
       "target": {
         "symbol": "FPIQ",
+        "sic": "7372",
         "marketCap": 20000000000,
         "cash": 780000000,
         "debt": 3900000000,
@@ -3737,6 +3740,7 @@
           "generatedAt": "<generatedAt>",
           "target": {
             "symbol": "FPIQ",
+            "sic": "7372",
             "marketCap": 20000000000,
             "cash": 780000000,
             "debt": 3900000000,

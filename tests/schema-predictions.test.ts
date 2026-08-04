@@ -291,6 +291,7 @@ describe("validatePredictions", () => {
           kind: "relative",
           subject: "AAPL:QQQ",
           measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(QQQ, +5) / close(QQQ, 0)",
+          probability: 0.61,
         },
       ],
       knownIds,
@@ -318,6 +319,7 @@ describe("validatePredictions", () => {
           kind: "relative",
           subject: "AAPL:SPY",
           measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(SPY, +5) / close(SPY, 0)",
+          probability: 0.61,
         },
       ],
       knownIds,
@@ -344,6 +346,7 @@ describe("validatePredictions", () => {
           kind: "relative",
           subject: "AAPL:IVV",
           measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(IVV, +5) / close(IVV, 0)",
+          probability: 0.61,
         },
       ],
       knownIds,
@@ -379,7 +382,7 @@ describe("validatePredictions", () => {
     expect(result.valid).toHaveLength(2);
   });
 
-  test("keeps broad-index and sector relative benchmarks at the same horizon", () => {
+  test("keeps broad-index and sector relative benchmarks with differentiated probabilities", () => {
     const result = validatePredictions(
       [
         {
@@ -395,6 +398,7 @@ describe("validatePredictions", () => {
           kind: "relative",
           subject: "AAPL:XLK",
           measurableAs: "close(AAPL, +5) / close(AAPL, 0) > close(XLK, +5) / close(XLK, 0)",
+          probability: 0.62,
         },
       ],
       knownIds,

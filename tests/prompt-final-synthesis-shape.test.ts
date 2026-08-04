@@ -636,7 +636,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
       "the primary (pre-colon) symbol must be one of these allowed subjects",
     );
     expect(parsed.instruction).toContain(
-      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO, VTI, ITOT, IWB, SCHB share the broad-us-index class",
     );
     // The one existing prediction is a bare `direction` call, so no broad-index slot is occupied.
     expect(parsed.instruction).not.toContain("already occupy these broad-us-index slots");

@@ -490,6 +490,21 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
   });
 
+  test("completion steering requires evidence-backed probability differentiation", () => {
+    const parsed = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(parsed.instruction).toContain(
+      "must differ in probability by more than 0.005, backed by a stated evidence-based differentiation",
+    );
+    expect(parsed.instruction).toContain("changing only the benchmark ticker does not add signal");
+  });
+
   test("completion instruction references deterministic anchors present in the distilled evidence", () => {
     const prompt = stagePromptFromArgs(
       "final-synthesis",

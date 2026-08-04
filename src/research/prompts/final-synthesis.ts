@@ -14,6 +14,7 @@ import {
   BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_CLASS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
@@ -216,7 +217,7 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
 function buildAllowedSubjectSteering(predictionSubjects: readonly string[]): string {
   const subjects = predictionSubjects.join(", ");
   const benchmarks = BROAD_US_INDEX_BENCHMARK_SYMBOLS.join(", ");
-  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind.`;
+  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind. A second relative forecast for the same primary subject and exact horizon must differ in probability by more than ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)}, backed by a stated evidence-based differentiation; changing only the benchmark ticker does not add signal.`;
 }
 
 // Names the broad-US-index class+horizon slots already taken by existingPredictions so the

@@ -215,7 +215,7 @@ describe("buildStagePrompt", () => {
       "Allowed prediction subjects for this run:",
     );
     expect(parsed.predictionRepair?.instruction).toContain(
-      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO, VTI, ITOT, IWB, SCHB share the broad-us-index class",
     );
     expect(parsed.predictionRepair?.instruction).toContain(
       "For range forecasts, vary the horizon or range bounds",

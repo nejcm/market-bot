@@ -4,6 +4,7 @@ import {
   isPredictionKind,
   observationStrategyForForecast,
   parseObservableExpression,
+  RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
   readObservableForecasts,
   renderClaim,
   resolveObservableForecast,
@@ -578,5 +579,188 @@ describe("readObservableForecasts subject normalization", () => {
     expect(result.issues.map((issue) => issue.message)).toContain(
       "Prediction p1: subject does not match measurableAs",
     );
+  });
+});
+
+describe("readObservableForecasts broad US index redundancy", () => {
+  test("reports the benchmark class for equal-probability broad-index forecasts", () => {
+    const result = readObservableForecasts([
+      {
+        id: "pred-spy",
+        kind: "relative",
+        subject: "AAPL:SPY",
+        measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+        horizonTradingDays: 5,
+        probability: 0.6,
+        sourceIds: [],
+      },
+      {
+        id: "pred-qqq",
+        kind: "relative",
+        subject: "AAPL:QQQ",
+        measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(QQQ, +5)/close(QQQ, 0)",
+        horizonTradingDays: 5,
+        probability: 0.6,
+        sourceIds: [],
+      },
+    ]);
+
+    expect(result.predictions.map((prediction) => prediction.id)).toEqual(["pred-spy"]);
+    expect(result.issues[0]).toEqual(
+      expect.objectContaining({
+        code: "redundant-prediction",
+        predictionId: "pred-qqq",
+      }),
+    );
+    expect(result.issues[0]?.message).toContain(
+      "accepted benchmark SPY is equivalent in class broad-us-index",
+    );
+    expect(result.issues[0]?.message).not.toContain("same probability");
+  });
+
+  test.each(["VTI", "ITOT", "IWB", "SCHB"] as const)(
+    "rejects %s as redundant with SPY for the same primary subject and horizon",
+    (benchmark) => {
+      const result = readObservableForecasts([
+        {
+          id: "pred-spy",
+          kind: "relative",
+          subject: "AAPL:SPY",
+          measurableAs: "close(AAPL, +5)/close(AAPL, 0) > close(SPY, +5)/close(SPY, 0)",
+          horizonTradingDays: 5,
+          probability: 0.62,
+          sourceIds: [],
+        },
+        {
+          id: `pred-${benchmark.toLowerCase()}`,
+          kind: "relative",
+          subject: `AAPL:${benchmark}`,
+          measurableAs: `close(AAPL, +5)/close(AAPL, 0) > close(${benchmark}, +5)/close(${benchmark}, 0)`,
+          horizonTradingDays: 5,
+          probability: 0.61,
+          sourceIds: [],
+        },
+      ]);
+
+      expect(result.predictions.map((prediction) => prediction.id)).toEqual(["pred-spy"]);
+      expect(result.issues).toEqual([
+        expect.objectContaining({
+          code: "redundant-prediction",
+          predictionId: `pred-${benchmark.toLowerCase()}`,
+        }),
+      ]);
+    },
+  );
+});
+
+describe("readObservableForecasts equal-probability relative redundancy", () => {
+  test("rejects QQQ and IWM benchmarks at the same probability", () => {
+    const result = readObservableForecasts([
+      {
+        id: "pred-qqq",
+        kind: "relative",
+        subject: "NBIS:QQQ",
+        measurableAs: "close(NBIS, +5)/close(NBIS, 0) > close(QQQ, +5)/close(QQQ, 0)",
+        horizonTradingDays: 5,
+        probability: 0.38,
+        sourceIds: [],
+      },
+      {
+        id: "pred-iwm",
+        kind: "relative",
+        subject: "NBIS:IWM",
+        measurableAs: "close(NBIS, +5)/close(NBIS, 0) > close(IWM, +5)/close(IWM, 0)",
+        horizonTradingDays: 5,
+        probability: 0.38,
+        sourceIds: [],
+      },
+    ]);
+
+    expect(result.predictions.map((prediction) => prediction.id)).toEqual(["pred-qqq"]);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        code: "redundant-prediction",
+        predictionId: "pred-iwm",
+        message: expect.stringContaining("QQQ and IWM"),
+      }),
+    ]);
+    expect(result.issues[0]?.message).toContain("0.38");
+  });
+
+  test("accepts QQQ and a sector ETF when their probabilities are differentiated", () => {
+    const result = readObservableForecasts([
+      {
+        id: "pred-qqq",
+        kind: "relative",
+        subject: "NBIS:QQQ",
+        measurableAs: "close(NBIS, +5)/close(NBIS, 0) > close(QQQ, +5)/close(QQQ, 0)",
+        horizonTradingDays: 5,
+        probability: 0.38,
+        sourceIds: [],
+      },
+      {
+        id: "pred-xlk",
+        kind: "relative",
+        subject: "NBIS:XLK",
+        measurableAs: "close(NBIS, +5)/close(NBIS, 0) > close(XLK, +5)/close(XLK, 0)",
+        horizonTradingDays: 5,
+        probability: 0.42,
+        sourceIds: [],
+      },
+    ]);
+
+    expect(result.predictions.map((prediction) => prediction.id)).toEqual(["pred-qqq", "pred-xlk"]);
+    expect(result.issues).toEqual([]);
+  });
+
+  test("rejects at and just under the epsilon and accepts just over it", () => {
+    const basePrediction = {
+      id: "pred-qqq",
+      kind: "relative",
+      subject: "NBIS:QQQ",
+      measurableAs: "close(NBIS, +5)/close(NBIS, 0) > close(QQQ, +5)/close(QQQ, 0)",
+      horizonTradingDays: 5,
+      probability: 0,
+      sourceIds: [],
+    };
+    const benchmarkPrediction = {
+      id: "pred-iwm",
+      kind: "relative",
+      subject: "NBIS:IWM",
+      measurableAs: "close(NBIS, +5)/close(NBIS, 0) > close(IWM, +5)/close(IWM, 0)",
+      horizonTradingDays: 5,
+      sourceIds: [],
+    };
+    const justUnder = readObservableForecasts([
+      basePrediction,
+      {
+        ...benchmarkPrediction,
+        probability: RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON - 0.0001,
+      },
+    ]);
+    const atBoundary = readObservableForecasts([
+      basePrediction,
+      {
+        ...benchmarkPrediction,
+        probability: RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
+      },
+    ]);
+    const justOver = readObservableForecasts([
+      basePrediction,
+      {
+        ...benchmarkPrediction,
+        probability: RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON + 0.0001,
+      },
+    ]);
+
+    expect(justUnder.predictions.map((prediction) => prediction.id)).toEqual(["pred-qqq"]);
+    expect(justUnder.issues[0]?.code).toBe("redundant-prediction");
+    expect(atBoundary.predictions.map((prediction) => prediction.id)).toEqual(["pred-qqq"]);
+    expect(atBoundary.issues[0]?.code).toBe("redundant-prediction");
+    expect(justOver.predictions.map((prediction) => prediction.id)).toEqual([
+      "pred-qqq",
+      "pred-iwm",
+    ]);
+    expect(justOver.issues).toEqual([]);
   });
 });

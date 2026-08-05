@@ -30,7 +30,10 @@ function writeRun(
   generatedAt: string,
   summary: string,
   risk: string,
-  options: { readonly writeScore?: boolean } = {},
+  options: {
+    readonly writeScore?: boolean;
+    readonly predictionTargetCount?: number;
+  } = {},
 ): void {
   const writeScore = options.writeScore ?? true;
   const runDir = join(dataDir, runId);
@@ -47,6 +50,15 @@ function writeRun(
       keyFindings: [{ text: `${summary} finding`, sourceIds: ["s1"] }],
       risks: [{ text: risk, sourceIds: ["s1"] }],
       dataGaps: [`${summary} gap`],
+      ...(options.predictionTargetCount === undefined
+        ? {}
+        : {
+            predictionShortfall: {
+              emittedCount: 1,
+              targetCount: options.predictionTargetCount,
+              missingCount: options.predictionTargetCount - 1,
+            },
+          }),
       predictions: [
         prediction({
           id: "p1",
@@ -340,6 +352,43 @@ describe("history artifacts", () => {
       "utf8",
     );
     expect(persisted).toContain("The research thesis shifted");
+  });
+
+  test("carries structured prediction shortfalls into thesis snapshots and deltas", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-shortfall-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk", {
+      predictionTargetCount: 3,
+    });
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk", {
+      predictionTargetCount: 4,
+    });
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const { timeline } = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+    expect(timeline.entries[0]?.thesis.dataGaps).toContain(
+      "emitted 1 of 3 target predictions; evidence did not support more",
+    );
+    expect(timeline.entries[1]?.thesis.dataGaps).toContain(
+      "emitted 1 of 4 target predictions; evidence did not support more",
+    );
+
+    const delta = await buildThesisDelta({
+      dataDir,
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "run-old",
+      to: "run-new",
+      now: new Date("2026-06-06T00:00:00.000Z"),
+    });
+    expect(delta.sections.dataGaps).toMatchObject({
+      added: ["New thesis gap", "emitted 1 of 4 target predictions; evidence did not support more"],
+      removed: [
+        "Old thesis gap",
+        "emitted 1 of 3 target predictions; evidence did not support more",
+      ],
+    });
   });
 
   test("rejects narratives with trade-action language and persists nothing", async () => {

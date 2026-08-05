@@ -15,7 +15,7 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
     ? `${String(predictions.count)}/${String(predictions.targetCount)} target met`
     : `${String(predictions.count)}/${String(predictions.targetCount)} target (${String(
         missing,
-      )} short${predictions.shortfall?.disclosed === false ? ", undisclosed" : ""})`;
+      )} short)`;
   const signal = `${String(predictions.informativeCount)} informative, ${String(
     predictions.nearBaseRateCount,
   )} near base rate${predictions.signalTargetMet ? "" : " (below signal floor)"}`;

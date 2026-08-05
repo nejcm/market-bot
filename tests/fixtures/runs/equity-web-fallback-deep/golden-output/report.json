@@ -121,6 +121,11 @@
       }
     }
   },
+  "predictionShortfall": {
+    "emittedCount": 2,
+    "targetCount": 5,
+    "missingCount": 3
+  },
   "dataGaps": [
     "sec-edgar: Missing SEC company facts: dilutedShares, currentAssets, currentLiabilities [AAPL]",
     "sec-edgar: Missing comparable SEC company facts for YoY deltas: cash, debt [AAPL]",
@@ -140,8 +145,7 @@
     "web-gather: a repeated model web request was skipped",
     "Fixture replay uses static source cassettes.",
     "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
-    "business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
-    "predictionShortfall: emitted 2 of 5 target predictions; evidence did not support more"
+    "business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability"
   ],
   "predictions": [
     {

@@ -28,6 +28,7 @@ import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
 import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord, readStringVerbatim } from "../guards";
+import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 
 export const HISTORY_SECTIONS = [...REPORT_SEARCH_SECTIONS, "fundamentals", "validation"] as const;
 
@@ -278,7 +279,7 @@ function thesisState(
     bearCase: report.bearCase,
     risks: report.risks,
     catalysts: report.catalysts,
-    dataGaps: report.dataGaps,
+    dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps),
     predictions: report.predictions,
     openQuestions: openQuestions(report, scores),
   };

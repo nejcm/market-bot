@@ -21,6 +21,7 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
 import { readGapTriage, type GapTriage } from "./gap-triage";
+import { predictionShortfallMaterialGaps } from "./prediction-shortfall";
 import type { CollectedSources } from "../sources/types";
 import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";
 import {
@@ -844,10 +845,11 @@ function socialDriverText(lead: {
 }
 
 function renderAlphaSearchReport(report: ResearchReport): string {
+  const materialGaps = predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps);
   const gaps =
-    report.dataGaps.length === 0
+    materialGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => renderGap(gap)).join("\n");
+      : materialGaps.map((gap) => renderGap(gap)).join("\n");
   const sources = renderSources(report);
   const leads = readAlphaSearchLeads(report.extras);
   const rawLeadLimit = readAlphaSearchLeadDisplayLimit(report.extras);
@@ -1372,10 +1374,11 @@ export function renderMarkdownReport(
   }
 
   const title = reportTitle(report);
+  const materialGaps = predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps);
   const gaps =
-    report.dataGaps.length === 0
+    materialGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps
+      : materialGaps
           .map((gap) => renderGap(gap, report.symbol, undefined, collectedSources?.sourceGaps))
           .join("\n");
   const sources = renderSources(report);

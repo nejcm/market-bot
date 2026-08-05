@@ -17,6 +17,7 @@ import { retainedEvidenceSpanForEarningsDate } from "../sources/extended-evidenc
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
+import { validatePredictionShortfall } from "./prediction-shortfall";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -699,6 +700,9 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   }
   if (report.researchQualityDriver !== undefined && report.researchQualityDriver.trim() === "") {
     throw new Error("Research report researchQualityDriver must be non-empty when set");
+  }
+  if (report.predictionShortfall !== undefined) {
+    validatePredictionShortfall(report.predictionShortfall);
   }
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));

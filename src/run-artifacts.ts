@@ -32,6 +32,7 @@ import {
 } from "./domain/source-gaps";
 import { isPredictionKind, renderClaimForMeasurableAs } from "./forecast/observable";
 import { CURRENT_SCORING_POLICY_VERSION } from "./scoring/policy";
+import { normalizePredictionShortfall } from "./report/prediction-shortfall";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import {
   isDeepEquityReport,
@@ -558,6 +559,10 @@ function readReport(value: unknown): ResearchReport | undefined {
   const equityAnalysisCompleteness = readEquityAnalysisCompleteness(
     value.equityAnalysisCompleteness,
   );
+  const normalizedShortfall = normalizePredictionShortfall(
+    value.predictionShortfall,
+    stringArrayValue(value.dataGaps),
+  );
   return {
     runId,
     jobType: value.jobType,
@@ -581,7 +586,10 @@ function readReport(value: unknown): ResearchReport | undefined {
     ...(isReportIntegrity(value.researchQuality) ? { researchQuality: value.researchQuality } : {}),
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
     ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
-    dataGaps: stringArrayValue(value.dataGaps),
+    ...(normalizedShortfall.predictionShortfall === undefined
+      ? {}
+      : { predictionShortfall: normalizedShortfall.predictionShortfall }),
+    dataGaps: normalizedShortfall.dataGaps,
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),

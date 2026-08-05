@@ -15,6 +15,10 @@ import {
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { dedupeSourceGaps } from "../domain/source-gaps";
 import { classifyGap } from "../report/gap-triage";
+import {
+  derivePredictionShortfall,
+  withoutPredictionShortfallProtocolGaps,
+} from "../report/prediction-shortfall";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
@@ -783,7 +787,7 @@ function withoutDeterministicGapRestatements(
 }
 
 function withoutModelPredictionCountGaps(modelGaps: readonly string[]): readonly string[] {
-  return modelGaps.filter((gap) => {
+  return withoutPredictionShortfallProtocolGaps(modelGaps).filter((gap) => {
     const normalized = gap.toLowerCase();
     return !(
       /\bpredictions?\b/u.test(normalized) &&
@@ -995,13 +999,10 @@ export function assembleResearchReportWithRelocations(
     ...candidate,
     scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
   }));
-  const shortfall = researchGatedPredictions.predictions.length < depthProfile.targetPredictions;
-  const dataGaps = shortfall
-    ? [
-        ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(researchGatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
-      ]
-    : dataGapsRaw;
+  const predictionShortfall = derivePredictionShortfall(
+    researchGatedPredictions.predictions.length,
+    depthProfile.targetPredictions,
+  );
 
   // The orchestrator assesses evidence quality once, before synthesis, and stamps the
   // Result onto context.evidenceQualityAssessment, so the real flow always takes the
@@ -1086,7 +1087,8 @@ export function assembleResearchReportWithRelocations(
     scenarios,
     evidenceQuality,
     ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
-    dataGaps,
+    ...(predictionShortfall !== undefined ? { predictionShortfall } : {}),
+    dataGaps: dataGapsRaw,
     predictions: stampedPredictions,
     sources,
     ...((isInstrumentCommand(command) || command.jobType === "research") &&

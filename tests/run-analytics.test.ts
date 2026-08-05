@@ -303,7 +303,6 @@ describe("run analytics", () => {
         emittedCount: 2,
         targetCount: 3,
         missingCount: 1,
-        disclosed: false,
       },
     });
     expect(analytics.calibrationAtGeneration).toMatchObject({
@@ -396,6 +395,26 @@ describe("run analytics", () => {
       executedTools: ["sec_latest_filing"],
       emittedGapCount: 0,
     });
+  });
+
+  test.each([
+    { targetPredictions: -1, expectedTarget: 0, expectedShortfall: undefined },
+    {
+      targetPredictions: 2.5,
+      expectedTarget: 2,
+      expectedShortfall: { emittedCount: 1, targetCount: 2, missingCount: 1 },
+    },
+  ])("sanitizes invalid analytics prediction targets %#", (example) => {
+    const analytics = buildRunAnalytics({
+      report: researchReport({ predictions: [prediction()] }),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: example.targetPredictions,
+    });
+
+    expect(analytics.predictions.targetCount).toBe(example.expectedTarget);
+    expect(analytics.predictions.shortfall).toEqual(example.expectedShortfall);
   });
 });
 

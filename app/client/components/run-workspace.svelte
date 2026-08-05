@@ -5,7 +5,6 @@
     formatDate,
     jsonBlock,
     runLabel,
-    formatShortfallGap,
     valuationMetricTiles,
     type FinancialLensStatTone,
   } from "../view-model";
@@ -1254,7 +1253,7 @@
                         SHORTFALL
                       </span>
                       <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
-                        {formatShortfallGap(gap)}
+                        {gap}
                       </div>
                     </div>
                   {/each}

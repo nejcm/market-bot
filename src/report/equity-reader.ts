@@ -23,6 +23,10 @@ import type {
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
 import { readGapTriage } from "./gap-triage";
+import {
+  normalizePredictionShortfall,
+  predictionShortfallMaterialGap,
+} from "./prediction-shortfall";
 
 interface TrendPeriod {
   readonly kind: "annual" | "ttm";
@@ -641,8 +645,12 @@ function projectedGaps(
   const reportGaps = Array.isArray(record?.dataGaps)
     ? record.dataGaps.filter((gap): gap is string => typeof gap === "string")
     : [];
+  const normalizedShortfall = normalizePredictionShortfall(record?.predictionShortfall, reportGaps);
   const gaps = [
-    ...new Set([...reportGaps, ...(history === undefined ? [] : financialTrendGaps(history))]),
+    ...new Set([
+      ...normalizedShortfall.dataGaps,
+      ...(history === undefined ? [] : financialTrendGaps(history)),
+    ]),
   ];
   const reportSymbol = typeof record?.symbol === "string" ? record.symbol : undefined;
   const material: string[] = [];
@@ -653,6 +661,9 @@ function projectedGaps(
     } else {
       material.push(gap);
     }
+  }
+  if (normalizedShortfall.predictionShortfall !== undefined) {
+    material.push(predictionShortfallMaterialGap(normalizedShortfall.predictionShortfall));
   }
   return { material, diagnostic };
 }

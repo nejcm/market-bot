@@ -3,6 +3,7 @@ import type { RunSummary } from "../app/types";
 import {
   compareRunSummariesByRecency,
   runSearchResultFromIndexRow,
+  runSummaryFromReport,
   runSummaryMatchesFilters,
   searchSnippet,
 } from "../src/run-artifact-projection";
@@ -26,6 +27,19 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
 }
 
 describe("run artifact projection", () => {
+  test("counts a structured prediction shortfall as a data gap", () => {
+    const projected = runSummaryFromReport(
+      "run-a",
+      {
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
+        dataGaps: ["Missing provider evidence"],
+      },
+      [],
+    );
+
+    expect(projected.dataGapCount).toBe(2);
+  });
+
   test("snippets fall back to the leading text when the query is absent", () => {
     const text = `${"a".repeat(150)} tail`;
 

@@ -1,6 +1,7 @@
 import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } from "../app/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { ReportSearchCandidate } from "./report-search-entries";
+import { predictionShortfallGapCount } from "./report/prediction-shortfall";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
 import {
@@ -13,7 +14,6 @@ import {
 
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SNIPPET_RADIUS = 72;
-const PREDICTION_SHORTFALL_PREFIX = "predictionShortfall:";
 
 function arrayCount(record: Record<string, unknown>, key: string): number {
   const value = record[key];
@@ -54,7 +54,13 @@ export function runSummaryFromReport(
     findingCount: report === undefined ? 0 : arrayCount(report, "keyFindings"),
     predictionCount: report === undefined ? 0 : arrayCount(report, "predictions"),
     sourceCount: report === undefined ? 0 : arrayCount(report, "sources"),
-    dataGapCount: report === undefined ? 0 : arrayCount(report, "dataGaps"),
+    dataGapCount:
+      report === undefined
+        ? 0
+        : predictionShortfallGapCount(
+            report.predictionShortfall,
+            stringArrayValue(report.dataGaps),
+          ),
     hasScore: availableFiles.includes(SCORE_FILE),
     availableFiles,
   };
@@ -291,33 +297,4 @@ export function sources(report: Record<string, unknown> | undefined): readonly S
             },
           ];
     });
-}
-
-export interface SplitDataGaps {
-  readonly shortfalls: readonly string[];
-  readonly otherGaps: readonly string[];
-}
-
-export function splitDataGaps(gaps: readonly string[]): SplitDataGaps {
-  const shortfalls: string[] = [];
-  const otherGaps: string[] = [];
-
-  for (const gap of gaps) {
-    if (gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
-      shortfalls.push(gap);
-    } else {
-      otherGaps.push(gap);
-    }
-  }
-
-  return { shortfalls, otherGaps };
-}
-
-export function formatShortfallGap(gap: string): string {
-  if (!gap.startsWith(PREDICTION_SHORTFALL_PREFIX)) {
-    return gap;
-  }
-
-  const message = gap.slice(PREDICTION_SHORTFALL_PREFIX.length).trimStart();
-  return message === "" ? gap : message;
 }

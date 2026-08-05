@@ -704,6 +704,12 @@ export function isReportIntegrity(value: unknown): value is ReportIntegrity {
   return value === "high" || value === "medium" || value === "low";
 }
 
+export interface PredictionShortfall {
+  readonly emittedCount: number;
+  readonly targetCount: number;
+  readonly missingCount: number;
+}
+
 export interface ResearchReport {
   readonly runId: string;
   readonly jobType: JobType;
@@ -724,6 +730,7 @@ export interface ResearchReport {
   readonly researchQuality?: ReportIntegrity;
   readonly researchQualityDriver?: string;
   readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
+  readonly predictionShortfall?: PredictionShortfall;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];

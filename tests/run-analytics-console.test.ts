@@ -83,7 +83,7 @@ describe("run analytics console", () => {
     expect(output.startsWith("Run quality — market-overview (run-1)")).toBe(true);
   });
 
-  test("flags an undisclosed prediction shortfall and below-floor signal", () => {
+  test("flags a prediction shortfall and below-floor signal", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
@@ -92,14 +92,14 @@ describe("run analytics console", () => {
         count: 3,
         targetCount: 5,
         targetMet: false,
-        shortfall: { emittedCount: 3, targetCount: 5, missingCount: 2, disclosed: false },
+        shortfall: { emittedCount: 3, targetCount: 5, missingCount: 2 },
         informativeCount: 1,
         nearBaseRateCount: 2,
         signalTargetMet: false,
       },
     });
 
-    expect(output).toContain("Predictions: 3/5 target (2 short, undisclosed)");
+    expect(output).toContain("Predictions: 3/5 target (2 short)");
     expect(output).toContain("1 informative, 2 near base rate (below signal floor)");
   });
 

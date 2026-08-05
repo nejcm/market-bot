@@ -56,6 +56,7 @@ import {
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
+import { rederivePredictionShortfallReportAfterPruning } from "../report/prediction-shortfall";
 import { validateResearchReport } from "../report/schema";
 import {
   runForecastDisagreement,
@@ -699,7 +700,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Deterministic Report Integrity Audit: prune blocking violations from the
   // Schema-valid synthesis output before forecast disagreement so pruned
   // Predictions never reach challengers, persistence, or scoring.
-  const integrityAudit = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
+  const integrityAuditResult = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
+  const integrityAudit = {
+    ...integrityAuditResult,
+    report: rederivePredictionShortfallReportAfterPruning(integrityAuditResult.report),
+  };
   const integrityReport = reconcileEarningsForecastTelemetry(integrityAudit.report);
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,

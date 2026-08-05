@@ -478,8 +478,7 @@
     "shortfall": {
       "emittedCount": 0,
       "targetCount": 5,
-      "missingCount": 5,
-      "disclosed": true
+      "missingCount": 5
     },
     "nearBaseRateCount": 0,
     "informativeCount": 0,

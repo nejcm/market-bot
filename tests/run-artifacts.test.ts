@@ -472,6 +472,54 @@ describe("loadRunArtifact", () => {
     expect(artifact?.reverseDcf).toBeUndefined();
   });
 
+  test("normalizes legacy prediction shortfalls at the artifact read boundary", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "legacy-shortfall");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "legacy-shortfall",
+        dataGaps: [
+          "predictionShortfall: emitted 1 of 3 target predictions; evidence did not support more",
+          "Missing provider evidence",
+        ],
+      }),
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.report.predictionShortfall).toEqual({
+      emittedCount: 1,
+      targetCount: 3,
+      missingCount: 2,
+    });
+    expect(artifact?.report.dataGaps).toEqual(["Missing provider evidence"]);
+  });
+
+  test("keeps a conflicting legacy shortfall visible beside a structured field", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "conflicting-shortfall");
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "conflicting-shortfall",
+        predictionShortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
+        dataGaps: ["predictionShortfall: emitted 1 of 3"],
+      }),
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.report.predictionShortfall).toEqual({
+      emittedCount: 2,
+      targetCount: 3,
+      missingCount: 1,
+    });
+    expect(artifact?.report.dataGaps).toEqual([
+      "emitted 1 of 3 target predictions; evidence did not support more",
+    ]);
+  });
+
   test("round-trips a validated valuation-workbench sidecar", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "valuation-workbench");

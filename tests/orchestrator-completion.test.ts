@@ -66,9 +66,12 @@ describe("runResearchJob completion and redundancy", () => {
       outcome: "no-candidates-returned",
     });
     expect(result.report.predictions).toHaveLength(0);
-    expect(result.report.dataGaps.filter((gap) => gap.includes("prediction"))).toEqual([
-      "predictionShortfall: emitted 0 of 2 target predictions; evidence did not support more",
-    ]);
+    expect(result.report.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 2,
+      missingCount: 2,
+    });
+    expect(result.report.dataGaps.filter((gap) => gap.includes("prediction"))).toEqual([]);
   });
 
   test("records redundancy trims without reprompting when post-trim count meets target", async () => {
@@ -183,7 +186,7 @@ describe("runResearchJob completion and redundancy", () => {
       "pred-range",
       "pred-vol",
     ]);
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
+    expect(result.report.predictionShortfall).toBeUndefined();
     expect(priorStageNames(finalPrompts[0] ?? {})).toEqual([
       "specialist-analysis",
       "regime-context-analysis",
@@ -288,7 +291,7 @@ describe("runResearchJob completion and redundancy", () => {
       "pred-1",
       "pred-distinct",
     ]);
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
+    expect(result.report.predictionShortfall).toBeUndefined();
   });
 
   test("fires exactly one completion pass when redundant trim drops below target", async () => {
@@ -409,7 +412,7 @@ describe("runResearchJob completion and redundancy", () => {
       rejectedCandidateCount: 1,
       outcome: "improved",
     });
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(false);
+    expect(result.report.predictionShortfall).toBeUndefined();
   });
 
   test("accepts partial completion without a second pass", async () => {
@@ -517,7 +520,11 @@ describe("runResearchJob completion and redundancy", () => {
     });
     expect(result.report.predictions).toHaveLength(2);
     // Shortfall gap present because 2 < 3 target.
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+    expect(result.report.predictionShortfall).toEqual({
+      emittedCount: 2,
+      targetCount: 3,
+      missingCount: 1,
+    });
   });
 
   test("records all candidates rejected for a clean shortfall without replacing accepted predictions", async () => {
@@ -578,7 +585,11 @@ describe("runResearchJob completion and redundancy", () => {
       outcome: "all-candidates-rejected",
     });
     expect(result.report.predictions).toHaveLength(1);
-    expect(result.report.dataGaps.some((gap) => gap.includes("predictionShortfall"))).toBe(true);
+    expect(result.report.predictionShortfall).toEqual({
+      emittedCount: 1,
+      targetCount: 3,
+      missingCount: 2,
+    });
   });
 
   test("merges only informative valid completion candidates and preserves the base report", async () => {

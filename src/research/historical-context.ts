@@ -20,6 +20,7 @@ import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import type { PredictionScore } from "../scoring/types";
 import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
+import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 import {
   commandResearchSubjectIdentity,
   isSameResearchSubjectIdentity,
@@ -445,7 +446,10 @@ function toRunContext(
     keyFindings: report.keyFindings.slice(0, 5),
     risks: report.risks.slice(0, 5),
     catalysts: report.catalysts.slice(0, 5),
-    dataGaps: report.dataGaps.slice(0, 8),
+    dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).slice(
+      0,
+      8,
+    ),
     predictions: predictionSummaries(report, selected.artifact.scores),
     scoreSummary: scoreSummary(selected.artifact.scores),
     marketSnapshots: compactSnapshots(selected.artifact.snapshots, symbols),

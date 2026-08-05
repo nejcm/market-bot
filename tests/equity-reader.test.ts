@@ -313,11 +313,8 @@ describe("equity reader projection", () => {
     const projection = projectEquityReader({
       report: {
         symbol: "AAPL",
-        dataGaps: [
-          "predictionShortfall: emitted 1 of 3",
-          "Primary revenue evidence missing.",
-          "tradier: API token missing",
-        ],
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
+        dataGaps: ["Primary revenue evidence missing.", "tradier: API token missing"],
         extendedEvidence: {
           items: ["EPS", "Revenue", "EBITDA"].map((metric, index) => ({
             category: "analyst-estimates",
@@ -337,8 +334,8 @@ describe("equity reader projection", () => {
     });
 
     expect(projection.defaultView.materialGaps).toEqual([
-      "predictionShortfall: emitted 1 of 3",
       "Primary revenue evidence missing.",
+      "emitted 1 of 3 target predictions; evidence did not support more",
     ]);
     expect(projection.appendix.diagnosticGaps).toEqual(["tradier: API token missing"]);
     expect(projection.appendix.analystEstimateDistributions).toHaveLength(3);

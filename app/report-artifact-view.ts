@@ -1,5 +1,6 @@
 import { predictions, type PredictionView } from "../src/run-artifact-projection";
 import { isRecord, readNumber, readStringVerbatim } from "../src/guards";
+import { readPredictionShortfall } from "../src/report/prediction-shortfall";
 
 export {
   extendedEvidenceItems,
@@ -12,15 +13,12 @@ export {
 // Report-derived views live in src/run-artifact-projection.ts; re-exported here so app/API
 // Import paths stay stable. Score/analytics-derived views stay local (see docs/architecture.md).
 export {
-  formatShortfallGap,
   predictions,
   scenarios,
   sources,
-  splitDataGaps,
   type PredictionView,
   type ScenarioView,
   type SourceView,
-  type SplitDataGaps,
 } from "../src/run-artifact-projection";
 
 export type PredictionScoreStatus =
@@ -339,6 +337,11 @@ function readDepthProfileTarget(report?: Record<string, unknown>): number | unde
   return typeof target === "number" && Number.isFinite(target) ? target : undefined;
 }
 
+function arrayCount(record: Record<string, unknown>, key: string): number {
+  const value = record[key];
+  return Array.isArray(value) ? value.length : 0;
+}
+
 export function predictionTargetHealth(
   analytics?: Record<string, unknown>,
   report?: Record<string, unknown>,
@@ -356,6 +359,15 @@ export function predictionTargetHealth(
     }
   }
 
+  const shortfall = readPredictionShortfall(report?.predictionShortfall);
+  if (shortfall !== undefined) {
+    return {
+      count: shortfall.emittedCount,
+      target: shortfall.targetCount,
+      targetMet: false,
+    };
+  }
+
   const fallbackTarget = readDepthProfileTarget(report);
   if (fallbackTarget === undefined || report === undefined) {
     return undefined;
@@ -367,9 +379,4 @@ export function predictionTargetHealth(
     target: fallbackTarget,
     targetMet: count >= fallbackTarget,
   };
-}
-
-function arrayCount(record: Record<string, unknown>, key: string): number {
-  const value = record[key];
-  return Array.isArray(value) ? value.length : 0;
 }

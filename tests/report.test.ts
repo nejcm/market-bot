@@ -121,22 +121,37 @@ test("renders not-assessed completeness as a non-success status chip", () => {
   expect(markdown).not.toContain("Expectations `complete`");
 });
 
-test("renders prediction shortfalls as reader-visible material gaps", () => {
-  const shortfall =
-    "predictionShortfall: emitted 1 of 5 target predictions; evidence did not support more";
+test.each([
+  { emittedCount: 1, targetCount: 5, missingCount: 4 },
+  { emittedCount: 0, targetCount: 5, missingCount: 5 },
+])("renders structured prediction shortfalls last and exactly once", (predictionShortfall) => {
   const markdown = renderMarkdownReport({
     ...report,
     jobType: "equity",
     assetClass: "equity",
     symbol: "AAPL",
-    dataGaps: [shortfall],
+    predictionShortfall,
+    dataGaps: ["Primary revenue evidence missing."],
   });
   const appendixAt = markdown.indexOf("## Appendix");
   const reader = markdown.slice(0, appendixAt);
   const appendix = markdown.slice(appendixAt);
+  const text = `emitted ${String(predictionShortfall.emittedCount)} of 5 target predictions; evidence did not support more`;
 
-  expect(reader).toContain(`- **Material:** ${shortfall}`);
-  expect(appendix).not.toContain(shortfall);
+  expect(reader).toContain(`- **Material:** ${text}`);
+  expect(reader.indexOf(text)).toBeGreaterThan(reader.indexOf("Primary revenue evidence missing."));
+  expect(markdown.split(text)).toHaveLength(2);
+  expect(markdown).not.toContain("predictionShortfall:");
+  expect(appendix).not.toContain(text);
+});
+
+test("rejects an invalid structured prediction shortfall at report validation", () => {
+  expect(() =>
+    validateResearchReport({
+      ...report,
+      predictionShortfall: { emittedCount: 1, targetCount: 5, missingCount: 3 },
+    }),
+  ).toThrow("missingCount === targetCount - emittedCount > 0");
 });
 
 test("summarizes diagnostic gaps with a pointer to retained artifacts", () => {
@@ -551,6 +566,70 @@ describe("report schema and rendering", () => {
 
     expect(assembled.risks).toEqual(payload.risks);
     expect(prepared.relocatedGapClaims).toEqual([]);
+    expect(assembled.predictionShortfall).toBeUndefined();
+  });
+
+  test("derives the shortfall after the earnings eligibility gate", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const depthProfile = { ...assemblyDepthProfile("AAPL"), targetPredictions: 1 };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      earningsSetup: {
+        event: {
+          symbol: "AAPL",
+          date: "2026-07-30",
+          timing: "amc",
+          eventDateStatus: "provider-estimated",
+          dateStatus: "provider-estimated",
+          sourceIds: ["market-aapl"],
+          fetchedAt: "2026-06-01T00:00:00.000Z",
+        },
+        gaps: [],
+      },
+    });
+
+    const assembled = assembleResearchReport({
+      runId: "earnings-gated-shortfall",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL evidence summary.",
+        dataGaps: [
+          "predictionShortfall: required 1, received 0",
+          "Earnings evidence remains incomplete.",
+        ],
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            id: "earnings-direction",
+            kind: "earnings-direction",
+            subject: "AAPL",
+            measurableAs: "earningsReturn(AAPL, 2026-07-30, +1) > 0",
+            horizonTradingDays: 1,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.predictions).toEqual([]);
+    expect(assembled.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 1,
+      missingCount: 1,
+    });
+    expect(assembled.dataGaps).toContain("Earnings evidence remains incomplete.");
+    expect(assembled.dataGaps).not.toContain("predictionShortfall: required 1, received 0");
   });
 
   test("renders Finnhub earnings dates as provider-estimated and unconfirmed", () => {
@@ -1804,8 +1883,12 @@ describe("report schema and rendering", () => {
       "Model caveat remains untagged.",
       "researchProxyForecastGate: dropped predictions because no listed prediction proxy was resolved",
       "optional-news: optional provider unavailable",
-      "predictionShortfall: emitted 0 of 1 target predictions; evidence did not support more",
     ]);
+    expect(assembled.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 1,
+      missingCount: 1,
+    });
   });
 
   test("dedupes conflicting source gap impacts before report ordering", () => {

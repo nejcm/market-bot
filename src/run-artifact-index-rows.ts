@@ -11,6 +11,7 @@ import {
   type ReportSearchScope,
 } from "./report-search-entries";
 import { readDepth } from "./run-artifact-projection";
+import { predictionShortfallGapCount } from "./report/prediction-shortfall";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import type { PredictionScore } from "./scoring/types";
@@ -134,7 +135,7 @@ function runRowFor(
     finding_count: report.keyFindings.length,
     prediction_count: report.predictions.length,
     source_count: report.sources.length,
-    data_gap_count: report.dataGaps.length,
+    data_gap_count: predictionShortfallGapCount(report.predictionShortfall, report.dataGaps),
     has_score: files.some((file) => file.path === RUN_ARTIFACT_FILES.score) ? 1 : 0,
     report_status: loaded.status.report,
     score_status: loaded.status.score,

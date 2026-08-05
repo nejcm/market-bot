@@ -22,6 +22,7 @@ import { deriveFundamentalHistory } from "../src/sources/extended-evidence/funda
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { predictionTargetHealth } from "../app/report-artifact-view";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -105,6 +106,57 @@ describe("research console app artifacts", () => {
 
     expect(canonical?.financialStatements).toEqual(artifact);
     expect(historical?.financialStatements).toBeUndefined();
+  });
+
+  test("normalizes legacy prediction shortfalls on the Console read path", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "legacy-shortfall");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "legacy-shortfall",
+        dataGaps: ["predictionShortfall: emitted 0 of 3", "Missing provider evidence"],
+      }),
+    );
+
+    const detail = await readRunDetail(dataDir, "legacy-shortfall");
+
+    expect(detail?.report?.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 3,
+      missingCount: 3,
+    });
+    expect(detail?.report?.dataGaps).toEqual(["Missing provider evidence"]);
+  });
+
+  test("prefers post-prune analytics health over a reconstructed legacy shortfall", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "legacy-stale-shortfall");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "legacy-stale-shortfall",
+        dataGaps: ["predictionShortfall: emitted 5 of 6"],
+      }),
+    );
+    writeJson(join(runDir, "analytics.json"), {
+      predictions: { count: 4, targetCount: 6, targetMet: false },
+    });
+
+    const detail = await readRunDetail(dataDir, "legacy-stale-shortfall");
+
+    expect(detail?.report?.predictionShortfall).toEqual({
+      emittedCount: 5,
+      targetCount: 6,
+      missingCount: 1,
+    });
+    expect(predictionTargetHealth(detail?.analytics, detail?.report)).toEqual({
+      count: 4,
+      target: 6,
+      targetMet: false,
+    });
   });
 
   test("indexes run summaries from report artifacts", async () => {

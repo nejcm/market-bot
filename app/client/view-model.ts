@@ -103,8 +103,6 @@ export {
   scenarios,
   scoredForecasts,
   sources,
-  formatShortfallGap,
-  splitDataGaps,
   stringArray,
   textItems,
 } from "../report-artifact-view";
@@ -117,7 +115,6 @@ export type {
   PredictionScoreView,
   PredictionTargetHealth,
   ScoredForecast,
-  SplitDataGaps,
 } from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
@@ -1015,9 +1012,7 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
         shortfall:
           shortfall === undefined
             ? "none"
-            : `${String(numberAt(shortfall, ["missingCount"]))} missing${
-                shortfall.disclosed === true ? ", disclosed" : ""
-              }`,
+            : `${String(numberAt(shortfall, ["missingCount"]))} missing`,
         calibration: formatSkill(readFiniteNumber(calibration?.brierSkillScore)),
         snapshotFreshness:
           snapshotAge === undefined || snapshotSymbol === undefined

@@ -2,6 +2,7 @@ import {
   NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
   type EarningsForecastTelemetry,
+  type PredictionShortfall,
   type ReportIntegrity,
   type ResearchReport,
   type RunTrace,
@@ -33,6 +34,10 @@ import {
   roundWebSubjectProfileAgeDays,
 } from "../web-evidence";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import {
+  derivePredictionShortfall,
+  predictionShortfallGapCount,
+} from "../report/prediction-shortfall";
 import {
   deriveProviderEndpointAvailability,
   type ProviderEndpointAvailability,
@@ -152,12 +157,7 @@ export interface RunAnalytics {
     readonly uncitedCount: number;
     readonly targetCount: number;
     readonly targetMet: boolean;
-    readonly shortfall?: {
-      readonly emittedCount: number;
-      readonly targetCount: number;
-      readonly missingCount: number;
-      readonly disclosed: boolean;
-    };
+    readonly shortfall?: PredictionShortfall;
     readonly forecastDisagreement?: {
       readonly participantCount: number;
       readonly successfulParticipantCount: number;
@@ -265,6 +265,10 @@ export interface RunAnalytics {
     readonly costPricing?: readonly CostPricing[];
     readonly durationMs?: number;
   };
+}
+
+function sanitizedPredictionTargetCount(targetCount: number): number {
+  return Number.isFinite(targetCount) ? Math.max(0, Math.trunc(targetCount)) : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -639,16 +643,12 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
             (item) => isRecord(item) && item.band === "high",
           ).length,
         };
-  const missingPredictionCount = Math.max(0, input.targetPredictions - report.predictions.length);
-  const predictionShortfall =
-    missingPredictionCount === 0
-      ? undefined
-      : {
-          emittedCount: report.predictions.length,
-          targetCount: input.targetPredictions,
-          missingCount: missingPredictionCount,
-          disclosed: report.dataGaps.some((gap) => gap.startsWith("predictionShortfall:")),
-        };
+  const targetPredictions = sanitizedPredictionTargetCount(input.targetPredictions);
+  const predictionShortfall = derivePredictionShortfall(
+    report.predictions.length,
+    targetPredictions,
+  );
+  const dataGapCount = predictionShortfallGapCount(report.predictionShortfall, report.dataGaps);
 
   const emittedPredictions = report.predictions;
   const nearBaseRateCount = emittedPredictions.filter((prediction) =>
@@ -722,7 +722,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       },
       sourceGapClasses: sourceGapClasses(gaps),
       dataGaps: {
-        total: report.dataGaps.length,
+        total: dataGapCount,
       },
     },
     ...(report.jobType === "equity"
@@ -740,7 +740,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ...(trace.evidenceQualityAssessment !== undefined
         ? { assessment: trace.evidenceQualityAssessment }
         : {}),
-      dataGapCount: report.dataGaps.length,
+      dataGapCount,
       extendedEvidence: {
         itemCount: extendedEvidence?.items.length ?? 0,
         gapCount: extendedEvidence?.gaps.length ?? 0,
@@ -778,8 +778,8 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ),
       citedCount,
       uncitedCount: report.predictions.length - citedCount,
-      targetCount: input.targetPredictions,
-      targetMet: report.predictions.length >= input.targetPredictions,
+      targetCount: targetPredictions,
+      targetMet: report.predictions.length >= targetPredictions,
       ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
       nearBaseRateCount,

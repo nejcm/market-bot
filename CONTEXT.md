@@ -94,7 +94,13 @@ Public market value, point-in-time or windowed, used to resolve a Prediction.
 
 ## Prediction
 
-Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed through the structured `ResearchReport.predictionShortfall` contract, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+
+## Prediction Shortfall
+
+Structured disclosure that a report emitted fewer observable Predictions than its soft target after
+earnings and research-subject gates. It records emitted, target, and missing counts; presentation
+derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
 
 ## Scoring Policy
 
@@ -323,8 +329,9 @@ in the Default View.
 A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
 provider, an entitlement 403, or an unconfigured operating-KPI registry, and appears only in the
 Appendix.
-Prediction shortfalls affect the delivered research scope and appear as Material Gaps in the
-Default View.
+Prediction shortfalls affect the delivered research scope and appear last among Material Gaps in
+the Default View. Non-equity Console views keep the structured disclosure in a dedicated Shortfall
+block.
 
 ## Source Plan
 

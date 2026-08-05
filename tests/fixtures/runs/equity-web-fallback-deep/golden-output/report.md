@@ -66,7 +66,7 @@ The observed quote is within the peer-implied price reference range of 145.60–
 - **Material:** web-gather: a repeated model web request was skipped
 - **Material:** Fixture replay uses static source cassettes.
 - **Material:** business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability
-- **Material:** predictionShortfall: emitted 2 of 5 target predictions; evidence did not support more
+- **Material:** emitted 2 of 5 target predictions; evidence did not support more
 
 ## Appendix
 

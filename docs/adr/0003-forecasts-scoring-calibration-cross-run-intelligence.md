@@ -11,7 +11,8 @@ split-adjusted equity closes, provider-window anchor validation, and calibration
 amended 2026-07-06: primary Near-Base-Rate prompt steering;
 amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range after the first
 resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58;
-consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility)
+consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility;
+amended 2026-08-05: structured Prediction shortfall disclosure)
 
 ## Context
 
@@ -42,7 +43,12 @@ be mistaken for current market evidence.
 - Prediction count is a soft `targetPredictions`, not a quota. After a high- or medium-evidence
   report is valid but below target, one best-effort, predictions-only Forecast Completion Pass may
   add candidates. It preserves the accepted report and Predictions, never retries itself, and
-  leaves any remaining shortfall deterministically disclosed.
+  leaves any remaining shortfall deterministically disclosed. After earnings and research-subject
+  gates, report assembly derives `ResearchReport.predictionShortfall` with non-negative integer
+  emitted, target, and missing counts satisfying `missing = target - emitted > 0`. Presentation
+  derives canonical Material Gap or compact text from that structure; new reports do not encode
+  the protocol in `dataGaps`. Tolerant artifact reads adapt only the anchored historical
+  `predictionShortfall: emitted N of T` form and retain unparseable or conflicting gaps verbatim.
 - Completion candidates must pass the existing observable, citation, subject, and redundancy
   gates and must sit outside the inclusive 0.40-0.60 Near-Base-Rate band. Primary synthesis
   is prompted to keep every emitted Prediction outside the same band — an in-band probability
@@ -161,6 +167,10 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 
 - `src/forecast/observable.ts` owns parsing, canonicalization, and expression shape.
 - `src/research/report-assembly.ts` applies subject gates, trims, shortfalls, and policy stamping.
+- `src/report/prediction-shortfall.ts` owns shortfall derivation, validation, presentation text,
+  and anchored legacy normalization for artifact and Console reads.
+- `src/research/orchestrator.ts` re-derives the shortfall immediately after Report Integrity Audit
+  pruning so persisted reports and downstream consumers reflect the retained predictions.
 - `src/scoring/policy.ts` owns the scoring policy registry and per-version clocks.
 - `src/scoring/resolver.ts`, `close-cache.ts`, and `calibration.ts` implement current scoring.
 - `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and

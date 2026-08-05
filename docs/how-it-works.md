@@ -323,7 +323,7 @@ Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 
-The prediction count is a soft target, not a hard floor ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and discloses a `predictionShortfall` data gap rather than padding with coin-flip (≈0.5) predictions. Report assembly also rejects adjacent same-subject direction forecasts whose horizons are fewer than two trading days apart.
+The prediction count is a soft target, not a hard floor ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)). The orchestrator reprompts final synthesis only to fix genuine validation errors or redundant predictions; it never reprompts merely to reach the target. A clean below-target result ships as-is and records structured `predictionShortfall` counts after the earnings and research-subject gates rather than padding with coin-flip (≈0.5) predictions. Reader surfaces derive canonical disclosure text from those counts; new reports do not store the machine protocol in `dataGaps`. Report assembly also rejects adjacent same-subject direction forecasts whose horizons are fewer than two trading days apart.
 
 ## Predictions
 

@@ -43,8 +43,6 @@ import {
   sidebarViewPath,
   scenarios,
   sources,
-  formatShortfallGap,
-  splitDataGaps,
   textItems,
   tradingViewSymbol,
   tradingViewUrl,
@@ -466,7 +464,7 @@ describe("research console app view model", () => {
               count: 2,
               targetCount: 3,
               targetMet: false,
-              shortfall: { missingCount: 1, disclosed: true },
+              shortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
             },
             calibrationAtGeneration: {
               jobType: { key: "equity", brierScore: 0.2, brierSkillScore: 0.2, count: 8 },
@@ -496,7 +494,7 @@ describe("research console app view model", () => {
         generatedAt: expect.any(String),
         forecasts: "2/3",
         targetMet: false,
-        shortfall: "1 missing, disclosed",
+        shortfall: "1 missing",
         calibration: "skill +0.20",
         snapshotFreshness: "AAPL snapshot 1d",
       },
@@ -1208,33 +1206,32 @@ describe("report artifact parsers", () => {
     );
   });
 
-  test("splits prediction shortfall gaps from other data gaps", () => {
-    expect(
-      splitDataGaps(["predictionShortfall: emitted 2 of 3 target predictions", "Missing provider"]),
-    ).toEqual({
-      shortfalls: ["predictionShortfall: emitted 2 of 3 target predictions"],
-      otherGaps: ["Missing provider"],
-    });
-    expect(formatShortfallGap("predictionShortfall: emitted 2 of 3 target predictions")).toBe(
-      "emitted 2 of 3 target predictions",
-    );
-    expect(formatShortfallGap("Missing provider")).toBe("Missing provider");
-  });
-
-  test("reads prediction target health from analytics with report fallback", () => {
+  test("prefers analytics prediction target health and falls back to report counts", () => {
     expect(
       predictionTargetHealth({ predictions: { count: 2, targetCount: 3, targetMet: false } }),
     ).toEqual({ count: 2, target: 3, targetMet: false });
 
     expect(
+      predictionTargetHealth(undefined, {
+        predictionShortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
+      }),
+    ).toEqual({ count: 2, target: 3, targetMet: false });
+
+    expect(
       predictionTargetHealth(
-        {},
+        { predictions: { count: 9, targetCount: 9, targetMet: true } },
         {
-          predictions: [{ id: "p1" }, { id: "p2" }],
-          extras: { depthProfile: { targetPredictions: 3 } },
+          predictionShortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
         },
       ),
-    ).toEqual({ count: 2, target: 3, targetMet: false });
+    ).toEqual({ count: 9, target: 9, targetMet: true });
+
+    expect(
+      predictionTargetHealth(undefined, {
+        predictions: [{}, {}, {}],
+        extras: { depthProfile: { targetPredictions: 3 } },
+      }),
+    ).toEqual({ count: 3, target: 3, targetMet: true });
 
     expect(predictionTargetHealth()).toBeUndefined();
   });
@@ -2059,5 +2056,22 @@ describe("report artifact parsers", () => {
     expect(
       candidates.find((candidate) => candidate.section === "extendedEvidence")?.text,
     ).toContain("5.4");
+  });
+
+  test("indexes structured prediction shortfalls as canonical data gaps", () => {
+    const candidates = reportSearchCandidates(
+      {
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
+        dataGaps: [],
+      },
+      "console",
+    );
+
+    expect(candidates).toContainEqual({
+      section: "dataGaps",
+      label: "Data gap 1",
+      text: "emitted 1 of 3 target predictions; evidence did not support more",
+      sourceIds: [],
+    });
   });
 });

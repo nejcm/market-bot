@@ -1,6 +1,11 @@
 import type { RunDetail } from "../types";
 import { readGapTriage, type GapTriage } from "../../src/report/gap-triage";
 import {
+  normalizePredictionShortfallReport,
+  predictionShortfallCompactText,
+  readPredictionShortfall,
+} from "../../src/report/prediction-shortfall";
+import {
   resolveMarketSnapshotPriceAsOf,
   type MarketSnapshot,
   type MarketSnapshotPriceAsOf,
@@ -60,7 +65,6 @@ import {
   scenarios,
   scoredForecasts,
   sources,
-  splitDataGaps,
   stringArray,
   textItems,
   tradingViewUrl,
@@ -1500,11 +1504,14 @@ export function equitySnapshotView(detail: RunDetail): RunWorkspaceEquitySnapsho
 }
 
 export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
-  const { report } = detail;
+  const report = normalizePredictionShortfallReport(detail.report);
   const isEquityPresentation =
     detail.summary.jobType === "equity" &&
     (detail.summary.assetClass === undefined || detail.summary.assetClass === "equity");
-  const readerProjection = projectEquityReaderForDetail(detail);
+  const readerProjection = projectEquityReaderForDetail({
+    ...detail,
+    ...(report === undefined ? {} : { report }),
+  });
   const summary = typeof report?.summary === "string" ? report.summary : "";
   const financialLensGroups = financialLensGroupViews(detail);
   const findings = textItems(report, "keyFindings");
@@ -1513,14 +1520,20 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
 
   const forecastItems = scoredForecasts(report, detail.score, detail.missAutopsy);
   const targetHealth = predictionTargetHealth(detail.analytics, report);
+  const predictionShortfall = readPredictionShortfall(report?.predictionShortfall);
   const projectedGaps = isEquityPresentation
     ? [...readerProjection.defaultView.materialGaps, ...readerProjection.appendix.diagnosticGaps]
     : stringArray(report, "dataGaps");
   const splitGaps = isEquityPresentation
     ? { shortfalls: [], otherGaps: projectedGaps }
-    : splitDataGaps(projectedGaps);
-  const equityShortfallDisclosed =
-    isEquityPresentation && splitDataGaps(projectedGaps).shortfalls.length > 0;
+    : {
+        shortfalls:
+          predictionShortfall === undefined
+            ? []
+            : [predictionShortfallCompactText(predictionShortfall)],
+        otherGaps: projectedGaps,
+      };
+  const equityShortfallDisclosed = isEquityPresentation && predictionShortfall !== undefined;
   const reportSymbol = typeof report?.symbol === "string" ? report.symbol : detail.summary.symbol;
   const triagedGaps = (isEquityPresentation ? projectedGaps : splitGaps.otherGaps).map((gap) => ({
     text: gap,

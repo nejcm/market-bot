@@ -590,7 +590,8 @@ describe("run workspace view", () => {
             sourceIds: ["source-1"],
           },
         ],
-        dataGaps: ["predictionShortfall: emitted 1 of 3", "tradier-options: Persisted override"],
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
+        dataGaps: ["tradier-options: Persisted override"],
         sources: [
           {
             id: "source-1",
@@ -660,10 +661,16 @@ describe("run workspace view", () => {
     );
     expect(view.gaps).toMatchObject({
       shortfalls: [],
-      otherGaps: ["predictionShortfall: emitted 1 of 3", "tradier-options: Persisted override"],
+      otherGaps: [
+        "tradier-options: Persisted override",
+        "emitted 1 of 3 target predictions; evidence did not support more",
+      ],
       triagedGaps: [
-        { text: "predictionShortfall: emitted 1 of 3", triage: "material" },
         { text: "tradier-options: Persisted override", triage: "material" },
+        {
+          text: "emitted 1 of 3 target predictions; evidence did not support more",
+          triage: "material",
+        },
       ],
       visible: true,
     });
@@ -841,11 +848,12 @@ describe("run workspace view", () => {
   });
 
   test("renders a disclosed equity forecast shortfall as material and forecast context", async () => {
-    const shortfall = "predictionShortfall: emitted 0 of 3";
+    const shortfall = "emitted 0 of 3 target predictions; evidence did not support more";
     const detail = {
       summary: summary(),
       report: {
-        dataGaps: [shortfall],
+        predictionShortfall: { emittedCount: 0, targetCount: 3, missingCount: 3 },
+        dataGaps: [],
       },
     };
     const view = buildRunWorkspaceView(detail);
@@ -859,8 +867,47 @@ describe("run workspace view", () => {
     const appendix = html.slice(html.indexOf("Advanced"));
     expect(reader).toContain("MATERIAL");
     expect(reader).toContain(shortfall);
-    expect(appendix).not.toContain("emitted 0 of 3");
+    expect(html.split(shortfall)).toHaveLength(2);
+    expect(appendix).not.toContain(shortfall);
   }, 15_000);
+
+  test("renders a non-equity shortfall in its dedicated block exactly once", async () => {
+    const detail: RunDetail = {
+      summary: summary({ jobType: "crypto", assetClass: "crypto", symbol: "BTC" }),
+      report: {
+        predictionShortfall: { emittedCount: 0, targetCount: 3, missingCount: 3 },
+        dataGaps: ["Options evidence unavailable."],
+      },
+    };
+
+    const view = buildRunWorkspaceView(detail);
+    expect(view.gaps.shortfalls).toEqual(["emitted 0 of 3"]);
+    expect(view.gaps.triagedGaps).toEqual([
+      { text: "Options evidence unavailable.", triage: "material" },
+    ]);
+    expect(view.forecasts.targetHealth).toEqual({ count: 0, target: 3, targetMet: false });
+
+    const html = await renderRunWorkspaceComponent(detail);
+    expect(html).toContain("Prediction shortfall");
+    expect(html.split("emitted 0 of 3")).toHaveLength(2);
+  }, 15_000);
+
+  test("keeps conflicting legacy shortfalls visible without the protocol prefix", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary({ jobType: "crypto", assetClass: "crypto", symbol: "BTC" }),
+      report: {
+        predictionShortfall: { emittedCount: 2, targetCount: 5, missingCount: 3 },
+        dataGaps: ["predictionShortfall: emitted 1 of 5"],
+      },
+    });
+
+    expect(view.gaps.shortfalls).toEqual(["emitted 2 of 5"]);
+    expect(view.gaps.triagedGaps).toContainEqual({
+      text: "emitted 1 of 5 target predictions; evidence did not support more",
+      triage: "material",
+    });
+    expect(JSON.stringify(view)).not.toContain("predictionShortfall:");
+  });
 
   test("groups legacy financial lens metrics by lens and retains posture", () => {
     const view = buildRunWorkspaceView({

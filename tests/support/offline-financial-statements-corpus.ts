@@ -1,5 +1,4 @@
 import { isRecord } from "../../src/guards";
-import { createHash } from "node:crypto";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../src/domain/types";
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
 import {
@@ -21,9 +20,19 @@ import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sourc
 import {
   deriveFundamentalHistory,
   type FundamentalHistoryArtifact,
-  type FundamentalHistorySeries,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import { summarizeSecFundamentals } from "../../src/sources/extended-evidence/sec-edgar";
+import {
+  allowanceKey,
+  compareConsumers,
+  countComparableFields,
+  differenceKey,
+  exactValueHash,
+  type ProjectedConsumers,
+  type ProjectedHistorySeries,
+  type ProjectedLens,
+  type ProjectedLensMetric,
+} from "./offline-financial-corpus-compare";
 import { verifyHistoryAllowanceProperties } from "./offline-financial-history-properties";
 import { verifyLensAllowanceProperties } from "./offline-financial-lens-properties";
 
@@ -82,35 +91,6 @@ interface ProjectedStatementSeries {
       readonly priorYearToDate: ProjectedFact;
     };
   };
-}
-
-interface ProjectedLensMetric {
-  readonly key: string;
-  readonly label: string;
-  readonly value: number | string;
-  readonly unit: string;
-  readonly sourceIds: readonly string[];
-  readonly currency?: string;
-  readonly periodEnd?: string;
-  readonly periodMonths?: number;
-}
-
-interface ProjectedLens {
-  readonly posture: string;
-  readonly metrics: Readonly<Record<string, ProjectedLensMetric>>;
-}
-
-interface ProjectedHistorySeries {
-  readonly concept: string | null;
-  readonly annual: FundamentalHistorySeries["annual"];
-  readonly ttm: FundamentalHistorySeries["ttm"] | null;
-  readonly cagr: FundamentalHistorySeries["cagr"] | null;
-  readonly marginChange: FundamentalHistorySeries["marginChange"] | null;
-}
-
-interface ProjectedConsumers {
-  readonly fundamentalHistory: Readonly<Record<string, ProjectedHistorySeries>>;
-  readonly financialLens: Readonly<Record<string, ProjectedLens>>;
 }
 
 export interface OfflineCorpusProjection {
@@ -371,66 +351,6 @@ function deriveLens(
   ).artifact;
 }
 
-function sameValue(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function compareField(
-  differences: OfflineCorpusDifference[],
-  path: string,
-  canonical: unknown,
-  legacy: unknown,
-): void {
-  if (!sameValue(canonical, legacy)) {
-    differences.push({ path, canonical: canonical ?? null, legacy: legacy ?? null });
-  }
-}
-
-function compareConsumers(
-  canonical: ProjectedConsumers,
-  legacy: ProjectedConsumers,
-): readonly OfflineCorpusDifference[] {
-  const differences: OfflineCorpusDifference[] = [];
-  const historyKeys = [
-    ...new Set([
-      ...Object.keys(canonical.fundamentalHistory),
-      ...Object.keys(legacy.fundamentalHistory),
-    ]),
-  ].toSorted();
-  for (const key of historyKeys) {
-    const current = canonical.fundamentalHistory[key];
-    const previous = legacy.fundamentalHistory[key];
-    for (const field of ["concept", "annual", "ttm", "cagr", "marginChange"] as const) {
-      compareField(
-        differences,
-        `fundamentalHistory.${key}.${field}`,
-        current?.[field],
-        previous?.[field],
-      );
-    }
-  }
-  const lensNames = [
-    ...new Set([...Object.keys(canonical.financialLens), ...Object.keys(legacy.financialLens)]),
-  ].toSorted();
-  for (const name of lensNames) {
-    const current = canonical.financialLens[name];
-    const previous = legacy.financialLens[name];
-    compareField(differences, `financialLens.${name}.posture`, current?.posture, previous?.posture);
-    const metricKeys = [
-      ...new Set([...Object.keys(current?.metrics ?? {}), ...Object.keys(previous?.metrics ?? {})]),
-    ].toSorted();
-    for (const key of metricKeys) {
-      compareField(
-        differences,
-        `financialLens.${name}.metrics.${key}`,
-        current?.metrics[key],
-        previous?.metrics[key],
-      );
-    }
-  }
-  return differences;
-}
-
 function runOfflineFinancialStatementCorpus(
   input: OfflineFinancialStatementInput,
 ): OfflineCorpusExecution {
@@ -490,24 +410,6 @@ function recompareOfflineCorpusProjection(
     projection,
     differences: compareConsumers(projection.canonical, projection.legacy),
   };
-}
-
-function exactValueHash(value: unknown): string {
-  return createHash("sha256")
-    .update(JSON.stringify(value ?? null))
-    .digest("hex");
-}
-
-function differenceKey(value: OfflineCorpusDifference): string {
-  return JSON.stringify([
-    value.path,
-    exactValueHash(value.canonical),
-    exactValueHash(value.legacy),
-  ]);
-}
-
-function allowanceKey(value: OfflineCorpusAllowance): string {
-  return JSON.stringify([value.path, value.canonicalSha256, value.legacySha256]);
 }
 
 function classifyOfflineCorpusDifferences(
@@ -579,26 +481,6 @@ function classifyOfflineCorpusDifferences(
       execution.differences.length,
     allowances: classified,
   };
-}
-
-function countComparableFields(canonical: ProjectedConsumers, legacy: ProjectedConsumers): number {
-  let count =
-    new Set([
-      ...Object.keys(canonical.fundamentalHistory),
-      ...Object.keys(legacy.fundamentalHistory),
-    ]).size * 5;
-  const lensNames = new Set([
-    ...Object.keys(canonical.financialLens),
-    ...Object.keys(legacy.financialLens),
-  ]);
-  for (const name of lensNames) {
-    count += 1;
-    count += new Set([
-      ...Object.keys(canonical.financialLens[name]?.metrics ?? {}),
-      ...Object.keys(legacy.financialLens[name]?.metrics ?? {}),
-    ]).size;
-  }
-  return count;
 }
 
 // Pooling `.allowances` across every fixture reconstructs the full list; `golden` is stale after mutation (never recomputed).

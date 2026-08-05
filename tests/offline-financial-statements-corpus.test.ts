@@ -59,7 +59,12 @@ describe("offline financial-statement corpus", () => {
   test("uses no collector, credential, network, or model seam", async () => {
     for (const path of [
       "support/offline-financial-statements-corpus.ts",
+      "support/offline-financial-corpus-compare.ts",
       "support/offline-financial-history-roster.ts",
+      "support/offline-financial-history-facts.ts",
+      "support/offline-financial-history-aliases.ts",
+      "support/offline-financial-history-properties.ts",
+      "support/offline-financial-lens-properties.ts",
       "support/synthetic-alias-companyfacts.ts",
       "support/offline-corpus-test-helpers.ts",
       "support/offline-financial-history-fixtures.ts",

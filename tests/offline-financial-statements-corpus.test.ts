@@ -8,14 +8,13 @@ import {
 } from "../src/sources/extended-evidence/sec-edgar";
 import {
   OFFLINE_FINANCIAL_STATEMENT_FIXTURES,
-  classifyOfflineCorpusDifferences,
-  loadOfflineCorpusAllowances,
-  loadOfflineCorpusGolden,
-  loadOfflineFinancialStatementInput,
-  recompareOfflineCorpusProjection,
-  runOfflineFinancialStatementCorpus,
+  auditOfflineCorpusCase,
+  loadOfflineCorpusCase,
+  mutateOfflineCorpusCase,
   type OfflineCorpusAllowance,
+  type OfflineCorpusCase,
   type OfflineCorpusExecution,
+  type OfflineCorpusMutation,
   type OfflineFinancialStatementInput,
 } from "./support/offline-financial-statements-corpus";
 import {
@@ -45,12 +44,6 @@ function cloneCompanyFactsWithMutableUsGaap(companyFacts: unknown): {
     throw new Error("MARA fixture is missing us-gaap companyfacts");
   }
   return { payload, usGaap: payload.facts["us-gaap"] };
-}
-
-function exactValueHash(value: unknown): string {
-  return createHash("sha256")
-    .update(JSON.stringify(value ?? null))
-    .digest("hex");
 }
 
 function eligibleMaraRevenueFacts(
@@ -96,56 +89,28 @@ function eligibleMaraRevenueFacts(
 }
 
 function syntheticAliasExecution(
-  input: OfflineFinancialStatementInput,
+  maraCase: OfflineCorpusCase,
   variant: SyntheticAliasVariant,
 ): OfflineCorpusExecution {
-  return runOfflineFinancialStatementCorpus({
-    ...input,
-    symbol: "ALIAS",
-    ...buildSyntheticAliasPayloads(variant),
-  });
+  return mutateOfflineCorpusCase(maraCase, {
+    input: { symbol: "ALIAS", ...buildSyntheticAliasPayloads(variant) },
+  }).execution;
 }
 
 async function runFixture(fixture: FixtureName): Promise<OfflineCorpusExecution> {
-  return runOfflineFinancialStatementCorpus(await loadOfflineFinancialStatementInput(fixture));
+  const corpusCase = await loadOfflineCorpusCase(fixture);
+  return corpusCase.execution;
 }
 
 function yearsBetween(periodStart: string, periodEnd: string): number {
   return (Date.parse(periodEnd) - Date.parse(periodStart)) / DAY_MS / DAYS_PER_YEAR;
 }
 
-function regenerateCanonicalAllowanceHashes(
-  allowances: readonly OfflineCorpusAllowance[],
-  execution: OfflineCorpusExecution,
-  paths: readonly string[],
-): readonly OfflineCorpusAllowance[] {
-  const affected = new Set(paths);
-  return allowances.map((allowance) => {
-    if (allowance.fixture !== execution.input.fixture || !affected.has(allowance.path)) {
-      return allowance;
-    }
-    const changed = execution.differences.find((difference) => difference.path === allowance.path);
-    if (changed === undefined) {
-      throw new Error(`Injected difference is missing: ${allowance.path}`);
-    }
-    return { ...allowance, canonicalSha256: exactValueHash(changed.canonical) };
-  });
-}
-
-type CanonicalMutation =
-  | readonly [path: string, operation: "set", value: unknown]
-  | readonly [path: string, operation: "copy", sourcePath: string]
-  | readonly [path: string, operation: "zero-margin-last", annualPath: string]
-  | readonly [
-      path: string,
-      operation: "negate" | "increment" | "double" | "add-cent" | "last-only",
-    ];
-
 function readCanonicalPath(execution: OfflineCorpusExecution, path: string): unknown {
   let value: unknown = execution.projection.canonical;
   for (const segment of path.split(".")) {
     if (!isRecord(value)) {
-      throw new Error(`Injected projection path is missing: ${path}`);
+      throw new Error(`Golden projection path is missing: ${path}`);
     }
     value = value[segment];
   }
@@ -155,55 +120,15 @@ function readCanonicalPath(execution: OfflineCorpusExecution, path: string): unk
 function requiredCanonicalNumber(execution: OfflineCorpusExecution, path: string): number {
   const value = readCanonicalPath(execution, path);
   if (typeof value !== "number") {
-    throw new TypeError(`Injected projection number is missing: ${path}`);
+    throw new TypeError(`Golden projection number is missing: ${path}`);
   }
   return value;
 }
 
-function injectCanonicalMutations(
-  execution: OfflineCorpusExecution,
-  mutations: readonly CanonicalMutation[],
-): OfflineCorpusExecution {
-  const projection = structuredClone(execution.projection);
-  for (const mutation of mutations) {
-    const [path, operation, operand] = mutation;
-    const segments = path.split(".");
-    const property = segments.pop();
-    let target: unknown = projection.canonical;
-    for (const segment of segments) {
-      if (!isRecord(target)) {
-        throw new Error(`Injected projection path is missing: ${path}`);
-      }
-      target = target[segment];
-    }
-    if (property === undefined || !isRecord(target)) {
-      throw new Error(`Injected projection path is missing: ${path}`);
-    }
-    if (operation === "set") {
-      target[property] = operand;
-    } else if (operation === "copy") {
-      target[property] = readCanonicalPath(execution, operand);
-    } else if (operation === "last-only") {
-      target[property] = [lastAnnualPoint(execution, path)];
-    } else if (operation === "zero-margin-last") {
-      const point = lastAnnualPoint(execution, operand);
-      target[property] = {
-        percentagePoints: 0,
-        years: 0,
-        periodStart: point.periodEnd,
-        periodEnd: point.periodEnd,
-      };
-    } else {
-      const value = requiredCanonicalNumber(execution, path);
-      target[property] = {
-        negate: -value,
-        increment: value + 1,
-        double: value * 2,
-        "add-cent": value + 0.01,
-      }[operation];
-    }
-  }
-  return recompareOfflineCorpusProjection(execution, projection);
+function exactValueHash(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(value ?? null))
+    .digest("hex");
 }
 
 function expectPreChangeLensClassifierAcceptance(
@@ -212,9 +137,7 @@ function expectPreChangeLensClassifierAcceptance(
   path: string,
 ): void {
   const difference = execution.differences.find((item) => item.path === path);
-  const allowance = allowances.find(
-    (item) => item.fixture === execution.input.fixture && item.path === path,
-  );
+  const allowance = allowances.find((item) => item.path === path);
   if (difference === undefined || allowance === undefined) {
     throw new Error(`Missing regenerated allowance-backed difference: ${path}`);
   }
@@ -226,21 +149,12 @@ function expectPreChangeLensClassifierAcceptance(
 type ClassifierFaultScenario = readonly [
   name: string,
   fixture: FixtureName,
-  mutations: readonly CanonicalMutation[],
+  mutations: readonly OfflineCorpusMutation[],
   regeneratedHashPaths: readonly string[],
   expected: RegExp,
   preChangeLensPaths?: readonly string[] | undefined,
   balanceUnchangedPath?: string,
 ];
-
-function lastAnnualPoint(execution: OfflineCorpusExecution, path: string): Record<string, unknown> {
-  const annual = readCanonicalPath(execution, path);
-  const point = Array.isArray(annual) ? annual.at(-1) : undefined;
-  if (!isRecord(point) || typeof point.periodEnd !== "string") {
-    throw new Error(`Golden is missing annual history: ${path}`);
-  }
-  return point;
-}
 
 function classifierPattern(prefix: string, path: string, suffix = ""): RegExp {
   return new RegExp(`${prefix}${path.replaceAll(".", String.raw`\.`)}${suffix}`, "u");
@@ -425,7 +339,6 @@ describe("offline financial-statement corpus", () => {
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 33, allowances: 43 },
     } as const;
-    const allowances = await loadOfflineCorpusAllowances();
     const originalFetch = globalThis.fetch;
     let networkAttempts = 0;
     globalThis.fetch = Object.assign(
@@ -438,28 +351,28 @@ describe("offline financial-statement corpus", () => {
 
     try {
       let classifiedAllowanceCount = 0;
+      let totalAllowances = 0;
       for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
-        const input = await loadOfflineFinancialStatementInput(fixture);
-        const execution = runOfflineFinancialStatementCorpus(input);
-        const golden = await loadOfflineCorpusGolden(fixture);
-        const classification = classifyOfflineCorpusDifferences(execution, allowances);
+        const corpusCase = await loadOfflineCorpusCase(fixture);
+        const audit = auditOfflineCorpusCase(corpusCase);
 
-        expect(execution.projection).toEqual(golden);
-        expect(classification.matchedCount).toBe(expectedClassifications[fixture].matched);
-        expect(classification.allowances).toHaveLength(expectedClassifications[fixture].allowances);
-        expect(execution.differences).toHaveLength(expectedClassifications[fixture].allowances);
+        expect(corpusCase.execution.projection).toEqual(corpusCase.golden);
+        expect(audit.matchedCount).toBe(expectedClassifications[fixture].matched);
+        expect(audit.allowances).toHaveLength(expectedClassifications[fixture].allowances);
+        expect(audit.differences).toHaveLength(expectedClassifications[fixture].allowances);
         expect(
           Bun.file(
             new URL(`fixtures/financial-statements-corpus/${fixture}/input.json`, import.meta.url),
           ).size,
         ).toBeLessThan(250_000);
-        expect(JSON.stringify(input)).not.toMatch(
+        expect(JSON.stringify(corpusCase.execution.input)).not.toMatch(
           /api[_-]?key|authorization|bearer\s|password|secret|access[_-]?token/iu,
         );
-        classifiedAllowanceCount += classification.allowances.length;
+        classifiedAllowanceCount += audit.allowances.length;
+        totalAllowances += corpusCase.allowances.length;
       }
 
-      expect(classifiedAllowanceCount).toBe(allowances.length);
+      expect(classifiedAllowanceCount).toBe(totalAllowances);
       expect(networkAttempts).toBe(0);
     } finally {
       globalThis.fetch = originalFetch;
@@ -531,12 +444,16 @@ describe("offline financial-statement corpus", () => {
       Object.values(verdicts).filter((verdict) => verdict.kind === "no-selected-concept"),
     ).toHaveLength(3);
 
-    const input = await loadOfflineFinancialStatementInput("mara");
-    const revenues = eligibleMaraRevenueFacts(input.companyFacts, "Revenues", input.analysisAsOf);
+    const { execution } = await loadOfflineCorpusCase("mara");
+    const revenues = eligibleMaraRevenueFacts(
+      execution.input.companyFacts,
+      "Revenues",
+      execution.input.analysisAsOf,
+    );
     const contractRevenue = eligibleMaraRevenueFacts(
-      input.companyFacts,
+      execution.input.companyFacts,
       ASC_606_REVENUE_CONCEPT,
-      input.analysisAsOf,
+      execution.input.analysisAsOf,
     );
     expect(revenues.map((fact) => fact.periodEnd)).toEqual([
       "2013-12-31",
@@ -567,9 +484,7 @@ describe("offline financial-statement corpus", () => {
   test("pins at most one eligible alternative revenue concept per corpus side", async () => {
     const alternatives: Record<string, readonly string[] | undefined> = {};
     for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
-      const execution = runOfflineFinancialStatementCorpus(
-        await loadOfflineFinancialStatementInput(fixture),
-      );
+      const execution = await runFixture(fixture);
       for (const [key, concepts] of detectEligibleRevenueAliasAlternatives(execution)) {
         alternatives[`${fixture}.${key}`] = concepts;
       }
@@ -597,10 +512,10 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("the synthetic alias issuer fires the interchangeable-alias detector", async () => {
-    const input = await loadOfflineFinancialStatementInput("mara");
+    const maraCase = await loadOfflineCorpusCase("mara");
     expect(
       Object.fromEntries(
-        detectInterchangeableAliasCandidates(syntheticAliasExecution(input, "alias")),
+        detectInterchangeableAliasCandidates(syntheticAliasExecution(maraCase, "alias")),
       ),
     ).toEqual({
       "canonical.revenue": {
@@ -617,8 +532,8 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("counts a newer strict-superset alias when the selected series is cap-saturated", async () => {
-    const input = await loadOfflineFinancialStatementInput("mara");
-    const execution = syntheticAliasExecution(input, "newer-alias");
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const execution = syntheticAliasExecution(maraCase, "newer-alias");
     for (const side of ["canonical", "legacy"] as const) {
       const selected = execution.projection[side].fundamentalHistory.revenue;
       expect(selected?.concept).toBe("Revenues");
@@ -650,10 +565,10 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("the component and renamed-disjoint shapes do not fire, with disjoint kill sets", async () => {
-    const input = await loadOfflineFinancialStatementInput("mara");
+    const maraCase = await loadOfflineCorpusCase("mara");
     expect(
       Object.fromEntries(
-        detectInterchangeableAliasCandidates(syntheticAliasExecution(input, "component")),
+        detectInterchangeableAliasCandidates(syntheticAliasExecution(maraCase, "component")),
       ),
     ).toEqual({
       "canonical.revenue": {
@@ -669,7 +584,7 @@ describe("offline financial-statement corpus", () => {
     });
     expect(
       Object.fromEntries(
-        detectInterchangeableAliasCandidates(syntheticAliasExecution(input, "renamed-disjoint")),
+        detectInterchangeableAliasCandidates(syntheticAliasExecution(maraCase, "renamed-disjoint")),
       ),
     ).toEqual({
       "canonical.revenue": {
@@ -692,9 +607,7 @@ describe("offline financial-statement corpus", () => {
     let maraDilutedEps: RosterVerdict | null = null;
 
     for (const fixture of OFFLINE_FINANCIAL_STATEMENT_FIXTURES) {
-      const execution = runOfflineFinancialStatementCorpus(
-        await loadOfflineFinancialStatementInput(fixture),
-      );
+      const execution = await runFixture(fixture);
       for (const [key, verdict] of verifyHistoryAnnualRosters(execution)) {
         const id = `${fixture}:${key}`;
         if (verdict.kind === "failed") {
@@ -766,13 +679,13 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("rejects a faithful MARA legacy revenue substitution to the ASC 606 component", async () => {
-    const input = await loadOfflineFinancialStatementInput("mara");
-    const execution = runOfflineFinancialStatementCorpus(input);
-    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(input.companyFacts);
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const { execution } = maraCase;
+    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(execution.input.companyFacts);
     delete usGaap.Revenues;
     delete usGaap.SalesRevenueNet;
-    const substituted = runOfflineFinancialStatementCorpus({ ...input, companyFacts: payload });
-    const substitutedHistory = substituted.projection.legacy.fundamentalHistory;
+    const substituted = mutateOfflineCorpusCase(maraCase, { input: { companyFacts: payload } });
+    const substitutedHistory = substituted.execution.projection.legacy.fundamentalHistory;
     const { revenue } = substitutedHistory;
     if (revenue === undefined) {
       throw new Error("MARA substitution did not produce legacy revenue history");
@@ -806,8 +719,10 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("rejects a revenue concept outside the 100-day recency bucket", async () => {
-    const input = await loadOfflineFinancialStatementInput("mara");
-    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(input.companyFacts);
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(
+      maraCase.execution.input.companyFacts,
+    );
     const revenues = usGaap.Revenues;
     if (!isRecord(revenues) || !isRecord(revenues.units) || !Array.isArray(revenues.units.USD)) {
       throw new Error("MARA fixture is missing USD Revenues facts");
@@ -815,15 +730,14 @@ describe("offline financial-statement corpus", () => {
     revenues.units.USD = revenues.units.USD.filter(
       (fact) => isRecord(fact) && typeof fact.end === "string" && fact.end <= "2024-12-31",
     );
-    const execution = runOfflineFinancialStatementCorpus({ ...input, companyFacts: payload });
+    const { execution } = mutateOfflineCorpusCase(maraCase, { input: { companyFacts: payload } });
     const { payload: staleOnlyPayload, usGaap: staleOnlyUsGaap } =
       cloneCompanyFactsWithMutableUsGaap(payload);
     delete staleOnlyUsGaap[ASC_606_REVENUE_CONCEPT];
     delete staleOnlyUsGaap.SalesRevenueNet;
     delete staleOnlyUsGaap.RevenueFromContractWithCustomerIncludingAssessedTax;
-    const staleOnly = runOfflineFinancialStatementCorpus({
-      ...input,
-      companyFacts: staleOnlyPayload,
+    const { execution: staleOnly } = mutateOfflineCorpusCase(maraCase, {
+      input: { companyFacts: staleOnlyPayload },
     });
     const staleHistory = staleOnly.projection.legacy.fundamentalHistory;
     const staleRevenue = staleHistory.revenue;
@@ -863,10 +777,8 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("rejects source-derivable annual metadata corruption", async () => {
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const { revenue } = execution.projection.canonical.fundamentalHistory;
+    const nbisCase = await loadOfflineCorpusCase("nbis");
+    const { revenue } = nbisCase.execution.projection.canonical.fundamentalHistory;
     const original = revenue?.annual.at(0);
     if (revenue === undefined || original === undefined) {
       throw new Error("NBIS golden is missing revenue history");
@@ -878,9 +790,11 @@ describe("offline financial-statement corpus", () => {
       periodMonths: 3,
       currency: "EUR",
     };
-    const injected = injectCanonicalMutations(execution, [
-      ["fundamentalHistory.revenue.annual", "set", [corrupted, ...revenue.annual.slice(1)]],
-    ]);
+    const injected = mutateOfflineCorpusCase(nbisCase, {
+      mutations: [
+        ["fundamentalHistory.revenue.annual", "set", [corrupted, ...revenue.annual.slice(1)]],
+      ],
+    }).execution;
 
     const verdict = verifyHistoryAnnualRosters(injected).get("canonical.revenue");
     expect(verdict?.kind).toBe("failed");
@@ -893,11 +807,8 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("catches consistently truncated NBIS net-margin history after hashes are regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const { netMargin } = execution.projection.canonical.fundamentalHistory;
+    const nbisCase = await loadOfflineCorpusCase("nbis");
+    const { netMargin } = nbisCase.execution.projection.canonical.fundamentalHistory;
     const annual = netMargin?.annual.slice(-3);
     const first = annual?.at(0);
     const last = annual?.at(-1);
@@ -915,21 +826,23 @@ describe("offline financial-statement corpus", () => {
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };
-    const injected = injectCanonicalMutations(execution, [
-      ["fundamentalHistory.netMargin.annual", "set", annual],
-      ["fundamentalHistory.netMargin.marginChange", "set", marginChange],
-    ]);
-    const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
-      "fundamentalHistory.netMargin.annual",
-      "fundamentalHistory.netMargin.marginChange",
-    ]);
+    const mutated = mutateOfflineCorpusCase(nbisCase, {
+      mutations: [
+        ["fundamentalHistory.netMargin.annual", "set", annual],
+        ["fundamentalHistory.netMargin.marginChange", "set", marginChange],
+      ],
+      allowanceUpdates: [
+        { path: "fundamentalHistory.netMargin.annual" },
+        { path: "fundamentalHistory.netMargin.marginChange" },
+      ],
+    });
 
     expect(netMargin.annual).toHaveLength(5);
     expect(annual).toHaveLength(3);
     expect(marginChange.percentagePoints).toBeCloseTo(-2446.67, 2);
     expect(marginChange.years).toBeCloseTo(2.001, 3);
-    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).not.toThrow();
-    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.netMargin");
+    expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
+    const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.netMargin");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
       throw new Error("Truncated NBIS net-margin roster was not rejected");
@@ -938,11 +851,8 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("catches consistently truncated NBIS revenue history after hashes are regenerated", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("nbis"),
-    );
-    const { revenue } = execution.projection.canonical.fundamentalHistory;
+    const nbisCase = await loadOfflineCorpusCase("nbis");
+    const { revenue } = nbisCase.execution.projection.canonical.fundamentalHistory;
     const annual = revenue?.annual.slice(-3);
     const first = annual?.at(0);
     const last = annual?.at(-1);
@@ -961,21 +871,23 @@ describe("offline financial-statement corpus", () => {
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };
-    const injected = injectCanonicalMutations(execution, [
-      ["fundamentalHistory.revenue.annual", "set", annual],
-      ["fundamentalHistory.revenue.cagr", "set", cagr],
-    ]);
-    const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
-      "fundamentalHistory.revenue.annual",
-      "fundamentalHistory.revenue.cagr",
-    ]);
+    const mutated = mutateOfflineCorpusCase(nbisCase, {
+      mutations: [
+        ["fundamentalHistory.revenue.annual", "set", annual],
+        ["fundamentalHistory.revenue.cagr", "set", cagr],
+      ],
+      allowanceUpdates: [
+        { path: "fundamentalHistory.revenue.annual" },
+        { path: "fundamentalHistory.revenue.cagr" },
+      ],
+    });
 
     expect(revenue.annual).toHaveLength(5);
     expect(annual).toHaveLength(3);
     expect(cagr.percent).toBeCloseTo(634.23, 2);
     expect(cagr.years).toBeCloseTo(2, 2);
-    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).not.toThrow();
-    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.revenue");
+    expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
+    const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.revenue");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
       throw new Error("Truncated NBIS revenue roster was not rejected");
@@ -984,24 +896,21 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("catches MARA diluted-EPS truncation beyond legitimate joint-cap displacement", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = await runFixture("mara");
-    const { dilutedEps } = execution.projection.canonical.fundamentalHistory;
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const { dilutedEps } = maraCase.execution.projection.canonical.fundamentalHistory;
     const annual = dilutedEps?.annual.slice(-5);
     if (dilutedEps === undefined || annual === undefined) {
       throw new Error("MARA golden is missing diluted-EPS history");
     }
-    const injected = injectCanonicalMutations(execution, [
-      ["fundamentalHistory.dilutedEps.annual", "set", annual],
-    ]);
-    const regeneratedAllowances = regenerateCanonicalAllowanceHashes(allowances, injected, [
-      "fundamentalHistory.dilutedEps.annual",
-    ]);
+    const mutated = mutateOfflineCorpusCase(maraCase, {
+      mutations: [["fundamentalHistory.dilutedEps.annual", "set", annual]],
+      allowanceUpdates: [{ path: "fundamentalHistory.dilutedEps.annual" }],
+    });
 
     expect(dilutedEps.annual).toHaveLength(8);
     expect(annual).toHaveLength(5);
-    expect(() => classifyOfflineCorpusDifferences(injected, regeneratedAllowances)).not.toThrow();
-    const verdict = verifyHistoryAnnualRosters(injected).get("canonical.dilutedEps");
+    expect(() => auditOfflineCorpusCase(mutated)).not.toThrow();
+    const verdict = verifyHistoryAnnualRosters(mutated.execution).get("canonical.dilutedEps");
     expect(verdict?.kind).toBe("failed");
     if (verdict?.kind !== "failed") {
       throw new Error("Over-truncated MARA diluted-EPS roster was not rejected");
@@ -1013,17 +922,13 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("keeps MARA allowances fixture-specific and source-reproduced", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = runOfflineFinancialStatementCorpus(
-      await loadOfflineFinancialStatementInput("mara"),
-    );
-    const maraAllowances = allowances.filter((allowance) => allowance.fixture === "mara");
-    const exactPeriodPaths = maraAllowances
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const exactPeriodPaths = maraCase.allowances
       .filter((allowance) => allowance.kind === "canonical-exact-period-correction")
       .map((allowance) => allowance.path)
       .toSorted();
 
-    expect(maraAllowances.map((allowance) => allowance.path).toSorted()).toEqual([
+    expect(maraCase.allowances.map((allowance) => allowance.path).toSorted()).toEqual([
       "financialLens.Growth.metrics.grossProfitDeltaPercent",
       "financialLens.Growth.metrics.netIncomeDeltaPercent",
       "financialLens.Quality.metrics.cashConversion",
@@ -1054,7 +959,7 @@ describe("offline financial-statement corpus", () => {
       "financialLens.Quality.metrics.roe",
     ]);
     expect(
-      execution.differences.find(
+      maraCase.execution.differences.find(
         (difference) => difference.path === "financialLens.Quality.metrics.grossMargin",
       ),
     ).toMatchObject({
@@ -1066,7 +971,7 @@ describe("offline financial-statement corpus", () => {
       legacy: null,
     });
     expect(
-      execution.differences.find(
+      maraCase.execution.differences.find(
         (difference) => difference.path === "financialLens.Quality.metrics.netMargin",
       ),
     ).toMatchObject({
@@ -1077,34 +982,32 @@ describe("offline financial-statement corpus", () => {
       },
       legacy: null,
     });
-    expect(execution.projection.statements.revenue).toMatchObject({
+    expect(maraCase.execution.projection.statements.revenue).toMatchObject({
       selectedConcept: "Revenues",
     });
-    expect(JSON.stringify(execution.input.companyFacts)).toContain(
+    expect(JSON.stringify(maraCase.execution.input.companyFacts)).toContain(
       "RevenueFromContractWithCustomerExcludingAssessedTax",
     );
-    expect(() => classifyOfflineCorpusDifferences(execution, allowances)).not.toThrow();
+    expect(() => auditOfflineCorpusCase(maraCase)).not.toThrow();
   });
 
   test("re-derives or explicitly reclassifies every history allowance", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const historyAllowances = allowances.filter((allowance) =>
-      allowance.path.startsWith("fundamentalHistory."),
-    );
-    const projections = new Map(
+    const cases = new Map(
       await Promise.all(
-        OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(async (fixture) => {
-          const { projection } = await runFixture(fixture);
-          return [fixture, projection] as const;
-        }),
+        OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
+          async (fixture) => [fixture, await loadOfflineCorpusCase(fixture)] as const,
+        ),
       ),
     );
+    const historyAllowances = [...cases.values()]
+      .flatMap((corpusCase) => corpusCase.allowances)
+      .filter((allowance) => allowance.path.startsWith("fundamentalHistory."));
     const reclassified = historyAllowances.filter(
       (allowance) => allowance.kind === "history-property-not-rederivable",
     );
     const wouldFailReDerivation = historyAllowances.filter((allowance) => {
       const [, seriesKey, field] = allowance.path.split(".");
-      const projection = projections.get(allowance.fixture)!;
+      const { projection } = cases.get(allowance.fixture)!.execution;
       const canonical = projection.canonical.fundamentalHistory[seriesKey!];
       const legacy = projection.legacy.fundamentalHistory[seriesKey!];
       if (field === "concept") {
@@ -1151,40 +1054,40 @@ describe("offline financial-statement corpus", () => {
     const [name, fixture, mutations, hashPaths, expected, lensPaths, balanceUnchangedPath] =
       scenario;
     test(name, async () => {
-      const allowances = await loadOfflineCorpusAllowances();
-      const execution = await runFixture(fixture);
-      const injected = injectCanonicalMutations(execution, mutations);
-      const regenerated = regenerateCanonicalAllowanceHashes(allowances, injected, hashPaths);
+      const corpusCase = await loadOfflineCorpusCase(fixture);
+      const mutated = mutateOfflineCorpusCase(corpusCase, {
+        mutations,
+        allowanceUpdates: hashPaths.map((path) => ({ path })),
+      });
 
       if (balanceUnchangedPath !== undefined) {
-        expectFpiBalanceRelations(execution, injected, balanceUnchangedPath);
+        expectFpiBalanceRelations(corpusCase.execution, mutated.execution, balanceUnchangedPath);
       }
       for (const path of lensPaths ?? []) {
-        expectPreChangeLensClassifierAcceptance(injected, regenerated, path);
+        expectPreChangeLensClassifierAcceptance(mutated.execution, mutated.allowances, path);
       }
-      expect(() => classifyOfflineCorpusDifferences(injected, regenerated)).toThrow(expected);
+      expect(() => auditOfflineCorpusCase(mutated)).toThrow(expected);
     });
   }
 
   test("does not permit property-bearing annual or TTM allowances to claim reclassification", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const maraExecution = await runFixture("mara");
-    const invalidMaraAllowances = allowances.map((allowance) =>
-      allowance.fixture === "mara" && allowance.path === "fundamentalHistory.capex.annual"
-        ? { ...allowance, kind: "history-property-not-rederivable" as const }
-        : allowance,
-    );
-    const fpiExecution = await runFixture("fpi-quarterly");
-    const invalidFpiAllowances = allowances.map((allowance) =>
-      allowance.fixture === "fpi-quarterly" && allowance.path === "fundamentalHistory.revenue.ttm"
-        ? { ...allowance, kind: "history-property-not-rederivable" as const }
-        : allowance,
-    );
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const overriddenMara = mutateOfflineCorpusCase(maraCase, {
+      allowanceUpdates: [
+        { path: "fundamentalHistory.capex.annual", kind: "history-property-not-rederivable" },
+      ],
+    });
+    const fpiCase = await loadOfflineCorpusCase("fpi-quarterly");
+    const overriddenFpi = mutateOfflineCorpusCase(fpiCase, {
+      allowanceUpdates: [
+        { path: "fundamentalHistory.revenue.ttm", kind: "history-property-not-rederivable" },
+      ],
+    });
 
-    expect(() => classifyOfflineCorpusDifferences(maraExecution, invalidMaraAllowances)).toThrow(
+    expect(() => auditOfflineCorpusCase(overriddenMara)).toThrow(
       /mara fundamentalHistory\.capex\.annual is not eligible for history-property reclassification/u,
     );
-    expect(() => classifyOfflineCorpusDifferences(fpiExecution, invalidFpiAllowances)).toThrow(
+    expect(() => auditOfflineCorpusCase(overriddenFpi)).toThrow(
       /fpi-quarterly fundamentalHistory\.revenue\.ttm is not eligible for history-property reclassification/u,
     );
   });
@@ -1247,53 +1150,55 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("fails loudly when a projected Financial Strength valuation criterion appears", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = await runFixture("nbis");
-    const strength = execution.projection.canonical.financialLens["Financial Strength"];
+    const nbisCase = await loadOfflineCorpusCase("nbis");
+    const strength = nbisCase.execution.projection.canonical.financialLens["Financial Strength"];
     if (strength === undefined) {
       throw new Error("NBIS golden is missing Financial Strength");
     }
     for (const criterion of ["netDebtToMarketCap", "debtToMarketCap", "payoutRatio"] as const) {
-      const injected = injectCanonicalMutations(execution, [
-        [
-          `financialLens.Financial Strength.metrics.${criterion}`,
-          "set",
-          {
-            key: criterion,
-            label: criterion,
-            value: 0.1,
-            unit: "ratio",
-            sourceIds: [],
-          },
+      const mutated = mutateOfflineCorpusCase(nbisCase, {
+        mutations: [
+          [
+            `financialLens.Financial Strength.metrics.${criterion}`,
+            "set",
+            {
+              key: criterion,
+              label: criterion,
+              value: 0.1,
+              unit: "ratio",
+              sourceIds: [],
+            },
+          ],
         ],
-      ]);
+      });
       const path = "financialLens.Financial Strength.posture";
-      const allowance = allowances.find((item) => item.fixture === "nbis" && item.path === path);
-      const difference = injected.differences.find((item) => item.path === path);
+      const allowance = mutated.allowances.find((item) => item.path === path);
+      const difference = mutated.execution.differences.find((item) => item.path === path);
       if (allowance === undefined || difference === undefined) {
         throw new Error("NBIS Financial Strength posture allowance is missing");
       }
 
-      expect(() => verifyLensAllowanceProperties(injected, allowance, difference)).toThrow(
+      expect(() => verifyLensAllowanceProperties(mutated.execution, allowance, difference)).toThrow(
         new RegExp(`Financial Strength projected metrics unexpectedly contain ${criterion}`, "u"),
       );
     }
   });
 
   test("fails loudly when Financial Strength receives valuation net-debt input", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = await runFixture("nbis");
-    const injected = injectCanonicalMutations(execution, [
-      [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
-      [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
-    ]);
+    const nbisCase = await loadOfflineCorpusCase("nbis");
+    const mutated = mutateOfflineCorpusCase(nbisCase, {
+      mutations: [
+        [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
+        [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
+      ],
+    });
     const valuationCoupled = {
-      ...injected,
+      ...mutated.execution,
       canonicalFinancialLensInputCategories: ["sec-edgar", "valuation"],
     };
     const path = "financialLens.Financial Strength.posture";
-    const allowance = allowances.find((item) => item.fixture === "nbis" && item.path === path);
-    const difference = injected.differences.find((item) => item.path === path);
+    const allowance = mutated.allowances.find((item) => item.path === path);
+    const difference = mutated.execution.differences.find((item) => item.path === path);
     if (allowance === undefined || difference === undefined) {
       throw new Error("NBIS Financial Strength posture allowance is missing");
     }
@@ -1304,29 +1209,30 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("property-verifies all 64 financial-lens allowances and fails closed", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const lensAllowances = allowances.filter((allowance) =>
-      allowance.path.startsWith("financialLens."),
-    );
-    const executions = new Map(
+    const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
-          async (fixture) => [fixture, await runFixture(fixture)] as const,
+          async (fixture) => [fixture, await loadOfflineCorpusCase(fixture)] as const,
         ),
       ),
     );
+    const lensAllowances = [...cases.values()]
+      .flatMap((corpusCase) => corpusCase.allowances)
+      .filter((allowance) => allowance.path.startsWith("financialLens."));
     const failed = lensAllowances.flatMap((allowance) => {
-      const execution = executions.get(allowance.fixture);
-      const difference = execution?.differences.find((item) => item.path === allowance.path);
-      return execution === undefined ||
+      const corpusCase = cases.get(allowance.fixture);
+      const difference = corpusCase?.execution.differences.find(
+        (item) => item.path === allowance.path,
+      );
+      return corpusCase === undefined ||
         difference === undefined ||
-        !verifyLensAllowanceProperties(execution, allowance, difference)
+        !verifyLensAllowanceProperties(corpusCase.execution, allowance, difference)
         ? [`${allowance.fixture}:${allowance.path}`]
         : [];
     });
-    const nbisExecution = executions.get("nbis");
+    const nbisCase = cases.get("nbis");
     const sampleAllowance = lensAllowances.find((allowance) => allowance.fixture === "nbis");
-    if (nbisExecution === undefined || sampleAllowance === undefined) {
+    if (nbisCase === undefined || sampleAllowance === undefined) {
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
@@ -1334,7 +1240,7 @@ describe("offline financial-statement corpus", () => {
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(
-        nbisExecution,
+        nbisCase.execution,
         { ...sampleAllowance, path: "financialLens.Quality.metrics.unknownMetric" },
         {
           path: "financialLens.Quality.metrics.unknownMetric",
@@ -1345,7 +1251,7 @@ describe("offline financial-statement corpus", () => {
     ).toBeFalse();
     expect(
       verifyLensAllowanceProperties(
-        nbisExecution,
+        nbisCase.execution,
         { ...sampleAllowance, path: "financialLens.Unknown.posture" },
         { path: "financialLens.Unknown.posture", canonical: "criteria-supported", legacy: null },
       ),
@@ -1353,57 +1259,50 @@ describe("offline financial-statement corpus", () => {
   });
 
   test("rejects dumping an unsupported concept shape into the reclassification bucket", async () => {
-    const execution = await runFixture("msft");
-    const { revenue } = execution.projection.canonical.fundamentalHistory;
+    const msftCase = await loadOfflineCorpusCase("msft");
+    const { revenue } = msftCase.execution.projection.canonical.fundamentalHistory;
     if (revenue === undefined) {
       throw new Error("MSFT golden is missing revenue history");
     }
-    const injected = injectCanonicalMutations(execution, [
-      ["fundamentalHistory.revenue.concept", "set", "InjectedConcept"],
-    ]);
-    const changed = injected.differences.find(
-      (difference) => difference.path === "fundamentalHistory.revenue.concept",
-    );
-    if (changed === undefined) {
-      throw new Error("Injected MSFT revenue concept difference is missing");
-    }
-    const dumpedAllowance = {
-      fixture: "msft" as const,
-      path: changed.path,
-      canonicalSha256: exactValueHash(changed.canonical),
-      legacySha256: exactValueHash(changed.legacy),
-      kind: "history-property-not-rederivable" as const,
-      justification: "Injected concept bucket probe",
-    };
+    const mutated = mutateOfflineCorpusCase(msftCase, {
+      mutations: [["fundamentalHistory.revenue.concept", "set", "InjectedConcept"]],
+      allowanceUpdates: [
+        {
+          path: "fundamentalHistory.revenue.concept",
+          kind: "history-property-not-rederivable",
+          justification: "Injected concept bucket probe",
+        },
+      ],
+    });
 
-    expect(() => classifyOfflineCorpusDifferences(injected, [dumpedAllowance])).toThrow(
+    expect(() => auditOfflineCorpusCase(mutated)).toThrow(
       /msft fundamentalHistory\.revenue\.concept is not eligible for history-property reclassification/u,
     );
   });
 
   test("fires the test-only comparator alarm on an injected ROE mismatch", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const execution = await runFixture("msft");
-    const quality = execution.projection.canonical.financialLens.Quality;
+    const msftCase = await loadOfflineCorpusCase("msft");
+    const quality = msftCase.execution.projection.canonical.financialLens.Quality;
     const roe = quality?.metrics.roe;
     if (quality === undefined || roe === undefined || typeof roe.value !== "number") {
       throw new Error("MSFT golden is missing canonical ROE");
     }
-    const injected = injectCanonicalMutations(execution, [
-      ["financialLens.Quality.metrics.roe.value", "add-cent"],
-    ]);
+    const mutated = mutateOfflineCorpusCase(msftCase, {
+      mutations: [["financialLens.Quality.metrics.roe.value", "add-cent"]],
+    });
 
-    expect(() => classifyOfflineCorpusDifferences(injected, allowances)).toThrow(
+    expect(() => auditOfflineCorpusCase(mutated)).toThrow(
       /Offline comparator alarm: unclassified msft difference financialLens\.Quality\.metrics\.roe/u,
     );
   });
 
   test("rejects the original truncated-history defect on an allowance-backed path", async () => {
-    const allowances = await loadOfflineCorpusAllowances();
-    const maraExecution = await runFixture("mara");
-    const msftExecution = await runFixture("msft");
-    const { grossMargin: maraGrossMargin } = maraExecution.projection.canonical.fundamentalHistory;
-    const { grossMargin: msftGrossMargin } = msftExecution.projection.canonical.fundamentalHistory;
+    const maraCase = await loadOfflineCorpusCase("mara");
+    const msftCase = await loadOfflineCorpusCase("msft");
+    const { grossMargin: maraGrossMargin } =
+      maraCase.execution.projection.canonical.fundamentalHistory;
+    const { grossMargin: msftGrossMargin } =
+      msftCase.execution.projection.canonical.fundamentalHistory;
     const originalMarginChange = msftGrossMargin?.marginChange;
     const annual = msftGrossMargin?.annual.slice(Math.floor(msftGrossMargin.annual.length / 2));
     const first = annual?.at(0);
@@ -1419,19 +1318,19 @@ describe("offline financial-statement corpus", () => {
     ) {
       throw new Error("MSFT golden is missing gross-margin history");
     }
-    expect(allowances).toContainEqual(
+    expect(maraCase.allowances).toContainEqual(
       expect.objectContaining({
         fixture: "mara",
         path: "fundamentalHistory.grossMargin.annual",
       }),
     );
-    expect(allowances).toContainEqual(
+    expect(maraCase.allowances).toContainEqual(
       expect.objectContaining({
         fixture: "mara",
         path: "fundamentalHistory.grossMargin.marginChange",
       }),
     );
-    expect(() => classifyOfflineCorpusDifferences(maraExecution, allowances)).not.toThrow();
+    expect(() => auditOfflineCorpusCase(maraCase)).not.toThrow();
 
     const injectedMarginChange = {
       percentagePoints: (last.value - first.value) * 100,
@@ -1441,16 +1340,18 @@ describe("offline financial-statement corpus", () => {
       periodStart: first.periodEnd,
       periodEnd: last.periodEnd,
     };
-    const injected = injectCanonicalMutations(maraExecution, [
-      [MARGIN_ANNUAL_PATH, "set", annual],
-      [MARGIN_CHANGE_PATH, "set", injectedMarginChange],
-    ]);
+    const injected = mutateOfflineCorpusCase(maraCase, {
+      mutations: [
+        [MARGIN_ANNUAL_PATH, "set", annual],
+        [MARGIN_CHANGE_PATH, "set", injectedMarginChange],
+      ],
+    });
 
     expect(originalMarginChange.percentagePoints).toBeCloseTo(3.42, 2);
     expect(originalMarginChange.years).toBeCloseTo(9, 2);
     expect(injectedMarginChange.percentagePoints).toBeCloseTo(-0.46, 2);
     expect(injectedMarginChange.years).toBeCloseTo(4, 2);
-    expect(() => classifyOfflineCorpusDifferences(injected, allowances)).toThrow(
+    expect(() => auditOfflineCorpusCase(injected)).toThrow(
       /Offline comparator alarm: unclassified mara difference/u,
     );
   });

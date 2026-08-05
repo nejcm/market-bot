@@ -160,7 +160,7 @@ function readRequiredString(value: Readonly<Record<string, unknown>>, key: strin
   return field;
 }
 
-export async function loadOfflineFinancialStatementInput(
+async function loadOfflineFinancialStatementInput(
   fixture: OfflineFinancialStatementFixtureId,
 ): Promise<OfflineFinancialStatementInput> {
   const path = new URL(
@@ -189,7 +189,7 @@ export async function loadOfflineFinancialStatementInput(
   };
 }
 
-export async function loadOfflineCorpusGolden(
+async function loadOfflineCorpusGolden(
   fixture: OfflineFinancialStatementFixtureId,
 ): Promise<OfflineCorpusProjection> {
   const path = new URL(
@@ -214,7 +214,7 @@ export async function loadOfflineCorpusGolden(
   } as unknown as OfflineCorpusProjection;
 }
 
-export async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCorpusAllowance[]> {
+async function loadOfflineCorpusAllowances(): Promise<readonly OfflineCorpusAllowance[]> {
   const path = new URL("../fixtures/financial-statements-corpus/allowances.json", import.meta.url);
   const value: unknown = await Bun.file(path).json();
   if (
@@ -431,7 +431,7 @@ function compareConsumers(
   return differences;
 }
 
-export function runOfflineFinancialStatementCorpus(
+function runOfflineFinancialStatementCorpus(
   input: OfflineFinancialStatementInput,
 ): OfflineCorpusExecution {
   const artifact = deriveFinancialStatements(input.companyFacts, {
@@ -481,7 +481,7 @@ export function runOfflineFinancialStatementCorpus(
   };
 }
 
-export function recompareOfflineCorpusProjection(
+function recompareOfflineCorpusProjection(
   execution: OfflineCorpusExecution,
   projection: OfflineCorpusProjection,
 ): OfflineCorpusExecution {
@@ -510,7 +510,7 @@ function allowanceKey(value: OfflineCorpusAllowance): string {
   return JSON.stringify([value.path, value.canonicalSha256, value.legacySha256]);
 }
 
-export function classifyOfflineCorpusDifferences(
+function classifyOfflineCorpusDifferences(
   execution: OfflineCorpusExecution,
   allowances: readonly OfflineCorpusAllowance[],
 ): { readonly matchedCount: number; readonly allowances: readonly OfflineCorpusAllowance[] } {
@@ -599,4 +599,201 @@ function countComparableFields(canonical: ProjectedConsumers, legacy: ProjectedC
     ]).size;
   }
   return count;
+}
+
+// Pooling `.allowances` across every fixture reconstructs the full list; `golden` is stale after mutation (never recomputed).
+export interface OfflineCorpusCase {
+  readonly execution: OfflineCorpusExecution;
+  readonly golden: OfflineCorpusProjection;
+  readonly allowances: readonly OfflineCorpusAllowance[];
+}
+
+export async function loadOfflineCorpusCase(
+  fixture: OfflineFinancialStatementFixtureId,
+): Promise<OfflineCorpusCase> {
+  const [input, golden, allAllowances] = await Promise.all([
+    loadOfflineFinancialStatementInput(fixture),
+    loadOfflineCorpusGolden(fixture),
+    loadOfflineCorpusAllowances(),
+  ]);
+  return {
+    execution: runOfflineFinancialStatementCorpus(input),
+    golden,
+    allowances: allAllowances.filter((allowance) => allowance.fixture === fixture),
+  };
+}
+
+export type OfflineCorpusMutation =
+  | readonly [path: string, operation: "set", value: unknown]
+  | readonly [path: string, operation: "copy", sourcePath: string]
+  | readonly [path: string, operation: "zero-margin-last", annualPath: string]
+  | readonly [
+      path: string,
+      operation: "negate" | "increment" | "double" | "add-cent" | "last-only",
+    ];
+
+function readCanonicalPath(execution: OfflineCorpusExecution, path: string): unknown {
+  let value: unknown = execution.projection.canonical;
+  for (const segment of path.split(".")) {
+    if (!isRecord(value)) {
+      throw new Error(`Offline corpus mutation path is missing: ${path}`);
+    }
+    value = value[segment];
+  }
+  return value;
+}
+
+function requiredCanonicalNumber(execution: OfflineCorpusExecution, path: string): number {
+  const value = readCanonicalPath(execution, path);
+  if (typeof value !== "number") {
+    throw new TypeError(`Offline corpus mutation number is missing: ${path}`);
+  }
+  return value;
+}
+
+function lastAnnualPoint(execution: OfflineCorpusExecution, path: string): Record<string, unknown> {
+  const annual = readCanonicalPath(execution, path);
+  const point = Array.isArray(annual) ? annual.at(-1) : undefined;
+  if (!isRecord(point) || typeof point.periodEnd !== "string") {
+    throw new Error(`Offline corpus golden is missing annual history: ${path}`);
+  }
+  return point;
+}
+
+function injectCanonicalMutations(
+  execution: OfflineCorpusExecution,
+  mutations: readonly OfflineCorpusMutation[],
+): OfflineCorpusExecution {
+  const projection = structuredClone(execution.projection);
+  for (const mutation of mutations) {
+    const [path, operation, operand] = mutation;
+    const segments = path.split(".");
+    const property = segments.pop();
+    let target: unknown = projection.canonical;
+    for (const segment of segments) {
+      if (!isRecord(target)) {
+        throw new Error(`Offline corpus mutation path is missing: ${path}`);
+      }
+      target = target[segment];
+    }
+    if (property === undefined || !isRecord(target)) {
+      throw new Error(`Offline corpus mutation path is missing: ${path}`);
+    }
+    if (operation === "set") {
+      target[property] = operand;
+    } else if (operation === "copy") {
+      target[property] = readCanonicalPath(execution, operand);
+    } else if (operation === "last-only") {
+      target[property] = [lastAnnualPoint(execution, path)];
+    } else if (operation === "zero-margin-last") {
+      const point = lastAnnualPoint(execution, operand);
+      target[property] = {
+        percentagePoints: 0,
+        years: 0,
+        periodStart: point.periodEnd,
+        periodEnd: point.periodEnd,
+      };
+    } else {
+      const value = requiredCanonicalNumber(execution, path);
+      target[property] = {
+        negate: -value,
+        increment: value + 1,
+        double: value * 2,
+        "add-cent": value + 0.01,
+      }[operation];
+    }
+  }
+  return recompareOfflineCorpusProjection(execution, projection);
+}
+
+// No kind: regenerate only the canonical hash. Kind + existing allowance: reclassify, no hash touched. Kind + justification + no existing allowance: create one, hashing both sides fresh.
+export interface OfflineCorpusAllowanceUpdate {
+  readonly path: string;
+  readonly kind?: OfflineCorpusAllowance["kind"];
+  readonly justification?: string;
+}
+
+function applyAllowanceUpdates(
+  execution: OfflineCorpusExecution,
+  allowances: readonly OfflineCorpusAllowance[],
+  updates: readonly OfflineCorpusAllowanceUpdate[],
+): readonly OfflineCorpusAllowance[] {
+  let result = allowances;
+  for (const update of updates) {
+    const existingIndex = result.findIndex((item) => item.path === update.path);
+    const existing = existingIndex === -1 ? undefined : result[existingIndex];
+    if (existing !== undefined && update.kind !== undefined) {
+      result = result.with(existingIndex, {
+        ...existing,
+        kind: update.kind,
+        justification: update.justification ?? existing.justification,
+      });
+      continue;
+    }
+    const difference = execution.differences.find((item) => item.path === update.path);
+    if (difference === undefined) {
+      throw new Error(`Fault spec: no difference at ${update.path} to back an allowance update`);
+    }
+    if (existing !== undefined) {
+      result = result.with(existingIndex, {
+        ...existing,
+        canonicalSha256: exactValueHash(difference.canonical),
+      });
+      continue;
+    }
+    const { kind, justification } = update;
+    if (kind === undefined || justification === undefined) {
+      throw new Error(`Fault spec: ${update.path} update needs a kind and justification`);
+    }
+    result = [
+      ...result,
+      {
+        fixture: execution.input.fixture,
+        path: update.path,
+        canonicalSha256: exactValueHash(difference.canonical),
+        legacySha256: exactValueHash(difference.legacy),
+        kind,
+        justification,
+      },
+    ];
+  }
+  return result;
+}
+
+export interface OfflineCorpusFaultSpec {
+  readonly input?: Partial<OfflineFinancialStatementInput>;
+  readonly mutations?: readonly OfflineCorpusMutation[];
+  readonly allowanceUpdates?: readonly OfflineCorpusAllowanceUpdate[];
+}
+
+export function mutateOfflineCorpusCase(
+  corpusCase: OfflineCorpusCase,
+  faultSpec: OfflineCorpusFaultSpec,
+): OfflineCorpusCase {
+  let { execution } = corpusCase;
+  if (faultSpec.input !== undefined) {
+    execution = runOfflineFinancialStatementCorpus({ ...execution.input, ...faultSpec.input });
+  }
+  if (faultSpec.mutations !== undefined && faultSpec.mutations.length > 0) {
+    execution = injectCanonicalMutations(execution, faultSpec.mutations);
+  }
+  const allowances =
+    faultSpec.allowanceUpdates === undefined
+      ? corpusCase.allowances
+      : applyAllowanceUpdates(execution, corpusCase.allowances, faultSpec.allowanceUpdates);
+  return { ...corpusCase, execution, allowances };
+}
+
+export interface OfflineCorpusAudit {
+  readonly matchedCount: number;
+  readonly allowances: readonly OfflineCorpusAllowance[];
+  readonly differences: readonly OfflineCorpusDifference[];
+}
+
+export function auditOfflineCorpusCase(corpusCase: OfflineCorpusCase): OfflineCorpusAudit {
+  const classification = classifyOfflineCorpusDifferences(
+    corpusCase.execution,
+    corpusCase.allowances,
+  );
+  return { ...classification, differences: corpusCase.execution.differences };
 }

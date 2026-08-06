@@ -339,4 +339,45 @@ describe("Web Evidence phase", () => {
       implicitPerQueryAcceptanceCap: 3,
     });
   });
+
+  test("skips the SEC-only company profile when the only SEC filing source is metadata-only (A1)", async () => {
+    // A1's metadata-only fallback (evidence-request-tools.ts) surfaces a 10-K/10-Q
+    // Source with no snippet whenever filing-text ingestion fails, so filingPackets
+    // And latestSecFilingDate keep working. It must never make the SEC-only profile
+    // Stage run against zero content: isCompanyProfileSecSource requires a snippet.
+    const dataDir = tempRunsDir();
+    const metadataOnlySecSource: Source = {
+      id: "extended-sec-edgar-msft-10k",
+      title: "MSFT SEC 10-K",
+      url: "https://www.sec.gov/Archives/edgar/data/789019/0000789019-26-000001/msft-10k.htm",
+      fetchedAt: "2026-08-05T00:00:00.000Z",
+      kind: "extended-evidence",
+      assetClass: "equity",
+      symbol: "MSFT",
+      provider: "sec-edgar",
+      summary: "10-K filed 2026-08-01 for period 2026-06-30 (filing text unavailable).",
+    };
+    let generateStageCalls = 0;
+    const result = await runWebEvidencePhase({
+      command: { jobType: "equity", assetClass: "equity", symbol: "MSFT", depth: "deep" },
+      config: { ...config(dataDir), webGatherDisabled: true },
+      collectedSources: collectedSources({ extendedSources: [metadataOnlySecSource] }),
+      context,
+      generatedAt: "2026-08-06T00:00:00.000Z",
+      now: new Date("2026-08-06T00:00:00.000Z"),
+      generateStage: async (stage) => {
+        generateStageCalls += 1;
+        return {
+          stage,
+          content: JSON.stringify({ requests: [] }),
+          tokenEstimate: 10,
+          costEstimateUsd: 0.001,
+        };
+      },
+    });
+
+    expect(generateStageCalls).toBe(0);
+    expect(result.webSubjectProfile).toBeUndefined();
+    expect(result.collectedSources.webSubjectProfile).toBeUndefined();
+  });
 });

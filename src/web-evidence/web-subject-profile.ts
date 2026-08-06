@@ -60,11 +60,18 @@ export function normalizedSubjectId(subject: string): string {
 
 // SEC filing Sources (10-K/10-Q text) are high-trust primary evidence that the
 // Company Web Subject Profile may cite alongside gathered web Sources. They live
-// In `extendedSources` with provider `sec-edgar`.
+// In `extendedSources` with provider `sec-edgar`. `snippet` must be present: a
+// Filing whose text failed to ingest (see A1 in the run-quality remediation plan)
+// Still surfaces a metadata-only source/item so the filing-basis date and
+// FilingPackets keep working, but that source carries no filing text and must
+// Never become citable evidence for a text-grounded stage — a model instructed
+// To cite filing text it does not have would otherwise pass the allowlist
+// Untouched merely because the id matches the 10-K/10-Q shape.
 export function isCompanyProfileSecSource(source: Source): boolean {
   return (
     source.kind === "extended-evidence" &&
     source.provider === "sec-edgar" &&
+    source.snippet !== undefined &&
     (source.id.endsWith("-10k") || source.id.endsWith("-10q"))
   );
 }

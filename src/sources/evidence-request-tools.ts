@@ -443,6 +443,80 @@ function secFilingKey(filing: SecFiling): string {
   return `8k-${filing.accessionNumber}`;
 }
 
+// Builds a filing evidence item from submissions metadata alone (form, filingDate,
+// AccessionNumber, primaryDocument), with no dependency on the filing-text body.
+// Used whenever filing-text ingestion fails, is dropped by sanitization, or yields
+// Too little substantive content to extract a section packet — the filing-basis
+// Date must never be blocked by a filing-text failure (see A1 in the run-quality
+// Remediation plan).
+function buildSecFilingMetadataOnlyItem(
+  command: InstrumentCommand,
+  match: { cik: string; ticker: string; name?: string },
+  filing: SecFiling,
+  url: string,
+  fetchedAt: string,
+  rawRef?: string,
+): {
+  readonly source: Source;
+  readonly item: ExtendedEvidenceItem;
+  readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
+} {
+  const formKey = secFilingKey(filing);
+  const sanitizedName =
+    match.name === undefined
+      ? undefined
+      : sanitizeModelInputField(match.name, {
+          provider: "sec-edgar",
+          ingress: "sec-tickers",
+          profile: "short-metadata",
+          fieldRole: "title",
+        });
+  const identity = secIdentity({
+    cik: match.cik,
+    ticker: match.ticker,
+    ...(sanitizedName?.text !== undefined ? { name: sanitizedName.text } : {}),
+  });
+  const title = `${command.symbol} SEC ${filing.form}`;
+  const periodLabel = filing.form === "8-K" || filing.form === "6-K" ? "event date" : "period";
+  const summary = `${filing.form} filed ${filing.filingDate}${
+    filing.reportDate !== undefined ? ` for ${periodLabel} ${filing.reportDate}` : ""
+  } (filing text unavailable).`;
+  const source: Source = {
+    id: `extended-sec-edgar-${command.symbol.toLowerCase()}-${formKey}`,
+    title,
+    url,
+    fetchedAt,
+    kind: "extended-evidence",
+    assetClass: command.assetClass,
+    symbol: command.symbol,
+    provider: "sec-edgar",
+    ...(rawRef !== undefined ? { rawRef } : {}),
+    summary,
+    identity,
+  };
+  const item: ExtendedEvidenceItem = {
+    category: "sec-edgar",
+    title,
+    summary,
+    sourceIds: [source.id],
+    observedAt: fetchedAt,
+    metrics: {
+      form: filing.form,
+      filingDate: filing.filingDate,
+      ...(filing.reportDate !== undefined ? { reportDate: filing.reportDate } : {}),
+      accessionNumber: filing.accessionNumber,
+      primaryDocument: filing.primaryDocument,
+      cik: match.cik,
+    },
+    identity,
+  };
+  return {
+    source,
+    item,
+    sanitizationEntries: sanitizedName === undefined ? [] : [sanitizedName.entry],
+  };
+}
+
 function buildSecFilingSourceItem(
   command: InstrumentCommand,
   match: { cik: string; ticker: string; name?: string },
@@ -560,6 +634,7 @@ async function collectSecFiling(
   command: InstrumentCommand,
   match: { cik: string; ticker: string; name?: string },
   filing: SecFiling,
+  submissionsRawSnapshot?: RawSourceSnapshot,
 ): Promise<{
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly sources: readonly Source[];
@@ -570,12 +645,25 @@ async function collectSecFiling(
 }> {
   const { result, url } = await fetchFilingText(ctx, filing, match.cik);
   if (!isFetchTextResult(result)) {
+    // The filing-text fetch produced no raw snapshot at all (e.g. the byte-limit
+    // Guard throws before any snapshot is captured), so the honest replayable
+    // Provenance for this metadata-only item is the sec-submissions snapshot the
+    // Form/filingDate/accessionNumber/primaryDocument were themselves read from
+    // (ADR 0004: evidence must remain replayable through raw snapshots).
+    const metadataOnly = buildSecFilingMetadataOnlyItem(
+      command,
+      match,
+      filing,
+      url,
+      submissionsRawSnapshot?.fetchedAt ?? ctx.fetchedAt,
+      submissionsRawSnapshot?.id,
+    );
     return {
       rawSnapshots: [],
-      sources: [],
-      items: [],
+      sources: [metadataOnly.source],
+      items: [metadataOnly.item],
       gaps: [result],
-      sanitizationEntries: [],
+      sanitizationEntries: metadataOnly.sanitizationEntries,
       droppedItemCount: 0,
     };
   }
@@ -588,22 +676,38 @@ async function collectSecFiling(
     ctx.earningsEventDate,
   );
   if (built.kind === "missing") {
+    const metadataOnly = buildSecFilingMetadataOnlyItem(
+      command,
+      match,
+      filing,
+      url,
+      result.rawSnapshot.fetchedAt,
+      result.rawSnapshot.id,
+    );
     return {
       rawSnapshots: [result.rawSnapshot],
-      sources: [],
-      items: [],
+      sources: [metadataOnly.source],
+      items: [metadataOnly.item],
       gaps: [secPacketGap(command.symbol, filing.form)],
-      sanitizationEntries: [],
+      sanitizationEntries: metadataOnly.sanitizationEntries,
       droppedItemCount: 0,
     };
   }
   if (built.kind === "dropped") {
+    const metadataOnly = buildSecFilingMetadataOnlyItem(
+      command,
+      match,
+      filing,
+      url,
+      result.rawSnapshot.fetchedAt,
+      result.rawSnapshot.id,
+    );
     return {
       rawSnapshots: [result.rawSnapshot],
-      sources: [],
-      items: [],
+      sources: [metadataOnly.source],
+      items: [metadataOnly.item],
       gaps: [],
-      sanitizationEntries: built.sanitizationEntries,
+      sanitizationEntries: [...built.sanitizationEntries, ...metadataOnly.sanitizationEntries],
       droppedItemCount: 1,
     };
   }
@@ -689,6 +793,9 @@ export async function collectSecFilingEvidence(
     submissionsPayload = submissions.payload;
     sharedRawSnapshots = [tickers.rawSnapshot, submissions.rawSnapshot];
   }
+  const submissionsRawSnapshot =
+    sharedRawSnapshots.find((snapshot) => snapshot.adapter === "sec-submissions") ??
+    companyFacts?.rawSnapshots.find((snapshot) => snapshot.adapter === "sec-submissions");
 
   const tenK = selectLatestFilingByForm(submissionsPayload, "10-K");
   const tenQ = selectCurrentQuarterlyFiling(submissionsPayload, tenK);
@@ -746,7 +853,9 @@ export async function collectSecFilingEvidence(
 
   const filingResults = await Promise.all(
     [tenK, tenQ, ...eightKs, ...sixKs].flatMap((filing) =>
-      filing === undefined ? [] : [collectSecFiling(ctx, command, match, filing)],
+      filing === undefined
+        ? []
+        : [collectSecFiling(ctx, command, match, filing, submissionsRawSnapshot)],
     ),
   );
   for (const result of filingResults) {

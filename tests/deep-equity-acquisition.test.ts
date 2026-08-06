@@ -262,7 +262,20 @@ describe("deep-equity packet acquisition", () => {
     expect(factsAttempts).toBe(3);
     expect(adapter.urls.filter((url) => url.includes("/submissions/"))).toHaveLength(1);
     expect(packet.latest10K?.form).toBe("10-K");
-    expect(packet.newer10Q).toBeUndefined();
+    // Filing-text ingestion failed (404) for the 10-Q, but its form/filingDate/
+    // AccessionNumber/primaryDocument are known from submissions metadata alone,
+    // So the packet is still retained without any filing-text enrichment.
+    expect(packet.newer10Q?.form).toBe("10-Q");
+    expect(packet.newer10Q?.filingDate).toBe("2026-05-01");
+    expect(packet.newer10Q?.accessionNumber).toBe("0000320193-26-000001");
+    expect(packet.newer10Q?.source.snippet).toBeUndefined();
+    // Its provenance links to the replayable sec-submissions raw snapshot the
+    // Metadata itself was read from (ADR 0004), not an unfetched filing document.
+    const submissionsRawSnapshot = packet.rawSnapshots.find(
+      (snapshot) => snapshot.adapter === "sec-submissions",
+    );
+    expect(submissionsRawSnapshot).toBeDefined();
+    expect(packet.newer10Q?.source.rawRef).toBe(submissionsRawSnapshot?.id);
     expect(packet.filingEvidence.gaps).toHaveLength(1);
   });
 

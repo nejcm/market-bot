@@ -12,6 +12,7 @@ import type {
   RawSourceSnapshot,
   SourceRequestExecutor,
 } from "../src/sources/types";
+import { latestSecFilingDate } from "../src/web-evidence/web-subject-profile-reuse";
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";
 const SEC_8K_PACKET_MAX_TEST_CHARS = 3003;
@@ -587,7 +588,7 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps[0]?.evidenceQualityImpact).toBe("core-cap");
   });
 
-  test("emits fetch failure gap from filing text fetch", async () => {
+  test("emits fetch failure gap from filing text fetch but retains filing-basis metadata", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -601,12 +602,89 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toEqual([]);
+    // Filing-text ingestion failed for the 10-Q, but submissions metadata
+    // (form/filingDate/accessionNumber/primaryDocument) is available regardless,
+    // So the filing still surfaces metadata-only evidence.
+    expect(result.sources.map((source) => source.id)).toEqual(["extended-sec-edgar-aapl-10q"]);
+    expect(result.sources[0]?.snippet).toBeUndefined();
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        metrics: expect.objectContaining({ form: "10-Q", filingDate: "2026-05-01" }),
+      }),
+    ]);
     expect(result.rawSnapshots).toHaveLength(2);
     expect(result.gaps).toEqual([
       expect.objectContaining({ source: "sec-filing-text", message: "timeout" }),
       expect.objectContaining({
         message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
+      }),
+    ]);
+  });
+
+  test("resolves a filing-basis date when filing text is oversized for every filing (A1)", async () => {
+    // Reproduces the MSFT defect: MAX_SOURCE_RESPONSE_BYTES rejects filing text
+    // Wholesale for every filing, but sec-submissions metadata still resolves,
+    // So a filing-basis date must remain derivable from evidence items alone.
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q"],
+          filingDate: ["2026-01-15", "2026-05-01"],
+          reportDate: ["2025-12-31", "2026-03-31"],
+          accessionNumber: ["0000320193-26-000010", "0000320193-26-000077"],
+          primaryDocument: ["a10k.htm", "a10q.htm"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async () =>
+            gap("sec-filing-text", "sec-filing-text source response exceeded 5000000 bytes"),
+        }),
+      }),
+    );
+
+    expect(result.sources).toHaveLength(2);
+    expect(result.sources.every((source) => source.snippet === undefined)).toBe(true);
+    // A byte-limit failure captures no raw snapshot of its own (source-request.ts
+    // Throws before returning one), so the metadata-only source's replayable
+    // Provenance (ADR 0004) is the sec-submissions snapshot the filing metadata
+    // Itself was read from.
+    const submissionsRawSnapshot = result.rawSnapshots.find(
+      (snapshot) => snapshot.adapter === "sec-submissions",
+    );
+    expect(submissionsRawSnapshot).toBeDefined();
+    expect(result.sources.every((source) => source.rawRef === submissionsRawSnapshot?.id)).toBe(
+      true,
+    );
+    expect(result.items).toHaveLength(2);
+    expect(latestSecFilingDate({ items: result.items, gaps: [] })).toBe("2026-05-01");
+    const tenKItem = result.items.find((item) => item.metrics?.form === "10-K");
+    const tenQItem = result.items.find((item) => item.metrics?.form === "10-Q");
+    expect(tenKItem?.metrics).toMatchObject({
+      filingDate: "2026-01-15",
+      accessionNumber: "0000320193-26-000010",
+      primaryDocument: "a10k.htm",
+    });
+    expect(tenQItem?.metrics).toMatchObject({
+      filingDate: "2026-05-01",
+      accessionNumber: "0000320193-26-000077",
+      primaryDocument: "a10q.htm",
+    });
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        source: "sec-filing-text",
+        message: "sec-filing-text source response exceeded 5000000 bytes",
+      }),
+      expect.objectContaining({
+        source: "sec-filing-text",
+        message: "sec-filing-text source response exceeded 5000000 bytes",
       }),
     ]);
   });
@@ -647,8 +725,15 @@ describe("SEC latest filing evidence tool", () => {
 
     expect(result.sources.map((source) => source.id)).toEqual([
       "extended-sec-edgar-aapl-10k",
+      "extended-sec-edgar-aapl-8k-0000320193-26-000198",
       "extended-sec-edgar-aapl-8k-0000320193-26-000190",
     ]);
+    // The failed 8-K still surfaces its form/filingDate/accessionNumber from
+    // Submissions metadata, without a text-derived snippet.
+    const failedEightK = result.sources.find(
+      (source) => source.id === "extended-sec-edgar-aapl-8k-0000320193-26-000198",
+    );
+    expect(failedEightK?.snippet).toBeUndefined();
     expect(result.gaps).toEqual([
       expect.objectContaining({ source: "sec-filing-text", message: "8-K timeout" }),
     ]);
@@ -754,7 +839,16 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toEqual([]);
+    // The unsafe filing text is dropped entirely, but the filing's form/filingDate
+    // Are known independently from submissions metadata and are still retained.
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]?.snippet).toBeUndefined();
+    expect(result.items[0]?.metrics).toMatchObject({ form: "10-K" });
+    // No injected instruction text reaches the model through any field of the
+    // Emitted sources/items, even though metadata about the dropped filing is
+    // Retained.
+    expect(JSON.stringify(result.sources)).not.toContain("Ignore all previous instructions");
+    expect(JSON.stringify(result.items)).not.toContain("Ignore all previous instructions");
     expect(result.gaps).toEqual([
       expect.objectContaining({ source: "sec-edgar", cause: "validation-failed" }),
     ]);
@@ -794,7 +888,7 @@ describe("SEC latest filing evidence tool", () => {
     expect(snippet).not.toContain("BUSINESS 5");
   });
 
-  test("malformed or too-short documents degrade to an explicit gap", async () => {
+  test("malformed or too-short documents degrade to an explicit gap but retain filing-basis metadata", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -808,8 +902,11 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toEqual([]);
-    expect(result.items).toEqual([]);
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]?.id).toBe("extended-sec-edgar-aapl-10q");
+    expect(result.sources[0]?.snippet).toBeUndefined();
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.metrics).toMatchObject({ form: "10-Q", filingDate: "2026-05-01" });
     expect(result.rawSnapshots).toHaveLength(3);
     expect(result.gaps).toEqual([
       expect.objectContaining({

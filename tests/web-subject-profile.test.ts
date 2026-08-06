@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildWebSubjectProfileEvidence,
+  isCompanyProfileSecSource,
   normalizedSubjectId,
 } from "../src/web-evidence/web-subject-profile";
 import type { Source } from "../src/domain/types";
@@ -750,5 +751,54 @@ describe("buildWebSubjectProfileEvidence", () => {
 
     expect(result.sourceGaps[0]).toMatchObject({ cause: "validation-failed" });
     expect(result.artifact?.sourceIds).toEqual([]);
+  });
+});
+
+function metadataOnlySecFilingSource(overrides: Partial<Source> = {}): Source {
+  return {
+    id: "extended-sec-edgar-msft-10k",
+    title: "MSFT SEC 10-K",
+    fetchedAt: "2026-08-05T00:00:00.000Z",
+    kind: "extended-evidence",
+    assetClass: "equity",
+    symbol: "MSFT",
+    provider: "sec-edgar",
+    ...overrides,
+  };
+}
+
+describe("isCompanyProfileSecSource", () => {
+  const secSource = metadataOnlySecFilingSource;
+
+  test("accepts a text-backed 10-K/10-Q filing source", () => {
+    expect(isCompanyProfileSecSource(secSource({ snippet: "[Business] Some filing text." }))).toBe(
+      true,
+    );
+    expect(
+      isCompanyProfileSecSource(
+        secSource({ id: "extended-sec-edgar-msft-10q", snippet: "[MD&A] Some filing text." }),
+      ),
+    ).toBe(true);
+  });
+
+  // A1's metadata-only fallback reuses the same id shape and provider so
+  // FilingPackets/latestSecFilingDate keep working when filing-text ingestion
+  // Fails, but it carries no snippet. It must never become citable evidence for
+  // A text-grounded stage merely because its id matches the 10-K/10-Q pattern.
+  test("rejects a metadata-only filing source with no snippet", () => {
+    expect(isCompanyProfileSecSource(secSource())).toBe(false);
+    expect(isCompanyProfileSecSource(secSource({ id: "extended-sec-edgar-msft-10q" }))).toBe(false);
+  });
+
+  test("rejects sources that are not extended-evidence sec-edgar 10-K/10-Q filings", () => {
+    expect(
+      isCompanyProfileSecSource(
+        secSource({ id: "extended-sec-edgar-msft-fundamentals", snippet: "text" }),
+      ),
+    ).toBe(false);
+    expect(isCompanyProfileSecSource(secSource({ kind: "web", snippet: "text" }))).toBe(false);
+    expect(isCompanyProfileSecSource(secSource({ provider: "yahoo", snippet: "text" }))).toBe(
+      false,
+    );
   });
 });

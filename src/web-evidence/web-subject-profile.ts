@@ -160,10 +160,39 @@ export function buildWebSubjectProfileEvidence(input: {
   }
 
   const sourceIds = profileSourceIds(parsed.profile);
+  const rejectionGap =
+    parsed.rejections.length > 0
+      ? partialRejectionGap(
+          input.subject.subjectId,
+          parsed.rejections,
+          partialAcceptanceImpact(parsed.profile, input.subject.subjectKind),
+        )
+      : undefined;
+  // Finding 3: the rejection summary must survive into the persisted artifact
+  // (not just the transient SourceGap), because a salvaged profile is
+  // Reusable (`isReusableProfile` gates on sourceIds, not on gap history) and
+  // The gap itself does not travel with a reused profile. `artifact.openGaps`
+  // Is language-scanned (unlike SourceGap.message), so it gets the sanitized,
+  // Id-free summary — never `rejectionGap.message`, which names disallowed
+  // (model-invented) ids.
+  const profileForArtifact =
+    rejectionGap === undefined
+      ? parsed.profile
+      : {
+          ...parsed.profile,
+          openGaps: [
+            ...parsed.profile.openGaps,
+            sanitizedPartialRejectionSummary(
+              parsed.profile,
+              input.subject.subjectKind,
+              parsed.rejections,
+            ),
+          ],
+        };
   const artifact = profileArtifact({
     subject: input.subject,
     generatedAt: input.generatedAt,
-    profile: parsed.profile,
+    profile: profileForArtifact,
     sourceIds,
     ...(input.secFilingBasisDate !== undefined
       ? { secFilingBasisDate: input.secFilingBasisDate }
@@ -175,7 +204,7 @@ export function buildWebSubjectProfileEvidence(input: {
     input.subject,
     artifact,
     sourceIds,
-    [],
+    rejectionGap === undefined ? [] : [rejectionGap],
   );
 }
 
@@ -225,11 +254,24 @@ interface ParsedProfile {
   readonly openGaps: readonly string[];
 }
 
+// A single rejected question/fact salvaged out of an otherwise-usable profile.
+// `disallowedSourceIds` is the subset of the item's declared source ids that
+// Failed the allowlist check — computed at rejection time so the emitted gap
+// Never names an allowlisted id as offending (a rejection can also be caused
+// By a missing claim/answer string with fully-allowlisted ids attached).
+interface ProfileRejection {
+  readonly field: string;
+  readonly reason: string;
+  readonly disallowedSourceIds: readonly string[];
+}
+
 function parseProfile(
   content: string,
   subjectKind: SubjectKind,
   webSourceIds: ReadonlySet<string>,
-): { readonly profile: ParsedProfile } | { readonly error: string } {
+):
+  | { readonly profile: ParsedProfile; readonly rejections: readonly ProfileRejection[] }
+  | { readonly error: string } {
   const parsed = parseJsonContent(content);
   if (parsed === undefined) {
     return { error: "model output was not valid JSON" };
@@ -245,11 +287,15 @@ function parseProfile(
   if ("error" in questions) {
     return questions;
   }
-  const recentMaterialEvents = readFacts(parsed.recentMaterialEvents, webSourceIds);
+  const recentMaterialEvents = readFacts(
+    parsed.recentMaterialEvents,
+    webSourceIds,
+    "recentMaterialEvents",
+  );
   if ("error" in recentMaterialEvents) {
     return recentMaterialEvents;
   }
-  const factLedger = readFacts(parsed.factLedger, webSourceIds);
+  const factLedger = readFacts(parsed.factLedger, webSourceIds, "factLedger");
   if ("error" in factLedger) {
     return factLedger;
   }
@@ -268,6 +314,11 @@ function parseProfile(
       ...(subjectLabel !== undefined ? { subjectLabel } : {}),
       ...(companyName !== undefined ? { companyName } : {}),
     },
+    rejections: [
+      ...questions.rejections,
+      ...recentMaterialEvents.rejections,
+      ...factLedger.rejections,
+    ],
   };
 }
 
@@ -284,37 +335,64 @@ function readQuestions(
   subjectKind: SubjectKind,
   webSourceIds: ReadonlySet<string>,
 ):
-  | { readonly questions: Readonly<Record<string, WebSubjectProfileAnswer>> }
+  | {
+      readonly questions: Readonly<Record<string, WebSubjectProfileAnswer>>;
+      readonly rejections: readonly ProfileRejection[];
+    }
   | { readonly error: string } {
   if (!isRecord(value)) {
     return { error: "questions must be an object" };
   }
   const entries: [string, WebSubjectProfileAnswer][] = [];
+  const rejections: ProfileRejection[] = [];
   for (const key of WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]) {
     const answer = readAnswer(value[key], webSourceIds);
     if ("error" in answer) {
-      return { error: `${key}: ${answer.error}` };
+      // One bad answer costs this question only; subjectSummary (via the
+      // Caller) remains the only fatal readAnswer use.
+      rejections.push({
+        field: `questions.${key}`,
+        reason: answer.error,
+        disallowedSourceIds: answer.disallowedSourceIds,
+      });
+      entries.push([key, EMPTY_ANSWER]);
+      continue;
     }
     entries.push([key, answer.answer]);
   }
-  return { questions: Object.fromEntries(entries) };
+  return { questions: Object.fromEntries(entries), rejections };
+}
+
+function disallowedSourceIdsOf(
+  sourceIds: readonly string[],
+  webSourceIds: ReadonlySet<string>,
+): readonly string[] {
+  return sourceIds.filter((sourceId) => !webSourceIds.has(sourceId));
 }
 
 function readAnswer(
   value: unknown,
   webSourceIds: ReadonlySet<string>,
-): { readonly answer: WebSubjectProfileAnswer } | { readonly error: string } {
+):
+  | { readonly answer: WebSubjectProfileAnswer }
+  | { readonly error: string; readonly disallowedSourceIds: readonly string[] } {
   if (!isRecord(value)) {
-    return { error: "answer must be an object" };
+    return { error: "answer must be an object", disallowedSourceIds: [] };
   }
   const answer = readString(value, "answer");
-  if (answer === undefined) {
-    return { error: "answer must be a non-empty string" };
-  }
   const sourceIds = nonEmptyStringArrayValue(value.sourceIds);
-  const invalid = sourceIds.find((sourceId) => !webSourceIds.has(sourceId));
-  if (sourceIds.length === 0 || invalid !== undefined) {
-    return { error: "answer sourceIds must resolve to allowed profile Sources" };
+  // Computed once so an error caused by a missing claim/answer text — where
+  // The declared sourceIds may be entirely allowlisted — never reports those
+  // Allowed ids as offending (finding 1).
+  const disallowedSourceIds = disallowedSourceIdsOf(sourceIds, webSourceIds);
+  if (answer === undefined) {
+    return { error: "answer must be a non-empty string", disallowedSourceIds };
+  }
+  if (sourceIds.length === 0 || disallowedSourceIds.length > 0) {
+    return {
+      error: "answer sourceIds must resolve to allowed profile Sources",
+      disallowedSourceIds,
+    };
   }
   return { answer: { answer, sourceIds } };
 }
@@ -322,24 +400,47 @@ function readAnswer(
 function readFacts(
   value: unknown,
   webSourceIds: ReadonlySet<string>,
-): { readonly facts: readonly WebSubjectProfileFact[] } | { readonly error: string } {
+  field: string,
+):
+  | {
+      readonly facts: readonly WebSubjectProfileFact[];
+      readonly rejections: readonly ProfileRejection[];
+    }
+  | { readonly error: string } {
   if (!Array.isArray(value)) {
-    return { error: "facts must be an array" };
+    return { error: `${field} must be an array` };
   }
   const facts: WebSubjectProfileFact[] = [];
-  for (const item of value) {
+  const rejections: ProfileRejection[] = [];
+  value.forEach((item, index) => {
     if (!isRecord(item)) {
-      return { error: "fact must be an object" };
+      rejections.push({
+        field: `${field}[${index}]`,
+        reason: "fact must be an object",
+        disallowedSourceIds: [],
+      });
+      return;
     }
     const claim = readString(item, "claim");
     const sourceIds = nonEmptyStringArrayValue(item.sourceIds);
-    const invalid = sourceIds.find((sourceId) => !webSourceIds.has(sourceId));
-    if (claim === undefined || sourceIds.length === 0 || invalid !== undefined) {
-      return { error: "every fact must have claim and allowed profile sourceIds" };
+    const disallowedSourceIds = disallowedSourceIdsOf(sourceIds, webSourceIds);
+    if (claim === undefined || sourceIds.length === 0 || disallowedSourceIds.length > 0) {
+      // Per-item rejection: this fact is dropped, but siblings in the same
+      // Array are still evaluated (B1.1). The allowlist check above still
+      // Rejects the whole item if any cited id is disallowed — no partial
+      // Admission of a mixed valid/invalid sourceIds list (non-negotiable).
+      // `disallowedSourceIds` only ever names ids that actually failed the
+      // Allowlist check, never the item's allowlisted ids (finding 1).
+      rejections.push({
+        field: `${field}[${index}]`,
+        reason: "every fact must have claim and allowed profile sourceIds",
+        disallowedSourceIds,
+      });
+      return;
     }
     facts.push({ claim, sourceIds });
-  }
-  return { facts };
+  });
+  return { facts, rejections };
 }
 
 function profileSourceIds(profile: ParsedProfile): readonly string[] {
@@ -524,13 +625,135 @@ function evidenceScopeForSubject(
   };
 }
 
-function profileGap(message: string, cause: NonNullable<SourceGap["cause"]>): SourceGap {
+function profileGap(
+  message: string,
+  cause: NonNullable<SourceGap["cause"]>,
+  evidenceQualityImpact: NonNullable<SourceGap["evidenceQualityImpact"]> = "extended-evidence-cap",
+): SourceGap {
   return sourceGap({
     source: "web-subject-profile",
     message,
     provider: "market-bot",
     capability: "extended-evidence",
     cause,
-    evidenceQualityImpact: "extended-evidence-cap",
+    evidenceQualityImpact,
   });
+}
+
+// Finding 2: a surviving factLedger entry alone does not make a heavily
+// Gutted profile safe to disclose at the lowest severity. "no-cap" is only
+// Warranted when the surviving content is substantively usable:
+// - A majority of the subject's questions were answered (>= 50%) — below
+//   That, the profile is more hole than substance despite passing the
+//   `subject-profile` coverage check; and
+// - At least 2 facts (factLedger + recentMaterialEvents combined) survived —
+//   The bare single-fact floor enforced by `parseProfile` is a validity
+//   Gate, not evidence that the salvage produced a materially usable body.
+// Either threshold missed escalates to "extended-evidence-cap" so the run
+// Reads as degraded rather than clean.
+const MIN_ANSWERED_QUESTION_RATIO = 0.5;
+const MIN_SURVIVING_FACT_COUNT = 2;
+
+function partialAcceptanceImpact(
+  profile: ParsedProfile,
+  subjectKind: SubjectKind,
+): NonNullable<SourceGap["evidenceQualityImpact"]> {
+  const totalQuestions = WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].length;
+  const answeredQuestions = Object.values(profile.questions).filter(
+    (answer) => answer.sourceIds.length > 0,
+  ).length;
+  const survivingFacts = profile.factLedger.length + profile.recentMaterialEvents.length;
+  // Every subject kind defines a fixed, non-empty question set (contract.ts),
+  // So totalQuestions is always > 0 here.
+  const sufficientQuestions = answeredQuestions / totalQuestions >= MIN_ANSWERED_QUESTION_RATIO;
+  const sufficientFacts = survivingFacts >= MIN_SURVIVING_FACT_COUNT;
+  return sufficientQuestions && sufficientFacts ? "no-cap" : "extended-evidence-cap";
+}
+
+// Finding 4: bound the emitted message. It is duplicated into
+// EvidenceLanes.gapText, the source ledger, and report data gaps, so an
+// Unbounded rejection list (one line per item) scales badly. Five detailed
+// Items is enough to diagnose a pattern without reading a wall of text; the
+// Exact total count is always stated up front regardless of the cap.
+const MAX_DETAILED_REJECTIONS = 5;
+const MAX_LISTED_OFFENDING_SOURCE_IDS = 10;
+
+// Joins `shown` with `joiner` and appends an "and N more" overflow note
+// (using the same joiner) when `totalCount` exceeds what was shown. Used for
+// Both the offending-id list (", " joiner) and the per-item detail list
+// ("; " joiner) so the two follow one truncation convention.
+function withOverflowSuffix(shown: readonly string[], totalCount: number, joiner: string): string {
+  const remaining = totalCount - shown.length;
+  const base = shown.join(joiner);
+  return remaining > 0 ? `${base}${joiner}and ${remaining} more` : base;
+}
+
+// Content survived (B2.1): name what was rejected and why instead of
+// Collapsing to the whole-profile invalidity message. Both offending-id and
+// Detail lists follow one truncation convention (see withOverflowSuffix).
+function partialRejectionGap(
+  subjectId: string,
+  rejections: readonly ProfileRejection[],
+  evidenceQualityImpact: NonNullable<SourceGap["evidenceQualityImpact"]>,
+): SourceGap {
+  const offendingSourceIds = [
+    ...new Set(rejections.flatMap((rejection) => rejection.disallowedSourceIds)),
+  ].toSorted();
+  const detailedRejections = rejections.slice(0, MAX_DETAILED_REJECTIONS);
+  const detailEntries = detailedRejections.map((rejection) => {
+    const idSuffix =
+      rejection.disallowedSourceIds.length > 0
+        ? `; disallowed sourceIds: ${rejection.disallowedSourceIds.join(", ")}`
+        : "";
+    return `${rejection.field} (${rejection.reason}${idSuffix})`;
+  });
+  const details = withOverflowSuffix(detailEntries, rejections.length, "; ");
+  const offendingSuffix =
+    offendingSourceIds.length > 0
+      ? ` (offending sourceIds: ${withOverflowSuffix(
+          offendingSourceIds.slice(0, MAX_LISTED_OFFENDING_SOURCE_IDS),
+          offendingSourceIds.length,
+          ", ",
+        )})`
+      : "";
+  // This message embeds model-controlled ids (a disallowed id is, by
+  // Definition, arbitrary model-invented text) and must stay on the
+  // SourceGap only — SourceGap.message is NOT language-scanned.
+  // `artifact.openGaps` IS scanned (webSubjectProfileText in report/schema.ts
+  // Feeds assertSafeReportLanguage), so it gets sanitizedPartialRejectionSummary
+  // Below instead, which contains no model-controlled text.
+  const message =
+    `Web Subject Profile partially invalid for ${subjectId}: ${rejections.length} item(s) rejected` +
+    `${offendingSuffix} — ${details}`;
+  return profileGap(message, "validation-failed", evidenceQualityImpact);
+}
+
+// Finding 3 (round 2): the SourceGap message above is safe only because it
+// Never reaches the language-scanned corpus. `artifact.openGaps` DOES reach
+// It (webSubjectProfileText -> assertSafeReportLanguage), so the persisted
+// Disclosure of what was rejected must carry no model-controlled substrings —
+// No ids, no claim text. Field paths (`questions.<key>`, `factLedger[n]`,
+// `recentMaterialEvents[n]`) are code-generated from fixed key names and
+// Array indices, never from model output, so they are safe to include.
+function sanitizedPartialRejectionSummary(
+  profile: ParsedProfile,
+  subjectKind: SubjectKind,
+  rejections: readonly ProfileRejection[],
+): string {
+  const totalQuestions = WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].length;
+  const rejectedFactsAndEvents = rejections.filter(
+    (rejection) => !rejection.field.startsWith("questions."),
+  ).length;
+  const totalConsidered =
+    totalQuestions +
+    profile.factLedger.length +
+    profile.recentMaterialEvents.length +
+    rejectedFactsAndEvents;
+  const fieldPaths = rejections.map((rejection) => rejection.field);
+  const shownFields = fieldPaths.slice(0, MAX_DETAILED_REJECTIONS);
+  const fieldsText = withOverflowSuffix(shownFields, fieldPaths.length, ", ");
+  return (
+    `Web Subject Profile: ${rejections.length} of ${totalConsidered} items rejected for ` +
+    `source-citation errors (${fieldsText}); see run source gaps for detail.`
+  );
 }

@@ -166,6 +166,43 @@ export interface SourceGap {
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
   readonly triage?: SourceGapTriage;
+  // Present only for fetch-failed/circuit-open gaps that actually retried: how the retry
+  // Loop unfolded and how each iteration failed, so a reader can tell "timed out after 3
+  // Network attempts, then the local circuit breaker refused a 4th" from the artifact
+  // Without inferring retry/breaker behavior from source. See `SourceGapAttempts` for what
+  // "Count" does and does not mean when the breaker cuts a retry chain short.
+  readonly attempts?: SourceGapAttempts;
+}
+
+// "circuit-open" is distinct from "non-transient": a non-transient classification means the
+// Provider (or network) responded and the response wasn't worth retrying; "circuit-open" means
+// No request was sent at all — market-bot's own per-host breaker (source-request.ts) refused
+// To send it. A reader must not attribute a "circuit-open" attempt to the remote provider.
+export type SourceGapAttemptClassification =
+  | "timeout"
+  | "server-error"
+  | "network"
+  | "circuit-open"
+  | "non-transient";
+
+export interface SourceGapAttemptFailure {
+  readonly attempt: number;
+  readonly classification: SourceGapAttemptClassification;
+  readonly message: string;
+}
+
+export interface SourceGapAttempts {
+  // Total retry-loop iterations, including a final iteration where the local circuit
+  // Breaker refused to send a request (see `failures[].classification === "circuit-open"`).
+  // Not necessarily the number of requests that reached the network — cross-reference
+  // `failures` for that.
+  readonly count: number;
+  // Wall-clock milliseconds from the first attempt through the final failure, including
+  // Any per-host queuing/throttle delay imposed by source-request.ts's resilience layer
+  // (shared with other concurrent requests to the same host) and the retry sleeps
+  // Themselves — not purely the provider's response latency.
+  readonly elapsedMs: number;
+  readonly failures: readonly SourceGapAttemptFailure[];
 }
 
 export type SourceGapTriage = "material" | "diagnostic";
@@ -300,6 +337,8 @@ export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly fallback?: WebGatherFallbackAudit;
   // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
   readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
+  // Present only on a rejected request whose Exa call exhausted retries (see `SourceGap.attempts`).
+  readonly attempts?: SourceGapAttempts;
 }
 
 export interface WebGatherDuplicateResultAudit {

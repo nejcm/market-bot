@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { ModelParams } from "../src/model/types";
@@ -6,6 +6,7 @@ import type { Source, WebSearchType } from "../src/domain/types";
 import { runWebGatherLoop, type WebGatherStageOutput } from "../src/web-evidence/web-gather-loop";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { FetchLike } from "../src/sources/types";
+import { resetSourceResilienceForTests } from "../src/sources/source-request";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 
 const command: ResearchCommand = {
@@ -295,6 +296,13 @@ function secFilingSource(overrides: Partial<Source> = {}): Source {
 }
 
 describe("runWebGatherLoop", () => {
+  // The per-host circuit breaker (source-request.ts) is process-global state, intentionally
+  // Not scoped per test. Reset it before each test so failure counts from one test's hard-
+  // Failure scenarios never leak into and change the behavior of the next.
+  beforeEach(() => {
+    resetSourceResilienceForTests();
+  });
+
   test("skips outside enabled deep web-gather scope", async () => {
     const result = await runWebGatherLoop({
       command: { ...command, depth: "brief" },
@@ -1846,6 +1854,127 @@ describe("runWebGatherLoop", () => {
       unavailableReason: "no-firecrawl-key",
     });
     expect(fetchedUrls.every((url) => url.includes("api.exa.ai"))).toBe(true);
+  });
+
+  test("records attempt count and elapsed time when Exa retries time out and exhaust before the breaker trips", async () => {
+    let calls = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: async () => {
+        calls += 1;
+        const timeoutError = new Error("The operation timed out.");
+        timeoutError.name = "TimeoutError";
+        throw timeoutError;
+      },
+      // Only two delays: fewer retries than CIRCUIT_FAILURE_THRESHOLD (3), so the breaker
+      // Never trips and every attempt is a genuine (failed) network call. This is the
+      // "Clean" retry-exhaustion shape; see the next test for the breaker-tail shape that
+      // Production's default retry delays actually produce.
+      retryDelaysMs: [1, 1],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model", searchType: "background" },
+              rationale: "profile evidence",
+            },
+          ],
+        }),
+    });
+
+    // Initial attempt plus two transient retries, all exhausted.
+    expect(calls).toBe(3);
+    const exaFailure = result.collectedSources.sourceGaps.find(
+      (gap) => gap.provider === "exa" && gap.cause === "fetch-failed",
+    );
+    expect(exaFailure?.attempts).toMatchObject({ count: 3 });
+    expect(exaFailure?.attempts?.elapsedMs).toBeGreaterThan(0);
+    expect(exaFailure?.attempts?.failures).toEqual([
+      { attempt: 1, classification: "timeout", message: "The operation timed out." },
+      { attempt: 2, classification: "timeout", message: "The operation timed out." },
+      { attempt: 3, classification: "timeout", message: "The operation timed out." },
+    ]);
+
+    const rejected = result.audit?.rejectedRequests.find(
+      (entry) => entry.status === "rejected" && entry.reason === exaFailure?.message,
+    );
+    expect(rejected?.attempts).toEqual(exaFailure?.attempts);
+  });
+
+  test("records a circuit-open tail attempt when retries exhaust after the breaker trips (production retry-delay shape)", async () => {
+    // CIRCUIT_FAILURE_THRESHOLD is 3: with three retry delays (four possible attempts, the
+    // Same count as DEFAULT_RETRY_DELAYS_MS), the per-host breaker trips on the third
+    // Consecutive failure and refuses to send the fourth request at all. This is the ONLY
+    // Shape a fully-exhausted Exa retry chain can take under production's default retry
+    // Delays, so it is the shape C1 exists to make legible in the audit artifact.
+    let calls = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: async () => {
+        calls += 1;
+        const timeoutError = new Error("The operation timed out.");
+        timeoutError.name = "TimeoutError";
+        throw timeoutError;
+      },
+      retryDelaysMs: [1, 1, 1],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model", searchType: "background" },
+              rationale: "profile evidence",
+            },
+          ],
+        }),
+    });
+
+    // Only 3 requests ever reach the network; the 4th retry-loop iteration is the breaker
+    // Refusing to send, not a 4th network call.
+    expect(calls).toBe(3);
+    // The breaker's refusal is what ultimately terminates the retry loop, so the top-level
+    // Gap now reads "circuit-open", not "fetch-failed" — the timeout reason that caused all
+    // Of this has moved out of the top-level cause/message and survives only in `attempts`.
+    const exaFailure = result.collectedSources.sourceGaps.find(
+      (gap) => gap.provider === "exa" && gap.cause === "circuit-open",
+    );
+    expect(exaFailure?.message).toContain("circuit open");
+    expect(exaFailure?.attempts).toMatchObject({ count: 4 });
+    expect(exaFailure?.attempts?.elapsedMs).toBeGreaterThan(0);
+    expect(exaFailure?.attempts?.failures).toEqual([
+      { attempt: 1, classification: "timeout", message: "The operation timed out." },
+      { attempt: 2, classification: "timeout", message: "The operation timed out." },
+      { attempt: 3, classification: "timeout", message: "The operation timed out." },
+      {
+        attempt: 4,
+        classification: "circuit-open",
+        message: expect.stringContaining("circuit open"),
+      },
+    ]);
+
+    const rejected = result.audit?.rejectedRequests.find(
+      (entry) => entry.status === "rejected" && entry.reason === exaFailure?.message,
+    );
+    expect(rejected?.attempts).toEqual(exaFailure?.attempts);
   });
 
   test("accepts a background search for a topic the SEC packet does not cover", async () => {

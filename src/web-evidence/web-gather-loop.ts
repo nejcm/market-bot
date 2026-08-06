@@ -7,6 +7,7 @@ import type {
   ExtendedEvidenceItem,
   Source,
   SourceGap,
+  SourceGapAttempts,
   WebGatherSanitizerAudit,
   WebGatherLoopAudit,
   WebGatherDuplicateResultAudit,
@@ -368,8 +369,11 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
   const executionAudits: WebGatherExecutionAudit[] = [];
-  const executionRejections: { readonly acceptedRequestIndex: number; readonly reason: string }[] =
-    [];
+  const executionRejections: {
+    readonly acceptedRequestIndex: number;
+    readonly reason: string;
+    readonly attempts?: SourceGapAttempts;
+  }[] = [];
   const toolContext =
     input.collectedSources.resolvedInstrumentIdentity !== undefined
       ? {
@@ -393,6 +397,9 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       executionRejections.push({
         acceptedRequestIndex: executionAudits.length,
         reason: outputWithStale.failedExaRequest.reason,
+        ...(outputWithStale.failedExaRequest.attempts !== undefined
+          ? { attempts: outputWithStale.failedExaRequest.attempts }
+          : {}),
       });
     }
     executionAudits.push({
@@ -501,11 +508,13 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       })),
       rejectedRequests: [
         ...loop.audit.rejectedRequests,
-        ...executionRejections.map(({ acceptedRequestIndex, reason }) => ({
-          ...loop.audit.acceptedRequests[acceptedRequestIndex]!,
-          status: "rejected" as const,
-          reason,
-        })),
+        ...executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
+          executionRejectedEntry(
+            loop.audit.acceptedRequests[acceptedRequestIndex]!,
+            reason,
+            attempts,
+          ),
+        ),
       ],
       sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
       ...(input.acceptancePolicy !== undefined ? { acceptancePolicy: input.acceptancePolicy } : {}),
@@ -532,6 +541,7 @@ async function runDeepEquityWebGatherBatch(input: {
   readonly executionRejections: {
     readonly acceptedRequestIndex: number;
     readonly reason: string;
+    readonly attempts?: SourceGapAttempts;
   }[];
 }): Promise<WebGatherLoopResult> {
   const roundState: JsonToolLoopRoundState<WebGatherStageOutput> = {
@@ -657,11 +667,9 @@ async function runDeepEquityWebGatherBatch(input: {
       rejectedRequests: [
         ...searchValidation.rejected,
         ...fetchValidation.rejected,
-        ...input.executionRejections.map(({ acceptedRequestIndex, reason }) => ({
-          ...acceptedRequests[acceptedRequestIndex]!.audit,
-          status: "rejected" as const,
-          reason,
-        })),
+        ...input.executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
+          executionRejectedEntry(acceptedRequests[acceptedRequestIndex]!.audit, reason, attempts),
+        ),
       ],
       sourceUnitsUsed: acceptedRequests.reduce((total, request) => total + request.sourceUnits, 0),
       executedTools: acceptedRequests.map((request) => request.tool),
@@ -1068,6 +1076,22 @@ function isOnSubjectQuery(
   return subjectTerms.some((term) =>
     term.includes(" ") ? ` ${normalized} `.includes(` ${term} `) : tokens.has(term),
   );
+}
+
+// Shared by both audit-assembly sites (the generic json-tool loop and the deep-equity batch
+// Path) so a rejected-by-execution entry (an Exa call that failed outright, as opposed to one
+// Rejected at validation time) is built identically in both places.
+function executionRejectedEntry<TEntry extends JsonToolLoopAuditEntry>(
+  acceptedEntry: TEntry,
+  reason: string,
+  attempts: SourceGapAttempts | undefined,
+): TEntry & { status: "rejected"; reason: string; attempts?: SourceGapAttempts } {
+  return {
+    ...acceptedEntry,
+    status: "rejected" as const,
+    reason,
+    ...(attempts !== undefined ? { attempts } : {}),
+  };
 }
 
 function requestKey(request: ModelWebGatherRequest): string {

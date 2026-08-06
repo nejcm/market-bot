@@ -1,5 +1,6 @@
 import type {
   SourceGap,
+  SourceGapAttempts,
   SourceGapCapability,
   SourceGapCause,
   SourceGapEvidenceQualityImpact,
@@ -86,6 +87,7 @@ export interface SourceGapInput {
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
   readonly triage?: SourceGapTriage;
+  readonly attempts?: SourceGapAttempts;
 }
 
 export function sourceGap(input: SourceGapInput): SourceGap {
@@ -100,6 +102,7 @@ export function sourceGap(input: SourceGapInput): SourceGap {
       ? { evidenceQualityImpact: input.evidenceQualityImpact }
       : {}),
     ...(input.triage !== undefined ? { triage: input.triage } : {}),
+    ...(input.attempts !== undefined ? { attempts: input.attempts } : {}),
   };
 }
 
@@ -169,6 +172,7 @@ export function sourceGapWithContext(
     ...(cause !== undefined ? { cause } : {}),
     ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
     ...(gap.triage !== undefined ? { triage: gap.triage } : {}),
+    ...(gap.attempts !== undefined ? { attempts: gap.attempts } : {}),
   });
 }
 
@@ -176,12 +180,14 @@ export function fetchFailureSourceGap(
   source: string,
   message: string,
   cause: FetchFailureSourceGapCause = "fetch-failed",
+  attempts?: SourceGapAttempts,
 ): SourceGap {
   return sourceGap({
     source,
     message,
     cause,
     evidenceQualityImpact: "core-cap",
+    ...(attempts !== undefined ? { attempts } : {}),
   });
 }
 

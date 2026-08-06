@@ -467,7 +467,13 @@ function failedExaRequestAudit(exa: ExaWebOutcome): Pick<WebGatherToolOutput, "f
       (gap.cause === "fetch-failed" || gap.cause === "circuit-open"),
   );
   return failure?.cause === "fetch-failed" || failure?.cause === "circuit-open"
-    ? { failedExaRequest: { reason: failure.message, cause: failure.cause } }
+    ? {
+        failedExaRequest: {
+          reason: failure.message,
+          cause: failure.cause,
+          ...(failure.attempts !== undefined ? { attempts: failure.attempts } : {}),
+        },
+      }
     : {};
 }
 

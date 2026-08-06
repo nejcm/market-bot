@@ -4,10 +4,15 @@
 // Registry so adapters and the collector can depend on it without import cycles.
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
 import { withCache, type CacheOptions } from "./cache";
-import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
+import {
+  classifyTransientFailure,
+  DEFAULT_RETRY_DELAYS_MS,
+  isTransientError,
+  sleep,
+} from "./retry-utils";
 import type {
   CollectContext,
   FetchJsonRequestFn,
@@ -268,6 +273,44 @@ export function setSourceHostMinDelayMsForTests(ms: number): void {
   hostMinDelayMs = ms;
 }
 
+// Mutable per-call accumulator threaded through the retry recursion below. Not part of any
+// Public API: `fetchJsonOrGap`/`fetchTextOrGap` create one, read it after the retry chain
+// Settles, and use it to attach `SourceGap.attempts` telemetry (attempt count, elapsed time,
+// Per-attempt failure classification) without changing retry count, delays, or the thrown
+// Error's identity/message.
+interface RetryAttemptState {
+  readonly failures: SourceGapAttemptFailure[];
+  readonly startedAt: number;
+}
+
+function newRetryAttemptState(): RetryAttemptState {
+  return { failures: [], startedAt: performance.now() };
+}
+
+function recordRetryAttemptFailure(state: RetryAttemptState, error: unknown): void {
+  state.failures.push({
+    // 1-based attempt number: this is the (failures.length + 1)-th time the retry loop
+    // Tried something, whether or not the attempt actually reached the network (a
+    // "Circuit-open" classification means it did not — see `SourceGapAttemptClassification`).
+    attempt: state.failures.length + 1,
+    classification: classifyTransientFailure(error),
+    message: error instanceof Error ? error.message : "source request failed",
+  });
+}
+
+// Only populated once at least one retry actually happened. A single failed attempt with no
+// Retry (the overwhelming majority of fetch-failure gaps today) carries no new information
+// Here, so it stays silent and every existing single-attempt gap is unchanged.
+function retryAttemptsTelemetry(state: RetryAttemptState): SourceGapAttempts | undefined {
+  return state.failures.length > 1
+    ? {
+        count: state.failures.length,
+        elapsedMs: Math.round(performance.now() - state.startedAt),
+        failures: state.failures,
+      }
+    : undefined;
+}
+
 async function fetchJsonWithRetry(
   url: string,
   adapter: string,
@@ -275,11 +318,13 @@ async function fetchJsonWithRetry(
   timeoutMs: number,
   fetchImpl: FetchLike,
   remainingDelays: readonly number[],
+  attemptState: RetryAttemptState,
   init?: RequestInit,
 ): Promise<FetchJsonResult> {
   try {
     return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
   } catch (error: unknown) {
+    recordRetryAttemptFailure(attemptState, error);
     const [nextDelay] = remainingDelays;
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
@@ -292,6 +337,7 @@ async function fetchJsonWithRetry(
       timeoutMs,
       fetchImpl,
       remainingDelays.slice(1),
+      attemptState,
       init,
     );
   }
@@ -304,11 +350,13 @@ async function fetchTextWithRetry(
   timeoutMs: number,
   fetchImpl: FetchLike,
   remainingDelays: readonly number[],
+  attemptState: RetryAttemptState,
   init?: RequestInit,
 ): Promise<FetchTextResult> {
   try {
     return await fetchText(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
   } catch (error: unknown) {
+    recordRetryAttemptFailure(attemptState, error);
     const [nextDelay] = remainingDelays;
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
@@ -321,6 +369,7 @@ async function fetchTextWithRetry(
       timeoutMs,
       fetchImpl,
       remainingDelays.slice(1),
+      attemptState,
       init,
     );
   }
@@ -335,6 +384,7 @@ async function fetchJsonOrGap(
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
   init?: RequestInit,
 ): Promise<FetchJsonResult | SourceGap> {
+  const attemptState = newRetryAttemptState();
   try {
     return await fetchJsonWithRetry(
       url,
@@ -343,6 +393,7 @@ async function fetchJsonOrGap(
       timeoutMs,
       fetchImpl,
       retryDelaysMs,
+      attemptState,
       init,
     );
   } catch (error: unknown) {
@@ -351,6 +402,7 @@ async function fetchJsonOrGap(
       adapter,
       message,
       error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
+      retryAttemptsTelemetry(attemptState),
     );
   }
 }
@@ -364,6 +416,7 @@ async function fetchTextOrGap(
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
   init?: RequestInit,
 ): Promise<FetchTextResult | SourceGap> {
+  const attemptState = newRetryAttemptState();
   try {
     return await fetchTextWithRetry(
       url,
@@ -372,6 +425,7 @@ async function fetchTextOrGap(
       timeoutMs,
       fetchImpl,
       retryDelaysMs,
+      attemptState,
       init,
     );
   } catch (error: unknown) {
@@ -380,6 +434,7 @@ async function fetchTextOrGap(
       adapter,
       message,
       error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
+      retryAttemptsTelemetry(attemptState),
     );
   }
 }

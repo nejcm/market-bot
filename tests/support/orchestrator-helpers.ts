@@ -259,9 +259,15 @@ export function secEvidenceFetch(input: string | URL | Request): Promise<Respons
     );
   }
   if (url.includes("Archives")) {
+    // The MD&A body clears both the packet-level floor and A2.5's higher per-section
+    // Selection floor (SEC_SECTION_MIN_SELECTED_ALPHA_CHARS), so the filing keeps a
+    // Real snippet and remains citable company-profile evidence (isCompanyProfileSecSource).
+    const filler = "Additional discussion continues to provide sufficient section context. ".repeat(
+      6,
+    );
     return Promise.resolve(
       new Response(
-        "<html><body><p>ITEM 2-MANAGEMENT Latest filing evidence with enough text to clear the section packet threshold.</p></body></html>",
+        `<html><body><p>ITEM 2-MANAGEMENT Latest filing evidence with enough text to clear the section packet threshold. ${filler}</p></body></html>`,
       ),
     );
   }

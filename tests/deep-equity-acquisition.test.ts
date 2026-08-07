@@ -9,6 +9,8 @@ import { createCollectContext, resetSourceResilienceForTests } from "../src/sour
 import { collectTradierPacket } from "../src/sources/tradier-packet";
 import type { FetchLike } from "../src/sources/types";
 import { WEB_GATHER_DUPLICATE_REQUEST_REASON } from "../src/sources/web-gather-rejection-reasons";
+import { isCompanyProfileSecSource } from "../src/web-evidence/web-subject-profile";
+import { latestSecFilingDate } from "../src/web-evidence/web-subject-profile-reuse";
 import { makeReplayFetch } from "./support/run-fixtures/data-cassette";
 import { createFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
 
@@ -86,6 +88,24 @@ function secSubmissions(): unknown {
       },
     },
   };
+}
+
+// SEC_SECTION_MIN_SELECTED_ALPHA_CHARS (A2.5) requires 300+ alpha characters for a section to
+// Be selected at all. Repeats `sentence` until the alpha-character count clears `minAlpha`.
+function repeatToMinAlpha(sentence: string, minAlpha = 320): string {
+  let out = "";
+  while ((out.match(/[A-Za-z]/gu)?.length ?? 0) < minAlpha) {
+    out += `${sentence} `;
+  }
+  return out.trim();
+}
+
+// Pads a filing body well past the global 5MB default so it only survives under the
+// SEC-scoped ceiling (SEC_FILING_TEXT_MAX_RESPONSE_BYTES, 16MB). Placed after the last
+// Section-bearing content so it cannot bleed into any section's captured text (Notes'
+// Own maxChars budget truncates before reaching it).
+function oversizedFilingTailPadding(): string {
+  return "pad ".repeat(1_600_000);
 }
 
 beforeEach(() => {
@@ -240,7 +260,7 @@ describe("deep-equity packet acquisition", () => {
       }
       if (url.endsWith("aapl-20250930.htm")) {
         return new Response(
-          "<html><body>ITEM 1. BUSINESS Apple designs and sells consumer devices and related services worldwide with recurring service revenue.</body></html>",
+          `<html><body>ITEM 1. BUSINESS Apple designs and sells consumer devices and related services worldwide with recurring service revenue. ${"Additional business description continues to provide sufficient extraction context. ".repeat(6)}</body></html>`,
         );
       }
       if (url.endsWith("aapl-20260331.htm")) {
@@ -276,7 +296,19 @@ describe("deep-equity packet acquisition", () => {
     );
     expect(submissionsRawSnapshot).toBeDefined();
     expect(packet.newer10Q?.source.rawRef).toBe(submissionsRawSnapshot?.id);
-    expect(packet.filingEvidence.gaps).toHaveLength(1);
+    // Two gaps: the 10-Q's 404 fetch failure, plus a section-omission gap for the 10-K (its
+    // Fixture only supplies a Business section, so Risk Factors/MD&A/Segments/Notes are
+    // Reported as omitted rather than silently absent).
+    expect(packet.filingEvidence.gaps).toHaveLength(2);
+    expect(packet.filingEvidence.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "sec-edgar",
+        cause: "provider-data-missing",
+        message: expect.stringContaining(
+          "SEC 10-K section packet for AAPL omitted Risk Factors, MD&A, Segments, Notes",
+        ),
+      }),
+    );
   });
 
   test("suppresses all SEC-dependent derivations from one failed target packet", async () => {
@@ -488,4 +520,168 @@ describe("deep-equity packet acquisition", () => {
       await result.cleanup();
     }
   });
+});
+
+describe("SEC oversized filing text (A2)", () => {
+  test("extracts all five sections from an MSFT-shaped drop-cap 10-K larger than the global default but within the SEC-scoped ceiling", async () => {
+    // Reproduces the MSFT defect at real scale: drop-cap typography ("ITEM 1. B USINESS") plus
+    // A response well past the global 5MB default (MSFT's real FY2026 10-K decompresses to
+    // 8.6M bytes) that only survives because sec-filing-text is scoped to 16MB.
+    const body = [
+      `ITEM 1. B USINESS ${repeatToMinAlpha(
+        "Microsoft is a technology company whose mission is to empower every person and organization on the planet to achieve more.",
+        500,
+      )}`,
+      `ITEM 1A. RIS K FACTORS ${repeatToMinAlpha(
+        "Our operations and financial results are subject to various risks and uncertainties that could adversely affect our business.",
+        500,
+      )}`,
+      `ITEM 7. MANAGEMENT'S DISCUSSION ${repeatToMinAlpha(
+        "Revenue grew across cloud and productivity segments during the period under review.",
+        500,
+      )}`,
+      `SEGMENT INFORMATION ${repeatToMinAlpha(
+        "The Company reports segment results across Productivity, Intelligent Cloud, and More Personal Computing.",
+        500,
+      )}`,
+      `NOTES TO CONSOLIDATED FINANCIAL STATEMENTS ${repeatToMinAlpha(
+        "Significant accounting policies are described in the notes to the consolidated financial statements.",
+        500,
+      )}`,
+      oversizedFilingTailPadding(),
+    ].join(" ");
+    expect(new TextEncoder().encode(body).byteLength).toBeGreaterThan(5_000_000);
+
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-K"],
+          filingDate: ["2026-01-15"],
+          reportDate: ["2025-12-31"],
+          accessionNumber: ["0000320193-26-000010"],
+          primaryDocument: ["msft-10k.htm"],
+        },
+      },
+    };
+    const adapter = recordingRequestAdapter((url) => {
+      if (url.includes("company_tickers.json")) {
+        return json(secTickers());
+      }
+      if (url.includes("companyfacts")) {
+        return json({ facts: {} });
+      }
+      if (url.includes("/submissions/")) {
+        return json(submissions);
+      }
+      if (url.endsWith("msft-10k.htm")) {
+        return new Response(body);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const { context } = createCollectContext(
+      AAPL_COMMAND,
+      sourceOptions({
+        sourceTimeoutMs: 5000,
+        secUserAgent: "market-bot tests contact@example.invalid",
+      }),
+      NOW,
+      adapter.fetch,
+      [],
+    );
+
+    const base = await collectSecTargetPacketBase(context, AAPL_COMMAND);
+    const packet = await finalizeSecTargetPacket(context, base);
+
+    expect(packet.filingEvidence.gaps).toEqual([]);
+    const snippet = packet.latest10K?.source.snippet ?? "";
+    expect(snippet).toContain("[Business]");
+    expect(snippet).toContain("[Risk Factors]");
+    expect(snippet).toContain("[MD&A]");
+    expect(snippet).toContain("[Segments]");
+    expect(snippet).toContain("[Notes]");
+    expect(latestSecFilingDate(packet.filingEvidence)).toBe("2026-01-15");
+    expect(
+      packet.latest10K !== undefined && isCompanyProfileSecSource(packet.latest10K.source),
+    ).toBe(true);
+  }, 20_000);
+
+  test("emits a precise omission gap naming the missing section for an oversized 10-K with no Risk Factors item at all", async () => {
+    const body = [
+      `ITEM 1. BUSINESS ${repeatToMinAlpha(
+        "Microsoft is a technology company whose mission is to empower every person and organization on the planet to achieve more.",
+        500,
+      )}`,
+      // Deliberately no "ITEM 1A" / Risk Factors content anywhere in the document.
+      `ITEM 7. MANAGEMENT'S DISCUSSION ${repeatToMinAlpha(
+        "Revenue grew across cloud and productivity segments during the period under review.",
+        500,
+      )}`,
+      `SEGMENT INFORMATION ${repeatToMinAlpha(
+        "The Company reports segment results across Productivity, Intelligent Cloud, and More Personal Computing.",
+        500,
+      )}`,
+      `NOTES TO CONSOLIDATED FINANCIAL STATEMENTS ${repeatToMinAlpha(
+        "Significant accounting policies are described in the notes to the consolidated financial statements.",
+        500,
+      )}`,
+      oversizedFilingTailPadding(),
+    ].join(" ");
+    expect(new TextEncoder().encode(body).byteLength).toBeGreaterThan(5_000_000);
+
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-K"],
+          filingDate: ["2026-01-15"],
+          reportDate: ["2025-12-31"],
+          accessionNumber: ["0000320193-26-000010"],
+          primaryDocument: ["msft-10k.htm"],
+        },
+      },
+    };
+    const adapter = recordingRequestAdapter((url) => {
+      if (url.includes("company_tickers.json")) {
+        return json(secTickers());
+      }
+      if (url.includes("companyfacts")) {
+        return json({ facts: {} });
+      }
+      if (url.includes("/submissions/")) {
+        return json(submissions);
+      }
+      if (url.endsWith("msft-10k.htm")) {
+        return new Response(body);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const { context } = createCollectContext(
+      AAPL_COMMAND,
+      sourceOptions({
+        sourceTimeoutMs: 5000,
+        secUserAgent: "market-bot tests contact@example.invalid",
+      }),
+      NOW,
+      adapter.fetch,
+      [],
+    );
+
+    const base = await collectSecTargetPacketBase(context, AAPL_COMMAND);
+    const packet = await finalizeSecTargetPacket(context, base);
+
+    const snippet = packet.latest10K?.source.snippet ?? "";
+    expect(snippet).toContain("[Business]");
+    expect(snippet).not.toContain("[Risk Factors]");
+    expect(packet.filingEvidence.gaps).toHaveLength(1);
+    expect(packet.filingEvidence.gaps[0]).toMatchObject({
+      source: "sec-edgar",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    expect(packet.filingEvidence.gaps[0]?.message).toContain(
+      "SEC 10-K section packet for AAPL omitted Risk Factors",
+    );
+    expect(packet.filingEvidence.gaps[0]?.message).toMatch(
+      /\(4 of 5 sections extracted from \d+ normalized chars; \d+ response bytes\)/u,
+    );
+  }, 20_000);
 });

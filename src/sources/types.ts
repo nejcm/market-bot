@@ -42,6 +42,10 @@ export interface SourceRequest {
   readonly adapter: string;
   readonly init?: RequestInit | undefined;
   readonly fetch?: ((baseFetch: FetchLike) => FetchLike) | undefined;
+  // Overrides the default response-byte ceiling (`DEFAULT_MAX_SOURCE_RESPONSE_BYTES` in
+  // Source-request.ts) for this request's text fetch only. Used by adapters whose payload is
+  // Known to legitimately exceed the global default (currently: sec-filing-text only).
+  readonly maxResponseBytes?: number | undefined;
 }
 
 export type FetchJsonRequestFn = (request: SourceRequest) => Promise<FetchJsonResult | SourceGap>;

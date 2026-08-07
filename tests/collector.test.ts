@@ -212,6 +212,35 @@ describe("collectSources", () => {
     );
   });
 
+  // Guards A2.2: SEC_FILING_TEXT_MAX_RESPONSE_BYTES only relaxes the ceiling for the
+  // `sec-filing-text` adapter's own request (set at its call site in
+  // Evidence-request-tools.ts). Every other adapter, including one whose actual streamed body
+  // (not just its content-length header) exceeds 5MB, must still fail at the unmodified global
+  // Default.
+  test("still rejects a non-SEC adapter's actual streamed body above the unmodified global default", async () => {
+    const oversizedBody = "x".repeat(5_500_000);
+    const { context } = createCollectContext(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 1000 },
+      new Date("2026-05-20T00:00:00.000Z"),
+      async () => new Response(oversizedBody),
+      [],
+    );
+
+    const result = await context.request.text({
+      url: "https://example.test/oversized-stream",
+      adapter: "oversized-source",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        source: "oversized-source",
+        message: "oversized-source source response exceeded 5000000 bytes",
+        cause: "fetch-failed",
+      }),
+    );
+  });
+
   test("uses canonical financial derivations without legacy comparison passes", async () => {
     const fundamentalHistoryModule =
       await import("../src/sources/extended-evidence/fundamental-history");

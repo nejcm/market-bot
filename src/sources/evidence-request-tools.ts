@@ -16,6 +16,7 @@ import {
   type SecCompanyFactsResult,
 } from "./extended-evidence/sec-edgar";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
+import { SEC_FILING_TEXT_MAX_RESPONSE_BYTES } from "./source-request";
 import { tradierRequestInit } from "./tradier";
 import {
   aggregateModelInputSanitization,
@@ -70,6 +71,16 @@ const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
 const SEC_FILING_SUMMARY_EXCERPT_CHARS = 1200;
 const SEC_PACKET_MIN_CHARS = 50;
 const SEC_SECTION_MIN_ALPHA_CHARS = 40;
+// Floor for accepting an individually SELECTED section (business/risk factors/MD&A/segments/
+// Notes), applied in `selectSection`. Deliberately much higher than SEC_SECTION_MIN_ALPHA_CHARS
+// (the packet-level floor below): a 40-char floor lets a 63-char table-of-contents line
+// ("ITEM 1. BUSINESS ... 5 ITEM 1A ...") pass as if it were the real section body once the
+// Response-byte ceiling stops truncating filings before their TOC-vs-body ambiguity matters
+// (see A2.5 in the run-quality remediation plan). This is not a content-quality check — it's a
+// Proxy for "distance to the next ITEM header" (see boundedSection), which is short for a TOC
+// Line only because TOC lines are dense with ITEM headers. It can still admit a slice that
+// Bled forward into an unrelated section; that's a known limitation, not a guarantee.
+const SEC_SECTION_MIN_SELECTED_ALPHA_CHARS = 300;
 const SEC_8K_PACKET_BUDGET = 3000;
 const SEC_8K_LOOKBACK_DAYS = 120;
 const SEC_8K_LIMIT = 2;
@@ -125,6 +136,49 @@ function secPacketGap(symbol: string, form: SecFiling["form"]): SourceGap {
     provider: "sec-edgar",
     capability: "evidence-request",
     cause: "malformed-response",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
+// A section the 5-way (or 4-way, for 10-Q) model expected but didn't emit: either the anchor
+// Never matched ("absent" — e.g. Business in a 10-Q, which has no Item 1 Business) or it matched
+// But the candidate slice fell under SEC_SECTION_MIN_SELECTED_ALPHA_CHARS ("too-short" — content
+// Exists but was discarded, distinct from the section not being filed at all).
+interface SectionMiss {
+  readonly label: string;
+  readonly reason: "absent" | "too-short";
+  readonly alphaCount?: number;
+}
+
+function sectionMissDescription(miss: SectionMiss): string {
+  return miss.reason === "absent"
+    ? miss.label
+    : `${miss.label} (found, ${String(miss.alphaCount)} alpha chars < ${String(SEC_SECTION_MIN_SELECTED_ALPHA_CHARS)})`;
+}
+
+// Distinguishes a partial extraction (packet built, some sections missing) from
+// `secPacketGap`'s total failure (no sections extracted at all), so report.json:dataGaps can
+// Tell the two apart (see A2.3 in the run-quality remediation plan). Cause is
+// `provider-data-missing`, not `malformed-response`: an omitted section is usually the filing
+// Legitimately not having that content (e.g. Business in a 10-Q), not a malformed document.
+function secSectionOmissionGap(
+  symbol: string,
+  form: SecFiling["form"],
+  misses: readonly SectionMiss[],
+  extractedCount: number,
+  totalCount: number,
+  normalizedChars: number,
+  responseBytes: number,
+): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message:
+      `SEC ${form} section packet for ${symbol} omitted ${misses.map((miss) => sectionMissDescription(miss)).join(", ")} ` +
+      `(${String(extractedCount)} of ${String(totalCount)} sections extracted from ` +
+      `${String(normalizedChars)} normalized chars; ${String(responseBytes)} response bytes)`,
+    provider: "sec-edgar",
+    capability: "evidence-request",
+    cause: "provider-data-missing",
     evidenceQualityImpact: "extended-evidence-cap",
   });
 }
@@ -342,12 +396,43 @@ function substantiveAlphaCount(value: string): number {
   return [...value.matchAll(/\p{L}/gu)].length;
 }
 
-function selectSection(text: string, pattern: RegExp, maxChars: number): string | undefined {
-  const matches = [...text.matchAll(pattern)];
-  return matches
-    .map((match) => boundedSection(text, match.index ?? 0, maxChars))
-    .filter((section) => substantiveAlphaCount(section) >= SEC_SECTION_MIN_ALPHA_CHARS)
-    .toSorted((a, b) => b.length - a.length)[0];
+// Generates a regex source that matches `literal` (a run of A-Z letters) with optional
+// Whitespace tolerated between every character, so drop-cap typography (common in SEC HTML,
+// E.g. "ITEM 1. B USINESS" or "RIS K FACTORS") still matches the anchor. `\s*` between
+// Characters matches zero-width by default, so this is a strict superset of matching the
+// Literal with no whitespace at all \u2014 a normal, non-drop-cap filing anchors identically to
+// Before. False positives stay nil because callers always anchor this on a preceding
+// `ITEM\s+<n>` header first (see secFilingSectionPacket).
+function whitespaceTolerantLiteral(literal: string): string {
+  return [...literal].join(String.raw`\s*`);
+}
+
+// Shorthand for whitespaceTolerantLiteral, used to build every multi-word section anchor below.
+const tw = whitespaceTolerantLiteral;
+
+function selectSection(text: string, pattern: RegExp, maxChars: number): SectionMiss | string {
+  const candidates = [...text.matchAll(pattern)].map((match) => {
+    const section = boundedSection(text, match.index ?? 0, maxChars);
+    return { section, alphaCount: substantiveAlphaCount(section) };
+  });
+  const [accepted] = candidates
+    .filter((candidate) => candidate.alphaCount >= SEC_SECTION_MIN_SELECTED_ALPHA_CHARS)
+    .toSorted((a, b) => b.section.length - a.section.length);
+  if (accepted !== undefined) {
+    return accepted.section;
+  }
+  const [bestCandidate] = candidates.toSorted((a, b) => b.alphaCount - a.alphaCount);
+  return bestCandidate === undefined
+    ? { label: "", reason: "absent" }
+    : { label: "", reason: "too-short", alphaCount: bestCandidate.alphaCount };
+}
+
+interface SecFilingSectionResult {
+  readonly packet: string | undefined;
+  // Sections the 5-way (10-K) or 4-way (10-Q, which has no Item 1 Business) model expected but
+  // Did not find, and why. Empty for 8-K/6-K packets, which have no per-section model.
+  readonly misses: readonly SectionMiss[];
+  readonly sectionCount: number;
 }
 
 // Builds a deterministic bounded section packet from a normalized SEC HTML filing.
@@ -355,9 +440,9 @@ function secFilingSectionPacket(
   normalized: string,
   form: SecFiling["form"],
   earningsEventDate?: string,
-): string | undefined {
+): SecFilingSectionResult {
   if (normalized.length < SEC_PACKET_MIN_CHARS) {
-    return undefined;
+    return { packet: undefined, misses: [], sectionCount: 0 };
   }
   if (form === "8-K" || form === "6-K") {
     const firstItem = /ITEM\s+\d+\.\d{2}/iu.exec(normalized);
@@ -366,55 +451,71 @@ function secFilingSectionPacket(
       earningsEventDate === undefined
         ? undefined
         : retainedEvidenceSpanForEarningsDate(normalized, earningsEventDate);
-    return earningsSpan === undefined
-      ? base
-      : truncateText(`${earningsSpan}\n\n${base}`, SEC_8K_PACKET_BUDGET);
-  }
-  const parts: string[] = [];
-  const business = selectSection(
-    normalized,
-    /ITEM\s+1\b[.\u2010-\u2015:-]?\s*BUSINESS/giu,
-    SEC_SECTION_BUDGETS.business,
-  );
-  if (business !== undefined) {
-    parts.push(`[Business] ${business}`);
-  }
-  const riskFactors = selectSection(
-    normalized,
-    /ITEM\s+1A\b[.\u2010-\u2015:-]?\s*RISK\s+FACTORS/giu,
-    SEC_SECTION_BUDGETS.riskFactors,
-  );
-  if (riskFactors !== undefined) {
-    parts.push(`[Risk Factors] ${riskFactors}`);
+    const packet =
+      earningsSpan === undefined
+        ? base
+        : truncateText(`${earningsSpan}\n\n${base}`, SEC_8K_PACKET_BUDGET);
+    return { packet, misses: [], sectionCount: 0 };
   }
   const mdnaPattern =
     form === "10-K"
-      ? /ITEM\s+7\b[.\u2010-\u2015:-]?\s*MANAGEMENT/giu
-      : /ITEM\s+2\b[.\u2010-\u2015:-]?\s*MANAGEMENT/giu;
-  const mdna = selectSection(normalized, mdnaPattern, SEC_SECTION_BUDGETS.mdna);
-  if (mdna !== undefined) {
-    parts.push(`[MD&A] ${mdna}`);
-  }
-  const segments = selectSection(
-    normalized,
-    /SEGMENT\s+(INFORMATION|REPORTING|DATA|RESULTS|REVENUE)|GEOGRAPH(IC|IES|Y)\s+(REVENUE|SALES|DISCLOSURE|INFORMATION|DATA|BREAKDOWN)/giu,
-    SEC_SECTION_BUDGETS.segments,
+      ? new RegExp(`ITEM\\s+7\\b[.\\u2010-\\u2015:-]?\\s*${tw("MANAGEMENT")}`, "giu")
+      : new RegExp(`ITEM\\s+2\\b[.\\u2010-\\u2015:-]?\\s*${tw("MANAGEMENT")}`, "giu");
+  const segmentsPattern = new RegExp(
+    `${tw("SEGMENT")}\\s+(${tw("INFORMATION")}|${tw("REPORTING")}|${tw("DATA")}|${tw("RESULTS")}|${tw("REVENUE")})` +
+      `|${tw("GEOGRAPH")}(${tw("IC")}|${tw("IES")}|${tw("Y")})\\s+(${tw("REVENUE")}|${tw("SALES")}|${tw("DISCLOSURE")}|${tw("INFORMATION")}|${tw("DATA")}|${tw("BREAKDOWN")})`,
+    "giu",
   );
-  if (segments !== undefined) {
-    parts.push(`[Segments] ${segments}`);
-  }
-  const notes = selectSection(
-    normalized,
-    /NOTES?\s+TO\s+(CONSOLIDATED\s+)?FINANCIAL\s+STATEMENTS/giu,
-    SEC_SECTION_BUDGETS.notes,
+  const notesPattern = new RegExp(
+    // "S?\\s+" (not "\\s*S?\\s+") so the optional S can't overlap the required whitespace run
+    // That follows it. "(CONDENSED\\s+)?" covers the Reg S-X interim wording ("NOTES TO
+    // CONDENSED CONSOLIDATED FINANCIAL STATEMENTS") every quarterly filer uses.
+    `${tw("NOTE")}S?\\s+${tw("TO")}\\s+(${tw("CONDENSED")}\\s+)?(${tw("CONSOLIDATED")}\\s+)?${tw("FINANCIAL")}\\s+${tw("STATEMENTS")}`,
+    "giu",
   );
-  if (notes !== undefined) {
-    parts.push(`[Notes] ${notes}`);
+  // Item 1 in a 10-Q is Financial Statements, not Business \u2014 a 10-Q has no Business section to
+  // Find, so it is excluded from the expected set entirely rather than reported omitted.
+  const sections: readonly {
+    readonly label: string;
+    readonly pattern: RegExp;
+    readonly maxChars: number;
+  }[] = [
+    ...(form === "10-K"
+      ? [
+          {
+            label: "Business",
+            pattern: new RegExp(`ITEM\\s+1\\b[.\\u2010-\\u2015:-]?\\s*${tw("BUSINESS")}`, "giu"),
+            maxChars: SEC_SECTION_BUDGETS.business,
+          },
+        ]
+      : []),
+    {
+      label: "Risk Factors",
+      pattern: new RegExp(
+        `ITEM\\s+1A\\b[.\\u2010-\\u2015:-]?\\s*${tw("RISK")}\\s+${tw("FACTORS")}`,
+        "giu",
+      ),
+      maxChars: SEC_SECTION_BUDGETS.riskFactors,
+    },
+    { label: "MD&A", pattern: mdnaPattern, maxChars: SEC_SECTION_BUDGETS.mdna },
+    { label: "Segments", pattern: segmentsPattern, maxChars: SEC_SECTION_BUDGETS.segments },
+    { label: "Notes", pattern: notesPattern, maxChars: SEC_SECTION_BUDGETS.notes },
+  ];
+  const parts: string[] = [];
+  const misses: SectionMiss[] = [];
+  for (const section of sections) {
+    const selected = selectSection(normalized, section.pattern, section.maxChars);
+    if (typeof selected !== "string") {
+      misses.push({ ...selected, label: section.label });
+      continue;
+    }
+    parts.push(`[${section.label}] ${selected}`);
   }
-  if (parts.length === 0) {
-    return undefined;
-  }
-  return parts.join("\n\n");
+  return {
+    packet: parts.length === 0 ? undefined : parts.join("\n\n"),
+    misses: parts.length === 0 ? [] : misses,
+    sectionCount: sections.length,
+  };
 }
 
 type SecFilingSourceItem =
@@ -423,6 +524,11 @@ type SecFilingSourceItem =
       readonly source: Source;
       readonly item: ExtendedEvidenceItem;
       readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
+      // Populated only for the 10-K/10-Q section model (empty for 8-K/6-K, which has none).
+      readonly misses: readonly SectionMiss[];
+      readonly sectionCount: number;
+      readonly normalizedChars: number;
+      readonly responseBytes: number;
     }
   | {
       readonly kind: "dropped";
@@ -527,7 +633,11 @@ function buildSecFilingSourceItem(
 ): SecFilingSourceItem {
   const formKey = secFilingKey(filing);
   const normalized = normalizeFilingText(filingText.payload);
-  const packet = secFilingSectionPacket(normalized, filing.form, earningsEventDate);
+  const { packet, misses, sectionCount } = secFilingSectionPacket(
+    normalized,
+    filing.form,
+    earningsEventDate,
+  );
   if (packet === undefined) {
     return { kind: "missing" };
   }
@@ -612,6 +722,13 @@ function buildSecFilingSourceItem(
       sanitizedPacket.entry,
       ...(sanitizedName === undefined ? [] : [sanitizedName.entry]),
     ],
+    misses,
+    sectionCount,
+    normalizedChars: normalized.length,
+    // Only allocate the whole-document byte count when a gap will actually report it — a
+    // Healthy filing (the overwhelming majority) never pays for this encode.
+    responseBytes:
+      misses.length === 0 ? 0 : new TextEncoder().encode(filingText.payload).byteLength,
   };
 }
 
@@ -624,6 +741,11 @@ async function fetchFilingText(
   const result = await ctx.request.text({
     url,
     adapter: "sec-filing-text",
+    // SEC filing text is the one adapter whose payload legitimately exceeds the global
+    // Response-byte default (see SEC_FILING_TEXT_MAX_RESPONSE_BYTES and the A2 remediation
+    // Plan) — sec.gov gzips, so content-length reports the compressed size while
+    // `response.body` yields decompressed bytes several times larger.
+    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
     init: secTextRequestInit(ctx.secUserAgent),
   });
   return { result, url };
@@ -711,11 +833,25 @@ async function collectSecFiling(
       droppedItemCount: 1,
     };
   }
+  const omissionGaps =
+    built.misses.length === 0
+      ? []
+      : [
+          secSectionOmissionGap(
+            command.symbol,
+            filing.form,
+            built.misses,
+            built.sectionCount - built.misses.length,
+            built.sectionCount,
+            built.normalizedChars,
+            built.responseBytes,
+          ),
+        ];
   return {
     rawSnapshots: [result.rawSnapshot],
     sources: [built.source],
     items: [built.item],
-    gaps: [],
+    gaps: omissionGaps,
     sanitizationEntries: built.sanitizationEntries,
     droppedItemCount: 0,
   };

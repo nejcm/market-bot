@@ -20,6 +20,7 @@ import type {
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import {
+  compactNumber,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
   type EquityReaderAppendixCompleteness,
@@ -903,20 +904,6 @@ function balanceSheetHistoryFromProjection(
   };
 }
 
-function compactNumber(value: number): string {
-  const absolute = Math.abs(value);
-  for (const [scale, suffix] of [
-    [1_000_000_000_000, "T"],
-    [1_000_000_000, "B"],
-    [1_000_000, "M"],
-  ] as const) {
-    if (absolute >= scale) {
-      return `${(value / scale).toFixed(1)}${suffix}`;
-    }
-  }
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
-}
-
 function earningsConsensusFromProjection(
   items: readonly EquityReaderConsensusItem[],
 ): RunWorkspaceEarningsConsensusView {
@@ -952,18 +939,20 @@ function earningsConsensusFromProjection(
   };
 }
 
+function compactOrDash(item: number | undefined): string {
+  return item === undefined ? "—" : compactNumber(item);
+}
+
 function analystEstimateDistributionsFromProjection(
   distributions: readonly EquityReaderAnalystEstimateDistribution[],
 ): readonly RunWorkspaceAnalystEstimateDistribution[] {
-  const value = (item: number | undefined): string =>
-    item === undefined ? "—" : compactNumber(item);
   return distributions.map((distribution) => ({
     title: distribution.title,
     ...(distribution.period === undefined ? {} : { period: distribution.period }),
-    mean: value(distribution.mean),
-    median: value(distribution.median),
-    high: value(distribution.high),
-    low: value(distribution.low),
+    mean: compactOrDash(distribution.mean),
+    median: compactOrDash(distribution.median),
+    high: compactOrDash(distribution.high),
+    low: compactOrDash(distribution.low),
     count: distribution.count === undefined ? "—" : String(distribution.count),
     sourceIds: distribution.sourceIds,
   }));

@@ -296,7 +296,9 @@ function historyPoint(
   return series.annual.find((point) => point.periodEnd === periodEnd);
 }
 
-function compactNumber(value: number): string {
+// Reader/report compact ladder (T/B/M, 1 dp). Distinct from value-format.ts:scaleCurrency
+// (K tier, toFixed(0), currency prefix).
+export function compactNumber(value: number): string {
   const absolute = Math.abs(value);
   const units = [
     [1_000_000_000_000, "T"],

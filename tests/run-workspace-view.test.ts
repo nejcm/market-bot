@@ -22,7 +22,7 @@ import {
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { renderFinancialTrends } from "../src/report/markdown";
+import { renderFinancialTrends, renderMarkdownReport } from "../src/report/markdown";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
 
@@ -1683,6 +1683,73 @@ describe("run workspace view", () => {
     expect(markdown.split("\n").filter((line) => line.split(" | ").length === 5)).toHaveLength(
       (consoleRows?.length ?? 0) + 2,
     );
+  });
+
+  // Balance sheet is deliberately out of scope here. Markdown formats those cells with
+  // `compactNumber`, the Console uses `scaleCurrency` (K tier, toFixed(0), currency prefix).
+  // Unifying them needs a ladder/currency decision that would churn goldens.
+  test("uses identical consensus and estimate-distribution numbers in Console and report markdown", () => {
+    const report: ResearchReport = {
+      ...financialTrendReport("source-bull"),
+      extras: {
+        earningsSetup: {
+          event: {
+            date: "2026-08-01",
+            timing: "after-market",
+            eventDateStatus: "provider-estimated",
+            epsEstimate: 1.715,
+            revenueEstimate: 123_456.75,
+            sourceIds: ["source-bull"],
+          },
+        },
+      },
+      extendedEvidence: {
+        gaps: [],
+        items: [
+          {
+            category: "analyst-estimates",
+            title: "Analyst consensus sentinel",
+            summary: "Distribution detail.",
+            observedAt: "2026-07-04T12:00:00.000Z",
+            metrics: {
+              mean: 1.715,
+              median: 0.125,
+              high: 123_456.75,
+              low: 0.875,
+              period: "FY 2027",
+              count: 12,
+            },
+            sourceIds: ["source-bull"],
+          },
+        ],
+      },
+    };
+    const presentation = buildRunWorkspaceView({
+      summary: summary(),
+      report: { ...report },
+    }).equityPresentation;
+    const markdown = renderMarkdownReport(report);
+
+    const distributions = presentation?.advanced.analystEstimateDistributions ?? [];
+    expect(distributions).toHaveLength(1);
+    for (const distribution of distributions) {
+      for (const value of [
+        distribution.mean,
+        distribution.median,
+        distribution.high,
+        distribution.low,
+      ]) {
+        expect(markdown).toContain(value);
+      }
+    }
+
+    const consensusItems = presentation?.defaultView.earningsConsensus.items ?? [];
+    expect(consensusItems.length).toBeGreaterThan(0);
+    for (const item of consensusItems) {
+      for (const numeric of item.value.match(/[\d,]+(?:\.\d+)?[TBM]?/gu) ?? []) {
+        expect(markdown).toContain(numeric);
+      }
+    }
   });
 
   test("ignores annual periods from non-column fundamental series", () => {

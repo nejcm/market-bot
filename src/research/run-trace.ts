@@ -7,11 +7,7 @@ import {
   type RelocatedGapClaim,
   type ResearchReport,
   type RunTrace,
-  type Source,
-  type SourceTextResearchOnlyAudit,
-  type SourceTextResearchOnlySummary,
 } from "../domain/types";
-import { violatesResearchOnly } from "../domain/research-language";
 import type { CostPricing } from "../model/pricing";
 import type { ModelProvider } from "../model/types";
 import { effectiveConfigHash } from "../reproducibility";
@@ -27,6 +23,7 @@ import type { BuildSourcePlanResult } from "./source-plan";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { buildWebEvidenceUtilization } from "../web-evidence";
+import { auditSourceTextResearchOnly } from "./source-text-audit";
 
 interface TraceJobInput {
   readonly command: ResearchCommand;
@@ -36,63 +33,6 @@ interface TraceJobInput {
 
 function marketUpdateTraceFields(command: ResearchCommand): Partial<RunTrace> {
   return marketUpdateMetadataOf(command) ?? {};
-}
-
-export function auditSourceTextResearchOnly(
-  sources: readonly Source[],
-): SourceTextResearchOnlyAudit {
-  const items: SourceTextResearchOnlyAudit["items"][number][] = [];
-  const flaggedByKind: Record<string, number> = {};
-  const flaggedByProvider: Record<string, number> = {};
-  let flaggedCount = 0;
-
-  for (const source of sources) {
-    const provider = source.provider ?? source.providerAliases?.[0]?.provider ?? "unknown";
-    let flagged = false;
-    for (const field of ["title", "summary", "snippet"] as const) {
-      const text = source[field];
-      if (text === undefined) {
-        continue;
-      }
-      const violation = violatesResearchOnly(text);
-      if (violation === null) {
-        continue;
-      }
-      flagged = true;
-      items.push({
-        sourceId: source.id,
-        kind: source.kind,
-        provider,
-        field,
-        match: violation.match,
-      });
-    }
-    if (!flagged) {
-      continue;
-    }
-    flaggedCount += 1;
-    flaggedByKind[source.kind] = (flaggedByKind[source.kind] ?? 0) + 1;
-    flaggedByProvider[provider] = (flaggedByProvider[provider] ?? 0) + 1;
-  }
-
-  return {
-    scannedCount: sources.length,
-    flaggedCount,
-    flaggedByKind,
-    flaggedByProvider,
-    items,
-  };
-}
-
-export function summarizeSourceTextResearchOnly(
-  audit: SourceTextResearchOnlyAudit,
-): SourceTextResearchOnlySummary {
-  return {
-    scannedCount: audit.scannedCount,
-    flaggedCount: audit.flaggedCount,
-    flaggedByKind: audit.flaggedByKind,
-    flaggedByProvider: audit.flaggedByProvider,
-  };
 }
 
 export function buildRunTrace(input: {

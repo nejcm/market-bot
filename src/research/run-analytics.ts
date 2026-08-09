@@ -1,6 +1,7 @@
 import {
   NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
+  sourceProvider,
   type EarningsForecastTelemetry,
   type PredictionShortfall,
   type ReportIntegrity,
@@ -43,7 +44,6 @@ import {
   deriveProviderEndpointAvailability,
   type ProviderEndpointAvailability,
 } from "../sources/provider-endpoint-availability";
-import { summarizeSourceTextResearchOnly } from "./run-trace";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -79,7 +79,7 @@ export interface RunAnalytics {
   readonly codeVersion?: RunTrace["codeVersion"];
   readonly reproducibility?: RunTrace["reproducibility"];
   readonly modelInputSanitization?: RunTrace["modelInputSanitization"];
-  readonly sourceTextResearchOnly?: SourceTextResearchOnlySummary;
+  readonly sourceTextResearchOnly: SourceTextResearchOnlySummary;
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -319,13 +319,6 @@ function countBy<T>(
   }
 
   return counts;
-}
-
-function sourceProvider(source: Source): string | undefined {
-  if (source.provider !== undefined) {
-    return source.provider;
-  }
-  return source.providerAliases?.[0]?.provider;
 }
 
 function sourceGaps(collectedSources: CollectedSources): readonly SourceGap[] {
@@ -709,11 +702,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     ...(trace.modelInputSanitization !== undefined
       ? { modelInputSanitization: trace.modelInputSanitization }
       : {}),
-    ...(trace.sourceTextResearchOnly !== undefined
-      ? {
-          sourceTextResearchOnly: summarizeSourceTextResearchOnly(trace.sourceTextResearchOnly),
-        }
-      : {}),
+    sourceTextResearchOnly: trace.sourceTextResearchOnly.summary,
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,

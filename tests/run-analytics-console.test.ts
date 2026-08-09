@@ -11,6 +11,12 @@ function baseAnalytics(): RunAnalytics {
     assetClass: "equity",
     symbol: "AAPL",
     depth: "deep",
+    sourceTextResearchOnly: {
+      scannedCount: 0,
+      flaggedCount: 0,
+      flaggedByKind: {},
+      flaggedByProvider: {},
+    },
     sourceFunnel: {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },

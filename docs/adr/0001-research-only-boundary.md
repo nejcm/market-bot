@@ -84,7 +84,7 @@ snippets.
 - `src/report/schema.ts` and research prompts reject trade-action language in reports.
 - `src/history/artifacts.ts` validates narrative thesis deltas before persistence.
 - `prompts/console-run-chat.md` implements the explicit chat exception.
-- `src/research/run-trace.ts` performs the warn-only source-text scan, surfaced as aggregate
+- `src/research/source-text-audit.ts` performs the warn-only source-text scan, surfaced as aggregate
   `analytics.json:sourceTextResearchOnly` and per-field detail in `trace.json`, for both the equity
   `buildRunTrace` path and alpha-search in `src/alpha-search/workflow.ts`.
 - Reverse-DCF rendering tests assert the disclosed assumptions and solved-growth grid structure,

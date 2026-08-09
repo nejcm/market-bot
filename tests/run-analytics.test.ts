@@ -12,6 +12,11 @@ import {
   researchReport,
 } from "./support/fixtures";
 
+const emptySourceTextAudit = {
+  summary: { scannedCount: 0, flaggedCount: 0, flaggedByKind: {}, flaggedByProvider: {} },
+  items: [],
+} as const;
+
 const trace: RunTrace = {
   runId: "run-1",
   jobType: "equity",
@@ -45,6 +50,7 @@ const trace: RunTrace = {
       },
     ],
   },
+  sourceTextResearchOnly: emptySourceTextAudit,
   evidenceRequestLoop: {
     rounds: 1,
     acceptedRequests: [
@@ -434,6 +440,7 @@ describe("forecast quality telemetry (3.2)", () => {
     stages: ["specialist-analysis", "final-synthesis"],
     tokenEstimate: 100,
     costEstimateUsd: 0.01,
+    sourceTextResearchOnly: emptySourceTextAudit,
     domainPlaybooks: { selected: [], rejected: [] },
   };
 

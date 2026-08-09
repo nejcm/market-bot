@@ -26,25 +26,32 @@ function citations(body: string): { path: string; symbol: string | undefined }[]
   }));
 }
 
+function containsSymbol(body: string, symbol: string): boolean {
+  const escaped = symbol.replaceAll("$", String.raw`\$`);
+  return new RegExp(`(?<![$\\w])${escaped}(?![$\\w])`, "u").test(body);
+}
+
 describe("skill citations", () => {
   for (const skill of SKILL_FILES) {
-    const body = readFileSync(join(REPO_ROOT, skill), "utf8");
-    const cited = citations(body);
-
-    test(`${skill} cites at least one path`, () => {
+    test(`${skill} citations resolve`, () => {
+      const body = readFileSync(join(REPO_ROOT, skill), "utf8");
+      const cited = citations(body);
       expect(cited.length).toBeGreaterThan(0);
-    });
 
-    for (const { path, symbol } of cited) {
-      test(`${skill} -> ${path}${symbol ? `:${symbol}` : ""}`, () => {
+      for (const { path, symbol } of cited) {
         const absolute = join(REPO_ROOT, path);
         expect(existsSync(absolute)).toBe(true);
         if (symbol) {
-          expect(readFileSync(absolute, "utf8")).toContain(symbol);
+          expect(containsSymbol(readFileSync(absolute, "utf8"), symbol)).toBe(true);
         }
-      });
-    }
+      }
+    });
   }
+
+  test("matches complete symbols", () => {
+    expect(containsSymbol("const id = identifier;", "id")).toBe(true);
+    expect(containsSymbol("const identifier = 1;", "id")).toBe(false);
+  });
 });
 
 describe("skill copies stay in sync", () => {

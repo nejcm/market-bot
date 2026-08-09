@@ -3,7 +3,7 @@ import type {
   EvidenceQualityCheck,
   ReportIntegrity,
 } from "../domain/types";
-import { EVIDENCE_LANES, LEGACY_EVIDENCE_LANES, type EvidenceLane } from "./source-plan";
+import { isEvidenceLane, type EvidenceLane } from "./source-plan";
 
 type FailedCheckKind = "coverage" | "freshness" | "corroboration";
 
@@ -125,10 +125,6 @@ const REMEDIATION_BY_FAILURE: Readonly<
     freshness: "rerun with fresh valuation inputs",
   },
 };
-
-function isEvidenceLane(value: string): value is EvidenceLane {
-  return ([...EVIDENCE_LANES, ...LEGACY_EVIDENCE_LANES] as readonly string[]).includes(value);
-}
 
 function laneLabel(capability: string): string {
   return isEvidenceLane(capability) ? LANE_LABELS[capability] : capability;

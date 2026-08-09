@@ -154,6 +154,10 @@ function trace(overrides: Partial<RunTrace> = {}): RunTrace {
     tokenEstimate: 0,
     domainPlaybooks: { selected: [], rejected: [] },
     ...overrides,
+    sourceTextResearchOnly: overrides.sourceTextResearchOnly ?? {
+      summary: { scannedCount: 0, flaggedCount: 0, flaggedByKind: {}, flaggedByProvider: {} },
+      items: [],
+    },
   };
 }
 
@@ -568,6 +572,12 @@ describe("run artifact writer manifests", () => {
         jobType: "alpha-search",
         assetClass: "equity",
         depth: "brief",
+        sourceTextResearchOnly: {
+          scannedCount: 0,
+          flaggedCount: 0,
+          flaggedByKind: {},
+          flaggedByProvider: {},
+        },
         sourceFunnel: {
           reportSources: { total: 0, byKind: {}, byProvider: {} },
           sourceGaps: { total: 0, bySource: {} },

@@ -3,13 +3,14 @@ import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
-import type {
-  KeyFinding,
-  ResearchReport,
-  RunTrace,
-  Source,
-  SourceGap,
-  SourceTextResearchOnlySummary,
+import {
+  sourceProvider,
+  type KeyFinding,
+  type ResearchReport,
+  type RunTrace,
+  type Source,
+  type SourceGap,
+  type SourceTextResearchOnlySummary,
 } from "../domain/types";
 import {
   compactUnmappedSecFilingGaps,
@@ -19,10 +20,7 @@ import {
 } from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
-import {
-  auditSourceTextResearchOnly,
-  summarizeSourceTextResearchOnly,
-} from "../research/run-trace";
+import { auditSourceTextResearchOnly } from "../research/source-text-audit";
 import { buildAlphaSearchManifest, persistRunArtifactWrites } from "../run-artifact-writer";
 import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
 import { createSourceRequestContext } from "../sources/source-request";
@@ -82,7 +80,7 @@ export interface AlphaSearchRunAnalytics {
   readonly depth: AlphaSearchCommand["depth"];
   readonly codeVersion?: RunTrace["codeVersion"];
   readonly reproducibility?: RunTrace["reproducibility"];
-  readonly sourceTextResearchOnly?: SourceTextResearchOnlySummary;
+  readonly sourceTextResearchOnly: SourceTextResearchOnlySummary;
   readonly sourceFunnel: {
     readonly reportSources: {
       readonly total: number;
@@ -398,13 +396,6 @@ function buildTrace(input: {
   };
 }
 
-function sourceProvider(source: Source): string | undefined {
-  if (source.provider !== undefined) {
-    return source.provider;
-  }
-  return source.providerAliases?.[0]?.provider;
-}
-
 function durationMs(trace: RunTrace): number | undefined {
   const startedAt = Date.parse(trace.startedAt);
   const completedAt = Date.parse(trace.completedAt);
@@ -440,16 +431,12 @@ function buildAlphaSearchAnalytics(input: {
     depth: trace.depth,
     ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
     ...(trace.reproducibility !== undefined ? { reproducibility: trace.reproducibility } : {}),
-    ...(trace.sourceTextResearchOnly !== undefined
-      ? {
-          sourceTextResearchOnly: summarizeSourceTextResearchOnly(trace.sourceTextResearchOnly),
-        }
-      : {}),
+    sourceTextResearchOnly: trace.sourceTextResearchOnly.summary,
     sourceFunnel: {
       reportSources: {
         total: report.sources.length,
         byKind: countBy(report.sources, (source) => source.kind),
-        byProvider: countBy(report.sources, (source) => sourceProvider(source)),
+        byProvider: countBy(report.sources, sourceProvider),
       },
       // Funnel metric: tracks raw gap volume before dedupe, so it can exceed
       // The deduped count surfaced in report.dataGaps below.

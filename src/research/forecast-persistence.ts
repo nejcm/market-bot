@@ -26,7 +26,7 @@ function claimKey(measurableAs: string): string {
   try {
     return measurableAsForExpression(parseObservableExpression(measurableAs));
   } catch {
-    return measurableAs.trim().toLowerCase().replaceAll(/\s+/g, " ");
+    return measurableAs.trim().toLowerCase().replaceAll(/\s+/gu, " ");
   }
 }
 

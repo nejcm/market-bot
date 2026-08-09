@@ -12,6 +12,12 @@ function analytics(
     jobType: "alpha-search",
     assetClass: "equity",
     depth: "deep",
+    sourceTextResearchOnly: {
+      scannedCount: 0,
+      flaggedCount: 0,
+      flaggedByKind: {},
+      flaggedByProvider: {},
+    },
     sourceFunnel: {
       reportSources: { total: 14, byKind: {}, byProvider: {} },
       sourceGaps: { total: 2, bySource: {} },

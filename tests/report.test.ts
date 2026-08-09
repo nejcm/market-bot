@@ -17,7 +17,7 @@ import type { DepthProfile, ResearchContext } from "../src/research/research-con
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
-import { auditSourceTextResearchOnly } from "../src/research/run-trace";
+import { auditSourceTextResearchOnly } from "../src/research/source-text-audit";
 import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -3241,7 +3241,9 @@ describe("report schema and rendering", () => {
       };
 
       expect(() => assertSafeReportLanguage(candidate)).not.toThrow();
-      expect(auditSourceTextResearchOnly(candidate.sources).flaggedCount).toBeGreaterThan(0);
+      expect(auditSourceTextResearchOnly(candidate.sources).summary.flaggedCount).toBeGreaterThan(
+        0,
+      );
     },
   );
 

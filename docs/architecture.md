@@ -78,7 +78,8 @@ legacy `webGatherLoop.sanitizer` block remains for compatibility.
 
 Separately, `sourceTextResearchOnly` is a warn-only `violatesResearchOnly` scan of
 `report.sources[]` `title`, `summary`, and `snippet`. Analytics stays text-free, while trace
-`items[].match` deliberately carries the matched phrase for source-field diagnosis.
+stores that aggregate under `summary` and deliberately retains the matched phrase in
+`items[].match` for source-field diagnosis.
 
 ### Alpha Search (`src/alpha-search/`)
 

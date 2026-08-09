@@ -259,7 +259,8 @@ export async function runForecastDisagreement(input: {
   const challengerResults = await Promise.all(
     input.challengerModels.map(async (model) => {
       const startedAt = performance.now();
-      let durationMs;
+      // eslint-disable-next-line init-declarations -- assigned in try, read via `??` fallback in catch
+      let durationMs: number | undefined;
       try {
         const response = await input.provider.generate({
           model,

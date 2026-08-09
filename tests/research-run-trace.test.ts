@@ -188,7 +188,6 @@ describe("run trace builder", () => {
         summary: "Revenue increased year over year.",
         fetchedAt: "2026-05-19T00:00:00.000Z",
         kind: "extended-evidence",
-        provider: "sec-edgar",
       },
     ];
     const originalSources = structuredClone(syntheticSources);
@@ -206,13 +205,15 @@ describe("run trace builder", () => {
       scannedCount: 5,
       flaggedCount: 3,
       flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
-      flaggedByProvider: { exa: 1, "yahoo-news": 1, "sec-edgar": 1 },
+      flaggedByProvider: { exa: 1, "yahoo-news": 1, unknown: 1 },
     });
     expect(trace.sourceTextResearchOnly).toEqual({
-      scannedCount: 5,
-      flaggedCount: 3,
-      flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
-      flaggedByProvider: { exa: 1, "yahoo-news": 1, "sec-edgar": 1 },
+      summary: {
+        scannedCount: 5,
+        flaggedCount: 3,
+        flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
+        flaggedByProvider: { exa: 1, "yahoo-news": 1, unknown: 1 },
+      },
       items: [
         {
           sourceId: "fair-value",
@@ -238,13 +239,13 @@ describe("run trace builder", () => {
         {
           sourceId: "title-only",
           kind: "extended-evidence",
-          provider: "sec-edgar",
+          provider: "unknown",
           field: "title",
           match: "Price target",
         },
       ],
     });
-    expect(trace.sourceTextResearchOnly?.items).toHaveLength(4);
+    expect(trace.sourceTextResearchOnly.items).toHaveLength(4);
     expect(report.sources).toEqual(originalSources);
   });
 

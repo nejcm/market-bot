@@ -51,9 +51,7 @@ import type {
   PredictionScoreStatus,
 } from "./scoring/types";
 import {
-  EVIDENCE_LANES,
-  LEGACY_EVIDENCE_LANES,
-  type EvidenceLane,
+  isEvidenceLane,
   type EvidenceLanesArtifact,
   type LaneCoverageStatus,
   type LaneRequirement,
@@ -277,14 +275,6 @@ function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCa
 
 function isSubjectKind(value: unknown): value is SubjectKind {
   return value === "company" || value === "crypto-asset" || value === "theme";
-}
-
-function isEvidenceLane(value: unknown): value is EvidenceLane {
-  return (
-    typeof value === "string" &&
-    (EVIDENCE_LANES.includes(value as (typeof EVIDENCE_LANES)[number]) ||
-      LEGACY_EVIDENCE_LANES.includes(value as (typeof LEGACY_EVIDENCE_LANES)[number]))
-  );
 }
 
 function isLaneRequirement(value: unknown): value is LaneRequirement {

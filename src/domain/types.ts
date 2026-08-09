@@ -157,6 +157,10 @@ export interface SourceProviderAlias {
   readonly rawRef?: string;
 }
 
+export function sourceProvider(source: Source): string | undefined {
+  return source.provider ?? source.providerAliases?.[0]?.provider;
+}
+
 export interface SourceGap {
   readonly source: string;
   readonly message: string;
@@ -827,18 +831,21 @@ export interface WebSourceSynthesisInput {
 export interface SourceTextResearchOnlySummary {
   readonly scannedCount: number;
   readonly flaggedCount: number;
-  readonly flaggedByKind: Readonly<Record<string, number>>;
+  readonly flaggedByKind: Readonly<Partial<Record<SourceKind, number>>>;
   readonly flaggedByProvider: Readonly<Record<string, number>>;
 }
 
-export interface SourceTextResearchOnlyAudit extends SourceTextResearchOnlySummary {
-  readonly items: readonly {
-    readonly sourceId: string;
-    readonly kind: SourceKind;
-    readonly provider: string;
-    readonly field: "title" | "summary" | "snippet";
-    readonly match: string;
-  }[];
+export interface SourceTextResearchOnlyItem {
+  readonly sourceId: string;
+  readonly kind: SourceKind;
+  readonly provider: string;
+  readonly field: "title" | "summary" | "snippet";
+  readonly match: string;
+}
+
+export interface SourceTextResearchOnlyAudit {
+  readonly summary: SourceTextResearchOnlySummary;
+  readonly items: readonly SourceTextResearchOnlyItem[];
 }
 
 export interface RunTrace {
@@ -888,7 +895,7 @@ export interface RunTrace {
   readonly webGatherLoop?: WebGatherLoopAudit;
   readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
-  readonly sourceTextResearchOnly?: SourceTextResearchOnlyAudit;
+  readonly sourceTextResearchOnly: SourceTextResearchOnlyAudit;
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;

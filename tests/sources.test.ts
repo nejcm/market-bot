@@ -18,7 +18,7 @@ import {
   normalizeMassiveSnapshotPayload,
 } from "../src/sources/massive";
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
-import { normalizeTitle } from "../src/sources/news-utils";
+import { normalizeTitle, recencyDays } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
 import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -48,6 +48,20 @@ interface GoldenEvidenceBundle {
 }
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
+
+test("keeps one- and five-day market news on the short recency window", () => {
+  expect(
+    [1, 5, 10].map((horizonTradingDays) =>
+      recencyDays({
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays,
+      }),
+    ),
+  ).toEqual([3, 3, 10]);
+});
+
 async function unexpectedTextFetch(): Promise<never> {
   throw new Error("unexpected text fetch");
 }

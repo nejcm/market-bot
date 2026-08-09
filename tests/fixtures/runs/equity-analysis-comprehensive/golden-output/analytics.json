@@ -550,7 +550,7 @@
       },
       {
         "dimension": "predictionHorizon",
-        "key": "1-5d",
+        "key": "2-5d",
         "actionable": false,
         "reason": "empty-dimension"
       },

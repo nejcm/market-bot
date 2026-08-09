@@ -32,8 +32,11 @@ export function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): n
 }
 
 export function marketUpdateHorizonBucket(horizonTradingDays: number): string {
+  if (horizonTradingDays <= 1) {
+    return "1d";
+  }
   if (horizonTradingDays <= 5) {
-    return "1-5d";
+    return "2-5d";
   }
   if (horizonTradingDays <= 10) {
     return "6-10d";

@@ -90,7 +90,7 @@ function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCovera
       "market-overview-equity-short",
       "Market overview equity short horizon",
       runs,
-      (run) => run.assetClass === "equity" && runHorizonBucket(run) === "1-5d",
+      (run) => run.assetClass === "equity" && runHorizonBucket(run) === "2-5d",
     ),
     coverageItem(
       "market-overview-equity-medium",
@@ -102,7 +102,7 @@ function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCovera
       "market-overview-crypto-short",
       "Market overview crypto short horizon",
       runs,
-      (run) => run.assetClass === "crypto" && runHorizonBucket(run) === "1-5d",
+      (run) => run.assetClass === "crypto" && runHorizonBucket(run) === "2-5d",
     ),
     coverageItem(
       "market-overview-crypto-medium",

@@ -393,16 +393,13 @@ function keyExtras(report: ResearchReport): Record<string, unknown> | undefined 
   if (typeof extras.depth === "string") {
     result.depth = extras.depth;
   }
-  if (typeof extras.marketUpdateHorizonBucket === "string") {
+  const bucket = marketUpdateHorizonBucketOf(report);
+  if (bucket !== undefined) {
+    result.marketUpdateHorizonBucket = bucket;
+  } else if (typeof extras.marketUpdateHorizonBucket === "string") {
     result.marketUpdateHorizonBucket = extras.marketUpdateHorizonBucket;
   } else if (typeof extras.marketUpdateCadence === "string") {
-    result.marketUpdateHorizonBucket = extras.marketUpdateCadence === "weekly" ? "11-15d" : "1-5d";
-  }
-  if (result.marketUpdateHorizonBucket === undefined) {
-    const bucket = marketUpdateHorizonBucketOf(report);
-    if (bucket !== undefined) {
-      result.marketUpdateHorizonBucket = bucket;
-    }
+    result.marketUpdateHorizonBucket = extras.marketUpdateCadence === "weekly" ? "11-15d" : "2-5d";
   }
   const { subjectKey, predictionProxySymbol } = reportResearchSubjectIdentity(report);
   if (subjectKey !== undefined) {

@@ -622,7 +622,15 @@ describe("loadHistoricalContext", () => {
       await writeRun({
         dataDir,
         runDirName: runId,
-        report: researchReport({ runId, jobType: "daily", assetClass: "equity", generatedAt }),
+        report: researchReport({
+          runId,
+          jobType: "daily",
+          assetClass: "equity",
+          generatedAt,
+          extras: {
+            marketUpdateHorizonBucket: runId === "same-day-new" ? "1-5d" : "2-5d",
+          },
+        }),
       });
     }
     await writeRun({

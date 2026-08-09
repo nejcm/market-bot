@@ -1016,11 +1016,18 @@ describe("buildCalibrationSummary", () => {
   test("groups calibration by job type, market cadence, and horizon bucket", () => {
     const pairs = [
       {
+        prediction: { ...basePrediction, horizonTradingDays: 1 },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "equity" as const,
+        runId: "r0",
+      },
+      {
         prediction: { ...basePrediction, horizonTradingDays: 5 },
         score: makeScore("hit"),
         assetClass: "equity" as const,
         jobType: "daily" as const,
-        marketUpdateHorizonBucket: "1-5d",
+        marketUpdateHorizonBucket: "2-5d",
         runId: "r1",
       },
       {
@@ -1044,10 +1051,11 @@ describe("buildCalibrationSummary", () => {
 
     expect(summary.byJobType["daily"]?.count).toBe(1);
     expect(summary.byJobType["weekly"]?.count).toBe(1);
-    expect(summary.byJobType["equity"]?.count).toBe(1);
-    expect(summary.byMarketUpdateHorizonBucket["1-5d"]?.count).toBe(1);
+    expect(summary.byJobType["equity"]?.count).toBe(2);
+    expect(summary.byMarketUpdateHorizonBucket["2-5d"]?.count).toBe(1);
     expect(summary.byMarketUpdateHorizonBucket["11-15d"]?.count).toBe(1);
-    expect(summary.byHorizonBucket["1-5d"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["1d"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["2-5d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["11-15d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["16-20d"]?.count).toBe(1);
   });
@@ -1521,7 +1529,7 @@ describe("renderCalibrationConsole", () => {
     const output = renderCalibrationConsole(summary);
     expect(output).toContain("direction");
     expect(output).toContain("volatility");
-    expect(output).toContain("1-5d");
+    expect(output).toContain("2-5d");
     expect(output).toContain("11-15d");
     const kindSection = output.slice(output.indexOf("By kind"));
     expect(kindSection).toContain("Brier 0.0000");

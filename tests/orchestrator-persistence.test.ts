@@ -298,7 +298,7 @@ describe("orchestrator persistence across job types", () => {
     expect(alias.report.jobType).toBe("market-overview");
     expect(alias.report.horizonTradingDays).toBe(5);
     expect(alias.report.extras?.legacyMarketUpdateAlias).toBe("daily");
-    expect(alias.report.extras?.marketUpdateHorizonBucket).toBe("1-5d");
+    expect(alias.report.extras?.marketUpdateHorizonBucket).toBe("2-5d");
     expect(alias.trace.legacyMarketUpdateAlias).toBe("daily");
   });
 });

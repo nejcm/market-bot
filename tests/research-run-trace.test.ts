@@ -397,7 +397,7 @@ describe("run trace builder", () => {
       schemaVersion: 2,
       runId: "run-1",
       jobType: "market-overview",
-      marketUpdateHorizonBucket: "1-5d",
+      marketUpdateHorizonBucket: "2-5d",
       provider: "mock",
       quickModel: "quick-test",
       synthesisModel: "synthesis-test",

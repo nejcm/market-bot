@@ -303,7 +303,7 @@ export type CalibrationSliceGroup =
   | "byHorizonBucket"
   | "byMarketRegime";
 
-const HORIZON_BUCKET_ORDER = ["1-5d", "6-10d", "11-15d", "16-20d"];
+const HORIZON_BUCKET_ORDER = ["1d", "2-5d", "6-10d", "11-15d", "16-20d"];
 
 export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadline {
   const summary = detail.summary ?? {};

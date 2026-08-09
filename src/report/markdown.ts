@@ -763,7 +763,7 @@ function reportMarketUpdateBucket(report: ResearchReport): string {
   if (typeof report.extras?.marketUpdateHorizonBucket === "string") {
     return report.extras.marketUpdateHorizonBucket;
   }
-  return report.jobType === "weekly" ? "11-15d" : "1-5d";
+  return report.jobType === "weekly" ? "11-15d" : "2-5d";
 }
 
 function renderAlphaSearchCoverage(report: ResearchReport): string {

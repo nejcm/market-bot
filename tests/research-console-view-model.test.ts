@@ -621,7 +621,8 @@ describe("calibration view model", () => {
       },
       byHorizonBucket: {
         "6-10d": { brierScore: 0.31, count: 2 },
-        "1-5d": { brierScore: 0.2583, count: 11 },
+        "2-5d": { brierScore: 0.2583, count: 11 },
+        "1d": { brierScore: 0.24, count: 1 },
         custom: { brierScore: 0.5, count: 1 },
       },
       byMarketRegime: {
@@ -665,7 +666,8 @@ describe("calibration view model", () => {
       { key: "range", brierScore: 0.3281, count: 3 },
     ]);
     expect(calibrationSlices(detail, "byHorizonBucket").map((row) => row.key)).toEqual([
-      "1-5d",
+      "1d",
+      "2-5d",
       "6-10d",
       "custom",
     ]);

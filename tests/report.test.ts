@@ -3882,7 +3882,7 @@ describe("market update delta rendering", () => {
       }),
     );
     const summaryAt = markdown.indexOf("## Summary");
-    const deltaAt = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
+    const deltaAt = markdown.indexOf("## What Changed Since Last 2-5d Market Overview");
     const findingsAt = markdown.indexOf("## Key Findings");
     expect(summaryAt).toBeGreaterThanOrEqual(0);
     expect(deltaAt).toBeGreaterThan(summaryAt);
@@ -3905,7 +3905,7 @@ describe("market update delta rendering", () => {
       }),
     );
     expect(markdown).toContain(
-      "## What Changed Since Last 1-5d Market Overview\n\nNo prior comparable market-overview run to compare — this is the first.",
+      "## What Changed Since Last 2-5d Market Overview\n\nNo prior comparable market-overview run to compare — this is the first.",
     );
     expect(markdown).not.toContain("Regime:");
   });
@@ -3932,7 +3932,7 @@ describe("market update delta rendering", () => {
         ],
       }),
     );
-    const start = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
+    const start = markdown.indexOf("## What Changed Since Last 2-5d Market Overview");
     const section = markdown.slice(start, markdown.indexOf("## Key Findings"));
     expect(section).toContain("Regime:");
     expect(violatesResearchOnly(section)).toBeNull();

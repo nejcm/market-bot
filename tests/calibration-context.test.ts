@@ -99,8 +99,8 @@ describe("buildCalibrationBlock", () => {
     ],
     [
       "default horizon",
-      "default horizon 1-5d",
-      { byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric } },
+      "default horizon 2-5d",
+      { byHorizonBucket: { "2-5d": actionableMetric, "6-10d": actionableMetric } },
     ],
     [
       "current regime",
@@ -126,7 +126,7 @@ describe("buildCalibrationBlock", () => {
       "statistically inconclusive",
       {
         byHorizonBucket: {
-          "1-5d": { ...actionableMetric, brierScore: 0.3, brierStandardError: 0.03 },
+          "2-5d": { ...actionableMetric, brierScore: 0.3, brierStandardError: 0.03 },
         },
       },
     ],
@@ -154,14 +154,14 @@ describe("buildCalibrationBlock", () => {
           equity: { ...actionableMetric, count: 29 },
           crypto: actionableMetric,
         },
-        byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric },
+        byHorizonBucket: { "2-5d": actionableMetric, "6-10d": actionableMetric },
       },
       command,
       calibrationRunContext(),
     );
 
     expect(block).toContain("asset class equity");
-    expect(block).toContain("default horizon 1-5d");
+    expect(block).toContain("default horizon 2-5d");
     expect(block).not.toContain("job type equity");
     expect(block).not.toContain("6-10d");
   });

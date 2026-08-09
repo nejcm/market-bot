@@ -75,7 +75,7 @@ export interface SecProviderResult extends ProviderResult {
   readonly sicClassification?: SecSicClassification;
 }
 
-export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
+export const SEC_METRIC_DEFINITIONS = [
   {
     key: "revenue",
     label: "revenue",
@@ -194,16 +194,18 @@ export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
     unitKeys: ["USD"],
     optional: true,
   },
-];
+] as const satisfies readonly SecMetricDefinition[];
 
-const DEBT_METRIC: SecMetricDefinition = {
+export type SecMetricDefinitionKey = (typeof SEC_METRIC_DEFINITIONS)[number]["key"];
+
+const DEBT_METRIC = {
   key: "debt",
   label: "debt",
   concepts: ["LongTermDebt"],
   unitKeys: ["USD"],
-};
+} as const satisfies SecMetricDefinition;
 
-const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
+const DEBT_COMPONENTS = [
   {
     key: "currentDebt",
     label: "current debt",
@@ -216,7 +218,11 @@ const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
     concepts: ["LongTermDebtNoncurrent"],
     unitKeys: ["USD"],
   },
-];
+] as const satisfies readonly SecMetricDefinition[];
+
+export type SecDebtMetricKey =
+  | (typeof DEBT_METRIC)["key"]
+  | (typeof DEBT_COMPONENTS)[number]["key"];
 
 const FLOW_METRIC_KEYS = new Set([
   "revenue",
@@ -572,7 +578,10 @@ export function summarizeSecFundamentals(
       ? undefined
       : selectMetric(gaap, revenueDefinition, analysisAsOf);
   const flowPeriod = revenueSelection?.latest;
-  const metricSelections = [
+  const metricSelections: readonly {
+    readonly definition: SecMetricDefinition;
+    readonly selection: SecMetricSelection | undefined;
+  }[] = [
     ...SEC_METRIC_DEFINITIONS.map((definition) => ({
       definition,
       selection:

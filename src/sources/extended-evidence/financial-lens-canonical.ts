@@ -2,9 +2,10 @@ import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/types"
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
+  FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
-import type { SecSicClassification } from "./sec-edgar";
+import type { SecDebtMetricKey, SecMetricDefinitionKey, SecSicClassification } from "./sec-edgar";
 import {
   financialStatementFacts,
   financialStatementPeriodMonths,
@@ -26,7 +27,7 @@ export interface CanonicalFinancialLensDerivedMetric {
 
 export function canonicalFinancialLensDerivedMetric(
   item: ExtendedEvidenceItem | undefined,
-  key: string,
+  key: CanonicalDerivedMetricKey,
 ): CanonicalFinancialLensDerivedMetric | undefined {
   if (!hasCanonicalFinancialLensSelection(item)) {
     return;
@@ -61,7 +62,7 @@ export function hasCanonicalFinancialLensSelection(
 
 export function selectedFinancialLensDerivedMetric(
   item: ExtendedEvidenceItem | undefined,
-  key: string,
+  key: CanonicalDerivedMetricKey,
   legacyFallback: number | undefined,
 ): number | undefined {
   if (hasCanonicalFinancialLensSelection(item)) {
@@ -79,7 +80,7 @@ const FLOW_SERIES = [
   ["operatingCashFlow", "operatingCashFlow"],
   ["capex", "capitalExpenditure"],
   ["dividendsPaid", "dividendsPaid"],
-] as const;
+] as const satisfies readonly (readonly [string, FinancialStatementSeriesKey])[];
 
 const INSTANT_SERIES = [
   ["cash", "cash"],
@@ -88,7 +89,25 @@ const INSTANT_SERIES = [
   ["currentLiabilities", "currentLiabilities"],
   ["stockholdersEquity", "stockholdersEquity"],
   ["assets", "totalAssets"],
-] as const;
+] as const satisfies readonly (readonly [string, FinancialStatementSeriesKey])[];
+
+export type CanonicalFactMetricKey =
+  | (typeof FLOW_SERIES)[number][0]
+  | (typeof INSTANT_SERIES)[number][0];
+
+export type SecFactMetricKey = CanonicalFactMetricKey | SecMetricDefinitionKey | SecDebtMetricKey;
+
+export type SecMetricKey =
+  | SecFactMetricKey
+  | `${SecFactMetricKey}PeriodEnd`
+  | `${SecFactMetricKey}PeriodMonths`
+  | `${SecFactMetricKey}Prior`
+  | `${SecFactMetricKey}DeltaPercent`
+  | `${CanonicalDerivedMetricKey}Selected${"Value" | "PeriodEnd" | "PeriodMonths"}`
+  | "revenuePeriodEnd"
+  | "financialLensSelectionVersion"
+  | "sic"
+  | "sicDescription";
 
 function priorComparable(
   series: FinancialStatementSeries,
@@ -110,7 +129,7 @@ function priorComparable(
 
 function addFactMetrics(
   metrics: Record<string, number | string>,
-  key: string,
+  key: CanonicalFactMetricKey,
   fact: FinancialStatementFact | undefined,
   series: FinancialStatementSeries,
 ): void {
@@ -190,6 +209,37 @@ function dividedBy(left: number, right: number): number | undefined {
   return right === 0 ? undefined : left / right;
 }
 
+const COMMON_DERIVED_SERIES = [
+  ["grossMargin", "grossProfit", "revenue", dividedBy],
+  ["operatingMargin", "operatingIncome", "revenue", dividedBy],
+  ["netMargin", "netIncome", "revenue", dividedBy],
+  [
+    "freeCashFlowProxy",
+    "operatingCashFlow",
+    "capex",
+    (left: number, right: number) => left - right,
+  ],
+  ["cashConversion", "operatingCashFlow", "netIncome", dividedBy],
+  ["netDebt", "debt", "cash", (left: number, right: number) => left - right],
+  ["currentRatio", "currentAssets", "currentLiabilities", dividedBy],
+  ["debtToEquity", "debt", "stockholdersEquity", dividedBy],
+  [
+    "payoutRatio",
+    "dividendsPaid",
+    "netIncome",
+    (left: number, right: number) => dividedBy(Math.abs(left), right),
+  ],
+] as const;
+
+const PERIOD_END_DERIVED_SERIES = [
+  ["roe", "stockholdersEquity"],
+  ["roa", "assets"],
+] as const;
+
+export type CanonicalDerivedMetricKey =
+  | (typeof COMMON_DERIVED_SERIES)[number][0]
+  | (typeof PERIOD_END_DERIVED_SERIES)[number][0];
+
 function canonicalMetrics(artifact: FinancialStatementsArtifact): {
   readonly metrics: Record<string, number | string>;
 } {
@@ -209,27 +259,7 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
     return [metricKey, series] as const;
   });
   const byMetric = new Map(inputs);
-  for (const [key, leftKey, rightKey, derive] of [
-    ["grossMargin", "grossProfit", "revenue", dividedBy],
-    ["operatingMargin", "operatingIncome", "revenue", dividedBy],
-    ["netMargin", "netIncome", "revenue", dividedBy],
-    [
-      "freeCashFlowProxy",
-      "operatingCashFlow",
-      "capex",
-      (left: number, right: number) => left - right,
-    ],
-    ["cashConversion", "operatingCashFlow", "netIncome", dividedBy],
-    ["netDebt", "debt", "cash", (left: number, right: number) => left - right],
-    ["currentRatio", "currentAssets", "currentLiabilities", dividedBy],
-    ["debtToEquity", "debt", "stockholdersEquity", dividedBy],
-    [
-      "payoutRatio",
-      "dividendsPaid",
-      "netIncome",
-      (left: number, right: number) => dividedBy(Math.abs(left), right),
-    ],
-  ] as const) {
+  for (const [key, leftKey, rightKey, derive] of COMMON_DERIVED_SERIES) {
     addCommonDerivedMetric(
       derivedMetrics,
       key,
@@ -245,10 +275,7 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
     }
   }
-  for (const [key, denominatorKey] of [
-    ["roe", "stockholdersEquity"],
-    ["roa", "assets"],
-  ] as const) {
+  for (const [key, denominatorKey] of PERIOD_END_DERIVED_SERIES) {
     addCommonPeriodEndDerivedMetric(
       derivedMetrics,
       key,

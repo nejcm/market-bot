@@ -239,10 +239,6 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "analyst-estimate-context",
   "institutional-ownership",
 ]);
-const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set([
-  ...EVIDENCE_LANES,
-  ...LEGACY_EVIDENCE_LANES,
-]);
 const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);
 const LANE_COVERAGE_STATUSES: ReadonlySet<string> = new Set<LaneCoverageStatus>([
   "covered",
@@ -284,7 +280,11 @@ function isSubjectKind(value: unknown): value is SubjectKind {
 }
 
 function isEvidenceLane(value: unknown): value is EvidenceLane {
-  return typeof value === "string" && EVIDENCE_LANE_SET.has(value);
+  return (
+    typeof value === "string" &&
+    (EVIDENCE_LANES.includes(value as (typeof EVIDENCE_LANES)[number]) ||
+      LEGACY_EVIDENCE_LANES.includes(value as (typeof LEGACY_EVIDENCE_LANES)[number]))
+  );
 }
 
 function isLaneRequirement(value: unknown): value is LaneRequirement {

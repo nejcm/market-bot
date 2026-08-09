@@ -380,7 +380,10 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     evidenceClass: () => "supplemental",
     applies: (command) =>
       isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep",
-    sourceIds: (sources) => sources.valuationComps?.peers.flatMap((peer) => peer.sourceIds) ?? [],
+    sourceIds: (sources) =>
+      sources.valuationComps?.summary.valuationSupportability === "supported"
+        ? sources.valuationComps.peers.flatMap((peer) => peer.sourceIds)
+        : [],
     gapMatches: (gap) => gap.source === "valuation-peers",
   },
   {

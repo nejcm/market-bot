@@ -850,14 +850,18 @@ describe("source plan", () => {
 
   function valuationComps(
     usable: boolean,
-    supportability: "supported" | "screening-only" | "not-supportable",
+    supportability: NonNullable<
+      CollectedSources["valuationComps"]
+    >["summary"]["valuationSupportability"],
     usablePeerCount: number,
-  ): CollectedSources["valuationComps"] {
+  ): NonNullable<CollectedSources["valuationComps"]> {
     return {
       version: 1,
       generatedAt,
       target: { symbol: "NVDA", sourceIds: ["market-yahoo-equity-nvda"], usable },
-      peers: [{ symbol: "AMD", sourceIds: ["market-yahoo-equity-amd"], usable: false }],
+      peers: [
+        { symbol: "AMD", sourceIds: ["market-yahoo-equity-amd"], usable: usablePeerCount > 0 },
+      ],
       excludedPeers: [],
       peerUniverseSourceIds: [],
       summary: {
@@ -875,6 +879,63 @@ describe("source plan", () => {
       },
     };
   }
+
+  function peerValuationLane(
+    supportability: NonNullable<
+      CollectedSources["valuationComps"]
+    >["summary"]["valuationSupportability"],
+    usablePeerCount: number,
+    peerSymbols: readonly string[] = ["AMD"],
+  ) {
+    const comps = valuationComps(true, supportability, usablePeerCount);
+    const plan = plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      collectedSources({
+        valuationComps: {
+          ...comps,
+          peers: peerSymbols.map((symbol) => ({
+            symbol,
+            sourceIds: [`market-yahoo-equity-${symbol.toLowerCase()}`],
+            usable: true,
+          })),
+        },
+      }),
+    );
+    return plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation");
+  }
+
+  test("covers peer valuation when supportability is supported and peers are present", () => {
+    expect(peerValuationLane("supported", 3)).toMatchObject({
+      status: "covered",
+      coveredSourceIds: ["market-yahoo-equity-amd"],
+    });
+  });
+
+  test("gaps peer valuation when supportability is screening-only and peers are present", () => {
+    expect(peerValuationLane("screening-only", 2)).toMatchObject({
+      status: "gap",
+      coveredSourceIds: [],
+    });
+  });
+
+  test("gaps peer valuation when supportability is not meaningful with three usable peers", () => {
+    expect(peerValuationLane("not-meaningful", 3, ["AMD", "INTC", "AVGO"])).toMatchObject({
+      status: "gap",
+      coveredSourceIds: [],
+    });
+  });
+
+  test("gaps peer valuation when no peers were fetched", () => {
+    const plan = plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      collectedSources(),
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation")).toMatchObject({
+      status: "gap",
+      coveredSourceIds: [],
+    });
+  });
 
   test("assessSourcePlan flags an unusable covered target valuation and drops the label", () => {
     const plan = equityValuationRun({

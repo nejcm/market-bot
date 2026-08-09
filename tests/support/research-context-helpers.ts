@@ -308,3 +308,50 @@ export function completionInstruction(opts: {
   );
   return (JSON.parse(prompt) as { readonly instruction: string }).instruction;
 }
+
+// Builds the primary final-synthesis instruction for a deep run of any command, with optional
+// Extra collected evidence. Shared by the prompt-content suites that assert on that instruction.
+export function finalSynthesisInstruction(
+  command: ResearchCommand,
+  sources: Partial<Parameters<typeof collectedSources>[0]> = {},
+): string {
+  const depthProfile = buildDepthProfile(command, config);
+  const prompt = stagePromptFromArgs(
+    "final-synthesis",
+    command,
+    collectedSources({
+      marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
+      newsSources: [newsSource()],
+      ...sources,
+    }),
+    config,
+    {
+      depthProfile,
+      runParams: {
+        quickModel: "quick-test",
+        synthesisModel: "synthesis-test",
+        analystStyle: "concise brief",
+        minimumKeyFindings: 3,
+        minimumScenarios: 2,
+        targetPredictions: depthProfile.targetPredictions,
+        defaultPredictionHorizon: depthProfile.defaultPredictionHorizon,
+        predictionSubjects: depthProfile.predictionSubjects,
+        focus: depthProfile.focus,
+        targetKindMix: depthProfile.targetKindMix,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
+      },
+      marketRegime: {
+        assetClass: command.assetClass,
+        label: "mixed",
+        proxyCount: 1,
+        drivers: [],
+        sourceIds: [],
+      },
+      calibrationContext: undefined,
+    },
+    { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
+  );
+  const parsed = JSON.parse(prompt) as { readonly instruction?: string };
+  return parsed.instruction ?? "";
+}

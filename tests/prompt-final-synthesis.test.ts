@@ -12,7 +12,11 @@ import {
   prediction,
   researchReport,
 } from "./support/fixtures";
-import { config, stagePromptFromArgs } from "./support/research-context-helpers";
+import {
+  config,
+  finalSynthesisInstruction,
+  stagePromptFromArgs,
+} from "./support/research-context-helpers";
 
 function kindMixSynthesisInstruction(command: ResearchCommand): string {
   const depthProfile = buildDepthProfile(command, config);
@@ -131,67 +135,7 @@ describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
   });
 });
 
-function finalSynthesisInstruction(
-  command: ResearchCommand,
-  sources: Partial<Parameters<typeof collectedSources>[0]> = {},
-): string {
-  const depthProfile = buildDepthProfile(command, config);
-  const prompt = stagePromptFromArgs(
-    "final-synthesis",
-    command,
-    collectedSources({
-      marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
-      newsSources: [newsSource()],
-      ...sources,
-    }),
-    config,
-    {
-      depthProfile,
-      runParams: {
-        quickModel: "quick-test",
-        synthesisModel: "synthesis-test",
-        analystStyle: "concise brief",
-        minimumKeyFindings: 3,
-        minimumScenarios: 2,
-        targetPredictions: depthProfile.targetPredictions,
-        defaultPredictionHorizon: depthProfile.defaultPredictionHorizon,
-        predictionSubjects: depthProfile.predictionSubjects,
-        focus: depthProfile.focus,
-        targetKindMix: depthProfile.targetKindMix,
-        quickModelParams: undefined,
-        synthesisModelParams: undefined,
-      },
-      marketRegime: {
-        assetClass: command.assetClass,
-        label: "mixed",
-        proxyCount: 1,
-        drivers: [],
-        sourceIds: [],
-      },
-      calibrationContext: undefined,
-    },
-    { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
-  );
-  const parsed = JSON.parse(prompt) as { readonly instruction?: string };
-  return parsed.instruction ?? "";
-}
-
 describe("buildStagePrompt forecast diversity guidance", () => {
-  test("uses the default horizon as an evidence-dependent starting point", () => {
-    const command: ResearchCommand = {
-      jobType: "equity",
-      assetClass: "equity",
-      symbol: "AAPL",
-      depth: "deep",
-    };
-    const instruction = finalSynthesisInstruction(command);
-
-    expect(instruction).toContain(
-      "a starting horizon of 5 trading days; a forecast may depart from it when the cited evidence supports a different resolution window.",
-    );
-    expect(instruction).not.toContain("a default horizon near 5 trading days");
-  });
-
   test("deep instrument runs include forecast-shape diversity guidance", () => {
     const command: ResearchCommand = {
       jobType: "equity",
@@ -210,7 +154,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).toContain("conditional");
     expect(instruction).toContain("soft target");
     expect(instruction).toContain(
-      "Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.",
+      "Explore shape variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. Horizon choices follow each forecast's cited evidence; a uniform horizon is valid.",
     );
     // Distinguishes informative kind from informative probability: a better-measured
     // Kind near 0.5 against correlated benchmarks is not automatically informative.
@@ -536,7 +480,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     ) as { readonly instruction?: string };
 
     expect(parsed.instruction).toContain(
-      "Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.",
+      "Explore shape variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. Horizon choices follow each forecast's cited evidence; a uniform horizon is valid.",
     );
   });
 

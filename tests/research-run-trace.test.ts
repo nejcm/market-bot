@@ -120,6 +120,7 @@ function traceFor(
     predictionRetryErrors: [],
     predictionTrimWarnings: [],
     predictionCompletion: undefined,
+    predictionHorizonAudit: { candidate: [], accepted: [], rejectedWithReason: [] },
     predictionErrors: [],
     reportValidationErrors: [],
     ...(options.relocatedGapClaims !== undefined
@@ -359,6 +360,11 @@ describe("run trace builder", () => {
       predictionRetryErrors: [],
       predictionTrimWarnings: [],
       predictionCompletion: undefined,
+      predictionHorizonAudit: {
+        candidate: [5, 10],
+        accepted: [5],
+        rejectedWithReason: [{ horizon: 10, reason: "rejected for test" }],
+      },
       predictionErrors: [],
       reportValidationErrors: [],
       postSynthesisWarnings: [],
@@ -393,6 +399,11 @@ describe("run trace builder", () => {
       stages: ["source-collection", "specialist-analysis"],
       tokenEstimate: 7,
       stageRecords: [{ stage: "specialist-analysis", durationMs: 3 }],
+      predictionHorizonAudit: {
+        candidate: [5, 10],
+        accepted: [5],
+        rejectedWithReason: [{ horizon: 10, reason: "rejected for test" }],
+      },
     });
     expect(trace.reproducibility?.effectiveConfigHash).toBeString();
     // No web sources collected, so the per-source synthesis-input block is absent.

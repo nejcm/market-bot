@@ -682,6 +682,15 @@ export interface PredictionCompletionAudit {
   readonly failureReason?: string;
 }
 
+export interface PredictionHorizonAudit {
+  readonly candidate: readonly number[];
+  readonly accepted: readonly number[];
+  readonly rejectedWithReason: readonly {
+    readonly horizon: number;
+    readonly reason: string;
+  }[];
+}
+
 export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
 
 export type MarketRegimeLabel = (typeof MARKET_REGIME_LABELS)[number];
@@ -908,6 +917,7 @@ export interface RunTrace {
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionTrimWarnings?: readonly string[];
   readonly predictionCompletion?: PredictionCompletionAudit;
+  readonly predictionHorizonAudit?: PredictionHorizonAudit;
   /** Legacy artifacts only. New runs write predictionCompletion. */
   readonly predictionReplacementAttempted?: boolean;
   readonly predictionErrors?: readonly string[];

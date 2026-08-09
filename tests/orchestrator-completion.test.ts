@@ -367,7 +367,7 @@ describe("runResearchJob completion and redundancy", () => {
               scenarios: [],
               confidence: "medium",
               dataGaps: [],
-              predictions: mockPredictions(3),
+              predictions: mockPredictions(4),
             }),
             tokenEstimate: 100,
             costEstimateUsd: 0.01,
@@ -409,8 +409,12 @@ describe("runResearchJob completion and redundancy", () => {
       initialCount: 1,
       targetCount: 3,
       acceptedPredictionIds: ["pred-2", "pred-3"],
-      rejectedCandidateCount: 1,
+      rejectedCandidateCount: 2,
       outcome: "improved",
+    });
+    expect(result.trace.predictionHorizonAudit?.rejectedWithReason).toContainEqual({
+      horizon: 11,
+      reason: "prediction completion target already met",
     });
     expect(result.report.predictionShortfall).toBeUndefined();
   });

@@ -137,7 +137,10 @@ export interface SynthesizeReportUntilValidResult {
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
   readonly predictionCompletion?: PredictionCompletionAudit;
-  readonly predictionHorizonAudit: Pick<PredictionHorizonAudit, "candidate" | "rejectedWithReason">;
+  readonly predictionHorizonAudit: Pick<
+    PredictionHorizonAudit,
+    "candidate" | "completionCandidate" | "rejectedWithReason"
+  >;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
@@ -198,8 +201,8 @@ export async function synthesizeReportUntilValid(
   const assembled = buildReportWithRelocations(trackedInput, completion.progress.state);
   const { report, relocatedGapClaims, sourceGaps } = assembled;
   const acceptedIds = new Set(report.predictions.map((prediction) => prediction.id));
-  // Candidate sampling is deliberately first-round-only: it represents the model's unprimed
-  // Proposal, while repair rounds contain gate feedback. Completion additions are tracked separately.
+  // `candidate` deliberately samples only the first, unprimed primary round; repair rounds contain
+  // Gate feedback. Completion-pass candidates are emitted separately as `completionCandidate`.
   const candidateIds = new Set([
     ...completion.progress.predictionHorizonCandidateIds,
     ...(completion.candidateIds ?? []),
@@ -212,10 +215,8 @@ export async function synthesizeReportUntilValid(
     predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
     predictionHorizonAudit: {
-      candidate: [
-        ...initialHorizonAudit.candidate,
-        ...(completion.predictionHorizonAudit?.candidate ?? []),
-      ],
+      candidate: initialHorizonAudit.candidate,
+      completionCandidate: completion.predictionHorizonAudit?.candidate ?? [],
       rejectedWithReason: [
         ...completion.progress.predictionHorizonRejectedWithReason,
         ...(completion.predictionHorizonAudit?.rejectedWithReason ?? []),

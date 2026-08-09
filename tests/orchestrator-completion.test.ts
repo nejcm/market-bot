@@ -412,6 +412,8 @@ describe("runResearchJob completion and redundancy", () => {
       rejectedCandidateCount: 2,
       outcome: "improved",
     });
+    expect(result.trace.predictionHorizonAudit?.candidate).toEqual([5, 6]);
+    expect(result.trace.predictionHorizonAudit?.completionCandidate).toEqual([5, 7, 9, 11]);
     expect(result.trace.predictionHorizonAudit?.rejectedWithReason).toContainEqual({
       horizon: 11,
       reason: "prediction completion target already met",

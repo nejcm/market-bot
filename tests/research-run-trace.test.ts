@@ -120,7 +120,12 @@ function traceFor(
     predictionRetryErrors: [],
     predictionTrimWarnings: [],
     predictionCompletion: undefined,
-    predictionHorizonAudit: { candidate: [], accepted: [], rejectedWithReason: [] },
+    predictionHorizonAudit: {
+      candidate: [],
+      completionCandidate: [],
+      accepted: [],
+      rejectedWithReason: [],
+    },
     predictionErrors: [],
     reportValidationErrors: [],
     ...(options.relocatedGapClaims !== undefined
@@ -362,6 +367,7 @@ describe("run trace builder", () => {
       predictionCompletion: undefined,
       predictionHorizonAudit: {
         candidate: [5, 10],
+        completionCandidate: [15],
         accepted: [5],
         rejectedWithReason: [{ horizon: 10, reason: "rejected for test" }],
       },
@@ -401,6 +407,7 @@ describe("run trace builder", () => {
       stageRecords: [{ stage: "specialist-analysis", durationMs: 3 }],
       predictionHorizonAudit: {
         candidate: [5, 10],
+        completionCandidate: [15],
         accepted: [5],
         rejectedWithReason: [{ horizon: 10, reason: "rejected for test" }],
       },

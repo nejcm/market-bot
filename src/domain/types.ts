@@ -683,7 +683,9 @@ export interface PredictionCompletionAudit {
 }
 
 export interface PredictionHorizonAudit {
+  /** Disjoint populations: `candidate` is the first unprimed primary round only; `completionCandidate` is the completion pass only. */
   readonly candidate: readonly number[];
+  readonly completionCandidate: readonly number[];
   readonly accepted: readonly number[];
   readonly rejectedWithReason: readonly {
     readonly horizon: number;

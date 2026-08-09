@@ -1,7 +1,6 @@
 ---
 name: run-review
 description: Analyze market-bot runs and produce a ranked, evidence-backed list of fixes and improvements (output only, no code changes).
-disable-model-invocation: true
 ---
 
 # Role

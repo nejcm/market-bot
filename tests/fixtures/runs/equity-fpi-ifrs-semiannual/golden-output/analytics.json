@@ -499,25 +499,25 @@
         "dimension": "assetClass",
         "key": "equity",
         "actionable": false,
-        "reason": "slice-unavailable"
+        "reason": "empty-dimension"
       },
       {
         "dimension": "jobType",
         "key": "equity",
         "actionable": false,
-        "reason": "slice-unavailable"
+        "reason": "empty-dimension"
       },
       {
         "dimension": "predictionHorizon",
         "key": "1-5d",
         "actionable": false,
-        "reason": "slice-unavailable"
+        "reason": "empty-dimension"
       },
       {
         "dimension": "marketRegime",
         "key": "risk-on",
         "actionable": false,
-        "reason": "slice-unavailable"
+        "reason": "empty-dimension"
       }
     ]
   },

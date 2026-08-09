@@ -325,6 +325,12 @@ describe("buildStagePrompt", () => {
               runCount: 10,
               brierStandardError: 0.05,
             },
+            "risk-on": {
+              brierScore: 0.25,
+              count: 30,
+              runCount: 10,
+              brierStandardError: 0.05,
+            },
           },
         },
       },

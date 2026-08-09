@@ -1,3 +1,4 @@
+import { isMarketUpdateJobType, type JobType } from "../domain/types";
 import type { CalibrationMetric } from "../scoring/types";
 import type { CalibrationContext } from "./research-context-types";
 
@@ -15,6 +16,8 @@ export type CalibrationGuidanceDimension =
 
 export type CalibrationGuidanceReason =
   | "slice-unavailable"
+  | "empty-dimension"
+  | "single-cell-dimension"
   | "below-outcome-floor"
   | "uncertainty-unavailable"
   | "below-run-floor"
@@ -35,7 +38,7 @@ export interface ApplicableCalibrationSlice extends CalibrationGuidanceAssessmen
 
 export interface ApplicableCalibrationKeys {
   readonly assetClass: string;
-  readonly jobType: string;
+  readonly jobType: JobType;
   readonly predictionHorizon: string;
   readonly marketRegime: string;
 }
@@ -86,34 +89,49 @@ export function applicableCalibrationSlices(
   calibration: CalibrationContext | undefined,
   keys: ApplicableCalibrationKeys,
 ): readonly ApplicableCalibrationSlice[] {
+  const horizonMetrics = isMarketUpdateJobType(keys.jobType)
+    ? calibration?.byMarketUpdateHorizonBucket
+    : calibration?.byHorizonBucket;
   const slices = [
     {
       dimension: "assetClass",
       key: keys.assetClass,
-      metric: calibration?.byAssetClass?.[keys.assetClass],
+      metrics: calibration?.byAssetClass,
     },
     {
       dimension: "jobType",
       key: keys.jobType,
-      metric: calibration?.byJobType?.[keys.jobType],
+      metrics: calibration?.byJobType,
     },
     {
       dimension: "predictionHorizon",
       key: keys.predictionHorizon,
-      metric: calibration?.byHorizonBucket?.[keys.predictionHorizon],
+      metrics: horizonMetrics,
     },
     {
       dimension: "marketRegime",
       key: keys.marketRegime,
-      metric: calibration?.byMarketRegime?.[keys.marketRegime],
+      metrics: calibration?.byMarketRegime,
     },
   ] as const;
-  return slices.map(({ dimension, key, metric }) => ({
-    dimension,
-    key,
-    ...(metric !== undefined ? { metric } : {}),
-    ...assessNegativeCalibration(metric),
-  }));
+  return slices.map(({ dimension, key, metrics }) => {
+    const populatedCells = metrics === undefined ? undefined : Object.keys(metrics).length;
+    if (populatedCells !== undefined && populatedCells < 2) {
+      return {
+        dimension,
+        key,
+        actionable: false,
+        reason: populatedCells === 0 ? "empty-dimension" : "single-cell-dimension",
+      };
+    }
+    const metric = metrics?.[key];
+    return {
+      dimension,
+      key,
+      ...(metric !== undefined ? { metric } : {}),
+      ...assessNegativeCalibration(metric),
+    };
+  });
 }
 
 export function applicableKindSlices(

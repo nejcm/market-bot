@@ -87,10 +87,26 @@ describe("buildCalibrationBlock", () => {
   };
 
   test.each([
-    ["asset class", "asset class equity", { byAssetClass: { equity: actionableMetric } }],
-    ["job type", "job type equity", { byJobType: { equity: actionableMetric } }],
-    ["default horizon", "default horizon 1-5d", { byHorizonBucket: { "1-5d": actionableMetric } }],
-    ["current regime", "current regime mixed", { byMarketRegime: { mixed: actionableMetric } }],
+    [
+      "asset class",
+      "asset class equity",
+      { byAssetClass: { equity: actionableMetric, crypto: actionableMetric } },
+    ],
+    [
+      "job type",
+      "job type equity",
+      { byJobType: { equity: actionableMetric, crypto: actionableMetric } },
+    ],
+    [
+      "default horizon",
+      "default horizon 1-5d",
+      { byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric } },
+    ],
+    [
+      "current regime",
+      "current regime mixed",
+      { byMarketRegime: { mixed: actionableMetric, "risk-on": actionableMetric } },
+    ],
   ])(
     "adds probability guidance for an actionable negative %s slice",
     (_name, triggerLabel, calibration) => {
@@ -122,7 +138,7 @@ describe("buildCalibrationBlock", () => {
 
   test("uses the depth profile default forecast horizon", () => {
     const block = buildCalibrationBlock(
-      { byHorizonBucket: { "11-15d": actionableMetric } },
+      { byHorizonBucket: { "1-5d": actionableMetric, "11-15d": actionableMetric } },
       command,
       calibrationRunContext(15),
     );
@@ -133,8 +149,11 @@ describe("buildCalibrationBlock", () => {
   test("includes only qualifying applicable slices", () => {
     const block = buildCalibrationBlock(
       {
-        byAssetClass: { equity: actionableMetric },
-        byJobType: { equity: { ...actionableMetric, count: 29 } },
+        byAssetClass: { equity: actionableMetric, crypto: actionableMetric },
+        byJobType: {
+          equity: { ...actionableMetric, count: 29 },
+          crypto: actionableMetric,
+        },
         byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric },
       },
       command,

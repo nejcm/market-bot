@@ -487,14 +487,16 @@ describe("buildStagePrompt final-synthesis shape", () => {
           runCount: 10,
           brierStandardError: 0.05,
         },
+        crypto: { brierScore: 0.25, count: 30, runCount: 10, brierStandardError: 0.05 },
       },
-      byHorizonBucket: {
+      byMarketUpdateHorizonBucket: {
         "1-5d": {
           brierScore: 0.3,
           count: 30,
           runCount: 10,
           brierStandardError: 0.03,
         },
+        "6-10d": { brierScore: 0.25, count: 30, runCount: 10, brierStandardError: 0.05 },
       },
     };
 

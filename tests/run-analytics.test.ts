@@ -242,8 +242,14 @@ describe("run analytics", () => {
       calibrationContext: {
         generatedAt: "2026-05-18T00:00:00.000Z",
         resolvedCount: 12,
-        byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
-        byJobType: { equity: { brierScore: 0.22, count: 6 } },
+        byAssetClass: {
+          equity: { brierScore: 0.2, count: 8 },
+          crypto: { brierScore: 0.25, count: 4 },
+        },
+        byJobType: {
+          equity: { brierScore: 0.22, count: 6 },
+          crypto: { brierScore: 0.25, count: 4 },
+        },
         byHorizonBucket: {
           "1-5d": {
             brierScore: 0.4,
@@ -341,12 +347,8 @@ describe("run analytics", () => {
         {
           dimension: "predictionHorizon",
           key: "1-5d",
-          brierScore: 0.4,
-          count: 30,
-          runCount: 10,
-          brierStandardError: 0.05,
-          actionable: true,
-          reason: "actionable-negative",
+          actionable: false,
+          reason: "single-cell-dimension",
         },
         {
           dimension: "marketRegime",
@@ -356,11 +358,6 @@ describe("run analytics", () => {
         },
       ],
     });
-    expect(
-      analytics.calibrationAtGeneration?.guidanceAssessments?.find(
-        ({ dimension }) => dimension === "predictionHorizon",
-      )?.lowerConfidenceBound,
-    ).toBeCloseTo(0.287_93);
     expect(analytics.verifiedMarketSnapshot).toEqual({
       symbol: "AAPL",
       analysisDate: "2026-05-19",

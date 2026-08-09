@@ -1673,6 +1673,26 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
+  test("keeps a blank subject label instead of falling back to the company name", () => {
+    const answer = { answer: "Cited answer.", sourceIds: ["web-source"] };
+    const profileWith = (label?: unknown): unknown =>
+      webSubjectProfileView({
+        extras: {
+          webSubjectProfile: {
+            subjectKind: "company",
+            ...(label === undefined ? {} : { subjectLabel: label }),
+            companyName: "Fallback Inc.",
+            questions: { whatItDoes: answer },
+          },
+        },
+      })?.subjectLabel;
+
+    expect(profileWith("")).toBe("");
+    expect(profileWith("   ")).toBe("   ");
+    expect(profileWith()).toBe("Fallback Inc.");
+    expect(profileWith(42)).toBe("Fallback Inc.");
+  });
+
   test("presents current company profile questions", () => {
     const answer = { answer: "Cited answer.", sourceIds: ["web-source"] };
     const profile = webSubjectProfileView({

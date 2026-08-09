@@ -33,6 +33,10 @@ import {
 import { isPredictionKind, renderClaimForMeasurableAs } from "./forecast/observable";
 import { CURRENT_SCORING_POLICY_VERSION } from "./scoring/policy";
 import { normalizePredictionShortfall } from "./report/prediction-shortfall";
+import {
+  readWebSubjectProfileAnswer,
+  readWebSubjectProfileFacts,
+} from "./report/report-extras-contract";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 import {
   isDeepEquityReport,
@@ -100,7 +104,6 @@ import {
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   type WebSubjectProfileAnswer,
   type WebSubjectProfileArtifact,
-  type WebSubjectProfileFact,
 } from "./web-evidence/contract";
 import {
   isRecord,
@@ -1224,15 +1227,6 @@ function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifac
   return value as unknown as BusinessFrameworkArtifact;
 }
 
-function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAnswer | undefined {
-  if (!isRecord(value)) {
-    return;
-  }
-  const answer = readString(value, "answer");
-  const sourceIds = readStringArray(value, "sourceIds");
-  return answer === undefined || sourceIds === undefined ? undefined : { answer, sourceIds };
-}
-
 function readWebSubjectProfileQuestions(
   value: unknown,
   subjectKind: SubjectKind,
@@ -1254,21 +1248,6 @@ function readWebSubjectProfileQuestions(
     entries.push([key, answer]);
   }
   return Object.fromEntries(entries);
-}
-
-function readWebSubjectProfileFacts(value: unknown): readonly WebSubjectProfileFact[] | undefined {
-  if (!Array.isArray(value)) {
-    return;
-  }
-  const facts = value.flatMap((item): readonly WebSubjectProfileFact[] => {
-    if (!isRecord(item)) {
-      return [];
-    }
-    const claim = readString(item, "claim");
-    const sourceIds = readStringArray(item, "sourceIds");
-    return claim === undefined || sourceIds === undefined ? [] : [{ claim, sourceIds }];
-  });
-  return facts.length === value.length ? facts : undefined;
 }
 
 function readWebSubjectProfileArtifact(value: unknown): WebSubjectProfileArtifact | undefined {

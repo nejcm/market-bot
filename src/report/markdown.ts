@@ -21,6 +21,15 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
 import { readGapTriage, type GapTriage } from "./gap-triage";
+import {
+  readBusinessFrameworkExtra,
+  readWebSubjectProfileExtra,
+  webSubjectProfileQuestionKeys,
+  type WebSubjectProfileAnswerValue,
+  type WebSubjectProfileExtraValue,
+  type WebSubjectProfileFactValue,
+} from "./report-extras-contract";
+import type { WebSubjectProfileQuestionKey } from "../web-evidence/contract";
 import { predictionShortfallMaterialGaps } from "./prediction-shortfall";
 import type { CollectedSources } from "../sources/types";
 import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";
@@ -116,6 +125,16 @@ function knownSourceIds(report: ResearchReport, sourceIds: unknown): readonly st
   return readStringArray(sourceIds).filter((sourceId) => known.has(sourceId));
 }
 
+// Render policy. The extras readers keep the per-item valid entries of a mixed
+// Array because the Research Console renders them, but markdown has always
+// Treated any non-string member as making the whole array unusable.
+function citedSourceIds(
+  report: ResearchReport,
+  row: { readonly sourceIds: readonly string[]; readonly sourceIdsComplete: boolean },
+): readonly string[] {
+  return row.sourceIdsComplete ? knownSourceIds(report, row.sourceIds) : [];
+}
+
 function collectReportSourceIds(
   report: ResearchReport,
   additionalSourceIds: readonly string[] = [],
@@ -154,37 +173,24 @@ function collectReportSourceIds(
       }
     });
   }
-  const framework = report.extras?.businessFramework;
-  if (isRecord(framework)) {
-    add(knownSourceIds(report, framework.sourceIds));
-    if (Array.isArray(framework.sections)) {
-      framework.sections.forEach((section) => {
-        if (isRecord(section)) {
-          add(knownSourceIds(report, section.sourceIds));
-        }
-      });
-    }
+  // Same typed values the renderers below use — one traversal contract, so a new
+  // Field cannot appear in one place and silently lose its citations in the other.
+  const framework = readBusinessFrameworkExtra(report.extras?.businessFramework);
+  if (framework !== undefined) {
+    add(citedSourceIds(report, framework));
+    (framework.sections ?? []).forEach((section) => add(citedSourceIds(report, section)));
   }
-  const profile = report.extras?.webSubjectProfile;
-  if (isRecord(profile)) {
-    add(knownSourceIds(report, profile.sourceIds));
-    if (isRecord(profile.questions)) {
-      Object.values(profile.questions).forEach((question) => {
-        if (isRecord(question)) {
-          add(knownSourceIds(report, question.sourceIds));
-        }
-      });
-    }
-    for (const key of ["recentMaterialEvents", "factLedger"] as const) {
-      const facts = profile[key];
-      if (Array.isArray(facts)) {
-        facts.forEach((fact) => {
-          if (isRecord(fact)) {
-            add(knownSourceIds(report, fact.sourceIds));
-          }
-        });
-      }
-    }
+  const profile = readWebSubjectProfileExtra(report.extras?.webSubjectProfile);
+  if (profile !== undefined) {
+    add(citedSourceIds(report, profile));
+    // Every parsed row is cited, including one whose text is blank or missing —
+    // Suppressing it is the renderer's decision, not this traversal's.
+    Object.values(profile.questions ?? {}).forEach((question) =>
+      add(citedSourceIds(report, question)),
+    );
+    [...profile.recentMaterialEvents, ...profile.factLedger].forEach((fact) =>
+      add(citedSourceIds(report, fact)),
+    );
   }
   add(knownSourceIds(report, additionalSourceIds));
 
@@ -910,46 +916,48 @@ function renderBusinessFramework(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType)) {
     return "";
   }
-  const framework = report.extras?.businessFramework;
-  if (!isRecord(framework) || !Array.isArray(framework.sections)) {
+  const framework = readBusinessFrameworkExtra(report.extras?.businessFramework);
+  // A framework without a `sections` array has no section to render — distinct
+  // From one whose sections parsed to none, which still gets the header.
+  if (framework?.sections === undefined) {
     return "";
   }
-  const phase = typeof framework.phase === "string" ? framework.phase : "insufficient-data";
   const rows = framework.sections.flatMap((section) => {
-    if (!isRecord(section) || typeof section.name !== "string") {
+    const { name } = section;
+    // A nameless section is unrenderable, but its sources are still cited by
+    // CollectReportSourceIds — which is why the reader keeps the row.
+    if (name === undefined) {
       return [];
     }
+    // Render policy, not parsing: the equity reader already covers these three.
     if (
       report.jobType === "equity" &&
       report.assetClass === "equity" &&
-      ["business", "phase", "growth"].includes(section.name.trim().toLowerCase())
+      ["business", "phase", "growth"].includes(name.trim().toLowerCase())
     ) {
       return [];
     }
     const posture =
-      section.name !== "Phase" && typeof section.posture === "string"
+      name !== "Phase" && section.posture !== undefined
         ? ` (${markdownText(section.posture)})`
         : "";
-    let text = "";
-    const { text: sectionText, summary } = section;
-    if (typeof sectionText === "string") {
-      text = sectionText;
-    } else if (typeof summary === "string") {
-      text = summary;
-    }
+    const text = section.text ?? section.summary ?? "";
     if (text === "") {
       return [];
     }
-    const refs = sourceRefs(knownSourceIds(report, section.sourceIds));
+    const refs = sourceRefs(citedSourceIds(report, section));
     return [
-      `- **${markdownText(section.name)}**${posture}: ${markdownText(text)}${refs === "" ? "" : ` ${refs}`}`,
+      `- **${markdownText(name)}**${posture}: ${markdownText(text)}${refs === "" ? "" : ` ${refs}`}`,
     ];
   });
-  const gaps = readFrameworkGapTexts(framework.gaps).map((gap) => `- ${markdownText(gap)}`);
+  // Render policy: gap codes are dropped, only the text is shown.
+  const gaps = framework.gaps.map(
+    (gap) => `- ${markdownText(typeof gap === "string" ? gap : gap.text)}`,
+  );
   return [
     "## Business Framework",
     "",
-    `Phase: ${markdownText(phase)}`,
+    `Phase: ${markdownText(framework.phase ?? "insufficient-data")}`,
     "",
     ...rows,
     ...(gaps.length > 0 ? ["", "### Framework Data Gaps", "", ...gaps] : []),
@@ -1017,49 +1025,32 @@ function renderCompactValuationMetrics(
   return [`- **Observed metrics:** ${values.join(", ")}${refs === "" ? "" : ` ${refs}`}`];
 }
 
-function readFrameworkGapTexts(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.flatMap((gap) => {
-    if (typeof gap === "string") {
-      return [gap];
-    }
-    return isRecord(gap) && typeof gap.text === "string" ? [gap.text] : [];
-  });
-}
-
-const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = {
-  company: [
-    ["whatItDoes", "What It Does"],
-    ["howItMakesMoney", "How It Makes Money"],
-    ["customers", "Customers"],
-    ["geography", "Geography"],
-    ["purchaseRecurrence", "Purchase Recurrence"],
-    ["pricingPower", "Pricing Power"],
-    ["recessionCyclicality", "Recession Cyclicality"],
-    ["managementTrackRecord", "Management Track Record"],
-    ["capitalAllocation", "Capital Allocation"],
-    ["companyKpis", "Company-specific KPIs"],
-    ["riskFactors", "Disclosed Risk Factors"],
-  ],
-  "crypto-asset": [
-    ["whatItDoes", "What It Does"],
-    ["valueAccrual", "Value Accrual"],
-    ["supplyIssuance", "Supply And Issuance"],
-    ["usageAdoption", "Usage And Adoption"],
-    ["governanceBuilders", "Governance And Builders"],
-    ["competitionMoat", "Competition And Moat"],
-    ["keyRisks", "Key Risks"],
-  ],
-  theme: [
-    ["whatItIs", "What It Is"],
-    ["whyNow", "Why Now"],
-    ["beneficiaries", "Beneficiaries"],
-    ["headwinds", "Headwinds"],
-    ["keyDebates", "Key Debates"],
-    ["howItPlaysOut", "How It Plays Out"],
-  ],
+// Title Case labels are markdown-specific; only the key order is shared, via
+// The contract's webSubjectProfileQuestionKeys. Exhaustiveness is compiler-enforced.
+const WEB_SUBJECT_PROFILE_LABELS: Readonly<Record<WebSubjectProfileQuestionKey, string>> = {
+  whatItDoes: "What It Does",
+  howItMakesMoney: "How It Makes Money",
+  customers: "Customers",
+  geography: "Geography",
+  purchaseRecurrence: "Purchase Recurrence",
+  pricingPower: "Pricing Power",
+  recessionCyclicality: "Recession Cyclicality",
+  managementTrackRecord: "Management Track Record",
+  capitalAllocation: "Capital Allocation",
+  companyKpis: "Company-specific KPIs",
+  riskFactors: "Disclosed Risk Factors",
+  valueAccrual: "Value Accrual",
+  supplyIssuance: "Supply And Issuance",
+  usageAdoption: "Usage And Adoption",
+  governanceBuilders: "Governance And Builders",
+  competitionMoat: "Competition And Moat",
+  keyRisks: "Key Risks",
+  whatItIs: "What It Is",
+  whyNow: "Why Now",
+  beneficiaries: "Beneficiaries",
+  headwinds: "Headwinds",
+  keyDebates: "Key Debates",
+  howItPlaysOut: "How It Plays Out",
 };
 
 function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): string | undefined {
@@ -1083,28 +1074,23 @@ function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): s
 const PROFILE_NON_ANSWER_RE =
   /(^|\b)(not\s+(disclosed|quantified|available|provided|broken\s+out)|undisclosed|no\s+(disclosure|quantified\s+disclosure)|does\s+not\s+disclose|is\s+not\s+broken\s+out|are\s+not\s+broken\s+out)\b/iu;
 
-function substantiveAnswerSourceIds(value: unknown): readonly string[] {
-  if (!isRecord(value) || typeof value.answer !== "string") {
+function substantiveAnswerSourceIds(
+  value: WebSubjectProfileAnswerValue | undefined,
+): readonly string[] {
+  const answer = value?.answer?.trim() ?? "";
+  if (answer === "" || PROFILE_NON_ANSWER_RE.test(answer) || value?.sourceIdsComplete !== true) {
     return [];
   }
-  const answer = value.answer.trim();
-  return answer === "" || PROFILE_NON_ANSWER_RE.test(answer)
-    ? []
-    : readStringArray(value.sourceIds);
+  return value.sourceIds;
 }
 
-function profileAnswerSourceIds(profile: Record<string, unknown>): ReadonlySet<string> {
-  const ids = new Set<string>();
-  for (const sourceId of substantiveAnswerSourceIds(profile.subjectSummary)) {
-    ids.add(sourceId);
-  }
-  const questions = isRecord(profile.questions) ? profile.questions : {};
-  for (const question of Object.values(questions)) {
-    for (const sourceId of substantiveAnswerSourceIds(question)) {
-      ids.add(sourceId);
-    }
-  }
-  return ids;
+function profileAnswerSourceIds(profile: WebSubjectProfileExtraValue): ReadonlySet<string> {
+  return new Set([
+    ...substantiveAnswerSourceIds(profile.subjectSummary),
+    ...Object.values(profile.questions ?? {}).flatMap((question) =>
+      substantiveAnswerSourceIds(question),
+    ),
+  ]);
 }
 
 // Renders the SEC filing basis/verification line for company profiles from the
@@ -1112,16 +1098,16 @@ function profileAnswerSourceIds(profile: Record<string, unknown>): ReadonlySet<s
 // Disclosure when only the annual 10-K is cited.
 function companyFilingBasisLine(
   report: ResearchReport,
-  profile: Record<string, unknown>,
+  profile: WebSubjectProfileExtraValue,
 ): string | undefined {
-  const citedSourceIds = profileAnswerSourceIds(profile);
-  if (citedSourceIds.size === 0) {
+  const answerSourceIds = profileAnswerSourceIds(profile);
+  if (answerSourceIds.size === 0) {
     return undefined;
   }
   const items = (report.extendedEvidence?.items ?? []).filter(
     (item) =>
       item.category === "sec-edgar" &&
-      item.sourceIds.some((sourceId) => citedSourceIds.has(sourceId)),
+      item.sourceIds.some((sourceId) => answerSourceIds.has(sourceId)),
   );
   const entries = items.flatMap((item) =>
     item.metrics !== undefined ? [filingBasisEntry(item.metrics)] : [],
@@ -1145,56 +1131,52 @@ function renderWebSubjectProfile(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType) && report.jobType !== "research") {
     return "";
   }
-  const profile = report.extras?.webSubjectProfile;
-  if (!isRecord(profile) || !isRecord(profile.questions)) {
+  const profile = readWebSubjectProfileExtra(report.extras?.webSubjectProfile);
+  // No `questions` record at all means no profile section, unlike an empty one.
+  if (profile?.questions === undefined) {
     return "";
   }
-  const { questions } = profile;
-  const subjectKind = typeof profile.subjectKind === "string" ? profile.subjectKind : "company";
-  const subjectLabels = WEB_SUBJECT_PROFILE_LABELS[subjectKind];
-  const usesCompanyLabels = subjectKind === "company" || subjectLabels === undefined;
+  const { questions, subjectSummary } = profile;
+  const subjectKind = profile.subjectKind ?? "company";
+  // The wrapper falls back to the company key order for unknown kinds, so
+  // Identity against the company order == "company or unknown kind".
+  const questionKeys = webSubjectProfileQuestionKeys(subjectKind);
+  const usesCompanyLabels = questionKeys === webSubjectProfileQuestionKeys("company");
   const trimEquityReaderDuplicates =
     report.jobType === "equity" && report.assetClass === "equity" && usesCompanyLabels;
-  const labels = subjectLabels ?? WEB_SUBJECT_PROFILE_LABELS.company ?? [];
-  const subjectSummary = isRecord(profile.subjectSummary) ? profile.subjectSummary : undefined;
+  // An empty answer still renders here — the empty-profile producer path emits
+  // One — but is suppressed per question below.
   const summary =
-    !trimEquityReaderDuplicates &&
-    subjectSummary !== undefined &&
-    typeof subjectSummary.answer === "string"
+    !trimEquityReaderDuplicates && subjectSummary?.answer !== undefined
       ? [
           `${markdownText(subjectSummary.answer)}${sourceRefs(
-            knownSourceIds(report, subjectSummary.sourceIds),
+            citedSourceIds(report, subjectSummary),
           )}`,
         ]
       : [];
-  const rows = labels.flatMap(([key, label]) => {
+  const rows = questionKeys.flatMap((key) => {
     const answer = questions[key];
-    if (!isRecord(answer) || typeof answer.answer !== "string" || answer.answer === "") {
+    if (answer?.answer === undefined || answer.answer === "") {
       return [];
     }
-    const refs = sourceRefs(knownSourceIds(report, answer.sourceIds));
-    return [`- **${label}:** ${markdownText(answer.answer)}${refs === "" ? "" : ` ${refs}`}`];
+    const refs = sourceRefs(citedSourceIds(report, answer));
+    return [
+      `- **${WEB_SUBJECT_PROFILE_LABELS[key]}:** ${markdownText(answer.answer)}${refs === "" ? "" : ` ${refs}`}`,
+    ];
   });
-  const events = Array.isArray(profile.recentMaterialEvents)
-    ? profile.recentMaterialEvents.flatMap((event) => {
-        if (!isRecord(event) || typeof event.claim !== "string") {
-          return [];
-        }
-        const refs = sourceRefs(knownSourceIds(report, event.sourceIds));
-        return [`- ${markdownText(event.claim)}${refs === "" ? "" : ` ${refs}`}`];
-      })
-    : [];
-  const facts =
-    !trimEquityReaderDuplicates && Array.isArray(profile.factLedger)
-      ? profile.factLedger.flatMap((fact) => {
-          if (!isRecord(fact) || typeof fact.claim !== "string") {
-            return [];
-          }
-          const refs = sourceRefs(knownSourceIds(report, fact.sourceIds));
-          return [`- ${markdownText(fact.claim)}${refs === "" ? "" : ` ${refs}`}`];
-        })
-      : [];
-  const gaps = readStringArray(profile.openGaps).map((gap) => `- ${markdownText(gap)}`);
+  const factRows = (rowsIn: readonly WebSubjectProfileFactValue[]): readonly string[] =>
+    rowsIn.flatMap((row) => {
+      if (row.claim === undefined) {
+        return [];
+      }
+      const refs = sourceRefs(citedSourceIds(report, row));
+      return [`- ${markdownText(row.claim)}${refs === "" ? "" : ` ${refs}`}`];
+    });
+  const events = factRows(profile.recentMaterialEvents);
+  const facts = trimEquityReaderDuplicates ? [] : factRows(profile.factLedger);
+  const gaps = (profile.openGapsComplete ? profile.openGaps : []).map(
+    (gap) => `- ${markdownText(gap)}`,
+  );
   if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
     return "";
   }

@@ -18,31 +18,25 @@ the docs it links (architecture, conventions, ADRs) for context and constraints.
 
 # Step 0 — Resolve the target run
 
-**Never run the CLI when any of these hold:**
+Default to the newest existing comparable run. A fresh deep equity run costs
+~12 minutes of wall clock and live model tokens (a recent NBIS deep run: 584s,
+~438k tokens), so **never** execute the CLI when the user supplied a run dir,
+when a comparable recent run already exists and no fresh one was asked for, or
+when you were invoked by another skill or subagent — notably
+`improve-market-runs`, whose Review subagent calls this skill _after_ it has
+already run the CLI, so running here would double-run and recurse.
 
-- The user supplied a run dir.
-- You were invoked by another skill or subagent (notably `improve-market-runs`,
-  whose Review subagent calls this skill _after_ it has already executed the
-  CLI). Running here would double-run and recurse.
-- A comparable recent run already exists and the user did not ask for a fresh one.
+When the user does explicitly ask for a fresh run, or no comparable run exists:
 
-Otherwise, prefer the newest existing comparable run. Execute the CLI **only**
-when the user explicitly asked for a fresh run, or no comparable run exists.
-
-When you do run it:
-
-1. **Nothing supplied.** The user did not supply any run dir. A deep equity run
-   takes ~12 minutes of wall clock and spends live model tokens
-   (a recent NBIS deep run: 584s, ~438k tokens).
-2. **Delegate to a cheap subagent.** Spawn a cheap worker (`codex exec -m
-gpt-5.6-luna` at medium effort, or the host's general-purpose agent on a small
-   model) to execute the CLI and return only the run-dir path plus the tail of
-   any failure. The purpose is **context isolation** — keeping run logs out of
-   the review — not model savings; the cost is market-bot's own model calls,
-   which the driving agent does not change. Say so plainly if asked.
-3. **Default to one run.** Repeat same-subject runs discriminate run-to-run
-   variance, but that is the most expensive axis and the least common failure.
-   Do N repeats only on explicit request, and state the total cost before starting.
+- **Delegate execution to a cheap worker** (per the Cheap-worker row of
+  `rules/model-routing.md`; do not pin a model here) that returns only the
+  run-dir path plus the tail of any failure. The purpose is **context
+  isolation** — keeping run logs out of the review — not model savings; the
+  cost is market-bot's own model calls, which the driving agent does not
+  change. Say so plainly if asked.
+- **Run once.** Repeat same-subject runs discriminate run-to-run variance, but
+  that is the most expensive axis and the least common failure. Do N repeats
+  only on explicit request, and state the total cost before starting.
 
 Map requests to commands via `src/cli/job-registry.ts`, e.g.
 `bun run src/cli.ts equity NBIS --deep`, `bun run src/cli.ts crypto BTC`,
@@ -56,28 +50,27 @@ A single target-plus-baseline pair cannot tell a subject-specific defect from a
 fleet-wide one, and that distinction changes rankings. Scan the existing runs
 first — this costs seconds and no model tokens, because the runs are already on disk.
 
-List `data/runs/` newest-first and extract **one compact line per run** for the
-most recent runs (aim for ~6-10, and always include every run sharing the
-target's `codeVersion.commit`). Per run read only:
+List `data/runs/` newest-first and extract **one compact line per run**, newest
+first, **capped at 12 runs total**. Fill the cap in this order: runs sharing the
+target's `codeVersion.commit`, then the newest comparable runs. Per run read only:
 
-- `analytics.json`: `symbol`, `codeVersion.commit`, `depth`,
+- `analytics.json`: `symbol`, `jobType`, `assetClass`, `depth`,
+  `codeVersion.commit`, `reproducibility.effectiveConfigHash`,
   `predictions.count`, `predictions.targetMet`, `evidenceQuality.label`,
-  `sourceFunnel.sourceGaps.total`, `evidenceLanes.coverageRatio`
+  `sourceFunnel.sourceGaps.total`, `evidenceLanes.coverageRatio`,
+  `providerEndpointAvailability`
 - `report.json`: prediction `kind`/`subject`/`probability` tuples, and counts of
   any gap text your candidate findings rest on
 
-Runs sharing one commit across different subjects are the highest-value slice —
-they isolate subject effects with code held constant.
+Runs sharing one commit across different subjects are the highest-value slice,
+but a shared commit alone does not hold code constant: `jobType`, `assetClass`,
+`reproducibility.effectiveConfigHash`, and provider availability must also
+match, or the pair differs by configuration rather than subject. Say which of
+those held when you lean on a cohort comparison.
 
-Then **classify every finding** before ranking:
-
-- `subject-specific` — present only for this subject
-- `systemic` — present across subjects on the same commit
-- `unknown` — cohort too thin to tell; say so rather than guessing
-
-State the classification on each finding. A systemic finding outranks a
-subject-specific one of equal severity. Report the cohort as a compact table in
-the output.
+Report the cohort as a compact table in the output. Findings are classified
+against this cohort in the Output section, not here — classification needs the
+baseline and code-delta analysis from Steps 2-3.
 
 # Step 2 — Baseline selection
 
@@ -85,21 +78,32 @@ Compare the target against the most recent comparable prior run(s) using their
 artifacts (`report.json`, `score.json`, `trace.json`, `analytics.json`,
 `normalized/*.json`, `miss-autopsy.json`, and `data/calibration/summary.json`).
 
-Select a baseline with the same `jobType`, `assetClass`, subject, and prediction
-horizon bucket. Resolve the subject from `analytics.json:symbol`,
-`report.symbol`, `instrumentId`, or prediction subjects if the report schema
-differs. Prefer the newest comparable prior run; inspect older candidates only
-when needed to establish comparability.
+Select a baseline with the same `jobType`, `assetClass`, subject, and — where
+the job type produces dated horizons — the same prediction horizon bucket.
+Resolve the subject from `analytics.json:symbol`, `report.json:symbol`, or
+prediction subjects if the report schema differs. Prefer the newest comparable
+prior run; inspect older candidates only when needed to establish comparability.
+
+If no comparable prior run exists, say so explicitly, skip the Improvements
+section, and report `delta: inconclusive`. Do not substitute a run of a
+different `jobType` or `assetClass` and call it a baseline.
 
 # Step 3 — Code-delta attribution (mandatory)
 
 Run-vs-run deltas are only run-quality findings when both runs executed the
 same code. Before analyzing metrics:
 
-1. Read `codeVersion.commit` from both runs' `analytics.json`.
-2. If the commits differ, run `git log --oneline <base>..<target>` and flag
-   any commits touching subsystems whose metrics moved (web gather, synthesis,
-   forecasts, scoring). Findings on those metrics must be labeled
+1. Read `codeVersion.commit` from both runs' `analytics.json`. If either is
+   missing or no longer resolves (`git cat-file -e <sha>`), treat every
+   run-vs-run delta as **unattributable** and label the findings accordingly.
+2. If the commits differ, first check ancestry with
+   `git merge-base --is-ancestor <base> <target>` — `A..B` range syntax is
+   meaningless across diverged branches. Then use
+   `git diff --name-only <base> <target>` to identify which subsystems actually
+   changed; `git log --oneline` shows commit subjects, not touched files, and
+   subjects routinely understate their blast radius. Flag any change touching a
+   subsystem whose metrics moved (web gather, synthesis, forecasts, scoring).
+   Findings on those metrics must be labeled
    **"confounded by code change — regression hypothesis, not run-quality
    finding"** and may not carry a suspected cause unless artifact evidence
    distinguishes a code effect from a data effect.
@@ -111,9 +115,9 @@ same code. Before analyzing metrics:
    target-to-HEAD distance.
 
 Deltas inside the recorded variance bands in `docs/run-variance-baseline.md`
-(when that doc exists and its commit still matches the relevant subsystems)
-are noise unless corroborated by independent evidence; treat the bands as
-stale once the relevant subsystem changed.
+are noise unless corroborated by independent evidence, provided that doc's
+recorded commit still matches the relevant subsystems; treat the bands as stale
+once the relevant subsystem changed.
 
 # Output
 
@@ -131,17 +135,44 @@ For each Improvement item:
 - **Likely driver** — code/config/artifact clue if visible, or "unknown"
 - **Why it matters** — what future reviews should preserve or avoid re-fixing
 
-For each Recommendation item:
+For each Recommendation item, **at most 8, ranked**:
 
-- **Symptom** — what's wrong or weak
+- **Symptom** — what's wrong or weak, one line
 - **Evidence** — exact file:field and values backing it (no impressions)
-- **Scope** — `subject-specific` / `systemic` / `unknown`, per Step 1
+- **Category** — e.g. `bug`, `regression`, `evidence-coverage`,
+  `prediction-quality`, `calibration`, `determinism`, `telemetry`,
+  `provider-incident`
+- **Scope** — `subject-specific` / `systemic` / `unknown`, classified against
+  the Step 1 cohort: `subject-specific` when present only for this subject,
+  `systemic` when present across subjects on the same commit and config hash,
+  `unknown` when the cohort is too thin to tell. Say `unknown` rather than
+  guessing. A systemic finding outranks a subject-specific one of equal severity.
 - **Suspected cause** — subject to the cause-verification rule below
-- **Severity** + **effort**
+- **Severity** — `high` / `medium` / `low`
+- **Effort** — `S` / `M` / `L`
+- **Disposition** — `fixable` or `skip`. Use `skip` for findings caused only by
+  missing optional provider keys, provider outages, market availability, or
+  unresolved future prediction horizons — **unless** telemetry or reporting
+  around them can be improved, in which case it is `fixable` and the telemetry
+  improvement is the finding.
+- **Objective check** — one concrete artifact assertion that would verify a fix
+  (e.g. "`analytics.json:sourceFunnel.sourceGaps.total` has no duplicate
+  `(source, message)` pair"). Not a test name — an assertion over run artifacts.
+
+Close with a single **`delta:`** line — `improved` / `regressed` / `stagnant` /
+`inconclusive` versus the baseline, with the artifact evidence behind the verdict.
+When `regressed`, state whether the cause is a code change (per Step 3) or
+live-data/model variance. `inconclusive` is the required verdict when no
+comparable baseline exists.
 
 Keep Improvements separate from Recommendations. A positive delta can coexist
 with a remaining issue, but it should not be framed as work to do unless there
 is still a concrete fix or follow-up.
+
+The Category / Severity / Disposition / Objective-check fields and the `delta:`
+line are the return contract consumed by `improve-market-runs`, whose
+orchestrator selects the top two `fixable` findings. Omitting them forces the
+caller to guess.
 
 # Cause verification (mandatory)
 
@@ -229,13 +260,26 @@ Check these explicitly before final ranking:
     Citation counts alone overstate direct evidence use.
 - Source integrity: verify cited source IDs in report sections/predictions exist
   in `report.sources`; cite clean integrity if it prevents a false finding.
+- Completeness and shortfall: check `report.json:equityAnalysisCompleteness`
+  and `report.json:predictionShortfall` (both on `ResearchReport` in
+  `src/domain/types.ts`) before reporting a coverage or prediction-count gap
+  from raw counts — these fields already record what the run itself judged
+  missing, and a finding that contradicts them needs to explain why.
+  `report.json:researchQuality` carries the run's own quality self-assessment.
+- Run-shape and provider telemetry: `analytics.json:runShape`,
+  `providerEndpointAvailability`, `forecastPersistence`, and
+  `verifiedMarketSnapshot` (`RunAnalytics` in `src/research/run-analytics.ts`)
+  distinguish a degraded run from a defective one. Check
+  `providerEndpointAvailability` before attributing thin evidence to synthesis,
+  and `forecastPersistence` before reporting a missing-forecast defect.
 - Coverage constraints: separate local config/provider-plan gaps from synthesis
   or model behavior.
 - Artifact-set drift: the persisted `normalized/` set changes over time (deep
   equity runs consolidated ~24 sidecars into `evidence-bundle.json` at
   `c28326a`). When an expected artifact is absent, check whether it moved before
-  treating it as missing — and if this file names an artifact that no longer
-  exists, fix this file.
+  treating it as missing. If this file itself names an artifact or symbol that
+  no longer exists, report that as a finding — this skill does not edit files,
+  including itself.
 
 # Rules
 

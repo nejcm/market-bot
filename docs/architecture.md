@@ -76,6 +76,10 @@ preserving profile-specific semantics. Raw snapshots and stored history stay unc
 synthesis runs persist a text-free `modelInputSanitization` aggregate in trace and analytics; the
 legacy `webGatherLoop.sanitizer` block remains for compatibility.
 
+Separately, `sourceTextResearchOnly` is a warn-only `violatesResearchOnly` scan of
+`report.sources[]` `title`, `summary`, and `snippet`. Analytics stays text-free, while trace
+`items[].match` deliberately carries the matched phrase for source-field diagnosis.
+
 ### Alpha Search (`src/alpha-search/`)
 
 `alpha-search --asset equity [--deep]` is an equity lead discovery workflow. It fetches social-momentum pages from the ApeWisdom API, ranks candidates with a deterministic social momentum score, then runs SEC current-filing discovery for configured catalyst forms (`S-1,F-1,8-K,6-K` by default). SEC candidates are mapped to tickers through official SEC `company_tickers.json`. ApeWisdom runs first; SEC runs second. Candidates are deduped by symbol so ApeWisdom-backed rows keep social evidence while SEC evidence enriches the same symbol.

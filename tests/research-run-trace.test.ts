@@ -142,6 +142,112 @@ function traceFor(
 }
 
 describe("run trace builder", () => {
+  test("audits research-only source text without altering it", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const syntheticSources: Source[] = [
+      {
+        id: "fair-value",
+        title: "Fair value review",
+        summary: "The model estimates fair value at $100.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "web",
+        provider: "exa",
+      },
+      {
+        id: "sell-side",
+        title: "Analyst update",
+        summary: "Sell-side estimates moved higher.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "news",
+        provider: "finnhub",
+      },
+      {
+        id: "clean",
+        title: "Quarterly update",
+        summary: "Revenue increased year over year.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "news",
+        provider: "marketaux",
+      },
+      {
+        id: "snippet-only",
+        title: "Analyst update",
+        snippet: "Analysts raised the price target.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "news",
+        provider: "yahoo-news",
+      },
+      {
+        id: "title-only",
+        title: "Price target rises after earnings",
+        summary: "Revenue increased year over year.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "extended-evidence",
+        provider: "sec-edgar",
+      },
+    ];
+    const originalSources = structuredClone(syntheticSources);
+    const report = researchReport({ sources: syntheticSources });
+    const trace = traceFor(command, collectedSources(), { report });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSources(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.sourceTextResearchOnly).toEqual({
+      scannedCount: 5,
+      flaggedCount: 3,
+      flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
+      flaggedByProvider: { exa: 1, "yahoo-news": 1, "sec-edgar": 1 },
+    });
+    expect(trace.sourceTextResearchOnly).toEqual({
+      scannedCount: 5,
+      flaggedCount: 3,
+      flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
+      flaggedByProvider: { exa: 1, "yahoo-news": 1, "sec-edgar": 1 },
+      items: [
+        {
+          sourceId: "fair-value",
+          kind: "web",
+          provider: "exa",
+          field: "title",
+          match: "Fair value",
+        },
+        {
+          sourceId: "fair-value",
+          kind: "web",
+          provider: "exa",
+          field: "summary",
+          match: "fair value",
+        },
+        {
+          sourceId: "snippet-only",
+          kind: "news",
+          provider: "yahoo-news",
+          field: "snippet",
+          match: "price target",
+        },
+        {
+          sourceId: "title-only",
+          kind: "extended-evidence",
+          provider: "sec-edgar",
+          field: "title",
+          match: "Price target",
+        },
+      ],
+    });
+    expect(trace.sourceTextResearchOnly?.items).toHaveLength(4);
+    expect(report.sources).toEqual(originalSources);
+  });
+
   test("records relocated gap claims only when items exist", () => {
     const command = {
       jobType: "equity",

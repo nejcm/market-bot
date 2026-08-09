@@ -238,6 +238,12 @@
       }
     ]
   },
+  "sourceTextResearchOnly": {
+    "scannedCount": 38,
+    "flaggedCount": 0,
+    "flaggedByKind": {},
+    "flaggedByProvider": {}
+  },
   "sourceFunnel": {
     "rawSnapshots": {
       "total": 34,

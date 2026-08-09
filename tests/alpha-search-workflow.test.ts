@@ -634,6 +634,18 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).toContain("rank improvement 4");
     expect(result.markdown).toContain("upvotes/mention 3");
     expect(result.trace.stages).toContain("sec-fundamentals-collection");
+    const { sourceTextResearchOnly } = result.trace;
+    if (sourceTextResearchOnly === undefined) {
+      throw new Error("Expected alpha-search source-text telemetry");
+    }
+    expect(sourceTextResearchOnly.scannedCount).toBeGreaterThan(0);
+    expect(sourceTextResearchOnly.scannedCount).toBe(result.report.sources.length);
+    expect(result.analytics.sourceTextResearchOnly).toEqual({
+      scannedCount: sourceTextResearchOnly.scannedCount,
+      flaggedCount: sourceTextResearchOnly.flaggedCount,
+      flaggedByKind: sourceTextResearchOnly.flaggedByKind,
+      flaggedByProvider: sourceTextResearchOnly.flaggedByProvider,
+    });
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),

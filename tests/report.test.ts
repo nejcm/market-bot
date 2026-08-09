@@ -4,7 +4,7 @@ import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../s
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { validateResearchReport } from "../src/report/schema";
+import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
 import {
   assembleResearchReport,
   assembleResearchReportWithRelocations,
@@ -17,6 +17,7 @@ import type { DepthProfile, ResearchContext } from "../src/research/research-con
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { auditSourceTextResearchOnly } from "../src/research/run-trace";
 import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -3226,6 +3227,52 @@ describe("report schema and rendering", () => {
         extras: {
           researchLeads: [],
           rejectedCandidates: [],
+        },
+      }),
+    ).toThrow("trade-action language");
+  });
+
+  test.each(["title", "summary", "snippet"] as const)(
+    "exempts attributed source %s while retaining research-only telemetry",
+    (field) => {
+      const candidate = {
+        ...report,
+        sources: [{ ...report.sources[0]!, [field]: "Fair value is $100." }],
+      };
+
+      expect(() => assertSafeReportLanguage(candidate)).not.toThrow();
+      expect(auditSourceTextResearchOnly(candidate.sources).flaggedCount).toBeGreaterThan(0);
+    },
+  );
+
+  test.each([
+    { summary: "Fair value is $100." },
+    { keyFindings: [{ text: "Fair value is $100.", sourceIds: ["source-1"] }] },
+  ])("keeps authored report text behind the research-only gate", (authoredFields) => {
+    expect(() => assertSafeReportLanguage({ ...report, ...authoredFields })).toThrow(
+      "trade-action language",
+    );
+  });
+
+  test("gates attributed source text copied into derived extended evidence", () => {
+    expect(() =>
+      assertSafeReportLanguage({
+        ...report,
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items: [
+            {
+              category: "sec-edgar",
+              title: "SEC filing excerpt",
+              summary: "Fair value is $100.",
+              sourceIds: ["source-1"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
         },
       }),
     ).toThrow("trade-action language");

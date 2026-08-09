@@ -8,6 +8,7 @@ import {
   type RunTrace,
   type Source,
   type SourceGap,
+  type SourceTextResearchOnlySummary,
   type WebEvidenceUtilization,
   type WebGatherAcceptancePolicy,
 } from "../domain/types";
@@ -42,6 +43,7 @@ import {
   deriveProviderEndpointAvailability,
   type ProviderEndpointAvailability,
 } from "../sources/provider-endpoint-availability";
+import { summarizeSourceTextResearchOnly } from "./run-trace";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -77,6 +79,7 @@ export interface RunAnalytics {
   readonly codeVersion?: RunTrace["codeVersion"];
   readonly reproducibility?: RunTrace["reproducibility"];
   readonly modelInputSanitization?: RunTrace["modelInputSanitization"];
+  readonly sourceTextResearchOnly?: SourceTextResearchOnlySummary;
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -705,6 +708,11 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     ...(trace.reproducibility !== undefined ? { reproducibility: trace.reproducibility } : {}),
     ...(trace.modelInputSanitization !== undefined
       ? { modelInputSanitization: trace.modelInputSanitization }
+      : {}),
+    ...(trace.sourceTextResearchOnly !== undefined
+      ? {
+          sourceTextResearchOnly: summarizeSourceTextResearchOnly(trace.sourceTextResearchOnly),
+        }
       : {}),
     sourceFunnel: {
       rawSnapshots: {

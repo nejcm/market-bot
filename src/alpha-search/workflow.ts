@@ -3,7 +3,14 @@ import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
-import type { KeyFinding, ResearchReport, RunTrace, Source, SourceGap } from "../domain/types";
+import type {
+  KeyFinding,
+  ResearchReport,
+  RunTrace,
+  Source,
+  SourceGap,
+  SourceTextResearchOnlySummary,
+} from "../domain/types";
 import {
   compactUnmappedSecFilingGaps,
   isCoreEvidenceQualityGap,
@@ -12,6 +19,10 @@ import {
 } from "../domain/source-gaps";
 import { renderMarkdownReport } from "../report/markdown";
 import { validateResearchReport } from "../report/schema";
+import {
+  auditSourceTextResearchOnly,
+  summarizeSourceTextResearchOnly,
+} from "../research/run-trace";
 import { buildAlphaSearchManifest, persistRunArtifactWrites } from "../run-artifact-writer";
 import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";
 import { createSourceRequestContext } from "../sources/source-request";
@@ -71,6 +82,7 @@ export interface AlphaSearchRunAnalytics {
   readonly depth: AlphaSearchCommand["depth"];
   readonly codeVersion?: RunTrace["codeVersion"];
   readonly reproducibility?: RunTrace["reproducibility"];
+  readonly sourceTextResearchOnly?: SourceTextResearchOnlySummary;
   readonly sourceFunnel: {
     readonly reportSources: {
       readonly total: number;
@@ -349,6 +361,7 @@ function buildTrace(input: {
   readonly startedAt: string;
   readonly completedAt: string;
   readonly sourceGaps: readonly SourceGap[];
+  readonly report: ResearchReport;
 }): RunTrace {
   const codeVersion = readCodeVersion();
   const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
@@ -380,6 +393,7 @@ function buildTrace(input: {
     ],
     tokenEstimate: 0,
     costEstimateUsd: 0,
+    sourceTextResearchOnly: auditSourceTextResearchOnly(input.report.sources),
     domainPlaybooks: { selected: [], rejected: [] },
   };
 }
@@ -426,6 +440,11 @@ function buildAlphaSearchAnalytics(input: {
     depth: trace.depth,
     ...(trace.codeVersion !== undefined ? { codeVersion: trace.codeVersion } : {}),
     ...(trace.reproducibility !== undefined ? { reproducibility: trace.reproducibility } : {}),
+    ...(trace.sourceTextResearchOnly !== undefined
+      ? {
+          sourceTextResearchOnly: summarizeSourceTextResearchOnly(trace.sourceTextResearchOnly),
+        }
+      : {}),
     sourceFunnel: {
       reportSources: {
         total: report.sources.length,
@@ -586,6 +605,7 @@ export async function runAlphaSearchWorkflow(input: {
     startedAt,
     completedAt,
     sourceGaps,
+    report,
   });
   const analytics = buildAlphaSearchAnalytics({
     report,

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SourceGap } from "../src/domain/types";
+import { assertSafeReportLanguage } from "../src/report/schema";
 import {
   availableEvidenceRequestTools,
   executeEvidenceRequestTool,
@@ -13,6 +14,7 @@ import type {
   SourceRequestExecutor,
 } from "../src/sources/types";
 import { latestSecFilingDate } from "../src/web-evidence/web-subject-profile-reuse";
+import { researchReport } from "./support/fixtures";
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";
 const SEC_8K_PACKET_MAX_TEST_CHARS = 3003;
@@ -174,6 +176,46 @@ describe("SEC latest filing evidence tool", () => {
         .filter((request) => request.adapter.startsWith("sec-"))
         .every((request) => request.headers.get("user-agent") === "market-bot test@example.test"),
     ).toBe(true);
+  });
+
+  test("gates the filing excerpt built from exempt SEC source text", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-Q"])),
+          text: async ({ adapter }) =>
+            textResult(
+              adapter,
+              `ITEM 2-MANAGEMENT Fair value is measured under ASC 820. ${repeatToMinAlpha(
+                "Additional management discussion provides substantive filing context.",
+              )}`,
+            ),
+        }),
+      }),
+    );
+    const source = result.sources[0]!;
+    const item = result.items[0]!;
+
+    expect(source.snippet).toContain("Fair value is measured under ASC 820.");
+    expect(item.summary).toContain("Filing excerpt: [MD&A] ITEM 2-MANAGEMENT Fair value");
+    expect(() =>
+      assertSafeReportLanguage(
+        researchReport({
+          jobType: "equity",
+          symbol: "AAPL",
+          sources: [source],
+          extendedEvidence: {
+            instrument: { assetClass: "equity", symbol: "AAPL" },
+            items: [item],
+            gaps: [],
+          },
+        }),
+      ),
+    ).toThrow('trade-action language: "Fair value"');
   });
 
   test("encodes the SEC primary document URL segment", async () => {

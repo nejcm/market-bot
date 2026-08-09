@@ -822,6 +822,25 @@ export interface WebSourceSynthesisInput {
   readonly advisories: readonly WebSourceSynthesisAdvisory[];
 }
 
+// Warn-only source-text telemetry keeps the analytics aggregate text-free.
+// Trace items retain the matched phrase and field needed to diagnose attributed third-party wording.
+export interface SourceTextResearchOnlySummary {
+  readonly scannedCount: number;
+  readonly flaggedCount: number;
+  readonly flaggedByKind: Readonly<Record<string, number>>;
+  readonly flaggedByProvider: Readonly<Record<string, number>>;
+}
+
+export interface SourceTextResearchOnlyAudit extends SourceTextResearchOnlySummary {
+  readonly items: readonly {
+    readonly sourceId: string;
+    readonly kind: SourceKind;
+    readonly provider: string;
+    readonly field: "title" | "summary" | "snippet";
+    readonly match: string;
+  }[];
+}
+
 export interface RunTrace {
   readonly schemaVersion?: 2;
   readonly runId: string;
@@ -869,6 +888,7 @@ export interface RunTrace {
   readonly webGatherLoop?: WebGatherLoopAudit;
   readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
+  readonly sourceTextResearchOnly?: SourceTextResearchOnlyAudit;
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;

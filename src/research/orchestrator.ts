@@ -722,24 +722,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionRetryErrors,
     predictionTrimWarnings,
     predictionCompletion,
-    predictionHorizonAudit,
     reportValidationErrors,
     relocatedGapClaims,
   } = synthesis;
-  const finalPredictionIds = new Set(report.predictions.map((prediction) => prediction.id));
-  const finalPredictionHorizonAudit = {
-    ...predictionHorizonAudit,
-    accepted: report.predictions.map((prediction) => prediction.horizonTradingDays),
-    rejectedWithReason: [
-      ...predictionHorizonAudit.rejectedWithReason,
-      ...synthesis.report.predictions
-        .filter((prediction) => !finalPredictionIds.has(prediction.id))
-        .map((prediction) => ({
-          horizon: prediction.horizonTradingDays,
-          reason: `Prediction ${prediction.id}: pruned by report integrity audit`,
-        })),
-    ],
-  };
   const codeVersion = readCodeVersion();
   const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   const stageOutputs: readonly StageOutput[] = [
@@ -779,7 +764,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionRetryErrors,
     predictionTrimWarnings,
     predictionCompletion,
-    predictionHorizonAudit: finalPredictionHorizonAudit,
     predictionErrors,
     reportValidationErrors,
     relocatedGapClaims,

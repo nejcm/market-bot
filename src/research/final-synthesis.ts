@@ -3,7 +3,6 @@ import {
   NEAR_BASE_RATE_BAND,
   type Prediction,
   type PredictionCompletionAudit,
-  type PredictionHorizonAudit,
   type RelocatedGapClaim,
   type ResearchReport,
   type Source,
@@ -72,8 +71,6 @@ interface SynthesisProgress {
   readonly state: FinalSynthesisState;
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
-  readonly predictionHorizonRejectedWithReason: PredictionHorizonAudit["rejectedWithReason"];
-  readonly predictionHorizonCandidateIds: readonly string[];
   /** Best validated prediction set seen so far in this run's repair chain. Retaining the previous
    *  attempt alone lets a chain ratchet downward: if a repair returns fewer predictions despite the
    *  survivor guidance, the next repair would anchor to the shrunken set and the loss compounds. */
@@ -137,10 +134,6 @@ export interface SynthesizeReportUntilValidResult {
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
   readonly predictionCompletion?: PredictionCompletionAudit;
-  readonly predictionHorizonAudit: Pick<
-    PredictionHorizonAudit,
-    "candidate" | "completionCandidate" | "rejectedWithReason"
-  >;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
@@ -170,16 +163,10 @@ export async function synthesizeReportUntilValid(
     },
   };
   const initialState = await runAndReadFinalSynthesis(trackedInput);
-  const initialHorizonAudit = predictionHorizonAttempt(
-    initialState.payload.predictions,
-    initialState.predResult,
-  );
   const predictionProgress = await runPredictionReprompts(trackedInput, {
     state: initialState,
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
-    predictionHorizonRejectedWithReason: initialHorizonAudit.rejectedWithReason,
-    predictionHorizonCandidateIds: initialHorizonAudit.candidateIds,
     retainedPredictions: retainablePredictions(trackedInput, initialState),
   });
   const validated = await validateBaseReport(
@@ -200,13 +187,6 @@ export async function synthesizeReportUntilValid(
   );
   const assembled = buildReportWithRelocations(trackedInput, completion.progress.state);
   const { report, relocatedGapClaims, sourceGaps } = assembled;
-  const acceptedIds = new Set(report.predictions.map((prediction) => prediction.id));
-  // `candidate` deliberately samples only the first, unprimed primary round; repair rounds contain
-  // Gate feedback. Completion-pass candidates are emitted separately as `completionCandidate`.
-  const candidateIds = new Set([
-    ...completion.progress.predictionHorizonCandidateIds,
-    ...(completion.candidateIds ?? []),
-  ]);
   return {
     report,
     sourceGaps,
@@ -214,22 +194,6 @@ export async function synthesizeReportUntilValid(
     predictionRetryErrors: completion.progress.predictionRetryErrors,
     predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
-    predictionHorizonAudit: {
-      candidate: initialHorizonAudit.candidate,
-      completionCandidate: completion.predictionHorizonAudit?.candidate ?? [],
-      rejectedWithReason: [
-        ...completion.progress.predictionHorizonRejectedWithReason,
-        ...(completion.predictionHorizonAudit?.rejectedWithReason ?? []),
-        ...completion.progress.state.predResult.predictions
-          .filter(
-            (prediction) => candidateIds.has(prediction.id) && !acceptedIds.has(prediction.id),
-          )
-          .map((prediction) => ({
-            horizon: prediction.horizonTradingDays,
-            reason: `Prediction ${prediction.id}: rejected by report assembly gate`,
-          })),
-      ],
-    },
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
     relocatedGapClaims,
@@ -295,7 +259,6 @@ async function validateBaseReport(
       ...progress.predictionRetryErrors,
       ...reportRetryPredictionErrors,
     ]),
-    ...mergePredictionHorizonAttempt(progress, validationState),
     retainedPredictions: bestRetainedPredictions(
       input,
       progress.retainedPredictions,
@@ -316,7 +279,6 @@ async function validateBaseReport(
         ...validationProgress.predictionRetryErrors,
         ...postReportPredictionErrors,
       ]),
-      ...mergePredictionHorizonAttempt(validationProgress, state),
       retainedPredictions: bestRetainedPredictions(
         input,
         validationProgress.retainedPredictions,
@@ -386,7 +348,6 @@ async function buildReportWithRepair(
         ...progress.predictionRetryErrors,
         ...predictionErrors,
       ]),
-      ...mergePredictionHorizonAttempt(progress, state),
       retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
     };
     return buildReportWithRepair(
@@ -419,7 +380,6 @@ async function runPredictionReprompts(
         state,
         stageOutputs: [...progress.stageOutputs, state.output],
         predictionRetryErrors: uniqueStrings([...progress.predictionRetryErrors, ...retryErrors]),
-        ...mergePredictionHorizonAttempt(progress, state),
         retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
       };
     },
@@ -463,91 +423,9 @@ async function runAndReadFinalSynthesis(
   return { output, payload, predResult };
 }
 
-function predictionHorizonCandidate(value: unknown): {
-  readonly id?: string;
-  readonly horizon?: number;
-} {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return {};
-  }
-  const record = value as Record<string, unknown>;
-  return {
-    ...(typeof record.id === "string" ? { id: record.id } : {}),
-    ...(typeof record.horizonTradingDays === "number"
-      ? { horizon: record.horizonTradingDays }
-      : {}),
-  };
-}
-
-function predictionHorizonAttempt(
-  value: unknown,
-  result: ReturnType<typeof readPredictions>,
-): Pick<PredictionHorizonAudit, "candidate" | "rejectedWithReason"> & {
-  readonly candidateIds: readonly string[];
-} {
-  const candidate: number[] = [];
-  const candidateIds: string[] = [];
-  const rejectedWithReason: { horizon: number; reason: string }[] = [];
-  const acceptedIds = result.predictions.map((prediction) => prediction.id);
-  const issues = [...result.issues];
-  for (const rawCandidate of Array.isArray(value) ? value : []) {
-    const { id, horizon } = predictionHorizonCandidate(rawCandidate);
-    if (horizon === undefined) {
-      continue;
-    }
-    candidate.push(horizon);
-    if (id !== undefined) {
-      candidateIds.push(id);
-    }
-    const acceptedIndex = id === undefined ? -1 : acceptedIds.indexOf(id);
-    if (acceptedIndex >= 0) {
-      acceptedIds.splice(acceptedIndex, 1);
-      continue;
-    }
-    const issueIndex = issues.findIndex((issue) => issue.predictionId === id);
-    const [issue] = issueIndex === -1 ? [] : issues.splice(issueIndex, 1);
-    rejectedWithReason.push({
-      horizon,
-      reason:
-        issue?.message ?? `Prediction ${id ?? "without id"}: rejected by prediction validation`,
-    });
-  }
-  return { candidate, candidateIds, rejectedWithReason };
-}
-
-function mergePredictionHorizonAttempt(
-  progress: SynthesisProgress,
-  state: FinalSynthesisState,
-): Pick<
-  SynthesisProgress,
-  "predictionHorizonRejectedWithReason" | "predictionHorizonCandidateIds"
-> {
-  const attempt = predictionHorizonAttempt(state.payload.predictions, state.predResult);
-  const rejections = [
-    ...progress.predictionHorizonRejectedWithReason,
-    ...attempt.rejectedWithReason,
-  ];
-  return {
-    predictionHorizonRejectedWithReason: [
-      ...new Map(
-        rejections.map((entry) => [`${entry.horizon}|${entry.reason}`, entry] as const),
-      ).values(),
-    ],
-    predictionHorizonCandidateIds: [
-      ...progress.predictionHorizonCandidateIds,
-      ...attempt.candidateIds,
-    ],
-  };
-}
-
 interface PredictionCompletionResult {
   readonly progress: SynthesisProgress;
   readonly audit?: PredictionCompletionAudit;
-  readonly predictionHorizonAudit?: Pick<
-    PredictionHorizonAudit,
-    "candidate" | "rejectedWithReason"
-  >;
-  readonly candidateIds?: readonly string[];
 }
 
 function completionSubjects(
@@ -603,40 +481,17 @@ function mergeCompletionCandidates(input: {
   readonly acceptedPredictionIds: readonly string[];
   readonly rejectedCandidateCount: number;
   readonly rejectionReasons: readonly string[];
-  readonly predictionHorizonAudit: Pick<PredictionHorizonAudit, "candidate" | "rejectedWithReason">;
-  readonly candidateIds: readonly string[];
 } {
   const candidates = Array.isArray(input.candidates) ? input.candidates : [];
   const accepted = [...input.existing];
   const acceptedPredictionIds: string[] = [];
   const rejectionReasons: string[] = [];
-  const candidateHorizons: number[] = [];
-  const candidateIds: string[] = [];
-  const rejectedWithReason: { horizon: number; reason: string }[] = [];
   let rejectedCandidateCount = 0;
 
-  const reject = (rawCandidate: unknown, reasons: readonly string[]): void => {
-    rejectedCandidateCount += 1;
-    rejectionReasons.push(...reasons);
-    const { horizon } = predictionHorizonCandidate(rawCandidate);
-    if (horizon !== undefined) {
-      rejectedWithReason.push({
-        horizon,
-        reason: uniqueStrings(reasons).join("; ") || "rejected by prediction completion",
-      });
-    }
-  };
-
   for (const rawCandidate of candidates) {
-    const { id, horizon } = predictionHorizonCandidate(rawCandidate);
-    if (horizon !== undefined) {
-      candidateHorizons.push(horizon);
-    }
-    if (id !== undefined) {
-      candidateIds.push(id);
-    }
     if (accepted.length >= input.targetCount) {
-      reject(rawCandidate, ["prediction completion target already met"]);
+      rejectedCandidateCount += 1;
+      rejectionReasons.push("prediction completion target already met");
       continue;
     }
 
@@ -647,13 +502,15 @@ function mergeCompletionCandidates(input: {
     );
     const [candidate] = candidateResult.predictions;
     if (candidate === undefined) {
-      reject(rawCandidate, candidateRejectionReasons(candidateResult));
+      rejectedCandidateCount += 1;
+      rejectionReasons.push(...candidateRejectionReasons(candidateResult));
       continue;
     }
     if (isNearBaseRate(candidate)) {
-      reject(rawCandidate, [
+      rejectedCandidateCount += 1;
+      rejectionReasons.push(
         `Prediction ${candidate.id}: near-base-rate probability is not eligible for completion`,
-      ]);
+      );
       continue;
     }
 
@@ -669,14 +526,14 @@ function mergeCompletionCandidates(input: {
       combined.predictions.length === accepted.length + 1 &&
       combined.predictions.some((prediction) => prediction.id === candidate.id);
     if (!preservesExisting || !addsCandidate) {
+      rejectedCandidateCount += 1;
       const reasons = candidateRejectionReasons(combined).filter((reason) =>
         reason.includes(candidate.id),
       );
-      reject(
-        rawCandidate,
-        reasons.length > 0
+      rejectionReasons.push(
+        ...(reasons.length > 0
           ? reasons
-          : [`Prediction ${candidate.id}: conflicts with an accepted prediction`],
+          : [`Prediction ${candidate.id}: conflicts with an accepted prediction`]),
       );
       continue;
     }
@@ -690,8 +547,6 @@ function mergeCompletionCandidates(input: {
     acceptedPredictionIds,
     rejectedCandidateCount,
     rejectionReasons: uniqueStrings(rejectionReasons),
-    predictionHorizonAudit: { candidate: candidateHorizons, rejectedWithReason },
-    candidateIds,
   };
 }
 
@@ -755,8 +610,6 @@ async function runPredictionCompletion(
         state,
         stageOutputs: [...progress.stageOutputs, output],
         predictionRetryErrors: progress.predictionRetryErrors,
-        predictionHorizonRejectedWithReason: progress.predictionHorizonRejectedWithReason,
-        predictionHorizonCandidateIds: progress.predictionHorizonCandidateIds,
         // The completion pass only adds predictions to an accepted report; it never repairs, so the
         // Best-so-far set carries through untouched.
         retainedPredictions: progress.retainedPredictions,
@@ -770,8 +623,6 @@ async function runPredictionCompletion(
         rejectionReasons: merged.rejectionReasons,
         outcome,
       },
-      predictionHorizonAudit: merged.predictionHorizonAudit,
-      candidateIds: merged.candidateIds,
     };
   } catch (error: unknown) {
     return {

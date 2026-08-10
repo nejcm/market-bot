@@ -57,7 +57,6 @@ export function buildRunTrace(input: {
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
   readonly predictionCompletion: RunTrace["predictionCompletion"];
-  readonly predictionHorizonAudit: NonNullable<RunTrace["predictionHorizonAudit"]>;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
   readonly relocatedGapClaims?: readonly RelocatedGapClaim[];
@@ -128,7 +127,6 @@ export function buildRunTrace(input: {
     ...(input.predictionCompletion !== undefined
       ? { predictionCompletion: input.predictionCompletion }
       : {}),
-    predictionHorizonAudit: input.predictionHorizonAudit,
     ...(input.predictionErrors.length > 0 ? { predictionErrors: input.predictionErrors } : {}),
     ...(earningsForecasts !== undefined ? { earningsForecasts } : {}),
     ...(input.reportValidationErrors.length > 0

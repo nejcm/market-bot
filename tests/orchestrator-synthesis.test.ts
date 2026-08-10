@@ -631,11 +631,6 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       "Prediction bad-relative: subject does not match measurableAs",
     );
     expect(result.report.predictions.length).toBeGreaterThanOrEqual(2);
-    expect(result.trace.predictionHorizonAudit?.candidate).toEqual([5, 7]);
-    expect(result.trace.predictionHorizonAudit?.rejectedWithReason).toContainEqual({
-      horizon: 5,
-      reason: "Prediction bad-relative: subject does not match measurableAs",
-    });
   });
 
   test("logs prediction validation errors to trace when malformed predictions are dropped", async () => {
@@ -690,12 +685,6 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(result.report.predictions).toHaveLength(2);
     expect(result.trace.predictionErrors).toBeDefined();
     expect(result.trace.predictionErrors?.length).toBe(2);
-    expect(result.trace.predictionHorizonAudit?.candidate).toEqual([5, 30, 5, 7]);
-    expect(result.trace.predictionHorizonAudit?.accepted).toEqual([5, 7]);
-    expect(result.trace.predictionHorizonAudit?.rejectedWithReason).toEqual([
-      { horizon: 5, reason: 'Prediction bad-1: invalid kind "invalid-kind"' },
-      { horizon: 30, reason: "Prediction bad-2: horizonTradingDays must be 1–20" },
-    ]);
   });
 
   test("records attached report news in the seen index after persistence", async () => {

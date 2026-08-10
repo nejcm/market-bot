@@ -22,6 +22,7 @@ import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evi
 const FIXTURES = [
   "equity-aapl-brief",
   "equity-aapl-deep",
+  "equity-earnings-release-deep",
   "equity-nbis-deep",
   "equity-fpi-quarterly",
   "equity-fpi-ifrs-semiannual",
@@ -33,6 +34,7 @@ const FIXTURES = [
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
   "equity-aapl-deep": ["complete", "limited"],
+  "equity-earnings-release-deep": ["partial", "limited"],
   "equity-nbis-deep": ["partial", "limited"],
   "equity-fpi-quarterly": ["complete", "limited"],
   "equity-fpi-ifrs-semiannual": ["complete", "limited"],

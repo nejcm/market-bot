@@ -4,6 +4,7 @@ import { assertSafeReportLanguage } from "../src/report/schema";
 import {
   availableEvidenceRequestTools,
   executeEvidenceRequestTool,
+  hasSubstantiveResultsContent,
   normalizeFilingText,
 } from "../src/sources/evidence-request-tools";
 import type {
@@ -123,6 +124,13 @@ function secSubmissionsPayload(
 
 function currentReportRow(filingDate: string, accession: string, document: string, items: string) {
   return { form: "8-K", filingDate, accession, document, items };
+}
+
+function indexHtml(name: string, type: string): string {
+  return `<table><tr><th>Seq</th><th>Description</th><th>Document</th><th>Type</th></tr>
+     <tr><td>1</td><td>Cover</td><td><a href="/Archives/edgar/data/320193/000032019326000050/earnings-8k.htm">earnings-8k.htm</a></td><td>8-K</td></tr>
+     <tr><td>2</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/${name}">${name}</a></td><td>${type}</td></tr>
+     </table>`;
 }
 
 describe("SEC latest filing evidence tool", () => {
@@ -732,6 +740,167 @@ describe("SEC latest filing evidence tool", () => {
     expect(
       result.items.find((item) => item.sourceIds[0] === EARNINGS_8K_ID)?.metrics,
     ).toMatchObject({ items: "2.02,9.01" });
+  });
+
+  // Item 2.02 earnings-release exhibit resolution. The cover document names the exhibit; the
+  // Reported figures only exist inside it.
+  const EARNINGS_8K_ROW = currentReportRow(
+    "2026-04-28",
+    "0000320193-26-000050",
+    "earnings-8k.htm",
+    "2.02",
+  );
+  const COVER_TEXT =
+    "ITEM 2.02 Results of Operations and Financial Condition. On April 28, 2026 the Company " +
+    "issued a press release announcing its revenue and net income for the quarter. A copy of " +
+    "the press release is furnished as Exhibit 99.1 to this Current Report and is incorporated " +
+    "herein by reference.";
+  const RELEASE_TEXT =
+    "Apple Inc. Reports Second Quarter Results. Revenue of $95.4 billion, up 5 percent year " +
+    "over year. Net income of $23,636 million and earnings per share of $1.53. Operating " +
+    "income was $29,589 million and the quarterly dividend was raised to $0.26 per share.";
+  function earningsExhibitText(
+    index: string | SourceGap,
+    exhibit: string,
+    cover: string | SourceGap = COVER_TEXT,
+  ): SourceRequestExecutor["text"] {
+    return async ({ adapter, url }) => {
+      if (adapter === "sec-filing-index") {
+        return typeof index === "string" ? textResult(adapter, index) : index;
+      }
+      if (adapter === "sec-earnings-release-exhibit") {
+        return textResult(adapter, exhibit);
+      }
+      if (url.includes("earnings-8k.htm")) {
+        return typeof cover === "string" ? textResult(adapter, cover) : cover;
+      }
+      return textResult(adapter, COVER_TEXT);
+    };
+  }
+
+  const exhibitGap = expect.objectContaining({
+    source: "sec-edgar",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "extended-evidence-cap",
+    message: expect.stringContaining(
+      "SEC Item 2.02 8-K 0000320193-26-000050 for AAPL yielded no substantive earnings-release content",
+    ),
+  });
+
+  test("prefers the EX-99.1 earnings release over the 8-K cover document", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(indexHtml("ex991.htm", "EX-99.1"), RELEASE_TEXT),
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.snippet).toContain("Net income of $23,636 million");
+    expect(source?.snippet).not.toContain("furnished as Exhibit 99.1");
+    // Provenance follows the text that was actually used.
+    expect(source?.url).toBe(
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050/ex991.htm",
+    );
+    expect(source?.rawRef).toBe("raw-sec-earnings-release-exhibit");
+    // Filing index, cover document and exhibit are all retained for replay.
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain("sec-filing-index");
+    expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain(
+      "sec-earnings-release-exhibit",
+    );
+    expect(result.gaps).not.toContainEqual(exhibitGap);
+  });
+
+  test("falls back to the cover document and gaps when the filing index fetch fails", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(gap("sec-filing-index", "timeout"), RELEASE_TEXT),
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.snippet).toContain("furnished as Exhibit 99.1");
+    expect(source?.rawRef).toBe("raw-sec-filing-text");
+    expect(result.gaps).toContainEqual(exhibitGap);
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({ source: "sec-filing-index", message: "timeout" }),
+    );
+  });
+
+  test("falls back to the cover document and gaps when the index lists no EX-99 exhibit", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(indexHtml("ex101.htm", "EX-10.1"), RELEASE_TEXT),
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.snippet).toContain("furnished as Exhibit 99.1");
+    expect(result.gaps).toContainEqual(exhibitGap);
+  });
+
+  test("gaps when the resolved exhibit carries no reported results", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(
+        indexHtml("ex991.htm", "EX-99.1"),
+        "Exhibit 99.1 Press Release. The Company will host a conference call to discuss its " +
+          "revenue and net income for the quarter with the investment community.",
+      ),
+    );
+
+    expect(result.gaps).toContainEqual(exhibitGap);
+  });
+
+  test("separates a results release from a cover sheet", () => {
+    expect(hasSubstantiveResultsContent(COVER_TEXT)).toBe(false);
+    expect(hasSubstantiveResultsContent(RELEASE_TEXT)).toBe(true);
+    // A results term alone is not enough, and figures alone are not enough.
+    expect(hasSubstantiveResultsContent("Revenue and net income were discussed.")).toBe(false);
+    expect(
+      hasSubstantiveResultsContent("Cash was $1.2 billion, 1,234.5 units, (0.37) and 12%."),
+    ).toBe(false);
+    // Each formatted figure counts once: two currency-scaled figures must not reach the
+    // Four-token floor by splitting into "$1" + "2 billion".
+    expect(
+      hasSubstantiveResultsContent("Revenue of $1.2 billion and net income of $23,636 million."),
+    ).toBe(false);
+  });
+
+  test("builds the earnings item from the exhibit when the cover document fetch fails", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(
+        indexHtml("ex991.htm", "EX-99.1"),
+        RELEASE_TEXT,
+        gap("sec-filing-text", "timeout"),
+      ),
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.snippet).toContain("Net income of $23,636 million");
+    expect(source?.url).toBe(
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050/ex991.htm",
+    );
+    expect(source?.rawRef).toBe("raw-sec-earnings-release-exhibit");
+    // The primary-fetch failure is still reported; the content gap is not, since results landed.
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({ source: "sec-filing-text", message: "timeout" }),
+    );
+    expect(result.gaps).not.toContainEqual(exhibitGap);
+  });
+
+  test("keeps the cover document when the resolved exhibit is not the results release", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(
+        indexHtml("ex991.htm", "EX-99.1"),
+        "Exhibit 99.1 Apple will host a conference call to discuss its revenue and net income.",
+        RELEASE_TEXT,
+      ),
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.snippet).toContain("Net income of $23,636 million");
+    expect(source?.url).toContain("/earnings-8k.htm");
+    expect(source?.rawRef).toBe("raw-sec-filing-text");
+    expect(result.gaps).not.toContainEqual(exhibitGap);
   });
 
   test("marks quarterly coverage not-applicable when no 10-Q follows the 10-K", async () => {

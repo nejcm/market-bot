@@ -15,6 +15,7 @@ import {
   secRequestInit,
   type SecCompanyFactsResult,
 } from "./extended-evidence/sec-edgar";
+import { filingBaseUrl, filingDocuments } from "./extended-evidence/sec-archive";
 import { encodeQuery, readArray } from "./extended-evidence/utils";
 import { SEC_FILING_TEXT_MAX_RESPONSE_BYTES } from "./source-request";
 import { tradierRequestInit } from "./tradier";
@@ -84,6 +85,12 @@ const SEC_SECTION_MIN_ALPHA_CHARS = 40;
 // Line only because TOC lines are dense with ITEM headers. It can still admit a slice that
 // Bled forward into an unrelated section; that's a known limitation, not a guarantee.
 const SEC_SECTION_MIN_SELECTED_ALPHA_CHARS = 300;
+// An Item 2.02 cover sheet ("the press release is furnished as Exhibit 99.1") clears both
+// SEC_PACKET_MIN_CHARS and SEC_SECTION_MIN_ALPHA_CHARS while containing no reported results, so
+// Substantive-results detection needs its own floor: a results term plus this many numeric
+// Magnitude tokens (a figure carrying a currency, scale, thousands-separator, percent, or
+// Parenthesised-negative marker). Named counts like "Exhibit 99.1" or "Item 2.02" carry none.
+const SEC_RESULTS_MIN_MAGNITUDE_TOKENS = 4;
 const SEC_8K_PACKET_BUDGET = 3000;
 const SEC_8K_LOOKBACK_DAYS = 120;
 const SEC_8K_LIMIT = 2;
@@ -392,6 +399,30 @@ export function normalizeFilingText(payload: string): string {
   )
     .replaceAll(/\s+/gu, " ")
     .trim();
+}
+
+const SEC_RESULTS_TERM_PATTERN =
+  /revenue|net income|earnings per share|operating income|net loss/iu;
+// Each alternative consumes a whole formatted figure so one figure counts once: the currency
+// Form is tried first and swallows any trailing scale word, otherwise "$1.2 billion" would score
+// Twice ("$1" plus "2 billion") and two real figures could clear the threshold.
+const SEC_MAGNITUDE_TOKEN_PATTERN = new RegExp(
+  String.raw`\$\s?\d[\d,]*(?:\.\d+)?(?:\s*(?:thousand|million|billion|trillion)\b)?` +
+    String.raw`|\d[\d,]*(?:\.\d+)?\s*(?:thousand|million|billion|trillion)\b` +
+    String.raw`|\d{1,3}(?:,\d{3})+(?:\.\d+)?` +
+    String.raw`|\(\d+\.\d+\)` +
+    String.raw`|\d+(?:\.\d+)?\s?%`,
+  "giu",
+);
+
+// Deterministic test for "this text reports results" rather than merely naming them. Both halves
+// Are required: a cover sheet that says "results of operations ... furnished as Exhibit 99.1"
+// Passes the term half and fails the magnitude half.
+export function hasSubstantiveResultsContent(normalized: string): boolean {
+  return (
+    SEC_RESULTS_TERM_PATTERN.test(normalized) &&
+    [...normalized.matchAll(SEC_MAGNITUDE_TOKEN_PATTERN)].length >= SEC_RESULTS_MIN_MAGNITUDE_TOKENS
+  );
 }
 
 function secIdentity(match: { cik: string; ticker: string; name?: string }): InstrumentIdentity {
@@ -790,6 +821,72 @@ async function fetchFilingText(
   return { result, url };
 }
 
+function secEarningsExhibitGap(
+  symbol: string,
+  filing: SecFiling,
+  exhibitState: string,
+  primaryState: string,
+): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC Item 2.02 8-K ${filing.accessionNumber} for ${symbol} yielded no substantive earnings-release content (${exhibitState}; ${primaryState})`,
+    provider: "sec-edgar",
+    capability: "evidence-request",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
+interface EarningsExhibitResolution {
+  readonly text?: FetchTextResult;
+  readonly url?: string;
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly gaps: readonly SourceGap[];
+}
+
+// The results of an Item 2.02 current report live in its EX-99 press release, not the cover
+// Document. Walks the filing index for the best EX-99 candidate; the two requests are sequential,
+// Matching the SEC archive rate-limit discipline the untagged-exhibit path already follows.
+async function resolveEarningsReleaseExhibit(
+  ctx: CollectContext,
+  filing: SecFiling,
+  cik: string,
+): Promise<EarningsExhibitResolution> {
+  const baseUrl = filingBaseUrl(String(Number(cik)), filing.accessionNumber);
+  const init = secTextRequestInit(ctx.secUserAgent);
+  const index = await ctx.request.text({
+    url: `${baseUrl}/${filing.accessionNumber}-index.html`,
+    adapter: "sec-filing-index",
+    init,
+  });
+  if (!isFetchTextResult(index)) {
+    return { rawSnapshots: [], gaps: [index] };
+  }
+  const [document] = filingDocuments(index.payload, baseUrl, filing.primaryDocument);
+  if (document === undefined) {
+    return { rawSnapshots: [index.rawSnapshot], gaps: [] };
+  }
+  const exhibit = await ctx.request.text({
+    url: document.url,
+    adapter: "sec-earnings-release-exhibit",
+    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
+    init,
+  });
+  if (!isFetchTextResult(exhibit)) {
+    return { rawSnapshots: [index.rawSnapshot], gaps: [exhibit] };
+  }
+  return {
+    text: exhibit,
+    url: document.url,
+    rawSnapshots: [index.rawSnapshot, exhibit.rawSnapshot],
+    gaps: [],
+  };
+}
+
+function isEarningsRelease(filing: SecFiling): boolean {
+  return filing.form === "8-K" && filing.items?.includes(EARNINGS_RELEASE_ITEM_CODE) === true;
+}
+
 async function collectSecFiling(
   ctx: CollectContext,
   command: InstrumentCommand,
@@ -805,12 +902,54 @@ async function collectSecFiling(
   readonly droppedItemCount: number;
 }> {
   const { result, url } = await fetchFilingText(ctx, filing, match.cik);
-  if (!isFetchTextResult(result)) {
-    // The filing-text fetch produced no raw snapshot at all (e.g. the byte-limit
-    // Guard throws before any snapshot is captured), so the honest replayable
-    // Provenance for this metadata-only item is the sec-submissions snapshot the
-    // Form/filingDate/accessionNumber/primaryDocument were themselves read from
-    // (ADR 0004: evidence must remain replayable through raw snapshots).
+  const primary = isFetchTextResult(result) ? result : undefined;
+  const primaryFetchGaps: readonly SourceGap[] = isFetchTextResult(result) ? [] : [result];
+  // A failed primary fetch does not rule out the exhibit: index and EX-99 are separate documents,
+  // And for an Item 2.02 the exhibit is where the results actually are.
+  const exhibit = isEarningsRelease(filing)
+    ? await resolveEarningsReleaseExhibit(ctx, filing, match.cik)
+    : undefined;
+  const exhibitSubstantive =
+    exhibit?.text !== undefined &&
+    hasSubstantiveResultsContent(normalizeFilingText(exhibit.text.payload));
+  const primarySubstantive =
+    primary !== undefined && hasSubstantiveResultsContent(normalizeFilingText(primary.payload));
+  // The exhibit wins unless it is a non-results document (a conference-call notice, say) and the
+  // Cover document does report results.
+  const useExhibit =
+    exhibit?.text !== undefined &&
+    (exhibitSubstantive || !primarySubstantive || primary === undefined);
+  const selected = useExhibit ? exhibit.text : primary;
+  const selectedUrl = useExhibit ? (exhibit.url ?? url) : url;
+  const rawSnapshots = [
+    ...(primary === undefined ? [] : [primary.rawSnapshot]),
+    ...(exhibit?.rawSnapshots ?? []),
+  ];
+  const exhibitGaps: readonly SourceGap[] =
+    exhibit === undefined
+      ? []
+      : [
+          ...exhibit.gaps,
+          ...(exhibitSubstantive || primarySubstantive
+            ? []
+            : [
+                secEarningsExhibitGap(
+                  command.symbol,
+                  filing,
+                  exhibit.text === undefined
+                    ? "no EX-99 exhibit resolved"
+                    : "the resolved EX-99 exhibit reports no results",
+                  primary === undefined
+                    ? "no primary document text"
+                    : "the primary document reports no results",
+                ),
+              ]),
+        ];
+  if (selected === undefined) {
+    // No filing text at all. The fetch produced no raw snapshot (e.g. the byte-limit guard throws
+    // Before any snapshot is captured), so the honest replayable provenance for this metadata-only
+    // Item is the sec-submissions snapshot the form/filingDate/accessionNumber/primaryDocument were
+    // Themselves read from (ADR 0004: evidence must remain replayable through raw snapshots).
     const metadataOnly = buildSecFilingMetadataOnlyItem(
       command,
       match,
@@ -820,10 +959,10 @@ async function collectSecFiling(
       submissionsRawSnapshot?.id,
     );
     return {
-      rawSnapshots: [],
+      rawSnapshots,
       sources: [metadataOnly.source],
       items: [metadataOnly.item],
-      gaps: [result],
+      gaps: [...primaryFetchGaps, ...exhibitGaps],
       sanitizationEntries: metadataOnly.sanitizationEntries,
       droppedItemCount: 0,
     };
@@ -832,8 +971,8 @@ async function collectSecFiling(
     command,
     match,
     filing,
-    url,
-    result,
+    selectedUrl,
+    selected,
     ctx.earningsEventDate,
   );
   if (built.kind === "missing") {
@@ -841,15 +980,15 @@ async function collectSecFiling(
       command,
       match,
       filing,
-      url,
-      result.rawSnapshot.fetchedAt,
-      result.rawSnapshot.id,
+      selectedUrl,
+      selected.rawSnapshot.fetchedAt,
+      selected.rawSnapshot.id,
     );
     return {
-      rawSnapshots: [result.rawSnapshot],
+      rawSnapshots,
       sources: [metadataOnly.source],
       items: [metadataOnly.item],
-      gaps: [secPacketGap(command.symbol, filing.form)],
+      gaps: [...primaryFetchGaps, ...exhibitGaps, secPacketGap(command.symbol, filing.form)],
       sanitizationEntries: metadataOnly.sanitizationEntries,
       droppedItemCount: 0,
     };
@@ -859,15 +998,15 @@ async function collectSecFiling(
       command,
       match,
       filing,
-      url,
-      result.rawSnapshot.fetchedAt,
-      result.rawSnapshot.id,
+      selectedUrl,
+      selected.rawSnapshot.fetchedAt,
+      selected.rawSnapshot.id,
     );
     return {
-      rawSnapshots: [result.rawSnapshot],
+      rawSnapshots,
       sources: [metadataOnly.source],
       items: [metadataOnly.item],
-      gaps: [],
+      gaps: [...primaryFetchGaps, ...exhibitGaps],
       sanitizationEntries: [...built.sanitizationEntries, ...metadataOnly.sanitizationEntries],
       droppedItemCount: 1,
     };
@@ -887,10 +1026,10 @@ async function collectSecFiling(
           ),
         ];
   return {
-    rawSnapshots: [result.rawSnapshot],
+    rawSnapshots,
     sources: [built.source],
     items: [built.item],
-    gaps: omissionGaps,
+    gaps: [...primaryFetchGaps, ...exhibitGaps, ...omissionGaps],
     sanitizationEntries: built.sanitizationEntries,
     droppedItemCount: 0,
   };

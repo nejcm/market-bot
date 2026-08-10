@@ -334,6 +334,7 @@ test("pins duplicate-bearing identities across every golden", async () => {
 
   expect(actual).toEqual({
     duplicateBearingArrays: [
+      "equity-earnings-release-deep:normalized.evidence-bundle.json.derived.financialStatements.validationNotes",
       "equity-nbis-deep:normalized.evidence-bundle.json.derived.financialStatements.validationNotes",
     ],
     missingIdentityCount: 0,

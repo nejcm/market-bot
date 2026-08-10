@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ResearchReport } from "../src/domain/types";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
+import { reverseDcfArtifact } from "./support/fixtures";
 
 function report(summary = "Evidence is sourced and caveated."): ResearchReport {
   return {
@@ -41,6 +42,19 @@ describe("golden report contracts", () => {
     expect(markdown).toContain("[source-1]");
     expect(markdown).toContain("No macro source");
     expect(markdown.match(/Research-only note/gu)?.length).toBe(1);
+  });
+
+  test("equity Markdown ends with one newline regardless of final appendix population", () => {
+    const equityReport = { ...report(), jobType: "equity" as const, symbol: "AAPL" };
+    const outputs = [
+      renderMarkdownReport(equityReport),
+      renderMarkdownReport(equityReport, undefined, { reverseDcf: reverseDcfArtifact() }),
+    ];
+
+    for (const markdown of outputs) {
+      expect(markdown.endsWith("\n")).toBe(true);
+      expect(markdown.endsWith("\n\n")).toBe(false);
+    }
   });
 
   test("non-equity report types retain the legacy section order without an appendix", () => {

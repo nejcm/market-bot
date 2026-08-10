@@ -145,7 +145,7 @@
       }
     },
     "sourceGaps": {
-      "total": 10,
+      "total": 9,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -155,18 +155,17 @@
         "tradier-options": 1,
         "valuation": 1,
         "financial-lens": 1,
-        "business-framework": 1,
-        "equity-analysis-completeness": 1
+        "business-framework": 1
       }
     },
     "sourceGapClasses": {
       "missingCredential": 5,
       "fetchFailed": 0,
       "unsupportedCoverage": 0,
-      "other": 5
+      "other": 4
     },
     "dataGaps": {
-      "total": 12
+      "total": 11
     }
   },
   "providerEndpointAvailability": {
@@ -366,7 +365,7 @@
         "target-valuation: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 12,
+    "dataGapCount": 11,
     "extendedEvidence": {
       "itemCount": 4,
       "gapCount": 7,
@@ -471,25 +470,29 @@
         "dimension": "assetClass",
         "key": "equity",
         "actionable": false,
-        "reason": "empty-dimension"
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
       },
       {
         "dimension": "jobType",
         "key": "equity",
         "actionable": false,
-        "reason": "empty-dimension"
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
       },
       {
         "dimension": "predictionHorizon",
         "key": "2-5d",
         "actionable": false,
-        "reason": "empty-dimension"
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
       },
       {
         "dimension": "marketRegime",
         "key": "risk-on",
         "actionable": false,
-        "reason": "empty-dimension"
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
       }
     ]
   },

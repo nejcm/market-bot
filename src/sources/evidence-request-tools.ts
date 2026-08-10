@@ -877,8 +877,8 @@ interface EarningsExhibitResolution {
 }
 
 // The results of an Item 2.02 current report live in its EX-99 press release, not the cover
-// Document. Walks the filing index for the best EX-99 candidate; the two requests are sequential,
-// Matching the SEC archive rate-limit discipline the untagged-exhibit path already follows.
+// Document. Walks the bounded EX-99 candidates sequentially, matching the SEC archive rate-limit
+// Discipline the untagged-exhibit path already follows.
 async function resolveEarningsReleaseExhibit(
   ctx: CollectContext,
   filing: SecFiling,
@@ -894,24 +894,49 @@ async function resolveEarningsReleaseExhibit(
   if (!isFetchTextResult(index)) {
     return { rawSnapshots: [], gaps: [index] };
   }
-  const [document] = filingDocuments(index.payload, baseUrl, filing.primaryDocument);
-  if (document === undefined) {
+  const documents = filingDocuments(index.payload, baseUrl, filing.primaryDocument);
+  if (documents.length === 0) {
     return { rawSnapshots: [index.rawSnapshot], gaps: [] };
   }
-  const exhibit = await ctx.request.text({
-    url: document.url,
-    adapter: "sec-earnings-release-exhibit",
-    maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
-    init,
-  });
-  if (!isFetchTextResult(exhibit)) {
-    return { rawSnapshots: [index.rawSnapshot], gaps: [exhibit] };
+  const rawSnapshots = [index.rawSnapshot];
+  let firstFetchGap: SourceGap | undefined = undefined;
+  let attemptedCandidateCount = 0;
+  let firstResolved: { readonly text: FetchTextResult; readonly url: string } | undefined =
+    undefined;
+  let selected: { readonly text: FetchTextResult; readonly url: string } | undefined = undefined;
+  for (const document of documents) {
+    attemptedCandidateCount += 1;
+    // eslint-disable-next-line no-await-in-loop
+    const exhibit = await ctx.request.text({
+      url: document.url,
+      adapter: "sec-earnings-release-exhibit",
+      maxResponseBytes: SEC_FILING_TEXT_MAX_RESPONSE_BYTES,
+      init,
+    });
+    if (!isFetchTextResult(exhibit)) {
+      firstFetchGap ??= exhibit;
+      continue;
+    }
+    rawSnapshots.push(exhibit.rawSnapshot);
+    firstResolved ??= { text: exhibit, url: document.url };
+    if (hasSubstantiveResultsContent(normalizeFilingText(exhibit.payload))) {
+      selected = { text: exhibit, url: document.url };
+      break;
+    }
   }
+  const gaps =
+    firstFetchGap === undefined
+      ? []
+      : [
+          {
+            ...firstFetchGap,
+            message: `${firstFetchGap.message} (${String(attemptedCandidateCount)} EX-99 candidates attempted)`,
+          },
+        ];
   return {
-    text: exhibit,
-    url: document.url,
-    rawSnapshots: [index.rawSnapshot, exhibit.rawSnapshot],
-    gaps: [],
+    ...(selected ?? firstResolved),
+    rawSnapshots,
+    gaps,
   };
 }
 

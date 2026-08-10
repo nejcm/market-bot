@@ -52,7 +52,6 @@ Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/boo
 - **Material:** valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt
 - **Material:** financial-lens: Financial Lens Evidence partial for AAPL: missing SEC fundamentals, valuation evidence
 - **Material:** business-framework: Business Framework partial for AAPL: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources
-- **Material:** equity-analysis-completeness: current-annual-statement-missing: AAPL reporting surface is not current \(no reported financial statement period is available\)
 - **Material:** emitted 0 of 3 target predictions; evidence did not support more
 
 ## Appendix
@@ -139,4 +138,3 @@ As-reported multiples use first verified close within 7 calendar days on or afte
 #### Peer comparison
 
 - Suppressed: Peer comparison data is unavailable for this run.
-

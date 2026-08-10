@@ -353,7 +353,8 @@ describe("run analytics", () => {
           brierStandardError: 0.05,
           lowerConfidenceBound: 0.287_93,
           actionable: true,
-          reason: "single-cell-dimension",
+          reason: "actionable-negative",
+          populationStatus: "single-cell-dimension",
         },
         {
           dimension: "marketRegime",

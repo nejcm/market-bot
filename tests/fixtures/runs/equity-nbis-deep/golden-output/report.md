@@ -174,4 +174,3 @@ ANNUAL | 2025-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 418.88x | 64.62x | 
 Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates
 --- | --- | --- | ---: | --- | ---
 NBIS | target | excluded | 108.77x | USD | quote time 2026-07-22T16:16:04.000Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31
-

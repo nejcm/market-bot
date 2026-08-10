@@ -16,13 +16,13 @@ export type CalibrationGuidanceDimension =
 
 export type CalibrationGuidanceReason =
   | "slice-unavailable"
-  | "empty-dimension"
-  | "single-cell-dimension"
   | "below-outcome-floor"
   | "uncertainty-unavailable"
   | "below-run-floor"
   | "not-negative-with-confidence"
   | "actionable-negative";
+
+export type CalibrationPopulationStatus = "empty-dimension" | "single-cell-dimension";
 
 export interface CalibrationGuidanceAssessment {
   readonly actionable: boolean;
@@ -34,6 +34,7 @@ export interface ApplicableCalibrationSlice extends CalibrationGuidanceAssessmen
   readonly dimension: CalibrationGuidanceDimension;
   readonly key: string;
   readonly metric?: CalibrationMetric;
+  readonly populationStatus?: CalibrationPopulationStatus;
 }
 
 export interface ApplicableCalibrationKeys {
@@ -118,18 +119,18 @@ export function applicableCalibrationSlices(
     const populatedCells = metrics === undefined ? undefined : Object.keys(metrics).length;
     const metric = metrics?.[key];
     const assessment = assessNegativeCalibration(metric);
-    let { reason } = assessment;
+    let populationStatus: CalibrationPopulationStatus | null = null;
     if (populatedCells === 0) {
-      reason = "empty-dimension";
+      populationStatus = "empty-dimension";
     } else if (populatedCells === 1) {
-      reason = "single-cell-dimension";
+      populationStatus = "single-cell-dimension";
     }
     return {
       dimension,
       key,
       ...(metric !== undefined ? { metric } : {}),
       ...assessment,
-      reason,
+      ...(populationStatus !== null ? { populationStatus } : {}),
     };
   });
 }

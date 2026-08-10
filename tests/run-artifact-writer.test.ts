@@ -8,6 +8,7 @@ import type { AppConfig } from "../src/config";
 import type { ResearchReport, RunTrace, SourceGap } from "../src/domain/types";
 import { prepareRunArtifacts } from "../src/artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { loadRunArtifact } from "../src/run-artifacts";
 import {
   buildAlphaSearchManifest,
   buildResearchRunManifest,
@@ -245,6 +246,39 @@ function tempDir(): string {
 }
 
 describe("run artifact writer manifests", () => {
+  test("round-trips SourceGap attempts through the canonical report artifact", async () => {
+    const attempts = {
+      count: 2,
+      elapsedMs: 125,
+      failures: [
+        { attempt: 1, classification: "timeout" as const, message: "timed out" },
+        { attempt: 2, classification: "server-error" as const, message: "HTTP 503" },
+      ],
+    };
+    const artifacts = await prepareRunArtifacts(tempDir(), "source-gap-attempts");
+    const manifest = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({
+        report: researchReport({
+          runId: "source-gap-attempts",
+          jobType: "equity",
+          symbol: "AAPL",
+          extendedEvidence: {
+            instrument: { symbol: "AAPL", assetClass: "equity" },
+            items: [],
+            gaps: [{ source: "exa", message: "fetch failed", attempts }],
+          },
+        }),
+      }),
+    );
+
+    await persistRunArtifactWrites(artifacts, manifest);
+    const loaded = await loadRunArtifact(artifacts.runDir);
+
+    expect(loaded.artifact?.report.extendedEvidence?.gaps[0]?.attempts).toEqual(attempts);
+  });
+
   test("research equity brief manifest preserves instrument null policies", () => {
     const writes = buildResearchRunManifest(equityCommand, config, result());
 

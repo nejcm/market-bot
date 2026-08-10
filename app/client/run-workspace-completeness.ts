@@ -3,6 +3,7 @@ export const COMPLETENESS_REASON_CODE_LABELS: Readonly<Record<string, string>> =
   "annual-history-insufficient": "Annual history is insufficient",
   "cadence-unestablished": "Reporting cadence is not established",
   "current-annual-statement-missing": "Current annual statement is missing",
+  "current-annual-statement-unavailable": "Current annual statement evidence is unavailable",
   "current-primary-statements-incomplete": "Current primary statements are incomplete",
   "debt-maturity-untagged": "Debt maturity evidence is untagged",
   "diluted-share-history-missing": "Diluted-share history is missing",

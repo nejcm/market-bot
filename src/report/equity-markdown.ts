@@ -208,5 +208,7 @@ export function renderEquityMarkdownReport(
     sections.renderAppendixSection(
       renderReverseDcfMarkdown(collectedSources?.reverseDcf, priceAsOf),
     ),
-  ].join("\n");
+  ]
+    .join("\n")
+    .replace(/\n*$/u, "\n");
 }

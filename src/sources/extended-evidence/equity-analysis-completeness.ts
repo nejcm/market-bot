@@ -4,10 +4,8 @@ import type {
   EquityAnalysisCompletenessDimension,
   ExtendedEvidence,
   ExtendedEvidenceItem,
-  SourceGap,
 } from "../../domain/types";
 import { resolveCoverageLevel } from "../../domain/equity-analysis-completeness";
-import { sourceGap } from "../../domain/source-gaps";
 import type { EarningsSetupCollected } from "../types";
 import type {
   FinancialStatementFact,
@@ -36,6 +34,11 @@ import {
   lookupOperatingKpiRegistry,
   type OperatingKpiRegistryEntry,
 } from "./operating-kpi-registry";
+
+export {
+  EQUITY_FRESHNESS_GAP_REASON_CODES,
+  equityAnalysisCompletenessGaps,
+} from "./equity-analysis-completeness-gaps";
 
 const DAY_MS = 86_400_000;
 const CURRENT_ANNUAL_MAX_AGE_DAYS = 550;
@@ -390,7 +393,7 @@ function primaryFinancialsDimension(
   if (artifact === undefined) {
     return {
       status: "blocked",
-      reasonCodes: ["current-annual-statement-missing"],
+      reasonCodes: ["current-annual-statement-unavailable"],
       asOf,
       sourceIds: [],
     };
@@ -406,12 +409,15 @@ function primaryFinancialsDimension(
     currentAnnual === undefined
       ? undefined
       : daysBetween(currentAnnual.periodEnd, asOf.slice(0, 10));
-  if (
-    currentAnnual === undefined ||
-    annualAge === undefined ||
-    annualAge < 0 ||
-    annualAge > CURRENT_ANNUAL_MAX_AGE_DAYS
-  ) {
+  if (currentAnnual === undefined || annualAge === undefined || annualAge < 0) {
+    return {
+      status: "blocked",
+      reasonCodes: ["current-annual-statement-unavailable"],
+      asOf: artifact.analysisAsOf,
+      sourceIds,
+    };
+  }
+  if (annualAge > CURRENT_ANNUAL_MAX_AGE_DAYS) {
     return {
       status: "blocked",
       reasonCodes: ["current-annual-statement-missing"],
@@ -727,70 +733,6 @@ function nonCoreDimensions(
     ),
     operatingKpis: operatingKpisDimension(input),
   };
-}
-
-// Freshness-negative reason codes only, as an allowlist: a denylist would emit material gaps for
-// Informational codes (`annual-as-current` rides along on a `complete` dimension) and for
-// Reporting-surface facts that say nothing about currency (`sbc-history-missing` and friends).
-export const EQUITY_FRESHNESS_GAP_REASON_CODES: readonly string[] = [
-  "current-annual-statement-missing",
-  "annual-history-insufficient",
-  "latest-due-interim-missing",
-  "quarterly-periods-insufficient",
-  "semiannual-comparison-missing",
-  "irregular-comparison-missing",
-  "ttm-unreconciled",
-  "cadence-unestablished",
-  "per-share-evidence-missing",
-  "current-primary-statements-incomplete",
-  "untagged-interim-evidence",
-  "reporting-currency-missing",
-  "reporting-currency-incompatible",
-  "subsequent-financing-unreconciled",
-];
-
-const FRESHNESS_GAP_REASON_CODES = new Set(EQUITY_FRESHNESS_GAP_REASON_CODES);
-
-function freshnessDetail(freshness: EquityReportingFreshness | undefined): string {
-  if (freshness === undefined) {
-    return "no reported financial statement period is available";
-  }
-  return [
-    `interim cadence ${freshness.interimCadence}`,
-    `latest reported period end ${freshness.latestReportedPeriodEnd}`,
-    ...(freshness.latestDuePeriodEnd === undefined
-      ? []
-      : [`expected due period end ${freshness.latestDuePeriodEnd}`]),
-  ].join("; ");
-}
-
-// Freshness defects the model must see while it is still writing, as canonical Source Gaps.
-// `no-cap` by design: an unfiled quarter is an incomplete reporting surface, not a sourcing
-// Failure, so it must not dock Evidence Quality. `SourceGap` has no `code` field, so the reason
-// Code is a deterministic message prefix.
-export function equityAnalysisCompletenessGaps(
-  completeness: EquityAnalysisCompleteness,
-  freshness: EquityReportingFreshness | undefined,
-  symbol: string | undefined,
-): readonly SourceGap[] {
-  const detail = freshnessDetail(freshness);
-  const subject = symbol?.toUpperCase() ?? "the subject";
-  return unique(
-    Object.values(completeness.dimensions).flatMap((dimension) => dimension.reasonCodes),
-  )
-    .filter((code) => FRESHNESS_GAP_REASON_CODES.has(code))
-    .map((code) =>
-      sourceGap({
-        source: "equity-analysis-completeness",
-        message: `${code}: ${subject} reporting surface is not current (${detail})`,
-        ...(symbol !== undefined ? { symbol } : {}),
-        provider: "market-bot",
-        capability: "extended-evidence",
-        cause: "provider-data-missing",
-        evidenceQualityImpact: "no-cap",
-        triage: "material",
-      }),
-    );
 }
 
 export function deriveEquityAnalysisCompleteness(

@@ -5,6 +5,7 @@ import {
   isSourceGapCapability,
   isSourceGapCause,
   isSourceGapEvidenceQualityImpact,
+  isSourceGapTriage,
   sourceGapStatusCode,
 } from "../domain/source-gaps";
 import {
@@ -23,6 +24,7 @@ import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isDeepEquityReport } from "../deep-equity/artifact-schema";
 import {
   loadDeepEquityEvidenceBundle,
+  readSourceGapAttempts,
   type LoadedDeepEquityEvidenceBundle,
 } from "../run-artifacts";
 import { isRecord, numberAt } from "../guards";
@@ -186,6 +188,8 @@ export function parseSourceGap(value: unknown): SourceGap | undefined {
   const evidenceQualityImpact = isSourceGapEvidenceQualityImpact(value.evidenceQualityImpact)
     ? value.evidenceQualityImpact
     : undefined;
+  const triage = isSourceGapTriage(value.triage) ? value.triage : undefined;
+  const attempts = readSourceGapAttempts(value.attempts);
 
   return {
     source,
@@ -195,6 +199,8 @@ export function parseSourceGap(value: unknown): SourceGap | undefined {
     ...(capability !== undefined ? { capability } : {}),
     ...(cause !== undefined ? { cause } : {}),
     ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
+    ...(triage !== undefined ? { triage } : {}),
+    ...(attempts !== undefined ? { attempts } : {}),
   };
 }
 

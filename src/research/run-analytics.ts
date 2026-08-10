@@ -23,6 +23,7 @@ import {
   type ApplicableCalibrationKeys,
   type CalibrationGuidanceDimension,
   type CalibrationGuidanceReason,
+  type CalibrationPopulationStatus,
 } from "./calibration-guidance";
 import type { CalibrationContext } from "./research-context-types";
 import type { ForecastPersistence } from "./forecast-persistence";
@@ -305,6 +306,7 @@ export interface RunAnalyticsCalibrationGuidanceAssessment {
   readonly lowerConfidenceBound?: number;
   readonly actionable: boolean;
   readonly reason: CalibrationGuidanceReason;
+  readonly populationStatus?: CalibrationPopulationStatus;
 }
 
 function countBy<T>(
@@ -454,7 +456,15 @@ function calibrationAtGeneration(
     input.calibrationGuidanceKeys === undefined
       ? undefined
       : applicableCalibrationSlices(calibration, input.calibrationGuidanceKeys).map(
-          ({ dimension, key, metric, actionable, reason, lowerConfidenceBound }) => ({
+          ({
+            dimension,
+            key,
+            metric,
+            actionable,
+            reason,
+            lowerConfidenceBound,
+            populationStatus,
+          }) => ({
             dimension,
             key,
             ...(metric !== undefined
@@ -470,6 +480,7 @@ function calibrationAtGeneration(
             ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
             actionable,
             reason,
+            ...(populationStatus !== undefined ? { populationStatus } : {}),
           }),
         );
   if (

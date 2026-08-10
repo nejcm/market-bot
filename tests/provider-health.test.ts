@@ -267,13 +267,34 @@ describe("provider health", () => {
     );
   });
 
-  test("preserves optional source gap symbols while parsing", () => {
-    expect(parseSourceGap({ source: "sec-edgar", message: "missing", symbol: "AAPL" })).toEqual(
-      expect.objectContaining({ symbol: "AAPL" }),
-    );
+  test("preserves validated optional source gap telemetry while parsing", () => {
+    const attempts = {
+      count: 2,
+      elapsedMs: 125,
+      failures: [
+        { attempt: 1, classification: "timeout", message: "timed out" },
+        { attempt: 2, classification: "server-error", message: "HTTP 503" },
+      ],
+    };
+    expect(
+      parseSourceGap({
+        source: "sec-edgar",
+        message: "missing",
+        symbol: "AAPL",
+        triage: "diagnostic",
+        attempts,
+      }),
+    ).toEqual(expect.objectContaining({ symbol: "AAPL", triage: "diagnostic", attempts }));
     expect(parseSourceGap({ source: "sec-edgar", message: "missing" })).not.toHaveProperty(
       "symbol",
     );
+    expect(
+      parseSourceGap({
+        source: "sec-edgar",
+        message: "missing",
+        attempts: { ...attempts, count: 0 },
+      }),
+    ).not.toHaveProperty("attempts");
   });
 
   test("fails when FRED baseline coverage is missing", async () => {

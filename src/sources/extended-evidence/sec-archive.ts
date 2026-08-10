@@ -37,6 +37,10 @@ function documentScore(name: string, description: string, type: string): number 
   return score;
 }
 
+function isSecArchiveDocumentUrl(url: URL): boolean {
+  return url.hostname === "www.sec.gov" && url.pathname.startsWith("/Archives/edgar/data/");
+}
+
 export function filingDocuments(
   html: string,
   baseUrl: string,
@@ -60,15 +64,21 @@ export function filingDocuments(
       ) {
         return [];
       }
-      const url = new URL(href, "https://www.sec.gov");
-      if (url.hostname !== "www.sec.gov" || !url.pathname.startsWith("/Archives/edgar/data/")) {
+      const linkedUrl = URL.parse(href, "https://www.sec.gov");
+      const documentUrl = URL.parse(name, `${baseUrl}/`);
+      if (
+        linkedUrl === null ||
+        documentUrl === null ||
+        !isSecArchiveDocumentUrl(linkedUrl) ||
+        !isSecArchiveDocumentUrl(documentUrl)
+      ) {
         return [];
       }
       const description = cells[1] ?? "";
       return [
         {
           name,
-          url: url.href,
+          url: documentUrl.href,
           description,
           type,
           score: documentScore(name, description, type),
@@ -76,6 +86,5 @@ export function filingDocuments(
       ];
     })
     .toSorted((left, right) => right.score - left.score || left.name.localeCompare(right.name))
-    .slice(0, MAX_DOCUMENT_CANDIDATES)
-    .map((document) => ({ ...document, url: new URL(document.name, `${baseUrl}/`).href }));
+    .slice(0, MAX_DOCUMENT_CANDIDATES);
 }

@@ -163,4 +163,3 @@ TTM | 2026-03-31 | 2026-05-10 | — | — (price-history-unavailable) | — (pri
 Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates
 --- | --- | --- | ---: | --- | ---
 FPIQ | target | usable | 13.76x | USD | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-

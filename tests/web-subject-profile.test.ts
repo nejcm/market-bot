@@ -288,8 +288,8 @@ describe("buildWebSubjectProfileEvidence", () => {
       evidenceQualityImpact: "no-cap",
     });
     expect(result.sourceGaps[0]?.message).toContain("recentMaterialEvents[0]");
-    expect(result.sourceGaps[0]?.message).toContain("disallowed-source");
-    expect(result.sourceGaps[0]?.message).toContain("1 item(s) rejected");
+    expect(result.sourceGaps[0]?.message).not.toContain("disallowed-source");
+    expect(result.sourceGaps[0]?.message).toContain("1 of 19 items rejected");
   });
 
   test("every fact invalid still yields the empty artifact, unchanged (B3.2)", () => {
@@ -411,9 +411,9 @@ describe("buildWebSubjectProfileEvidence", () => {
     ]);
     expect(result.artifact?.sourceIds).toEqual([webSource.id]);
     expect(result.sourceGaps).toHaveLength(1);
-    expect(result.sourceGaps[0]?.message).toContain("disallowed-in-answer");
-    expect(result.sourceGaps[0]?.message).toContain("disallowed-event-id");
-    expect(result.sourceGaps[0]?.message).toContain("disallowed-fact-id");
+    expect(result.sourceGaps[0]?.message).not.toContain("disallowed-in-answer");
+    expect(result.sourceGaps[0]?.message).not.toContain("disallowed-event-id");
+    expect(result.sourceGaps[0]?.message).not.toContain("disallowed-fact-id");
   });
 
   const ALL_COMPANY_QUESTION_KEYS = [
@@ -529,7 +529,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.sourceGaps).toEqual([]);
   });
 
-  test("appends a sanitized (id-free) rejection summary to artifact.openGaps so it survives reuse (finding 3)", () => {
+  test("uses the same sanitized rejection summary for the SourceGap and reusable artifact", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: [webSource.id] };
     const questions = Object.fromEntries(ALL_COMPANY_QUESTION_KEYS.map((key) => [key, answer]));
     const modelContent = JSON.stringify({
@@ -556,22 +556,18 @@ describe("buildWebSubjectProfileEvidence", () => {
     });
 
     expect(result.sourceGaps).toHaveLength(1);
-    // The full SourceGap message still names the disallowed id (that channel
-    // Is not language-scanned)...
-    expect(result.sourceGaps[0]?.message).toContain("disallowed-source");
-    // ...but artifact.openGaps — which IS language-scanned via
-    // WebSubjectProfileText -> assertSafeReportLanguage — gets a sanitized,
-    // Count/field-path-only summary instead, never the raw gap message and
-    // Never the id itself.
+    expect(result.sourceGaps[0]?.message).toBe(
+      "Web Subject Profile: 1 of 14 items rejected for source-citation errors " +
+        "(recentMaterialEvents[0]).",
+    );
     expect(result.artifact?.openGaps).toEqual([
       "Pre-existing model-reported gap.",
-      "Web Subject Profile: 1 of 14 items rejected for source-citation errors " +
-        "(recentMaterialEvents[0]); see run source gaps for detail.",
+      result.sourceGaps[0]!.message,
     ]);
-    expect(result.artifact?.openGaps.join(" ")).not.toContain("disallowed-source");
+    expect(result.sourceGaps[0]?.message).not.toContain("disallowed-source");
   });
 
-  test("openGaps rejection summary never contains model-controlled text, even from a hostile source id (round 2 fix)", () => {
+  test("rejection disclosures never contain model-controlled trade-action source ids", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: [webSource.id] };
     const questions = Object.fromEntries(ALL_COMPANY_QUESTION_KEYS.map((key) => [key, answer]));
     // A model that emits a source title/sentence instead of an id is the
@@ -584,7 +580,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       recentMaterialEvents: [
         {
           claim: "BofA reiterated its rating.",
-          sourceIds: ["Hold rating reiterated by BofA"],
+          sourceIds: ["BUY AAPL"],
         },
       ],
       factLedger: [
@@ -608,12 +604,12 @@ describe("buildWebSubjectProfileEvidence", () => {
     });
 
     expect(result.sourceGaps).toHaveLength(1);
-    // Hazardous strings are real, and do reach the (non-scanned) gap.
-    expect(result.sourceGaps[0]?.message).toContain("Hold rating reiterated by BofA");
-    expect(result.sourceGaps[0]?.message).toContain("Sell side note on Microsoft");
+    expect(result.sourceGaps[0]?.message).not.toContain("BUY AAPL");
+    expect(result.sourceGaps[0]?.message).not.toContain("Sell side note on Microsoft");
+    expect(violatesResearchOnly(result.sourceGaps[0]!.message)).toBeNull();
 
     for (const gapText of result.artifact?.openGaps ?? []) {
-      expect(gapText).not.toContain("Hold rating reiterated by BofA");
+      expect(gapText).not.toContain("BUY AAPL");
       expect(gapText).not.toContain("Sell side note on Microsoft");
       // The required assertion: the sanitized text must not trip the
       // Research-language scanner that assertSafeReportLanguage runs.
@@ -653,13 +649,10 @@ describe("buildWebSubjectProfileEvidence", () => {
     }
   });
 
-  test("truncates both the detailed-rejection list and the offending-id list with an accurate overflow count (finding 4)", () => {
+  test("truncates rejected field paths with an accurate overflow count", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: [webSource.id] };
     const questions = Object.fromEntries(ALL_COMPANY_QUESTION_KEYS.map((key) => [key, answer]));
-    // 12 rejected facts, each with a distinct disallowed id: exceeds both
-    // MAX_DETAILED_REJECTIONS (5) and MAX_LISTED_OFFENDING_SOURCE_IDS (10).
-    // Zero-padded so the offending-id set's lexicographic sort (`toSorted()`)
-    // Matches numeric order, making the truncation boundary predictable.
+    // 12 rejected facts exceed MAX_DETAILED_REJECTIONS (5).
     const rejectedFacts = Array.from({ length: 12 }, (_, index) => ({
       claim: `Rejected claim ${index}.`,
       sourceIds: [`disallowed-id-${String(index).padStart(2, "0")}`],
@@ -690,17 +683,12 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.sourceGaps).toHaveLength(1);
     const gapMessage = result.sourceGaps[0]?.message ?? "";
     // 12 total rejections stated up front...
-    expect(gapMessage).toContain("12 item(s) rejected");
+    expect(gapMessage).toContain("12 of 25 items rejected");
     // ...but only 5 detailed entries shown, with the remaining 7 counted...
-    expect(gapMessage).toContain("factLedger[6] ");
-    expect(gapMessage).not.toContain("factLedger[7] ");
-    expect(gapMessage).toContain("; and 7 more");
-    // ...and only 10 of the 12 offending ids listed, with the remaining 2 counted.
-    expect(gapMessage).toContain("disallowed-id-00");
-    expect(gapMessage).toContain("disallowed-id-09");
-    expect(gapMessage).not.toContain("disallowed-id-10");
-    expect(gapMessage).not.toContain("disallowed-id-11");
-    expect(gapMessage).toContain(", and 2 more");
+    expect(gapMessage).toContain("factLedger[6]");
+    expect(gapMessage).not.toContain("factLedger[7]");
+    expect(gapMessage).toContain(", and 7 more");
+    expect(gapMessage).not.toContain("disallowed-id-");
 
     // The sanitized openGaps summary truncates its field-path list the same
     // Way, and states the true total (12 of 25: 11 questions + 2 surviving

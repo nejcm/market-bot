@@ -158,4 +158,3 @@ ANNUAL | 2025-12-31 | 2026-03-15 | 214.72 USD (2026-03-15) | 14.31x | 7.87x | 9.
 Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates
 --- | --- | --- | ---: | --- | ---
 IFRSSA | target | usable | 15.33x | USD | fetch time 2026-06-15T14:30:00.000Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31
-

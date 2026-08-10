@@ -139,6 +139,7 @@ without pretending the project has a global security master.
   foreign private issuers without a 10-K/10-Q basis, collection attempts up to two 6-Ks in the same
   window without depending on an earnings-event credential; remaining unsupported coverage is
   described as annual-report section parsing, not a form-specific annual-report claim.
+  The no-periodic-basis path is intentionally foreign-private-issuer/6-K only; a domestic filer without a 10-K or 10-Q receives no current-report packet.
   Company-profile reuse freshness remains keyed only to 10-K/10-Q filings because current-report
   evidence enriches current events without replacing the durable periodic profile basis.
 - Deterministic title dedupe rejects an incoming accepted-web candidate when normalized title tokens
@@ -263,7 +264,9 @@ without pretending the project has a global security master.
   `reporting-currency-incompatible`, and `subsequent-financing-unreconciled`. Every completeness gap
   from this allowlist has `evidenceQualityImpact: "no-cap"` **by design**: it describes an incomplete
   reporting surface, not a sourcing failure, and must not lower Evidence Quality. Informational and
-  non-freshness reason codes do not enter this gap channel.
+  non-freshness reason codes do not enter this gap channel. Missing or unusable annual-statement
+  evidence remains blocked as `current-annual-statement-unavailable` but does not enter this
+  issuer-attributed channel.
 - Amendment: a completeness dimension is `not-assessed` when it cannot be evaluated because its
   inputs were never configured or available to the deployment, including an unconfigured
   operating-KPI registry or a missing optional provider credential or entitlement, such as Finnhub

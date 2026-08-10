@@ -7,6 +7,7 @@ import {
   hasSubstantiveResultsContent,
   normalizeFilingText,
 } from "../src/sources/evidence-request-tools";
+import { filingDocuments } from "../src/sources/extended-evidence/sec-archive";
 import type {
   CollectContext,
   FetchJsonResult,
@@ -942,6 +943,94 @@ describe("SEC latest filing evidence tool", () => {
       earningsReleaseDocument: "exhibit",
       earningsReleaseExhibit: "substantive",
     });
+  });
+
+  test("tries later EX-99 candidates and retains every fetched exhibit snapshot", async () => {
+    const index = `<table>
+      <tr><td>1</td><td>Quarterly Earnings Conference Call</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>2</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      async ({ adapter, url }) => {
+        if (adapter === "sec-filing-index") {
+          return textResult(adapter, index);
+        }
+        if (adapter === "sec-earnings-release-exhibit") {
+          return textResult(
+            adapter,
+            url.includes("ex992.htm")
+              ? RELEASE_TEXT
+              : "The company will host a conference call to discuss revenue and net income.",
+          );
+        }
+        return textResult(adapter, url.includes("earnings-8k.htm") ? COVER_TEXT : COVER_TEXT);
+      },
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.url).toEndWith("/ex992.htm");
+    expect(source?.snippet).toContain("Net income of $23,636 million");
+    expect(
+      result.rawSnapshots.filter((snapshot) => snapshot.adapter === "sec-earnings-release-exhibit"),
+    ).toHaveLength(2);
+    expect(earningsItemMetrics(result.items)).toMatchObject({
+      earningsReleaseDocument: "exhibit",
+      earningsReleaseExhibit: "substantive",
+    });
+  });
+
+  test("reports one summarized fetch gap when multiple EX-99 candidates fail", async () => {
+    const index = `<table>
+      <tr><td>1</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>2</td><td>Results</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      async ({ adapter, url }) => {
+        if (adapter === "sec-filing-index") {
+          return textResult(adapter, index);
+        }
+        if (adapter === "sec-earnings-release-exhibit") {
+          return gap(adapter, `fetch failed for ${url}`);
+        }
+        return textResult(adapter, COVER_TEXT);
+      },
+    );
+    const fetchGaps = result.gaps.filter(
+      (candidate) => candidate.source === "sec-earnings-release-exhibit",
+    );
+
+    expect(fetchGaps).toHaveLength(1);
+    expect(fetchGaps[0]?.message).toContain("2 EX-99 candidates attempted");
+  });
+
+  test("drops an EX-99 row when its final document-name URL is off-host", () => {
+    const html = `<table><tr><td>1</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">https://example.com/ex991.htm</a></td><td>EX-99.1</td></tr></table>`;
+
+    expect(
+      filingDocuments(
+        html,
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050",
+        "earnings-8k.htm",
+      ),
+    ).toEqual([]);
+  });
+
+  test("drops malformed SEC document URLs without aborting the filing index", () => {
+    const html = `<table>
+      <tr><td>1</td><td>Bad href</td><td><a href="http://[.htm">bad-href.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>2</td><td>Bad name</td><td><a href="/Archives/edgar/data/320193/000032019326000050/bad-name.htm">http://[.htm</a></td><td>EX-99.2</td></tr>
+      <tr><td>3</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex993.htm">ex993.htm</a></td><td>EX-99.3</td></tr>
+    </table>`;
+
+    expect(
+      filingDocuments(
+        html,
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050",
+        "earnings-8k.htm",
+      ).map((document) => document.name),
+    ).toEqual(["ex993.htm"]);
   });
 
   test("falls back to the cover document and gaps when the filing index fetch fails", async () => {

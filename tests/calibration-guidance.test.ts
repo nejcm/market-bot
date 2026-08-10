@@ -126,13 +126,15 @@ describe("applicableCalibrationSlices", () => {
       dimension: "predictionHorizon",
       key: "1-5d",
       actionable: false,
-      reason: "single-cell-dimension",
+      reason: "not-negative-with-confidence",
+      populationStatus: "single-cell-dimension",
     });
     expect(marketUpdateHorizon).toEqual({
       dimension: "predictionHorizon",
       key: "1-5d",
       actionable: false,
-      reason: "empty-dimension",
+      reason: "slice-unavailable",
+      populationStatus: "empty-dimension",
     });
   });
 
@@ -155,7 +157,8 @@ describe("applicableCalibrationSlices", () => {
 
     expect(assetClass).toMatchObject({
       actionable: true,
-      reason: "single-cell-dimension",
+      reason: "actionable-negative",
+      populationStatus: "single-cell-dimension",
       metric,
     });
   });

@@ -1030,6 +1030,66 @@ describe("equity analysis completeness", () => {
 });
 
 describe("equity analysis completeness freshness gaps", () => {
+  test("does not attribute unavailable annual evidence to the issuer but still gaps a stale annual", () => {
+    const unavailable = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+    });
+    const unavailableGaps = equityAnalysisCompletenessGaps(unavailable, undefined, "TEST");
+    const sourcedArtifact = statements({ cadence: "quarterly" });
+    const { revenue } = sourcedArtifact.statements.incomeStatement;
+    const emptyAnnualArtifact = withRevenue(sourcedArtifact, { ...revenue, annual: [] });
+    const emptyAnnual = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      financialStatements: emptyAnnualArtifact,
+    });
+    const emptyAnnualGaps = equityAnalysisCompletenessGaps(
+      emptyAnnual,
+      deriveEquityReportingFreshness(emptyAnnualArtifact, AS_OF),
+      "TEST",
+    );
+    const futureDated = deriveEquityAnalysisCompleteness({
+      asOf: "2025-01-01T00:00:00.000Z",
+      assetClass: "equity",
+      financialStatements: sourcedArtifact,
+    });
+    const staleArtifact = statements({ cadence: "quarterly" });
+    const staleAsOf = "2027-08-01T00:00:00.000Z";
+    const stale = deriveEquityAnalysisCompleteness({
+      asOf: staleAsOf,
+      assetClass: "equity",
+      financialStatements: staleArtifact,
+    });
+    const staleGaps = equityAnalysisCompletenessGaps(
+      stale,
+      deriveEquityReportingFreshness(staleArtifact, staleAsOf),
+      "TEST",
+    );
+
+    expect(unavailable.dimensions.primaryFinancials).toMatchObject({
+      status: "blocked",
+      reasonCodes: ["current-annual-statement-unavailable"],
+    });
+    expect(
+      unavailableGaps.some((gap) => gap.message.includes("reporting surface is not current")),
+    ).toBe(false);
+    expect(emptyAnnual.dimensions.primaryFinancials).toMatchObject({
+      status: "blocked",
+      reasonCodes: ["current-annual-statement-unavailable"],
+    });
+    expect(
+      emptyAnnualGaps.some((gap) => gap.message.includes("reporting surface is not current")),
+    ).toBe(false);
+    expect(futureDated.dimensions.primaryFinancials).toMatchObject({
+      status: "blocked",
+      reasonCodes: ["current-annual-statement-unavailable"],
+    });
+    expect(staleGaps.some((gap) => gap.message.includes("reporting surface is not current"))).toBe(
+      true,
+    );
+  });
+
   test("keeps informational reason codes out of the gap channel", () => {
     const artifact = statements({
       taxonomy: "ifrs-full",
@@ -1144,7 +1204,11 @@ describe("equity analysis completeness freshness gaps", () => {
       {
         dimension: "primaryFinancials",
         reasonCodes: ["current-annual-statement-missing"],
-        input: { asOf: AS_OF, assetClass: "equity" },
+        input: {
+          asOf: "2027-08-01T00:00:00.000Z",
+          assetClass: "equity",
+          financialStatements: quarterly,
+        },
       },
       {
         dimension: "primaryFinancials",

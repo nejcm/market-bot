@@ -20,6 +20,9 @@ import {
   type ResearchReport,
   type Source,
   type SourceGap,
+  type SourceGapAttemptClassification,
+  type SourceGapAttemptFailure,
+  type SourceGapAttempts,
   type SubjectKind,
   type VerifiedMarketSnapshot,
 } from "./domain/types";
@@ -452,6 +455,7 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
       ? item.evidenceQualityImpact
       : undefined;
     const triage = isSourceGapTriage(item.triage) ? item.triage : undefined;
+    const attempts = readSourceGapAttempts(item.attempts);
     return [
       {
         source: item.source,
@@ -462,9 +466,50 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
         ...(cause !== undefined ? { cause } : {}),
         ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
         ...(triage !== undefined ? { triage } : {}),
+        ...(attempts !== undefined ? { attempts } : {}),
       },
     ];
   });
+}
+
+function isSourceGapAttemptClassification(value: unknown): value is SourceGapAttemptClassification {
+  return (
+    value === "timeout" ||
+    value === "server-error" ||
+    value === "network" ||
+    value === "circuit-open" ||
+    value === "non-transient"
+  );
+}
+
+function isSourceGapAttemptFailure(value: unknown): value is SourceGapAttemptFailure {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.attempt) &&
+    (value.attempt as number) > 0 &&
+    isSourceGapAttemptClassification(value.classification) &&
+    typeof value.message === "string"
+  );
+}
+
+export function readSourceGapAttempts(value: unknown): SourceGapAttempts | undefined {
+  if (
+    !isRecord(value) ||
+    !Number.isInteger(value.count) ||
+    (value.count as number) < 1 ||
+    typeof value.elapsedMs !== "number" ||
+    !Number.isFinite(value.elapsedMs) ||
+    value.elapsedMs < 0 ||
+    !Array.isArray(value.failures) ||
+    !value.failures.every(isSourceGapAttemptFailure)
+  ) {
+    return;
+  }
+  return {
+    count: value.count as number,
+    elapsedMs: value.elapsedMs,
+    failures: value.failures,
+  };
 }
 
 function readExtendedEvidenceItems(value: unknown): readonly ExtendedEvidenceItem[] {

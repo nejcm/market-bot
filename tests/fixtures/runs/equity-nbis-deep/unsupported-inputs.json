@@ -65,6 +65,30 @@
       "lastModified": "Wed, 20 May 2026 10:28:42 GMT",
       "structuredSupport": "phase-3-candidate",
       "reason": "Phase 3 candidate for model-mapped, code-validated HTML table extraction"
+    },
+    {
+      "file": "nbis-20260616x6k.txt",
+      "form": "6-K",
+      "role": "current-report",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926074352/tm2618059d1_6k.htm",
+      "sha256": "d64bfa84e24171f72a153ee0db5f7323ce52e593e728170a226dfc0cf770c26e",
+      "bytes": 9936,
+      "contentType": "text/html",
+      "lastModified": "Tue, 16 Jun 2026 12:58:38 GMT",
+      "structuredSupport": "unsupported",
+      "reason": "Replay input for unconditional 6-K current-report text on foreign private issuers"
+    },
+    {
+      "file": "nbis-20260717x6k.txt",
+      "form": "6-K",
+      "role": "current-report",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926084452/tm2620683d1_6k.htm",
+      "sha256": "48683243e71a7a91f3461caa328ad5ede912d162a124163d6798af3a39d5cb18",
+      "bytes": 13170,
+      "contentType": "text/html",
+      "lastModified": "Fri, 17 Jul 2026 13:29:46 GMT",
+      "structuredSupport": "unsupported",
+      "reason": "Replay input for unconditional 6-K current-report text on foreign private issuers"
     }
   ]
 }

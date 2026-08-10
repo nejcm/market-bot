@@ -692,7 +692,7 @@
         },
         {
           "source": "sec-edgar",
-          "message": "FPIQ files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+          "message": "FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
           "provider": "sec-edgar",
           "capability": "evidence-request",
           "cause": "unsupported-coverage",
@@ -4261,7 +4261,7 @@
       },
       {
         "source": "sec-edgar",
-        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
         "provider": "sec-edgar",
         "capability": "evidence-request",
         "cause": "unsupported-coverage",
@@ -4408,7 +4408,7 @@
           "gapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"],
           "gapText": [
             "sec-edgar: No SEC company facts found for FPIQ",
-            "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); these forms are not yet supported"
+            "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported"
           ],
           "freshnessNotes": []
         },

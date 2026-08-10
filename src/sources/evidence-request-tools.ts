@@ -1115,7 +1115,7 @@ export async function collectSecFilingEvidence(
   const tenQ = selectCurrentQuarterlyFiling(submissionsPayload, tenK);
   const fpiForms = detectForeignPrivateIssuerForms(submissionsPayload);
   const sixKs =
-    tenK === undefined && tenQ === undefined && ctx.earningsEventDate !== undefined
+    tenK === undefined && tenQ === undefined
       ? selectRecentEarningsSixKs(submissionsPayload, ctx.fetchedAt)
       : [];
 
@@ -1126,7 +1126,7 @@ export async function collectSecFilingEvidence(
           source: "sec-edgar",
           message:
             fpiForms.length > 0
-              ? `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); these forms are not yet supported`
+              ? `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported`
               : `No SEC 10-K or 10-Q filing found for ${command.symbol}`,
           provider: "sec-edgar",
           capability: "evidence-request",
@@ -1145,7 +1145,7 @@ export async function collectSecFilingEvidence(
       ? [
           sourceGap({
             source: "sec-edgar",
-            message: `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); periodic profile forms remain unsupported while recent 6-K text is retained for event-date confirmation`,
+            message: `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); recent 6-K text is attempted, while annual-report section parsing remains unsupported`,
             provider: "sec-edgar",
             capability: "evidence-request",
             cause: "unsupported-coverage",

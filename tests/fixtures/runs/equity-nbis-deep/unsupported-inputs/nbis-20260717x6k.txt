@@ -1,0 +1,206 @@
+<DOCUMENT>
+<TYPE>6-K
+<SEQUENCE>1
+<FILENAME>tm2620683d1_6k.htm
+<DESCRIPTION>FORM 6-K
+<TEXT>
+<HTML>
+<HEAD>
+     <TITLE></TITLE>
+</HEAD>
+<BODY STYLE="font: 10pt Times New Roman, Times, Serif">
+
+<P STYLE="margin: 0"></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0"></P>
+
+<!-- Field: Rule-Page --><DIV STYLE="margin-top: 12pt; margin-bottom: 3pt; width: 100%"><DIV STYLE="border-top: Black 2pt solid; font-size: 1pt; border-bottom: Black 1pt solid">&nbsp;</DIV></DIV><!-- Field: /Rule-Page -->
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">&nbsp;</P>
+
+<P STYLE="font: 18pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>UNITED STATES </B></P>
+
+<P STYLE="font: 18pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>SECURITIES AND EXCHANGE COMMISSION </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>Washington, D.C. 20549 </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 18pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>FORM&nbsp;6-K </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>Report of Foreign Private Issuer </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>Pursuant to Rule&nbsp;13a-16 or 15d-16 of </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>the Securities Exchange Act of 1934 </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>July 17, 2026</B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 18pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>NEBIUS GROUP N.V. </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>Schiphol Boulevard 165 </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>1118 BG, Schiphol, the Netherlands. </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><B>Tel: +31 202 066 970 </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">(Address,&nbsp;Including ZIP Code, and Telephone
+Number,</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">Including Area Code, of Registrant&#8217;s Principal
+Executive Offices)</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">Indicate by check mark whether the registrant files or will file annual
+reports under cover of Form&nbsp;20-F or Form&nbsp;40-F.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">Form&nbsp;20-F <FONT STYLE="font-family: Wingdings">&#120;</FONT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Form&nbsp;40-F
+<FONT STYLE="font-family: Wingdings">&#168;</FONT></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0"></P>
+
+<!-- Field: Rule-Page --><DIV STYLE="margin-top: 3pt; margin-bottom: 12pt; width: 100%"><DIV STYLE="border-top: Black 1pt solid; font-size: 1pt; border-bottom: Black 2pt solid">&nbsp;</DIV></DIV><!-- Field: /Rule-Page -->
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0"></P>
+
+<!-- Field: Page; Sequence: 1 -->
+    <DIV STYLE="margin-top: 12pt; margin-bottom: 6pt; border-bottom: Black 1pt solid"><P STYLE="margin: 0pt">&nbsp;</P></DIV>
+    <DIV STYLE="break-before: page; margin-top: 6pt; margin-bottom: 12pt"><P STYLE="margin: 0pt">&nbsp;</P></DIV>
+    <!-- Field: /Page -->
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: justify"><B>ASSET BACKED FACILITY</B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: justify"><B>&nbsp;</B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">On July 10, 2026, Nebius Compute II,
+LLC, a Delaware limited liability company (the &ldquo;US Borrower&rdquo;), and Nebius Compute II Oy, a Finnish limited liability company
+(the &ldquo;Finnish Borrower&rdquo;; together with the US Borrower, the &ldquo;Borrowers&rdquo;), each an indirect wholly owned subsidiary
+of Nebius Group N.V. (the &ldquo;Company&rdquo;), entered into a Senior Facility Agreement (the &ldquo;Facility Agreement&rdquo;) with
+(i) MUFG Bank, Ltd., London Branch, as mandated lead arranger, underwriter, sole bookrunner and structuring agent, and as agent on behalf
+of the financial institutions party thereto (the &ldquo;Lenders&rdquo;), and the Security Agent (as defined below) (in such capacity,
+the &ldquo;Agent&rdquo;), (ii) the Lenders and (iii) Kroll Trustee Services Limited, as security trustee for the Lenders (in such capacity,
+the &ldquo;Security Agent&rdquo;). The Facility Agreement provides for a senior secured term loan facility in an aggregate principal amount
+of approximately $775 million. The Facility Agreement was entered into primarily to finance the buildout of the Company&rsquo;s AI cloud.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">Amounts borrowed under the Facility
+Agreement are subject to an interest rate per annum equal to Term SOFR (with a floor of 0.00%) plus an applicable margin of 2.50% per
+annum for a one-month interest period. The Borrowers may voluntarily prepay outstanding loans under the Facility Agreement upon ten business
+days&rsquo; prior notice to the Agent without premium or penalty, other than customary &ldquo;breakage&rdquo; costs. The maturity date
+of the Facility Agreement is October 31, 2030.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">The Borrowers are required to comply
+with certain financial covenants under the Facility Agreement, including a debt service coverage ratio of 1.15:1.00 and a minimum liquidity
+requirement. The Facility Agreement contains other affirmative and negative covenants and customary events of default.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">All obligations under the Facility
+Agreement are secured, subject to certain exceptions, by substantially all of each Borrower&rsquo;s assets, and the shares of the Borrowers
+held indirectly by the Company.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; margin-left: 0; text-align: justify">Subject to certain exceptions, the Company has
+provided (i) a non-recourse guaranty for specified &ldquo;bad acts&rdquo; of the Borrowers and (ii) a performance guarantee of certain
+obligations of Nebius B.V., Dutch private limited liability company and wholly owned subsidiary of the Company (in its capacity as manager),
+under a management agreement, and Nebius DC Oy, a Finnish limited liability company and indirect wholly owned subsidiary of the Company,
+under a data center colocation agreement.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: justify">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: justify">A press release announcing the signing of the
+Facility Agreement is attached as Exhibit 99.1.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center"><B>INDEX TO EXHIBITS</B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center"><B>&nbsp;</B></P>
+
+<TABLE CELLSPACING="0" CELLPADDING="0" STYLE="width: 100%; font: 10pt Times New Roman, Times, Serif; border-collapse: collapse">
+  <TR STYLE="vertical-align: top">
+    <TD STYLE="width: 10%; font-size: 10pt"><FONT STYLE="font-size: 10pt"><U>Exhibit No.</U></FONT></TD>
+    <TD STYLE="width: 2%">&nbsp;</TD>
+    <TD STYLE="width: 88%; font-size: 10pt"><FONT STYLE="font-size: 10pt"><U>Description</U></FONT></TD></TR>
+  <TR STYLE="vertical-align: top">
+    <TD STYLE="font-size: 10pt"><A HREF="tm2620683d1_ex99-1.htm" STYLE="-sec-extract: exhibit"><FONT STYLE="font-size: 10pt">99.1</FONT></A></TD>
+    <TD>&nbsp;</TD>
+    <TD STYLE="font-size: 10pt"><A HREF="tm2620683d1_ex99-1.htm" STYLE="-sec-extract: exhibit"><FONT STYLE="font-size: 10pt">Press release of Nebius Group N.V., dated July 17, 2026, announcing signing of the Facility Agreement. </FONT></A></TD></TR>
+  </TABLE>
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">&nbsp;</P>
+
+
+<!-- Field: Page; Sequence: 2 -->
+    <DIV STYLE="margin-top: 12pt; margin-bottom: 6pt; border-bottom: Black 1pt solid"><P STYLE="margin: 0pt">&nbsp;</P></DIV>
+    <DIV STYLE="break-before: page; margin-top: 6pt; margin-bottom: 12pt"><P STYLE="margin: 0pt">&nbsp;</P></DIV>
+    <!-- Field: /Page -->
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">&nbsp; <B>SIGNATURES </B></P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-indent: 0.5in">Pursuant to the requirements of the Securities
+Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned, thereunto duly authorized.</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-indent: 0.5in">&nbsp;</P>
+
+<TABLE CELLSPACING="0" CELLPADDING="0" STYLE="font: 10pt Times New Roman, Times, Serif; width: 100%; border-collapse: collapse">
+  <TR STYLE="vertical-align: top">
+    <TD>&nbsp;</TD>
+    <TD COLSPAN="2"><FONT STYLE="font-size: 10pt"><B>NEBIUS GROUP N.V. </B></FONT></TD></TR>
+  <TR STYLE="vertical-align: top">
+    <TD STYLE="width: 50%">&nbsp;</TD>
+    <TD STYLE="width: 3%">&nbsp;</TD>
+    <TD STYLE="width: 47%">&nbsp;</TD></TR>
+  <TR STYLE="vertical-align: top">
+    <TD><FONT STYLE="font-size: 10pt">Date: July 17, 2026</FONT></TD>
+    <TD><FONT STYLE="font-size: 10pt">By: </FONT></TD>
+    <TD STYLE="border-bottom: Black 1pt solid"><FONT STYLE="font-size: 10pt; font-variant: small-caps">/s/ NATHALIE VAN WIGGEN</FONT></TD></TR>
+  <TR STYLE="vertical-align: top">
+    <TD>&nbsp;</TD>
+    <TD>&nbsp;</TD>
+    <TD STYLE="padding-left: 10pt; text-indent: -10pt"><FONT STYLE="font-size: 10pt">Nathalie van Wiggen</FONT></TD></TR>
+  <TR STYLE="vertical-align: top">
+    <TD>&nbsp;</TD>
+    <TD>&nbsp;</TD>
+    <TD>Company <FONT STYLE="font-size: 10pt">Secretary</FONT></TD></TR>
+  </TABLE>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center"></P>
+
+<!-- Field: Page; Sequence: 3; Options: Last -->
+    <DIV STYLE="margin-top: 12pt; margin-bottom: 6pt; border-bottom: Black 1pt solid"><P STYLE="margin: 0pt">&nbsp;</P></DIV>
+    <!-- Field: /Page -->
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0; text-align: center">&nbsp;</P>
+
+<P STYLE="font: 10pt Times New Roman, Times, Serif; margin: 0pt 0">&nbsp;</P>
+
+
+</BODY>
+</HTML>
+</TEXT>
+</DOCUMENT>

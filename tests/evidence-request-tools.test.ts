@@ -105,13 +105,16 @@ function secSubmissionsPayload(
   forms: readonly string[] = ["8-K", "10-Q"],
   primaryDocuments: readonly string[] = secDocuments(forms),
   items: readonly string[] = forms.map((form) => (form === "8-K" ? "2.02,9.01" : "")),
+  filingDates: readonly string[] = forms.map((form) =>
+    form === "8-K" ? "2026-06-01" : "2026-05-01",
+  ),
 ): unknown {
   return {
     filings: {
       recent: {
         form: forms,
         items,
-        filingDate: forms.map((form) => (form === "8-K" ? "2026-06-01" : "2026-05-01")),
+        filingDate: filingDates,
         reportDate: forms.map((form) => (form === "8-K" ? "2026-05-30" : "2026-03-31")),
         accessionNumber: forms.map((form) =>
           form === "8-K" ? "0000320193-26-000100" : "0000320193-26-000077",
@@ -290,7 +293,7 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps[0]?.message).toContain("No SEC 10-K or 10-Q filing found");
   });
 
-  test("identifies unsupported foreign private issuer forms", async () => {
+  test("retains recent 6-K text without a provider earnings event", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -298,12 +301,21 @@ describe("SEC latest filing evidence tool", () => {
           json: async ({ adapter }) =>
             adapter === "sec-tickers"
               ? jsonResult(adapter, secTickersPayload())
-              : jsonResult(adapter, secSubmissionsPayload(["20-F", "6-K"])),
+              : jsonResult(
+                  adapter,
+                  secSubmissionsPayload(["20-F", "6-K"], ["a20f.htm", "a6k.htm"]),
+                ),
+          text: async ({ adapter }) =>
+            textResult(
+              adapter,
+              "Apple Inc. reported interim revenue growth and reiterated its outlook for the remainder of the fiscal year.",
+            ),
         }),
       }),
     );
 
-    expect(result.sources).toEqual([]);
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]).toMatchObject({ title: "AAPL SEC 6-K", provider: "sec-edgar" });
     expect(result.gaps).toEqual([
       expect.objectContaining({
         message: expect.stringContaining("files as a foreign private issuer (20-F, 6-K)"),
@@ -345,7 +357,40 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.items[0]?.metrics).toMatchObject({ form: "6-K" });
     expect(result.gaps).toEqual([
       expect.objectContaining({
-        message: expect.stringContaining("recent 6-K text is retained for event-date confirmation"),
+        message: expect.stringContaining(
+          "recent 6-K text is attempted, while annual-report section parsing remains unsupported",
+        ),
+        cause: "unsupported-coverage",
+        evidenceQualityImpact: "core-cap",
+      }),
+    ]);
+  });
+
+  test("reports no eligible 6-K when every foreign private issuer filing is out of window", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(
+                  adapter,
+                  secSubmissionsPayload(
+                    ["20-F", "6-K"],
+                    ["a20f.htm", "a6k.htm"],
+                    ["", ""],
+                    ["2024-05-01", "2024-06-01"],
+                  ),
+                ),
+        }),
+      }),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("no eligible recent 6-K filing was available"),
         cause: "unsupported-coverage",
         evidenceQualityImpact: "core-cap",
       }),

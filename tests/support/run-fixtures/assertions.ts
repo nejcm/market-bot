@@ -89,6 +89,8 @@ export async function assertNbisUnsupportedInputs(): Promise<void> {
     ["6-K", "interim-filing"],
     ["6-K", "interim-exhibit"],
     ["6-K", "interim-exhibit"],
+    ["6-K", "current-report"],
+    ["6-K", "current-report"],
   ]);
   for (const input of manifest.inputs) {
     const body = await readFile(join(root, "unsupported-inputs", input.file));

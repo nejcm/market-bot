@@ -5,7 +5,12 @@ import { dataCassetteKey } from "../tests/support/run-fixtures/data-cassette";
 interface UnsupportedInputSpec {
   readonly file: string;
   readonly form: "20-F" | "6-K";
-  readonly role: "annual-filing" | "filing-index" | "interim-filing" | "interim-exhibit";
+  readonly role:
+    | "annual-filing"
+    | "filing-index"
+    | "interim-filing"
+    | "interim-exhibit"
+    | "current-report";
   readonly url: string;
 }
 
@@ -44,6 +49,18 @@ const INPUTS: readonly UnsupportedInputSpec[] = [
     role: "interim-exhibit",
     url: "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
   },
+  {
+    file: "nbis-20260616x6k.txt",
+    form: "6-K",
+    role: "current-report",
+    url: "https://www.sec.gov/Archives/edgar/data/1513845/000110465926074352/tm2618059d1_6k.htm",
+  },
+  {
+    file: "nbis-20260717x6k.txt",
+    form: "6-K",
+    role: "current-report",
+    url: "https://www.sec.gov/Archives/edgar/data/1513845/000110465926084452/tm2620683d1_6k.htm",
+  },
 ];
 
 async function sha256Hex(value: Uint8Array): Promise<string> {
@@ -60,6 +77,12 @@ function supportFor(input: UnsupportedInputSpec): {
     return {
       structuredSupport: "discovery",
       reason: "Phase 3 replay input for bounded 6-K exhibit discovery",
+    };
+  }
+  if (input.role === "current-report") {
+    return {
+      structuredSupport: "unsupported",
+      reason: "Replay input for unconditional 6-K current-report text on foreign private issuers",
     };
   }
   if (input.file.endsWith("xex99d2.txt")) {
@@ -119,6 +142,8 @@ for (const file of [
   "nbis-20260331-index.txt",
   "nbis-20260331xex99d1.txt",
   "nbis-20260331xex99d2.txt",
+  "nbis-20260616x6k.txt",
+  "nbis-20260717x6k.txt",
 ]) {
   const input = byFile.get(file);
   if (input === undefined) {

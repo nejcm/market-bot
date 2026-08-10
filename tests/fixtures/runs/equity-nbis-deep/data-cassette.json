@@ -111,6 +111,24 @@
       "body": "",
       "bodyFile": "unsupported-inputs/nbis-20260331xex99d2.txt",
       "sha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e"
+    },
+    "GET  https://www.sec.gov/Archives/edgar/data/1513845/000110465926074352/tm2618059d1_6k.htm": {
+      "status": 200,
+      "headers": {
+        "content-type": "text/html"
+      },
+      "body": "",
+      "bodyFile": "unsupported-inputs/nbis-20260616x6k.txt",
+      "sha256": "d64bfa84e24171f72a153ee0db5f7323ce52e593e728170a226dfc0cf770c26e"
+    },
+    "GET  https://www.sec.gov/Archives/edgar/data/1513845/000110465926084452/tm2620683d1_6k.htm": {
+      "status": 200,
+      "headers": {
+        "content-type": "text/html"
+      },
+      "body": "",
+      "bodyFile": "unsupported-inputs/nbis-20260717x6k.txt",
+      "sha256": "48683243e71a7a91f3461caa328ad5ede912d162a124163d6798af3a39d5cb18"
     }
   }
 }

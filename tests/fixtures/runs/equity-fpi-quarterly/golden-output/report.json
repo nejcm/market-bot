@@ -71,11 +71,6 @@
       }
     }
   },
-  "predictionShortfall": {
-    "emittedCount": 0,
-    "targetCount": 5,
-    "missingCount": 5
-  },
   "dataGaps": [
     "sec-edgar: No SEC company facts found for FPIQ",
     "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
@@ -88,7 +83,7 @@
     "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
     "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
     "valuation-peers: Peer Universe unavailable for FPIQ: No checked-in peer mapping or subject-registry representative match",
-    "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+    "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
     "Synthetic FPI inputs exercise unsupported current filing forms.",
     "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
     "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
@@ -593,7 +588,7 @@
       },
       {
         "source": "sec-edgar",
-        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); these forms are not yet supported",
+        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
         "provider": "sec-edgar",
         "capability": "evidence-request",
         "cause": "unsupported-coverage",
@@ -957,5 +952,10 @@
   },
   "reportIntegrity": "high",
   "researchQuality": "medium",
-  "researchQualityDriver": "news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings"
+  "researchQualityDriver": "news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings",
+  "predictionShortfall": {
+    "emittedCount": 0,
+    "targetCount": 5,
+    "missingCount": 5
+  }
 }

@@ -6,7 +6,7 @@ Generated: 2026-07-22T16:16:13.510Z
 Evidence Quality: medium
 Report Integrity: high
 Research Quality: medium
-Research Quality Driver: regulatory filing evidence stale; corporate event evidence missing; remediation: rerun with current regulatory filings; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun
+Research Quality Driver: corporate event evidence missing; macro indicator evidence missing; remediation: configure MARKET_BOT_FINNHUB_API_TOKEN or rerun; configure MARKET_BOT_FRED_API_KEY or rerun
 Analysis Completeness: financial core `partial`
 
 ## What the Company Does
@@ -55,7 +55,7 @@ Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/b
 ## Material Data Gaps
 
 - **Material:** sec-edgar: No SEC company facts found for NBIS
-- **Material:** sec-edgar: NBIS files as a foreign private issuer \(20-F, 6-K\); these forms are not yet supported
+- **Material:** sec-edgar: NBIS files as a foreign private issuer \(20-F, 6-K\); recent 6-K text is attempted, while annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
 - **Material:** valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported
 - **Material:** business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources
@@ -140,6 +140,8 @@ No prior run artifacts matched this research scope.
 
 - [market-yahoo-equity-nbis] NBIS market snapshot
 - [verified-snapshot-NBIS] NBIS verified market snapshot \(OHLCV + indicators, 2026-07-22\)
+- [extended-sec-edgar-nbis-6k-0001104659-26-084452] NBIS SEC 6-K
+- [extended-sec-edgar-nbis-6k-0001104659-26-074352] NBIS SEC 6-K
 - [extended-sec-edgar-nbis-fundamentals] NBIS canonical financial statements
 - 15 uncited normalized source(s) omitted from markdown (sec-edgar/extended-evidence:1, yahoo-news/news:8, yahoo/market-data:6). Full source arrays remain in report.json and console files.
 

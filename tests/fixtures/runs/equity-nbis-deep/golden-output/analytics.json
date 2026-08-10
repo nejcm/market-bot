@@ -97,6 +97,34 @@
         "emptyAfterSanitizeFieldCount": 0
       },
       {
+        "provider": "sec-edgar",
+        "ingress": "sec-filing-text",
+        "profile": "sec-filing",
+        "fieldRole": "prose",
+        "droppedItemCount": 0,
+        "inputChars": 4709,
+        "outputChars": 4709,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "sec-edgar",
+        "ingress": "sec-tickers",
+        "profile": "short-metadata",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 34,
+        "outputChars": 34,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
         "provider": "historical-artifact",
         "ingress": "historical-context",
         "profile": "legacy-history",
@@ -113,14 +141,14 @@
     ]
   },
   "sourceTextResearchOnly": {
-    "scannedCount": 18,
+    "scannedCount": 20,
     "flaggedCount": 0,
     "flaggedByKind": {},
     "flaggedByProvider": {}
   },
   "sourceFunnel": {
     "rawSnapshots": {
-      "total": 7,
+      "total": 9,
       "byAdapter": {
         "yahoo-ticker": 1,
         "yahoo-regime": 1,
@@ -128,20 +156,21 @@
         "sec-tickers": 1,
         "sec-companyfacts": 1,
         "sec-submissions": 1,
-        "yahoo-verified-chart": 1
+        "yahoo-verified-chart": 1,
+        "sec-filing-text": 2
       }
     },
     "reportSources": {
-      "total": 18,
+      "total": 20,
       "byKind": {
         "market-data": 8,
         "news": 8,
-        "extended-evidence": 2
+        "extended-evidence": 4
       },
       "byProvider": {
         "yahoo": 8,
         "yahoo-news": 8,
-        "sec-edgar": 2
+        "sec-edgar": 4
       }
     },
     "sourceGaps": {
@@ -325,10 +354,10 @@
           "capability": "regulatory-filings",
           "evidenceClass": "material",
           "coverage": "pass",
-          "freshness": "fail",
+          "freshness": "pass",
           "corroboration": "not-applicable",
-          "passed": false,
-          "reasons": ["regulatory-filings: freshness check failed"]
+          "passed": true,
+          "reasons": []
         },
         {
           "capability": "corporate-events",
@@ -386,7 +415,6 @@
         }
       ],
       "limitingReasons": [
-        "regulatory-filings: freshness check failed",
         "corporate-events: evidence missing or unusable",
         "macro-indicators: evidence missing or unusable",
         "target-valuation: evidence present but not supportable"
@@ -394,10 +422,10 @@
     },
     "dataGapCount": 19,
     "extendedEvidence": {
-      "itemCount": 5,
+      "itemCount": 7,
       "gapCount": 14,
       "itemsByCategory": {
-        "sec-edgar": 1,
+        "sec-edgar": 3,
         "valuation": 1,
         "yahoo-fundamentals": 1,
         "financial-lens": 1,
@@ -430,7 +458,7 @@
       "acceptedRequestCount": 0,
       "rejectedRequestCount": 0,
       "sourceUnitsUsed": 0,
-      "executedTools": [],
+      "executedTools": ["sec_latest_filing"],
       "emittedGapCount": 1
     }
   },
@@ -488,7 +516,7 @@
     "gapLaneCount": 6,
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 2,
-    "sourceCount": 19,
+    "sourceCount": 21,
     "gapCount": 12,
     "coverageRatio": 0.45454545454545453
   },

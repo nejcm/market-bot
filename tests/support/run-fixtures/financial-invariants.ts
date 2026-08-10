@@ -178,9 +178,11 @@ function assertPeriodStructure(series: FinancialStatementSeries): void {
       periodKeys.add(fact.periodKey);
       const prior = facts[index - 1];
       invariant(
-        prior === undefined || prior.periodEnd < fact.periodEnd,
+        prior === undefined ||
+          prior.periodEnd < fact.periodEnd ||
+          (prior.periodEnd === fact.periodEnd && prior.periodKey < fact.periodKey),
         "A3",
-        `${series.key} ${periodType} is not strictly increasing by periodEnd`,
+        `${series.key} ${periodType} is not strictly increasing by period identity`,
       );
     }
   }

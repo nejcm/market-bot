@@ -61,29 +61,15 @@ export function assessNegativeCalibration(
       ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
     };
   }
-  if (metric.runCount === undefined || metric.brierStandardError === undefined) {
+  if (metric.runCount === undefined || lowerConfidenceBound === undefined) {
     return { actionable: false, reason: "uncertainty-unavailable" };
   }
   if (metric.runCount < MIN_ACTIONABLE_CALIBRATION_RUNS) {
-    return {
-      actionable: false,
-      reason: "below-run-floor",
-      ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
-    };
+    return { actionable: false, reason: "below-run-floor", lowerConfidenceBound };
   }
-  const actionableLowerConfidenceBound =
-    metric.brierScore - ACTIONABLE_CALIBRATION_Z * metric.brierStandardError;
-  return actionableLowerConfidenceBound > BASE_RATE_BRIER
-    ? {
-        actionable: true,
-        reason: "actionable-negative",
-        lowerConfidenceBound: actionableLowerConfidenceBound,
-      }
-    : {
-        actionable: false,
-        reason: "not-negative-with-confidence",
-        lowerConfidenceBound: actionableLowerConfidenceBound,
-      };
+  return lowerConfidenceBound > BASE_RATE_BRIER
+    ? { actionable: true, reason: "actionable-negative", lowerConfidenceBound }
+    : { actionable: false, reason: "not-negative-with-confidence", lowerConfidenceBound };
 }
 
 export function applicableCalibrationSlices(

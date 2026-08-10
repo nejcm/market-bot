@@ -460,9 +460,10 @@ describe("SEC latest filing evidence tool", () => {
         recent: {
           form: ["10-K", "10-Q", "10-Q"],
           filingDate: ["2025-11-01", "2026-05-01", "2026-02-01"],
-          reportDate: ["2025-09-30", "2026-03-31", "2025-12-31"],
+          reportDate: ["2025-09-30", "", "2025-12-31"],
           accessionNumber: ["0000320193-25-000010", "0000320193-26-000077", "0000320193-26-000020"],
           primaryDocument: ["a10k.htm", "a10q-latest.htm", "a10q-old.htm"],
+          items: ["2.02"],
         },
       },
     };
@@ -498,9 +499,90 @@ describe("SEC latest filing evidence tool", () => {
     // Latest 10-Q wins over the older one.
     expect(result.sources[1]?.url).toContain("/a10q-latest.htm");
     expect(result.items[0]?.metrics).toMatchObject({ form: "10-K", filingDate: "2025-11-01" });
-    expect(result.items[1]?.metrics).toMatchObject({ form: "10-Q", filingDate: "2026-05-01" });
+    expect(result.items[1]?.metrics).toMatchObject({
+      form: "10-Q",
+      filingDate: "2026-05-01",
+      accessionNumber: "0000320193-26-000077",
+      primaryDocument: "a10q-latest.htm",
+    });
+    expect(result.items[1]?.metrics).not.toHaveProperty("reportDate");
+    expect(result.items.every((item) => item.metrics?.items === undefined)).toBe(true);
     // Tickers + submissions + two filing texts
     expect(result.rawSnapshots).toHaveLength(4);
+  });
+
+  test("drops a malformed SEC row without shifting following filing metadata", async () => {
+    const submissions = {
+      filings: {
+        recent: {
+          form: ["10-Q", "8-K", "8-K"],
+          filingDate: ["2026-05-01", null, "2026-06-15"],
+          reportDate: ["2026-03-31", "2026-05-31", "2026-06-14"],
+          accessionNumber: ["0000320193-26-000077", "0000320193-26-000140", "0000320193-26-000150"],
+          primaryDocument: ["a10q.htm", "bad-8k.htm", "own-8k.htm"],
+          items: ["", "2.02", "8.01"],
+        },
+      },
+    };
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        fetchedAt: "2026-07-20T12:00:00.000Z",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, submissions),
+          text: async ({ adapter }) =>
+            textResult(
+              adapter,
+              `ITEM 2. MANAGEMENT ${repeatToMinAlpha("Substantive filing discussion continues here.")}`,
+            ),
+        }),
+      }),
+    );
+
+    expect(
+      result.items.some((item) => item.metrics?.accessionNumber === "0000320193-26-000140"),
+    ).toBe(false);
+    expect(
+      result.items.find((item) => item.metrics?.accessionNumber === "0000320193-26-000150")
+        ?.metrics,
+    ).toMatchObject({
+      filingDate: "2026-06-15",
+      reportDate: "2026-06-14",
+      accessionNumber: "0000320193-26-000150",
+      primaryDocument: "own-8k.htm",
+      items: "8.01",
+    });
+  });
+
+  test("rejects SEC recent filings with unequal required-column lengths", async () => {
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, {
+                  filings: {
+                    recent: {
+                      form: ["10-Q"],
+                      filingDate: ["2026-05-01"],
+                      reportDate: ["2026-03-31"],
+                      accessionNumber: ["0000320193-26-000077"],
+                      primaryDocument: [],
+                      items: [""],
+                    },
+                  },
+                }),
+        }),
+      }),
+    );
+
+    expect(result.sources).toEqual([]);
+    expect(result.items).toEqual([]);
   });
 
   test("selects two recent exact-form 8-Ks and builds bounded numbered or top packets", async () => {

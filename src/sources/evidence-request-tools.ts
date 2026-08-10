@@ -226,12 +226,25 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
   }
 
   const { recent } = payload.filings;
-  const forms = stringArrayValue(recent.form);
-  const filingDates = stringArrayValue(recent.filingDate);
-  const reportDates = stringArrayValue(recent.reportDate);
-  const accessionNumbers = stringArrayValue(recent.accessionNumber);
-  const primaryDocuments = stringArrayValue(recent.primaryDocument);
-  const itemCodes = stringArrayValue(recent.items);
+  const { form: forms, filingDate: filingDates, accessionNumber: accessionNumbers } = recent;
+  const primaryDocuments = recent.primaryDocument;
+  if (
+    !Array.isArray(forms) ||
+    !Array.isArray(filingDates) ||
+    !Array.isArray(accessionNumbers) ||
+    !Array.isArray(primaryDocuments) ||
+    forms.length !== filingDates.length ||
+    forms.length !== accessionNumbers.length ||
+    forms.length !== primaryDocuments.length
+  ) {
+    return [];
+  }
+  const reportDates =
+    Array.isArray(recent.reportDate) && recent.reportDate.length === forms.length
+      ? recent.reportDate
+      : undefined;
+  const itemCodes =
+    Array.isArray(recent.items) && recent.items.length === forms.length ? recent.items : undefined;
 
   return forms.flatMap((f, index): SecFiling[] => {
     if (f !== "10-K" && f !== "10-Q" && f !== "8-K" && f !== "6-K") {
@@ -241,22 +254,29 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
     const accessionNumber = accessionNumbers[index];
     const primaryDocument = primaryDocuments[index];
     if (
-      filingDate === undefined ||
-      accessionNumber === undefined ||
-      primaryDocument === undefined
+      typeof filingDate !== "string" ||
+      filingDate.trim() === "" ||
+      typeof accessionNumber !== "string" ||
+      accessionNumber.trim() === "" ||
+      typeof primaryDocument !== "string" ||
+      primaryDocument.trim() === ""
     ) {
       return [];
     }
-    const reportDate = reportDates[index];
-    const items = (itemCodes[index] ?? "")
-      .split(",")
-      .map((code) => code.trim())
-      .filter((code) => code !== "");
+    const reportDate = reportDates?.[index];
+    const itemCode = itemCodes?.[index];
+    const items =
+      typeof itemCode === "string" && itemCode.trim() !== ""
+        ? itemCode
+            .split(",")
+            .map((code) => code.trim())
+            .filter((code) => code !== "")
+        : [];
     return [
       {
         form: f,
         filingDate,
-        ...(reportDate !== undefined ? { reportDate } : {}),
+        ...(typeof reportDate === "string" && reportDate.trim() !== "" ? { reportDate } : {}),
         accessionNumber,
         primaryDocument,
         ...(items.length > 0 ? { items } : {}),

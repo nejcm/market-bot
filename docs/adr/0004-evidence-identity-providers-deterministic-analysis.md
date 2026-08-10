@@ -28,7 +28,8 @@ operator gate records; amended 2026-07-30: deterministic price-as-of labelling; 
 not-assessed equity completeness status; amended 2026-07-31: persisted Source Gap triage; amended
 2026-08-01: recipe-phased deep-equity provider dispatch; amended 2026-08-02: runtime financial-
 statement parity retirement; amended 2026-08-03: interchangeable-alias offline detection; amended
-2026-08-03: parsed-artifact authority for Research Console snapshot rendering)
+2026-08-03: parsed-artifact authority for Research Console snapshot rendering; amended 2026-08-10:
+current-report selection and Evidence Quality / Equity Analysis Completeness boundary)
 
 ## Context
 
@@ -130,8 +131,15 @@ without pretending the project has a global security master.
   packet and rejects duplicate background searches without a recency, corroboration, or explicit-gap
   rationale.
 - Deep US-equity filing evidence includes the latest 10-K, a newer current 10-Q when present, and up
-  to two exact-form 8-K current reports filed after the newest periodic filing and within 120 days of
-  collection. Company-profile reuse freshness remains keyed only to 10-K/10-Q filings because 8-K
+  to two 8-K current reports within 120 days of collection. Routine 8-Ks must postdate the newest
+  periodic filing; the newest Item 2.02 within the window gets one slot regardless of that floor.
+  Item 2.02 evidence prefers a substantive EX-99 earnings-release exhibit and persists the parsed
+  item codes plus `earningsReleaseDocument` and `earningsReleaseExhibit` provenance metrics; a gap
+  discloses when neither the exhibit nor primary document reports substantive results. For detected
+  foreign private issuers without a 10-K/10-Q basis, collection attempts up to two 6-Ks in the same
+  window without depending on an earnings-event credential; remaining unsupported coverage is
+  described as annual-report section parsing, not a form-specific annual-report claim.
+  Company-profile reuse freshness remains keyed only to 10-K/10-Q filings because current-report
   evidence enriches current events without replacing the durable periodic profile basis.
 - Deterministic title dedupe rejects an incoming accepted-web candidate when normalized title tokens
   match an already-accepted source at a 0.8 maximum Jaccard/containment threshold with at least three
@@ -234,6 +242,28 @@ without pretending the project has a global security master.
   `financialCoreStatus` is determined only by canonical primary financials; valuation,
   expectations, capital/ownership, and operating-KPI dimensions affect only `coverageLevel`.
   Missing credentials or entitlements never establish non-applicability.
+- Amendment: Evidence Quality and Equity Analysis Completeness answer different questions.
+  Evidence Quality grades what sourcing achieved against the frozen Source Plan; Equity Analysis
+  Completeness grades what the issuer's reporting surface makes achievable. Complete sourcing can
+  therefore expose an incomplete reporting surface without lowering Evidence Quality.
+- Three model-facing readings were considered. A typed completeness projector was rejected because
+  it would add a payload schema largely for non-freshness dimension statuses already available to
+  readers. Completeness as Source Gaps alone was rejected because a current reporting surface emits
+  no gap and would provide the model no freshness context. The adopted split emits allowlisted
+  freshness defects as Source Gaps and, whenever the statement artifact contains a reported primary-
+  revenue period, always exposes `interimCadence` and `latestReportedPeriodEnd` on the existing
+  Financial Lens metrics; `expectedDuePeriodEnd` is also exposed when a period is due. The entire
+  freshness block is absent when no primary-revenue period is reported.
+- The freshness-gap allowlist is `current-annual-statement-missing`,
+  `annual-history-insufficient`, `latest-due-interim-missing`,
+  `quarterly-periods-insufficient`, `semiannual-comparison-missing`,
+  `irregular-comparison-missing`, `ttm-unreconciled`, `cadence-unestablished`,
+  `per-share-evidence-missing`, `current-primary-statements-incomplete`,
+  `untagged-interim-evidence`, `reporting-currency-missing`,
+  `reporting-currency-incompatible`, and `subsequent-financing-unreconciled`. Every completeness gap
+  from this allowlist has `evidenceQualityImpact: "no-cap"` **by design**: it describes an incomplete
+  reporting surface, not a sourcing failure, and must not lower Evidence Quality. Informational and
+  non-freshness reason codes do not enter this gap channel.
 - Amendment: a completeness dimension is `not-assessed` when it cannot be evaluated because its
   inputs were never configured or available to the deployment, including an unconfigured
   operating-KPI registry or a missing optional provider credential or entitlement, such as Finnhub

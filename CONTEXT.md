@@ -262,6 +262,10 @@ Citeable sector-ETF or index comparison for a Mover that never changes rank.
 
 Deterministic grade of evidence completeness, recency, corroboration, and traceability. Model judgment, narrative uncertainty, and Prediction probability cannot set it.
 
+## Equity Analysis Completeness
+
+Deterministic grade of what an equity issuer's reporting surface makes achievable, including due interim coverage, filing cadence, and per-share and payout evidence. It is distinct from Evidence Quality, which grades what sourcing achieved: complete sourcing can expose an incomplete reporting surface, such as a due quarter the issuer has not filed. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+
 ## Temporal Integrity
 
 Current evidence contains only facts observable by its analysis cutoff. Later facts are excluded; stale fallbacks stay raw-audit-only with disclosure.
@@ -376,6 +380,10 @@ Optional higher-specificity provider evidence for instrument Research Views.
 ## Fundamental Evidence
 
 Sourced issuer operating and financial facts used as Extended Evidence.
+
+## Current Report Evidence
+
+Bounded text from up to two recent SEC current reports — 8-K for domestic filers, 6-K for foreign private issuers — filed within 120 days of collection. Routine 8-Ks must postdate the newest periodic filing, while the newest Item 2.02 earnings release within the window gets one of the two slots despite that floor because it normally precedes the periodic filing and carries nonduplicative results context. A substantive EX-99 earnings-release exhibit is preferred over the primary document; a gap discloses when neither reports substantive results.
 
 ## Valuation Evidence
 

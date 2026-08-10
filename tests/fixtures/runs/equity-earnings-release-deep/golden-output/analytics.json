@@ -111,11 +111,10 @@
         "business-framework": 1
       }
     },
-    "sourceGapClasses": {
-      "missingCredential": 12,
-      "fetchFailed": 3,
-      "unsupportedCoverage": 0,
-      "other": 5
+    "sourceGapsByCause": {
+      "fetch-failed": 3,
+      "missing-credential": 12,
+      "provider-data-missing": 5
     },
     "dataGaps": {
       "total": 24

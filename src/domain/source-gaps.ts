@@ -7,11 +7,6 @@ import type {
   SourceGapTriage,
 } from "./types";
 
-export type SourceGapAnalyticsClass =
-  | "missingCredential"
-  | "fetchFailed"
-  | "unsupportedCoverage"
-  | "other";
 type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circuit-open">;
 
 // Exhaustive membership tables keyed by every union member.
@@ -306,33 +301,6 @@ export function consolidateSecCompanyFactGaps(gaps: readonly SourceGap[]): reado
   });
 }
 
-export function sourceGapAnalyticsClass(gap: SourceGap): SourceGapAnalyticsClass {
-  const { cause } = gap;
-  switch (cause) {
-    case "missing-credential": {
-      return "missingCredential";
-    }
-    case "fetch-failed":
-    case "circuit-open": {
-      return "fetchFailed";
-    }
-    case "unsupported-coverage": {
-      return "unsupportedCoverage";
-    }
-    case "stale-fallback":
-    case "repeat-fallback":
-    case "malformed-response":
-    case "validation-failed":
-    case "provider-data-missing":
-    case undefined: {
-      return "other";
-    }
-    default: {
-      return assertNever(cause);
-    }
-  }
-}
-
 export function isRepeatFallbackGap(gap: SourceGap): boolean {
   return gap.cause === "repeat-fallback";
 }
@@ -358,8 +326,4 @@ export function marketContextGap(gap: SourceGap): SourceGap {
     capability: "market-context",
     evidenceQualityImpact: "no-cap",
   });
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled source gap cause: ${String(value)}`);
 }

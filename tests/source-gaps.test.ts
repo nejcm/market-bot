@@ -10,7 +10,6 @@ import {
   isUnmappedSecFilingGap,
   marketContextGap,
   sourceGap,
-  sourceGapAnalyticsClass,
   sourceGapReportText,
   sourceGapScopedReportText,
   sourceGapWithContext,
@@ -28,16 +27,6 @@ describe("source gaps", () => {
     expect(sourceGap({ source: "sec-edgar", message: "missing" })).not.toHaveProperty("symbol");
   });
 
-  test("classifies missing credentials without reading message text", () => {
-    const gap = sourceGap({
-      source: "marketaux-news",
-      message: "provider unavailable",
-      cause: "missing-credential",
-    });
-
-    expect(sourceGapAnalyticsClass(gap)).toBe("missingCredential");
-  });
-
   test("classifies fetch and circuit failures without reading message text", () => {
     const fetchGap = fetchFailureSourceGap("yahoo", "timeout");
     const circuitGap = fetchFailureSourceGap("yahoo", "rate limit exhausted", "circuit-open");
@@ -46,18 +35,6 @@ describe("source gaps", () => {
     expect(fetchGap.cause).toBe("fetch-failed");
     expect(circuitGap.cause).toBe("circuit-open");
     expect(textOnlyCircuitGap.cause).toBe("fetch-failed");
-    expect(sourceGapAnalyticsClass(fetchGap)).toBe("fetchFailed");
-    expect(sourceGapAnalyticsClass(circuitGap)).toBe("fetchFailed");
-  });
-
-  test("classifies unsupported coverage separately from other gaps", () => {
-    const gap = sourceGap({
-      source: "sec-edgar",
-      message: "SEC EDGAR does not support RR.L (non-US listing)",
-      cause: "unsupported-coverage",
-    });
-
-    expect(sourceGapAnalyticsClass(gap)).toBe("unsupportedCoverage");
   });
 
   test("keeps repeat fallback as typed meaning while preserving report text", () => {

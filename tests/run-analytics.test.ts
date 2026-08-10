@@ -282,12 +282,7 @@ describe("run analytics", () => {
     });
     expect(analytics.modelInputSanitization).toEqual(trace.modelInputSanitization);
     expect(analytics.sourceFunnel.sourceGaps.bySource).toEqual({ "marketaux-news": 1 });
-    expect(analytics.sourceFunnel.sourceGapClasses).toEqual({
-      fetchFailed: 0,
-      missingCredential: 1,
-      unsupportedCoverage: 0,
-      other: 0,
-    });
+    expect(analytics.sourceFunnel.sourceGapsByCause).toEqual({ "missing-credential": 1 });
     expect(analytics.providerEndpointAvailability?.marketauxNews).toEqual({
       status: "available",
       evidence: ["marketaux-news"],

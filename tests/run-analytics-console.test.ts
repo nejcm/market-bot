@@ -21,7 +21,7 @@ function baseAnalytics(): RunAnalytics {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },
       sourceGaps: { total: 0, bySource: {} },
-      sourceGapClasses: { missingCredential: 0, fetchFailed: 0, unsupportedCoverage: 0, other: 0 },
+      sourceGapsByCause: {},
       dataGaps: { total: 0 },
     },
     newsDedupe: {
@@ -195,25 +195,39 @@ describe("run analytics console", () => {
     expect(output).toContain("  ! all emitted predictions are direction kind");
   });
 
-  test("renders source-gap classification breakdown", () => {
+  test("renders source-gap cause breakdown", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
       sourceFunnel: {
         ...analytics.sourceFunnel,
         sourceGaps: { total: 5, bySource: {} },
-        sourceGapClasses: {
-          missingCredential: 2,
-          fetchFailed: 1,
-          unsupportedCoverage: 1,
-          other: 1,
+        sourceGapsByCause: {
+          "missing-credential": 2,
+          "fetch-failed": 1,
+          "unsupported-coverage": 1,
+          "validation-failed": 1,
         },
       },
     });
 
     expect(output).toContain(
-      "Source gaps: 5 total (2 credential, 1 unsupported, 1 fetch-failed, 1 other)",
+      "Source gaps: 5 total (2 missing-credential, 1 fetch-failed, 1 unsupported-coverage, 1 validation-failed)",
     );
+  });
+
+  test("renders stale fallback and provider data missing as separate causes", () => {
+    const analytics = baseAnalytics();
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      sourceFunnel: {
+        ...analytics.sourceFunnel,
+        sourceGaps: { total: 8, bySource: {} },
+        sourceGapsByCause: { "stale-fallback": 1, "provider-data-missing": 7 },
+      },
+    });
+
+    expect(output).toContain("Source gaps: 8 total (7 provider-data-missing, 1 stale-fallback)");
   });
 
   test("omits source-gap line when no gaps exist", () => {

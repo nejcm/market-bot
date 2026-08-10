@@ -301,11 +301,10 @@
         "business-framework": 1
       }
     },
-    "sourceGapClasses": {
-      "missingCredential": 2,
-      "fetchFailed": 0,
-      "unsupportedCoverage": 0,
-      "other": 16
+    "sourceGapsByCause": {
+      "missing-credential": 2,
+      "provider-data-missing": 14,
+      "validation-failed": 2
     },
     "dataGaps": {
       "total": 20

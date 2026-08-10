@@ -13,7 +13,7 @@ import {
   type WebEvidenceUtilization,
   type WebGatherAcceptancePolicy,
 } from "../domain/types";
-import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
+import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
@@ -95,12 +95,7 @@ export interface RunAnalytics {
       readonly total: number;
       readonly bySource: Readonly<Record<string, number>>;
     };
-    readonly sourceGapClasses: {
-      readonly missingCredential: number;
-      readonly fetchFailed: number;
-      readonly unsupportedCoverage: number;
-      readonly other: number;
-    };
+    readonly sourceGapsByCause: Readonly<Record<string, number>>;
     readonly dataGaps: {
       readonly total: number;
     };
@@ -325,18 +320,6 @@ function countBy<T>(
 
 function sourceGaps(collectedSources: CollectedSources): readonly SourceGap[] {
   return collectedSources.sourceGaps;
-}
-
-function sourceGapClasses(
-  gaps: readonly SourceGap[],
-): RunAnalytics["sourceFunnel"]["sourceGapClasses"] {
-  const classes = countBy(gaps, sourceGapAnalyticsClass);
-  return {
-    missingCredential: classes.missingCredential ?? 0,
-    fetchFailed: classes.fetchFailed ?? 0,
-    unsupportedCoverage: classes.unsupportedCoverage ?? 0,
-    other: classes.other ?? 0,
-  };
 }
 
 function selectedNewsAliasDuplicateCount(sources: readonly Source[]): number {
@@ -728,7 +711,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         total: gaps.length,
         bySource: countBy(gaps, (gap) => gap.source),
       },
-      sourceGapClasses: sourceGapClasses(gaps),
+      sourceGapsByCause: countBy(gaps, (gap) => gap.cause),
       dataGaps: {
         total: dataGapCount,
       },

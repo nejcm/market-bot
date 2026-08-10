@@ -55,6 +55,9 @@ interface SecFiling {
   readonly reportDate?: string;
   readonly accessionNumber: string;
   readonly primaryDocument: string;
+  // Current-report item codes (e.g. "2.02"). Absent when the submissions payload omits them,
+  // Which is treated as unknown rather than empty.
+  readonly items?: readonly string[];
 }
 
 interface TradierBucket {
@@ -221,6 +224,7 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
   const reportDates = stringArrayValue(recent.reportDate);
   const accessionNumbers = stringArrayValue(recent.accessionNumber);
   const primaryDocuments = stringArrayValue(recent.primaryDocument);
+  const itemCodes = stringArrayValue(recent.items);
 
   return forms.flatMap((f, index): SecFiling[] => {
     if (f !== "10-K" && f !== "10-Q" && f !== "8-K" && f !== "6-K") {
@@ -237,6 +241,10 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
       return [];
     }
     const reportDate = reportDates[index];
+    const items = (itemCodes[index] ?? "")
+      .split(",")
+      .map((code) => code.trim())
+      .filter((code) => code !== "");
     return [
       {
         form: f,
@@ -244,6 +252,7 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
         ...(reportDate !== undefined ? { reportDate } : {}),
         accessionNumber,
         primaryDocument,
+        ...(items.length > 0 ? { items } : {}),
       },
     ];
   });
@@ -270,7 +279,16 @@ function selectCurrentQuarterlyFiling(payload: unknown, annual?: SecFiling): Sec
   return filingBasisDate(latestQuarterly) > filingBasisDate(annual) ? latestQuarterly : undefined;
 }
 
-function selectRecentMaterialEightKs(
+const EARNINGS_RELEASE_ITEM_CODE = "2.02";
+
+function byFilingRecency(left: SecFiling, right: SecFiling): number {
+  return (
+    right.filingDate.localeCompare(left.filingDate) ||
+    right.accessionNumber.localeCompare(left.accessionNumber)
+  );
+}
+
+function selectRecentCurrentReports(
   payload: unknown,
   newestPeriodicFilingDate: string,
   fetchedAt: string,
@@ -279,8 +297,8 @@ function selectRecentMaterialEightKs(
   if (!Number.isFinite(fetchedAtMs)) {
     return [];
   }
-  return recentSecFilingRows(payload)
-    .filter((filing) => filing.form === "8-K" && filing.filingDate > newestPeriodicFilingDate)
+  const recent = recentSecFilingRows(payload)
+    .filter((filing) => filing.form === "8-K")
     .filter((filing) => {
       const filingDateMs = Date.parse(`${filing.filingDate}T00:00:00.000Z`);
       if (!Number.isFinite(filingDateMs)) {
@@ -289,12 +307,31 @@ function selectRecentMaterialEightKs(
       const ageDays = (fetchedAtMs - filingDateMs) / DAY_MS;
       return ageDays >= 0 && ageDays <= SEC_8K_LOOKBACK_DAYS;
     })
-    .toSorted(
-      (left, right) =>
-        right.filingDate.localeCompare(left.filingDate) ||
-        right.accessionNumber.localeCompare(left.accessionNumber),
-    )
-    .slice(0, SEC_8K_LIMIT);
+    .toSorted(byFilingRecency);
+
+  // The earnings release is exempt from the periodic-filing floor. That floor exists so routine
+  // 8-Ks predating the newest 10-K/10-Q are not re-read, but the Item 2.02 release normally lands
+  // Days BEFORE the 10-Q and carries what the periodic filing does not (guidance, segment
+  // Commentary, non-GAAP bridges). Filings without item codes are unknown, not empty, so the
+  // Selection silently degrades to pure date ordering.
+  const earningsRelease = recent.find(
+    (filing) => filing.items?.includes(EARNINGS_RELEASE_ITEM_CODE) === true,
+  );
+  const dateSelected = recent.filter((filing) => filing.filingDate > newestPeriodicFilingDate);
+
+  const selected: SecFiling[] = [];
+  for (const filing of [
+    ...(earningsRelease === undefined ? [] : [earningsRelease]),
+    ...dateSelected,
+  ]) {
+    if (selected.length >= SEC_8K_LIMIT) {
+      break;
+    }
+    if (!selected.some((chosen) => chosen.accessionNumber === filing.accessionNumber)) {
+      selected.push(filing);
+    }
+  }
+  return selected.toSorted(byFilingRecency);
 }
 
 function selectRecentEarningsSixKs(payload: unknown, fetchedAt: string): readonly SecFiling[] {
@@ -612,6 +649,7 @@ function buildSecFilingMetadataOnlyItem(
       ...(filing.reportDate !== undefined ? { reportDate: filing.reportDate } : {}),
       accessionNumber: filing.accessionNumber,
       primaryDocument: filing.primaryDocument,
+      ...(filing.items === undefined ? {} : { items: filing.items.join(",") }),
       cik: match.cik,
     },
     identity,
@@ -710,6 +748,7 @@ function buildSecFilingSourceItem(
       ...(filing.reportDate !== undefined ? { reportDate: filing.reportDate } : {}),
       accessionNumber: filing.accessionNumber,
       primaryDocument: filing.primaryDocument,
+      ...(filing.items === undefined ? {} : { items: filing.items.join(",") }),
       cik: match.cik,
     },
     identity,
@@ -985,7 +1024,7 @@ export async function collectSecFilingEvidence(
   const eightKs =
     newestPeriodicFilingDate === undefined
       ? []
-      : selectRecentMaterialEightKs(submissionsPayload, newestPeriodicFilingDate, ctx.fetchedAt);
+      : selectRecentCurrentReports(submissionsPayload, newestPeriodicFilingDate, ctx.fetchedAt);
 
   const filingResults = await Promise.all(
     [tenK, tenQ, ...eightKs, ...sixKs].flatMap((filing) =>

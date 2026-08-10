@@ -103,11 +103,13 @@ function secDocuments(forms: readonly string[]): readonly string[] {
 function secSubmissionsPayload(
   forms: readonly string[] = ["8-K", "10-Q"],
   primaryDocuments: readonly string[] = secDocuments(forms),
+  items: readonly string[] = forms.map((form) => (form === "8-K" ? "2.02,9.01" : "")),
 ): unknown {
   return {
     filings: {
       recent: {
         form: forms,
+        items,
         filingDate: forms.map((form) => (form === "8-K" ? "2026-06-01" : "2026-05-01")),
         reportDate: forms.map((form) => (form === "8-K" ? "2026-05-30" : "2026-03-31")),
         accessionNumber: forms.map((form) =>
@@ -117,6 +119,10 @@ function secSubmissionsPayload(
       },
     },
   };
+}
+
+function currentReportRow(filingDate: string, accession: string, document: string, items: string) {
+  return { form: "8-K", filingDate, accession, document, items };
 }
 
 describe("SEC latest filing evidence tool", () => {
@@ -576,6 +582,156 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.sources.map((source) => source.id)).toEqual(["extended-sec-edgar-aapl-10k"]);
     expect(requestedFilingUrls).toHaveLength(1);
     expect(requestedFilingUrls[0]).toContain("annual-10k.htm");
+  });
+
+  // Item-aware 8-K selection. The earnings release (Item 2.02) is normally filed days BEFORE
+  // The 10-Q, so it fails the periodic-filing floor that routine 8-Ks are subject to.
+  const EARNINGS_8K_ID = "extended-sec-edgar-aapl-8k-0000320193-26-000050";
+  const ROUTINE_8K_ID = "extended-sec-edgar-aapl-8k-0000320193-26-000150";
+
+  const TEN_Q_ROW = {
+    form: "10-Q",
+    filingDate: "2026-05-01",
+    accession: "0000320193-26-000077",
+    document: "a10q.htm",
+    items: "",
+  };
+
+  async function runCurrentReportSelection(
+    rows: readonly {
+      form: string;
+      filingDate: string;
+      accession: string;
+      document: string;
+      items: string;
+    }[],
+    text: SourceRequestExecutor["text"] = async ({ adapter }) =>
+      textResult(
+        adapter,
+        `ITEM 2. MANAGEMENT ${repeatToMinAlpha(
+          "Results of operations and liquidity discussion continues with substantive detail here.",
+        )}`,
+      ),
+  ) {
+    return executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        fetchedAt: "2026-07-20T12:00:00.000Z",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, {
+                  filings: {
+                    recent: {
+                      form: rows.map((row) => row.form),
+                      filingDate: rows.map((row) => row.filingDate),
+                      reportDate: rows.map((row) => row.filingDate),
+                      accessionNumber: rows.map((row) => row.accession),
+                      primaryDocument: rows.map((row) => row.document),
+                      items: rows.map((row) => row.items),
+                    },
+                  },
+                }),
+          text,
+        }),
+      }),
+    );
+  }
+
+  test("selects the newest Item 2.02 8-K filed before the periodic filing", async () => {
+    const result = await runCurrentReportSelection([
+      currentReportRow("2026-04-28", "0000320193-26-000050", "earnings-8k.htm", "2.02,9.01"),
+      currentReportRow("2026-06-15", "0000320193-26-000150", "routine-8k.htm", "8.01"),
+      TEN_Q_ROW,
+    ]);
+
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10q",
+      ROUTINE_8K_ID,
+      EARNINGS_8K_ID,
+    ]);
+    // Parsed item codes are persisted so downstream consumers can tell an earnings 8-K apart.
+    expect(
+      result.items.find((item) => item.sourceIds[0] === EARNINGS_8K_ID)?.metrics,
+    ).toMatchObject({ accessionNumber: "0000320193-26-000050", items: "2.02,9.01" });
+    expect(result.items.find((item) => item.sourceIds[0] === ROUTINE_8K_ID)?.metrics).toMatchObject(
+      { items: "8.01" },
+    );
+  });
+
+  test("leaves date-only selection unchanged when no 8-K carries Item 2.02", async () => {
+    const result = await runCurrentReportSelection([
+      currentReportRow("2026-04-28", "0000320193-26-000050", "earnings-8k.htm", "9.01"),
+      currentReportRow("2026-06-15", "0000320193-26-000150", "routine-8k.htm", "8.01"),
+      TEN_Q_ROW,
+    ]);
+
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10q",
+      ROUTINE_8K_ID,
+    ]);
+  });
+
+  test("falls back to date ordering when item codes are absent", async () => {
+    const result = await runCurrentReportSelection([
+      currentReportRow("2026-04-28", "0000320193-26-000050", "earnings-8k.htm", ""),
+      currentReportRow("2026-06-15", "0000320193-26-000150", "routine-8k.htm", ""),
+      TEN_Q_ROW,
+    ]);
+
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10q",
+      ROUTINE_8K_ID,
+    ]);
+    expect(
+      result.items.find((item) => item.sourceIds[0] === ROUTINE_8K_ID)?.metrics,
+    ).not.toHaveProperty("items");
+  });
+
+  test("ignores an Item 2.02 8-K outside the 120-day lookback", async () => {
+    const result = await runCurrentReportSelection([
+      currentReportRow("2026-01-05", "0000320193-26-000050", "earnings-8k.htm", "2.02"),
+      currentReportRow("2026-06-15", "0000320193-26-000150", "routine-8k.htm", "8.01"),
+      TEN_Q_ROW,
+    ]);
+
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10q",
+      ROUTINE_8K_ID,
+    ]);
+  });
+
+  test("keeps the current-report budget at two, with Item 2.02 displacing a date-selected 8-K", async () => {
+    const result = await runCurrentReportSelection([
+      currentReportRow("2026-04-28", "0000320193-26-000050", "earnings-8k.htm", "2.02"),
+      currentReportRow("2026-07-01", "0000320193-26-000160", "routine-a-8k.htm", "8.01"),
+      currentReportRow("2026-06-20", "0000320193-26-000155", "routine-b-8k.htm", "8.01"),
+      currentReportRow("2026-06-15", "0000320193-26-000150", "routine-c-8k.htm", "8.01"),
+      TEN_Q_ROW,
+    ]);
+
+    expect(result.sources.map((source) => source.id)).toEqual([
+      "extended-sec-edgar-aapl-10q",
+      "extended-sec-edgar-aapl-8k-0000320193-26-000160",
+      EARNINGS_8K_ID,
+    ]);
+  });
+
+  test("retains item codes on the metadata-only fallback when filing text fails", async () => {
+    const result = await runCurrentReportSelection(
+      [
+        currentReportRow("2026-04-28", "0000320193-26-000050", "earnings-8k.htm", "2.02,9.01"),
+        TEN_Q_ROW,
+      ],
+      async () => gap("sec-filing-text", "timeout"),
+    );
+
+    expect(result.sources[1]?.id).toBe(EARNINGS_8K_ID);
+    expect(result.sources[1]?.snippet).toBeUndefined();
+    expect(
+      result.items.find((item) => item.sourceIds[0] === EARNINGS_8K_ID)?.metrics,
+    ).toMatchObject({ items: "2.02,9.01" });
   });
 
   test("marks quarterly coverage not-applicable when no 10-Q follows the 10-K", async () => {

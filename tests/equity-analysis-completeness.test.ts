@@ -3,12 +3,16 @@ import type { ExtendedEvidence, ResearchReport } from "../src/domain/types";
 import { validateResearchReport } from "../src/report/schema";
 import {
   deriveEquityAnalysisCompleteness,
+  deriveEquityReportingFreshness,
+  equityAnalysisCompletenessGaps,
   operatingKpisDimension,
+  EQUITY_FRESHNESS_GAP_REASON_CODES,
 } from "../src/sources/extended-evidence/equity-analysis-completeness";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   financialStatementSeries,
   incompleteFinancialStatementNotes,
+  latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import type {
   FinancialStatementSeries,
@@ -18,6 +22,7 @@ import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/
 import type { OperatingKpiRegistryEntry } from "../src/sources/extended-evidence/operating-kpi-registry";
 
 const AS_OF = "2026-06-15T14:30:00.000Z";
+const LATE_AS_OF = "2026-12-15T00:00:00.000Z";
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 
 function fact(input: {
@@ -995,6 +1000,291 @@ describe("equity analysis completeness", () => {
     };
     expect(() => validateResearchReport(missingNotAssessedReason)).toThrow(
       "not-assessed status requires a reason code",
+    );
+  });
+});
+
+describe("equity analysis completeness freshness gaps", () => {
+  test("keeps informational reason codes out of the gap channel", () => {
+    const artifact = statements({
+      taxonomy: "ifrs-full",
+      annualForm: "20-F",
+      interimForm: "6-K",
+      cadence: "semiannual",
+    });
+    const completeness = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      financialStatements: artifact,
+    });
+
+    expect(completeness.dimensions.primaryFinancials.reasonCodes).toEqual(["annual-as-current"]);
+    expect(
+      equityAnalysisCompletenessGaps(
+        completeness,
+        deriveEquityReportingFreshness(artifact, AS_OF),
+        "TEST",
+      ),
+    ).toEqual([]);
+  });
+
+  test("emits one dated no-cap gap per allowlisted reason code", () => {
+    const artifact = statements({ annualForm: "20-F", cadence: "annual-only" });
+    const completeness = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      financialStatements: artifact,
+    });
+    const freshness = deriveEquityReportingFreshness(artifact, AS_OF);
+    const gaps = equityAnalysisCompletenessGaps(completeness, freshness, "TEST");
+
+    expect(freshness?.interimCadence).toBe("annual-only");
+    expect(gaps.length).toBeGreaterThan(0);
+    for (const gap of gaps) {
+      expect(gap.source).toBe("equity-analysis-completeness");
+      expect(gap.evidenceQualityImpact).toBe("no-cap");
+      expect(gap.triage).toBe("material");
+      expect(gap.capability).toBe("extended-evidence");
+      expect(gap.cause).toBe("provider-data-missing");
+      expect(gap.message).toContain(`interim cadence ${freshness!.interimCadence}`);
+      expect(gap.message).toContain(
+        `latest reported period end ${freshness!.latestReportedPeriodEnd!}`,
+      );
+    }
+    expect(gaps.map((gap) => gap.message.slice(0, gap.message.indexOf(":"))).toSorted()).toEqual([
+      "cadence-unestablished",
+    ]);
+  });
+
+  test("latestReportedPeriodEnd excludes derived TTM", () => {
+    const artifact = statements({ cadence: "quarterly" });
+    const { revenue } = artifact.statements.incomeStatement;
+    expect(revenue.ttm?.periodEnd).toBeDefined();
+    const freshness = deriveEquityReportingFreshness(
+      withRevenue(artifact, {
+        ...revenue,
+        ttm: { ...revenue.ttm!, periodEnd: "2030-01-01" },
+      }),
+      AS_OF,
+    );
+
+    expect(freshness?.latestReportedPeriodEnd).toBe(
+      latestFinancialStatementFact([...revenue.annual, ...revenue.interim])!.periodEnd,
+    );
+  });
+
+  // Exercises the derivation rather than scanning source text. Each allowlisted code gets an input
+  // Where it is the sole material reason, so moving it into `informationalReasons` flips the
+  // Dimension to `complete` and fails here. `quarterly-periods-insufficient` has no sole case —
+  // The derivation pushes it together with `ttm-unreconciled` from one branch — so it is pinned by
+  // Exact ordered equality instead: informational codes are appended last, so the move reorders.
+  test("every allowlisted reason code is one the derivation can place in reasons", () => {
+    const quarterly = statements({ cadence: "quarterly" });
+    const { revenue } = quarterly.statements.incomeStatement;
+    const semiannual = statements({
+      taxonomy: "ifrs-full",
+      annualForm: "20-F",
+      interimForm: "6-K",
+      cadence: "semiannual",
+      currentSemiannual: true,
+      analysisAsOf: LATE_AS_OF,
+    });
+    const semiannualRevenue = semiannual.statements.incomeStatement.revenue;
+    const currentInterim = revenue.interim.at(-1)!;
+    const withoutCurrentEnd = (series: FinancialStatementSeries): FinancialStatementSeries => ({
+      ...series,
+      interim: series.interim.filter((item) => item.periodEnd !== currentInterim.periodEnd),
+    });
+    const balance = quarterly.statements.balanceSheet;
+    const missingCurrentBalance = {
+      ...quarterly,
+      statements: {
+        ...quarterly.statements,
+        balanceSheet: {
+          cash: withoutCurrentEnd(balance.cash),
+          currentAssets: withoutCurrentEnd(balance.currentAssets),
+          currentLiabilities: withoutCurrentEnd(balance.currentLiabilities),
+          totalAssets: withoutCurrentEnd(balance.totalAssets),
+          totalLiabilities: withoutCurrentEnd(balance.totalLiabilities),
+          stockholdersEquity: withoutCurrentEnd(balance.stockholdersEquity),
+          debt: withoutCurrentEnd(balance.debt),
+        },
+      },
+    };
+    const cases: readonly {
+      readonly dimension: "primaryFinancials" | "capitalOwnership";
+      readonly reasonCodes: readonly string[];
+      readonly input: Parameters<typeof deriveEquityAnalysisCompleteness>[0];
+    }[] = [
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["current-annual-statement-missing"],
+        input: { asOf: AS_OF, assetClass: "equity" },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["annual-history-insufficient"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: withRevenue(quarterly, {
+            ...revenue,
+            annual: revenue.annual.slice(-2),
+          }),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["reporting-currency-missing"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: withoutReportingCurrency(quarterly),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["reporting-currency-incompatible"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: { ...quarterly, reportingCurrency: "EUR" },
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["cadence-unestablished"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: statements({ annualForm: "20-F", cadence: "annual-only" }),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["untagged-interim-evidence"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: statements({
+            annualForm: "20-F",
+            interimForm: "6-K",
+            cadence: "quarterly",
+            untaggedSixK: true,
+          }),
+        },
+      },
+      {
+        // Trailing coverage comes from an exact TTM, so only the due interim itself is missing.
+        dimension: "primaryFinancials",
+        reasonCodes: ["latest-due-interim-missing"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: withRevenue(quarterly, {
+            ...revenue,
+            interim: revenue.interim.filter((item) => item.periodEnd <= "2025-12-31"),
+            ttm: { ...revenue.ttm!, periodEnd: "2026-03-31" },
+          }),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["quarterly-periods-insufficient", "ttm-unreconciled"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: withRevenue(quarterly, withoutTtm(revenue)),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["semiannual-comparison-missing", "ttm-unreconciled"],
+        input: {
+          asOf: LATE_AS_OF,
+          assetClass: "equity",
+          financialStatements: withRevenue(semiannual, {
+            ...withoutTtm(semiannualRevenue),
+            interim: semiannualRevenue.interim.filter((item) => item.periodEnd > "2025-12-31"),
+          }),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["ttm-unreconciled"],
+        input: {
+          asOf: LATE_AS_OF,
+          assetClass: "equity",
+          financialStatements: withRevenue(semiannual, withoutTtm(semiannualRevenue)),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["irregular-comparison-missing", "ttm-unreconciled"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: withRevenue(
+            { ...quarterly, interimCadence: "irregular" },
+            {
+              ...withoutTtm(revenue),
+              interim: revenue.interim.filter((item) => item.periodEnd > "2025-12-31"),
+            },
+          ),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["per-share-evidence-missing"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: withDilutedEps(quarterly, {
+            ...withoutTtm(quarterly.statements.perShare.dilutedEps),
+            annual: [],
+            interim: [],
+          }),
+        },
+      },
+      {
+        dimension: "primaryFinancials",
+        reasonCodes: ["current-primary-statements-incomplete"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          financialStatements: {
+            ...missingCurrentBalance,
+            validationNotes: incompleteFinancialStatementNotes(
+              financialStatementSeries(missingCurrentBalance),
+            ),
+          },
+        },
+      },
+      {
+        dimension: "capitalOwnership",
+        reasonCodes: ["subsequent-financing-unreconciled"],
+        input: {
+          asOf: AS_OF,
+          assetClass: "equity",
+          capitalOwnership: capitalOwnership({
+            subsequentFinancing: { eventCount: 1, reconciled: false, sourceIds: [SOURCE_ID] },
+          }),
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const dimension = deriveEquityAnalysisCompleteness(testCase.input).dimensions[
+        testCase.dimension
+      ];
+      expect(dimension.reasonCodes, testCase.reasonCodes.join(", ")).toEqual([
+        ...testCase.reasonCodes,
+      ]);
+      expect(dimension.status, testCase.reasonCodes.join(", ")).not.toBe("complete");
+    }
+
+    expect([...new Set(cases.flatMap((testCase) => testCase.reasonCodes))].toSorted()).toEqual(
+      [...EQUITY_FRESHNESS_GAP_REASON_CODES].toSorted(),
     );
   });
 });

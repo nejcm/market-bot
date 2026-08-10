@@ -1,6 +1,14 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { EquityAnalysisCompletenessDimension } from "../../../src/domain/types";
+import type {
+  EquityAnalysisCompletenessDimension,
+  ExtendedEvidenceItem,
+} from "../../../src/domain/types";
+import {
+  hasSubstantiveResultsContent,
+  normalizeFilingText,
+} from "../../../src/sources/evidence-request-tools";
+import { EQUITY_FRESHNESS_GAP_REASON_CODES } from "../../../src/sources/extended-evidence/equity-analysis-completeness";
 import {
   EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,
   resolveCoverageLevel,
@@ -588,6 +596,213 @@ function assertCompleteness(result: RunFixtureResult, knownSourceIds: ReadonlySe
   );
 }
 
+const EARNINGS_RELEASE_ITEM_CODE = "2.02";
+const QUARTER_FILING_LAG_DAYS = 60;
+const HALF_YEAR_FILING_LAG_DAYS = 120;
+
+function extendedEvidenceItems(result: RunFixtureResult): readonly ExtendedEvidenceItem[] {
+  return result.collectedSources.extendedEvidence?.items ?? [];
+}
+
+const EARNINGS_RELEASE_DOCUMENTS = new Set(["exhibit", "primary", "none"]);
+const EARNINGS_RELEASE_EXHIBITS = new Set(["substantive", "not-substantive", "unresolved"]);
+
+// An Item 2.02 current report must reach the model as results, not as a cover sheet pointing at an
+// Exhibit. Exhibit-resolution provenance is validated on every matched item — including the
+// Metadata-only fallbacks, which retain no text — while the content checks apply to the items whose
+// Source actually carries a snippet.
+function assertEarningsReleaseEvidence(result: RunFixtureResult): void {
+  const sources = new Map(result.report.sources.map((source) => [source.id, source]));
+  let matched = 0;
+  let checked = 0;
+  for (const item of extendedEvidenceItems(result)) {
+    const items = item.metrics?.items;
+    if (
+      item.category !== "sec-edgar" ||
+      typeof items !== "string" ||
+      !items.split(",").includes(EARNINGS_RELEASE_ITEM_CODE)
+    ) {
+      continue;
+    }
+    matched += 1;
+    const accession = String(item.metrics?.accessionNumber ?? "").replaceAll("-", "");
+    const primaryDocument = String(item.metrics?.primaryDocument ?? "");
+    // Both documents can pass the substantive predicate — a cover sheet carrying headline figures
+    // While the detail lives in the exhibit — so text and URL alone cannot separate a legitimate
+    // Cover preference from a resolution regression. The persisted provenance can.
+    const { earningsReleaseDocument, earningsReleaseExhibit } = item.metrics ?? {};
+    invariant(
+      EARNINGS_RELEASE_DOCUMENTS.has(String(earningsReleaseDocument)) &&
+        EARNINGS_RELEASE_EXHIBITS.has(String(earningsReleaseExhibit)),
+      "C15",
+      `Item 2.02 evidence ${item.title} carries no exhibit-resolution provenance`,
+    );
+    invariant(
+      earningsReleaseExhibit !== "substantive" || earningsReleaseDocument !== "primary",
+      "C15",
+      `Item 2.02 evidence ${item.title} resolved a substantive EX-99 exhibit but shipped the primary document`,
+    );
+    for (const sourceId of item.sourceIds) {
+      const source = sources.get(sourceId);
+      if (source?.snippet === undefined) {
+        continue;
+      }
+      checked += 1;
+      invariant(
+        earningsReleaseDocument !== "none",
+        "C15",
+        `Item 2.02 evidence ${sourceId} carries filing text but claims no document was retained`,
+      );
+      invariant(
+        hasSubstantiveResultsContent(normalizeFilingText(source.snippet)),
+        "C15",
+        `Item 2.02 evidence ${sourceId} reports no results content`,
+      );
+      const url = source.url ?? "";
+      const cited = url.split("/").at(-1) ?? "";
+      invariant(
+        accession !== "" && url.includes(`/${accession}/`),
+        "C15",
+        `Item 2.02 evidence ${sourceId} cites a document outside its own filing`,
+      );
+      invariant(
+        cited === primaryDocument || /ex.{0,2}99/iu.test(cited),
+        "C15",
+        `Item 2.02 evidence ${sourceId} cites ${cited}, neither the primary document nor an EX-99 exhibit`,
+      );
+      invariant(
+        earningsReleaseDocument !== "exhibit" || cited !== primaryDocument,
+        "C15",
+        `Item 2.02 evidence ${sourceId} claims exhibit provenance but cites the primary document`,
+      );
+    }
+  }
+  invariant(
+    matched === 0 || checked > 0,
+    "C15",
+    "an Item 2.02 filing was selected but no evidence source carried its text",
+  );
+}
+
+// Completeness gaps carry their reason code as a deterministic message prefix (SourceGap has no
+// `code` field), must stay inside the freshness allowlist, and must never cap Evidence Quality.
+function assertCompletenessGaps(result: RunFixtureResult): void {
+  const reasonCodes = new Set(
+    Object.values(result.report.equityAnalysisCompleteness?.dimensions ?? {}).flatMap(
+      (dimension: EquityAnalysisCompletenessDimension) => dimension.reasonCodes,
+    ),
+  );
+  for (const gap of result.collectedSources.sourceGaps) {
+    if (gap.source !== "equity-analysis-completeness") {
+      continue;
+    }
+    const code = gap.message.slice(0, gap.message.indexOf(":"));
+    invariant(
+      EQUITY_FRESHNESS_GAP_REASON_CODES.includes(code),
+      "C15",
+      `completeness gap is not attributable to an allowlisted reason code: ${gap.message}`,
+    );
+    invariant(
+      reasonCodes.has(code),
+      "C15",
+      `completeness gap ${code} disagrees with the reported completeness dimensions`,
+    );
+    invariant(
+      gap.evidenceQualityImpact === "no-cap",
+      "C15",
+      `completeness gap ${code} caps evidence quality as ${String(gap.evidenceQualityImpact)}`,
+    );
+  }
+}
+
+function addMonthsUtc(value: string, months: number): string {
+  const date = new Date(Date.parse(value));
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const targetLastDay = new Date(Date.UTC(year, month + months + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month + months, day === lastDay ? targetLastDay : day))
+    .toISOString()
+    .slice(0, 10);
+}
+
+// Independent re-derivation of "the newest interim period whose filing deadline has passed".
+function rederiveLatestDuePeriodEnd(
+  cadence: string,
+  annualEnd: string,
+  asOf: string,
+): string | undefined {
+  const schedule = {
+    quarterly: { months: 3, lagDays: QUARTER_FILING_LAG_DAYS },
+    semiannual: { months: 6, lagDays: HALF_YEAR_FILING_LAG_DAYS },
+  }[cadence];
+  if (schedule === undefined) {
+    return undefined;
+  }
+  const { months, lagDays } = schedule;
+  let periodEnd = addMonthsUtc(annualEnd, months);
+  let latest: string | undefined = undefined;
+  while (
+    new Date(Date.parse(periodEnd) + lagDays * DAY_MS).toISOString().slice(0, 10) <=
+    asOf.slice(0, 10)
+  ) {
+    latest = periodEnd;
+    periodEnd = addMonthsUtc(periodEnd, months);
+  }
+  return latest;
+}
+
+// The always-on freshness context must be present whenever a statement artifact is, and each date
+// It publishes must survive an independent re-derivation from the statements themselves.
+function assertReportingFreshness(
+  result: RunFixtureResult,
+  artifact: FinancialStatementsArtifact,
+): void {
+  const lensItem = extendedEvidenceItems(result).find((item) => item.category === "financial-lens");
+  invariant(
+    lensItem !== undefined,
+    "C16",
+    "a statement artifact exists but no financial-lens evidence item carries its freshness context",
+  );
+  const metrics = lensItem.metrics ?? {};
+  const { revenue } = artifact.statements.incomeStatement;
+  const expectedReported = latestFinancialStatementFact(
+    financialStatementFacts(revenue),
+  )?.periodEnd;
+  // Freshness is published only for an artifact that reports at least one primary-revenue period.
+  const expectedCadence = expectedReported === undefined ? undefined : artifact.interimCadence;
+  invariant(
+    metrics.interimCadence === expectedCadence,
+    "C16",
+    `financial-lens interimCadence is ${String(metrics.interimCadence)}, expected ${String(expectedCadence)}`,
+  );
+  invariant(
+    metrics.latestReportedPeriodEnd === expectedReported,
+    "C16",
+    `latestReportedPeriodEnd is ${String(metrics.latestReportedPeriodEnd)}, expected ${String(expectedReported)}`,
+  );
+  const currentAnnual = latestFinancialStatementFact(
+    revenue.annual.filter((fact) => {
+      const months = financialStatementPeriodMonths(fact);
+      return months !== undefined && months >= 10 && months <= 14;
+    }),
+  );
+  const expectedDue =
+    currentAnnual === undefined || expectedReported === undefined
+      ? undefined
+      : rederiveLatestDuePeriodEnd(
+          artifact.interimCadence,
+          currentAnnual.periodEnd,
+          artifact.analysisAsOf,
+        );
+  invariant(
+    metrics.expectedDuePeriodEnd === expectedDue,
+    "C16",
+    `expectedDuePeriodEnd is ${String(metrics.expectedDuePeriodEnd)}, expected ${String(expectedDue)}`,
+  );
+}
+
 function assertNumericAndCurrencyHygiene(value: unknown, root: string): void {
   const visit = (candidate: unknown, path: string, key?: string): void => {
     if (typeof candidate === "number") {
@@ -652,6 +867,11 @@ export async function assertFinancialRunInvariants(
   }
 
   assertGapTriage(result);
+  assertEarningsReleaseEvidence(result);
+  assertCompletenessGaps(result);
+  if (result.collectedSources.financialStatements !== undefined) {
+    assertReportingFreshness(result, result.collectedSources.financialStatements);
+  }
   const knownSourceIds = new Set(result.report.sources.map((source) => source.id));
   assertCompleteness(result, knownSourceIds);
   const normalized = await normalizedArtifacts(result.artifacts.runDir);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SourceGap } from "../src/domain/types";
+import type { ExtendedEvidenceItem, SourceGap } from "../src/domain/types";
 import { assertSafeReportLanguage } from "../src/report/schema";
 import {
   availableEvidenceRequestTools,
@@ -134,6 +134,10 @@ function indexHtml(name: string, type: string): string {
      <tr><td>1</td><td>Cover</td><td><a href="/Archives/edgar/data/320193/000032019326000050/earnings-8k.htm">earnings-8k.htm</a></td><td>8-K</td></tr>
      <tr><td>2</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/${name}">${name}</a></td><td>${type}</td></tr>
      </table>`;
+}
+
+function earningsItemMetrics(items: readonly ExtendedEvidenceItem[]) {
+  return items.find((item) => item.metrics?.accessionNumber === "0000320193-26-000050")?.metrics;
 }
 
 describe("SEC latest filing evidence tool", () => {
@@ -852,6 +856,10 @@ describe("SEC latest filing evidence tool", () => {
       "sec-earnings-release-exhibit",
     );
     expect(result.gaps).not.toContainEqual(exhibitGap);
+    expect(earningsItemMetrics(result.items)).toMatchObject({
+      earningsReleaseDocument: "exhibit",
+      earningsReleaseExhibit: "substantive",
+    });
   });
 
   test("falls back to the cover document and gaps when the filing index fetch fails", async () => {
@@ -867,6 +875,28 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps).toContainEqual(
       expect.objectContaining({ source: "sec-filing-index", message: "timeout" }),
     );
+    expect(earningsItemMetrics(result.items)).toMatchObject({
+      earningsReleaseDocument: "primary",
+      earningsReleaseExhibit: "unresolved",
+    });
+  });
+
+  test("records that no document was retained when every filing-text fetch fails", async () => {
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      earningsExhibitText(
+        gap("sec-filing-index", "timeout"),
+        RELEASE_TEXT,
+        gap("sec-filing-text", "timeout"),
+      ),
+    );
+
+    // Metadata-only fallback: the item still carries honest exhibit-resolution provenance.
+    expect(result.sources.find((entry) => entry.id === EARNINGS_8K_ID)?.snippet).toBeUndefined();
+    expect(earningsItemMetrics(result.items)).toMatchObject({
+      earningsReleaseDocument: "none",
+      earningsReleaseExhibit: "unresolved",
+    });
   });
 
   test("falls back to the cover document and gaps when the index lists no EX-99 exhibit", async () => {

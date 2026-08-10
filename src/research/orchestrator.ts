@@ -74,6 +74,11 @@ import { runMarketUpdatePhase } from "./market-update-phase";
 import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
+import {
+  deriveEquityAnalysisCompleteness,
+  equityAnalysisCompletenessGaps,
+  type EquityAnalysisCompletenessInput,
+} from "../sources/extended-evidence/equity-analysis-completeness";
 import { applyOfficialEarningsDateConfirmation } from "../sources/extended-evidence/earnings-date-confirmation";
 import {
   assessSourcePlan,
@@ -471,6 +476,39 @@ async function runForecastDisagreementPhase(input: {
   return { report, challengerModels, stageOutputs: [] };
 }
 
+// The optional slice of CollectedSources the completeness derivation reads. Exact-optional
+// Property types mean each field has to be spread conditionally rather than passed as undefined.
+function equityCompletenessSources(
+  collectedSources: CollectedSources,
+): Partial<EquityAnalysisCompletenessInput> {
+  return {
+    ...(collectedSources.financialStatements !== undefined
+      ? { financialStatements: collectedSources.financialStatements }
+      : {}),
+    ...(collectedSources.extendedEvidence !== undefined
+      ? { extendedEvidence: collectedSources.extendedEvidence }
+      : {}),
+    ...(collectedSources.earningsSetup !== undefined
+      ? { earningsSetup: collectedSources.earningsSetup }
+      : {}),
+    ...(collectedSources.analystExpectations !== undefined
+      ? { analystExpectations: collectedSources.analystExpectations }
+      : {}),
+    ...(collectedSources.analystExpectationsSignal !== undefined
+      ? { analystExpectationsSignal: collectedSources.analystExpectationsSignal }
+      : {}),
+    ...(collectedSources.institutionalOwnership !== undefined
+      ? { institutionalOwnership: collectedSources.institutionalOwnership }
+      : {}),
+    ...(collectedSources.institutionalOwnershipSignal !== undefined
+      ? { institutionalOwnershipSignal: collectedSources.institutionalOwnershipSignal }
+      : {}),
+    ...(collectedSources.capitalOwnership !== undefined
+      ? { capitalOwnership: collectedSources.capitalOwnership }
+      : {}),
+  };
+}
+
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
   const command = normalizeResearchCommandDepth(input.command);
   const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
@@ -621,6 +659,34 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   };
   const { spotlightCandidates, spotlightSelection, spotlightOutput, marketUpdateMovers } =
     marketUpdate;
+  // Completeness is derived once, here, so its freshness gaps reach the model along with every
+  // Other gap and report assembly re-uses the same verdict instead of relabelling after the fact.
+  const equityAnalysisCompleteness =
+    command.jobType === "equity"
+      ? deriveEquityAnalysisCompleteness({
+          // Collection's timestamp, not the run's: `reportingFreshness` was derived at
+          // `analysisAsOf` (both are the collector's `fetchedAt`), and a run that starts before
+          // UTC midnight and collects after it would otherwise put a filing deadline on one side
+          // For the lens metrics and the other for the gaps.
+          asOf: collectedSources.financialStatements?.analysisAsOf ?? generatedAt,
+          assetClass: command.assetClass,
+          ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
+          ...equityCompletenessSources(collectedSources),
+        })
+      : undefined;
+  if (equityAnalysisCompleteness !== undefined) {
+    collectedSources = {
+      ...collectedSources,
+      sourceGaps: [
+        ...collectedSources.sourceGaps,
+        ...equityAnalysisCompletenessGaps(
+          equityAnalysisCompleteness,
+          collectedSources.reportingFreshness,
+          isInstrumentCommand(command) ? command.symbol : undefined,
+        ),
+      ],
+    };
+  }
   // Final canonical source-gap boundary; later phases must not append gaps without re-normalizing.
   collectedSources = normalizeCanonicalSourceGaps(collectedSources);
   // The fallback plan must derive from checked-in subject resolution only, not
@@ -668,6 +734,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     context: playbookContext,
     sources,
     knownSourceIds,
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
     priorStages: [...analysisOutputs, critiqueOutput],
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,

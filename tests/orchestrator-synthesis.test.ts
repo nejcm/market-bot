@@ -516,7 +516,11 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     // The exact-context duplicate is deduped and the nested grossProfit gap is folded into
     // The wider grossProfit, capex gap, leaving a single consolidated sec-edgar gap.
-    expect(result.collectedSources.sourceGaps).toEqual([{ ...overlappingGap, triage: "material" }]);
+    // The completeness gap rides along: an equity run with no statement artifact is not current.
+    expect(result.collectedSources.sourceGaps).toEqual([
+      { ...overlappingGap, triage: "material" },
+      expect.objectContaining({ source: "equity-analysis-completeness" }),
+    ]);
     expect(result.collectedSources.extendedEvidence?.gaps).toEqual([overlappingGap]);
     expect(result.collectedSources.marketContext?.gaps).toEqual([macroContextGap]);
     expect(regulatoryLane?.gapText).toEqual([
@@ -524,8 +528,8 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     ]);
     expect(regulatoryLane?.gapIds).toHaveLength(1);
     expect(result.analytics.sourceFunnel.sourceGaps).toEqual({
-      total: 1,
-      bySource: { "sec-edgar": 1 },
+      total: 2,
+      bySource: { "equity-analysis-completeness": 1, "sec-edgar": 1 },
     });
     expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(1);
     expect(result.analytics.evidenceQuality.marketContext.gapCount).toBe(1);

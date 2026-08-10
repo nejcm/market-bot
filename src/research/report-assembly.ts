@@ -3,6 +3,7 @@ import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
   marketUpdateMetadataOf,
+  type EquityAnalysisCompleteness,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
@@ -27,7 +28,6 @@ import {
   hasConfirmedEarningsDate,
 } from "../forecast/earnings-eligibility";
 import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
-import { deriveEquityAnalysisCompleteness } from "../sources/extended-evidence/equity-analysis-completeness";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { extractCatalystDate } from "./catalyst-date";
@@ -906,6 +906,9 @@ export interface AssembleResearchReportInput {
   readonly depthProfile: DepthProfile;
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
+  /** Derived by the orchestrator before the canonical source-gap boundary, so the same verdict
+   *  that produced this run's freshness gaps is the one recorded here. */
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
@@ -1036,38 +1039,7 @@ export function assembleResearchReportWithRelocations(
           collectedSources,
         })
       : undefined;
-  const equityAnalysisCompleteness =
-    command.jobType === "equity"
-      ? deriveEquityAnalysisCompleteness({
-          asOf: generatedAt,
-          assetClass: command.assetClass,
-          ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
-          ...(collectedSources.financialStatements !== undefined
-            ? { financialStatements: collectedSources.financialStatements }
-            : {}),
-          ...(collectedSources.extendedEvidence !== undefined
-            ? { extendedEvidence: collectedSources.extendedEvidence }
-            : {}),
-          ...(collectedSources.earningsSetup !== undefined
-            ? { earningsSetup: collectedSources.earningsSetup }
-            : {}),
-          ...(collectedSources.analystExpectations !== undefined
-            ? { analystExpectations: collectedSources.analystExpectations }
-            : {}),
-          ...(collectedSources.analystExpectationsSignal !== undefined
-            ? { analystExpectationsSignal: collectedSources.analystExpectationsSignal }
-            : {}),
-          ...(collectedSources.institutionalOwnership !== undefined
-            ? { institutionalOwnership: collectedSources.institutionalOwnership }
-            : {}),
-          ...(collectedSources.institutionalOwnershipSignal !== undefined
-            ? { institutionalOwnershipSignal: collectedSources.institutionalOwnershipSignal }
-            : {}),
-          ...(collectedSources.capitalOwnership !== undefined
-            ? { capitalOwnership: collectedSources.capitalOwnership }
-            : {}),
-        })
-      : undefined;
+  const { equityAnalysisCompleteness } = input;
 
   const report = validateResearchReport({
     runId,

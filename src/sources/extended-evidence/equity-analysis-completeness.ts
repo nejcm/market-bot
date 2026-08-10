@@ -4,13 +4,16 @@ import type {
   EquityAnalysisCompletenessDimension,
   ExtendedEvidence,
   ExtendedEvidenceItem,
+  SourceGap,
 } from "../../domain/types";
 import { resolveCoverageLevel } from "../../domain/equity-analysis-completeness";
+import { sourceGap } from "../../domain/source-gaps";
 import type { EarningsSetupCollected } from "../types";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
   FinancialStatementsArtifact,
+  InterimCadence,
 } from "./financial-statements-contract";
 import {
   financialStatementFacts,
@@ -126,6 +129,63 @@ function latestDuePeriodEnd(
     periodEnd = addMonths(periodEnd, months);
   }
   return latest;
+}
+
+// The interim period whose filing deadline has already passed, for the cadences that have one.
+// Irregular filers have no deadline to compute against, and annual-only/unknown have no interim.
+function dueInterimPeriodEnd(
+  cadence: InterimCadence,
+  annualEnd: string,
+  asOf: string,
+): string | undefined {
+  switch (cadence) {
+    case "quarterly": {
+      return latestDuePeriodEnd(annualEnd, asOf, 3, QUARTER_FILING_LAG_DAYS);
+    }
+    case "semiannual": {
+      return latestDuePeriodEnd(annualEnd, asOf, 6, HALF_YEAR_FILING_LAG_DAYS);
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/** Reporting-surface freshness facts: what cadence the issuer files on, the newest period it has
+ *  actually reported, and the newest period whose deadline has passed. Absent without a usable
+ *  statement artifact (one reporting at least one primary-revenue period); `latestDuePeriodEnd`
+ *  is absent when nothing is due — an irregular or annual-only filer, or a first year. */
+export interface EquityReportingFreshness {
+  readonly interimCadence: InterimCadence;
+  readonly latestReportedPeriodEnd: string;
+  readonly latestDuePeriodEnd?: string;
+}
+
+export function deriveEquityReportingFreshness(
+  artifact: FinancialStatementsArtifact | undefined,
+  asOf: string,
+): EquityReportingFreshness | undefined {
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const { revenue } = artifact.statements.incomeStatement;
+  // Annual and interim only — a derived TTM would name a period the issuer never filed.
+  const latestReported = latestFinancialStatementFact(financialStatementFacts(revenue));
+  if (latestReported === undefined) {
+    // An artifact with no reported primary-revenue period is not a usable reporting surface;
+    // Publishing `interimCadence: unknown` for it would be freshness context that says nothing.
+    return undefined;
+  }
+  const currentAnnual = latestFinancialStatementFact(fullYearFacts(revenue));
+  const due =
+    currentAnnual === undefined
+      ? undefined
+      : dueInterimPeriodEnd(artifact.interimCadence, currentAnnual.periodEnd, asOf);
+  return {
+    interimCadence: artifact.interimCadence,
+    latestReportedPeriodEnd: latestReported.periodEnd,
+    ...(due !== undefined ? { latestDuePeriodEnd: due } : {}),
+  };
 }
 
 function hasCompatibleCurrency(artifact: FinancialStatementsArtifact): boolean {
@@ -363,22 +423,12 @@ function primaryFinancialsDimension(
   switch (artifact.interimCadence) {
     case "quarterly": {
       cadenceReasons = quarterlyReasons(revenue, currentAnnual.periodEnd, asOf);
-      expectedInterimEnd = latestDuePeriodEnd(
-        currentAnnual.periodEnd,
-        asOf,
-        3,
-        QUARTER_FILING_LAG_DAYS,
-      );
+      expectedInterimEnd = dueInterimPeriodEnd("quarterly", currentAnnual.periodEnd, asOf);
       break;
     }
     case "semiannual": {
       cadenceReasons = semiannualReasons(revenue, currentAnnual.periodEnd, asOf);
-      expectedInterimEnd = latestDuePeriodEnd(
-        currentAnnual.periodEnd,
-        asOf,
-        6,
-        HALF_YEAR_FILING_LAG_DAYS,
-      );
+      expectedInterimEnd = dueInterimPeriodEnd("semiannual", currentAnnual.periodEnd, asOf);
       break;
     }
     case "irregular": {
@@ -651,6 +701,70 @@ function nonCoreDimensions(
     ),
     operatingKpis: operatingKpisDimension(input),
   };
+}
+
+// Freshness-negative reason codes only, as an allowlist: a denylist would emit material gaps for
+// Informational codes (`annual-as-current` rides along on a `complete` dimension) and for
+// Reporting-surface facts that say nothing about currency (`sbc-history-missing` and friends).
+export const EQUITY_FRESHNESS_GAP_REASON_CODES: readonly string[] = [
+  "current-annual-statement-missing",
+  "annual-history-insufficient",
+  "latest-due-interim-missing",
+  "quarterly-periods-insufficient",
+  "semiannual-comparison-missing",
+  "irregular-comparison-missing",
+  "ttm-unreconciled",
+  "cadence-unestablished",
+  "per-share-evidence-missing",
+  "current-primary-statements-incomplete",
+  "untagged-interim-evidence",
+  "reporting-currency-missing",
+  "reporting-currency-incompatible",
+  "subsequent-financing-unreconciled",
+];
+
+const FRESHNESS_GAP_REASON_CODES = new Set(EQUITY_FRESHNESS_GAP_REASON_CODES);
+
+function freshnessDetail(freshness: EquityReportingFreshness | undefined): string {
+  if (freshness === undefined) {
+    return "no reported financial statement period is available";
+  }
+  return [
+    `interim cadence ${freshness.interimCadence}`,
+    `latest reported period end ${freshness.latestReportedPeriodEnd}`,
+    ...(freshness.latestDuePeriodEnd === undefined
+      ? []
+      : [`expected due period end ${freshness.latestDuePeriodEnd}`]),
+  ].join("; ");
+}
+
+// Freshness defects the model must see while it is still writing, as canonical Source Gaps.
+// `no-cap` by design: an unfiled quarter is an incomplete reporting surface, not a sourcing
+// Failure, so it must not dock Evidence Quality. `SourceGap` has no `code` field, so the reason
+// Code is a deterministic message prefix.
+export function equityAnalysisCompletenessGaps(
+  completeness: EquityAnalysisCompleteness,
+  freshness: EquityReportingFreshness | undefined,
+  symbol: string | undefined,
+): readonly SourceGap[] {
+  const detail = freshnessDetail(freshness);
+  const subject = symbol?.toUpperCase() ?? "the subject";
+  return unique(
+    Object.values(completeness.dimensions).flatMap((dimension) => dimension.reasonCodes),
+  )
+    .filter((code) => FRESHNESS_GAP_REASON_CODES.has(code))
+    .map((code) =>
+      sourceGap({
+        source: "equity-analysis-completeness",
+        message: `${code}: ${subject} reporting surface is not current (${detail})`,
+        ...(symbol !== undefined ? { symbol } : {}),
+        provider: "market-bot",
+        capability: "extended-evidence",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+        triage: "material",
+      }),
+    );
 }
 
 export function deriveEquityAnalysisCompleteness(

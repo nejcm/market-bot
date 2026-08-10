@@ -630,6 +630,7 @@ function buildSecFilingMetadataOnlyItem(
   url: string,
   fetchedAt: string,
   rawRef?: string,
+  earningsRelease?: EarningsReleaseProvenance,
 ): {
   readonly source: Source;
   readonly item: ExtendedEvidenceItem;
@@ -681,6 +682,7 @@ function buildSecFilingMetadataOnlyItem(
       accessionNumber: filing.accessionNumber,
       primaryDocument: filing.primaryDocument,
       ...(filing.items === undefined ? {} : { items: filing.items.join(",") }),
+      ...(earningsRelease === undefined ? {} : earningsRelease),
       cik: match.cik,
     },
     identity,
@@ -692,6 +694,14 @@ function buildSecFilingMetadataOnlyItem(
   };
 }
 
+// Which document the packet text came from, and what the exhibit lookup found. Persisted so a
+// Later reader (and the live invariants) can tell a legitimate cover-document preference from an
+// Exhibit-resolution regression — the two are indistinguishable from URL and text alone.
+interface EarningsReleaseProvenance {
+  readonly earningsReleaseDocument: "exhibit" | "primary" | "none";
+  readonly earningsReleaseExhibit: "substantive" | "not-substantive" | "unresolved";
+}
+
 function buildSecFilingSourceItem(
   command: InstrumentCommand,
   match: { cik: string; ticker: string; name?: string },
@@ -699,6 +709,7 @@ function buildSecFilingSourceItem(
   url: string,
   filingText: FetchTextResult,
   earningsEventDate?: string,
+  earningsRelease?: EarningsReleaseProvenance,
 ): SecFilingSourceItem {
   const formKey = secFilingKey(filing);
   const normalized = normalizeFilingText(filingText.payload);
@@ -780,6 +791,7 @@ function buildSecFilingSourceItem(
       accessionNumber: filing.accessionNumber,
       primaryDocument: filing.primaryDocument,
       ...(filing.items === undefined ? {} : { items: filing.items.join(",") }),
+      ...(earningsRelease === undefined ? {} : earningsRelease),
       cik: match.cik,
     },
     identity,
@@ -887,6 +899,21 @@ function isEarningsRelease(filing: SecFiling): boolean {
   return filing.form === "8-K" && filing.items?.includes(EARNINGS_RELEASE_ITEM_CODE) === true;
 }
 
+function earningsReleaseProvenance(
+  exhibit: EarningsExhibitResolution | undefined,
+  document: EarningsReleaseProvenance["earningsReleaseDocument"],
+  exhibitSubstantive: boolean,
+): EarningsReleaseProvenance | undefined {
+  if (exhibit === undefined) {
+    return undefined;
+  }
+  let resolved: EarningsReleaseProvenance["earningsReleaseExhibit"] = "unresolved";
+  if (exhibit.text !== undefined) {
+    resolved = exhibitSubstantive ? "substantive" : "not-substantive";
+  }
+  return { earningsReleaseDocument: document, earningsReleaseExhibit: resolved };
+}
+
 async function collectSecFiling(
   ctx: CollectContext,
   command: InstrumentCommand,
@@ -957,6 +984,7 @@ async function collectSecFiling(
       url,
       submissionsRawSnapshot?.fetchedAt ?? ctx.fetchedAt,
       submissionsRawSnapshot?.id,
+      earningsReleaseProvenance(exhibit, "none", exhibitSubstantive),
     );
     return {
       rawSnapshots,
@@ -974,6 +1002,7 @@ async function collectSecFiling(
     selectedUrl,
     selected,
     ctx.earningsEventDate,
+    earningsReleaseProvenance(exhibit, useExhibit ? "exhibit" : "primary", exhibitSubstantive),
   );
   if (built.kind === "missing") {
     const metadataOnly = buildSecFilingMetadataOnlyItem(
@@ -983,6 +1012,7 @@ async function collectSecFiling(
       selectedUrl,
       selected.rawSnapshot.fetchedAt,
       selected.rawSnapshot.id,
+      earningsReleaseProvenance(exhibit, "none", exhibitSubstantive),
     );
     return {
       rawSnapshots,
@@ -1001,6 +1031,7 @@ async function collectSecFiling(
       selectedUrl,
       selected.rawSnapshot.fetchedAt,
       selected.rawSnapshot.id,
+      earningsReleaseProvenance(exhibit, "none", exhibitSubstantive),
     );
     return {
       rawSnapshots,

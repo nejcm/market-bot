@@ -2,6 +2,7 @@ import type { ResearchCommand } from "../cli/args";
 import type { FinancialLensArtifact } from "./extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "./extended-evidence/fundamental-history";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
+import type { EquityReportingFreshness } from "./extended-evidence/equity-analysis-completeness";
 import type { SubsequentFinancingBridgeArtifact } from "./extended-evidence/subsequent-financing";
 import type { CapitalOwnershipArtifact } from "./extended-evidence/capital-ownership";
 import type { UntaggedFinancialStatementsArtifact } from "./extended-evidence/untagged-financial-tables-contract";
@@ -187,6 +188,10 @@ export interface CollectedSources {
   readonly financialLenses?: FinancialLensArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly financialStatements?: FinancialStatementsArtifact;
+  /** Derived once, with collection's authoritative timestamp, and carried forward so the
+   *  financial-lens metrics and the orchestrator's completeness gaps cannot disagree about a
+   *  filing deadline that falls on a UTC boundary the run happens to straddle. */
+  readonly reportingFreshness?: EquityReportingFreshness;
   readonly untaggedFinancialStatements?: UntaggedFinancialStatementsArtifact;
   readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
   readonly capitalOwnership?: CapitalOwnershipArtifact;

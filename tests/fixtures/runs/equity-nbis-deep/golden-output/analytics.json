@@ -174,7 +174,7 @@
       }
     },
     "sourceGaps": {
-      "total": 17,
+      "total": 19,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -191,17 +191,18 @@
         "valuation-peers": 1,
         "valuation": 1,
         "business-framework": 1,
-        "sec-untagged-financials": 1
+        "sec-untagged-financials": 1,
+        "equity-analysis-completeness": 2
       }
     },
     "sourceGapClasses": {
       "missingCredential": 11,
       "fetchFailed": 0,
       "unsupportedCoverage": 2,
-      "other": 4
+      "other": 6
     },
     "dataGaps": {
-      "total": 19
+      "total": 21
     }
   },
   "providerEndpointAvailability": {
@@ -420,7 +421,7 @@
         "target-valuation: evidence present but not supportable"
       ]
     },
-    "dataGapCount": 19,
+    "dataGapCount": 21,
     "extendedEvidence": {
       "itemCount": 7,
       "gapCount": 14,

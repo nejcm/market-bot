@@ -145,7 +145,7 @@
       }
     },
     "sourceGaps": {
-      "total": 9,
+      "total": 10,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -155,17 +155,18 @@
         "tradier-options": 1,
         "valuation": 1,
         "financial-lens": 1,
-        "business-framework": 1
+        "business-framework": 1,
+        "equity-analysis-completeness": 1
       }
     },
     "sourceGapClasses": {
       "missingCredential": 5,
       "fetchFailed": 0,
       "unsupportedCoverage": 0,
-      "other": 4
+      "other": 5
     },
     "dataGaps": {
-      "total": 11
+      "total": 12
     }
   },
   "providerEndpointAvailability": {
@@ -365,7 +366,7 @@
         "target-valuation: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 11,
+    "dataGapCount": 12,
     "extendedEvidence": {
       "itemCount": 4,
       "gapCount": 7,

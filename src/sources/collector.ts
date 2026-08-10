@@ -29,6 +29,10 @@ import {
 } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { isUsListing } from "./instrument-capability";
+import {
+  deriveEquityReportingFreshness,
+  type EquityReportingFreshness,
+} from "./extended-evidence/equity-analysis-completeness";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
 import { withCanonicalFinancialLensInputs } from "./extended-evidence/financial-lens-canonical";
 import {
@@ -685,6 +689,9 @@ export async function collectSources(
     ...(enrichmentResult.financialStatements !== undefined
       ? { financialStatements: enrichmentResult.financialStatements }
       : {}),
+    ...(enrichmentResult.reportingFreshness !== undefined
+      ? { reportingFreshness: enrichmentResult.reportingFreshness }
+      : {}),
     ...(enrichmentResult.subsequentFinancing !== undefined
       ? { subsequentFinancing: enrichmentResult.subsequentFinancing }
       : {}),
@@ -749,6 +756,7 @@ interface EquityEnrichmentResult {
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
+  readonly reportingFreshness: EquityReportingFreshness | undefined;
   readonly subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined;
   readonly capitalOwnership: CapitalOwnershipArtifact | undefined;
   readonly businessFrameworkResult: BusinessFrameworkResult;
@@ -920,6 +928,9 @@ async function collectEquityEnrichment(
           ),
           subsequentFinancing,
         );
+  // Derived once here, with collection's timestamp, then carried on CollectedSources so the
+  // Orchestrator's completeness gaps quote exactly the dates the lens metrics published.
+  const reportingFreshness = deriveEquityReportingFreshness(financialStatements, input.fetchedAt);
   const financialLensResult = addFinancialLensEvidence(
     input.command,
     input.marketSnapshots,
@@ -927,6 +938,7 @@ async function collectEquityEnrichment(
     input.verifiedMarketSnapshot,
     input.fetchedAt,
     subsequentFinancing,
+    reportingFreshness,
   );
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
@@ -965,6 +977,7 @@ async function collectEquityEnrichment(
     reverseDcf,
     fundamentalHistory,
     financialStatements,
+    reportingFreshness,
     subsequentFinancing,
     capitalOwnership,
     financialLensResult,
@@ -990,6 +1003,7 @@ function noEquityEnrichment(
     reverseDcf: undefined,
     fundamentalHistory: undefined,
     financialStatements: undefined,
+    reportingFreshness: undefined,
     subsequentFinancing: undefined,
     capitalOwnership: undefined,
     financialLensResult,

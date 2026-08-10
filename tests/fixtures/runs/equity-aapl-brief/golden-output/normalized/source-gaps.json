@@ -80,5 +80,15 @@
     "cause": "provider-data-missing",
     "evidenceQualityImpact": "no-cap",
     "triage": "material"
+  },
+  {
+    "source": "equity-analysis-completeness",
+    "message": "current-annual-statement-missing: AAPL reporting surface is not current (no reported financial statement period is available)",
+    "symbol": "AAPL",
+    "provider": "market-bot",
+    "capability": "extended-evidence",
+    "cause": "provider-data-missing",
+    "evidenceQualityImpact": "no-cap",
+    "triage": "material"
   }
 ]

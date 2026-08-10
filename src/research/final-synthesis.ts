@@ -1,6 +1,7 @@
 import type { ResearchCommand } from "../cli/args";
 import {
   NEAR_BASE_RATE_BAND,
+  type EquityAnalysisCompleteness,
   type Prediction,
   type PredictionCompletionAudit,
   type RelocatedGapClaim,
@@ -116,6 +117,8 @@ export interface SynthesizeReportUntilValidInput {
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
   readonly knownSourceIds: ReadonlySet<string>;
+  /** Derived once by the orchestrator, before the canonical source-gap boundary. */
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   /** Subjects the model is allowed to forecast for this run type.
    *  Undefined for research runs — `researchPredictionGate` is the authority there. */
   readonly allowedSubjects?: ReadonlySet<string>;
@@ -665,6 +668,9 @@ function buildReportWithRelocations(
     depthProfile: input.context.depthProfile,
     context: input.context,
     sources: input.sources,
+    ...(input.equityAnalysisCompleteness !== undefined
+      ? { equityAnalysisCompleteness: input.equityAnalysisCompleteness }
+      : {}),
     ...(state.suppressedEarningsPredictionCountOffset !== undefined
       ? {
           suppressedEarningsPredictionCountOffset: state.suppressedEarningsPredictionCountOffset,

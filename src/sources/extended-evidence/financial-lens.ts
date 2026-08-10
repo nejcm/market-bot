@@ -23,6 +23,7 @@ import {
 } from "./valuation-comps";
 import { formatLensValue, formatPeRatio, type LensValueUnit } from "./value-format";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
+import type { EquityReportingFreshness } from "./equity-analysis-completeness";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
 
@@ -991,6 +992,7 @@ export function addFinancialLensEvidence(
   verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined,
   generatedAt: string,
   subsequentFinancing?: SubsequentFinancingBridgeArtifact,
+  freshness?: EquityReportingFreshness,
 ): FinancialLensResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -1029,12 +1031,31 @@ export function addFinancialLensEvidence(
         .filter((value): value is string => value !== undefined)
         .toSorted()
         .at(-1) ?? generatedAt,
-    metrics: Object.fromEntries(
-      lenses.flatMap((lens) => [
-        [postureMetricKey(lens.name), lens.posture],
-        ...lens.metrics.map((metricValue) => [metricValue.key, metricValue.value] as const),
-      ]),
-    ),
+    metrics: {
+      ...Object.fromEntries(
+        lenses.flatMap((lens) => [
+          [postureMetricKey(lens.name), lens.posture] as const,
+          ...lens.metrics.flatMap((metricValue) => [
+            [metricValue.key, metricValue.value] as const,
+            // Period ends travel beside their value, matching sec-edgar's `${key}PeriodEnd`
+            // Convention, so the model can date every lens figure it reads.
+            ...(metricValue.periodEnd === undefined
+              ? []
+              : [[`${metricValue.key}PeriodEnd`, metricValue.periodEnd] as const]),
+          ]),
+        ]),
+      ),
+      // Always-on reporting freshness: present whether or not a completeness gap fired.
+      ...(freshness === undefined
+        ? {}
+        : {
+            interimCadence: freshness.interimCadence,
+            latestReportedPeriodEnd: freshness.latestReportedPeriodEnd,
+            ...(freshness.latestDuePeriodEnd === undefined
+              ? {}
+              : { expectedDuePeriodEnd: freshness.latestDuePeriodEnd }),
+          }),
+    },
     ...(secItem?.identity !== undefined ? { identity: secItem.identity } : {}),
   };
   const artifact: FinancialLensArtifact = {

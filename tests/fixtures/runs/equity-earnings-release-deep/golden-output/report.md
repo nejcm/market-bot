@@ -64,6 +64,10 @@ No peer-derived reference range or normalized market multiple is available; this
 - **Material:** financial-lens: Financial Lens Evidence partial for AAPL: missing valuation evidence
 - **Material:** instrument-identity: No canonical instrument identity derivable for AAPL: ticker quote snapshot missing or carries no identity
 - **Material:** business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability
+- **Material:** equity-analysis-completeness: latest-due-interim-missing: AAPL reporting surface is not current \(interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27\)
+- **Material:** equity-analysis-completeness: quarterly-periods-insufficient: AAPL reporting surface is not current \(interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27\)
+- **Material:** equity-analysis-completeness: ttm-unreconciled: AAPL reporting surface is not current \(interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27\)
+- **Material:** equity-analysis-completeness: per-share-evidence-missing: AAPL reporting surface is not current \(interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27\)
 - **Material:** emitted 1 of 5 target predictions; evidence did not support more
 
 ## Appendix

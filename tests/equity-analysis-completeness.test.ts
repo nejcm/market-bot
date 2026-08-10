@@ -457,6 +457,31 @@ describe("equity analysis completeness", () => {
     });
   });
 
+  test("accepts a reported quarterly interim one period ahead of the due end", () => {
+    const asOf = "2026-11-11T00:00:00.000Z";
+    const artifact = statements({ cadence: "quarterly", fourQuarters: true, analysisAsOf: asOf });
+
+    expect(primaryReasons(artifact, asOf)).toEqual([]);
+    expect(
+      deriveEquityAnalysisCompleteness({
+        asOf,
+        assetClass: "equity",
+        financialStatements: artifact,
+      }).financialCoreStatus,
+    ).toBe("complete");
+  });
+
+  test("keeps a stale quarterly filer missing against the due end", () => {
+    const asOf = "2026-09-01T00:00:00.000Z";
+    const artifact = statements({ cadence: "quarterly" });
+
+    expect(deriveEquityReportingFreshness(artifact, asOf)).toMatchObject({
+      latestReportedPeriodEnd: "2026-03-31",
+      latestDuePeriodEnd: "2026-06-30",
+    });
+    expect(primaryReasons(artifact, asOf)).toContain("latest-due-interim-missing");
+  });
+
   test("covers semiannual comparison gaps and the reconciled H1 complete path", () => {
     const asOf = "2026-12-15T00:00:00.000Z";
     const complete = statements({

@@ -34,7 +34,7 @@ const FIXTURES = [
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
   "equity-aapl-deep": ["complete", "limited"],
-  "equity-earnings-release-deep": ["partial", "limited"],
+  "equity-earnings-release-deep": ["complete", "limited"],
   "equity-nbis-deep": ["partial", "limited"],
   "equity-fpi-quarterly": ["complete", "limited"],
   "equity-fpi-ifrs-semiannual": ["complete", "limited"],

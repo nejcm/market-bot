@@ -87,7 +87,7 @@
       }
     },
     "sourceGaps": {
-      "total": 24,
+      "total": 20,
       "bySource": {
         "yahoo-ticker": 1,
         "yahoo-regime": 1,
@@ -108,18 +108,17 @@
         "financial-lens": 1,
         "instrument-identity": 1,
         "web-gather": 1,
-        "business-framework": 1,
-        "equity-analysis-completeness": 4
+        "business-framework": 1
       }
     },
     "sourceGapClasses": {
       "missingCredential": 12,
       "fetchFailed": 3,
       "unsupportedCoverage": 0,
-      "other": 9
+      "other": 5
     },
     "dataGaps": {
-      "total": 28
+      "total": 24
     }
   },
   "providerEndpointAvailability": {
@@ -342,7 +341,7 @@
         "target-valuation: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 28,
+    "dataGapCount": 24,
     "extendedEvidence": {
       "itemCount": 7,
       "gapCount": 13,

@@ -20231,46 +20231,6 @@
         "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap",
         "triage": "material"
-      },
-      {
-        "source": "equity-analysis-completeness",
-        "message": "latest-due-interim-missing: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-        "symbol": "AAPL",
-        "provider": "market-bot",
-        "capability": "extended-evidence",
-        "cause": "provider-data-missing",
-        "evidenceQualityImpact": "no-cap",
-        "triage": "material"
-      },
-      {
-        "source": "equity-analysis-completeness",
-        "message": "quarterly-periods-insufficient: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-        "symbol": "AAPL",
-        "provider": "market-bot",
-        "capability": "extended-evidence",
-        "cause": "provider-data-missing",
-        "evidenceQualityImpact": "no-cap",
-        "triage": "material"
-      },
-      {
-        "source": "equity-analysis-completeness",
-        "message": "ttm-unreconciled: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-        "symbol": "AAPL",
-        "provider": "market-bot",
-        "capability": "extended-evidence",
-        "cause": "provider-data-missing",
-        "evidenceQualityImpact": "no-cap",
-        "triage": "material"
-      },
-      {
-        "source": "equity-analysis-completeness",
-        "message": "per-share-evidence-missing: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-        "symbol": "AAPL",
-        "provider": "market-bot",
-        "capability": "extended-evidence",
-        "cause": "provider-data-missing",
-        "evidenceQualityImpact": "no-cap",
-        "triage": "material"
       }
     ],
     "sourcePlan": {

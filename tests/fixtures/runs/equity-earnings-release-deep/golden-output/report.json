@@ -14,18 +14,13 @@
   "evidenceQuality": "low",
   "equityAnalysisCompleteness": {
     "version": 1,
-    "financialCoreStatus": "partial",
+    "financialCoreStatus": "complete",
     "coverageLevel": "limited",
     "asOf": "2026-08-10T08:38:33.859Z",
     "dimensions": {
       "primaryFinancials": {
-        "status": "partial",
-        "reasonCodes": [
-          "latest-due-interim-missing",
-          "quarterly-periods-insufficient",
-          "ttm-unreconciled",
-          "per-share-evidence-missing"
-        ],
+        "status": "complete",
+        "reasonCodes": [],
         "asOf": "2026-08-10T08:38:33.859Z",
         "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
       },
@@ -78,11 +73,7 @@
     "valuation: Valuation Evidence unavailable for AAPL: missing marketCap",
     "financial-lens: Financial Lens Evidence partial for AAPL: missing valuation evidence",
     "instrument-identity: No canonical instrument identity derivable for AAPL: ticker quote snapshot missing or carries no identity",
-    "business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
-    "equity-analysis-completeness: latest-due-interim-missing: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-    "equity-analysis-completeness: quarterly-periods-insufficient: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-    "equity-analysis-completeness: ttm-unreconciled: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)",
-    "equity-analysis-completeness: per-share-evidence-missing: AAPL reporting surface is not current (interim cadence quarterly; latest reported period end 2026-06-27; expected due period end 2026-03-27)"
+    "business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability"
   ],
   "predictions": [
     {

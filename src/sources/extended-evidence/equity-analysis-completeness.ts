@@ -131,6 +131,22 @@ function latestDuePeriodEnd(
   return latest;
 }
 
+function cadenceGradingAnchor(
+  revenue: FinancialStatementSeries,
+  annualEnd: string,
+  asOf: string,
+  months: number,
+  filingLagDays: number,
+): string | undefined {
+  const dueEnd = latestDuePeriodEnd(annualEnd, asOf, months, filingLagDays);
+  const reportedEnd = latestFinancialStatementFact(
+    revenue.interim.filter((fact) => fact.periodEnd > annualEnd),
+  )?.periodEnd;
+  return reportedEnd !== undefined && (dueEnd === undefined || reportedEnd > dueEnd)
+    ? reportedEnd
+    : dueEnd;
+}
+
 // The interim period whose filing deadline has already passed, for the cadences that have one.
 // Irregular filers have no deadline to compute against, and annual-only/unknown have no interim.
 function dueInterimPeriodEnd(
@@ -236,10 +252,9 @@ function perShareEvidenceMissing(
 function quarterlyReasons(
   revenue: FinancialStatementSeries,
   annualEnd: string,
-  asOf: string,
+  gradingAnchor: string | undefined,
 ): readonly string[] {
-  const expectedEnd = latestDuePeriodEnd(annualEnd, asOf, 3, QUARTER_FILING_LAG_DAYS);
-  if (expectedEnd === undefined) {
+  if (gradingAnchor === undefined) {
     return [];
   }
   const latestInterim = latestFinancialStatementFact(
@@ -248,11 +263,11 @@ function quarterlyReasons(
   const reasons: string[] = [];
   if (
     latestInterim === undefined ||
-    !alignedWithExpectedEnd(latestInterim.periodEnd, expectedEnd)
+    !alignedWithExpectedEnd(latestInterim.periodEnd, gradingAnchor)
   ) {
     reasons.push("latest-due-interim-missing");
   }
-  const trailingStart = addMonths(expectedEnd, -12);
+  const trailingStart = addMonths(gradingAnchor, -12);
   const quarterOnlyCount = revenue.interim.filter((fact) => {
     const months = financialStatementPeriodMonths(fact);
     return (
@@ -261,11 +276,11 @@ function quarterlyReasons(
       months <= 4 &&
       trailingStart !== undefined &&
       fact.periodEnd > trailingStart &&
-      fact.periodEnd <= expectedEnd
+      fact.periodEnd <= gradingAnchor
     );
   }).length;
   const exactTtmCoversWindow =
-    revenue.ttm !== undefined && alignedWithExpectedEnd(revenue.ttm.periodEnd, expectedEnd);
+    revenue.ttm !== undefined && alignedWithExpectedEnd(revenue.ttm.periodEnd, gradingAnchor);
   const hasTrailingCoverage = quarterOnlyCount >= MIN_QUARTER_ONLY_PERIODS || exactTtmCoversWindow;
   if (!hasTrailingCoverage) {
     reasons.push("quarterly-periods-insufficient");
@@ -316,10 +331,9 @@ function currentStatementIncomplete(
 function semiannualReasons(
   revenue: FinancialStatementSeries,
   annualEnd: string,
-  asOf: string,
+  gradingAnchor: string | undefined,
 ): readonly string[] {
-  const expectedEnd = latestDuePeriodEnd(annualEnd, asOf, 6, HALF_YEAR_FILING_LAG_DAYS);
-  if (expectedEnd === undefined) {
+  if (gradingAnchor === undefined) {
     return [];
   }
   const latest = latestFinancialStatementFact(
@@ -337,13 +351,13 @@ function semiannualReasons(
           ),
         );
   const reasons: string[] = [];
-  if (latest === undefined || !alignedWithExpectedEnd(latest.periodEnd, expectedEnd)) {
+  if (latest === undefined || !alignedWithExpectedEnd(latest.periodEnd, gradingAnchor)) {
     reasons.push("latest-due-interim-missing");
   }
   if (prior === undefined) {
     reasons.push("semiannual-comparison-missing");
   }
-  if (revenue.ttm === undefined || !alignedWithExpectedEnd(revenue.ttm.periodEnd, expectedEnd)) {
+  if (revenue.ttm === undefined || !alignedWithExpectedEnd(revenue.ttm.periodEnd, gradingAnchor)) {
     reasons.push("ttm-unreconciled");
   }
   return reasons;
@@ -422,13 +436,25 @@ function primaryFinancialsDimension(
   let expectedInterimEnd: string | undefined = undefined;
   switch (artifact.interimCadence) {
     case "quarterly": {
-      cadenceReasons = quarterlyReasons(revenue, currentAnnual.periodEnd, asOf);
-      expectedInterimEnd = dueInterimPeriodEnd("quarterly", currentAnnual.periodEnd, asOf);
+      expectedInterimEnd = cadenceGradingAnchor(
+        revenue,
+        currentAnnual.periodEnd,
+        asOf,
+        3,
+        QUARTER_FILING_LAG_DAYS,
+      );
+      cadenceReasons = quarterlyReasons(revenue, currentAnnual.periodEnd, expectedInterimEnd);
       break;
     }
     case "semiannual": {
-      cadenceReasons = semiannualReasons(revenue, currentAnnual.periodEnd, asOf);
-      expectedInterimEnd = dueInterimPeriodEnd("semiannual", currentAnnual.periodEnd, asOf);
+      expectedInterimEnd = cadenceGradingAnchor(
+        revenue,
+        currentAnnual.periodEnd,
+        asOf,
+        6,
+        HALF_YEAR_FILING_LAG_DAYS,
+      );
+      cadenceReasons = semiannualReasons(revenue, currentAnnual.periodEnd, expectedInterimEnd);
       break;
     }
     case "irregular": {

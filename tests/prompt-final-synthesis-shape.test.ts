@@ -490,7 +490,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
         crypto: { brierScore: 0.25, count: 30, runCount: 10, brierStandardError: 0.05 },
       },
       byMarketUpdateHorizonBucket: {
-        "1-5d": {
+        "2-5d": {
           brierScore: 0.3,
           count: 30,
           runCount: 10,
@@ -552,7 +552,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
     expect(block).toContain("asset class equity");
     expect(block).not.toContain("Overall");
     expect(block).not.toContain("direction");
-    expect(block).not.toContain("default horizon 1-5d");
+    expect(block).not.toContain("default horizon 2-5d");
     expect(block).toContain("only to discipline probability confidence");
     expect(parsed.predictionCompletion).toBeDefined();
   });

@@ -347,7 +347,12 @@ describe("run analytics", () => {
         {
           dimension: "predictionHorizon",
           key: "1-5d",
-          actionable: false,
+          brierScore: 0.4,
+          count: 30,
+          runCount: 10,
+          brierStandardError: 0.05,
+          lowerConfidenceBound: 0.287_93,
+          actionable: true,
           reason: "single-cell-dimension",
         },
         {

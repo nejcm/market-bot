@@ -122,7 +122,7 @@ describe("applicableCalibrationSlices", () => {
       { ...keys, jobType: "market-overview" },
     ).find(({ dimension }) => dimension === "predictionHorizon");
 
-    expect(instrumentHorizon).toEqual({
+    expect(instrumentHorizon).toMatchObject({
       dimension: "predictionHorizon",
       key: "1-5d",
       actionable: false,
@@ -133,6 +133,30 @@ describe("applicableCalibrationSlices", () => {
       key: "1-5d",
       actionable: false,
       reason: "empty-dimension",
+    });
+  });
+
+  test("keeps single-cell telemetry without gating actionability", () => {
+    const metric = {
+      brierScore: 0.4,
+      count: 30,
+      runCount: 10,
+      brierStandardError: 0.05,
+    };
+    const assetClass = applicableCalibrationSlices(
+      { byAssetClass: { equity: metric } },
+      {
+        assetClass: "equity",
+        jobType: "equity",
+        predictionHorizon: "2-5d",
+        marketRegime: "mixed",
+      },
+    ).find(({ dimension }) => dimension === "assetClass");
+
+    expect(assetClass).toMatchObject({
+      actionable: true,
+      reason: "single-cell-dimension",
+      metric,
     });
   });
 });

@@ -120,20 +120,55 @@ describe("buildCalibrationBlock", () => {
   );
 
   test.each([
-    ["below outcome floor", { byAssetClass: { equity: { ...actionableMetric, count: 29 } } }],
-    ["below run floor", { byJobType: { equity: { ...actionableMetric, runCount: 9 } } }],
+    [
+      "below outcome floor",
+      {
+        byAssetClass: {
+          equity: { ...actionableMetric, count: 29 },
+          crypto: actionableMetric,
+        },
+      },
+    ],
+    [
+      "below run floor",
+      {
+        byJobType: {
+          equity: { ...actionableMetric, runCount: 9 },
+          crypto: actionableMetric,
+        },
+      },
+    ],
     [
       "statistically inconclusive",
       {
         byHorizonBucket: {
           "2-5d": { ...actionableMetric, brierScore: 0.3, brierStandardError: 0.03 },
+          "6-10d": actionableMetric,
         },
       },
     ],
-    ["legacy", { byAssetClass: { equity: { brierScore: 0.4, count: 30 } } }],
-    ["non-applicable", { byAssetClass: { crypto: actionableMetric } }],
+    [
+      "legacy",
+      {
+        byAssetClass: {
+          equity: { brierScore: 0.4, count: 30 },
+          crypto: actionableMetric,
+        },
+      },
+    ],
+    ["non-applicable", { byJobType: { crypto: actionableMetric, research: actionableMetric } }],
   ])("omits calibration entirely for a %s slice", (_name, calibration) => {
     expect(buildCalibrationBlock(calibration, command, calibrationRunContext())).toBeUndefined();
+  });
+
+  test("includes an actionable single-cell dimension", () => {
+    const block = buildCalibrationBlock(
+      { byAssetClass: { equity: actionableMetric } },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toContain("asset class equity");
   });
 
   test("uses the depth profile default forecast horizon", () => {

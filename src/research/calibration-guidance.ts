@@ -116,20 +116,20 @@ export function applicableCalibrationSlices(
   ] as const;
   return slices.map(({ dimension, key, metrics }) => {
     const populatedCells = metrics === undefined ? undefined : Object.keys(metrics).length;
-    if (populatedCells !== undefined && populatedCells < 2) {
-      return {
-        dimension,
-        key,
-        actionable: false,
-        reason: populatedCells === 0 ? "empty-dimension" : "single-cell-dimension",
-      };
-    }
     const metric = metrics?.[key];
+    const assessment = assessNegativeCalibration(metric);
+    let { reason } = assessment;
+    if (populatedCells === 0) {
+      reason = "empty-dimension";
+    } else if (populatedCells === 1) {
+      reason = "single-cell-dimension";
+    }
     return {
       dimension,
       key,
       ...(metric !== undefined ? { metric } : {}),
-      ...assessNegativeCalibration(metric),
+      ...assessment,
+      reason,
     };
   });
 }

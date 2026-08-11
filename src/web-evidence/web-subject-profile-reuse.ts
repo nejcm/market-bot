@@ -115,7 +115,7 @@ export async function findReusableWebSubjectProfile(input: {
         provider: "market-bot",
         capability: "extended-evidence",
         cause: "stale-fallback",
-        evidenceQualityImpact: "extended-evidence-cap",
+        evidenceQualityImpact: "no-cap",
       }),
       runDirName: artifact.runDirName,
       ...(priorUtilization !== undefined

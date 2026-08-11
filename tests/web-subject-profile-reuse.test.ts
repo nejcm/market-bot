@@ -13,6 +13,7 @@ import {
   normalizedSubjectId,
   type WebSubjectProfileArtifact,
 } from "../src/web-evidence/web-subject-profile";
+import { classifyGap } from "../src/report/gap-triage";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
 import { collectedSources, deepEquityEvidenceBundle } from "./support/fixtures";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
@@ -279,7 +280,13 @@ describe("Web Subject Profile reuse", () => {
 
     expect(reuse?.profile).toMatchObject({ subjectKind: "company", companyName: "AAPL Inc." });
     expect(reuse?.sources.map((source) => source.id)).toEqual([webSource.id]);
-    expect(reuse?.gap.message).toContain("2.5 days old");
+    expect(reuse?.gap).toMatchObject({
+      message:
+        "Reused web subject profile from 2026-05-01T00:00:00.000Z (2.5 days old); latest SEC filing basis 2026-04-25.",
+      cause: "stale-fallback",
+      evidenceQualityImpact: "no-cap",
+    });
+    expect(classifyGap(reuse!.gap)).toBe("diagnostic");
   });
 
   test("reads versioned low utilization from the exact reused-profile run without rewriting it", async () => {

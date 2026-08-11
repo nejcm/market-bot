@@ -6,6 +6,7 @@ import {
   type Scenario,
   type SourceGap,
 } from "../domain/types";
+import { isIntendedFallbackGap, sourceGapScopedReportText } from "../domain/source-gaps";
 import type { CollectedSources } from "../sources/types";
 import { projectEquityReader, type EquityReaderCompanyDescription } from "./equity-reader";
 import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
@@ -59,7 +60,7 @@ export interface EquityMarkdownSections {
     typeof equityProjectionRendererFactory
   >["analystDistributions"];
   readonly renderAnalystAndOwnershipContext: (report: ResearchReport) => string;
-  readonly renderDiagnosticGapSummary: (count: number) => string;
+  readonly renderDiagnosticGapSummary: (count: number, disclosedGaps: readonly string[]) => string;
   readonly renderEarningsSetup: (report: ResearchReport) => string;
   readonly renderHistoricalContext: (report: ResearchReport) => string;
   readonly renderSpotlights: (report: ResearchReport) => string;
@@ -116,6 +117,10 @@ export function renderEquityMarkdownReport(
       : { sourceGaps: collectedSources.sourceGaps }),
   });
   const diagnosticGapCount = projection.appendix.diagnosticGaps.length;
+  const disclosedDiagnosticGaps = (collectedSources?.sourceGaps ?? [])
+    .filter((gap) => isIntendedFallbackGap(gap))
+    .map((gap) => sourceGapScopedReportText(gap))
+    .filter((gap) => projection.appendix.diagnosticGaps.includes(gap));
   const additionalSourceIds = [
     ...(marketSnapshot === undefined ? [] : [marketSnapshot.sourceId]),
     ...projection.defaultView.companyDescription.sourceIds,
@@ -197,7 +202,11 @@ export function renderEquityMarkdownReport(
     sections.renderAppendixSection(sections.renderPredictions(report.predictions)),
     ...(diagnosticGapCount === 0
       ? []
-      : [sections.renderAppendixSection(sections.renderDiagnosticGapSummary(diagnosticGapCount))]),
+      : [
+          sections.renderAppendixSection(
+            sections.renderDiagnosticGapSummary(diagnosticGapCount, disclosedDiagnosticGaps),
+          ),
+        ]),
     "### Sources",
     "",
     sections.renderSources(report, additionalSourceIds),

@@ -236,11 +236,18 @@ function classifyRoute(
       reason: "SEC extended evidence is nonblocking provider coverage.",
     };
   }
-  if (routeName === "news-seen" || routeHasCause(route, "repeat-fallback")) {
+  // Routes aggregate across runs, so any profile failure wins over reuse and stays blocking.
+  if (
+    routeName === "news-seen" ||
+    routeHasCause(route, "repeat-fallback") ||
+    (routeName === "web-subject-profile" &&
+      !routeHasCause(route, "validation-failed") &&
+      !routeHasCause(route, "provider-data-missing"))
+  ) {
     return {
       ...base,
       classification: "informational",
-      reason: "Persistent news dedupe fallback is disclosed but nonblocking.",
+      reason: "Intended fallback is disclosed but nonblocking.",
     };
   }
   if (route.missingCredential > 0) {

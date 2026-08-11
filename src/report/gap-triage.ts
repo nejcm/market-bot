@@ -1,4 +1,4 @@
-import { sourceGapScopedReportText } from "../domain/source-gaps";
+import { isIntendedFallbackGap, sourceGapScopedReportText } from "../domain/source-gaps";
 import type { SourceGap, SourceGapTriage } from "../domain/types";
 
 export type GapTriage = SourceGapTriage;
@@ -87,6 +87,9 @@ export function classifyGap(gap: SourceGap | string, reportSymbol?: string): Gap
 
   const source = sourceName(gap.source);
   const provider = gap.provider?.trim().toLowerCase() ?? "";
+  if (isIntendedFallbackGap(gap)) {
+    return "diagnostic";
+  }
   if (diagnosticReasonCode(source)) {
     return "diagnostic";
   }
@@ -108,5 +111,10 @@ export function readGapTriage(
   reportSymbol?: string,
 ): GapTriage {
   const structured = sourceGaps.find((gap) => sourceGapScopedReportText(gap) === text);
-  return structured?.triage ?? classifyGap(text, reportSymbol);
+  return (
+    structured?.triage ??
+    (structured !== undefined && isIntendedFallbackGap(structured)
+      ? "diagnostic"
+      : classifyGap(text, reportSymbol))
+  );
 }

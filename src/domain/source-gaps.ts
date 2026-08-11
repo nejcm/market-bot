@@ -305,6 +305,14 @@ export function isRepeatFallbackGap(gap: SourceGap): boolean {
   return gap.cause === "repeat-fallback";
 }
 
+export function isIntendedFallbackGap(gap: SourceGap): boolean {
+  // Impact alone also marks material non-fallback gaps, so the cause check is load-bearing.
+  return (
+    (gap.cause === "repeat-fallback" || gap.cause === "stale-fallback") &&
+    gap.evidenceQualityImpact === "no-cap"
+  );
+}
+
 export function isCoreEvidenceQualityGap(gap: SourceGap): boolean {
   // Legacy untyped gaps are core evidence gaps until their producers opt into a narrower impact.
   return gap.evidenceQualityImpact === "core-cap" || gap.evidenceQualityImpact === undefined;

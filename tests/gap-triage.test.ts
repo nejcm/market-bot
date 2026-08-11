@@ -37,6 +37,24 @@ describe("gap triage", () => {
         cause: "missing-credential",
       } satisfies SourceGap,
     ],
+    [
+      "repeat fallback without an evidence cap",
+      {
+        source: "news-seen",
+        message: "Kept one relevant repeat fallback",
+        cause: "repeat-fallback",
+        evidenceQualityImpact: "no-cap",
+      } satisfies SourceGap,
+    ],
+    [
+      "in-window stale fallback without an evidence cap",
+      {
+        source: "web-subject-profile",
+        message: "Reused an in-window web subject profile",
+        cause: "stale-fallback",
+        evidenceQualityImpact: "no-cap",
+      } satisfies SourceGap,
+    ],
     ["missing FRED credential", "fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
     [
       "feature-named optional-provider credential absence",
@@ -83,6 +101,15 @@ describe("gap triage", () => {
         message: "No usable market snapshot",
         cause: "provider-data-missing",
         evidenceQualityImpact: "core-cap",
+      } satisfies SourceGap,
+    ],
+    [
+      "non-fallback gap without an evidence cap",
+      {
+        source: "business-framework",
+        message: "Business Framework remains incomplete",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
       } satisfies SourceGap,
     ],
     [
@@ -212,6 +239,18 @@ describe("gap triage", () => {
     const text = "finnhub-events: Finnhub events endpoint failed with status 403";
 
     expect(classifyGap(legacyGap)).toBe("material");
+    expect(readGapTriage(text, [legacyGap])).toBe("diagnostic");
+  });
+
+  test("classifies a legacy intended fallback from its structured metadata", () => {
+    const legacyGap = {
+      source: "news-seen",
+      message: "Persistent news dedupe kept one relevant repeat fallback",
+      cause: "repeat-fallback",
+      evidenceQualityImpact: "no-cap",
+    } satisfies SourceGap;
+    const text = "news-seen: Persistent news dedupe kept one relevant repeat fallback";
+
     expect(readGapTriage(text, [legacyGap])).toBe("diagnostic");
   });
 });

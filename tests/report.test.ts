@@ -184,6 +184,70 @@ test("summarizes diagnostic gaps with a pointer to retained artifacts", () => {
   expect(markdown).not.toContain("tradier-options: API token missing");
 });
 
+test("retains intended fallback disclosures under Diagnostic Data Gaps", () => {
+  const fallbackGaps = [
+    sourceGap({
+      source: "web-subject-profile",
+      message:
+        "Reused web subject profile from 2026-07-31T13:38:07.729Z (10.2 days old); latest SEC filing basis 2026-07-31.",
+      cause: "stale-fallback",
+      evidenceQualityImpact: "no-cap",
+      triage: "diagnostic",
+    }),
+    sourceGap({
+      source: "news-seen",
+      message: "Persistent news dedupe kept 10 relevant repeat fallback(s)",
+      cause: "repeat-fallback",
+      evidenceQualityImpact: "no-cap",
+      triage: "diagnostic",
+    }),
+  ];
+  const dataGaps = fallbackGaps.map((gap) => `${gap.source}: ${gap.message}`);
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps,
+    },
+    undefined,
+    { sourceGaps: fallbackGaps },
+  );
+  const materialSection = markdown.slice(
+    markdown.indexOf("## Material Data Gaps"),
+    markdown.indexOf("## Appendix"),
+  );
+  const diagnosticSection = markdown.slice(markdown.indexOf("### Diagnostic Data Gaps"));
+  const additionalGap = sourceGap({
+    source: "tradier-options",
+    message: "Optional options evidence unavailable",
+    triage: "diagnostic",
+  });
+  const deepRunMarkdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: [...dataGaps, `${additionalGap.source}: ${additionalGap.message}`],
+    },
+    undefined,
+    { sourceGaps: [...fallbackGaps, additionalGap] },
+  );
+
+  expect(materialSection).not.toContain("Reused web subject profile");
+  expect(materialSection).not.toContain("Persistent news dedupe");
+  expect(diagnosticSection).toContain(
+    "- **Diagnostic:** web-subject-profile: Reused web subject profile",
+  );
+  expect(diagnosticSection).toContain("- **Diagnostic:** news-seen: Persistent news dedupe");
+  expect(diagnosticSection).not.toContain("see the Research Console Advanced view");
+  expect(deepRunMarkdown).toContain(
+    "3 diagnostic data gaps; see the Research Console Advanced view or report.json for details.",
+  );
+});
+
 test("renders an uncited real company description as a paragraph", () => {
   const description = "Apple designs and sells consumer technology products.";
   const markdown = renderMarkdownReport({

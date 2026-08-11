@@ -490,9 +490,16 @@ function renderAppendixSection(markdown: string): string {
   return markdown.replaceAll(/^(#{2,5})(?= )/gmu, "#$1");
 }
 
-function renderDiagnosticGapSummary(count: number): string {
+function renderDiagnosticGapSummary(count: number, disclosedGaps: readonly string[]): string {
   const noun = count === 1 ? "gap" : "gaps";
-  return `## Diagnostic Data Gaps\n\n- ${String(count)} diagnostic data ${noun}; see the Research Console Advanced view or report.json for details.\n`;
+  const disclosures = disclosedGaps.map((gap) => renderGap(gap, undefined, "diagnostic"));
+  const pointer =
+    count > disclosedGaps.length
+      ? [
+          `- ${String(count)} diagnostic data ${noun}; see the Research Console Advanced view or report.json for details.`,
+        ]
+      : [];
+  return `## Diagnostic Data Gaps\n\n${[...disclosures, ...pointer].join("\n")}\n`;
 }
 
 function renderExtendedEvidence(

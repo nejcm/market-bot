@@ -455,6 +455,7 @@ export type RunWorkspaceReverseDcfView =
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
+  readonly advancedOnly: boolean;
 }
 
 export interface RunWorkspaceEquityPresentationView {
@@ -489,6 +490,7 @@ export interface RunWorkspaceEquityPresentationView {
 }
 
 export interface RunWorkspaceView {
+  readonly equityHeader?: RunWorkspaceEquityHeaderView;
   readonly equityPresentation?: RunWorkspaceEquityPresentationView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
   readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
@@ -1627,90 +1629,226 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const tableOfContents = (
     equityPresentation === undefined
       ? [
-          { key: "summary", label: "Summary", visible: summary !== "" },
+          { key: "summary", label: "Summary", visible: summary !== "", advancedOnly: false },
           {
             key: "financialLensStats",
             label: "Financial lens stats",
             visible: financialLensGroups.length > 0,
+            advancedOnly: false,
           },
-          { key: "findings", label: "Key findings", visible: findings.length > 0 },
-          { key: "cases", label: "Cases & risks", visible: cases.length > 0 },
-          { key: "scenarios", label: "Scenarios", visible: scenarioItems.length > 0 },
-          { key: "snapshot", label: "Market snapshot", visible: snapshot !== undefined },
+          {
+            key: "findings",
+            label: "Key findings",
+            visible: findings.length > 0,
+            advancedOnly: false,
+          },
+          { key: "cases", label: "Cases & risks", visible: cases.length > 0, advancedOnly: false },
+          {
+            key: "scenarios",
+            label: "Scenarios",
+            visible: scenarioItems.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "snapshot",
+            label: "Market snapshot",
+            visible: snapshot !== undefined,
+            advancedOnly: false,
+          },
           {
             key: "fundamentalHistory",
             label: "Fundamental history",
             visible: fundamentalHistory !== undefined,
+            advancedOnly: false,
           },
           {
             key: "valuationWorkbench",
             label: "Valuation workbench",
             visible: valuationWorkbench !== undefined,
+            advancedOnly: false,
           },
           {
             key: "reverseDcf",
             label: "Reverse DCF input sensitivity",
             visible: reverseDcf !== undefined,
+            advancedOnly: false,
           },
           {
             key: "peerImpliedRange",
             label: "Peer-implied price reference range",
             visible: peerImpliedRange !== undefined,
+            advancedOnly: false,
           },
           {
             key: "history",
             label: "Historical context",
             visible: historicalContext !== undefined,
+            advancedOnly: false,
           },
           {
             key: "webSubjectProfile",
             label: "Web Subject Profile",
             visible: webSubjectProfile !== undefined,
+            advancedOnly: false,
           },
           {
             key: "businessFramework",
             label: "Business framework",
             visible: businessFramework !== undefined,
+            advancedOnly: false,
           },
           {
             key: "extendedEvidence",
             label: "Extended evidence",
             visible: extendedItems.length > 0,
+            advancedOnly: false,
           },
-          { key: "forecasts", label: "Forecasts", visible: forecastsVisible },
-          { key: "gaps", label: "Data gaps", visible: gapsVisible },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: false },
+          { key: "gaps", label: "Data gaps", visible: gapsVisible, advancedOnly: false },
         ]
       : [
-          { key: "equityOverview", label: "Price", visible: true },
-          { key: "summary", label: "Company summary", visible: true },
+          { key: "equityOverview", label: "Price", visible: true, advancedOnly: false },
+          { key: "summary", label: "Company summary", visible: true, advancedOnly: false },
           {
             key: "financialTrends",
             label: "Financial trends",
             visible: financialTrends !== undefined,
+            advancedOnly: false,
           },
-          { key: "findings", label: "Key findings", visible: findings.length > 0 },
+          {
+            key: "findings",
+            label: "Key findings",
+            visible: findings.length > 0,
+            advancedOnly: false,
+          },
           {
             key: "cases",
             label: "Catalysts & risks",
             visible: equityPresentation.defaultView.cases.length > 0,
+            advancedOnly: false,
           },
           {
             key: "earningsConsensus",
             label: "Earnings & consensus",
             visible: earningsConsensus.items.length > 0,
+            advancedOnly: false,
           },
+          {
+            key: "advancedSummary",
+            label: "Report summary",
+            visible: summary !== "",
+            advancedOnly: true,
+          },
+          {
+            key: "equityCompleteness",
+            label: "Completeness diagnostics",
+            visible: equityPresentation.advanced.completeness !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "equityMetrics",
+            label: "Detailed equity metrics",
+            visible: true,
+            advancedOnly: true,
+          },
+          {
+            key: "financialLensStats",
+            label: "Financial lens stats",
+            visible: financialLensGroups.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "fundamentalHistory",
+            label: "Fundamental history",
+            visible: fundamentalHistory !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "balanceSheetHistory",
+            label: "Balance sheet & share count",
+            visible: balanceSheetHistory !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "valuationWorkbench",
+            label: "Valuation workbench",
+            visible: valuationWorkbench !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "reverseDcf",
+            label: "Reverse DCF input sensitivity",
+            visible: reverseDcf !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "peerImpliedRange",
+            label: "Peer-implied price reference range",
+            visible: peerImpliedRange !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "scenarios",
+            label: "Scenarios",
+            visible: scenarioItems.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "snapshot",
+            label: "Market snapshot",
+            visible: snapshot !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "history",
+            label: "Historical context",
+            visible: historicalContext !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "webSubjectProfile",
+            label: "Web Subject Profile",
+            visible: webSubjectProfile !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "businessFramework",
+            label: "Business framework",
+            visible: businessFramework !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "analystEstimateDistributions",
+            label: "Analyst estimate distributions",
+            visible: analystEstimateDistributions.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "extendedEvidence",
+            label: "Extended evidence",
+            visible: extendedItems.length > 0,
+            advancedOnly: true,
+          },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: true },
           {
             key: "gaps",
             label: "Coverage & material gaps",
             visible: true,
+            advancedOnly: false,
           },
-          { key: "advanced", label: "Advanced", visible: true },
+          {
+            key: "rawMarkdown",
+            label: "Raw markdown",
+            visible: detail.markdown !== undefined,
+            advancedOnly: true,
+          },
         ]
   )
     .filter((entry) => entry.visible)
-    .map(({ key, label }) => ({ key, label }));
+    .map(({ key, label, advancedOnly }) => ({ key, label, advancedOnly }));
 
   return {
+    ...(equityHeader !== undefined ? { equityHeader } : {}),
     ...(equityPresentation !== undefined ? { equityPresentation } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
     ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),

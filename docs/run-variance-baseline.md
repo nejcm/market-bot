@@ -6,52 +6,99 @@ below are single-run noise unless corroborated by independent evidence; treat
 the ranges as stale once web gather, synthesis, forecasting, or scoring code
 changes after the baseline commit.
 
-- Commit: `69eb4edc0115669566db90bb37b8e433300124c3` (clean tree)
-- Date: 2026-07-12 (weekend session — market data static across runs; web
-  news drift between runs remains a known residual confound)
-- Runs: `2026-07-12T03-18-22-522Z-4c1c50bc`, `2026-07-12T03-25-33-567Z-fece9f6a`,
-  `2026-07-12T03-32-15-563Z-396847dd`
+- Commit: `0110528112f174ab7f56ff6072afb062097d1367` (clean tree)
+- Date: 2026-08-11 (US regular session closed; runs executed 16:01–16:27 +08,
+  so market data was static across runs)
+- Runs: `2026-08-11T08-01-26-563Z-67f6b037`, `2026-08-11T08-11-02-641Z-c718bf56`,
+  `2026-08-11T08-19-44-110Z-c2278c53`
+- Web-input context: all three runs fetched the same news inputs (43 fetched,
+  35 canonically deduped, with identical provider counts). Downstream web
+  variance came from persistent news-suppression state and Exa failures;
+  Firecrawl was unconfigured. Runs 2 and 3 recorded 2 and 1 failed Exa
+  requests; Run 1 recorded no fallback block.
+
+Check whether the baseline still applies with one command:
+
+```sh
+git diff --name-only 0110528..HEAD -- src/research/prompts src/research/final-synthesis.ts src/web-evidence src/forecast src/scoring
+```
+
+On 2026-08-11, the `69eb4edc` bands were retired because forecast and synthesis
+changes violated their staleness rule and absolute levels had drifted so far
+that the bands carried no information; they recorded 5/5/5 final predictions
+with a conditional in each.
+
+## Run independence
+
+These runs are serially dependent: Run 2 reused Run 1's acceptance profile,
+Run 3 reused Run 2's `insufficient-sample` / `0` profile, persistent news
+suppression rose 8 → 19 → 23, and the Exa circuit breaker opened in Run 2 and
+remained open in Run 3. The web rows and `circuit-open` are therefore a
+trajectory, not a distribution. A genuinely independent baseline would reset
+`data/news-seen.json` and the acceptance profile between runs.
 
 ## Observed metrics
 
-| Metric                                        | Run 1   | Run 2   | Run 3       | Range     |
-| --------------------------------------------- | ------- | ------- | ----------- | --------- |
-| `webSources.usageRatio`                       | 0.50    | 0.43    | 0.50        | 0.43–0.50 |
-| `webSources.accepted`                         | 10      | 7       | 10          | 7–10      |
-| `webSources.reportCited`                      | 3       | 3       | 2           | 2–3       |
-| `predictions.completion.initialCount`         | 2       | 4       | — (no pass) | 2–5       |
-| Final prediction count                        | 5       | 5       | 5           | 5         |
-| `nearBaseRateCount` / `informativeCount`      | 0 / 5   | 0 / 5   | 0 / 5       | stable    |
-| `sourceFunnel.sourceGaps.total`               | 10      | 11      | 11          | 10–11     |
-| `evidenceLanes.coverageRatio`                 | 0.818   | 0.818   | 0.818       | stable    |
-| Estimated tokens (`trace.json:tokenEstimate`) | 373,565 | 385,767 | 336,192     | 336k–386k |
+| Metric                                                       | Run 1       | Run 2             | Run 3       | Observed range                |
+| ------------------------------------------------------------ | ----------- | ----------------- | ----------- | ----------------------------- |
+| `webSources.usageRatio`                                      | 0.333       | 0 (gather failed) | 1.000       | 0.333–1.000 (Run 2 excluded)  |
+| `webSources.accepted`                                        | 6           | 0 (gather failed) | 5           | 5–6 (Run 2 excluded)          |
+| `webSources.reportCited`                                     | 2           | 0 (gather failed) | 5           | 2–5 (Run 2 excluded)          |
+| `predictions.completion.initialCount`                        | 3           | 3                 | 3           | stable at 3                   |
+| Final prediction count                                       | 3           | 3                 | 4           | 3–4                           |
+| `nearBaseRateCount` / `informativeCount`                     | 0 / 3       | 0 / 3             | 0 / 4       | 0 / 3–4                       |
+| `sourceFunnel.sourceGaps.total`                              | 16          | 17                | 17          | 16–17                         |
+| `evidenceLanes.coverageRatio`                                | 0.818       | 0.818             | 0.818       | stable at 0.818               |
+| Estimated tokens (`trace.json:tokenEstimate`)                | 404,562     | 420,421           | 400,528     | 400,528–420,421               |
+| `predictions.byKind.range`                                   | 1           | 1                 | 1           | stable at 1                   |
+| `predictions.byKind.relative`                                | 1           | 1                 | 2           | 1–2                           |
+| `predictions.byKind.direction`                               | 1           | 1                 | 1           | stable at 1                   |
+| `predictions.byKind.conditional`                             | absent      | absent            | absent      | absent in all three artifacts |
+| `predictions.horizonTradingDays` min / max                   | 5 / 5       | 5 / 5             | 5 / 5       | stable at 5 / 5               |
+| `webEvidenceUtilization.usedCurrentRun`                      | 2           | 0 (gather failed) | 5           | 2–5 (Run 2 excluded)          |
+| `webEvidenceUtilization.acceptedCurrentRun`                  | 6           | 0 (gather failed) | 5           | 5–6 (Run 2 excluded)          |
+| `sourceFunnel.sourceGapsByCause.repeat-fallback`             | 1           | 1                 | 1           | stable at 1                   |
+| `sourceFunnel.sourceGapsByCause.unsupported-coverage`        | 8           | 8                 | 8           | stable at 8                   |
+| `sourceFunnel.sourceGapsByCause.missing-credential`          | 1           | 1                 | 1           | stable at 1                   |
+| `sourceFunnel.sourceGapsByCause.provider-data-missing`       | 5           | 5                 | 5           | stable at 5                   |
+| `sourceFunnel.sourceGapsByCause.stale-fallback`              | 1           | 1                 | 1           | stable at 1                   |
+| `sourceFunnel.sourceGapsByCause.circuit-open`                | absent      | 1                 | 1           | absent–1                      |
+| `report.json:equityAnalysisCompleteness.financialCoreStatus` | complete    | complete          | complete    | stable at `complete`          |
+| `report.json:equityAnalysisCompleteness.coverageLevel`       | substantial | substantial       | substantial | stable at `substantial`       |
 
-Run 3 emitted 5 primary predictions, so no completion pass fired; its
-effective initial count is 5.
+Run 2's 0 lower bound in every web row is a gather failure, not run variance. A
+future run with zero accepted web sources should be triaged, never excused by
+this band.
+
+`predictions.byKind.conditional` and Run 1's
+`sourceFunnel.sourceGapsByCause.circuit-open` are genuinely absent from
+`analytics.json`. The final reports confirm that none of the three runs emitted
+a conditional prediction; the two completeness rows come from `report.json`.
 
 ## Per-claim probabilities
 
-Recurring claims were near-identical across runs (spread ≤ 0.02 per claim):
+Exact observable claims did not all recur across runs:
 
-| Claim family                         | Run 1 | Run 2 | Run 3 |
-| ------------------------------------ | ----- | ----- | ----- |
-| range (AAPL outside band, 5d)        | 0.34  | 0.34  | 0.36  |
-| relative (AAPL vs QQQ, 5d)           | 0.37  | 0.37  | 0.37  |
-| conditional (up-then-up)             | 0.64  | 0.63  | 0.63  |
-| direction (AAPL up)                  | 0.61  | 0.61  | 0.61  |
-| earnings-direction (post-2026-07-30) | 0.39  | 0.39  | 0.38  |
+| Claim family                     | Run 1 | Run 2 | Run 3 |
+| -------------------------------- | ----- | ----- | ----- |
+| range (AAPL outside 285–335, 5d) | 0.27  | —     | —     |
+| range (AAPL outside 290–330, 5d) | —     | 0.28  | 0.32  |
+| relative (AAPL vs QQQ, 5d)       | 0.39  | 0.36  | 0.36  |
+| direction (AAPL up, 5d)          | 0.38  | 0.38  | 0.38  |
+| relative (AAPL vs IWM, 5d)       | —     | —     | 0.34  |
 
 ## Reading the ranges
 
-- Citation-ratio moves within 0.43–0.50 (or accepted counts within 7–10) are
-  noise. The 0.50 → 0.09 collapse that motivated this baseline sits far
-  outside it.
-- Initial prediction count varies 2–5 on identical code; a 4-vs-5 delta
-  between two runs is not signal.
-- Same-claim probability spread is ≤ 0.02; polarity flips of near-band
-  probabilities across runs would exceed this baseline and deserve a look.
-- All 15 probabilities landed 0.01–0.04 outside the widened 0.40–0.60
-  near-base-rate band (0.34–0.39 / 0.61–0.64). Watch
-  `calibrationAtGeneration` on future resolved cohorts for band-escape
-  overshoot (the risk noted in ADR 0003's 2026-07-12 amendment).
-- Token totals swing ~15% run-to-run; treat sub-20% token deltas as noise.
+- Web utilization was 0.333 in Run 1 and 1.000 in Run 3. Run 2's zeros were a
+  total gather failure, not variance; the web rows provide no band that excuses
+  a future zero-accepted run.
+- The completion pass started from 3 predictions in every run; final counts
+  were 3–4. No run emitted a conditional, and every horizon was 5 trading days.
+- Source-gap totals were 16–17 while Evidence Lane coverage stayed at 0.818;
+  financial core status and coverage level were also unchanged.
+- Of the exact claims present in all three runs, AAPL-vs-QQQ probability spread
+  was 0.03 and AAPL-up spread was 0.00. The 290–330 range claim spread was 0.04
+  across only two runs; the sample does not support a general per-claim bound.
+- Estimated tokens ranged 400,528–420,421, about 5% peak to trough.
+
+These are advisory ranges from three runs, not authoritative limits.

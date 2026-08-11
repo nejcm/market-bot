@@ -35,6 +35,14 @@ export const COMPLETENESS_REASON_CODE_LABELS: Readonly<Record<string, string>> =
   "valuation-inputs-incomplete": "Valuation inputs are incomplete",
 };
 
+export const COMPLETENESS_STATUS_CLASSES: Readonly<Record<string, string>> = {
+  complete: "border-[#b9ddc7] bg-[#e9f6ee] text-[#17653a]",
+  partial: "border-[#d9c89a] bg-[#f8f1df] text-[#8a6116]",
+  blocked: "border-[#dfb9b5] bg-[#faecea] text-[#8c2720]",
+  "not-applicable": "border-border bg-secondary text-muted-foreground",
+  "not-assessed": "border-[#b8c3cf] bg-[#eef2f6] text-[#46576a]",
+};
+
 function readableReasonCodeFragment(value: string): string {
   return value.replaceAll("-", " ").trim() || "Unspecified completeness detail";
 }

@@ -109,8 +109,10 @@ Retained `--keep` directories are not removed automatically; delete them manuall
 
 Deep-equity report tests verify that the reader block precedes `## Appendix`, contains the compact
 company, price/freshness, trend, valuation-context, catalyst/risk, earnings/consensus, and material
-gap content, and excludes appendix-only detail. Console tests verify the matching default and
-collapsed Advanced partition. Both surfaces derive the trend table through
+gap content, and excludes appendix-only detail. Console tests server-render the workspace at both
+`reportDetail` settings and verify Simple omits appendix markers, Advanced contains them as a strict
+superset with nothing duplicated, and non-equity output is byte-identical across the two. Both
+surfaces derive the trend table through
 `src/report/equity-reader.ts` and classify gaps through `src/report/gap-triage.ts`.
 
 Run the focused suites:

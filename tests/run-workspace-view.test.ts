@@ -26,9 +26,21 @@ import { renderFinancialTrends, renderMarkdownReport } from "../src/report/markd
 import { projectEquityReader } from "../src/report/equity-reader";
 import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
 
-async function renderRunWorkspaceComponent(detail: RunDetail): Promise<string> {
+async function renderRunWorkspaceComponent(
+  detail: RunDetail,
+  reportDetail: "simple" | "advanced" = "simple",
+  activeTab = "report",
+  showSources = false,
+): Promise<string> {
   const subprocess = Bun.spawn(
-    [process.execPath, "run", resolve(import.meta.dir, "support/render-run-workspace.ts")],
+    [
+      process.execPath,
+      "run",
+      resolve(import.meta.dir, "support/render-run-workspace.ts"),
+      reportDetail,
+      activeTab,
+      ...(showSources ? ["sources"] : []),
+    ],
     {
       stdin: new Blob([JSON.stringify(detail)]),
       stdout: "pipe",
@@ -428,7 +440,314 @@ function tocKeys(view: RunWorkspaceView): readonly string[] {
   return view.tableOfContents.map((entry) => entry.key);
 }
 
+function tableOfContentsFixture(summaryOverrides: Partial<RunSummary> = {}): RunDetail {
+  return {
+    summary: summary({ availableFiles: [VERIFIED_SNAPSHOT_PATH], ...summaryOverrides }),
+    report: {
+      ...completenessReport(),
+      symbol: "AAPL",
+      keyFindings: [{ text: "Durable demand sentinel.", sourceIds: ["source-bull"] }],
+      catalysts: [{ text: "Reader catalyst sentinel.", sourceIds: ["source-bull"] }],
+      risks: [{ text: "Reader risk sentinel.", sourceIds: ["source-bear"] }],
+      scenarios: [
+        {
+          name: "Base scenario sentinel",
+          description: "Steady demand.",
+          sourceIds: ["source-bull"],
+        },
+      ],
+      predictions: [
+        {
+          id: "prediction-1",
+          claim: "AAPL rises.",
+          kind: "direction",
+          subject: "AAPL",
+          measurableAs: "AAPL close > 211",
+          probability: 0.6,
+          horizonTradingDays: 5,
+          sourceIds: ["source-bull"],
+        },
+      ],
+      dataGaps: ["Primary revenue evidence missing.", "tradier: API token missing"],
+      extras: {
+        earningsSetup: {
+          event: {
+            date: "2026-08-01",
+            timing: "after-market",
+            eventDateStatus: "provider-estimated",
+            epsEstimate: 1.25,
+            revenueEstimate: 12_000_000_000,
+            sourceIds: ["source-bull"],
+          },
+        },
+        businessFramework: {
+          phase: "capital-return",
+          sections: [
+            {
+              name: "Business",
+              posture: "criteria-supported",
+              text: "Apple designs devices and digital services.",
+              sourceIds: ["source-bull"],
+            },
+          ],
+          sourceIds: ["source-bull"],
+          gaps: [],
+        },
+        webSubjectProfile: {
+          subjectKind: "company",
+          subjectLabel: "Apple Inc.",
+          questions: {
+            whatItDoes: {
+              answer: "Apple designs devices and digital services.",
+              sourceIds: ["source-bull"],
+            },
+          },
+        },
+      },
+      extendedEvidence: {
+        items: [
+          {
+            category: "analyst-estimates",
+            title: "Analyst consensus sentinel",
+            summary: "Distribution detail.",
+            metrics: { mean: 1.2, median: 1.1, high: 1.5, low: 0.8, period: "FY 2027", count: 12 },
+            sourceIds: ["source-bull"],
+          },
+          {
+            category: "institutional-ownership",
+            title: "Institutional detail sentinel",
+            summary: "Ownership detail.",
+            sourceIds: ["source-bear"],
+          },
+        ],
+      },
+    },
+    markdown: "# Raw report sentinel",
+    trace: { historicalContext: {} },
+    marketSnapshots: [marketSnapshot()],
+    verifiedMarketSnapshot: snapshot(),
+    fundamentalHistory: snapshotFundamentalHistory(),
+    financialStatements: balanceSheetHistoryFixture(),
+    peerImpliedRange: peerImpliedRange(),
+    valuationWorkbench: valuationWorkbench(),
+    reverseDcf: reverseDcfArtifact(),
+    financialLenses: {
+      version: 1,
+      generatedAt: "2026-07-04T12:00:00.000Z",
+      symbol: "AAPL",
+      lenses: [
+        {
+          name: "Quality",
+          posture: "criteria-supported",
+          metrics: [],
+          sourceIds: ["source-bull"],
+        },
+      ],
+      sourceIds: ["source-bull"],
+    },
+  };
+}
+
+function elementHtml(html: string, tag: "article" | "aside"): string {
+  const element = new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, "u").exec(html)?.[0];
+  expect(element).toBeDefined();
+  return element ?? "";
+}
+
+function htmlText(html: string): string {
+  return (
+    html
+      // Section navigation repeats section titles; it is chrome, not article prose.
+      .replaceAll(/<aside\b[\s\S]*?<\/aside>/gu, " ")
+      .replaceAll(/<[^>]+>/gu, " ")
+      .replaceAll("&amp;", "&")
+      .replaceAll(/\s+/gu, " ")
+  );
+}
+
 describe("run workspace view", () => {
+  test("emits the exact mode-aware table of contents for a deep equity run", () => {
+    const entries = buildRunWorkspaceView(tableOfContentsFixture()).tableOfContents;
+
+    expect(entries.map((entry) => entry.key)).toEqual([
+      "equityOverview",
+      "summary",
+      "financialTrends",
+      "findings",
+      "cases",
+      "earningsConsensus",
+      "advancedSummary",
+      "equityCompleteness",
+      "equityMetrics",
+      "financialLensStats",
+      "fundamentalHistory",
+      "balanceSheetHistory",
+      "valuationWorkbench",
+      "reverseDcf",
+      "peerImpliedRange",
+      "scenarios",
+      "snapshot",
+      "history",
+      "webSubjectProfile",
+      "businessFramework",
+      "analystEstimateDistributions",
+      "extendedEvidence",
+      "forecasts",
+      "gaps",
+      "rawMarkdown",
+    ]);
+    expect(entries.map((entry) => entry.advancedOnly)).toEqual([
+      ...Array.from({ length: 6 }, () => false),
+      ...Array.from({ length: 17 }, () => true),
+      false,
+      true,
+    ]);
+  });
+
+  test("does not restore the removed advanced table-of-contents catch-all", () => {
+    const entries = buildRunWorkspaceView(tableOfContentsFixture()).tableOfContents;
+
+    expect(entries.some((entry) => entry.key === "advanced")).toBeFalse();
+  });
+
+  test("keeps the populated non-equity table of contents unchanged", () => {
+    const detail = tableOfContentsFixture({
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+    });
+    const entries = buildRunWorkspaceView({
+      ...detail,
+      verifiedMarketSnapshot: { ...snapshot(), symbol: "BTC" },
+    }).tableOfContents;
+
+    expect(entries.map((entry) => entry.key)).toEqual([
+      "summary",
+      "financialLensStats",
+      "findings",
+      "cases",
+      "scenarios",
+      "snapshot",
+      "fundamentalHistory",
+      "valuationWorkbench",
+      "reverseDcf",
+      "peerImpliedRange",
+      "history",
+      "webSubjectProfile",
+      "businessFramework",
+      "extendedEvidence",
+      "forecasts",
+      "gaps",
+    ]);
+    expect(entries.map((entry) => entry.advancedOnly)).toEqual(
+      Array.from({ length: 16 }, () => false),
+    );
+  });
+
+  test("hides source chips until the sources toggle is on", async () => {
+    const detail = tableOfContentsFixture();
+
+    const hidden = await renderRunWorkspaceComponent(detail, "advanced");
+    const shown = await renderRunWorkspaceComponent(detail, "advanced", "report", true);
+
+    expect(hidden).toContain('aria-label="Source chips"');
+    expect(hidden).not.toContain("source-bull");
+    expect(shown).toContain("source-bull");
+  }, 20_000);
+
+  test("filters rendered equity table-of-contents labels by report detail", async () => {
+    const detail = tableOfContentsFixture();
+
+    const simpleToc = elementHtml(await renderRunWorkspaceComponent(detail, "simple"), "aside");
+    const advancedToc = elementHtml(await renderRunWorkspaceComponent(detail, "advanced"), "aside");
+
+    expect(simpleToc).not.toContain("Detailed equity metrics");
+    expect(simpleToc).not.toContain("Completeness diagnostics");
+    expect(advancedToc).toContain("Detailed equity metrics");
+    expect(advancedToc).toContain("Completeness diagnostics");
+    // The strip is capped, so the appendix tail navigates by scrolling.
+    expect(advancedToc).not.toContain("Reverse DCF input sensitivity");
+    expect(advancedToc.match(/<button/gu)?.length).toBeLessThanOrEqual(15);
+  }, 15_000);
+
+  test("renders and binds every Advanced equity table-of-contents target", async () => {
+    const detail = tableOfContentsFixture();
+    const entries = buildRunWorkspaceView(detail).tableOfContents;
+    const html = await renderRunWorkspaceComponent(detail, "advanced");
+    const articleText = htmlText(elementHtml(html, "article"));
+    const consoleSource = readFileSync(
+      new URL("../app/client/components/run-workspace.svelte", import.meta.url),
+      "utf8",
+    );
+    const articleStart = consoleSource.indexOf('<article class="min-w-0">');
+    const simpleOnlyStart = consoleSource.indexOf('{#if reportDetail === "simple"}', articleStart);
+    const advancedStart = consoleSource.indexOf(
+      '{#if equityPresentation === undefined || reportDetail === "advanced"}',
+      simpleOnlyStart,
+    );
+    const articleEnd = consoleSource.indexOf("</article>", advancedStart);
+    const advancedSource = [
+      consoleSource.slice(articleStart, simpleOnlyStart),
+      consoleSource.slice(advancedStart, articleEnd),
+      ...[
+        "equity-ledger.svelte",
+        "web-subject-profile.svelte",
+        "business-framework.svelte",
+        "observable-forecasts.svelte",
+      ].map((file) =>
+        readFileSync(new URL(`../app/client/components/${file}`, import.meta.url), "utf8"),
+      ),
+    ].join("\n");
+    const renderedMarkerByKey: Readonly<Record<string, string>> = {
+      equityOverview: "Valuation context",
+      summary: "Company summary",
+      financialTrends: "Financial trends",
+      findings: "Key findings",
+      cases: "Reader catalyst sentinel.",
+      earningsConsensus: "Upcoming earnings & consensus",
+      gaps: "Coverage & material gaps",
+      advancedSummary: "Report summary",
+      equityCompleteness: "Completeness diagnostics",
+      equityMetrics: "Detailed equity metrics",
+      financialLensStats: "Financial Lens stats",
+      fundamentalHistory: "Fundamental history",
+      balanceSheetHistory: "Balance sheet & share count",
+      valuationWorkbench: "Valuation workbench",
+      reverseDcf: "Reverse DCF input sensitivity",
+      peerImpliedRange: "peer-implied price reference range",
+      snapshot: "Market snapshot · AAPL",
+      analystEstimateDistributions: "Analyst estimate distributions",
+      extendedEvidence: "Extended evidence",
+      scenarios: "Scenarios",
+      history: "Historical context audit",
+      webSubjectProfile: "Web Subject Profile",
+      businessFramework: "Business framework",
+      forecasts: "Observable forecasts",
+      rawMarkdown: "Raw markdown",
+    };
+
+    for (const entry of entries) {
+      const renderedMarker = renderedMarkerByKey[entry.key];
+      if (renderedMarker === undefined) {
+        throw new Error(`Missing rendered marker for ${entry.key}`);
+      }
+      expect(articleText, entry.key).toContain(renderedMarker);
+      if (entry.key === "advancedSummary") {
+        expect(consoleSource).toContain(
+          'equityPresentation === undefined ? "summary" : "advancedSummary"',
+        );
+        expect(consoleSource).toContain("bindSection(reportSummarySectionKey)");
+        continue;
+      }
+      expect(advancedSource, entry.key).toMatch(
+        new RegExp(
+          `(?:bindSection\\("${entry.key}"\\)|(?:summarySectionKey|sectionKey)="${entry.key}")`,
+          "u",
+        ),
+      );
+    }
+  }, 15_000);
+
   test("projects equity completeness without changing dimension evidence", () => {
     const primaryFinancials = {
       status: "complete",
@@ -479,7 +798,13 @@ describe("run workspace view", () => {
         { key: "operatingKpis", status: "partial" },
       ],
     });
-    expect(tocKeys(workspace)).toContain("advanced");
+    expect(tocKeys(workspace)).toEqual([
+      "equityOverview",
+      "summary",
+      "equityCompleteness",
+      "equityMetrics",
+      "gaps",
+    ]);
   });
 
   test("suppresses completeness for historical reports without the field", () => {
@@ -677,7 +1002,18 @@ describe("run workspace view", () => {
     expect(view.sources.items[0]?.id).toBe("source-1");
     expect(view.snapshot?.value.symbol).toBe("AAPL");
     expect(view.snapshot?.tradingViewUrl).toContain("AAPL");
-    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "findings", "gaps", "advanced"]);
+    expect(tocKeys(view)).toEqual([
+      "equityOverview",
+      "summary",
+      "findings",
+      "advancedSummary",
+      "equityMetrics",
+      "scenarios",
+      "snapshot",
+      "extendedEvidence",
+      "forecasts",
+      "gaps",
+    ]);
   });
 
   test("ignores sparse or malformed optional artifacts", () => {
@@ -714,7 +1050,7 @@ describe("run workspace view", () => {
     });
     expect(view.sources.items).toEqual([]);
     expect(view.snapshot).toBeUndefined();
-    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
+    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "equityMetrics", "gaps"]);
   });
 
   test("projects a matching equity snapshot into an unassessed header", () => {
@@ -852,6 +1188,7 @@ describe("run workspace view", () => {
     const detail = {
       summary: summary(),
       report: {
+        ...completenessReport(),
         predictionShortfall: { emittedCount: 0, targetCount: 3, missingCount: 3 },
         dataGaps: [],
       },
@@ -861,14 +1198,24 @@ describe("run workspace view", () => {
     expect(view.forecasts.visible).toBe(true);
     expect(view.forecasts.items).toEqual([]);
     expect(view.gaps.triagedGaps).toContainEqual({ text: shortfall, triage: "material" });
-    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
-    const html = await renderRunWorkspaceComponent(detail);
-    const reader = html.slice(0, html.indexOf("Advanced"));
-    const appendix = html.slice(html.indexOf("Advanced"));
-    expect(reader).toContain("MATERIAL");
-    expect(reader).toContain(shortfall);
-    expect(html.split(shortfall)).toHaveLength(2);
-    expect(appendix).not.toContain(shortfall);
+    expect(tocKeys(view)).toEqual([
+      "equityOverview",
+      "summary",
+      "advancedSummary",
+      "equityCompleteness",
+      "equityMetrics",
+      "forecasts",
+      "gaps",
+    ]);
+    const simpleHtml = await renderRunWorkspaceComponent(detail, "simple");
+    expect(simpleHtml).toContain("MATERIAL");
+    expect(simpleHtml).toContain(shortfall);
+    expect(simpleHtml).not.toContain("coverage · comprehensive");
+    expect(simpleHtml.split(shortfall)).toHaveLength(2);
+
+    const advancedHtml = await renderRunWorkspaceComponent(detail, "advanced");
+    expect(advancedHtml).toContain("coverage · comprehensive");
+    expect(advancedHtml.split(shortfall)).toHaveLength(2);
   }, 15_000);
 
   test("renders a non-equity shortfall in its dedicated block exactly once", async () => {
@@ -890,6 +1237,7 @@ describe("run workspace view", () => {
     const html = await renderRunWorkspaceComponent(detail);
     expect(html).toContain("Prediction shortfall");
     expect(html.split("emitted 0 of 3")).toHaveLength(2);
+    expect(await renderRunWorkspaceComponent(detail, "advanced")).toBe(html);
   }, 15_000);
 
   test("keeps conflicting legacy shortfalls visible without the protocol prefix", () => {
@@ -964,7 +1312,13 @@ describe("run workspace view", () => {
         tiles: [expect.objectContaining({ key: "rsi14", lens: "Momentum", tone: "strong" })],
       },
     ]);
-    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
+    expect(tocKeys(view)).toEqual([
+      "equityOverview",
+      "summary",
+      "equityMetrics",
+      "financialLensStats",
+      "gaps",
+    ]);
   });
 
   test("requires snapshot job type and valid content", () => {
@@ -1029,7 +1383,13 @@ describe("run workspace view", () => {
       methodDisclosure: expect.stringContaining("impliedPrice(m)"),
       boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
     });
-    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
+    expect(tocKeys(view)).toEqual([
+      "equityOverview",
+      "summary",
+      "equityMetrics",
+      "peerImpliedRange",
+      "gaps",
+    ]);
   });
 
   test("projects historical multiples and the peer table from the valuation workbench", () => {
@@ -1131,7 +1491,13 @@ describe("run workspace view", () => {
         },
       ],
     });
-    expect(tocKeys(workspace)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
+    expect(tocKeys(workspace)).toEqual([
+      "equityOverview",
+      "summary",
+      "equityMetrics",
+      "valuationWorkbench",
+      "gaps",
+    ]);
   });
 
   test("projects the solved-input matrix and disclosed assumptions", () => {
@@ -1153,7 +1519,13 @@ describe("run workspace view", () => {
     expect(view?.status === "computed" && view.rows.every((row) => row.cells.length === 5)).toBe(
       true,
     );
-    expect(tocKeys(workspace)).toEqual(["equityOverview", "summary", "gaps", "advanced"]);
+    expect(tocKeys(workspace)).toEqual([
+      "equityOverview",
+      "summary",
+      "equityMetrics",
+      "reverseDcf",
+      "gaps",
+    ]);
   });
 
   test("keeps every populated reverse DCF view string inside the research-only boundary", () => {
@@ -1413,7 +1785,7 @@ describe("run workspace view", () => {
     expect(view?.financialLensDrivers.bearCase).toMatchObject({
       items: [{ text: "Operating costs rise.", sourceIds: ["source-bear"] }],
     });
-    const html = await renderRunWorkspaceComponent(detail);
+    const html = await renderRunWorkspaceComponent(detail, "advanced");
     const text = html
       .replaceAll(/<[^>]+>/gu, " ")
       .replaceAll(/\s+/gu, " ")
@@ -1655,6 +2027,55 @@ describe("run workspace view", () => {
     expect(view.report.financialLensGroups).toHaveLength(financialLenses.lenses.length);
     expect(view.evidence.extendedItems).toHaveLength(report.extendedEvidence.items.length);
   });
+
+  test("server-renders Simple cases and gaps as the Advanced subset", async () => {
+    const materialGap = "Primary revenue evidence missing.";
+    const diagnosticGap = "tradier: API token missing";
+    const detail = {
+      summary: summary(),
+      report: {
+        ...completenessReport(),
+        catalysts: [{ text: "Reader catalyst sentinel.", sourceIds: ["source-bull"] }],
+        risks: [{ text: "Reader risk sentinel.", sourceIds: ["source-bear"] }],
+        dataGaps: [materialGap, diagnosticGap],
+      },
+    };
+
+    const simpleHtml = await renderRunWorkspaceComponent(detail, "simple");
+    expect(simpleHtml).toContain("Reader catalyst sentinel.");
+    expect(simpleHtml).toContain("Reader risk sentinel.");
+    expect(simpleHtml).not.toContain("Revenue growth persists.");
+    expect(simpleHtml).not.toContain("Operating costs rise.");
+    expect(simpleHtml.indexOf("Reader risk sentinel.")).toBeLessThan(
+      simpleHtml.indexOf("Reader catalyst sentinel."),
+    );
+    expect(simpleHtml.split(materialGap)).toHaveLength(2);
+    expect(simpleHtml).not.toContain(diagnosticGap);
+    expect(simpleHtml).toContain("financial core · complete");
+    // The ledger's KPI strip and lens rail are appendix data, so Simple omits them.
+    expect(simpleHtml).not.toContain("Financial Lens postures");
+    expect(simpleHtml).not.toContain("Trailing P/E");
+
+    const advancedHtml = await renderRunWorkspaceComponent(detail, "advanced");
+    const casePositions = [
+      "Reader risk sentinel.",
+      "Reader catalyst sentinel.",
+      "Revenue growth persists.",
+      "Operating costs rise.",
+    ].map((text) => advancedHtml.indexOf(text));
+    expect(casePositions.every((position) => position >= 0)).toBeTrue();
+    expect(casePositions).toEqual(casePositions.toSorted((left, right) => left - right));
+    expect(advancedHtml.split(materialGap)).toHaveLength(2);
+    expect(advancedHtml.split(diagnosticGap)).toHaveLength(2);
+    expect(advancedHtml).toContain("MATERIAL");
+    expect(advancedHtml).toContain("DIAGNOSTIC");
+    const advancedArticle = elementHtml(advancedHtml, "article");
+    expect(advancedArticle).toContain("Company summary");
+    expect(advancedArticle).toContain("Report summary");
+    expect(advancedArticle.indexOf("Company summary")).toBeLessThan(
+      advancedArticle.indexOf("Report summary"),
+    );
+  }, 15_000);
 
   test("uses identical financial-trend rows in Console and report markdown", () => {
     const history = snapshotFundamentalHistory(
@@ -2085,20 +2506,30 @@ describe("run workspace view", () => {
     expect(workspace.equityPresentation).toBeDefined();
   });
 
-  test("renders the equity reader projection before one collapsed Advanced appendix", () => {
+  test("renders the equity reader projection before the mode-gated inline appendix", () => {
     const consoleSource = readFileSync(
       new URL("../app/client/components/run-workspace.svelte", import.meta.url),
       "utf8",
     );
-    const advancedStart = consoleSource.indexOf("<details");
+    const advancedStart = consoleSource.indexOf(
+      '{#if equityPresentation === undefined || reportDetail === "advanced"}',
+    );
     const readerSource = consoleSource.slice(0, advancedStart);
     const advancedSource = consoleSource.slice(advancedStart);
+    // The ledger renders both modes, so its appendix data stays behind isAdvanced.
+    const ledgerSource = readFileSync(
+      new URL("../app/client/components/equity-ledger.svelte", import.meta.url),
+      "utf8",
+    );
 
     expect(advancedStart).toBeGreaterThan(0);
-    expect(consoleSource.match(/<details/gu)).toHaveLength(1);
-    expect(advancedSource).toContain("open={equityPresentation === undefined}");
-    expect(advancedSource).toContain("Detailed diagnostics, assumptions, and supporting evidence");
-    expect(readerSource).toContain("equityPresentation.defaultView.financialTrends.rows");
+    expect(consoleSource).not.toContain("<details");
+    expect(consoleSource).not.toContain("<summary");
+    expect(advancedSource).toContain(
+      '"ledger-extras mt-7 block border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"',
+    );
+    expect(readerSource).toContain("<EquityLedger");
+    expect(ledgerSource).toContain("defaultView.financialTrends");
     expect(readerSource).toContain("equityPresentation.defaultView.materialGaps");
     expect(readerSource).not.toContain("equityPresentation.advanced.");
     expect(advancedSource).toContain("equityPresentation.advanced.financialLensDrivers");
@@ -2145,6 +2576,44 @@ describe("run workspace view", () => {
     }
   });
 
+  test("server-renders the report detail control only on the Report tab", async () => {
+    const detail = tableOfContentsFixture();
+
+    const reportTab = await renderRunWorkspaceComponent(detail, "advanced", "report");
+    expect(reportTab).toContain('aria-label="Report detail"');
+
+    for (const tab of ["sources", "data", "files", "chat"]) {
+      const other = await renderRunWorkspaceComponent(detail, "advanced", tab);
+      expect(other, tab).not.toContain('aria-label="Report detail"');
+    }
+  }, 20_000);
+
+  test("server-renders empty equity coverage in Simple and Advanced", async () => {
+    const detail = {
+      summary: summary(),
+      report: completenessReport(),
+      marketSnapshots: [marketSnapshot()],
+      fundamentalHistory: snapshotFundamentalHistory(),
+    };
+    const view = buildRunWorkspaceView(detail);
+
+    expect(view.equityPresentation).toBeDefined();
+    expect(view.equityPresentation?.defaultView.materialGaps).toEqual([]);
+    expect(view.gaps.shortfalls).toEqual([]);
+
+    for (const reportDetail of ["simple", "advanced"] as const) {
+      const article = elementHtml(
+        await renderRunWorkspaceComponent(detail, reportDetail),
+        "article",
+      );
+      const text = htmlText(article);
+
+      expect(text.split("Coverage & material gaps")).toHaveLength(2);
+      expect(text).toContain("No material gaps identified.");
+      expect(text).toContain("financial core · complete");
+    }
+  }, 15_000);
+
   test("keeps deterministic snapshot and Console copy inside the research-only boundary", () => {
     const snapshotView = equitySnapshotView({
       summary: summary(),
@@ -2171,35 +2640,38 @@ describe("run workspace view", () => {
   });
 
   test("server-renders the extracted observable-forecasts component with scored evidence", async () => {
-    const html = await renderRunWorkspaceComponent({
-      summary: summary({ availableFiles: ["score.json"], hasScore: true }),
-      report: {
-        ...completenessReport(),
-        predictions: [
-          {
-            id: "prediction-1",
-            claim: "AAPL rises.",
-            kind: "direction",
-            subject: "AAPL",
-            measurableAs: "AAPL close > 211",
-            probability: 0.6,
-            horizonTradingDays: 5,
-            sourceIds: ["source-bull"],
-          },
-        ],
+    const html = await renderRunWorkspaceComponent(
+      {
+        summary: summary({ availableFiles: ["score.json"], hasScore: true }),
+        report: {
+          ...completenessReport(),
+          predictions: [
+            {
+              id: "prediction-1",
+              claim: "AAPL rises.",
+              kind: "direction",
+              subject: "AAPL",
+              measurableAs: "AAPL close > 211",
+              probability: 0.6,
+              horizonTradingDays: 5,
+              sourceIds: ["source-bull"],
+            },
+          ],
+        },
+        score: {
+          scores: [
+            {
+              predictionId: "prediction-1",
+              resolved: true,
+              outcome: "hit",
+              evidence: { close0: 211, closeN: 215 },
+            },
+          ],
+        },
+        analytics: { predictions: { count: 1, targetCount: 3, targetMet: false } },
       },
-      score: {
-        scores: [
-          {
-            predictionId: "prediction-1",
-            resolved: true,
-            outcome: "hit",
-            evidence: { close0: 211, closeN: 215 },
-          },
-        ],
-      },
-      analytics: { predictions: { count: 1, targetCount: 3, targetMet: false } },
-    });
+      "advanced",
+    );
     const text = html
       .replaceAll(/<[^>]+>/gu, " ")
       .replaceAll(/\s+/gu, " ")

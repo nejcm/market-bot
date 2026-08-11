@@ -145,9 +145,17 @@ function goldenRunDetail(golden: GoldenReport): GoldenRunDetail {
   };
 }
 
-async function renderRunWorkspaceComponent(detail: RunDetail): Promise<string> {
+async function renderRunWorkspaceComponent(
+  detail: RunDetail,
+  reportDetail: "simple" | "advanced" = "simple",
+): Promise<string> {
   const subprocess = Bun.spawn(
-    [process.execPath, "run", resolve(import.meta.dir, "support/render-run-workspace.ts")],
+    [
+      process.execPath,
+      "run",
+      resolve(import.meta.dir, "support/render-run-workspace.ts"),
+      reportDetail,
+    ],
     {
       stdin: new Blob([JSON.stringify(detail)]),
       stdout: "pipe",
@@ -650,13 +658,17 @@ describe("provider dimension contracts", () => {
     for (const golden of goldens) {
       const completeness = golden.report.equityAnalysisCompleteness;
       const detail = goldenRunDetail(golden);
-      const text = renderedText(await renderRunWorkspaceComponent(detail));
+      const simpleText = renderedText(await renderRunWorkspaceComponent(detail, "simple"));
+      const text = renderedText(await renderRunWorkspaceComponent(detail, "advanced"));
 
       expect(text, `${golden.fixture}: market snapshot heading`).toContain(
         `Market snapshot · ${detail.verifiedMarketSnapshot?.symbol}`,
       );
       expect(text, `${golden.fixture}: TradingView link`).toContain("TradingView");
-      expect(text, `${golden.fixture}: financial core`).toContain(
+      expect(simpleText, `${golden.fixture}: Simple financial core`).toContain(
+        `financial core · ${completeness.financialCoreStatus}`,
+      );
+      expect(text, `${golden.fixture}: Advanced financial core`).toContain(
         `financial core · ${completeness.financialCoreStatus}`,
       );
       expect(text, `${golden.fixture}: coverage`).toContain(

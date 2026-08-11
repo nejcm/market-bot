@@ -1,35 +1,42 @@
 <script lang="ts">
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
-  import {
-    formatDate,
-    jsonBlock,
-    runLabel,
-    valuationMetricTiles,
-    type FinancialLensStatTone,
-  } from "../view-model";
-  import {
-    buildRunWorkspaceView,
-    completenessReasonCodeLabel,
-    type RunWorkspaceCaseKey,
-  } from "../run-workspace-view";
+  import type { ReportDetail } from "../app-settings";
+  import { formatDate, jsonBlock, runLabel } from "../view-model";
+  import { buildRunWorkspaceView } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
-  import PriceSnapshotChart from "./price-snapshot-chart.svelte";
-  import SparklineBars from "./sparkline-bars.svelte";
-  import RangeBar from "./range-bar.svelte";
   import RunChat from "./run-chat.svelte";
   import ObservableForecasts from "./observable-forecasts.svelte";
   import WebSubjectProfile from "./web-subject-profile.svelte";
   import BusinessFramework from "./business-framework.svelte";
+  import CaseCards from "./case-cards.svelte";
+  import CoverageGapsAdvanced from "./coverage-gaps-advanced.svelte";
+  import CoverageGapsSimple from "./coverage-gaps-simple.svelte";
+  import EquityLedger from "./equity-ledger.svelte";
+  import EquityCompleteness from "./equity-completeness.svelte";
+  import EquityMetrics from "./equity-metrics.svelte";
+  import FinancialLensStats from "./financial-lens-stats.svelte";
+  import FundamentalHistory from "./fundamental-history.svelte";
+  import BalanceSheetHistory from "./balance-sheet-history.svelte";
+  import ValuationWorkbench from "./valuation-workbench.svelte";
+  import ReverseDcf from "./reverse-dcf.svelte";
+  import PeerImpliedRange from "./peer-implied-range.svelte";
+  import MarketSnapshot from "./market-snapshot.svelte";
+  import AnalystEstimateDistributions from "./analyst-estimate-distributions.svelte";
+  import ExtendedEvidence from "./extended-evidence.svelte";
 
   interface Props {
     readonly activeTab: Tab;
+    readonly reportDetail?: ReportDetail;
+    readonly showSources?: boolean;
     readonly detail: RunDetail | null;
     readonly loadingDetail: boolean;
     readonly selectedFile: string;
     readonly fileContent: string;
     readonly highlightSourceId: string;
     readonly onTabChange: (tab: Tab) => void;
+    readonly onReportDetailChange?: (value: ReportDetail) => void;
+    readonly onShowSourcesChange?: (value: boolean) => void;
     readonly onLoadFile: (path: string) => void;
     readonly onGoHome: () => void;
     readonly onHighlightSource: (sourceId: string) => void;
@@ -38,12 +45,16 @@
 
   let {
     activeTab,
+    reportDetail = "simple",
+    showSources = false,
     detail,
     loadingDetail,
     selectedFile,
     fileContent,
     highlightSourceId,
     onTabChange,
+    onReportDetailChange = () => {},
+    onShowSourcesChange = () => {},
     onLoadFile,
     onGoHome,
     onHighlightSource,
@@ -68,6 +79,9 @@
 
   const workspace = $derived(detail === null ? undefined : buildRunWorkspaceView(detail));
   const equityPresentation = $derived(workspace?.equityPresentation);
+  // The equity ledger carries its own verdict bar, so the shared run header
+  // would repeat the same name, price and counts directly above it.
+  const showRunHeader = $derived(equityPresentation === undefined || activeTab !== "report");
   const reportSummary = $derived(
     equityPresentation?.advanced.reportSummary ?? workspace?.report.summary ?? "",
   );
@@ -97,11 +111,6 @@
   const splitGaps = $derived(
     workspace?.gaps ?? { shortfalls: [], otherGaps: [], triagedGaps: [] },
   );
-  const advancedTriagedGaps = $derived(
-    equityPresentation === undefined
-      ? splitGaps.triagedGaps
-      : splitGaps.triagedGaps.filter((gap) => gap.triage === "diagnostic"),
-  );
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
@@ -118,29 +127,50 @@
   const snapshot = $derived(workspace?.snapshot?.value);
   const snapshotTradingViewUrl = $derived(workspace?.snapshot?.tradingViewUrl);
 
-  const CASE_STYLES: Readonly<Record<RunWorkspaceCaseKey, { readonly edge: string; readonly fg: string }>> = {
-    bullCase: { edge: "#0F9D58", fg: "#0F9D58" },
-    bearCase: { edge: "#9B0F06", fg: "#9B0F06" },
-    risks: { edge: "#c4b389", fg: "#8a6116" },
-    catalysts: { edge: "#9fc2c8", fg: "#166e7d" },
-  };
-
-  const caseSections = $derived(
-    (workspace?.report.cases ?? []).map((section) => ({
-      ...section,
-      ...CASE_STYLES[section.key],
-    })),
-  );
+  const caseSections = $derived(workspace?.report.cases ?? []);
   const defaultCaseSections = $derived(
     caseSections.filter((section) => section.key === "catalysts" || section.key === "risks"),
   );
-  const advancedCaseSections = $derived(
-    equityPresentation === undefined
-      ? caseSections
-      : caseSections.filter((section) => section.key === "bullCase" || section.key === "bearCase"),
+  const readerCaseSections = $derived(
+    reportDetail === "advanced"
+      ? ["risks", "catalysts", "bullCase", "bearCase"].flatMap((key) =>
+          caseSections.filter((section) => section.key === key),
+        )
+      : defaultCaseSections,
   );
 
-  const tocEntries = $derived(workspace?.tableOfContents ?? []);
+  const tocEntries = $derived(
+    (workspace?.tableOfContents ?? []).filter(
+      (entry) => reportDetail === "advanced" || !entry.advancedOnly,
+    ),
+  );
+
+  // The ledger nav is one horizontal strip, so it carries the sections a reader
+  // jumps between; the long tail stays reachable by scrolling the report.
+  const LEDGER_NAV_KEYS: ReadonlySet<string> = new Set([
+    "equityOverview",
+    "summary",
+    "financialTrends",
+    "findings",
+    "cases",
+    "earningsConsensus",
+    "snapshot",
+    "advancedSummary",
+    "equityCompleteness",
+    "equityMetrics",
+    "financialLensStats",
+    "fundamentalHistory",
+    "valuationWorkbench",
+    "forecasts",
+    "gaps",
+  ]);
+  const ledgerNavEntries = $derived(
+    tocEntries.filter((entry) => LEDGER_NAV_KEYS.has(entry.key)).slice(0, 15),
+  );
+
+  // The control only governs the Report tab, so it stays out of the tab row on
+  // the others; the wrapper collapses with it to leave their layout untouched.
+  const showReportDetailToggle = $derived(equityPresentation !== undefined && activeTab === "report");
 
   const TAB_LABELS: Record<Tab, string> = {
     report: "Report",
@@ -154,28 +184,6 @@
     trace: "Trace",
     score: "Score",
     missAutopsy: "Miss autopsy",
-  };
-
-  const FINANCIAL_LENS_TILE_CLASSES: Record<FinancialLensStatTone, string> = {
-    strong: "bg-[#dff2e7]",
-    healthy: "bg-[#e1f0f2]",
-    watch: "bg-[#f7ebcd]",
-    weak: "bg-[#f2dfdc]",
-    neutral: "bg-secondary",
-  };
-  const COMPLETENESS_STATUS_CLASSES: Record<string, string> = {
-    complete: "border-[#b9ddc7] bg-[#e9f6ee] text-[#17653a]",
-    partial: "border-[#d9c89a] bg-[#f8f1df] text-[#8a6116]",
-    blocked: "border-[#dfb9b5] bg-[#faecea] text-[#8c2720]",
-    "not-applicable": "border-border bg-secondary text-muted-foreground",
-    "not-assessed": "border-[#b8c3cf] bg-[#eef2f6] text-[#46576a]",
-  };
-  const FINANCIAL_LENS_VALUE_CLASSES: Record<FinancialLensStatTone, string> = {
-    strong: "text-[#0F7E48]",
-    healthy: "text-primary",
-    watch: "text-[#8a6116]",
-    weak: "text-[#9B0F06]",
-    neutral: "text-foreground",
   };
 
   const dataContent = $derived.by(() => {
@@ -215,7 +223,47 @@
   }
 </script>
 
+{#snippet switchToggle(
+  label: string,
+  offLabel: string,
+  onLabel: string,
+  checked: boolean,
+  onToggle: (next: boolean) => void,
+)}
+  <div class="flex items-center gap-2.5" role="group" aria-label={label}>
+    <span
+      class="font-mono text-[10px] uppercase tracking-[0.12em] {checked
+        ? 'text-muted-foreground'
+        : 'text-foreground'}"
+    >
+      {offLabel}
+    </span>
+    <button
+      class="relative h-4 w-7.5 border border-input bg-secondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label="{onLabel} toggle"
+      onclick={() => onToggle(!checked)}
+    >
+      <span
+        class="absolute top-0.5 h-2.5 w-2.5 bg-primary transition-all {checked
+          ? 'left-4'
+          : 'left-0.5'}"
+      ></span>
+    </button>
+    <span
+      class="font-mono text-[10px] uppercase tracking-[0.12em] {checked
+        ? 'text-foreground'
+        : 'text-muted-foreground'}"
+    >
+      {onLabel}
+    </span>
+  </div>
+{/snippet}
+
 {#snippet citeChips(sourceIds: readonly string[])}
+  {#if showSources}
   {#each sourceIds as sourceId}
     <button
       class="mr-0.75 inline-block rounded border border-[#cfe0e3] bg-accent px-1.5 align-[2px] font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] hover:bg-[#dcebee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -227,6 +275,7 @@
       {sourceId}
     </button>
   {/each}
+  {/if}
 {/snippet}
 
 {#snippet sectionHeading(label: string)}
@@ -248,17 +297,53 @@
   </div>
 {:else}
   <div data-screen-label="Run workspace">
-    <div class="font-mono text-[11px] text-muted-foreground">
-      <button
-        class="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        type="button"
-        onclick={onGoHome}
-      >
-        runs
-      </button>
-      / {detail.summary.runId}
+    <!-- One sticky chrome row: the run path on the left, the tabs on the right.
+         Its fixed height is what the ledger's section nav sticks beneath. -->
+    <div class="sticky top-0 z-30 flex h-11 items-center justify-between gap-4 bg-background">
+      <div class="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+        <button
+          class="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          type="button"
+          onclick={onGoHome}
+        >
+          runs
+        </button>
+        / {detail.summary.runId}
+      </div>
+      <div class="flex shrink-0 gap-0.5" role="tablist">
+        {#each TABS as tab}
+          <button
+            class="-mb-px border-b-2 px-3.5 pb-1 pt-0.5 text-[13px] transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
+            tab
+              ? 'border-primary font-semibold text-foreground'
+              : 'border-transparent font-normal text-muted-foreground'}"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            onclick={() => onTabChange(tab)}
+          >
+            {TAB_LABELS[tab]}
+          </button>
+        {/each}
+      </div>
     </div>
 
+    {#if activeTab === "report"}
+      <div class="mt-1 flex flex-wrap items-center gap-x-7 gap-y-1">
+        {#if showReportDetailToggle}
+          {@render switchToggle(
+            "Report detail",
+            "Simple",
+            "Advanced",
+            reportDetail === "advanced",
+            (next) => onReportDetailChange(next ? "advanced" : "simple"),
+          )}
+        {/if}
+        {@render switchToggle("Source chips", "Sources off", "Sources on", showSources, onShowSourcesChange)}
+      </div>
+    {/if}
+
+    {#if showRunHeader}
     <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 class="text-[21px] font-semibold tracking-tight">
@@ -288,183 +373,44 @@
         {/each}
       </div>
     </div>
+    {/if}
 
-    <div class="mt-5 flex gap-0.5 border-b border-border" role="tablist">
-      {#each TABS as tab}
-        <button
-          class="-mb-px border-b-2 px-3.5 pb-2.5 pt-2 text-[13px] transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
-          tab
-            ? 'border-primary font-semibold text-foreground'
-            : 'border-transparent font-normal text-muted-foreground'}"
-          type="button"
-          role="tab"
-          aria-selected={activeTab === tab}
-          onclick={() => onTabChange(tab)}
-        >
-          {TAB_LABELS[tab]}
-        </button>
-      {/each}
-    </div>
 
     {#if activeTab === "report"}
-      <div class="mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]">
-        <article class="min-w-0">
-          {#if equityPresentation !== undefined}
-            <section {@attach bindSection("equityOverview")} class="mb-6 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  Equity snapshot
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]"> numbers and dates first </span>
-              </div>
-              <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
-                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                    {equityPresentation.defaultView.pricePerformance.label}
-                  </div>
-                  <div class="mt-2 flex items-baseline gap-2 font-mono">
-                    <span class="text-[18px] font-semibold">
-                      {equityPresentation.defaultView.pricePerformance.price ?? "Unavailable"}
-                    </span>
-                    <span
-                      class="text-[12px] font-medium {equityPresentation.defaultView.pricePerformance
-                        .changeDirection === 'positive'
-                        ? 'text-[#0F9D58]'
-                        : equityPresentation.defaultView.pricePerformance.changeDirection === 'negative'
-                          ? 'text-[#9B0F06]'
-                          : 'text-muted-foreground'}"
-                    >
-                      {equityPresentation.defaultView.pricePerformance.change24h ?? "24h unavailable"}
-                    </span>
-                  </div>
-                  <div class="mt-1 font-mono text-[9px] text-[#8a8f96]">
-                    {#if equityPresentation.defaultView.pricePerformance.priceAsOf !== undefined}
-                      {equityPresentation.defaultView.pricePerformance.priceAsOf.kind === "quote-time"
-                        ? "Quote time"
-                        : "Fetch time"} · {equityPresentation.defaultView.pricePerformance.priceAsOf.instant}
-                    {:else}
-                      Price time unavailable
-                    {/if}
-                  </div>
-                  {@render citeChips(equityPresentation.defaultView.pricePerformance.sourceIds)}
-                </div>
-                <div class="rounded-lg border border-border bg-card px-3.5 py-3">
-                  <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                    {equityPresentation.defaultView.valuationContext.label}
-                  </div>
-                  <div class="mt-2 font-mono text-[13px] font-medium">
-                    {equityPresentation.defaultView.valuationContext.display}
-                  </div>
-                  {#if equityPresentation.defaultView.valuationContext.positionLabel !== undefined}
-                    <div class="mt-1 text-[10px] text-primary">
-                      {equityPresentation.defaultView.valuationContext.positionLabel}
-                    </div>
-                  {/if}
-                  <div class="mt-1 text-[9px] leading-snug text-muted-foreground">
-                    {equityPresentation.defaultView.valuationContext.disclosure}
-                  </div>
-                  {@render citeChips(equityPresentation.defaultView.valuationContext.sourceIds)}
-                </div>
-              </div>
-            </section>
-
-            <div
-              {@attach bindSection("summary")}
-              class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
-            >
-              {equityPresentation.defaultView.companySummary.text}
-              {@render citeChips(equityPresentation.defaultView.companySummary.sourceIds)}
-            </div>
-
-            {#if equityPresentation.defaultView.financialTrends !== undefined}
-              <section {@attach bindSection("financialTrends")} class="mt-8.5 scroll-mt-5">
-                <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-                  <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                    Financial trends
-                  </span>
-                  <span class="font-mono text-[10px] text-[#8a8f96]">
-                    {equityPresentation.defaultView.financialTrends.reportingCurrency ?? "currency unavailable"}
-                    · FCF proxy
-                  </span>
-                </div>
-                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
-                  <table class="w-full min-w-[650px] border-collapse text-left">
-                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
-                      <tr>
-                        {#each equityPresentation.defaultView.financialTrends.columns as column, index}
-                          <th class="px-2.5 py-2 font-semibold {index === 0 ? '' : 'text-right'}">
-                            {column}
-                          </th>
-                        {/each}
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border font-mono text-[10px]">
-                      {#each equityPresentation.defaultView.financialTrends.rows as row}
-                        <tr>
-                          <td class="px-2.5 py-2">{row.period}</td>
-                          <td class="px-2.5 py-2 text-right">{row.revenue}</td>
-                          <td class="px-2.5 py-2 text-right">{row.netIncome}</td>
-                          <td class="px-2.5 py-2 text-right">{row.operatingMargin}</td>
-                          <td class="px-2.5 py-2 text-right">{row.freeCashFlow}</td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-                {@render citeChips(equityPresentation.defaultView.financialTrends.sourceIds)}
-              </section>
-            {/if}
-
-            {#if equityPresentation.defaultView.findings.length > 0}
-              <section {@attach bindSection("findings")} class="mt-8.5 scroll-mt-5">
-                {@render sectionHeading("Key findings")}
-                {#each equityPresentation.defaultView.findings as item, index}
-                  <div class="flex gap-3.5 border-b border-[#f0ede7] py-3.5">
-                    <span class="shrink-0 pt-0.75 font-mono text-xs text-[#a8acb1]">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div class="min-w-0">
-                      <span class="font-serif text-[15.5px] leading-[1.6] text-[#1f2225]">
-                        {item.text}
-                      </span>
-                      {@render citeChips(item.sourceIds)}
-                    </div>
-                  </div>
-                {/each}
-              </section>
-            {/if}
-
-            {#if defaultCaseSections.length > 0}
-              <div {@attach bindSection("cases")} class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2">
-                {#each defaultCaseSections as section}
-                  <div
-                    class="rounded-lg border border-border bg-card px-4.5 py-4"
-                    style="border-top: 3px solid {section.edge}"
-                  >
-                    <div class="text-xs font-semibold uppercase tracking-wider" style="color: {section.fg}">
-                      {section.title}
-                    </div>
-                    <div class="mt-3 flex flex-col gap-3">
-                      {#each section.items as item}
-                        <div class="min-w-0">
-                          <span class="font-serif text-sm leading-[1.55] text-[#2a2d30]">
-                            {item.text}
-                          </span>
-                          {@render citeChips(item.sourceIds)}
-                        </div>
-                      {/each}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
+      <div
+        class={equityPresentation === undefined
+          ? "mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]"
+          : "mt-6"}
+      >
+          <article class="min-w-0">
+            {#if equityPresentation !== undefined}
+              <EquityLedger
+                summary={detail.summary}
+                displayName={workspace?.equityHeader?.displayName ?? runLabel(detail.summary)}
+                presentation={equityPresentation}
+                {reportDetail}
+                caseSections={readerCaseSections}
+                {sourceItems}
+                {snapshot}
+                {snapshotTradingViewUrl}
+                {forecastHorizons}
+                peerSupportability={valuationWorkbench?.peerSupportability}
+                tocEntries={ledgerNavEntries}
+                {citeChips}
+                {bindSection}
+                onScrollToSection={scrollToSection}
+                {onOpenInstrument}
+              />
 
             {#if equityPresentation.defaultView.earningsConsensus.items.length > 0}
-              <section {@attach bindSection("earningsConsensus")} class="mt-8.5 scroll-mt-5">
+              <section
+                {@attach bindSection("earningsConsensus")}
+                class="ledger-extras mt-7 scroll-mt-24 border border-border bg-card px-7 py-6 shadow-[0_1px_0_#e4e0d6]"
+              >
                 {@render sectionHeading("Upcoming earnings & consensus")}
                 <div class="mt-3 grid gap-2 sm:grid-cols-2">
                   {#each equityPresentation.defaultView.earningsConsensus.items as item}
-                    <div class="rounded-lg border border-border bg-card px-3.5 py-3">
+                    <div class="border border-border bg-secondary px-3.5 py-3">
                       <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
                         {item.label}
                       </div>
@@ -476,57 +422,28 @@
               </section>
             {/if}
 
-            <section {@attach bindSection("gaps")} class="mt-8.5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#e9ddc2] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]">
-                  Coverage & material gaps
-                </span>
-                {#if equityPresentation.defaultView.financialCoreStatus !== undefined}
-                  <div class="flex flex-wrap gap-2">
-                    <span
-                      class="rounded border px-2 py-1 font-mono text-[10px] {COMPLETENESS_STATUS_CLASSES[
-                        equityPresentation.defaultView.financialCoreStatus
-                      ]}"
-                    >
-                      financial core · {equityPresentation.defaultView.financialCoreStatus}
-                    </span>
-                  </div>
-                {/if}
+            {#if reportDetail === "simple"}
+              <div class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-1 shadow-[0_1px_0_#e4e0d6]">
+                <CoverageGapsSimple
+                  materialGaps={equityPresentation.defaultView.materialGaps}
+                  financialCoreStatus={equityPresentation.defaultView.financialCoreStatus}
+                  sectionKey="gaps"
+                  {bindSection}
+                />
               </div>
-              {#if equityPresentation.defaultView.materialGaps.length === 0}
-                <div class="mt-3 text-sm text-muted-foreground">No material gaps identified.</div>
-              {:else}
-                <div class="mt-3.5 flex flex-col gap-2.5">
-                  {#each equityPresentation.defaultView.materialGaps as gap}
-                    <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
-                      <span class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]">
-                        MATERIAL
-                      </span>
-                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </section>
+            {/if}
           {/if}
 
-          <details
-            {@attach bindSection("advanced")}
-            class={equityPresentation === undefined ? "contents" : "mt-9 block scroll-mt-5"}
-            open={equityPresentation === undefined}
-          >
-            <summary
+          {#if equityPresentation === undefined || reportDetail === "advanced"}
+            <div
               class={equityPresentation === undefined
-                ? "hidden"
-                : "cursor-pointer border-y border-border py-3 text-[11px] font-semibold text-muted-foreground"}
+                ? "contents"
+                : "ledger-extras mt-7 block border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"}
             >
-              <span class="tracking-[0.09em]">Advanced</span>
-              <span class="ml-2 font-normal text-[#8a8f96]">
-                Detailed diagnostics, assumptions, and supporting evidence
-              </span>
-            </summary>
-            <div class={equityPresentation === undefined ? "contents" : "pb-2 pt-1"}>
             {#if reportSummary !== ""}
+              {#if equityPresentation !== undefined}
+                {@render sectionHeading("Report summary")}
+              {/if}
               <div
                 {@attach bindSection(reportSummarySectionKey)}
                 class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
@@ -536,484 +453,66 @@
           {/if}
 
           {#if appendixCompleteness !== undefined}
-            <section {@attach bindSection("equityCompleteness")} class="mt-5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  Completeness diagnostics
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  as of {appendixCompleteness.asOf}
-                </span>
-              </div>
-              <div class="mt-3 flex flex-wrap gap-2 font-mono text-[10px]">
-                <span class="rounded border border-border bg-secondary px-2 py-1 text-foreground">
-                  coverage · {appendixCompleteness.coverageLevel}
-                </span>
-              </div>
-              <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {#each appendixCompleteness.dimensions as dimension}
-                  <div class="rounded-lg border border-border bg-card px-3 py-2.5">
-                    <div class="flex items-start justify-between gap-2">
-                      <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                        {dimension.label}
-                      </div>
-                      <span class="rounded border px-1.5 py-0.5 font-mono text-[9px] {COMPLETENESS_STATUS_CLASSES[dimension.status]}">
-                        {dimension.status.replaceAll("-", " ")}
-                      </span>
-                    </div>
-                    {#if dimension.reasonCodes.length > 0}
-                      <div class="mt-2 space-y-0.5 text-[10px] leading-snug text-muted-foreground">
-                        {#each dimension.reasonCodes as reason}
-                          <div>{completenessReasonCodeLabel(reason)}</div>
-                        {/each}
-                      </div>
-                    {/if}
-                    <div class="mt-2 font-mono text-[9px] leading-snug text-[#8a8f96]">
-                      {dimension.asOf}
-                    </div>
-                    {#if dimension.sourceIds.length > 0}
-                      <div class="mt-1 flex flex-wrap gap-y-1">
-                        {@render citeChips(dimension.sourceIds)}
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </section>
+            <EquityCompleteness
+              completeness={appendixCompleteness}
+              sectionKey="equityCompleteness"
+              {citeChips}
+              {bindSection}
+            />
           {/if}
 
           {#if equityPresentation !== undefined}
-            <section class="mt-5">
-              <div class="border-b border-[#cfe0e3] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                Detailed equity metrics
-              </div>
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  {equityPresentation.advanced.keyDatedMetrics.label}
-                </div>
-                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-                  {#each [...equityPresentation.advanced.keyDatedMetrics.metrics, ...equityPresentation.advanced.keyDatedMetrics.foldedYahooMetrics] as metric}
-                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                      <div class="font-mono text-[13px] font-semibold">{metric.value ?? "Unavailable"}</div>
-                      <div class="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                        {metric.label}
-                      </div>
-                      <div class="mt-1 font-mono text-[8px] text-[#8a8f96]">
-                        {metric.dateBasis ?? "Date unavailable"}
-                      </div>
-                      {@render citeChips(metric.sourceIds)}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  {equityPresentation.advanced.miniCharts.label}
-                </div>
-                <div class="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
-                  {#each equityPresentation.advanced.miniCharts.charts as chart}
-                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                      <div class="text-[9px] font-semibold uppercase tracking-wider">{chart.label}</div>
-                      {#if chart.geometry === undefined}
-                        <div class="mt-3 text-xs text-muted-foreground">Unavailable</div>
-                      {:else}
-                        <div class="mt-1 font-mono text-[12px] font-semibold">{chart.value}</div>
-                        <SparklineBars geometry={chart.geometry} label={`${chart.label} history`} />
-                        <div class="font-mono text-[8px] text-[#8a8f96]">{chart.period}</div>
-                        {@render citeChips(chart.sourceIds)}
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-              <div class="mt-3 rounded-lg border border-border bg-card px-3.5 py-3">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  {equityPresentation.advanced.financialLensDrivers.label}
-                </div>
-                <div class="mt-2 grid gap-2 sm:grid-cols-3">
-                  <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                    <div class="text-[9px] font-semibold uppercase tracking-wider">
-                      {equityPresentation.advanced.financialLensDrivers.postures.label}
-                    </div>
-                    <div class="mt-2 space-y-1.5">
-                      {#each equityPresentation.advanced.financialLensDrivers.postures.items as posture}
-                        <div>
-                          <span class="text-[10px] font-medium">{posture.lens}</span>
-                          <span class="font-mono text-[9px] text-muted-foreground">
-                            · {posture.postureLabel}
-                          </span>
-                          {@render citeChips(posture.sourceIds)}
-                        </div>
-                      {/each}
-                    </div>
-                  </div>
-                  {#each [equityPresentation.advanced.financialLensDrivers.bullCase, equityPresentation.advanced.financialLensDrivers.bearCase] as driverCard}
-                    <div class="rounded border border-border bg-secondary px-2.5 py-2">
-                      <div class="text-[9px] font-semibold uppercase tracking-wider">
-                        {driverCard.label}
-                      </div>
-                      <div class="mt-2 space-y-2">
-                        {#each driverCard.items as item}
-                          <div class="font-serif text-[12px] leading-snug">
-                            {item.text}
-                            {@render citeChips(item.sourceIds)}
-                          </div>
-                        {/each}
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            </section>
+            <EquityMetrics
+              keyDatedMetrics={equityPresentation.advanced.keyDatedMetrics}
+              miniCharts={equityPresentation.advanced.miniCharts}
+              financialLensDrivers={equityPresentation.advanced.financialLensDrivers}
+              sectionKey="equityMetrics"
+              {citeChips}
+              {bindSection}
+            />
           {/if}
 
           {#if financialLensGroups.length > 0}
-            <section {@attach bindSection("financialLensStats")} class="mt-5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#cfe0e3] pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
-                  Financial Lens stats
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]"> normalized evidence metrics </span>
-              </div>
-              <div class="mt-3 space-y-4">
-                {#each financialLensGroups as group}
-                  <div>
-                    <div class="flex items-baseline justify-between gap-2">
-                      <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#353a40]">
-                        {group.lens}
-                      </div>
-                      <div class="font-mono text-[10px] text-[#737980]">
-                        {group.posture.replaceAll("-", " ")}
-                      </div>
-                    </div>
-                    <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-                      {#each group.tiles as tile}
-                        <div class="px-3 py-2.5 rounded-lg {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}">
-                          <div class="flex items-start justify-between gap-2">
-                            <div class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[tile.tone]}">
-                              {tile.value}
-                            </div>
-                            {#if tile.assessment !== undefined}
-                              <span
-                                class="rounded border border-current uppercase font-medium px-1 py-px font-mono text-[10px] leading-tight {FINANCIAL_LENS_VALUE_CLASSES[
-                                  tile.tone
-                                ]}"
-                              >
-                                {tile.assessment}
-                              </span>
-                            {/if}
-                          </div>
-                          <div class="mt-1 text-[10px] uppercase tracking-wider text-[#5c6066]">
-                            {tile.label}
-                          </div>
-                          {#if tile.caption !== undefined}
-                            <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
-                              {tile.caption}
-                            </div>
-                          {/if}
-                        </div>
-                      {/each}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            </section>
+            <FinancialLensStats
+              groups={financialLensGroups}
+              sectionKey="financialLensStats"
+              {bindSection}
+            />
           {/if}
 
           {#if fundamentalHistory !== undefined}
-            <section {@attach bindSection("fundamentalHistory")} class="mt-8.5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                  Fundamental history
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]"> normalized SEC fiscal history </span>
-              </div>
-              <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {#each fundamentalHistory.cards as card}
-                  <div class="rounded-lg border border-border bg-card px-3.5 py-3">
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                          {card.label}
-                        </div>
-                        <div class="mt-1 font-mono text-[17px] font-semibold text-foreground">
-                          {card.value}
-                        </div>
-                      </div>
-                      {#if card.trendLabel !== undefined}
-                        <div class="text-right font-mono text-[10px] text-primary">
-                          {card.trendLabel}
-                        </div>
-                      {/if}
-                    </div>
-                    <div class="mt-1 font-mono text-[9px] text-[#737980]">
-                      {card.valuePeriod}
-                    </div>
-                    <div class="mt-2">
-                      <SparklineBars geometry={card.geometry} label={`${card.label} annual history`} />
-                    </div>
-                    <div class="mt-1 font-mono text-[9px] leading-snug text-[#8a8f96]">
-                      {card.periodRange}
-                    </div>
-                    <div class="mt-0.5 font-mono text-[9px] leading-snug text-[#8a8f96]">
-                      {card.sourceCaption}
-                    </div>
-                    {#if card.disclosure !== undefined}
-                      <div class="mt-1 text-[9px] leading-snug text-[#8a6116]">
-                        {card.disclosure}
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </section>
+            <FundamentalHistory
+              history={fundamentalHistory}
+              sectionKey="fundamentalHistory"
+              {bindSection}
+            />
           {/if}
 
           {#if equityPresentation?.advanced.balanceSheetHistory !== undefined}
-            <section class="mt-8.5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                  Balance sheet & share count
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  {equityPresentation.advanced.balanceSheetHistory.reportingCurrency ?? "currency unavailable"}
-                </span>
-              </div>
-              <div class="mt-3 overflow-x-auto rounded-lg border border-border">
-                <table class="w-full min-w-[580px] border-collapse text-left">
-                  <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th class="px-2.5 py-2 font-semibold">Period</th>
-                      <th class="px-2.5 py-2 text-right font-semibold">Cash</th>
-                      <th class="px-2.5 py-2 text-right font-semibold">Debt</th>
-                      <th class="px-2.5 py-2 text-right font-semibold">Diluted shares</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-border font-mono text-[10px]">
-                    {#each equityPresentation.advanced.balanceSheetHistory.rows as row}
-                      <tr>
-                        <td class="px-2.5 py-2">{row.period}</td>
-                        <td class="px-2.5 py-2 text-right">{row.cash}</td>
-                        <td class="px-2.5 py-2 text-right">{row.debt}</td>
-                        <td class="px-2.5 py-2 text-right">{row.dilutedShares}</td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-              {@render citeChips(equityPresentation.advanced.balanceSheetHistory.sourceIds)}
-            </section>
+            <BalanceSheetHistory
+              history={equityPresentation.advanced.balanceSheetHistory}
+              sectionKey="balanceSheetHistory"
+              {citeChips}
+              {bindSection}
+            />
           {/if}
 
           {#if valuationWorkbench !== undefined}
-            <section {@attach bindSection("valuationWorkbench")} class="mt-8.5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                  Valuation workbench
-                </span>
-                <span class="font-mono text-[10px] text-[#8a8f96]">
-                  {valuationWorkbench.reportingCurrency} reporting · {valuationWorkbench.quoteCurrency} quote
-                </span>
-              </div>
-              <div class="mt-2 text-[10px] leading-snug text-muted-foreground">
-                {valuationWorkbench.priceSelectionRule}. {valuationWorkbench.trailingDisclosure}.
-              </div>
-              {#if valuationWorkbench.rows.length > 0}
-                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
-                  <table class="w-full min-w-[700px] border-collapse text-left">
-                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
-                      <tr>
-                        <th class="px-2.5 py-2 font-semibold">Basis</th>
-                        <th class="px-2.5 py-2 font-semibold">Period</th>
-                        <th class="px-2.5 py-2 font-semibold">Public</th>
-                        <th class="px-2.5 py-2 font-semibold">Eligible close</th>
-                        <th class="px-2.5 py-2 text-right font-semibold">P/E</th>
-                        <th class="px-2.5 py-2 text-right font-semibold">P/S</th>
-                        <th class="px-2.5 py-2 text-right font-semibold">EV/revenue</th>
-                        <th class="px-2.5 py-2 text-right font-semibold">P/FCF</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border font-mono text-[10px]">
-                      {#each valuationWorkbench.rows as row}
-                        <tr>
-                          <td class="px-2.5 py-2">{row.basis}</td>
-                          <td class="px-2.5 py-2">{row.periodEnd}</td>
-                          <td class="px-2.5 py-2">{row.publicAt}</td>
-                          <td class="px-2.5 py-2">{row.price}</td>
-                          {#each [row.priceToEarnings, row.priceToSales, row.enterpriseValueToRevenue, row.priceToFreeCashFlow] as metric}
-                            <td
-                              class="px-2.5 py-2 text-right {metric.status === 'populated'
-                                ? 'text-foreground'
-                                : metric.status === 'not-meaningful'
-                                  ? 'text-[#8a6116]'
-                                  : 'text-muted-foreground'}"
-                              title={metric.detail}
-                            >
-                              {metric.display}
-                            </td>
-                          {/each}
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-              {:else}
-                <div class="mt-3 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
-                  Historical multiples suppressed: {valuationWorkbench.suppressionReasons.join("; ") || "no compatible inputs"}.
-                </div>
-              {/if}
-              <div class="mt-4 flex flex-wrap items-baseline justify-between gap-2">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  Peer table
-                </div>
-                <div class="font-mono text-[10px] text-primary">
-                  supportability · {valuationWorkbench.peerSupportability}
-                </div>
-              </div>
-              {#if valuationWorkbench.peerRows.length > 0}
-                <div class="mt-2 overflow-x-auto rounded-lg border border-border">
-                  <table class="w-full min-w-[620px] border-collapse text-left">
-                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
-                      <tr>
-                        <th class="px-2.5 py-2 font-semibold">Symbol</th>
-                        <th class="px-2.5 py-2 font-semibold">Role</th>
-                        <th class="px-2.5 py-2 font-semibold">Screen</th>
-                        <th class="px-2.5 py-2 text-right font-semibold">EV/revenue</th>
-                        <th class="px-2.5 py-2 font-semibold">Currency</th>
-                        <th class="px-2.5 py-2 font-semibold">Input dates</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border font-mono text-[10px]">
-                      {#each valuationWorkbench.peerRows as row}
-                        <tr>
-                          <td class="px-2.5 py-2 font-semibold">{row.symbol}</td>
-                          <td class="px-2.5 py-2">{row.role}</td>
-                          <td class="px-2.5 py-2">{row.status}</td>
-                          <td class="px-2.5 py-2 text-right">{row.multiple}</td>
-                          <td class="px-2.5 py-2">{row.currency}</td>
-                          <td class="px-2.5 py-2">{row.inputDates}</td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-              {:else if valuationWorkbench.peerSuppression !== undefined}
-                <div class="mt-2 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
-                  {valuationWorkbench.peerSuppression}
-                </div>
-              {/if}
-              {#if valuationWorkbench.excludedPeerRows.length > 0}
-                <div class="mt-4 text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                  Excluded-peer diagnostics
-                </div>
-                <div class="mt-2 space-y-2">
-                  {#each valuationWorkbench.excludedPeerRows as peer}
-                    <div class="rounded-lg border border-dashed border-border bg-secondary px-3 py-2 text-[10px]">
-                      <span class="font-mono font-semibold">{peer.symbol}</span>
-                      · {peer.role} · {peer.reason}
-                      {@render citeChips(peer.sourceIds)}
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </section>
+            <ValuationWorkbench
+              workbench={valuationWorkbench}
+              excludedPeerRows={valuationWorkbench.excludedPeerRows}
+              sectionKey="valuationWorkbench"
+              {citeChips}
+              {bindSection}
+            />
           {/if}
 
           {#if reverseDcf !== undefined}
-            <section {@attach bindSection("reverseDcf")} class="mt-8.5 scroll-mt-5">
-              <div class="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                Reverse DCF input sensitivity
-              </div>
-              {#if reverseDcf.status === "suppressed"}
-                <div class="mt-3 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
-                  Suppressed: {reverseDcf.message}
-                </div>
-              {:else}
-                <div class="mt-3 grid gap-2 text-[10px] text-muted-foreground sm:grid-cols-3">
-                  <div>
-                    <span class="font-semibold text-foreground">Starting FCF</span><br />
-                    <span class="font-mono">{reverseDcf.startingFcf}</span><br />
-                    {reverseDcf.startingFcfDates}
-                  </div>
-                  <div>
-                    <span class="font-semibold text-foreground">Enterprise value</span><br />
-                    <span class="font-mono">{reverseDcf.enterpriseValue}</span><br />
-                    {reverseDcf.enterpriseValueDate}
-                  </div>
-                  <div>
-                    <span class="font-semibold text-foreground">Horizon</span><br />
-                    <span class="font-mono">{reverseDcf.horizonYears} years</span>
-                  </div>
-                </div>
-                <div class="mt-3 text-[10px] leading-snug text-muted-foreground">
-                  Each cell is the five-year FCF growth input that reconciles the row discount rate and column terminal growth assumption.
-                </div>
-                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
-                  <table class="w-full min-w-[560px] border-collapse text-right">
-                    <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
-                      <tr>
-                        <th class="px-2.5 py-2 text-left font-semibold">Discount rate</th>
-                        {#each reverseDcf.terminalGrowthRatesPct as rate}
-                          <th class="px-2.5 py-2 font-semibold">{rate}% terminal</th>
-                        {/each}
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border font-mono text-[10px]">
-                      {#each reverseDcf.rows as row}
-                        <tr>
-                          <td class="px-2.5 py-2 text-left font-semibold">{row.discountRatePct}%</td>
-                          {#each row.cells as cell}
-                            <td class="px-2.5 py-2">{cell}</td>
-                          {/each}
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-              {/if}
-            </section>
+            <ReverseDcf {reverseDcf} sectionKey="reverseDcf" {bindSection} />
           {/if}
 
           {#if peerImpliedRange !== undefined}
-            <section {@attach bindSection("peerImpliedRange")} class="mt-8.5 scroll-mt-5">
-              {#if peerImpliedRange.status === "suppressed"}
-                <div class="rounded-lg border border-border bg-secondary px-4 py-3.5">
-                  <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {peerImpliedRange.label}
-                  </div>
-                  <div class="mt-1.5 text-sm text-muted-foreground">
-                    {peerImpliedRange.message}
-                  </div>
-                </div>
-              {:else}
-                <div class="rounded-lg border border-border bg-card px-4 py-3.5">
-                  <div class="flex flex-wrap items-baseline justify-between gap-2">
-                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                      {peerImpliedRange.label}
-                    </div>
-                    <div class="font-mono text-[10px] text-primary">
-                      {peerImpliedRange.positionLabel}
-                    </div>
-                  </div>
-                  <div class="mt-2.5">
-                    <RangeBar
-                      geometry={peerImpliedRange.geometry}
-                      label={peerImpliedRange.label}
-                      lowLabel={peerImpliedRange.lowLabel}
-                      midLabel={peerImpliedRange.midLabel}
-                      highLabel={peerImpliedRange.highLabel}
-                      currentLabel={peerImpliedRange.currentLabel}
-                    />
-                  </div>
-                  <div class="mt-2 font-mono text-[9px] leading-relaxed text-[#737980]">
-                    {peerImpliedRange.methodDisclosure}
-                  </div>
-                  <div class="mt-0.5 font-mono text-[9px] leading-relaxed text-[#8a8f96]">
-                    {peerImpliedRange.boundaryDisclosure}
-                  </div>
-                </div>
-              {/if}
-            </section>
+            <PeerImpliedRange range={peerImpliedRange} sectionKey="peerImpliedRange" {bindSection} />
           {/if}
 
           {#if equityPresentation === undefined && findingItems.length > 0}
@@ -1035,32 +534,13 @@
             </section>
           {/if}
 
-          {#if advancedCaseSections.length > 0}
-            <div
-              {@attach bindSection("advancedCases")}
-              class="mt-8.5 grid scroll-mt-5 gap-3.5 sm:grid-cols-2"
-            >
-              {#each advancedCaseSections as section}
-                <div
-                  class="rounded-lg border border-border bg-card px-4.5 py-4"
-                  style="border-top: 3px solid {section.edge}"
-                >
-                  <div class="text-xs font-semibold uppercase tracking-wider" style="color: {section.fg}">
-                    {section.title}
-                  </div>
-                  <div class="mt-3 flex flex-col gap-3">
-                    {#each section.items as item}
-                      <div class="min-w-0">
-                        <span class="font-serif text-sm leading-[1.55] text-[#2a2d30]">
-                          {item.text}
-                        </span>
-                        {@render citeChips(item.sourceIds)}
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {/each}
-            </div>
+          {#if equityPresentation === undefined && caseSections.length > 0}
+            <CaseCards
+              items={caseSections}
+              sectionKey="advancedCases"
+              {citeChips}
+              {bindSection}
+            />
           {/if}
 
           {#if scenarioItems.length > 0}
@@ -1082,32 +562,14 @@
             </section>
           {/if}
 
-          {#if snapshot !== undefined}
-            <section {@attach bindSection("snapshot")} class="mt-8.5 scroll-mt-5">
-              <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-                <span class="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-                  Market snapshot · {snapshot.symbol}
-                </span>
-                <span class="flex flex-wrap items-center gap-2 font-mono text-[10px] text-[#a8acb1]">
-                  <span>
-                    artifact closes{snapshot.latestSessionDate === undefined
-                      ? ""
-                      : ` · last session ${snapshot.latestSessionDate}`}
-                  </span>
-                  {#if snapshotTradingViewUrl !== undefined}
-                    <a
-                      class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      href={snapshotTradingViewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      TradingView
-                    </a>
-                  {/if}
-                </span>
-              </div>
-              <PriceSnapshotChart {snapshot} horizons={forecastHorizons} />
-            </section>
+          {#if snapshot !== undefined && equityPresentation === undefined}
+            <MarketSnapshot
+              {snapshot}
+              {snapshotTradingViewUrl}
+              {forecastHorizons}
+              sectionKey="snapshot"
+              {bindSection}
+            />
           {/if}
 
           {#if historicalAudit !== undefined}
@@ -1142,85 +604,23 @@
           {/if}
 
           {#if (equityPresentation?.advanced.analystEstimateDistributions.length ?? 0) > 0}
-            <section class="mt-8.5">
-              {@render sectionHeading("Analyst estimate distributions")}
-              <div class="mt-3.5 grid gap-3">
-                {#each equityPresentation?.advanced.analystEstimateDistributions ?? [] as distribution}
-                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
-                    <div class="flex flex-wrap items-baseline justify-between gap-2">
-                      <div class="text-[12.5px] font-semibold text-foreground">
-                        {distribution.title}
-                      </div>
-                      {#if distribution.period !== undefined}
-                        <div class="font-mono text-[10px] text-muted-foreground">
-                          {distribution.period}
-                        </div>
-                      {/if}
-                    </div>
-                    <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                      {#each [
-                        ["Mean", distribution.mean],
-                        ["Median", distribution.median],
-                        ["High", distribution.high],
-                        ["Low", distribution.low],
-                        ["Count", distribution.count],
-                      ] as metric}
-                        <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
-                          <div class="font-mono text-[12px] font-medium text-foreground">
-                            {metric[1]}
-                          </div>
-                          <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
-                            {metric[0]}
-                          </div>
-                        </div>
-                      {/each}
-                    </div>
-                    {@render citeChips(distribution.sourceIds)}
-                  </div>
-                {/each}
-              </div>
-            </section>
+            <AnalystEstimateDistributions
+              distributions={equityPresentation?.advanced.analystEstimateDistributions ?? []}
+              sectionKey="analystEstimateDistributions"
+              {citeChips}
+              {sectionHeading}
+              {bindSection}
+            />
           {/if}
 
           {#if extendedEvidence.length > 0}
-            <section {@attach bindSection("extendedEvidence")} class="mt-8.5 scroll-mt-5">
-              {@render sectionHeading("Extended evidence")}
-              <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
-                {#each extendedEvidence as item}
-                  {@const metricTiles = item.category === "valuation" ? valuationMetricTiles(item.metrics) : []}
-                  <div class="rounded-lg border border-border bg-card px-4 py-3.5">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span
-                        class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
-                      >
-                        {item.category}
-                      </span>
-                      <div class="text-[12.5px] font-semibold text-foreground">
-                        {item.title}
-                      </div>
-                    </div>
-                    <div class="mt-2 font-serif text-[13px] leading-[1.55] text-[#45494e]">
-                      {item.summary}
-                    </div>
-                    {#if metricTiles.length > 0}
-                      <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {#each metricTiles as tile}
-                          <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
-                            <div class="font-mono text-[12px] font-medium text-foreground">
-                              {tile.value}
-                            </div>
-                            <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
-                              {tile.label}
-                            </div>
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
-                    {@render citeChips(item.sourceIds)}
-                  </div>
-                {/each}
-              </div>
-            </section>
+            <ExtendedEvidence
+              items={extendedEvidence}
+              sectionKey="extendedEvidence"
+              {citeChips}
+              {sectionHeading}
+              {bindSection}
+            />
           {/if}
 
           {#if showForecastsSection}
@@ -1236,72 +636,35 @@
             />
           {/if}
 
-          {#if showGapsSection}
-            <section {@attach bindSection("diagnosticGaps")} class="mt-8.5 scroll-mt-5">
-              {#if splitGaps.shortfalls.length > 0}
-                <div
-                  class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116]"
-                >
-                  Prediction shortfall
-                </div>
-                <div class="mt-3.5 flex flex-col gap-2.5">
-                  {#each splitGaps.shortfalls as gap}
-                    <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
-                      <span
-                        class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
-                      >
-                        SHORTFALL
-                      </span>
-                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
-                        {gap}
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-
-              {#if advancedTriagedGaps.length > 0}
-                <div
-                  class="border-b border-[#e9ddc2] pb-2 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#8a6116] {splitGaps
-                    .shortfalls.length > 0
-                    ? 'mt-8'
-                    : ''}"
-                >
-                  Data gaps · what we could not verify
-                </div>
-                <div class="mt-3.5 flex flex-col gap-2.5">
-                  {#each advancedTriagedGaps as gap}
-                    <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
-                      <span
-                        class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
-                      >
-                        {gap.triage}
-                      </span>
-                      <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
-                        {gap.text}
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </section>
+          {#if equityPresentation !== undefined || showGapsSection}
+            <CoverageGapsAdvanced
+              gaps={splitGaps}
+              uppercaseTriage={equityPresentation !== undefined}
+              financialCoreStatus={equityPresentation?.defaultView.financialCoreStatus}
+              sectionKey="gaps"
+              {bindSection}
+            />
           {/if}
 
           {#if reportMarkdown !== undefined}
-            <section class="mt-8.5">
+            <section {@attach bindSection("rawMarkdown")} class="mt-8.5 scroll-mt-5">
               {@render sectionHeading("Raw markdown")}
               <pre
                 class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{reportMarkdown}</pre>
             </section>
           {/if}
             </div>
-          </details>
+          {/if}
         </article>
 
+        {#if equityPresentation === undefined}
         <aside class="sticky top-6 hidden h-fit pt-1 xl:block">
           <div class="font-mono text-[10px] tracking-[0.08em] text-[#a8acb1]">ON THIS PAGE</div>
           <div class="mt-2.5 flex flex-col gap-0.5 border-l border-border">
-            {#each tocEntries as entry}
+            {#each tocEntries as entry, index}
+              {#if reportDetail === "advanced" && entry.advancedOnly && tocEntries.findIndex((candidate) => candidate.advancedOnly) === index}
+                <div class="mx-3 my-1 border-t border-border" aria-hidden="true"></div>
+              {/if}
               <button
                 class="-ml-px border-l-2 border-transparent py-1 pl-3 text-left text-xs text-[#5c6066] transition hover:border-[#9fc2c8] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"
@@ -1315,6 +678,7 @@
             Every claim carries its source IDs. Hover a chip to preview; click to open Sources.
           </div>
         </aside>
+        {/if}
       </div>
     {:else if activeTab === "sources"}
       <div class="mt-6 overflow-hidden rounded-lg border border-border bg-card">

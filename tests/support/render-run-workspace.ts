@@ -4,9 +4,14 @@ import type { Component } from "svelte";
 import { compile } from "svelte/compiler";
 import { render } from "svelte/server";
 import type { RunDetail } from "../../app/types";
+import type { ReportDetail } from "../../app/client/app-settings";
+
+type Tab = "report" | "sources" | "data" | "files" | "chat";
 
 interface RunWorkspaceComponentProps {
-  readonly activeTab: "report";
+  readonly activeTab: Tab;
+  readonly reportDetail: ReportDetail;
+  readonly showSources: boolean;
   readonly detail: RunDetail;
   readonly loadingDetail: false;
   readonly selectedFile: string;
@@ -47,13 +52,19 @@ Bun.plugin({
 });
 
 const detail = JSON.parse(await Bun.stdin.text()) as RunDetail;
+const reportDetail: ReportDetail = Bun.argv[2] === "advanced" ? "advanced" : "simple";
+const TABS: readonly Tab[] = ["report", "sources", "data", "files", "chat"];
+const activeTab: Tab = TABS.find((tab) => tab === Bun.argv[3]) ?? "report";
+const showSources = Bun.argv[4] === "sources";
 const componentModule =
   (await import("../../app/client/components/run-workspace.svelte")) as unknown as {
     readonly default: Component<RunWorkspaceComponentProps>;
   };
 const result = render(componentModule.default, {
   props: {
-    activeTab: "report",
+    activeTab,
+    reportDetail,
+    showSources,
     detail,
     loadingDetail: false,
     selectedFile: "",

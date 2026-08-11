@@ -222,11 +222,17 @@ A local, research-only Svelte 5 SPA (`app/client/`) served by a Bun HTTP API (`a
 
 Views: dashboard (metrics, runs-per-day chart, recent runs), run workspace, search, jobs, calibration, and provider health. The run workspace joins each run's `score.json` to its observable forecasts — hit/miss/pending badges with resolution evidence in neutral observation language — and joins `miss-autopsy.json` when present to show material forecast-error taxonomy without changing outcome badge semantics. `app/client/run-workspace-view.ts` projects a `RunDetail` into the report, forecast, evidence, gap, source, verified-snapshot, and table-of-contents sections; the Svelte component retains interaction state and rendering. For instrument runs that persisted `normalized/verified-market-snapshot.json` ([ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)), it renders a recent-closes chart with latest indicator values and forecast-horizon ticks. The calibration view shows resolved policy-v3 count, hit rate, Brier score, explicit sample-size warnings, a reliability chart over sparse bins, Miss Autopsy taxonomy counts, and slice tables; the quality-of-forecasts framing lives only there, never in per-run outcome badges.
 
-For equity runs, the workspace mirrors the markdown split. The default surface keeps identity and
-price, the shared trend table, company context, catalysts and risks, earnings and consensus,
-coverage, and material gaps visible. One collapsed Advanced section contains the specialist detail,
-Financial Lens posture labels, diagnostic gaps, and raw Extended Evidence; the view model retains
-the full collected artifact. Equity Prediction shortfalls remain the last Material Gap in the
+For equity runs, the workspace mirrors the markdown split behind a Simple/Advanced control on the
+Report tab, persisted per browser in `app/client/app-settings.ts` (`market-bot:app-settings`,
+default Simple). Simple keeps identity and price, the shared trend table, company context,
+catalysts and risks, earnings and consensus, coverage, and material gaps visible. Advanced is a
+strict superset rendered as one continuous document — no disclosure — adding the specialist detail,
+Financial Lens posture labels, raw Extended Evidence, and both gap kinds badged `MATERIAL` /
+`DIAGNOSTIC` in a single merged section that replaces the Simple one. Section markup lives in
+per-section components under `app/client/components/`, each taking its table-of-contents anchor as a
+`sectionKey` prop so a layout can place it differently; the table of contents filters on
+`advancedOnly`. Non-equity runs render flat and show no control, regardless of the stored setting.
+The view model retains the full collected artifact. Equity Prediction shortfalls remain the last Material Gap in the
 Default View; non-equity runs render the same structured counts in a dedicated Shortfall block.
 
 Client conventions: loose `Record<string, unknown>` payloads at the wire, validated by type guards in `app/client/api.ts`, parsed by pure functions in `app/client/view-model.ts` / `app/report-artifact-view.ts`; hand-rolled SVG charts (no chart dependency). The console stays read-only over artifacts and adds no trade-action surface.

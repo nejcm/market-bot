@@ -12,6 +12,7 @@
     fetchRunSearch,
     fetchRuns,
   } from "./api";
+  import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
   import DashboardOverview from "./components/dashboard-overview.svelte";
   import AlphaCohortsView from "./components/alpha-cohorts-view.svelte";
   import type {
@@ -552,7 +553,7 @@
   />
 
   <main class="min-w-0 flex-1 pt-12 lg:pt-0">
-    <div class="mx-auto max-w-295 px-4 py-6 lg:px-10 lg:py-7">
+    <div class="mx-auto max-w-330 px-4 py-6 lg:px-6 lg:py-7">
       {#if error !== ""}
         <div
           class="mb-4 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
@@ -582,12 +583,16 @@
       {:else if view === "run"}
         <RunWorkspace
           {activeTab}
+          reportDetail={appSettings.reportDetail}
+          showSources={appSettings.showSources}
           {detail}
           {loadingDetail}
           {selectedFile}
           {fileContent}
           {highlightSourceId}
           onTabChange={(tab) => (activeTab = tab)}
+          onReportDetailChange={setReportDetail}
+          onShowSourcesChange={setShowSources}
           onLoadFile={(path) => void loadFile(path)}
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}

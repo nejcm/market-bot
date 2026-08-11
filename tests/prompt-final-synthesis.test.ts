@@ -572,7 +572,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       ),
     ) as { readonly instruction?: string };
     const clause =
-      "Observed conditional-prediction activation history: 4 of 17 resolved conditionals activated; 13 voided because their antecedents did not occur. For new Conditional Predictions, prefer antecedents anchored to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited evidence shows were reached at least once in the price history you cite; avoid threshold crossings with no observed precedent. The remedy is a better antecedent, not fewer conditionals: Conditional Predictions remain worth emitting when the evidence supports a genuinely conditional setup.";
+      "Continue emitting Conditional Predictions when the evidence supports a genuinely conditional setup. Anchor antecedents to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited price history has already reached, so the antecedent can plausibly occur inside the resolution window. Activation history shows why antecedent quality matters: 4 of 17 resolved conditionals activated; 13 voided because their antecedents did not occur.";
 
     expect(primary.instruction).toContain(clause);
     expect(completion.instruction).toContain(clause);
@@ -588,9 +588,11 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       }),
     ) as { readonly instruction?: string };
 
-    expect(primary.instruction).not.toContain("Observed conditional-prediction activation history");
+    expect(primary.instruction).not.toContain(
+      "Activation history shows why antecedent quality matters",
+    );
     expect(completion.instruction).not.toContain(
-      "Observed conditional-prediction activation history",
+      "Activation history shows why antecedent quality matters",
     );
   });
 

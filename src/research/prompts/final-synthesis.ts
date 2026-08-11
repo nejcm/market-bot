@@ -186,7 +186,7 @@ export function buildConditionalPredictionActivationGuidance(
   if (voidRate < MATERIAL_CONDITIONAL_VOID_RATE) {
     return undefined;
   }
-  return ` Observed conditional-prediction activation history: ${String(activatedCount)} of ${String(resolvedCount)} resolved conditionals activated; ${String(voidedCount)} voided because their antecedents did not occur. For new Conditional Predictions, prefer antecedents anchored to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited evidence shows were reached at least once in the price history you cite; avoid threshold crossings with no observed precedent. The remedy is a better antecedent, not fewer conditionals: Conditional Predictions remain worth emitting when the evidence supports a genuinely conditional setup.`;
+  return ` Continue emitting Conditional Predictions when the evidence supports a genuinely conditional setup. Anchor antecedents to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited price history has already reached, so the antecedent can plausibly occur inside the resolution window. Activation history shows why antecedent quality matters: ${String(activatedCount)} of ${String(resolvedCount)} resolved conditionals activated; ${String(voidedCount)} voided because their antecedents did not occur.`;
 }
 
 function predictionDslInstruction(

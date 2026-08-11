@@ -12,7 +12,8 @@ amended 2026-07-06: primary Near-Base-Rate prompt steering;
 amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range after the first
 resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58;
 consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility;
-amended 2026-08-05: structured Prediction shortfall disclosure)
+amended 2026-08-05: structured Prediction shortfall disclosure;
+amended 2026-08-11: conditional-activation calibration guidance)
 
 ## Context
 
@@ -70,15 +71,20 @@ be mistaken for current market evidence.
   forecasts overall and at least one event-kind × horizon stratum contains 30 resolved forecasts.
   Reaching both thresholds triggers a separate baseline-design review rather than an automatic
   metric change.
-- Calibration affects primary synthesis and Forecast Completion only through Actionable Negative
-  Calibration. Asset class, job type, default Prediction-horizon bucket, and current Market Regime
-  are assessed independently. A slice qualifies only with at least 30 resolved Predictions and 10
-  distinct Runs and when its Bonferroni-adjusted 98.75% one-sided lower bound
-  (`Brier - 2.2414 × standard error`) is strictly above the 0.25 baseline.
-- Only qualifying slices enter the synthesis prompt, where they guide probability discipline.
-  Calibration cannot suppress Prediction count, reject forecast shapes, change evidence-support
-  requirements, or reject emitted forecasts. Legacy summaries without uncertainty fields remain
-  readable but cannot activate guidance.
+- Calibration affects primary synthesis and Forecast Completion through two independently gated
+  inputs. Actionable Negative Calibration assesses asset class, job type, default
+  Prediction-horizon bucket, and current Market Regime independently. A slice qualifies only with
+  at least 30 resolved Predictions and 10 distinct Runs and when its Bonferroni-adjusted 98.75%
+  one-sided lower bound (`Brier - 2.2414 × standard error`) is strictly above the 0.25 baseline.
+- Conditional-activation guidance enters deep-run primary synthesis and Forecast Completion when
+  at least 10 conditional forecasts have resolved and the aggregate void rate is at least 0.5.
+  It uses activated and voided history to steer antecedents toward plausible events or observed
+  thresholds; it must never suppress or mandate conditional emission. `refreshCalibrationContext`
+  is the runtime source for both calibration-derived steering inputs.
+- Only qualifying Actionable Negative Calibration slices enter the synthesis prompt, where they
+  guide probability discipline. Calibration cannot suppress Prediction count, reject forecast
+  shapes, change evidence-support requirements, or reject emitted forecasts. Legacy summaries
+  without uncertainty fields remain readable but cannot activate that guidance.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
   listed proxy and emits no predictions when no proxy resolves.
 - Scoring resolves observations through the repository and close cache, then aggregates Brier
@@ -144,8 +150,8 @@ be mistaken for current market evidence.
 - Policy v2 (all forecasts persisted before stamping) gates every due date on the US exchange
   calendar, including crypto and macro/IV forecasts; those forecasts resolve permanently under
   that legacy clock.
-- Conditional forecasts can have low activation rates; calibration output does not yet report
-  activation coverage as a first-class metric.
+- Conditional activation coverage is a first-class calibration metric reported as aggregate
+  activated and voided counts; the guidance gate does not slice it by antecedent type or horizon.
 
 These limitations are implementation facts, not endorsed end-state methodology. Changing baseline,
 price adjustment, or calendar semantics requires a new scoring policy version.

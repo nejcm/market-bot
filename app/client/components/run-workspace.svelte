@@ -86,8 +86,10 @@
   /* Equity runs carry the ledger verdict bar on every tab, so the shared run
      header would repeat the same name, price and counts directly above it. */
   const showRunHeader = $derived(equityPresentation === undefined);
-  const reportSummary = $derived(equityPresentation?.advanced.reportSummary ?? workspace?.report.summary ?? "");
-  const reportSummarySectionKey = $derived(equityPresentation === undefined ? "summary" : "advancedSummary");
+  const reportSummary = $derived(
+    equityPresentation?.defaultView.researchSummary ?? workspace?.report.summary ?? "",
+  );
+  const reportSummarySectionKey = $derived("summary");
   const reportFindingsSectionKey = $derived(equityPresentation === undefined ? "findings" : "advancedFindings");
   const reportMarkdown = $derived(workspace?.report.markdown);
   const findingItems = $derived(workspace?.report.findings ?? []);
@@ -146,19 +148,19 @@
      scrolling the report. */
   const LEDGER_NAV_KEYS: ReadonlySet<string> = new Set([
     "equityOverview",
+    "researchSummary",
     "summary",
     "financialTrends",
+    "financialPosition",
     "findings",
     "cases",
     "snapshot",
-    "advancedSummary",
     "forecasts",
     "scenarios",
     "valuationWorkbench",
     "peerImpliedRange",
     "earningsConsensus",
     "equityMetrics",
-    "equityCompleteness",
     "gaps",
   ]);
   const ledgerNavEntries = $derived(tocEntries.filter((entry) => LEDGER_NAV_KEYS.has(entry.key)).slice(0, 15));
@@ -434,6 +436,19 @@
               {#if reportDetail === "advanced"}
                 {@render reportBody()}
               {:else}
+                {#if showForecastsSection}
+                  <ObservableForecasts
+                    {forecastItems}
+                    groupedForecastItems={groupedForecastItems}
+                    {forecastStats}
+                    {targetHealth}
+                    assetClass={detail.summary.assetClass ?? ""}
+                    compact
+                    {citeChips}
+                    {bindSection}
+                    {onOpenInstrument}
+                  />
+                {/if}
                 {@render earningsConsensusSection()}
               {/if}
             </EquityLedger>
@@ -467,9 +482,9 @@
                valuation reasoning behind them, the fundamentals backing it, and
                the evidence and diagnostics appendix last. -->
         {#snippet earningsConsensusSection()}
-          {#if (equityPresentation?.defaultView.earningsConsensus.items.length ?? 0) > 0}
-            <section {@attach bindSection("earningsConsensus")} class="mt-8.5 scroll-mt-24">
-              {@render sectionHeading("Upcoming earnings & consensus")}
+          <section {@attach bindSection("earningsConsensus")} class="mt-8.5 scroll-mt-24">
+            {@render sectionHeading("Upcoming earnings & consensus")}
+            {#if (equityPresentation?.defaultView.earningsConsensus.items.length ?? 0) > 0}
               <div class="mt-3 grid gap-2 sm:grid-cols-2">
                 {#each equityPresentation?.defaultView.earningsConsensus.items ?? [] as item}
                   <div class="border border-border bg-secondary px-3.5 py-3">
@@ -481,15 +496,16 @@
                   </div>
                 {/each}
               </div>
-            </section>
-          {/if}
+            {:else}
+              <div class="mt-3 text-sm text-muted-foreground">
+                No confirmed upcoming earnings or consensus data is available.
+              </div>
+            {/if}
+          </section>
         {/snippet}
 
         {#snippet reportBody()}
-          {#if reportSummary !== ""}
-            {#if equityPresentation !== undefined}
-              {@render sectionHeading("Report summary")}
-            {/if}
+          {#if reportSummary !== "" && equityPresentation === undefined}
             <div
               {@attach bindSection(reportSummarySectionKey)}
               class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"

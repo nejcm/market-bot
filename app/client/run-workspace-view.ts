@@ -27,6 +27,7 @@ import {
   type EquityReaderBalanceSheetHistory,
   type EquityReaderConsensusItem,
   type EquityReaderFinancialCoreStatus,
+  type EquityReaderFinancialPosition,
   type EquityReaderProjection,
   type EquityReaderValuationContext,
 } from "../../src/report/equity-reader";
@@ -239,6 +240,18 @@ export interface RunWorkspaceBalanceSheetHistoryView {
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
+}
+
+export interface RunWorkspaceFinancialPositionMetric {
+  readonly label: "Cash" | "Debt" | "Diluted shares";
+  readonly value: string;
+  readonly dateBasis: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceFinancialPositionView {
+  readonly reportingCurrency?: string;
+  readonly metrics: readonly RunWorkspaceFinancialPositionMetric[];
 }
 
 export interface RunWorkspaceEarningsConsensusItem {
@@ -461,8 +474,11 @@ export interface RunWorkspaceTableOfContentsEntry {
 export interface RunWorkspaceEquityPresentationView {
   readonly defaultView: {
     readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
+    readonly researchSummary: string;
     readonly companySummary: RunWorkspaceTextItem;
     readonly financialTrends?: RunWorkspaceFinancialTrendView;
+    readonly financialPosition?: RunWorkspaceFinancialPositionView;
+    readonly keyMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
     readonly valuationContext: RunWorkspaceEquitySnapshotReferenceRange;
     readonly findings: readonly RunWorkspaceTextItem[];
     readonly cases: readonly RunWorkspaceCaseSection[];
@@ -485,7 +501,6 @@ export interface RunWorkspaceEquityPresentationView {
     readonly balanceSheetHistory?: RunWorkspaceBalanceSheetHistoryView;
     readonly cases: readonly RunWorkspaceCaseSection[];
     readonly scenarios: readonly ScenarioView[];
-    readonly reportSummary: string;
   };
 }
 
@@ -906,6 +921,39 @@ function balanceSheetHistoryFromProjection(
   };
 }
 
+function financialPositionFromProjection(
+  position: EquityReaderFinancialPosition | undefined,
+): RunWorkspaceFinancialPositionView | undefined {
+  if (position === undefined) {
+    return undefined;
+  }
+  const metrics: RunWorkspaceFinancialPositionMetric[] = [];
+  for (const [label, item] of [
+    ["Cash", position.cash],
+    ["Debt", position.debt],
+    ["Diluted shares", position.dilutedShares],
+  ] as const) {
+    if (item === undefined) {
+      continue;
+    }
+    metrics.push({
+      label,
+      value:
+        label === "Diluted shares"
+          ? scaleCurrency(item.value)
+          : statementAmount(item.value, position.reportingCurrency),
+      dateBasis: `period ${item.periodEnd} · filed ${item.filedAt}`,
+      sourceIds: item.sourceIds,
+    });
+  }
+  return {
+    ...(position.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: position.reportingCurrency }),
+    metrics,
+  };
+}
+
 function earningsConsensusFromProjection(
   items: readonly EquityReaderConsensusItem[],
 ): RunWorkspaceEarningsConsensusView {
@@ -1226,6 +1274,29 @@ const FOLDED_YAHOO_METRIC_KEYS = new Set<RunWorkspaceEquityHeaderFinancial["key"
   "dividendYield",
   "sharesOutstanding",
 ]);
+
+const SIMPLE_METRIC_KEYS: readonly RunWorkspaceEquitySnapshotMetric["key"][] = [
+  "marketCap",
+  "ttmRevenue",
+  "ttmOperatingMargin",
+  "ttmFreeCashFlowProxy",
+];
+
+function simpleKeyMetrics(
+  keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics,
+): readonly RunWorkspaceEquitySnapshotMetric[] {
+  const available = [...keyDatedMetrics.metrics, ...keyDatedMetrics.foldedYahooMetrics].filter(
+    (metric) => metric.state === "available" && metric.value !== undefined,
+  );
+  const core = SIMPLE_METRIC_KEYS.flatMap((key) => {
+    const metric = available.find((candidate) => candidate.key === key);
+    return metric === undefined ? [] : [metric];
+  });
+  const valuation =
+    available.find((metric) => metric.key === "forwardPE") ??
+    available.find((metric) => metric.key === "trailingPE");
+  return valuation === undefined ? core : [...core, valuation];
+}
 
 function snapshotState(
   availableCount: number,
@@ -1558,6 +1629,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const balanceSheetHistory = balanceSheetHistoryFromProjection(
     readerProjection.appendix.balanceSheetHistory,
   );
+  const financialPosition = financialPositionFromProjection(
+    readerProjection.defaultView.financialPosition,
+  );
   const earningsConsensus = earningsConsensusFromProjection(
     readerProjection.defaultView.earningsConsensus,
   );
@@ -1586,8 +1660,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       : {
           defaultView: {
             pricePerformance: equitySnapshot.pricePerformance,
+            researchSummary: summary,
             companySummary: { text: description.text, sourceIds: description.sourceIds },
             ...(financialTrends === undefined ? {} : { financialTrends }),
+            ...(financialPosition === undefined ? {} : { financialPosition }),
+            keyMetrics: simpleKeyMetrics(equitySnapshot.keyDatedMetrics),
             valuationContext: {
               ...equitySnapshot.peerReferenceRange,
               label: "Valuation context",
@@ -1621,7 +1698,6 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
               (section) => section.key === "bullCase" || section.key === "bearCase",
             ),
             scenarios: scenarioItems,
-            reportSummary: summary,
           },
         };
   const gapsVisible = splitGaps.shortfalls.length > 0 || triagedGaps.length > 0;
@@ -1708,11 +1784,23 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
         ]
       : [
           { key: "equityOverview", label: "Price", visible: true, advancedOnly: false },
+          {
+            key: "researchSummary",
+            label: "Research summary",
+            visible: summary !== "",
+            advancedOnly: false,
+          },
           { key: "summary", label: "Company summary", visible: true, advancedOnly: false },
           {
             key: "financialTrends",
             label: "Financial trends",
             visible: financialTrends !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "financialPosition",
+            label: "Financial position",
+            visible: equityPresentation.defaultView.financialPosition !== undefined,
             advancedOnly: false,
           },
           {
@@ -1731,15 +1819,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             key: "snapshot",
             label: "Market snapshot",
             visible: snapshot !== undefined,
-            advancedOnly: true,
+            advancedOnly: false,
           },
-          {
-            key: "advancedSummary",
-            label: "Report summary",
-            visible: summary !== "",
-            advancedOnly: true,
-          },
-          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: true },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: false },
           {
             key: "scenarios",
             label: "Scenarios",
@@ -1769,7 +1851,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
           {
             key: "earningsConsensus",
             label: "Earnings & consensus",
-            visible: earningsConsensus.items.length > 0,
+            visible: true,
             advancedOnly: false,
           },
           {

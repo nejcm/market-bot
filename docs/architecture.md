@@ -224,8 +224,10 @@ Views: dashboard (metrics, runs-per-day chart, recent runs), run workspace, sear
 
 For equity runs, the workspace mirrors the markdown split behind a Simple/Advanced control on the
 Report tab, persisted per browser in `app/client/app-settings.ts` (`market-bot:app-settings`,
-default Simple). Simple keeps identity and price, the shared trend table, company context,
-catalysts and risks, earnings and consensus, coverage, and material gaps visible. Advanced is a
+default Simple). Simple keeps identity and price, a compact dated-KPI strip, the research summary,
+the shared trend table, the latest cash/debt/share position, company context, catalysts and risks,
+observable forecasts, the market snapshot, earnings and consensus (including an explicit unavailable
+state), coverage, and material gaps visible. Advanced is a
 strict superset rendered as one continuous document — no disclosure — adding the specialist detail,
 Financial Lens posture labels, raw Extended Evidence, and both gap kinds badged `MATERIAL` /
 `DIAGNOSTIC` in a single merged section that replaces the Simple one. Section markup lives in

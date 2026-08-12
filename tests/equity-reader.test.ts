@@ -18,18 +18,19 @@ function statementFact(
   key: "cash" | "debt" | "dilutedShares",
   value: number,
   filedAt: string,
+  periodEnd = "2024-12-31",
 ): FinancialStatementFact {
   return {
     value,
-    periodKey: "annual:2024-12-31",
+    periodKey: `annual:${periodEnd}`,
     periodType: "annual",
     form: filedAt === "2025-03-01" ? "10-K/A" : "10-K",
     canonicalForm: "10-K",
     amendment: filedAt === "2025-03-01",
     accessionNumber: `accession-${key}-${filedAt}`,
     filedAt,
-    periodEnd: "2024-12-31",
-    fiscalYear: 2024,
+    periodEnd,
+    fiscalYear: Number(periodEnd.slice(0, 4)),
     fiscalPeriod: "FY",
     taxonomy: "us-gaap",
     concept: key,
@@ -173,6 +174,40 @@ function annualAndTtmHistory(): FundamentalHistoryArtifact {
 }
 
 describe("equity reader projection", () => {
+  test("projects each latest available financial-position metric independently", () => {
+    const cash = statementSeries("cash", [
+      statementFact("cash", 100, "2025-02-01"),
+      statementFact("cash", 120, "2026-02-01", "2025-12-31"),
+    ]);
+    const dilutedShares = statementSeries("dilutedShares", [
+      statementFact("dilutedShares", 9, "2025-03-01"),
+    ]);
+    const financialStatements = {
+      analysisAsOf: "2026-04-01T12:00:00.000Z",
+      sourceId: "sec-statements",
+      reportingCurrency: "USD",
+      statements: {
+        incomeStatement: {},
+        balanceSheet: { cash },
+        cashFlowStatement: {},
+        perShare: { dilutedShares },
+      },
+    } as unknown as FinancialStatementsArtifact;
+
+    const projection = projectEquityReader({
+      report: { generatedAt: "2026-04-01T12:00:00.000Z" },
+      financialStatements,
+    });
+
+    expect(projection.defaultView.financialPosition).toMatchObject({
+      reportingCurrency: "USD",
+      cash: { value: 120, periodEnd: "2025-12-31", filedAt: "2026-02-01" },
+      dilutedShares: { value: 9, periodEnd: "2024-12-31", filedAt: "2025-03-01" },
+    });
+    expect(projection.defaultView.financialPosition?.debt).toBeUndefined();
+    expect(projection.appendix.balanceSheetHistory).toBeUndefined();
+  });
+
   test("selects the latest five annual periods and appends the latest available TTM period", () => {
     const projection = projectEquityReader({
       report: { generatedAt: "2026-02-02T00:00:00.000Z" },

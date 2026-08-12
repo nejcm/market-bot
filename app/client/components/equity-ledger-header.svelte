@@ -44,15 +44,16 @@
       .join(" · "),
   );
 
-  /* The KPI strip carries the dated multiples the reader scans first; the dated
-     basis for each stays in "Detailed equity metrics" below. */
+  /* The KPI strip carries the dated multiples the reader scans first; Advanced
+     repeats the same basis and citations in its detailed section below. */
   const kpiCells = $derived(
-    reportDetail === "advanced"
+    (reportDetail === "advanced"
       ? [
           ...presentation.advanced.keyDatedMetrics.metrics,
           ...presentation.advanced.keyDatedMetrics.foldedYahooMetrics,
-        ].filter((metric) => metric.state === "available" && metric.value !== undefined)
-      : [],
+        ]
+      : presentation.defaultView.keyMetrics
+    ).filter((metric) => metric.state === "available" && metric.value !== undefined),
   );
 
   /* Pick the column count that leaves the fewest empty cells in the last row,
@@ -132,13 +133,17 @@
     style="--kpi-columns:{kpiColumns}"
   >
     {#each kpiCells as metric}
-      <div class="flex flex-col gap-1.25 border-b border-r border-[#e4e0d6] px-4.5 py-3.5">
+      <div
+        class="flex flex-col gap-1.25 border-b border-r border-[#e4e0d6] px-4.5 py-3.5"
+      >
         <div class="text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
           {metric.label}
         </div>
-        <!-- The dated basis and source chips for each metric stay in
-             "Detailed equity metrics" so the strip reads as one line of numbers. -->
         <div class="font-mono text-[17px] text-foreground">{metric.value}</div>
+        <div class="font-mono text-[8px] text-muted-foreground">
+          {metric.dateBasis ?? "Date unavailable"}
+        </div>
+        {@render citeChips(metric.sourceIds)}
       </div>
     {/each}
     <!-- The position label and the "context only, not a target price"

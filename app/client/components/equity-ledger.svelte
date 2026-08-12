@@ -219,6 +219,18 @@
     </button>
   </div>
 
+  {#if defaultView.researchSummary !== ""}
+    <section
+      {@attach bindSection("researchSummary")}
+      class="scroll-mt-24 border-b border-[#e4e0d6] bg-[#fbfaf7] px-4 sm:px-7 pb-5 pt-5.5"
+    >
+      {@render columnHeading("Research summary", "")}
+      <div class="font-serif text-[17px] leading-normal text-[#26241f]">
+        {defaultView.researchSummary}
+      </div>
+    </section>
+  {/if}
+
   <div class="grid xl:grid-cols-[minmax(0,1fr)_372px]">
     <!-- left column -->
     <div class="min-w-0 border-border xl:border-r">
@@ -276,6 +288,32 @@
             </table>
           </div>
           {@render citeChips(defaultView.financialTrends.sourceIds)}
+        </section>
+      {/if}
+
+      {#if defaultView.financialPosition !== undefined}
+        <section
+          {@attach bindSection("financialPosition")}
+          class="scroll-mt-24 border-b border-[#e4e0d6] px-4 sm:px-7 pb-5 pt-6"
+        >
+          {@render columnHeading(
+            "Financial position",
+            defaultView.financialPosition.reportingCurrency ?? "currency unavailable",
+          )}
+          <div class="grid border border-[#e4e0d6] bg-secondary font-mono sm:grid-cols-3">
+            {#each defaultView.financialPosition.metrics as metric}
+              <div class="border-r border-[#e4e0d6] px-3 py-3 last:border-r-0">
+                <div class="text-[15px] text-foreground">{metric.value}</div>
+                <div class="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+                  {metric.label}
+                </div>
+                <div class="mt-1 font-sans text-[9px] text-muted-foreground">
+                  {metric.dateBasis}
+                </div>
+                {@render citeChips(metric.sourceIds)}
+              </div>
+            {/each}
+          </div>
         </section>
       {/if}
 

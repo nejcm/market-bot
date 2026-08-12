@@ -14,6 +14,7 @@
     readonly forecastStats: ForecastRollup;
     readonly targetHealth: PredictionTargetHealth | undefined;
     readonly assetClass: string;
+    readonly compact?: boolean;
     readonly citeChips: Snippet<[readonly string[]]>;
     readonly bindSection: (key: string) => (el: HTMLElement) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
@@ -25,6 +26,7 @@
     forecastStats,
     targetHealth,
     assetClass,
+    compact = false,
     citeChips,
     bindSection,
     onOpenInstrument,
@@ -101,7 +103,7 @@
         <div class="font-serif text-sm leading-normal text-[#1f2225]">
           {forecast.claim}
           {@render citeChips(forecast.sourceIds)}
-          {#if forecast.score?.resolved === true && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
+          {#if !compact && forecast.score?.resolved === true && forecast.score.close0 !== undefined && forecast.score.closeN !== undefined}
             <span class="mt-1 block font-mono text-[10.5px] text-[#8a8f96]">
               close {formatClose(forecast.score.close0)} → {formatClose(forecast.score.closeN)}
               {#if forecast.score.changePct !== undefined}
@@ -112,7 +114,7 @@
               {/if}
             </span>
           {/if}
-          {#if forecast.missAutopsy !== undefined}
+          {#if !compact && forecast.missAutopsy !== undefined}
             <span class="mt-1 block text-[11.5px] leading-normal text-[#5c6066]">
               Autopsy: {forecast.missAutopsy.rationale}
             </span>
@@ -199,7 +201,7 @@
               PENDING
             </span>
           {/if}
-          {#if forecast.forecastDisagreement !== undefined}
+          {#if !compact && forecast.forecastDisagreement !== undefined}
             <span
               class="rounded border px-1.75 py-0.5 font-mono text-[10px] {DISAGREEMENT_BADGE_CLASSES[
                 forecast.forecastDisagreement.band
@@ -213,7 +215,7 @@
               {spreadPoints(forecast.forecastDisagreement.probabilitySpread)}
             </span>
           {/if}
-          {#if forecast.missAutopsy !== undefined}
+          {#if !compact && forecast.missAutopsy !== undefined}
             <span
               class="rounded border border-[#d9c89a] bg-[#fbf6ea] px-1.75 py-0.5 font-mono text-[10px] text-[#8a6116]"
               title={forecast.missAutopsy.supportingSignals.join("; ") || forecast.missAutopsy.rationale}

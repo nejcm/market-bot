@@ -87,6 +87,17 @@ export interface EquityReaderBalanceSheetHistory {
   readonly rows: readonly EquityReaderBalanceSheetRow[];
 }
 
+export interface EquityReaderFinancialPositionValue extends EquityReaderStatementValue {
+  readonly periodEnd: string;
+}
+
+export interface EquityReaderFinancialPosition {
+  readonly reportingCurrency?: string;
+  readonly cash?: EquityReaderFinancialPositionValue;
+  readonly debt?: EquityReaderFinancialPositionValue;
+  readonly dilutedShares?: EquityReaderFinancialPositionValue;
+}
+
 export interface EquityReaderMarketMultiple {
   readonly key: "trailingPE" | "forwardPE" | "priceToBook";
   readonly value: number;
@@ -187,6 +198,7 @@ export interface EquityReaderProjection {
     readonly companyDescription: EquityReaderCompanyDescription;
     readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
     readonly financialTrends?: EquityReaderFinancialTrends;
+    readonly financialPosition?: EquityReaderFinancialPosition;
     readonly valuationContext: EquityReaderValuationContext;
     readonly earningsConsensus: readonly EquityReaderConsensusItem[];
     readonly materialGaps: readonly string[];
@@ -380,6 +392,47 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
     unit: fact.unit,
     unitScale: fact.unitScale,
     sourceIds: fact.sourceIds,
+  };
+}
+
+function latestPositionValue(
+  artifact: FinancialStatementsArtifact,
+  key: "cash" | "debt" | "dilutedShares",
+  cutoff: string,
+): EquityReaderFinancialPositionValue | undefined {
+  const series = financialStatementSeriesByKey(artifact, key);
+  if (series === undefined) {
+    return undefined;
+  }
+  const fact = latestFinancialStatementFact(
+    financialStatementFacts(series).filter((candidate) =>
+      observableStatementFact(candidate, cutoff),
+    ),
+  );
+  return fact === undefined ? undefined : { ...statementValue(fact), periodEnd: fact.periodEnd };
+}
+
+function financialPosition(
+  artifact: FinancialStatementsArtifact | undefined,
+  reportGeneratedAt: string | undefined,
+): EquityReaderFinancialPosition | undefined {
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
+  const cash = latestPositionValue(artifact, "cash", cutoff);
+  const debt = latestPositionValue(artifact, "debt", cutoff);
+  const dilutedShares = latestPositionValue(artifact, "dilutedShares", cutoff);
+  if (cash === undefined && debt === undefined && dilutedShares === undefined) {
+    return undefined;
+  }
+  return {
+    ...(artifact.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: artifact.reportingCurrency }),
+    ...(cash === undefined ? {} : { cash }),
+    ...(debt === undefined ? {} : { debt }),
+    ...(dilutedShares === undefined ? {} : { dilutedShares }),
   };
 }
 
@@ -705,6 +758,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   const generatedAt = typeof record?.generatedAt === "string" ? record.generatedAt : undefined;
   const gaps = projectedGaps(input.report, input.fundamentalHistory, input.sourceGaps ?? []);
   const projectedFinancialTrends = financialTrends(input.fundamentalHistory);
+  const projectedFinancialPosition = financialPosition(input.financialStatements, generatedAt);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
   const completeness = completenessProjection(input.report);
   return {
@@ -716,6 +770,9 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
       ...(projectedFinancialTrends === undefined
         ? {}
         : { financialTrends: projectedFinancialTrends }),
+      ...(projectedFinancialPosition === undefined
+        ? {}
+        : { financialPosition: projectedFinancialPosition }),
       valuationContext: valuationContext(
         input.marketSnapshot,
         input.valuationWorkbench,

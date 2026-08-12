@@ -571,12 +571,13 @@ describe("run workspace view", () => {
 
     expect(entries.map((entry) => entry.key)).toEqual([
       "equityOverview",
+      "researchSummary",
       "summary",
       "financialTrends",
+      "financialPosition",
       "findings",
       "cases",
       "snapshot",
-      "advancedSummary",
       "forecasts",
       "scenarios",
       "valuationWorkbench",
@@ -597,8 +598,8 @@ describe("run workspace view", () => {
       "rawMarkdown",
     ]);
     expect(entries.map((entry) => entry.advancedOnly)).toEqual([
-      ...Array.from({ length: 5 }, () => false),
-      ...Array.from({ length: 7 }, () => true),
+      ...Array.from({ length: 9 }, () => false),
+      ...Array.from({ length: 4 }, () => true),
       false,
       ...Array.from({ length: 10 }, () => true),
       false,
@@ -666,10 +667,54 @@ describe("run workspace view", () => {
     expect(simpleToc).not.toContain("Detailed equity metrics");
     expect(simpleToc).not.toContain("Completeness diagnostics");
     expect(advancedToc).toContain("Detailed equity metrics");
-    expect(advancedToc).toContain("Completeness diagnostics");
+    expect(advancedToc).not.toContain("Completeness diagnostics");
+    expect(simpleToc).toContain("Coverage &amp; material gaps");
+    expect(advancedToc).toContain("Coverage &amp; material gaps");
     // The strip is capped, so the appendix tail navigates by scrolling.
     expect(advancedToc).not.toContain("Reverse DCF input sensitivity");
     expect(advancedToc.match(/<button/gu)?.length).toBeLessThanOrEqual(15);
+  }, 15_000);
+
+  test("renders the decision-useful equity essentials in Simple", async () => {
+    const detail = tableOfContentsFixture();
+    const html = await renderRunWorkspaceComponent(detail, "simple");
+    const sourcedHtml = await renderRunWorkspaceComponent(detail, "simple", "report", true);
+    const toc = elementHtml(html, "aside");
+
+    for (const text of [
+      "Equity summary.",
+      "Market cap",
+      "TTM revenue",
+      "TTM operating margin",
+      "TTM FCF proxy",
+      "Forward P/E",
+      "Financial position",
+      "$32.0B",
+      "$85.0B",
+      "15.0B",
+      "Observable forecasts",
+      "AAPL rises.",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).not.toContain("$30.0B");
+    expect(toc).toContain("Research summary");
+    expect(toc).toContain("Market snapshot");
+    expect(toc).toContain("Forecasts");
+    expect(toc).toContain("Financial position");
+    expect(sourcedHtml).toContain("market-yahoo-equity-aapl");
+    expect(sourcedHtml).toContain("extended-sec-edgar-aapl-fundamentals");
+  }, 15_000);
+
+  test("discloses unavailable earnings data in Simple", async () => {
+    const detail = tableOfContentsFixture();
+    const report = { ...detail.report, extras: undefined, extendedEvidence: undefined };
+
+    const html = await renderRunWorkspaceComponent({ ...detail, report }, "simple");
+    const text = htmlText(html);
+
+    expect(text).toContain("Upcoming earnings & consensus");
+    expect(text).toContain("No confirmed upcoming earnings or consensus data is available.");
   }, 15_000);
 
   test("renders and binds every Advanced equity table-of-contents target", async () => {
@@ -706,13 +751,14 @@ describe("run workspace view", () => {
     ].join("\n");
     const renderedMarkerByKey: Readonly<Record<string, string>> = {
       equityOverview: "Valuation context",
+      researchSummary: "Research summary",
       summary: "Company summary",
       financialTrends: "Financial trends",
+      financialPosition: "Financial position",
       findings: "Key findings",
       cases: "Reader catalyst sentinel.",
       earningsConsensus: "Upcoming earnings & consensus",
       gaps: "Coverage & material gaps",
-      advancedSummary: "Report summary",
       equityCompleteness: "Completeness diagnostics",
       equityMetrics: "Detailed equity metrics",
       financialLensStats: "Financial Lens stats",
@@ -738,13 +784,6 @@ describe("run workspace view", () => {
         throw new Error(`Missing rendered marker for ${entry.key}`);
       }
       expect(articleText, entry.key).toContain(renderedMarker);
-      if (entry.key === "advancedSummary") {
-        expect(consoleSource).toContain(
-          'equityPresentation === undefined ? "summary" : "advancedSummary"',
-        );
-        expect(consoleSource).toContain("bindSection(reportSummarySectionKey)");
-        continue;
-      }
       expect(advancedSource, entry.key).toMatch(
         new RegExp(
           `(?:bindSection\\("${entry.key}"\\)|(?:summarySectionKey|sectionKey)="${entry.key}")`,
@@ -807,6 +846,7 @@ describe("run workspace view", () => {
     expect(tocKeys(workspace)).toEqual([
       "equityOverview",
       "summary",
+      "earningsConsensus",
       "equityMetrics",
       "equityCompleteness",
       "gaps",
@@ -1010,12 +1050,13 @@ describe("run workspace view", () => {
     expect(view.snapshot?.tradingViewUrl).toContain("AAPL");
     expect(tocKeys(view)).toEqual([
       "equityOverview",
+      "researchSummary",
       "summary",
       "findings",
       "snapshot",
-      "advancedSummary",
       "forecasts",
       "scenarios",
+      "earningsConsensus",
       "equityMetrics",
       "extendedEvidence",
       "gaps",
@@ -1056,7 +1097,13 @@ describe("run workspace view", () => {
     });
     expect(view.sources.items).toEqual([]);
     expect(view.snapshot).toBeUndefined();
-    expect(tocKeys(view)).toEqual(["equityOverview", "summary", "equityMetrics", "gaps"]);
+    expect(tocKeys(view)).toEqual([
+      "equityOverview",
+      "summary",
+      "earningsConsensus",
+      "equityMetrics",
+      "gaps",
+    ]);
   });
 
   test("projects a matching equity snapshot into an unassessed header", () => {
@@ -1206,9 +1253,10 @@ describe("run workspace view", () => {
     expect(view.gaps.triagedGaps).toContainEqual({ text: shortfall, triage: "material" });
     expect(tocKeys(view)).toEqual([
       "equityOverview",
+      "researchSummary",
       "summary",
-      "advancedSummary",
       "forecasts",
+      "earningsConsensus",
       "equityMetrics",
       "equityCompleteness",
       "gaps",
@@ -1321,6 +1369,7 @@ describe("run workspace view", () => {
     expect(tocKeys(view)).toEqual([
       "equityOverview",
       "summary",
+      "earningsConsensus",
       "equityMetrics",
       "financialLensStats",
       "gaps",
@@ -1393,6 +1442,7 @@ describe("run workspace view", () => {
       "equityOverview",
       "summary",
       "peerImpliedRange",
+      "earningsConsensus",
       "equityMetrics",
       "gaps",
     ]);
@@ -1501,6 +1551,7 @@ describe("run workspace view", () => {
       "equityOverview",
       "summary",
       "valuationWorkbench",
+      "earningsConsensus",
       "equityMetrics",
       "gaps",
     ]);
@@ -1529,6 +1580,7 @@ describe("run workspace view", () => {
       "equityOverview",
       "summary",
       "reverseDcf",
+      "earningsConsensus",
       "equityMetrics",
       "gaps",
     ]);
@@ -1801,6 +1853,22 @@ describe("run workspace view", () => {
     expect(text).toContain("Annual statement remains current");
   }, 15_000);
 
+  test("uses trailing P/E as the Simple valuation fallback", () => {
+    const view = buildRunWorkspaceView({
+      summary: summary(),
+      marketSnapshots: [marketSnapshot({ fundamentals: { trailingPE: 31 } })],
+      fundamentalHistory: snapshotFundamentalHistory(),
+    });
+
+    expect(view.equityPresentation?.defaultView.keyMetrics.map((metric) => metric.key)).toEqual([
+      "marketCap",
+      "ttmRevenue",
+      "ttmOperatingMargin",
+      "ttmFreeCashFlowProxy",
+      "trailingPE",
+    ]);
+  });
+
   test("partitions the equity reader view from Advanced without dropping content", () => {
     const report = {
       ...completenessReport(),
@@ -1987,12 +2055,12 @@ describe("run workspace view", () => {
       text: "Apple designs devices and digital services.",
       sourceIds: ["source-bull"],
     });
-    expect(advanced?.reportSummary).toBe("Equity summary.");
+    expect(reader?.researchSummary).toBe("Equity summary.");
 
     const readerText = renderedStrings(reader).join("\n");
     const advancedText = renderedStrings(advanced).join("\n");
-    expect(readerText).not.toContain("Equity summary.");
-    expect(advancedText).toContain("Equity summary.");
+    expect(readerText).toContain("Equity summary.");
+    expect(advancedText).not.toContain("Equity summary.");
     for (const readerOnly of [
       "Reader finding sentinel.",
       "Reader catalyst sentinel.",
@@ -2077,9 +2145,9 @@ describe("run workspace view", () => {
     expect(advancedHtml).toContain("DIAGNOSTIC");
     const advancedArticle = elementHtml(advancedHtml, "article");
     expect(advancedArticle).toContain("Company summary");
-    expect(advancedArticle).toContain("Report summary");
-    expect(advancedArticle.indexOf("Company summary")).toBeLessThan(
-      advancedArticle.indexOf("Report summary"),
+    expect(advancedArticle).toContain("Research summary");
+    expect(advancedArticle.indexOf("Research summary")).toBeLessThan(
+      advancedArticle.indexOf("Company summary"),
     );
   }, 15_000);
 
@@ -2325,7 +2393,9 @@ describe("run workspace view", () => {
       text: "No cited plain-language company description is available.",
       sourceIds: [],
     });
-    expect(view.equityPresentation?.advanced.reportSummary).toBe("Advanced narrative summary.");
+    expect(view.equityPresentation?.defaultView.researchSummary).toBe(
+      "Advanced narrative summary.",
+    );
   });
 
   test("preserves GBp price formatting in the snapshot", () => {

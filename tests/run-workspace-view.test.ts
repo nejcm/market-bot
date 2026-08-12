@@ -681,14 +681,14 @@ describe("run workspace view", () => {
     );
     const articleStart = consoleSource.indexOf('<article class="min-w-0">');
     const simpleOnlyStart = consoleSource.indexOf('{#if reportDetail === "simple"}', articleStart);
-    const advancedStart = consoleSource.indexOf(
-      '{#if equityPresentation === undefined || reportDetail === "advanced"}',
-      simpleOnlyStart,
-    );
-    const articleEnd = consoleSource.indexOf("</article>", advancedStart);
+    // The advanced sections live in the snippets rendered inside the ledger
+    // Sheet ({#snippet reportBody()}) and in the trailing box ({#snippet
+    // ReportTail()}), both declared after the article markup.
+    const advancedStart = consoleSource.indexOf("{#snippet reportBody()}", articleStart);
+    const advancedEnd = consoleSource.indexOf('<aside class="sticky top-6', advancedStart);
     const advancedSource = [
       consoleSource.slice(articleStart, simpleOnlyStart),
-      consoleSource.slice(advancedStart, articleEnd),
+      consoleSource.slice(advancedStart, advancedEnd),
       ...[
         "equity-ledger.svelte",
         "web-subject-profile.svelte",
@@ -2511,9 +2511,7 @@ describe("run workspace view", () => {
       new URL("../app/client/components/run-workspace.svelte", import.meta.url),
       "utf8",
     );
-    const advancedStart = consoleSource.indexOf(
-      '{#if equityPresentation === undefined || reportDetail === "advanced"}',
-    );
+    const advancedStart = consoleSource.indexOf("{#snippet reportBody()}");
     const readerSource = consoleSource.slice(0, advancedStart);
     const advancedSource = consoleSource.slice(advancedStart);
     // The ledger renders both modes, so its appendix data stays behind isAdvanced.
@@ -2525,8 +2523,8 @@ describe("run workspace view", () => {
     expect(advancedStart).toBeGreaterThan(0);
     expect(consoleSource).not.toContain("<details");
     expect(consoleSource).not.toContain("<summary");
-    expect(advancedSource).toContain(
-      '"ledger-extras mt-7 block border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"',
+    expect(consoleSource).toContain(
+      'class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"',
     );
     expect(readerSource).toContain("<EquityLedger");
     expect(ledgerSource).toContain("defaultView.financialTrends");

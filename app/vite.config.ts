@@ -13,6 +13,7 @@ const consolePort = Number(process.env.MARKET_BOT_CONSOLE_PORT) || DEFAULT_CONSO
 
 export default defineConfig({
   root: "app",
+  publicDir: resolve(rootDir, "../assets"),
   plugins: [tailwindcss(), svelte()],
   resolve: {
     alias: {

@@ -29,6 +29,9 @@
     readonly bindSection: (key: string) => (el: HTMLElement) => void;
     readonly onScrollToSection: (key: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
+    // Report sections that belong inside the sheet, so the section nav stays
+    // sticky over them.
+    readonly children?: Snippet;
   }
 
   let {
@@ -47,6 +50,7 @@
     bindSection,
     onScrollToSection,
     onOpenInstrument,
+    children,
   }: Props = $props();
 
   const CASE_TONES: Readonly<Record<RunWorkspaceCaseKey, string>> = {
@@ -96,6 +100,23 @@
           ...presentation.advanced.keyDatedMetrics.foldedYahooMetrics,
         ].filter((metric) => metric.state === "available" && metric.value !== undefined)
       : [],
+  );
+
+  // Pick the column count that leaves the fewest empty cells in the last row,
+  // so the strip never ends in a half-filled row. The valuation cell is +1.
+  const kpiColumns = $derived.by(() => {
+    const total = kpiCells.length + 1;
+    if (total <= 6) {
+      return total;
+    }
+    const empty = (columns: number) => (columns - (total % columns)) % columns;
+    return [6, 5, 4, 3].reduce((best, columns) => (empty(columns) < empty(best) ? columns : best));
+  });
+
+  // The valuation cell closes the strip, so it absorbs whatever slots the last
+  // row would otherwise leave blank.
+  const kpiTailSpan = $derived(
+    ((kpiColumns - ((kpiCells.length + 1) % kpiColumns)) % kpiColumns) + 1,
   );
 
   const coverageRows = $derived.by(() => {
@@ -225,21 +246,12 @@
         </div>
       </div>
     {/each}
-    <div class="w-full font-mono text-[10px] text-[#a09a8d]">
-      run {formatDate(summary.generatedAt)} ·
-      {#if price.priceAsOf !== undefined}
-        {price.priceAsOf.kind === "quote-time" ? "Quote time" : "Fetch time"} · {price.priceAsOf
-          .instant}
-      {:else}
-        Price time unavailable
-      {/if}
-      {@render citeChips(price.sourceIds)}
-    </div>
   </div>
 
   <!-- KPI strip -->
   <div
-    class="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] border-b border-border bg-secondary"
+    class="grid grid-cols-2 border-b border-border bg-secondary sm:[grid-template-columns:repeat(var(--kpi-columns),minmax(0,1fr))]"
+    style="--kpi-columns:{kpiColumns}"
   >
     {#each kpiCells as metric}
       <div class="flex flex-col gap-1.25 border-b border-r border-[#e4e0d6] px-4.5 py-3.5">
@@ -251,21 +263,19 @@
         <div class="font-mono text-[17px] text-foreground">{metric.value}</div>
       </div>
     {/each}
-    <div class="flex flex-col gap-1.25 border-b border-[#e4e0d6] bg-[#fbf4e4] px-4.5 py-3.5">
+    <!-- The position label and the "context only, not a target price"
+         disclosure stay as the cell tooltip so the strip keeps one row height;
+         the peer implied range section spells both out. -->
+    <div
+      class="flex flex-col gap-1.25 border-b border-[#e4e0d6] bg-[#fbf4e4] px-4.5 py-3.5 sm:[grid-column:span_var(--kpi-tail-span)]"
+      style="--kpi-tail-span:{kpiTailSpan}"
+      title={defaultView.valuationContext.disclosure}
+    >
       <div class="text-[9px] uppercase tracking-[0.14em] text-[#a86b1f]">
         {defaultView.valuationContext.label}
       </div>
       <div class="font-mono text-[13px] text-[#a86b1f]">
         {peerSupportability ?? defaultView.valuationContext.display}
-      </div>
-      {#if defaultView.valuationContext.positionLabel !== undefined}
-        <div class="text-[10px] text-primary">{defaultView.valuationContext.positionLabel}</div>
-      {/if}
-      <div
-        class="line-clamp-2 text-[9px] leading-snug text-muted-foreground"
-        title={defaultView.valuationContext.disclosure}
-      >
-        {defaultView.valuationContext.disclosure}
       </div>
       <!-- Peer ranges cite every comparable, so the chip list scrolls instead of
            pushing the strip out of proportion. -->
@@ -508,5 +518,26 @@
         </div>
       </div>
     </div>
+  </div>
+
+  {#if children !== undefined}
+    <div class="border-t border-border px-7 pb-7 pt-6">
+      {@render children()}
+    </div>
+  {/if}
+
+  <!-- Colophon: run and quote provenance closes the sheet instead of crowding
+       the verdict bar. -->
+  <div
+    class="border-t border-border bg-secondary px-7 py-2.5 font-mono text-[10px] text-[#a09a8d]"
+  >
+    run {formatDate(summary.generatedAt)} ·
+    {#if price.priceAsOf !== undefined}
+      {price.priceAsOf.kind === "quote-time" ? "Quote time" : "Fetch time"} · {price.priceAsOf
+        .instant}
+    {:else}
+      Price time unavailable
+    {/if}
+    {@render citeChips(price.sourceIds)}
   </div>
 </div>

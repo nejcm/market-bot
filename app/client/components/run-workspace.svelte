@@ -310,13 +310,16 @@
         </button>
         / {detail.summary.runId}
       </div>
-      <div class="flex shrink-0 gap-0.5" role="tablist">
+      <div
+        class="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-secondary p-0.75"
+        role="tablist"
+      >
         {#each TABS as tab}
           <button
-            class="-mb-px border-b-2 px-3.5 pb-1 pt-0.5 text-[13px] transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
+            class="rounded-full px-3.5 py-1 text-[12.5px] transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
             tab
-              ? 'border-primary font-semibold text-foreground'
-              : 'border-transparent font-normal text-muted-foreground'}"
+              ? 'bg-foreground font-semibold text-background'
+              : 'font-normal text-muted-foreground'}"
             type="button"
             role="tab"
             aria-selected={activeTab === tab}
@@ -329,7 +332,7 @@
     </div>
 
     {#if activeTab === "report"}
-      <div class="mt-1 flex flex-wrap items-center gap-x-7 gap-y-1">
+      <div class="mt-3 flex flex-wrap items-center justify-end gap-x-7 gap-y-1">
         {#if showReportDetailToggle}
           {@render switchToggle(
             "Report detail",
@@ -400,28 +403,32 @@
                 {bindSection}
                 onScrollToSection={scrollToSection}
                 {onOpenInstrument}
-              />
-
-            {#if equityPresentation.defaultView.earningsConsensus.items.length > 0}
-              <section
-                {@attach bindSection("earningsConsensus")}
-                class="ledger-extras mt-7 scroll-mt-24 border border-border bg-card px-7 py-6 shadow-[0_1px_0_#e4e0d6]"
               >
-                {@render sectionHeading("Upcoming earnings & consensus")}
-                <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                  {#each equityPresentation.defaultView.earningsConsensus.items as item}
-                    <div class="border border-border bg-secondary px-3.5 py-3">
-                      <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
-                        {item.label}
-                      </div>
-                      <div class="mt-1.5 font-mono text-[12px]">{item.value}</div>
-                      {@render citeChips(item.sourceIds)}
+                {#if equityPresentation.defaultView.earningsConsensus.items.length > 0}
+                  <section {@attach bindSection("earningsConsensus")} class="scroll-mt-24">
+                    {@render sectionHeading("Upcoming earnings & consensus")}
+                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                      {#each equityPresentation.defaultView.earningsConsensus.items as item}
+                        <div class="border border-border bg-secondary px-3.5 py-3">
+                          <div
+                            class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]"
+                          >
+                            {item.label}
+                          </div>
+                          <div class="mt-1.5 font-mono text-[12px]">{item.value}</div>
+                          {@render citeChips(item.sourceIds)}
+                        </div>
+                      {/each}
                     </div>
-                  {/each}
-                </div>
-              </section>
-            {/if}
+                  </section>
+                {/if}
 
+                {#if reportDetail === "advanced"}
+                  {@render reportBody()}
+                {/if}
+              </EquityLedger>
+
+            <!-- Coverage gaps and the raw markdown stay outside the sheet. -->
             {#if reportDetail === "simple"}
               <div class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-1 shadow-[0_1px_0_#e4e0d6]">
                 <CoverageGapsSimple
@@ -431,15 +438,18 @@
                   {bindSection}
                 />
               </div>
+            {:else}
+              <div class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]">
+                {@render reportTail()}
+              </div>
             {/if}
+          {:else}
+            {@render reportBody()}
+            {@render reportTail()}
           {/if}
+        </article>
 
-          {#if equityPresentation === undefined || reportDetail === "advanced"}
-            <div
-              class={equityPresentation === undefined
-                ? "contents"
-                : "ledger-extras mt-7 block border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"}
-            >
+          {#snippet reportBody()}
             {#if reportSummary !== ""}
               {#if equityPresentation !== undefined}
                 {@render sectionHeading("Report summary")}
@@ -636,6 +646,9 @@
             />
           {/if}
 
+          {/snippet}
+
+          {#snippet reportTail()}
           {#if equityPresentation !== undefined || showGapsSection}
             <CoverageGapsAdvanced
               gaps={splitGaps}
@@ -653,9 +666,7 @@
                 class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{reportMarkdown}</pre>
             </section>
           {/if}
-            </div>
-          {/if}
-        </article>
+          {/snippet}
 
         {#if equityPresentation === undefined}
         <aside class="sticky top-6 hidden h-fit pt-1 xl:block">

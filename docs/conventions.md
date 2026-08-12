@@ -47,7 +47,7 @@ fix: address weekly update review feedback
 - `commit-msg`: commitlint
 - `pre-push`: typecheck + tests
 
-CI runs lint, format, typecheck, test, knip, audit. All six must pass.
+CI runs lint, format, TypeScript/Svelte typecheck, app build, test, knip, audit. All must pass.
 
 Do not bypass hooks (`--no-verify`). Fix the root cause.
 

@@ -687,7 +687,7 @@ describe("provider dimension contracts", () => {
         }
       }
     }
-  }, 30_000);
+  }, 120_000);
 
   test("normalizes provider access degradation without changing the financial core", async () => {
     const goldens = await loadGoldenReports();

@@ -27,7 +27,7 @@
 
 ## Checks
 
-- [ ] `bun run check` passes locally (fmt + lint + fmt:check + typecheck + test)
+- [ ] `bun run check` passes locally (fmt + lint + fmt:check + TypeScript/Svelte checks + app build + test)
 - [ ] Tests added or updated for the change
 - [ ] No secrets in code, tests, fixtures, or artifacts
 - [ ] Updated `docs/configuration.md` if a new env var was added

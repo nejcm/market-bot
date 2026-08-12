@@ -145,7 +145,7 @@
          disclosure stay as the cell tooltip so the strip keeps one row height;
          the peer implied range section spells both out. -->
     <div
-      class="col-span-2 flex flex-col gap-1.25 border-b border-[#e4e0d6] bg-[#fbf4e4] px-4.5 py-3.5 sm:[grid-column:span_var(--kpi-tail-span-narrow)] lg:[grid-column:span_var(--kpi-tail-span)]"
+      class="col-span-2 flex flex-col gap-1.25 border-b border-[#e4e0d6] bg-[#fbf4e4] px-4.5 py-3.5 sm:col-[span_var(--kpi-tail-span-narrow)] lg:col-[span_var(--kpi-tail-span)]"
       style="--kpi-tail-span:{kpiTailSpan}; --kpi-tail-span-narrow:{kpiTailSpanNarrow}"
       title={defaultView.valuationContext.disclosure}
     >

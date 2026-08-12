@@ -21,8 +21,8 @@
     readonly reportDetail: ReportDetail;
     readonly caseSections: readonly RunWorkspaceCaseSection[];
     readonly sourceItems: readonly SourceView[];
-    readonly snapshot?: SnapshotView;
-    readonly snapshotTradingViewUrl?: string;
+    readonly snapshot?: SnapshotView | undefined;
+    readonly snapshotTradingViewUrl?: string | undefined;
     readonly forecastHorizons: readonly number[];
     readonly peerSupportability?: string | undefined;
     readonly tocEntries: readonly RunWorkspaceTableOfContentsEntry[];

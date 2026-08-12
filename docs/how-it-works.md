@@ -120,7 +120,7 @@ bun run audit
 bun run check
 ```
 
-`bun run check` is the local definition of done: format, lint, format check, typecheck, and tests.
+`bun run check` is the local definition of done: format, lint, format check, TypeScript/Svelte checks, app build, and tests.
 
 ## Research Console App
 

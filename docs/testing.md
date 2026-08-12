@@ -8,9 +8,11 @@ This project uses Bun test, oxfmt, oxlint, and TypeScript.
 bun test                 # run all tests
 bun test tests/report.test.ts
 bun run typecheck
+bun run app:check
+bun run app:build
 bun run lint
 bun run fmt:check
-bun run check            # fmt + lint + fmt:check + typecheck + test
+bun run check            # fmt + lint + fmt:check + typecheck + app build + test
 ```
 
 ## Static equity fixture tests

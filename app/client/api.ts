@@ -16,7 +16,9 @@ export interface CreateJobRequest {
   readonly jobType: string;
   readonly assetClass?: string;
   readonly symbol?: string;
+  readonly subject?: string;
   readonly depth?: string;
+  readonly horizonTradingDays?: number;
 }
 
 function isRunSummary(value: unknown): value is RunSummary {

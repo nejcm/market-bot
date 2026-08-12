@@ -24,13 +24,14 @@ import {
 } from "../report-search-entries";
 import type { HistorySection } from "./sections";
 
-export { HISTORY_SECTIONS, type HistorySection } from "./sections";
 import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
 import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord, readStringVerbatim } from "../guards";
 import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
+
+export { HISTORY_SECTIONS, type HistorySection } from "./sections";
 
 export type ThesisScope = "instrument" | "market-update";
 

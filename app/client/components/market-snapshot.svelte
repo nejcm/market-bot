@@ -4,7 +4,7 @@
 
   interface Props {
     readonly snapshot: SnapshotView;
-    readonly snapshotTradingViewUrl?: string;
+    readonly snapshotTradingViewUrl?: string | undefined;
     readonly forecastHorizons: readonly number[];
     readonly sectionKey: string;
     readonly bindSection: (key: string) => (el: HTMLElement) => void;

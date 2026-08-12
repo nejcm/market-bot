@@ -23,6 +23,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rolldownOptions: {
+      checks: { pluginTimings: false },
+      output: {
+        codeSplitting: {
+          groups: [{ name: "vendor", test: /node_modules[\\/]/u, maxSize: 450 * 1024 }],
+        },
+      },
+    },
   },
   server: {
     proxy: {

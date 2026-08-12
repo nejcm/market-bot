@@ -81,6 +81,27 @@ const trace: RunTrace = {
   },
 };
 
+const webGatherAttemptedTrace: RunTrace = {
+  ...trace,
+  webGatherLoop: {
+    rounds: 1,
+    acceptedRequests: [],
+    rejectedRequests: [],
+    sourceUnitsUsed: 0,
+    executedTools: [],
+    emittedGaps: [],
+    sanitizer: {
+      sourceCount: 0,
+      sanitizedSourceCount: 0,
+      emptyAfterSanitizeCount: 0,
+      inputCharCount: 0,
+      outputCharCount: 0,
+      removedInstructionSpanCount: 0,
+      removedChromeHtmlCount: 0,
+    },
+  },
+};
+
 function analyticsFor(reportIntegrityTrace: RunTrace): ReturnType<typeof buildRunAnalytics> {
   return buildRunAnalytics({
     report: researchReport(),
@@ -1027,13 +1048,20 @@ describe("web source roles accounting", () => {
 
     const analytics = buildRunAnalytics({
       report,
-      trace,
+      trace: webGatherAttemptedTrace,
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
     });
 
-    expect(analytics.webSources).toBeUndefined();
+    expect(analytics.webSources).toEqual({
+      accepted: 0,
+      profileUsed: 0,
+      reportCited: 0,
+      extrasCited: 0,
+      unused: 0,
+      usageRatio: 0,
+    });
     expect(analytics.webSources?.usageWarning).toBeUndefined();
     expect(analytics.reusedProfileWebSources).toEqual({
       accepted: 3,
@@ -1061,13 +1089,20 @@ describe("web source roles accounting", () => {
 
     const analytics = buildRunAnalytics({
       report,
-      trace,
+      trace: webGatherAttemptedTrace,
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
     });
 
-    expect(analytics.webSources).toBeUndefined();
+    expect(analytics.webSources).toEqual({
+      accepted: 0,
+      profileUsed: 0,
+      reportCited: 0,
+      extrasCited: 0,
+      unused: 0,
+      usageRatio: 0,
+    });
     expect(analytics.reusedProfileWebSources).toBeUndefined();
   });
 
@@ -1086,13 +1121,20 @@ describe("web source roles accounting", () => {
 
     const analytics = buildRunAnalytics({
       report,
-      trace,
+      trace: webGatherAttemptedTrace,
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
     });
 
-    expect(analytics.webSources).toBeUndefined();
+    expect(analytics.webSources).toEqual({
+      accepted: 0,
+      profileUsed: 0,
+      reportCited: 0,
+      extrasCited: 0,
+      unused: 0,
+      usageRatio: 0,
+    });
     expect(analytics.reusedProfileWebSources).toBeUndefined();
   });
 
@@ -1116,7 +1158,7 @@ describe("web source roles accounting", () => {
     expect(analytics.reusedProfileWebSources).toBeUndefined();
   });
 
-  test("omits webSources block when no web sources are accepted", () => {
+  test("emits zero web source telemetry when no web sources are accepted", () => {
     const report = researchReport({
       sources: [
         { id: "news-1", title: "News", fetchedAt: "2026-06-28T00:00:00.000Z", kind: "news" },
@@ -1124,6 +1166,26 @@ describe("web source roles accounting", () => {
     });
     const analytics = buildRunAnalytics({
       report,
+      trace: webGatherAttemptedTrace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webSources).toEqual({
+      accepted: 0,
+      profileUsed: 0,
+      reportCited: 0,
+      extrasCited: 0,
+      unused: 0,
+      usageRatio: 0,
+    });
+    expect(analytics.reusedProfileWebSources).toBeUndefined();
+  });
+
+  test("omits web source telemetry when web gather was not attempted", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
       trace,
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],

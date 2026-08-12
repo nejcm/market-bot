@@ -499,7 +499,6 @@ export interface RunWorkspaceEquityPresentationView {
     readonly extendedItems: readonly ExtendedEvidenceItemView[];
     readonly diagnosticGaps: readonly string[];
     readonly balanceSheetHistory?: RunWorkspaceBalanceSheetHistoryView;
-    readonly cases: readonly RunWorkspaceCaseSection[];
     readonly scenarios: readonly ScenarioView[];
   };
 }
@@ -1670,8 +1669,8 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
               label: "Valuation context",
             },
             findings,
-            cases: cases.filter(
-              (section) => section.key === "catalysts" || section.key === "risks",
+            cases: ["risks", "catalysts", "bullCase", "bearCase"].flatMap((key) =>
+              cases.filter((section) => section.key === key),
             ),
             earningsConsensus,
             ...(readerProjection.defaultView.financialCoreStatus === undefined
@@ -1694,9 +1693,6 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             extendedItems,
             diagnosticGaps,
             ...(balanceSheetHistory === undefined ? {} : { balanceSheetHistory }),
-            cases: cases.filter(
-              (section) => section.key === "bullCase" || section.key === "bearCase",
-            ),
             scenarios: scenarioItems,
           },
         };
@@ -1811,7 +1807,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
           },
           {
             key: "cases",
-            label: "Catalysts & risks",
+            label: "Cases",
             visible: equityPresentation.defaultView.cases.length > 0,
             advancedOnly: false,
           },

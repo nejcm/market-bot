@@ -1053,6 +1053,7 @@ describe("run workspace view", () => {
       "researchSummary",
       "summary",
       "findings",
+      "cases",
       "snapshot",
       "forecasts",
       "scenarios",
@@ -1255,6 +1256,7 @@ describe("run workspace view", () => {
       "equityOverview",
       "researchSummary",
       "summary",
+      "cases",
       "forecasts",
       "earningsConsensus",
       "equityMetrics",
@@ -2010,8 +2012,12 @@ describe("run workspace view", () => {
       operatingMargin: "25.0%",
       freeCashFlow: "35",
     });
-    expect(reader?.cases.map((section) => section.key)).toEqual(["risks", "catalysts"]);
-    expect(advanced?.cases.map((section) => section.key)).toEqual(["bullCase", "bearCase"]);
+    expect(reader?.cases.map((section) => section.key)).toEqual([
+      "risks",
+      "catalysts",
+      "bullCase",
+      "bearCase",
+    ]);
     expect(reader?.materialGaps).toEqual(["Primary revenue evidence missing."]);
     expect(advanced?.diagnosticGaps).toEqual(["tradier: API token missing"]);
     expect(advanced?.financialLensGroups).toHaveLength(financialLenses.lenses.length);
@@ -2102,7 +2108,7 @@ describe("run workspace view", () => {
     expect(view.evidence.extendedItems).toHaveLength(report.extendedEvidence.items.length);
   });
 
-  test("server-renders Simple cases and gaps as the Advanced subset", async () => {
+  test("server-renders all reader cases in Simple and Advanced", async () => {
     const materialGap = "Primary revenue evidence missing.";
     const diagnosticGap = "tradier: API token missing";
     const detail = {
@@ -2118,10 +2124,15 @@ describe("run workspace view", () => {
     const simpleHtml = await renderRunWorkspaceComponent(detail, "simple");
     expect(simpleHtml).toContain("Reader catalyst sentinel.");
     expect(simpleHtml).toContain("Reader risk sentinel.");
-    expect(simpleHtml).not.toContain("Revenue growth persists.");
-    expect(simpleHtml).not.toContain("Operating costs rise.");
-    expect(simpleHtml.indexOf("Reader risk sentinel.")).toBeLessThan(
-      simpleHtml.indexOf("Reader catalyst sentinel."),
+    const simpleCasePositions = [
+      "Reader risk sentinel.",
+      "Reader catalyst sentinel.",
+      "Revenue growth persists.",
+      "Operating costs rise.",
+    ].map((text) => simpleHtml.indexOf(text));
+    expect(simpleCasePositions.every((position) => position >= 0)).toBeTrue();
+    expect(simpleCasePositions).toEqual(
+      simpleCasePositions.toSorted((left, right) => left - right),
     );
     expect(simpleHtml.split(materialGap)).toHaveLength(2);
     expect(simpleHtml).not.toContain(diagnosticGap);

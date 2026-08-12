@@ -222,12 +222,12 @@ A local, research-only Svelte 5 SPA (`app/client/`) served by a Bun HTTP API (`a
 
 Views: dashboard (metrics, runs-per-day chart, recent runs), run workspace, search, jobs, calibration, and provider health. The run workspace joins each run's `score.json` to its observable forecasts — hit/miss/pending badges with resolution evidence in neutral observation language — and joins `miss-autopsy.json` when present to show material forecast-error taxonomy without changing outcome badge semantics. `app/client/run-workspace-view.ts` projects a `RunDetail` into the report, forecast, evidence, gap, source, verified-snapshot, and table-of-contents sections; the Svelte component retains interaction state and rendering. For instrument runs that persisted `normalized/verified-market-snapshot.json` ([ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)), it renders a recent-closes chart with latest indicator values and forecast-horizon ticks. The calibration view shows resolved policy-v3 count, hit rate, Brier score, explicit sample-size warnings, a reliability chart over sparse bins, Miss Autopsy taxonomy counts, and slice tables; the quality-of-forecasts framing lives only there, never in per-run outcome badges.
 
-For equity runs, the workspace mirrors the markdown split behind a Simple/Advanced control on the
-Report tab, persisted per browser in `app/client/app-settings.ts` (`market-bot:app-settings`,
-default Simple). Simple keeps identity and price, a compact dated-KPI strip, the research summary,
-the shared trend table, the latest cash/debt/share position, company context, catalysts and risks,
-observable forecasts, the market snapshot, earnings and consensus (including an explicit unavailable
-state), coverage, and material gaps visible. Advanced is a
+For equity runs, the workspace provides a Simple/Advanced control on the Report tab, persisted per
+browser in `app/client/app-settings.ts` (`market-bot:app-settings`, default Simple). Simple keeps
+identity and price, a compact dated-KPI strip, the research summary,
+the shared trend table, the latest cash/debt/share position, company context, catalysts, risks, bull
+and bear cases, observable forecasts, the market snapshot, earnings and consensus (including an
+explicit unavailable state), coverage, and material gaps visible. Advanced is a
 strict superset rendered as one continuous document — no disclosure — adding the specialist detail,
 Financial Lens posture labels, raw Extended Evidence, and both gap kinds badged `MATERIAL` /
 `DIAGNOSTIC` in a single merged section that replaces the Simple one. Section markup lives in

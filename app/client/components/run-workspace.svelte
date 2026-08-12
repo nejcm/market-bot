@@ -126,16 +126,7 @@
   const snapshotTradingViewUrl = $derived(workspace?.snapshot?.tradingViewUrl);
 
   const caseSections = $derived(workspace?.report.cases ?? []);
-  const defaultCaseSections = $derived(
-    caseSections.filter((section) => section.key === "catalysts" || section.key === "risks"),
-  );
-  const readerCaseSections = $derived(
-    reportDetail === "advanced"
-      ? ["risks", "catalysts", "bullCase", "bearCase"].flatMap((key) =>
-          caseSections.filter((section) => section.key === key),
-        )
-      : defaultCaseSections,
-  );
+  const readerCaseSections = $derived(equityPresentation?.defaultView.cases ?? []);
 
   const tocEntries = $derived(
     (workspace?.tableOfContents ?? []).filter((entry) => reportDetail === "advanced" || !entry.advancedOnly),

@@ -129,7 +129,7 @@
 {#if showMetrics}
   <!-- KPI strip -->
   <div
-    class="grid grid-cols-2 border-b border-border bg-secondary sm:grid-cols-3 lg:[grid-template-columns:repeat(var(--kpi-columns),minmax(0,1fr))]"
+    class="grid grid-cols-2 border-b border-border bg-secondary sm:grid-cols-3 lg:grid-cols-[repeat(var(--kpi-columns),minmax(0,1fr))]"
     style="--kpi-columns:{kpiColumns}"
   >
     {#each kpiCells as metric}

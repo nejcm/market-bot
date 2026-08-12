@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Menu } from "@lucide/svelte";
+  // Deep import: the package barrel pulls every icon into the SSR graph.
+  import Menu from "@lucide/svelte/icons/menu";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
   import type { ReportDetail } from "../app-settings";

@@ -20,7 +20,7 @@
 <br />
 <br />
 <p align="center">
-  <img src="./assets/screen.webp" alt="market-bot screen" width="800" />
+  <img src="./assets/screen-v1.webp" alt="market-bot screen" width="800" />
 </p>
 <br />
 <br />

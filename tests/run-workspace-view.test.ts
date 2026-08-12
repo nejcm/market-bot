@@ -575,30 +575,32 @@ describe("run workspace view", () => {
       "financialTrends",
       "findings",
       "cases",
-      "earningsConsensus",
+      "snapshot",
       "advancedSummary",
-      "equityCompleteness",
+      "forecasts",
+      "scenarios",
+      "valuationWorkbench",
+      "reverseDcf",
+      "peerImpliedRange",
+      "earningsConsensus",
       "equityMetrics",
       "financialLensStats",
       "fundamentalHistory",
       "balanceSheetHistory",
-      "valuationWorkbench",
-      "reverseDcf",
-      "peerImpliedRange",
-      "scenarios",
-      "snapshot",
-      "history",
-      "webSubjectProfile",
-      "businessFramework",
       "analystEstimateDistributions",
       "extendedEvidence",
-      "forecasts",
+      "webSubjectProfile",
+      "businessFramework",
+      "equityCompleteness",
+      "history",
       "gaps",
       "rawMarkdown",
     ]);
     expect(entries.map((entry) => entry.advancedOnly)).toEqual([
-      ...Array.from({ length: 6 }, () => false),
-      ...Array.from({ length: 17 }, () => true),
+      ...Array.from({ length: 5 }, () => false),
+      ...Array.from({ length: 7 }, () => true),
+      false,
+      ...Array.from({ length: 10 }, () => true),
       false,
       true,
     ]);
@@ -623,20 +625,20 @@ describe("run workspace view", () => {
 
     expect(entries.map((entry) => entry.key)).toEqual([
       "summary",
-      "financialLensStats",
       "findings",
       "cases",
-      "scenarios",
       "snapshot",
-      "fundamentalHistory",
+      "forecasts",
+      "scenarios",
       "valuationWorkbench",
       "reverseDcf",
       "peerImpliedRange",
-      "history",
+      "financialLensStats",
+      "fundamentalHistory",
+      "extendedEvidence",
       "webSubjectProfile",
       "businessFramework",
-      "extendedEvidence",
-      "forecasts",
+      "history",
       "gaps",
     ]);
     expect(entries.map((entry) => entry.advancedOnly)).toEqual(
@@ -682,15 +684,19 @@ describe("run workspace view", () => {
     const articleStart = consoleSource.indexOf('<article class="min-w-0">');
     const simpleOnlyStart = consoleSource.indexOf('{#if reportDetail === "simple"}', articleStart);
     // The advanced sections live in the snippets rendered inside the ledger
-    // Sheet ({#snippet reportBody()}) and in the trailing box ({#snippet
-    // ReportTail()}), both declared after the article markup.
-    const advancedStart = consoleSource.indexOf("{#snippet reportBody()}", articleStart);
+    // Sheet (earningsConsensusSection, reportBody) and in the trailing box
+    // (reportTail), all declared after the article markup.
+    const advancedStart = consoleSource.indexOf(
+      "{#snippet earningsConsensusSection()}",
+      articleStart,
+    );
     const advancedEnd = consoleSource.indexOf('<aside class="sticky top-6', advancedStart);
     const advancedSource = [
       consoleSource.slice(articleStart, simpleOnlyStart),
       consoleSource.slice(advancedStart, advancedEnd),
       ...[
         "equity-ledger.svelte",
+        "equity-ledger-header.svelte",
         "web-subject-profile.svelte",
         "business-framework.svelte",
         "observable-forecasts.svelte",
@@ -801,8 +807,8 @@ describe("run workspace view", () => {
     expect(tocKeys(workspace)).toEqual([
       "equityOverview",
       "summary",
-      "equityCompleteness",
       "equityMetrics",
+      "equityCompleteness",
       "gaps",
     ]);
   });
@@ -1006,12 +1012,12 @@ describe("run workspace view", () => {
       "equityOverview",
       "summary",
       "findings",
-      "advancedSummary",
-      "equityMetrics",
-      "scenarios",
       "snapshot",
-      "extendedEvidence",
+      "advancedSummary",
       "forecasts",
+      "scenarios",
+      "equityMetrics",
+      "extendedEvidence",
       "gaps",
     ]);
   });
@@ -1202,9 +1208,9 @@ describe("run workspace view", () => {
       "equityOverview",
       "summary",
       "advancedSummary",
-      "equityCompleteness",
-      "equityMetrics",
       "forecasts",
+      "equityMetrics",
+      "equityCompleteness",
       "gaps",
     ]);
     const simpleHtml = await renderRunWorkspaceComponent(detail, "simple");
@@ -1386,8 +1392,8 @@ describe("run workspace view", () => {
     expect(tocKeys(view)).toEqual([
       "equityOverview",
       "summary",
-      "equityMetrics",
       "peerImpliedRange",
+      "equityMetrics",
       "gaps",
     ]);
   });
@@ -1494,8 +1500,8 @@ describe("run workspace view", () => {
     expect(tocKeys(workspace)).toEqual([
       "equityOverview",
       "summary",
-      "equityMetrics",
       "valuationWorkbench",
+      "equityMetrics",
       "gaps",
     ]);
   });
@@ -1522,8 +1528,8 @@ describe("run workspace view", () => {
     expect(tocKeys(workspace)).toEqual([
       "equityOverview",
       "summary",
-      "equityMetrics",
       "reverseDcf",
+      "equityMetrics",
       "gaps",
     ]);
   });
@@ -2524,7 +2530,7 @@ describe("run workspace view", () => {
     expect(consoleSource).not.toContain("<details");
     expect(consoleSource).not.toContain("<summary");
     expect(consoleSource).toContain(
-      'class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"',
+      'class="ledger-extras mt-7 border border-border bg-card px-4 sm:px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"',
     );
     expect(readerSource).toContain("<EquityLedger");
     expect(ledgerSource).toContain("defaultView.financialTrends");

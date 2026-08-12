@@ -30,6 +30,7 @@
     readonly onTypeFilterChange: (value: string) => void;
     readonly onSelectRun: (runId: string) => void;
     readonly onNavigate: (view: View) => void;
+    readonly mobileOpen?: boolean;
   }
 
   const typeTextMap: Record<string, string> = {
@@ -56,9 +57,8 @@
     onTypeFilterChange,
     onSelectRun,
     onNavigate,
+    mobileOpen = $bindable(false),
   }: Props = $props();
-
-  let mobileOpen = $state(false);
 
   const navItems = $derived([
     {
@@ -229,8 +229,13 @@
   {@render content()}
 </aside>
 
+<!-- The run workspace carries its own trigger in the sticky run nav, so this
+     bar stands down there; the sheet itself stays mounted and portalled. -->
 <div
-  class="fixed w-full top-0 z-30 border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden"
+  class="fixed top-0 z-30 w-full border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden {view ===
+  'run'
+    ? 'hidden'
+    : ''}"
 >
   <Sheet.Sheet bind:open={mobileOpen}>
     <Sheet.SheetTrigger>

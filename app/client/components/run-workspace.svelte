@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Menu } from "@lucide/svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { RunDetail } from "../../types";
   import type { ReportDetail } from "../app-settings";
@@ -13,6 +14,7 @@
   import CoverageGapsAdvanced from "./coverage-gaps-advanced.svelte";
   import CoverageGapsSimple from "./coverage-gaps-simple.svelte";
   import EquityLedger from "./equity-ledger.svelte";
+  import EquityLedgerHeader from "./equity-ledger-header.svelte";
   import EquityCompleteness from "./equity-completeness.svelte";
   import EquityMetrics from "./equity-metrics.svelte";
   import FinancialLensStats from "./financial-lens-stats.svelte";
@@ -41,6 +43,7 @@
     readonly onGoHome: () => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
+    readonly onOpenMenu?: () => void;
   }
 
   let {
@@ -59,6 +62,7 @@
     onGoHome,
     onHighlightSource,
     onOpenInstrument,
+    onOpenMenu = () => {},
   }: Props = $props();
 
   interface CitePopover {
@@ -79,18 +83,12 @@
 
   const workspace = $derived(detail === null ? undefined : buildRunWorkspaceView(detail));
   const equityPresentation = $derived(workspace?.equityPresentation);
-  // The equity ledger carries its own verdict bar, so the shared run header
-  // would repeat the same name, price and counts directly above it.
-  const showRunHeader = $derived(equityPresentation === undefined || activeTab !== "report");
-  const reportSummary = $derived(
-    equityPresentation?.advanced.reportSummary ?? workspace?.report.summary ?? "",
-  );
-  const reportSummarySectionKey = $derived(
-    equityPresentation === undefined ? "summary" : "advancedSummary",
-  );
-  const reportFindingsSectionKey = $derived(
-    equityPresentation === undefined ? "findings" : "advancedFindings",
-  );
+  /* Equity runs carry the ledger verdict bar on every tab, so the shared run
+     header would repeat the same name, price and counts directly above it. */
+  const showRunHeader = $derived(equityPresentation === undefined);
+  const reportSummary = $derived(equityPresentation?.advanced.reportSummary ?? workspace?.report.summary ?? "");
+  const reportSummarySectionKey = $derived(equityPresentation === undefined ? "summary" : "advancedSummary");
+  const reportFindingsSectionKey = $derived(equityPresentation === undefined ? "findings" : "advancedFindings");
   const reportMarkdown = $derived(workspace?.report.markdown);
   const findingItems = $derived(workspace?.report.findings ?? []);
   const scenarioItems = $derived(workspace?.report.scenarios ?? []);
@@ -108,9 +106,7 @@
   );
   const forecastHorizons = $derived(workspace?.forecasts.horizons ?? []);
   const sourceItems = $derived(workspace?.sources.items ?? []);
-  const splitGaps = $derived(
-    workspace?.gaps ?? { shortfalls: [], otherGaps: [], triagedGaps: [] },
-  );
+  const splitGaps = $derived(workspace?.gaps ?? { shortfalls: [], otherGaps: [], triagedGaps: [] });
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
@@ -140,36 +136,35 @@
   );
 
   const tocEntries = $derived(
-    (workspace?.tableOfContents ?? []).filter(
-      (entry) => reportDetail === "advanced" || !entry.advancedOnly,
-    ),
+    (workspace?.tableOfContents ?? []).filter((entry) => reportDetail === "advanced" || !entry.advancedOnly),
   );
 
-  // The ledger nav is one horizontal strip, so it carries the sections a reader
-  // jumps between; the long tail stays reachable by scrolling the report.
+  /* The ledger nav is one horizontal strip, so it carries the sections a reader
+     jumps between, in report order: the thesis, its measurable claims, the
+     valuation reasoning, then diagnostics. The long tail — reverse DCF, lens
+     stats, the history tables, the evidence appendix — stays reachable by
+     scrolling the report. */
   const LEDGER_NAV_KEYS: ReadonlySet<string> = new Set([
     "equityOverview",
     "summary",
     "financialTrends",
     "findings",
     "cases",
-    "earningsConsensus",
     "snapshot",
     "advancedSummary",
-    "equityCompleteness",
-    "equityMetrics",
-    "financialLensStats",
-    "fundamentalHistory",
-    "valuationWorkbench",
     "forecasts",
+    "scenarios",
+    "valuationWorkbench",
+    "peerImpliedRange",
+    "earningsConsensus",
+    "equityMetrics",
+    "equityCompleteness",
     "gaps",
   ]);
-  const ledgerNavEntries = $derived(
-    tocEntries.filter((entry) => LEDGER_NAV_KEYS.has(entry.key)).slice(0, 15),
-  );
+  const ledgerNavEntries = $derived(tocEntries.filter((entry) => LEDGER_NAV_KEYS.has(entry.key)).slice(0, 15));
 
-  // The control only governs the Report tab, so it stays out of the tab row on
-  // the others; the wrapper collapses with it to leave their layout untouched.
+  /* The control only governs the Report tab, so it stays out of the tab row on
+     the others; the wrapper collapses with it to leave their layout untouched. */
   const showReportDetailToggle = $derived(equityPresentation !== undefined && activeTab === "report");
 
   const TAB_LABELS: Record<Tab, string> = {
@@ -194,9 +189,13 @@
     return jsonBlock(detail[dataSegment]);
   });
 
+  /* Every section already registers itself for the nav, so the same hook names
+     it in the DOM: `[data-section="valuationWorkbench"]` finds it in devtools,
+     screenshots and browser automation. */
   function bindSection(key: string): (el: HTMLElement) => void {
     return (el) => {
       sectionEls[key] = el;
+      el.dataset.section = key;
     };
   }
 
@@ -211,7 +210,7 @@
       title: source?.title ?? "Unknown source",
       kind: source?.kind ?? "?",
       provider: source?.provider ?? "?",
-      x: Math.min(event.clientX + 14, globalThis.innerWidth - POPOVER_WIDTH - 20),
+      x: Math.max(12, Math.min(event.clientX + 14, globalThis.innerWidth - POPOVER_WIDTH - 20)),
       y: Math.min(event.clientY + 18, globalThis.innerHeight - POPOVER_MARGIN),
     };
   }
@@ -232,9 +231,7 @@
 )}
   <div class="flex items-center gap-2.5" role="group" aria-label={label}>
     <span
-      class="font-mono text-[10px] uppercase tracking-[0.12em] {checked
-        ? 'text-muted-foreground'
-        : 'text-foreground'}"
+      class="font-mono text-[10px] uppercase tracking-[0.12em] {checked ? 'text-muted-foreground' : 'text-foreground'}"
     >
       {offLabel}
     </span>
@@ -246,16 +243,10 @@
       aria-label="{onLabel} toggle"
       onclick={() => onToggle(!checked)}
     >
-      <span
-        class="absolute top-0.5 h-2.5 w-2.5 bg-primary transition-all {checked
-          ? 'left-4'
-          : 'left-0.5'}"
-      ></span>
+      <span class="absolute top-0.5 h-2.5 w-2.5 bg-primary transition-all {checked ? 'left-4' : 'left-0.5'}"></span>
     </button>
     <span
-      class="font-mono text-[10px] uppercase tracking-[0.12em] {checked
-        ? 'text-foreground'
-        : 'text-muted-foreground'}"
+      class="font-mono text-[10px] uppercase tracking-[0.12em] {checked ? 'text-foreground' : 'text-muted-foreground'}"
     >
       {onLabel}
     </span>
@@ -264,17 +255,17 @@
 
 {#snippet citeChips(sourceIds: readonly string[])}
   {#if showSources}
-  {#each sourceIds as sourceId}
-    <button
-      class="mr-0.75 inline-block rounded border border-[#cfe0e3] bg-accent px-1.5 align-[2px] font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] hover:bg-[#dcebee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      type="button"
-      onmouseenter={(event) => showCite(event, sourceId)}
-      onmouseleave={() => (cite = null)}
-      onclick={() => openSource(sourceId)}
-    >
-      {sourceId}
-    </button>
-  {/each}
+    {#each sourceIds as sourceId}
+      <button
+        class="mr-0.75 inline-block rounded border border-[#cfe0e3] bg-accent px-1.5 align-[2px] font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] hover:bg-[#dcebee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        type="button"
+        onmouseenter={(event) => showCite(event, sourceId)}
+        onmouseleave={() => (cite = null)}
+        onclick={() => openSource(sourceId)}
+      >
+        {sourceId}
+      </button>
+    {/each}
   {/if}
 {/snippet}
 
@@ -299,27 +290,54 @@
   <div data-screen-label="Run workspace">
     <!-- One sticky chrome row: the run path on the left, the tabs on the right.
          Its fixed height is what the ledger's section nav sticks beneath. -->
-    <div class="sticky top-0 z-30 flex h-11 items-center justify-between gap-4 bg-background">
-      <div class="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+    <div
+      class="sticky top-0 z-30 flex h-11 items-center justify-between gap-4 bg-background -mx-4 px-4 md:px-0 md:mx-0"
+      data-section="navigation"
+    >
+      <div class="flex min-w-0 items-center gap-2">
+        <!-- Below the sidebar breakpoint the run nav is the only chrome on
+             screen, so it carries the sidebar trigger. -->
         <button
-          class="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="shrink-0 rounded-md border border-input bg-secondary p-1.5 text-foreground shadow-xs transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           type="button"
-          onclick={onGoHome}
+          aria-label="Open navigation"
+          onclick={onOpenMenu}
         >
-          runs
+          <Menu class="size-4.5" />
         </button>
-        / {detail.summary.runId}
+        <div class="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+          <button
+            class="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            type="button"
+            onclick={onGoHome}
+          >
+            runs
+          </button>
+          / {detail.summary.runId}
+        </div>
       </div>
+      <!-- The pill row needs more width than a phone has next to the run path,
+           so narrow viewports pick the tab from the platform's own menu. -->
+      <select
+        class="shrink-0 rounded-full border border-border bg-secondary py-1.5 pl-3.5 pr-2 text-[12.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+        aria-label="Run section"
+        value={activeTab}
+        onchange={(event) => onTabChange(event.currentTarget.value as Tab)}
+      >
+        {#each TABS as tab}
+          <option value={tab}>{TAB_LABELS[tab]}</option>
+        {/each}
+      </select>
       <div
-        class="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-secondary p-0.75"
+        class="hidden items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-secondary p-0.75 scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
         role="tablist"
       >
         {#each TABS as tab}
           <button
-            class="rounded-full px-3.5 py-1 text-[12.5px] transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
+            class="shrink-0 rounded-full px-3.5 py-1 text-[12.5px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
             tab
               ? 'bg-foreground font-semibold text-background'
-              : 'font-normal text-muted-foreground'}"
+              : 'font-normal text-muted-foreground hover:text-foreground'}"
             type="button"
             role="tab"
             aria-selected={activeTab === tab}
@@ -332,105 +350,99 @@
     </div>
 
     {#if activeTab === "report"}
-      <div class="mt-3 flex flex-wrap items-center justify-end gap-x-7 gap-y-1">
+      <div class="mt-3 flex flex-wrap items-center justify-end gap-x-7 gap-y-2">
         {#if showReportDetailToggle}
-          {@render switchToggle(
-            "Report detail",
-            "Simple",
-            "Advanced",
-            reportDetail === "advanced",
-            (next) => onReportDetailChange(next ? "advanced" : "simple"),
+          {@render switchToggle("Report detail", "Simple", "Advanced", reportDetail === "advanced", (next) =>
+            onReportDetailChange(next ? "advanced" : "simple"),
           )}
         {/if}
         {@render switchToggle("Source chips", "Sources off", "Sources on", showSources, onShowSourcesChange)}
       </div>
     {/if}
 
-    {#if showRunHeader}
-    <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 class="text-[21px] font-semibold tracking-tight">
-          {runLabel(detail.summary)}
-        </h1>
-        <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5c6066]">
-          <span>{formatDate(detail.summary.generatedAt)}</span>
-          {#if detail.summary.assetClass !== undefined && detail.summary.symbol !== undefined}
-            <button
-              class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
-              onclick={() => onOpenInstrument(detail.summary.assetClass ?? "", detail.summary.symbol ?? "")}
-            >
-              {detail.summary.assetClass}:{detail.summary.symbol}
-            </button>
-          {/if}
-        </div>
+    <!-- Equity runs keep the ledger's verdict bar on every tab, so the sheet
+         header is the one identity block for the run. -->
+    {#if equityPresentation !== undefined && activeTab !== "report"}
+      <div class="ledger-sheet mt-2.5 border border-border bg-card shadow-[0_1px_0_#e4e0d6]">
+        <EquityLedgerHeader
+          summary={detail.summary}
+          displayName={workspace?.equityHeader?.displayName ?? runLabel(detail.summary)}
+          presentation={equityPresentation}
+          {reportDetail}
+          peerSupportability={valuationWorkbench?.peerSupportability}
+          showMetrics={false}
+          {citeChips}
+          {bindSection}
+          {onOpenInstrument}
+        />
       </div>
-      <div class="flex flex-wrap items-end justify-end gap-5.5">
-        {#each [{ value: detail.summary.confidence ?? "—", label: "Evidence Quality" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
-          <div class="text-right">
-            <div class="font-mono text-[17px] font-medium">{stat.value}</div>
-            <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
-              {stat.label}
-            </div>
-          </div>
-        {/each}
-      </div>
-    </div>
     {/if}
 
+    {#if showRunHeader}
+      <div class="mt-2.5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 class="text-[21px] font-semibold tracking-tight">
+            {runLabel(detail.summary)}
+          </h1>
+          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5c6066]">
+            <span>{formatDate(detail.summary.generatedAt)}</span>
+            {#if detail.summary.assetClass !== undefined && detail.summary.symbol !== undefined}
+              <button
+                class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                type="button"
+                onclick={() => onOpenInstrument(detail.summary.assetClass ?? "", detail.summary.symbol ?? "")}
+              >
+                {detail.summary.assetClass}:{detail.summary.symbol}
+              </button>
+            {/if}
+          </div>
+        </div>
+        <div class="flex flex-wrap items-end justify-end gap-5.5">
+          {#each [{ value: detail.summary.confidence ?? "—", label: "Evidence Quality" }, { value: String(detail.summary.sourceCount), label: "Sources" }, { value: String(detail.summary.availableFiles.length), label: "Files" }] as stat}
+            <div class="text-right">
+              <div class="font-mono text-[17px] font-medium">{stat.value}</div>
+              <div class="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                {stat.label}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     {#if activeTab === "report"}
-      <div
-        class={equityPresentation === undefined
-          ? "mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]"
-          : "mt-6"}
-      >
-          <article class="min-w-0">
-            {#if equityPresentation !== undefined}
-              <EquityLedger
-                summary={detail.summary}
-                displayName={workspace?.equityHeader?.displayName ?? runLabel(detail.summary)}
-                presentation={equityPresentation}
-                {reportDetail}
-                caseSections={readerCaseSections}
-                {sourceItems}
-                {snapshot}
-                {snapshotTradingViewUrl}
-                {forecastHorizons}
-                peerSupportability={valuationWorkbench?.peerSupportability}
-                tocEntries={ledgerNavEntries}
-                {citeChips}
-                {bindSection}
-                onScrollToSection={scrollToSection}
-                {onOpenInstrument}
-              >
-                {#if equityPresentation.defaultView.earningsConsensus.items.length > 0}
-                  <section {@attach bindSection("earningsConsensus")} class="scroll-mt-24">
-                    {@render sectionHeading("Upcoming earnings & consensus")}
-                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                      {#each equityPresentation.defaultView.earningsConsensus.items as item}
-                        <div class="border border-border bg-secondary px-3.5 py-3">
-                          <div
-                            class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]"
-                          >
-                            {item.label}
-                          </div>
-                          <div class="mt-1.5 font-mono text-[12px]">{item.value}</div>
-                          {@render citeChips(item.sourceIds)}
-                        </div>
-                      {/each}
-                    </div>
-                  </section>
-                {/if}
-
-                {#if reportDetail === "advanced"}
-                  {@render reportBody()}
-                {/if}
-              </EquityLedger>
+      <div class={equityPresentation === undefined ? "mt-6 grid gap-11 xl:grid-cols-[minmax(0,820px)_200px]" : "mt-6"}>
+        <article class="min-w-0">
+          {#if equityPresentation !== undefined}
+            <EquityLedger
+              summary={detail.summary}
+              displayName={workspace?.equityHeader?.displayName ?? runLabel(detail.summary)}
+              presentation={equityPresentation}
+              {reportDetail}
+              caseSections={readerCaseSections}
+              {sourceItems}
+              {snapshot}
+              {snapshotTradingViewUrl}
+              {forecastHorizons}
+              peerSupportability={valuationWorkbench?.peerSupportability}
+              tocEntries={ledgerNavEntries}
+              {citeChips}
+              {bindSection}
+              onScrollToSection={scrollToSection}
+              {onOpenInstrument}
+            >
+              {#if reportDetail === "advanced"}
+                {@render reportBody()}
+              {:else}
+                {@render earningsConsensusSection()}
+              {/if}
+            </EquityLedger>
 
             <!-- Coverage gaps and the raw markdown stay outside the sheet. -->
             {#if reportDetail === "simple"}
-              <div class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-1 shadow-[0_1px_0_#e4e0d6]">
+              <div
+                class="ledger-extras mt-7 border border-border bg-card px-4 sm:px-7 pb-7 pt-1 shadow-[0_1px_0_#e4e0d6]"
+              >
                 <CoverageGapsSimple
                   materialGaps={equityPresentation.defaultView.materialGaps}
                   financialCoreStatus={equityPresentation.defaultView.financialCoreStatus}
@@ -439,7 +451,9 @@
                 />
               </div>
             {:else}
-              <div class="ledger-extras mt-7 border border-border bg-card px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]">
+              <div
+                class="ledger-extras mt-7 border border-border bg-card px-4 sm:px-7 pb-7 pt-6 shadow-[0_1px_0_#e4e0d6]"
+              >
                 {@render reportTail()}
               </div>
             {/if}
@@ -449,80 +463,39 @@
           {/if}
         </article>
 
-          {#snippet reportBody()}
-            {#if reportSummary !== ""}
-              {#if equityPresentation !== undefined}
-                {@render sectionHeading("Report summary")}
-              {/if}
-              <div
-                {@attach bindSection(reportSummarySectionKey)}
-                class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
+        <!-- Advanced order: the thesis first, then the measurable claims, the
+               valuation reasoning behind them, the fundamentals backing it, and
+               the evidence and diagnostics appendix last. -->
+        {#snippet earningsConsensusSection()}
+          {#if (equityPresentation?.defaultView.earningsConsensus.items.length ?? 0) > 0}
+            <section {@attach bindSection("earningsConsensus")} class="mt-8.5 scroll-mt-24">
+              {@render sectionHeading("Upcoming earnings & consensus")}
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                {#each equityPresentation?.defaultView.earningsConsensus.items ?? [] as item}
+                  <div class="border border-border bg-secondary px-3.5 py-3">
+                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                      {item.label}
+                    </div>
+                    <div class="mt-1.5 font-mono text-[12px]">{item.value}</div>
+                    {@render citeChips(item.sourceIds)}
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+        {/snippet}
+
+        {#snippet reportBody()}
+          {#if reportSummary !== ""}
+            {#if equityPresentation !== undefined}
+              {@render sectionHeading("Report summary")}
+            {/if}
+            <div
+              {@attach bindSection(reportSummarySectionKey)}
+              class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
             >
               {reportSummary}
             </div>
-          {/if}
-
-          {#if appendixCompleteness !== undefined}
-            <EquityCompleteness
-              completeness={appendixCompleteness}
-              sectionKey="equityCompleteness"
-              {citeChips}
-              {bindSection}
-            />
-          {/if}
-
-          {#if equityPresentation !== undefined}
-            <EquityMetrics
-              keyDatedMetrics={equityPresentation.advanced.keyDatedMetrics}
-              miniCharts={equityPresentation.advanced.miniCharts}
-              financialLensDrivers={equityPresentation.advanced.financialLensDrivers}
-              sectionKey="equityMetrics"
-              {citeChips}
-              {bindSection}
-            />
-          {/if}
-
-          {#if financialLensGroups.length > 0}
-            <FinancialLensStats
-              groups={financialLensGroups}
-              sectionKey="financialLensStats"
-              {bindSection}
-            />
-          {/if}
-
-          {#if fundamentalHistory !== undefined}
-            <FundamentalHistory
-              history={fundamentalHistory}
-              sectionKey="fundamentalHistory"
-              {bindSection}
-            />
-          {/if}
-
-          {#if equityPresentation?.advanced.balanceSheetHistory !== undefined}
-            <BalanceSheetHistory
-              history={equityPresentation.advanced.balanceSheetHistory}
-              sectionKey="balanceSheetHistory"
-              {citeChips}
-              {bindSection}
-            />
-          {/if}
-
-          {#if valuationWorkbench !== undefined}
-            <ValuationWorkbench
-              workbench={valuationWorkbench}
-              excludedPeerRows={valuationWorkbench.excludedPeerRows}
-              sectionKey="valuationWorkbench"
-              {citeChips}
-              {bindSection}
-            />
-          {/if}
-
-          {#if reverseDcf !== undefined}
-            <ReverseDcf {reverseDcf} sectionKey="reverseDcf" {bindSection} />
-          {/if}
-
-          {#if peerImpliedRange !== undefined}
-            <PeerImpliedRange range={peerImpliedRange} sectionKey="peerImpliedRange" {bindSection} />
           {/if}
 
           {#if equityPresentation === undefined && findingItems.length > 0}
@@ -545,11 +518,29 @@
           {/if}
 
           {#if equityPresentation === undefined && caseSections.length > 0}
-            <CaseCards
-              items={caseSections}
-              sectionKey="advancedCases"
+            <CaseCards items={caseSections} sectionKey="advancedCases" {citeChips} {bindSection} />
+          {/if}
+
+          {#if snapshot !== undefined && equityPresentation === undefined}
+            <MarketSnapshot
+              {snapshot}
+              {snapshotTradingViewUrl}
+              {forecastHorizons}
+              sectionKey="snapshot"
+              {bindSection}
+            />
+          {/if}
+
+          {#if showForecastsSection}
+            <ObservableForecasts
+              {forecastItems}
+              {groupedForecastItems}
+              {forecastStats}
+              {targetHealth}
+              assetClass={detail.summary.assetClass ?? ""}
               {citeChips}
               {bindSection}
+              {onOpenInstrument}
             />
           {/if}
 
@@ -572,12 +563,89 @@
             </section>
           {/if}
 
-          {#if snapshot !== undefined && equityPresentation === undefined}
-            <MarketSnapshot
-              {snapshot}
-              {snapshotTradingViewUrl}
-              {forecastHorizons}
-              sectionKey="snapshot"
+          {#if valuationWorkbench !== undefined}
+            <ValuationWorkbench
+              workbench={valuationWorkbench}
+              excludedPeerRows={valuationWorkbench.excludedPeerRows}
+              sectionKey="valuationWorkbench"
+              {citeChips}
+              {bindSection}
+            />
+          {/if}
+
+          {#if reverseDcf !== undefined}
+            <ReverseDcf {reverseDcf} sectionKey="reverseDcf" {bindSection} />
+          {/if}
+
+          {#if peerImpliedRange !== undefined}
+            <PeerImpliedRange range={peerImpliedRange} sectionKey="peerImpliedRange" {bindSection} />
+          {/if}
+
+          {#if equityPresentation !== undefined}
+            {@render earningsConsensusSection()}
+          {/if}
+
+          {#if equityPresentation !== undefined}
+            <EquityMetrics
+              keyDatedMetrics={equityPresentation.advanced.keyDatedMetrics}
+              miniCharts={equityPresentation.advanced.miniCharts}
+              financialLensDrivers={equityPresentation.advanced.financialLensDrivers}
+              sectionKey="equityMetrics"
+              {citeChips}
+              {bindSection}
+            />
+          {/if}
+
+          {#if financialLensGroups.length > 0}
+            <FinancialLensStats groups={financialLensGroups} sectionKey="financialLensStats" {bindSection} />
+          {/if}
+
+          {#if fundamentalHistory !== undefined}
+            <FundamentalHistory history={fundamentalHistory} sectionKey="fundamentalHistory" {bindSection} />
+          {/if}
+
+          {#if equityPresentation?.advanced.balanceSheetHistory !== undefined}
+            <BalanceSheetHistory
+              history={equityPresentation.advanced.balanceSheetHistory}
+              sectionKey="balanceSheetHistory"
+              {citeChips}
+              {bindSection}
+            />
+          {/if}
+
+          {#if (equityPresentation?.advanced.analystEstimateDistributions.length ?? 0) > 0}
+            <AnalystEstimateDistributions
+              distributions={equityPresentation?.advanced.analystEstimateDistributions ?? []}
+              sectionKey="analystEstimateDistributions"
+              {citeChips}
+              {sectionHeading}
+              {bindSection}
+            />
+          {/if}
+
+          {#if extendedEvidence.length > 0}
+            <ExtendedEvidence
+              items={extendedEvidence}
+              sectionKey="extendedEvidence"
+              {citeChips}
+              {sectionHeading}
+              {bindSection}
+            />
+          {/if}
+
+          {#if webSubjectProfile !== undefined}
+            <WebSubjectProfile profile={webSubjectProfile} {citeChips} {bindSection} />
+          {/if}
+
+          {#if businessFramework !== undefined}
+            <BusinessFramework framework={businessFramework} {citeChips} {bindSection} />
+          {/if}
+
+          {#if appendixCompleteness !== undefined}
+            <EquityCompleteness
+              completeness={appendixCompleteness}
+              sectionKey="equityCompleteness"
+              {citeChips}
               {bindSection}
             />
           {/if}
@@ -604,51 +672,9 @@
               </div>
             </section>
           {/if}
+        {/snippet}
 
-          {#if webSubjectProfile !== undefined}
-            <WebSubjectProfile profile={webSubjectProfile} {citeChips} {bindSection} />
-          {/if}
-
-          {#if businessFramework !== undefined}
-            <BusinessFramework framework={businessFramework} {citeChips} {bindSection} />
-          {/if}
-
-          {#if (equityPresentation?.advanced.analystEstimateDistributions.length ?? 0) > 0}
-            <AnalystEstimateDistributions
-              distributions={equityPresentation?.advanced.analystEstimateDistributions ?? []}
-              sectionKey="analystEstimateDistributions"
-              {citeChips}
-              {sectionHeading}
-              {bindSection}
-            />
-          {/if}
-
-          {#if extendedEvidence.length > 0}
-            <ExtendedEvidence
-              items={extendedEvidence}
-              sectionKey="extendedEvidence"
-              {citeChips}
-              {sectionHeading}
-              {bindSection}
-            />
-          {/if}
-
-          {#if showForecastsSection}
-            <ObservableForecasts
-              {forecastItems}
-              {groupedForecastItems}
-              {forecastStats}
-              {targetHealth}
-              assetClass={detail.summary.assetClass ?? ""}
-              {citeChips}
-              {bindSection}
-              {onOpenInstrument}
-            />
-          {/if}
-
-          {/snippet}
-
-          {#snippet reportTail()}
+        {#snippet reportTail()}
           {#if equityPresentation !== undefined || showGapsSection}
             <CoverageGapsAdvanced
               gaps={splitGaps}
@@ -666,33 +692,33 @@
                 class="mt-3.5 max-h-130 overflow-auto rounded-lg bg-[#16181a] p-4.5 font-mono text-xs leading-relaxed text-[#c7cdd4]">{reportMarkdown}</pre>
             </section>
           {/if}
-          {/snippet}
+        {/snippet}
 
         {#if equityPresentation === undefined}
-        <aside class="sticky top-6 hidden h-fit pt-1 xl:block">
-          <div class="font-mono text-[10px] tracking-[0.08em] text-[#a8acb1]">ON THIS PAGE</div>
-          <div class="mt-2.5 flex flex-col gap-0.5 border-l border-border">
-            {#each tocEntries as entry, index}
-              {#if reportDetail === "advanced" && entry.advancedOnly && tocEntries.findIndex((candidate) => candidate.advancedOnly) === index}
-                <div class="mx-3 my-1 border-t border-border" aria-hidden="true"></div>
-              {/if}
-              <button
-                class="-ml-px border-l-2 border-transparent py-1 pl-3 text-left text-xs text-[#5c6066] transition hover:border-[#9fc2c8] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                type="button"
-                onclick={() => scrollToSection(entry.key)}
-              >
-                {entry.label}
-              </button>
-            {/each}
-          </div>
-          <div class="mt-5.5 border-t border-border pt-3.5 text-[11.5px] text-[#5c6066]">
-            Every claim carries its source IDs. Hover a chip to preview; click to open Sources.
-          </div>
-        </aside>
+          <aside class="sticky top-6 hidden h-fit pt-1 xl:block">
+            <div class="font-mono text-[10px] tracking-[0.08em] text-[#a8acb1]">ON THIS PAGE</div>
+            <div class="mt-2.5 flex flex-col gap-0.5 border-l border-border">
+              {#each tocEntries as entry, index}
+                {#if reportDetail === "advanced" && entry.advancedOnly && tocEntries.findIndex((candidate) => candidate.advancedOnly) === index}
+                  <div class="mx-3 my-1 border-t border-border" aria-hidden="true"></div>
+                {/if}
+                <button
+                  class="-ml-px border-l-2 border-transparent py-1 pl-3 text-left text-xs text-[#5c6066] transition hover:border-[#9fc2c8] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  type="button"
+                  onclick={() => scrollToSection(entry.key)}
+                >
+                  {entry.label}
+                </button>
+              {/each}
+            </div>
+            <div class="mt-5.5 border-t border-border pt-3.5 text-[11.5px] text-[#5c6066]">
+              Every claim carries its source IDs. Hover a chip to preview; click to open Sources.
+            </div>
+          </aside>
         {/if}
       </div>
     {:else if activeTab === "sources"}
-      <div class="mt-6 overflow-hidden rounded-lg border border-border bg-card">
+      <div class="mt-6 overflow-hidden rounded-lg border border-border bg-card" data-section="sourcesTable">
         <div class="overflow-x-auto">
           <div class="min-w-160">
             <div
@@ -753,7 +779,7 @@
         </div>
       </div>
     {:else if activeTab === "data"}
-      <div class="mt-6">
+      <div class="mt-6" data-section="dataSegments">
         <div class="inline-flex overflow-hidden rounded-md border border-border bg-card">
           {#each DATA_SEGMENTS as segment}
             <button
@@ -773,7 +799,7 @@
         </div>
       </div>
     {:else if activeTab === "files"}
-      <div class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <div class="mt-6 grid items-start gap-3.5 lg:grid-cols-[250px_minmax(0,1fr)]" data-section="fileBrowser">
         <div class="overflow-hidden rounded-lg border border-border bg-card">
           {#if detail.summary.availableFiles.length === 0}
             <div class="px-3.5 py-5 text-sm text-muted-foreground">No files on disk.</div>
@@ -815,7 +841,7 @@
     {/if}
 
     <!-- Kept mounted across tab switches so the conversation is not reset. -->
-    <div class={activeTab === "chat" ? "" : "hidden"}>
+    <div class={activeTab === "chat" ? "" : "hidden"} data-section="chat">
       <RunChat runId={detail.summary.runId} />
     </div>
   </div>

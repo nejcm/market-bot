@@ -1631,12 +1631,6 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       ? [
           { key: "summary", label: "Summary", visible: summary !== "", advancedOnly: false },
           {
-            key: "financialLensStats",
-            label: "Financial lens stats",
-            visible: financialLensGroups.length > 0,
-            advancedOnly: false,
-          },
-          {
             key: "findings",
             label: "Key findings",
             visible: findings.length > 0,
@@ -1644,21 +1638,16 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
           },
           { key: "cases", label: "Cases & risks", visible: cases.length > 0, advancedOnly: false },
           {
-            key: "scenarios",
-            label: "Scenarios",
-            visible: scenarioItems.length > 0,
-            advancedOnly: false,
-          },
-          {
             key: "snapshot",
             label: "Market snapshot",
             visible: snapshot !== undefined,
             advancedOnly: false,
           },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: false },
           {
-            key: "fundamentalHistory",
-            label: "Fundamental history",
-            visible: fundamentalHistory !== undefined,
+            key: "scenarios",
+            label: "Scenarios",
+            visible: scenarioItems.length > 0,
             advancedOnly: false,
           },
           {
@@ -1680,9 +1669,21 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: false,
           },
           {
-            key: "history",
-            label: "Historical context",
-            visible: historicalContext !== undefined,
+            key: "financialLensStats",
+            label: "Financial lens stats",
+            visible: financialLensGroups.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "fundamentalHistory",
+            label: "Fundamental history",
+            visible: fundamentalHistory !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "extendedEvidence",
+            label: "Extended evidence",
+            visible: extendedItems.length > 0,
             advancedOnly: false,
           },
           {
@@ -1698,12 +1699,11 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: false,
           },
           {
-            key: "extendedEvidence",
-            label: "Extended evidence",
-            visible: extendedItems.length > 0,
+            key: "history",
+            label: "Historical context",
+            visible: historicalContext !== undefined,
             advancedOnly: false,
           },
-          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: false },
           { key: "gaps", label: "Data gaps", visible: gapsVisible, advancedOnly: false },
         ]
       : [
@@ -1728,10 +1728,10 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: false,
           },
           {
-            key: "earningsConsensus",
-            label: "Earnings & consensus",
-            visible: earningsConsensus.items.length > 0,
-            advancedOnly: false,
+            key: "snapshot",
+            label: "Market snapshot",
+            visible: snapshot !== undefined,
+            advancedOnly: true,
           },
           {
             key: "advancedSummary",
@@ -1739,11 +1739,38 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             visible: summary !== "",
             advancedOnly: true,
           },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: true },
           {
-            key: "equityCompleteness",
-            label: "Completeness diagnostics",
-            visible: equityPresentation.advanced.completeness !== undefined,
+            key: "scenarios",
+            label: "Scenarios",
+            visible: scenarioItems.length > 0,
             advancedOnly: true,
+          },
+          {
+            key: "valuationWorkbench",
+            label: "Valuation workbench",
+            visible: valuationWorkbench !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "reverseDcf",
+            label: "Reverse DCF input sensitivity",
+            visible: reverseDcf !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "peerImpliedRange",
+            /* Short enough to sit in the ledger nav strip; the section itself
+               spells the full name out. */
+            label: "Peer-implied range",
+            visible: peerImpliedRange !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "earningsConsensus",
+            label: "Earnings & consensus",
+            visible: earningsConsensus.items.length > 0,
+            advancedOnly: false,
           },
           {
             key: "equityMetrics",
@@ -1770,39 +1797,15 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: true,
           },
           {
-            key: "valuationWorkbench",
-            label: "Valuation workbench",
-            visible: valuationWorkbench !== undefined,
+            key: "analystEstimateDistributions",
+            label: "Analyst estimate distributions",
+            visible: analystEstimateDistributions.length > 0,
             advancedOnly: true,
           },
           {
-            key: "reverseDcf",
-            label: "Reverse DCF input sensitivity",
-            visible: reverseDcf !== undefined,
-            advancedOnly: true,
-          },
-          {
-            key: "peerImpliedRange",
-            label: "Peer-implied price reference range",
-            visible: peerImpliedRange !== undefined,
-            advancedOnly: true,
-          },
-          {
-            key: "scenarios",
-            label: "Scenarios",
-            visible: scenarioItems.length > 0,
-            advancedOnly: true,
-          },
-          {
-            key: "snapshot",
-            label: "Market snapshot",
-            visible: snapshot !== undefined,
-            advancedOnly: true,
-          },
-          {
-            key: "history",
-            label: "Historical context",
-            visible: historicalContext !== undefined,
+            key: "extendedEvidence",
+            label: "Extended evidence",
+            visible: extendedItems.length > 0,
             advancedOnly: true,
           },
           {
@@ -1818,18 +1821,17 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: true,
           },
           {
-            key: "analystEstimateDistributions",
-            label: "Analyst estimate distributions",
-            visible: analystEstimateDistributions.length > 0,
+            key: "equityCompleteness",
+            label: "Completeness diagnostics",
+            visible: equityPresentation.advanced.completeness !== undefined,
             advancedOnly: true,
           },
           {
-            key: "extendedEvidence",
-            label: "Extended evidence",
-            visible: extendedItems.length > 0,
+            key: "history",
+            label: "Historical context",
+            visible: historicalContext !== undefined,
             advancedOnly: true,
           },
-          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: true },
           {
             key: "gaps",
             label: "Coverage & material gaps",

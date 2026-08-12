@@ -127,6 +127,9 @@
 
   body {
     @apply bg-background font-sans text-foreground;
+    /* Run artifacts quote env var names, URLs and run ids; break them instead
+       of letting one token push a narrow layout sideways. */
+    overflow-wrap: break-word;
   }
 
   .font-mono {

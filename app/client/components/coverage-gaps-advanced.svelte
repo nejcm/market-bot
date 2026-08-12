@@ -53,7 +53,7 @@
           >
             SHORTFALL
           </span>
-          <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
+          <div class="min-w-0 font-serif text-sm leading-[1.55] text-[#4a4334]">
             {gap}
           </div>
         </div>
@@ -78,7 +78,7 @@
           >
             {uppercaseTriage ? gap.triage.toUpperCase() : gap.triage}
           </span>
-          <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">
+          <div class="min-w-0 font-serif text-sm leading-[1.55] text-[#4a4334]">
             {gap.text}
           </div>
         </div>

@@ -15,12 +15,7 @@
   import { appSettings, setReportDetail, setShowSources } from "./app-settings.svelte";
   import DashboardOverview from "./components/dashboard-overview.svelte";
   import AlphaCohortsView from "./components/alpha-cohorts-view.svelte";
-  import type {
-    JobFormField,
-    SearchFormField,
-    Tab,
-    View,
-  } from "./components/console-types";
+  import type { JobFormField, SearchFormField, Tab, View } from "./components/console-types";
   import CalibrationView from "./components/calibration-view.svelte";
   import HealthView from "./components/health-view.svelte";
   import InstrumentTimeline from "./components/instrument-timeline.svelte";
@@ -73,6 +68,7 @@
   let loadingDetail = $state(false);
   let loadingInstrument = $state(false);
   let activeTab = $state<Tab>("report");
+  let menuOpen = $state(false);
   let highlightSourceId = $state("");
   let fileContent = $state("");
   let selectedFile = $state("");
@@ -109,14 +105,9 @@
   const runTypes = $derived(groupedRunsByType(runs).map((group) => group.type));
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
-  const recentRuns = $derived(
-    recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT),
-  );
+  const recentRuns = $derived(recentRunSummaries(runs, DASHBOARD_RECENT_RUN_LIMIT));
   const compareCards = $derived(runCompareCards(compareDetails));
-  const activeJobCount = $derived(
-    jobs.filter((job) => job.status === "running" || job.status === "queued")
-      .length,
-  );
+  const activeJobCount = $derived(jobs.filter((job) => job.status === "running" || job.status === "queued").length);
 
   function clearSelectedRun(): void {
     selectedRunId = "";
@@ -157,10 +148,7 @@
     }
   }
 
-  async function selectRun(
-    runId: string,
-    nextTab: Tab = "report",
-  ): Promise<void> {
+  async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     view = "run";
     selectedRunId = runId;
     clearSelectedInstrument();
@@ -180,10 +168,7 @@
       if (selectedRunId === runId) {
         view = "dashboard";
         clearSelectedRun();
-        error =
-          caughtError instanceof Error
-            ? caughtError.message
-            : String(caughtError);
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
         void loadCompareDetails(runs).catch(() => {
           compareDetails = [];
         });
@@ -198,22 +183,12 @@
     }
   }
 
-  async function loadCompareDetails(
-    runSummaries: readonly RunSummary[],
-  ): Promise<void> {
-    const runIds = recentRunSummaries(
-      runSummaries,
-      DASHBOARD_RECENT_RUN_LIMIT,
-    ).map((run) => run.runId);
-    compareDetails = await Promise.all(
-      runIds.map((runId) => fetchRunDetail(runId)),
-    );
+  async function loadCompareDetails(runSummaries: readonly RunSummary[]): Promise<void> {
+    const runIds = recentRunSummaries(runSummaries, DASHBOARD_RECENT_RUN_LIMIT).map((run) => run.runId);
+    compareDetails = await Promise.all(runIds.map((runId) => fetchRunDetail(runId)));
   }
 
-  async function openRun(
-    runId: string,
-    nextTab: Tab = "report",
-  ): Promise<void> {
+  async function openRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     const pathname = runPath(runId);
     if (globalThis.location.pathname !== pathname) {
       globalThis.history.pushState({}, "", pathname);
@@ -223,10 +198,7 @@
     globalThis.scrollTo({ top: 0 });
   }
 
-  async function selectInstrument(
-    assetClass: string,
-    symbol: string,
-  ): Promise<void> {
+  async function selectInstrument(assetClass: string, symbol: string): Promise<void> {
     const normalizedSymbol = symbol.toUpperCase();
     view = "instrument";
     clearSelectedRun();
@@ -235,22 +207,13 @@
     error = "";
 
     try {
-      const timeline = await fetchInstrumentTimeline(
-        assetClass,
-        normalizedSymbol,
-      );
-      if (
-        selectedInstrument?.assetClass === assetClass &&
-        selectedInstrument.symbol === normalizedSymbol
-      ) {
+      const timeline = await fetchInstrumentTimeline(assetClass, normalizedSymbol);
+      if (selectedInstrument?.assetClass === assetClass && selectedInstrument.symbol === normalizedSymbol) {
         instrumentDetail = timeline;
       }
     } catch (caughtError: unknown) {
       if (view === "instrument") {
-        error =
-          caughtError instanceof Error
-            ? caughtError.message
-            : String(caughtError);
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
       }
     } finally {
       if (view === "instrument") {
@@ -259,10 +222,7 @@
     }
   }
 
-  async function openInstrument(
-    assetClass: string,
-    symbol: string,
-  ): Promise<void> {
+  async function openInstrument(assetClass: string, symbol: string): Promise<void> {
     const pathname = instrumentPath(assetClass, symbol);
     if (globalThis.location.pathname !== pathname) {
       globalThis.history.pushState({}, "", pathname);
@@ -304,8 +264,7 @@
     const { target } = event;
     if (
       target instanceof HTMLElement &&
-      (target.isContentEditable ||
-        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
     ) {
       return;
     }
@@ -377,10 +336,7 @@
         return;
       }
       searchResults = [];
-      error =
-        caughtError instanceof Error
-          ? caughtError.message
-          : String(caughtError);
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
     } finally {
       if (requestId === searchRequestId) {
         searchLoading = false;
@@ -423,10 +379,7 @@
       fileContent = file.content;
     } catch (caughtError: unknown) {
       fileContent = "";
-      error =
-        caughtError instanceof Error
-          ? caughtError.message
-          : String(caughtError);
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
     }
   }
 
@@ -448,10 +401,7 @@
       });
       await refreshJobs();
     } catch (caughtError: unknown) {
-      error =
-        caughtError instanceof Error
-          ? caughtError.message
-          : String(caughtError);
+      error = caughtError instanceof Error ? caughtError.message : String(caughtError);
     }
   }
 
@@ -481,19 +431,9 @@
     void (async () => {
       try {
         const initialRunId = runIdFromPathname(globalThis.location.pathname);
-        const initialInstrument = instrumentFromPathname(
-          globalThis.location.pathname,
-        );
-        const initialSidebarView = sidebarViewFromPathname(
-          globalThis.location.pathname,
-        );
-        const [
-          nextRuns,
-          nextProviderHealth,
-          nextCalibration,
-          nextAlphaCohorts,
-          nextJobs,
-        ] = await Promise.all([
+        const initialInstrument = instrumentFromPathname(globalThis.location.pathname);
+        const initialSidebarView = sidebarViewFromPathname(globalThis.location.pathname);
+        const [nextRuns, nextProviderHealth, nextCalibration, nextAlphaCohorts, nextJobs] = await Promise.all([
           fetchRuns(),
           fetchProviderHealth(),
           fetchCalibration(),
@@ -508,10 +448,7 @@
         if (initialRunId !== undefined) {
           await selectRun(initialRunId);
         } else if (initialInstrument !== undefined) {
-          await selectInstrument(
-            initialInstrument.assetClass,
-            initialInstrument.symbol,
-          );
+          await selectInstrument(initialInstrument.assetClass, initialInstrument.symbol);
         } else {
           selectSidebarView(initialSidebarView ?? "dashboard");
           if (initialSidebarView === "search") {
@@ -519,10 +456,7 @@
           }
         }
       } catch (caughtError: unknown) {
-        error =
-          caughtError instanceof Error
-            ? caughtError.message
-            : String(caughtError);
+        error = caughtError instanceof Error ? caughtError.message : String(caughtError);
       } finally {
         loadingRuns = false;
       }
@@ -538,6 +472,7 @@
 
 <div class="flex min-h-screen bg-background text-foreground">
   <RunSidebar
+    bind:mobileOpen={menuOpen}
     runs={filteredRuns}
     {runTypes}
     {selectedRunId}
@@ -552,20 +487,16 @@
     onNavigate={navigate}
   />
 
-  <main class="min-w-0 flex-1 pt-12 lg:pt-0">
+  <main class="min-w-0 flex-1 {view === 'run' ? '' : 'pt-12 lg:pt-0'}">
     <div class="mx-auto max-w-330 px-4 py-6 lg:px-6 lg:py-7">
       {#if error !== ""}
-        <div
-          class="mb-4 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
-        >
+        <div class="mb-4 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
           <span
             class="mt-px shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
           >
             ERROR
           </span>
-          <span class="text-[12.5px] leading-normal text-[#4a4334]"
-            >{error}</span
-          >
+          <span class="text-[12.5px] leading-normal text-[#4a4334]">{error}</span>
         </div>
       {/if}
 
@@ -577,8 +508,7 @@
           {compareCards}
           {loadingRuns}
           onOpenRun={(runId) => void openRun(runId)}
-          onOpenInstrument={(assetClass, symbol) =>
-            void openInstrument(assetClass, symbol)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
         />
       {:else if view === "run"}
         <RunWorkspace
@@ -590,14 +520,14 @@
           {selectedFile}
           {fileContent}
           {highlightSourceId}
+          onOpenMenu={() => (menuOpen = true)}
           onTabChange={(tab) => (activeTab = tab)}
           onReportDetailChange={setReportDetail}
           onShowSourcesChange={setShowSources}
           onLoadFile={(path) => void loadFile(path)}
           onGoHome={() => navigate("dashboard")}
           onHighlightSource={(sourceId) => (highlightSourceId = sourceId)}
-          onOpenInstrument={(assetClass, symbol) =>
-            void openInstrument(assetClass, symbol)}
+          onOpenInstrument={(assetClass, symbol) => void openInstrument(assetClass, symbol)}
         />
       {:else if view === "instrument"}
         <InstrumentTimeline
@@ -618,12 +548,7 @@
           onSearchFormChange={updateSearchForm}
         />
       {:else if view === "jobs"}
-        <JobsView
-          {jobs}
-          {jobForm}
-          onJobFormChange={updateJobForm}
-          onSubmitJob={() => void submitJob()}
-        />
+        <JobsView {jobs} {jobForm} onJobFormChange={updateJobForm} onSubmitJob={() => void submitJob()} />
       {:else if view === "calibration"}
         <CalibrationView {calibration} onNavigate={navigate} />
       {:else if view === "alpha-cohorts"}

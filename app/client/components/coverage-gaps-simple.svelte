@@ -38,7 +38,7 @@
           <span class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]">
             MATERIAL
           </span>
-          <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
+          <div class="min-w-0 font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
         </div>
       {/each}
     </div>

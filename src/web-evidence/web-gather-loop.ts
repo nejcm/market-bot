@@ -133,6 +133,7 @@ interface WebGatherExecutionAudit {
 const ALLOWED_TOOLS: ReadonlySet<string> = new Set(Object.keys(WEB_GATHER_TOOL_UNITS));
 const AVAILABLE_TOOLS: readonly WebGatherToolName[] = ["web_search", "web_fetch"];
 const MAX_RATIONALE_TRACE_LENGTH = 500;
+const MAX_PARSE_FAILURE_ECHO_LENGTH = 2000;
 // Section markers emitted by `secFilingSectionPacket` (see evidence-request-tools.ts). Detecting coverage from the packet's own markers avoids hard-coding a separate question-key map and stays honest about partial packets.
 const SEC_FILING_SECTION_MARKERS = [
   "Business",
@@ -450,7 +451,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     initialState: input.collectedSources,
     invalidJsonMessage: "Web gather stage returned invalid JSON",
     invalidShapeMessage: "Web gather stage must return JSON object with requests array",
-    malformedGap: webGatherMalformedGap,
+    malformedGap: (message) => webGatherMalformedGap(message, input.context.runParams.quickModel),
     generateRound: (currentSources, roundState) =>
       input.generateRound(
         currentSources,
@@ -544,46 +545,65 @@ async function runDeepEquityWebGatherBatch(input: {
     readonly attempts?: SourceGapAttempts;
   }[];
 }): Promise<WebGatherLoopResult> {
-  const roundState: JsonToolLoopRoundState<WebGatherStageOutput> = {
-    round: 1,
-    sourceUnitsUsed: 0,
-    toolCallsUsed: 0,
-    priorStages: [],
-  };
-  const stageOutput = await input.input.generateRound(
-    input.input.collectedSources,
-    withWebGatherContext(input.input.context, {
-      round: 1,
-      availableTools: AVAILABLE_TOOLS,
-      toolUnits: WEB_GATHER_TOOL_UNITS,
-      sourceUnitsUsed: 0,
-      toolCallsUsed: 0,
-      maxRounds: 1,
-      maxToolCalls: input.webGatherOptions.maxToolCalls,
-      sourceBudget: input.webGatherOptions.sourceBudget,
-      surfacedUrls: [],
-      subjectTerms: input.subjectTerms,
-      ...(input.secFilingCoverage !== undefined
-        ? { secFilingCoverage: input.secFilingCoverage }
-        : {}),
-      ...(input.input.reusedProfileCoverage !== undefined
-        ? { reusedProfileCoverage: input.input.reusedProfileCoverage }
-        : {}),
-    }),
-    [],
-  );
-  const parsed = parseModelRequests(
-    stageOutput.content,
+  const generateRound = (
+    round: number,
+    priorStages: readonly WebGatherStageOutput[],
+  ): Promise<WebGatherStageOutput> =>
+    input.input.generateRound(
+      input.input.collectedSources,
+      withWebGatherContext(input.input.context, {
+        round,
+        availableTools: AVAILABLE_TOOLS,
+        toolUnits: WEB_GATHER_TOOL_UNITS,
+        sourceUnitsUsed: 0,
+        toolCallsUsed: 0,
+        maxRounds: 1,
+        maxToolCalls: input.webGatherOptions.maxToolCalls,
+        sourceBudget: input.webGatherOptions.sourceBudget,
+        surfacedUrls: [],
+        subjectTerms: input.subjectTerms,
+        ...(input.secFilingCoverage !== undefined
+          ? { secFilingCoverage: input.secFilingCoverage }
+          : {}),
+        ...(input.input.reusedProfileCoverage !== undefined
+          ? { reusedProfileCoverage: input.input.reusedProfileCoverage }
+          : {}),
+      }),
+      priorStages,
+    );
+  let round = 1;
+  const stageOutputs = [await generateRound(round, [])];
+  let parsed = parseModelRequests(
+    stageOutputs[0]!.content,
     "Web gather stage returned invalid JSON",
     "Web gather stage must return JSON object with requests array",
   );
+  // The configured maxRounds is only a gate for this batch path's single reprompt, not a loop.
+  // The model always sees maxRounds: 1, and configured maxRounds: 1 disables the reprompt.
+  if (typeof parsed === "string" && input.webGatherOptions.maxRounds > 1) {
+    const failedStage = stageOutputs[0]!;
+    round = 2;
+    stageOutputs.push(
+      await generateRound(round, [
+        {
+          ...failedStage,
+          content: `${failedStage.content.slice(0, MAX_PARSE_FAILURE_ECHO_LENGTH)}\n\nParse failure: ${parsed}`,
+        },
+      ]),
+    );
+    parsed = parseModelRequests(
+      stageOutputs[1]!.content,
+      "Web gather stage returned invalid JSON",
+      "Web gather stage must return JSON object with requests array",
+    );
+  }
   if (typeof parsed === "string") {
-    const gap = webGatherMalformedGap(parsed);
+    const gap = webGatherMalformedGap(parsed, input.input.context.runParams.quickModel);
     return {
       collectedSources: mergeGaps(input.command, input.input.collectedSources, [gap]),
-      stageOutputs: [stageOutput],
+      stageOutputs,
       audit: {
-        rounds: 1,
+        rounds: stageOutputs.length,
         acceptedRequests: [],
         rejectedRequests: [],
         sourceUnitsUsed: 0,
@@ -596,6 +616,13 @@ async function runDeepEquityWebGatherBatch(input: {
       },
     };
   }
+  const priorStages = stageOutputs.slice(0, -1);
+  const roundState: JsonToolLoopRoundState<WebGatherStageOutput> = {
+    round,
+    sourceUnitsUsed: 0,
+    toolCallsUsed: 0,
+    priorStages,
+  };
   const searchRequests = parsed.filter(
     (request) => !isRecord(request) || request.tool !== "web_fetch",
   );
@@ -616,7 +643,7 @@ async function runDeepEquityWebGatherBatch(input: {
     reusedProfileCoverage: input.input.reusedProfileCoverage,
     acceptancePolicy: input.input.acceptancePolicy,
     config: input.config,
-    round: 1,
+    round,
   };
   const searchValidation = validateRequests(searchRequests, validationState, roundState);
   const searchOutputs = await Promise.all(
@@ -637,10 +664,10 @@ async function runDeepEquityWebGatherBatch(input: {
     0,
   );
   const fetchValidation = validateRequests(fetchRequests, validationState, {
-    round: 1,
+    round,
     sourceUnitsUsed: searchSourceUnits,
     toolCallsUsed: searchValidation.requests.length,
-    priorStages: [],
+    priorStages,
   });
   const fetchOutputs = await Promise.all(
     fetchValidation.requests.map((request) => input.acquireRequest(request.request)),
@@ -657,9 +684,9 @@ async function runDeepEquityWebGatherBatch(input: {
   const acceptedRequests = [...searchValidation.requests, ...fetchValidation.requests];
   return {
     collectedSources,
-    stageOutputs: [stageOutput],
+    stageOutputs,
     audit: {
-      rounds: 1,
+      rounds: stageOutputs.length,
       acceptedRequests: acceptedRequests.map((entry, index) => ({
         ...entry.audit,
         ...input.executionAudits[index]!,
@@ -1145,11 +1172,11 @@ function webGatherRejectionGapMessage(reason: string): string | undefined {
   }
 }
 
-function webGatherMalformedGap(message: string): SourceGap {
+function webGatherMalformedGap(message: string, provider: string): SourceGap {
   return sourceGap({
     source: "web-gather",
     message,
-    provider: "exa",
+    provider,
     capability: "web-gather",
     cause: "malformed-response",
     evidenceQualityImpact: "extended-evidence-cap",

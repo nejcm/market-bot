@@ -237,10 +237,11 @@ describe("runResearchJob web subject profile", () => {
             answer: "Apple sells hardware, software, and services.",
             sourceIds: [sourceId],
           };
+          const subjectSummary = { ...answer, sourceIds: ["unknown-subject-summary-source"] };
           return {
             content: JSON.stringify({
               companyName: "Apple Inc.",
-              subjectSummary: answer,
+              subjectSummary,
               questions: {
                 whatItDoes: answer,
                 howItMakesMoney: answer,
@@ -306,9 +307,33 @@ describe("runResearchJob web subject profile", () => {
       companyName: "Apple Inc.",
       factLedger: [expect.objectContaining({ claim: "Apple sells hardware and services." })],
     });
-    await expect(
-      readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
-    ).resolves.toContain('"companyName": "Apple Inc."');
+    const subjectProfileLane = result.evidenceLanes.lanes.find(
+      (lane) => lane.lane === "subject-profile",
+    );
+    expect(subjectProfileLane?.status).toBe("covered");
+    expect(subjectProfileLane?.gapText).toContainEqual(
+      expect.stringContaining("subjectSummary: answer cited 1 unknown sourceId"),
+    );
+    expect(subjectProfileLane?.gapText.join("\n")).not.toContain("unknown-subject-summary-source");
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-subject-profile",
+        cause: "validation-failed",
+      }),
+    );
+    const persistedEvidenceBundleText = await readFile(
+      join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      "utf8",
+    );
+    expect(persistedEvidenceBundleText).not.toContain("unknown-subject-summary-source");
+    const persistedEvidenceBundle = JSON.parse(persistedEvidenceBundleText) as {
+      readonly evidence?: {
+        readonly webSubjectProfile?: { readonly factLedger?: readonly unknown[] };
+      };
+    };
+    expect(persistedEvidenceBundle.evidence?.webSubjectProfile?.factLedger?.length).toBeGreaterThan(
+      0,
+    );
     const webGatherAudit = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
     ) as {
@@ -323,9 +348,9 @@ describe("runResearchJob web subject profile", () => {
       sanitizer: { sourceCount: 1 },
     });
     expect(webGatherAudit.sanitizer).toMatchObject({ sourceCount: 1 });
-    await expect(readFile(join(result.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
-      "## Web Subject Profile",
-    );
+    const reportMarkdown = await readFile(join(result.artifacts.runDir, "report.md"), "utf8");
+    expect(reportMarkdown).toContain("## Web Subject Profile");
+    expect(reportMarkdown).not.toContain("unknown-subject-summary-source");
   });
 
   test("builds a SEC-only company profile when Exa is absent on equity --deep", async () => {

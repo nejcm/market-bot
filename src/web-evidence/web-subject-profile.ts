@@ -257,10 +257,15 @@ interface ParsedProfile {
   readonly openGaps: readonly string[];
 }
 
+type AnswerSourceIdFailure =
+  | { readonly kind: "missing" }
+  | { readonly kind: "unknown"; readonly count: number };
+
 // A single rejected question/fact salvaged out of an otherwise-usable profile. Field paths are
 // Code-generated and safe to disclose; model-controlled rejection content is not retained.
 interface ProfileRejection {
   readonly field: string;
+  readonly answerSourceIdFailure?: AnswerSourceIdFailure;
 }
 
 function parseProfile(
@@ -278,9 +283,17 @@ function parseProfile(
     return { error: "model output must be an object" };
   }
   const subjectSummary = readAnswer(parsed.subjectSummary, webSourceIds);
-  if ("error" in subjectSummary) {
-    return { error: `subjectSummary: ${subjectSummary.error}` };
-  }
+  const subjectSummaryRejections: ProfileRejection[] =
+    "error" in subjectSummary
+      ? [
+          {
+            field: "subjectSummary",
+            ...(subjectSummary.sourceIdFailure !== undefined
+              ? { answerSourceIdFailure: subjectSummary.sourceIdFailure }
+              : {}),
+          },
+        ]
+      : [];
   const questions = readQuestions(parsed.questions, subjectKind, webSourceIds);
   if ("error" in questions) {
     return questions;
@@ -304,7 +317,7 @@ function parseProfile(
   const companyName = readString(parsed, "companyName");
   return {
     profile: {
-      subjectSummary: subjectSummary.answer,
+      subjectSummary: "error" in subjectSummary ? EMPTY_ANSWER : subjectSummary.answer,
       questions: questions.questions,
       recentMaterialEvents: recentMaterialEvents.facts,
       factLedger: factLedger.facts,
@@ -313,6 +326,7 @@ function parseProfile(
       ...(companyName !== undefined ? { companyName } : {}),
     },
     rejections: [
+      ...subjectSummaryRejections,
       ...questions.rejections,
       ...recentMaterialEvents.rejections,
       ...factLedger.rejections,
@@ -346,10 +360,12 @@ function readQuestions(
   for (const key of WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]) {
     const answer = readAnswer(value[key], webSourceIds);
     if ("error" in answer) {
-      // One bad answer costs this question only; subjectSummary (via the
-      // Caller) remains the only fatal readAnswer use.
+      // One bad answer costs this question only.
       rejections.push({
         field: `questions.${key}`,
+        ...(answer.sourceIdFailure !== undefined
+          ? { answerSourceIdFailure: answer.sourceIdFailure }
+          : {}),
       });
       entries.push([key, EMPTY_ANSWER]);
       continue;
@@ -369,18 +385,27 @@ function disallowedSourceIdsOf(
 function readAnswer(
   value: unknown,
   webSourceIds: ReadonlySet<string>,
-): { readonly answer: WebSubjectProfileAnswer } | { readonly error: string } {
+):
+  | { readonly answer: WebSubjectProfileAnswer }
+  | { readonly error: true; readonly sourceIdFailure?: AnswerSourceIdFailure } {
   if (!isRecord(value)) {
-    return { error: "answer must be an object" };
+    return { error: true };
   }
   const answer = readString(value, "answer");
   const sourceIds = nonEmptyStringArrayValue(value.sourceIds);
   const disallowedSourceIds = disallowedSourceIdsOf(sourceIds, webSourceIds);
+  const unknownSourceIdCount = new Set(disallowedSourceIds).size;
   if (answer === undefined) {
-    return { error: "answer must be a non-empty string" };
+    return { error: true };
   }
-  if (sourceIds.length === 0 || disallowedSourceIds.length > 0) {
-    return { error: "answer sourceIds must resolve to allowed profile Sources" };
+  if (sourceIds.length === 0) {
+    return { error: true, sourceIdFailure: { kind: "missing" } };
+  }
+  if (unknownSourceIdCount > 0) {
+    return {
+      error: true,
+      sourceIdFailure: { kind: "unknown", count: unknownSourceIdCount },
+    };
   }
   return { answer: { answer, sourceIds } };
 }
@@ -649,7 +674,10 @@ function partialAcceptanceImpact(
   // So totalQuestions is always > 0 here.
   const sufficientQuestions = answeredQuestions / totalQuestions >= MIN_ANSWERED_QUESTION_RATIO;
   const sufficientFacts = survivingFacts >= MIN_SURVIVING_FACT_COUNT;
-  return sufficientQuestions && sufficientFacts ? "no-cap" : "extended-evidence-cap";
+  const hasSubjectSummary = profile.subjectSummary.sourceIds.length > 0;
+  return hasSubjectSummary && sufficientQuestions && sufficientFacts
+    ? "no-cap"
+    : "extended-evidence-cap";
 }
 
 // Bound the safe field-path disclosure duplicated into gap and report surfaces.
@@ -662,8 +690,9 @@ function withOverflowSuffix(shown: readonly string[], totalCount: number, joiner
   return remaining > 0 ? `${base}${joiner}and ${remaining} more` : base;
 }
 
-// Field paths are code-generated from fixed keys and array indices; IDs, reasons, and claims are
-// Model-controlled and must not enter the prompt-bound SourceGap or persisted artifact summary.
+// Field paths are code-generated from fixed keys and array indices, and sanitized failure kinds
+// Are appended. IDs, reasons, and claims are model-controlled and must not enter the prompt-bound
+// SourceGap or persisted artifact summary.
 function sanitizedPartialRejectionSummary(
   profile: ParsedProfile,
   subjectKind: SubjectKind,
@@ -671,16 +700,27 @@ function sanitizedPartialRejectionSummary(
 ): string {
   const totalQuestions = WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].length;
   const rejectedFactsAndEvents = rejections.filter(
-    (rejection) => !rejection.field.startsWith("questions."),
+    (rejection) =>
+      rejection.field !== "subjectSummary" && !rejection.field.startsWith("questions."),
   ).length;
   const totalConsidered =
+    1 +
     totalQuestions +
     profile.factLedger.length +
     profile.recentMaterialEvents.length +
     rejectedFactsAndEvents;
-  const fieldPaths = rejections.map((rejection) => rejection.field);
-  const shownFields = fieldPaths.slice(0, MAX_DETAILED_REJECTIONS);
-  const fieldsText = withOverflowSuffix(shownFields, fieldPaths.length, ", ");
+  const rejectionLabels = rejections.map((rejection) => {
+    if (rejection.answerSourceIdFailure?.kind === "missing") {
+      return `${rejection.field}: answer cited no sourceIds`;
+    }
+    if (rejection.answerSourceIdFailure?.kind === "unknown") {
+      const { count } = rejection.answerSourceIdFailure;
+      return `${rejection.field}: answer cited ${count} unknown sourceId${count === 1 ? "" : "s"}`;
+    }
+    return rejection.field;
+  });
+  const shownFields = rejectionLabels.slice(0, MAX_DETAILED_REJECTIONS);
+  const fieldsText = withOverflowSuffix(shownFields, rejectionLabels.length, ", ");
   return (
     `Web Subject Profile: ${rejections.length} of ${totalConsidered} items rejected for ` +
     `source-citation errors (${fieldsText}).`

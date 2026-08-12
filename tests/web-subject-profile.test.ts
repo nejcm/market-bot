@@ -289,7 +289,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     });
     expect(result.sourceGaps[0]?.message).toContain("recentMaterialEvents[0]");
     expect(result.sourceGaps[0]?.message).not.toContain("disallowed-source");
-    expect(result.sourceGaps[0]?.message).toContain("1 of 19 items rejected");
+    expect(result.sourceGaps[0]?.message).toContain("1 of 20 items rejected");
   });
 
   test("every fact invalid still yields the empty artifact, unchanged (B3.2)", () => {
@@ -411,6 +411,9 @@ describe("buildWebSubjectProfileEvidence", () => {
     ]);
     expect(result.artifact?.sourceIds).toEqual([webSource.id]);
     expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps[0]?.message).toContain(
+      "questions.riskFactors: answer cited 1 unknown sourceId",
+    );
     expect(result.sourceGaps[0]?.message).not.toContain("disallowed-in-answer");
     expect(result.sourceGaps[0]?.message).not.toContain("disallowed-event-id");
     expect(result.sourceGaps[0]?.message).not.toContain("disallowed-fact-id");
@@ -499,6 +502,9 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.artifact?.sourceIds).toEqual([webSource.id]);
     // ...but disclosure escalates because too little of the profile is usable.
     expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps[0]?.message).toContain(
+      "questions.geography: answer cited no sourceIds",
+    );
     expect(result.sourceGaps[0]?.evidenceQualityImpact).toBe("extended-evidence-cap");
   });
 
@@ -557,7 +563,7 @@ describe("buildWebSubjectProfileEvidence", () => {
 
     expect(result.sourceGaps).toHaveLength(1);
     expect(result.sourceGaps[0]?.message).toBe(
-      "Web Subject Profile: 1 of 14 items rejected for source-citation errors " +
+      "Web Subject Profile: 1 of 15 items rejected for source-citation errors " +
         "(recentMaterialEvents[0]).",
     );
     expect(result.artifact?.openGaps).toEqual([
@@ -683,7 +689,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.sourceGaps).toHaveLength(1);
     const gapMessage = result.sourceGaps[0]?.message ?? "";
     // 12 total rejections stated up front...
-    expect(gapMessage).toContain("12 of 25 items rejected");
+    expect(gapMessage).toContain("12 of 26 items rejected");
     // ...but only 5 detailed entries shown, with the remaining 7 counted...
     expect(gapMessage).toContain("factLedger[6]");
     expect(gapMessage).not.toContain("factLedger[7]");
@@ -691,10 +697,10 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(gapMessage).not.toContain("disallowed-id-");
 
     // The sanitized openGaps summary truncates its field-path list the same
-    // Way, and states the true total (12 of 25: 11 questions + 2 surviving
-    // Facts + 12 rejected facts).
+    // Way, and states the true total (12 of 26: 1 summary + 11 questions +
+    // 2 surviving facts + 12 rejected facts).
     const openGap = result.artifact?.openGaps.at(-1) ?? "";
-    expect(openGap).toContain("12 of 25 items rejected");
+    expect(openGap).toContain("12 of 26 items rejected");
     expect(openGap).toContain("factLedger[6]");
     expect(openGap).not.toContain("factLedger[7]");
     expect(openGap).toContain(", and 7 more");
@@ -724,7 +730,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.sourceGaps[0]?.message).toContain("recentMaterialEvents must be an array");
   });
 
-  test("rejects uncited subject summary", () => {
+  test("degrades an uncited subject summary without discarding the profile", () => {
     const result = buildWebSubjectProfileEvidence({
       command,
       subject,
@@ -737,8 +743,62 @@ describe("buildWebSubjectProfileEvidence", () => {
       extendedEvidence: undefined,
     });
 
-    expect(result.sourceGaps[0]).toMatchObject({ cause: "validation-failed" });
-    expect(result.artifact?.sourceIds).toEqual([]);
+    expect(result.sourceGaps[0]).toMatchObject({
+      cause: "validation-failed",
+      evidenceQualityImpact: "extended-evidence-cap",
+      message: expect.stringContaining("subjectSummary: answer cited no sourceIds"),
+    });
+    expect(result.artifact?.subjectSummary).toEqual({ answer: "", sourceIds: [] });
+    expect(result.artifact?.sourceIds).toEqual([webSource.id]);
+  });
+
+  test("degrades a subject summary with unknown sourceIds and preserves the fact ledger", () => {
+    const result = buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      modelContent: JSON.stringify({
+        ...JSON.parse(profilePayload()),
+        subjectSummary: {
+          answer: "Summary with unknown citations.",
+          sourceIds: ["unknown-alpha", "unknown-beta"],
+        },
+      }),
+      webSources: [webSource],
+      extendedEvidence: undefined,
+    });
+
+    expect(result.artifact?.subjectSummary).toEqual({ answer: "", sourceIds: [] });
+    expect(result.artifact?.factLedger).toEqual([
+      { claim: "Apple sells iPhone, Mac, and services.", sourceIds: [webSource.id] },
+    ]);
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps[0]).toMatchObject({
+      cause: "validation-failed",
+      evidenceQualityImpact: "extended-evidence-cap",
+    });
+    const gapMessage = result.sourceGaps[0]?.message ?? "";
+    expect(gapMessage).toContain("subjectSummary: answer cited 2 unknown sourceIds");
+    expect(gapMessage).not.toContain("unknown-alpha");
+  });
+
+  test("counts repeated unknown sourceIds once", () => {
+    const result = buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      modelContent: JSON.stringify({
+        ...JSON.parse(profilePayload()),
+        subjectSummary: {
+          answer: "Summary with repeated unknown citations.",
+          sourceIds: ["repeated-unknown", "repeated-unknown", "repeated-unknown"],
+        },
+      }),
+      webSources: [webSource],
+      extendedEvidence: undefined,
+    });
+
+    expect(result.sourceGaps[0]?.message).toContain("answer cited 1 unknown sourceId");
   });
 });
 

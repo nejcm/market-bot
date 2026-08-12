@@ -64,13 +64,18 @@ export interface SecCompanyFactsResult {
   readonly sicClassification?: SecSicClassification;
   readonly filingsSummary?: string;
   readonly submissionsUrl?: string;
+  readonly submissionsPayload?: unknown;
   readonly submissionsSourceId?: string;
   readonly submissionsFetchedAt?: string;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly gaps: readonly SourceGap[];
 }
 
-export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
+export interface SecProviderResult extends ProviderResult {
+  readonly sicClassification?: SecSicClassification;
+}
+
+export const SEC_METRIC_DEFINITIONS = [
   {
     key: "revenue",
     label: "revenue",
@@ -189,16 +194,18 @@ export const SEC_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
     unitKeys: ["USD"],
     optional: true,
   },
-];
+] as const satisfies readonly SecMetricDefinition[];
 
-const DEBT_METRIC: SecMetricDefinition = {
+export type SecMetricDefinitionKey = (typeof SEC_METRIC_DEFINITIONS)[number]["key"];
+
+const DEBT_METRIC = {
   key: "debt",
   label: "debt",
   concepts: ["LongTermDebt"],
   unitKeys: ["USD"],
-};
+} as const satisfies SecMetricDefinition;
 
-const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
+const DEBT_COMPONENTS = [
   {
     key: "currentDebt",
     label: "current debt",
@@ -211,7 +218,11 @@ const DEBT_COMPONENTS: readonly SecMetricDefinition[] = [
     concepts: ["LongTermDebtNoncurrent"],
     unitKeys: ["USD"],
   },
-];
+] as const satisfies readonly SecMetricDefinition[];
+
+export type SecDebtMetricKey =
+  | (typeof DEBT_METRIC)["key"]
+  | (typeof DEBT_COMPONENTS)[number]["key"];
 
 const FLOW_METRIC_KEYS = new Set([
   "revenue",
@@ -567,7 +578,10 @@ export function summarizeSecFundamentals(
       ? undefined
       : selectMetric(gaap, revenueDefinition, analysisAsOf);
   const flowPeriod = revenueSelection?.latest;
-  const metricSelections = [
+  const metricSelections: readonly {
+    readonly definition: SecMetricDefinition;
+    readonly selection: SecMetricSelection | undefined;
+  }[] = [
     ...SEC_METRIC_DEFINITIONS.map((definition) => ({
       definition,
       selection:
@@ -685,22 +699,28 @@ export function summarizeSecFundamentals(
 export async function fetchSecCompanyFactsForSymbol(
   ctx: CollectContext,
   symbol: string,
+  tickerPayload?: unknown,
 ): Promise<SecCompanyFactsResult> {
   const secInit = secRequestInit(ctx.secUserAgent);
-  const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-  const tickers = await ctx.request.json({
-    url: tickersUrl,
-    adapter: "sec-tickers",
-    init: secInit,
-  });
-  if (!isFetchJsonResult(tickers)) {
+  const tickers =
+    tickerPayload === undefined
+      ? await ctx.request.json({
+          url: "https://www.sec.gov/files/company_tickers.json",
+          adapter: "sec-tickers",
+          init: secInit,
+        })
+      : undefined;
+  if (tickers !== undefined && !isFetchJsonResult(tickers)) {
     return { symbol: symbol.toUpperCase(), rawSnapshots: [], gaps: [tickers] };
   }
-  const match = findSecTicker(tickers.payload, symbol);
+  const resolvedTickerPayload =
+    tickerPayload ?? (tickers !== undefined && isFetchJsonResult(tickers) ? tickers.payload : {});
+  const match = findSecTicker(resolvedTickerPayload, symbol);
   if (match === undefined) {
     return {
       symbol: symbol.toUpperCase(),
-      rawSnapshots: [tickers.rawSnapshot],
+      rawSnapshots:
+        tickers !== undefined && isFetchJsonResult(tickers) ? [tickers.rawSnapshot] : [],
       gaps: [
         sourceGap({
           source: "sec-edgar",
@@ -743,6 +763,7 @@ export async function fetchSecCompanyFactsForSymbol(
     ...(filingsSummary !== undefined ? { filingsSummary } : {}),
     ...(isFetchJsonResult(submissions)
       ? {
+          submissionsPayload: submissions.payload,
           submissionsSourceId: `extended-sec-edgar-${symbol.toLowerCase()}-filings`,
           submissionsFetchedAt: submissions.rawSnapshot.fetchedAt,
         }
@@ -751,7 +772,7 @@ export async function fetchSecCompanyFactsForSymbol(
   const submissionsGaps = isFetchJsonResult(submissions) ? [] : [submissions];
 
   const rawSnapshots = [
-    tickers.rawSnapshot,
+    ...(tickers !== undefined && isFetchJsonResult(tickers) ? [tickers.rawSnapshot] : []),
     ...(isFetchJsonResult(facts) ? [facts.rawSnapshot] : []),
     ...(isFetchJsonResult(submissions) ? [submissions.rawSnapshot] : []),
   ];
@@ -805,25 +826,16 @@ export async function fetchSecCompanyFactsForSymbol(
   };
 }
 
-export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
+export async function collectSec(ctx: CollectContext): Promise<SecProviderResult> {
   const { command } = ctx;
   if (!isInstrumentCommand(command)) {
     return { rawSnapshots: [], items: [], gaps: [] };
   }
-  // Attribute target SEC gaps (e.g. "Missing SEC company facts", "Stale SEC
-  // Revenue period", non-US unsupported coverage) to the target symbol so they
-  // Never collide with a peer's like-messaged gap under a null symbol during
-  // Dedupe/consolidation. Every gap on these paths is owned by the target, so
-  // Overwrite unconditionally — a stale or upstream-supplied symbol must not
-  // Survive re-attribution. Applied on every return path in collectSec.
-  const tagTargetGaps = (gaps: readonly SourceGap[]): readonly SourceGap[] =>
-    gaps.map((gap) => ({ ...gap, symbol: command.symbol.toUpperCase() }));
-
   if (!isUsListing(command.symbol, ctx.instrumentIdentity)) {
     return {
       rawSnapshots: [],
       items: [],
-      gaps: tagTargetGaps([
+      gaps: tagSecTargetGaps(command.symbol, [
         sourceGap({
           source: "sec-edgar",
           message: `SEC EDGAR does not support ${command.symbol} (non-US listing)`,
@@ -837,9 +849,38 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
   }
 
   const factsResult = await fetchSecCompanyFactsForSymbol(ctx, command.symbol);
-  const gaps = tagTargetGaps(factsResult.gaps);
+  return secProviderResultFromCompanyFacts(ctx, factsResult);
+}
+
+function tagSecTargetGaps(symbol: string, gaps: readonly SourceGap[]): readonly SourceGap[] {
+  return gaps.map((gap) => ({ ...gap, symbol: symbol.toUpperCase() }));
+}
+
+export function secProviderResultFromCompanyFacts(
+  ctx: CollectContext,
+  factsResult: SecCompanyFactsResult,
+): SecProviderResult {
+  const { command } = ctx;
+  if (!isInstrumentCommand(command)) {
+    return {
+      rawSnapshots: factsResult.rawSnapshots,
+      items: [],
+      gaps: factsResult.gaps,
+      ...(factsResult.sicClassification !== undefined
+        ? { sicClassification: factsResult.sicClassification }
+        : {}),
+    };
+  }
+  const gaps = tagSecTargetGaps(command.symbol, factsResult.gaps);
   if (factsResult.cik === undefined || factsResult.identity === undefined) {
-    return { rawSnapshots: factsResult.rawSnapshots, items: [], gaps };
+    return {
+      rawSnapshots: factsResult.rawSnapshots,
+      items: [],
+      gaps,
+      ...(factsResult.sicClassification !== undefined
+        ? { sicClassification: factsResult.sicClassification }
+        : {}),
+    };
   }
 
   const { rawSnapshots, filingsSummary } = factsResult;
@@ -920,5 +961,8 @@ export async function collectSec(ctx: CollectContext): Promise<ProviderResult> {
     rawSnapshots,
     items,
     gaps,
+    ...(factsResult.sicClassification !== undefined
+      ? { sicClassification: factsResult.sicClassification }
+      : {}),
   };
 }

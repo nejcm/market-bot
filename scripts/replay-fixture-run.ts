@@ -1,36 +1,37 @@
 import { join } from "node:path";
-import { goldenOutputPath, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
+import { goldenOutputDirectory, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
+import {
+  formatGoldenDiff,
+  formatGoldenMismatch,
+  parseGoldenReplayArgs,
+  reviewFixtureGolden,
+} from "../tests/support/run-fixtures/golden-diff";
 import { runFixture } from "../tests/support/run-fixtures";
 import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
 
-function usage(): never {
-  throw new Error(
-    "Usage: bun run scripts/replay-fixture-run.ts <fixture-name> [--live] [--write-golden]",
-  );
-}
-
-const [fixtureName, ...flags] = process.argv.slice(2);
-if (fixtureName === undefined) {
-  usage();
-}
-const unknownFlag = flags.find((flag) => flag !== "--live" && flag !== "--write-golden");
-if (unknownFlag !== undefined) {
-  throw new Error(`Unknown flag: ${unknownFlag}`);
-}
-
-const live = flags.includes("--live");
-const writeGolden = flags.includes("--write-golden");
+const { fixtureName, mode } = parseGoldenReplayArgs(process.argv.slice(2));
 const result = await runFixture(fixtureName, {
-  llm: live ? "live" : "replay",
-  keepDataDir: !writeGolden,
-  ...(writeGolden ? {} : { dataDir: join("data", "runs") }),
+  llm: mode === "live" ? "live" : "replay",
+  keepDataDir: mode === "live" || mode === "keep",
+  ...(mode === "live" ? { dataDir: join("data", "runs") } : {}),
 });
+
 try {
-  if (writeGolden) {
-    await writeGoldenOutput(result.artifacts.runDir, fixtureName);
-    await assertNoSecretsInFiles([goldenOutputPath(fixtureName)], knownSecretValues(process.env));
-    process.stdout.write(`${goldenOutputPath(fixtureName)}\n`);
-  } else {
+  if (mode !== "live") {
+    const review = await reviewFixtureGolden(result.artifacts.runDir, fixtureName);
+    if (mode === "keep") {
+      process.stdout.write(`${result.artifacts.runDir}\n`);
+    }
+    if ((mode === "check" || mode === "keep") && !review.equal) {
+      throw new Error(formatGoldenMismatch(fixtureName, review.diff));
+    }
+    process.stdout.write(`${formatGoldenDiff(review.diff)}\n`);
+  }
+  if (mode === "write") {
+    const goldenFiles = await writeGoldenOutput(result.artifacts.runDir, fixtureName);
+    await assertNoSecretsInFiles(goldenFiles, knownSecretValues(process.env));
+    process.stdout.write(`${goldenOutputDirectory(fixtureName)}\n`);
+  } else if (mode === "live") {
     process.stdout.write(`${result.artifacts.runDir}\n`);
   }
 } finally {

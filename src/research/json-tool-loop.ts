@@ -176,7 +176,7 @@ export async function runJsonToolLoop<
   };
 }
 
-function parseModelRequests(
+export function parseModelRequests(
   content: string,
   invalidJsonMessage: string,
   invalidShapeMessage: string,

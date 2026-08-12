@@ -132,7 +132,7 @@ async function generatePeerProposal(deps: ProposerDeps, target: string): Promise
         temperature: 0,
         top_p: 1,
         seed: symbolSeed(target),
-        reasoningEffort: "low",
+        reasoningEffort: "medium",
         max_completion_tokens: 400,
       },
       messages: [

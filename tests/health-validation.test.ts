@@ -98,6 +98,44 @@ describe("buildValidation route classification", () => {
     expect(classificationFor(summary, "news-seen")?.classification).toBe("informational");
   });
 
+  test("treats profile reuse as informational without demoting stale cache fallbacks", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "web-subject-profile",
+          provider: "market-bot",
+          causes: { "stale-fallback": 1 },
+        }),
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          causes: { "stale-fallback": 1 },
+        }),
+      ],
+      true,
+      NOW,
+    );
+    const failureSummary = buildValidation(
+      [],
+      [
+        route({
+          route: "web-subject-profile",
+          provider: "market-bot",
+          causes: { "validation-failed": 1 },
+        }),
+      ],
+      true,
+      NOW,
+    );
+
+    expect(classificationFor(summary, "web-subject-profile")?.classification).toBe("informational");
+    expect(classificationFor(failureSummary, "web-subject-profile")?.classification).toBe(
+      "blocking",
+    );
+    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe("blocking");
+  });
+
   test("treats missing optional credentials as expected", () => {
     const summary = buildValidation(
       [],

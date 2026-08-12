@@ -11,6 +11,8 @@ import {
   writeProviderHealthSummary,
 } from "../src/health/provider-health";
 import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { deepEquityEvidenceBundle } from "./support/fixtures";
 
 let tmpDir = "";
 let dataDir = "";
@@ -84,6 +86,34 @@ async function writeRun(fixture: RunFixture): Promise<void> {
     join(dataDir, fixture.runId, "normalized", "source-gaps.json"),
     fixture.gaps ?? [],
   );
+  if (fixture.jobType === "equity" && fixture.depth === "deep" && fixture.symbol !== undefined) {
+    const base = deepEquityEvidenceBundle();
+    await writeJson(
+      join(dataDir, fixture.runId, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        run: { symbol: fixture.symbol, analysisAsOf: generatedAt },
+        governance: {
+          ...base.governance,
+          sourceGaps: fixture.gaps ?? [],
+          sourcePlan: {
+            ...base.governance.sourcePlan,
+            generatedAt,
+            run: {
+              jobType: "equity",
+              assetClass: "equity",
+              symbol: fixture.symbol,
+              depth: "deep",
+            },
+          },
+          evidenceLanes: { ...base.governance.evidenceLanes, generatedAt },
+          sourceLedger: { ...base.governance.sourceLedger, generatedAt },
+        },
+        context: {
+          historicalContext: { ...base.context.historicalContext, generatedAt },
+        },
+      }),
+    );
+  }
   await writeJson(join(dataDir, fixture.runId, "analytics.json"), {
     newsDedupe: {
       selectedNewsSourceCount:
@@ -146,13 +176,125 @@ async function writeBaselineRuns(
 }
 
 describe("provider health", () => {
-  test("preserves optional source gap symbols while parsing", () => {
-    expect(parseSourceGap({ source: "sec-edgar", message: "missing", symbol: "AAPL" })).toEqual(
-      expect.objectContaining({ symbol: "AAPL" }),
+  test("reads deep-equity source gaps from the bundle and ignores legacy sidecars", async () => {
+    const runDir = join(dataDir, "deep-bundle");
+    const generatedAt = "2026-06-01T00:00:00.000Z";
+    const base = deepEquityEvidenceBundle();
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.report), {
+      runId: "deep-bundle",
+      generatedAt,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      sources: [],
+      predictions: [],
+      extras: { depth: "deep" },
+    });
+    await writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        run: { symbol: "AAPL", analysisAsOf: generatedAt },
+        governance: {
+          ...base.governance,
+          sourceGaps: [
+            {
+              source: "bundle-provider",
+              provider: "bundle",
+              cause: "missing-credential",
+              message: "missing bundle credential",
+            },
+          ],
+          sourcePlan: { ...base.governance.sourcePlan, generatedAt },
+          evidenceLanes: { ...base.governance.evidenceLanes, generatedAt },
+          sourceLedger: { ...base.governance.sourceLedger, generatedAt },
+        },
+        context: {
+          historicalContext: { ...base.context.historicalContext, generatedAt },
+        },
+      }),
     );
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), [
+      { source: "legacy-provider", message: "legacy gap" },
+    ]);
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.routes.map((route) => route.route)).toContain("bundle-provider");
+    expect(summary.routes.map((route) => route.route)).not.toContain("legacy-provider");
+  });
+
+  test("emits degraded unknown coverage for absent and malformed deep-equity bundles", async () => {
+    const generatedAt = "2026-06-01T00:00:00.000Z";
+    for (const runId of ["bundle-absent", "bundle-malformed"]) {
+      await writeJson(join(dataDir, runId, RUN_ARTIFACT_FILES.report), {
+        runId,
+        generatedAt,
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        sources: [],
+        predictions: [],
+        extras: { depth: "deep" },
+      });
+    }
+    await mkdir(dirname(join(dataDir, "bundle-malformed", RUN_ARTIFACT_FILES.evidenceBundle)), {
+      recursive: true,
+    });
+    await writeFile(
+      join(dataDir, "bundle-malformed", RUN_ARTIFACT_FILES.evidenceBundle),
+      "{",
+      "utf8",
+    );
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({
+        route: "deep-equity-evidence-bundle",
+        provider: "run-artifact",
+        total: 2,
+        causes: {
+          "provider-data-missing": 1,
+          "validation-failed": 1,
+        },
+      }),
+    );
+    expect(summary.validation.routeClassifications).toContainEqual(
+      expect.objectContaining({
+        route: "deep-equity-evidence-bundle",
+        classification: "blocking",
+      }),
+    );
+  });
+
+  test("preserves validated optional source gap telemetry while parsing", () => {
+    const attempts = {
+      count: 2,
+      elapsedMs: 125,
+      failures: [
+        { attempt: 1, classification: "timeout", message: "timed out" },
+        { attempt: 2, classification: "server-error", message: "HTTP 503" },
+      ],
+    };
+    expect(
+      parseSourceGap({
+        source: "sec-edgar",
+        message: "missing",
+        symbol: "AAPL",
+        triage: "diagnostic",
+        attempts,
+      }),
+    ).toEqual(expect.objectContaining({ symbol: "AAPL", triage: "diagnostic", attempts }));
     expect(parseSourceGap({ source: "sec-edgar", message: "missing" })).not.toHaveProperty(
       "symbol",
     );
+    expect(
+      parseSourceGap({
+        source: "sec-edgar",
+        message: "missing",
+        attempts: { ...attempts, count: 0 },
+      }),
+    ).not.toHaveProperty("attempts");
   });
 
   test("fails when FRED baseline coverage is missing", async () => {

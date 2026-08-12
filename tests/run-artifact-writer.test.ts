@@ -8,6 +8,7 @@ import type { AppConfig } from "../src/config";
 import type { ResearchReport, RunTrace, SourceGap } from "../src/domain/types";
 import { prepareRunArtifacts } from "../src/artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { loadRunArtifact } from "../src/run-artifacts";
 import {
   buildAlphaSearchManifest,
   buildResearchRunManifest,
@@ -22,10 +23,15 @@ import type {
 } from "../src/research/source-plan";
 import type { RawSourceSnapshot } from "../src/sources/types";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import type { SubsequentFinancingBridgeArtifact } from "../src/sources/extended-evidence/subsequent-financing";
+import type { CapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import {
   collectedSources,
+  deepEquityEvidenceBundle,
   marketSnapshot,
   researchReport,
+  reverseDcfArtifact,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 
@@ -149,6 +155,10 @@ function trace(overrides: Partial<RunTrace> = {}): RunTrace {
     tokenEstimate: 0,
     domainPlaybooks: { selected: [], rejected: [] },
     ...overrides,
+    sourceTextResearchOnly: overrides.sourceTextResearchOnly ?? {
+      summary: { scannedCount: 0, flaggedCount: 0, flaggedByKind: {}, flaggedByProvider: {} },
+      items: [],
+    },
   };
 }
 
@@ -212,8 +222,11 @@ const instrumentFiles = [
   RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
   RUN_ARTIFACT_FILES.instrumentIdentity,
   RUN_ARTIFACT_FILES.valuationComps,
+  RUN_ARTIFACT_FILES.valuationWorkbench,
+  RUN_ARTIFACT_FILES.reverseDcf,
   RUN_ARTIFACT_FILES.financialLenses,
   RUN_ARTIFACT_FILES.fundamentalHistory,
+  RUN_ARTIFACT_FILES.financialStatements,
   RUN_ARTIFACT_FILES.businessFramework,
 ] as const;
 
@@ -233,6 +246,39 @@ function tempDir(): string {
 }
 
 describe("run artifact writer manifests", () => {
+  test("round-trips SourceGap attempts through the canonical report artifact", async () => {
+    const attempts = {
+      count: 2,
+      elapsedMs: 125,
+      failures: [
+        { attempt: 1, classification: "timeout" as const, message: "timed out" },
+        { attempt: 2, classification: "server-error" as const, message: "HTTP 503" },
+      ],
+    };
+    const artifacts = await prepareRunArtifacts(tempDir(), "source-gap-attempts");
+    const manifest = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({
+        report: researchReport({
+          runId: "source-gap-attempts",
+          jobType: "equity",
+          symbol: "AAPL",
+          extendedEvidence: {
+            instrument: { symbol: "AAPL", assetClass: "equity" },
+            items: [],
+            gaps: [{ source: "exa", message: "fetch failed", attempts }],
+          },
+        }),
+      }),
+    );
+
+    await persistRunArtifactWrites(artifacts, manifest);
+    const loaded = await loadRunArtifact(artifacts.runDir);
+
+    expect(loaded.artifact?.report.extendedEvidence?.gaps[0]?.attempts).toEqual(attempts);
+  });
+
   test("research equity brief manifest preserves instrument null policies", () => {
     const writes = buildResearchRunManifest(equityCommand, config, result());
 
@@ -243,9 +289,34 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.verifiedMarketSnapshot)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.instrumentIdentity)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationComps)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.reverseDcf)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.financialLenses)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toBeNull();
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.financialStatements)).toBeNull();
     expect(valueFor(writes, RUN_ARTIFACT_FILES.businessFramework)).toBeNull();
+  });
+
+  test("writes the collected valuation-workbench sidecar", () => {
+    const workbench = valuationWorkbench();
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ valuationWorkbench: workbench }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.valuationWorkbench)).toEqual(workbench);
+  });
+
+  test("writes the collected reverse-DCF sidecar", () => {
+    const artifact = reverseDcfArtifact();
+    const writes = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ reverseDcf: artifact }) }),
+    );
+
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.reverseDcf)).toEqual(artifact);
   });
 
   test("writes the collected fundamental-history sidecar", () => {
@@ -266,12 +337,65 @@ describe("run artifact writer manifests", () => {
     expect(valueFor(writes, RUN_ARTIFACT_FILES.fundamentalHistory)).toEqual(fundamentalHistory);
   });
 
+  test("writes the financing bridge only when events are present", () => {
+    const subsequentFinancing: SubsequentFinancingBridgeArtifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "AAPL",
+      statementPeriodEnd: "2026-03-31",
+      events: [
+        {
+          disclosureDate: "2026-05-16",
+          eventDate: "2026-05-15",
+          instrument: "debt",
+          proceeds: { amount: 100, currency: "USD", basis: "gross" },
+          costs: null,
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          reconciled: false,
+        },
+      ],
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+    };
+    const absent = buildResearchRunManifest(equityCommand, config, result());
+    const present = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ subsequentFinancing }) }),
+    );
+
+    expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.subsequentFinancing);
+    expect(valueFor(present, RUN_ARTIFACT_FILES.subsequentFinancing)).toEqual(subsequentFinancing);
+  });
+
+  test("writes capital ownership only when collected", () => {
+    const capitalOwnership: CapitalOwnershipArtifact = {
+      version: 1,
+      generatedAt: GENERATED_AT,
+      symbol: "AAPL",
+      dilutedShares: [],
+      stockBasedCompensation: [],
+      buybacks: [],
+      dividendsPaid: [],
+      omissions: [],
+    };
+    const absent = buildResearchRunManifest(equityCommand, config, result());
+    const present = buildResearchRunManifest(
+      equityCommand,
+      config,
+      result({ collectedSources: collectedSources({ capitalOwnership }) }),
+    );
+
+    expect(filesOf(absent)).not.toContain(RUN_ARTIFACT_FILES.capitalOwnership);
+    expect(valueFor(present, RUN_ARTIFACT_FILES.capitalOwnership)).toEqual(capitalOwnership);
+  });
+
   test("research deep instrument manifest includes conditional audit artifacts", () => {
     const command: InstrumentCommand = { ...equityCommand, depth: "deep" };
     const writes = buildResearchRunManifest(
       command,
       config,
       result({
+        deepEquityEvidenceBundle: deepEquityEvidenceBundle(),
         trace: trace({
           depth: "deep",
           webGatherLoop: {
@@ -309,13 +433,23 @@ describe("run artifact writer manifests", () => {
 
     expect(filesOf(writes)).toEqual(
       [
-        ...baseResearchFiles,
-        ...instrumentFiles,
+        RUN_ARTIFACT_FILES.rawSnapshots,
+        RUN_ARTIFACT_FILES.marketContext,
+        RUN_ARTIFACT_FILES.stages,
+        RUN_ARTIFACT_FILES.analytics,
+        RUN_ARTIFACT_FILES.report,
+        RUN_ARTIFACT_FILES.reportMarkdown,
+        RUN_ARTIFACT_FILES.trace,
+        RUN_ARTIFACT_FILES.evidenceBundle,
         RUN_ARTIFACT_FILES.webGatherAudit,
         RUN_ARTIFACT_FILES.forecastDisagreement,
       ].toSorted(),
     );
     expect(valueFor(writes, RUN_ARTIFACT_FILES.webGatherAudit)).toMatchObject({ rounds: 1 });
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.evidenceBundle)).toMatchObject({
+      schemaVersion: 1,
+      run: { symbol: "AAPL" },
+    });
   });
 
   test("market overview manifest preserves empty-when-absent policies", () => {
@@ -472,6 +606,12 @@ describe("run artifact writer manifests", () => {
         jobType: "alpha-search",
         assetClass: "equity",
         depth: "brief",
+        sourceTextResearchOnly: {
+          scannedCount: 0,
+          flaggedCount: 0,
+          flaggedByKind: {},
+          flaggedByProvider: {},
+        },
         sourceFunnel: {
           reportSources: { total: 0, byKind: {}, byProvider: {} },
           sourceGaps: { total: 0, bySource: {} },

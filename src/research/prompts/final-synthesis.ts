@@ -5,6 +5,7 @@ import {
   type ExtendedEvidenceItem,
   type MarketSnapshot,
   type Prediction,
+  type PredictionKind,
   type ResearchReport,
   type Source,
 } from "../../domain/types";
@@ -13,6 +14,7 @@ import {
   BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_CLASS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
@@ -21,6 +23,7 @@ import { buildCalibrationBlock } from "../calibration-context";
 import { EVIDENCE_POSTURE_LABELS } from "../post-synthesis-audit";
 import type { StageLabel } from "../prompt-loader";
 import type { DepthProfile, ResearchContext } from "../research-context-types";
+import type { ConditionalCalibrationSummary } from "../../scoring/types";
 import { buildEvidencePayload } from "./evidence-payload";
 import {
   hasCiteableOptionsIvEvidence,
@@ -36,13 +39,16 @@ import {
   type StageInput,
 } from "./stage-envelope";
 import { buildFreshWebSteering } from "./steering";
+import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 
 const NEAR_BASE_RATE_LOWER_BOUND = (0.5 - NEAR_BASE_RATE_BAND).toFixed(2);
 const NEAR_BASE_RATE_UPPER_BOUND = (0.5 + NEAR_BASE_RATE_BAND).toFixed(2);
+const MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE = 10;
+const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
 const NEAR_BASE_RATE_PROBABILITY_RULE = `probability outside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band. A probability inside that band signals an uninformative claim: either commit to the probability the cited evidence actually supports, or choose a different observable claim with more resolving power. Never inflate a probability beyond the evidence just to leave the band`;
 
-function finalReportShape(
+export function finalReportShape(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   depthProfile: DepthProfile,
@@ -50,6 +56,7 @@ function finalReportShape(
   hasBusinessFramework: boolean,
   hasWebSubjectProfile: boolean,
   webSubjectKind: ReturnType<typeof subjectKindForCommand>,
+  excludedKinds: readonly PredictionKind[] = [],
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
   // Build the model-visible kind string from the same gated logic that steers the prose
@@ -60,6 +67,7 @@ function finalReportShape(
     command,
     collectedSources,
     depthProfile.predictionSubjects,
+    excludedKinds,
   ).join("|");
   const earningsSetupShape = hasEarningsSetup
     ? {
@@ -131,6 +139,7 @@ function finalReportShape(
 function buildForecastDiversityGuidance(
   command: ResearchCommand,
   collectedSources: CollectedSources,
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
   if (command.depth !== "deep" || !isInstrumentCommand(command)) {
     return "";
@@ -138,35 +147,78 @@ function buildForecastDiversityGuidance(
   const shapes: string[] = [
     "direction (close up/down)",
     "relative (vs benchmark)",
-    "range (outside [Lo, Hi])",
+    ...(excludedKinds.includes("range") ? [] : ["range (outside [Lo, Hi])"]),
   ];
   if (hasCiteableOptionsIvEvidence(collectedSources)) {
     shapes.push("IV (iv(SUBJECT, +N) > T)");
   }
-  if (collectedSources.earningsSetup !== undefined) {
+  if (hasConfirmedEarningsDate(collectedSources.earningsSetup)) {
     shapes.push("earnings-direction or earnings-move (event-anchored)");
   }
   shapes.push("conditional (if-then when evidence supports a setup)");
 
-  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and horizon variety to find the most informative forecasts rather than defaulting to the same kind repeatedly. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
+  return ` Before stopping, consider whether the available evidence supports distinct forecast shapes: ${shapes.join("; ")}. Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it. A better-measured kind such as relative is informative only when its probability departs from 0.5; several same-horizon relative forecasts against equivalent broad US index benchmarks (e.g. SPY, QQQ, DIA) restate one view rather than adding independent signal. The count is still a soft target; do not pad with low-conviction forecasts.`;
+}
+
+// The observable grammar only ever asserts the positive side of a comparison, so a bearish or
+// Stays-within view is expressed through the probability rather than the expression. With `range`
+// Withdrawn there is no `outside` expression to talk about, and naming one would advertise the
+// Withdrawn kind's semantic well enough to elicit it — the gate would then drop the forecast and
+// The slot would be wasted. Default output is unchanged for every path that keeps range.
+function buildPolarityGuidance(excludedKinds: readonly PredictionKind[]): string {
+  return excludedKinds.includes("range")
+    ? ` The grammar only expresses up; to express a bearish view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up expression.`
+    : ` The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.`;
+}
+
+export function buildConditionalPredictionActivationGuidance(
+  conditionalPredictions: ConditionalCalibrationSummary | undefined,
+): string | undefined {
+  if (conditionalPredictions === undefined) {
+    return undefined;
+  }
+  const { activatedCount, voidedCount } = conditionalPredictions;
+  const resolvedCount = activatedCount + voidedCount;
+  if (resolvedCount < MIN_CONDITIONAL_PREDICTION_SAMPLE_SIZE) {
+    return undefined;
+  }
+  const voidRate = voidedCount / resolvedCount;
+  if (voidRate < MATERIAL_CONDITIONAL_VOID_RATE) {
+    return undefined;
+  }
+  return ` Continue emitting Conditional Predictions when the evidence supports a genuinely conditional setup. Anchor antecedents to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited price history has already reached, so the antecedent can plausibly occur inside the resolution window. Activation history shows why antecedent quality matters: ${String(activatedCount)} of ${String(resolvedCount)} resolved conditionals activated; ${String(voidedCount)} voided because their antecedents did not occur.`;
 }
 
 function predictionDslInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   predictionSubjects: readonly string[],
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
-  const equityExtras: string[] = [];
+  const clauses: string[] = [
+    "close(SUBJECT, +N) > close(SUBJECT, 0) for direction",
+    "close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative",
+    ...(excludedKinds.includes("range") ? [] : ["close(SUBJECT, +N) outside [Lo, Hi] for range"]),
+    "fred(SERIES, +N) > fred(SERIES, 0) for macro",
+  ];
   if (command.assetClass === "equity") {
     if (isVixAllowedSubject(predictionSubjects)) {
-      equityExtras.push("max(close(^VIX), 0..+N) > T for volatility");
+      clauses.push("max(close(^VIX), 0..+N) > T for volatility");
     }
     if (hasCiteableOptionsIvEvidence(collectedSources)) {
-      equityExtras.push("iv(SUBJECT, +N) > T for IV");
+      clauses.push("iv(SUBJECT, +N) > T for IV");
     }
   }
-  const equityOnly = equityExtras.length > 0 ? `, ${equityExtras.join(", ")}` : "";
-  return `Each prediction must use the measurableAs DSL: close(SUBJECT, +N) > close(SUBJECT, 0) for direction, close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative, close(SUBJECT, +N) outside [Lo, Hi] for range, fred(SERIES, +N) > fred(SERIES, 0) for macro${equityOnly}.`;
+  return `Each prediction must use the measurableAs DSL: ${clauses.join(", ")}.`;
+}
+
+function withoutExcludedKinds(
+  mix: ForecastKindMix,
+  excludedKinds: readonly PredictionKind[],
+): ForecastKindMix {
+  return excludedKinds.length === 0
+    ? mix
+    : { ...mix, favored: mix.favored.filter((kind) => !excludedKinds.includes(kind)) };
 }
 
 function buildKindMixGuidance(mix: ForecastKindMix): string {
@@ -186,7 +238,7 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
 function buildAllowedSubjectSteering(predictionSubjects: readonly string[]): string {
   const subjects = predictionSubjects.join(", ");
   const benchmarks = BROAD_US_INDEX_BENCHMARK_SYMBOLS.join(", ");
-  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind.`;
+  return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind. A second relative forecast for the same primary subject and exact horizon must differ in probability by more than ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)}, backed by a stated evidence-based differentiation; changing only the benchmark ticker does not add signal.`;
 }
 
 // Names the broad-US-index class+horizon slots already taken by existingPredictions so the
@@ -220,10 +272,19 @@ function describeOccupiedBroadIndexSlots(predictions: readonly Prediction[]): st
     : "";
 }
 
-function buildPredictionRepairInstruction(context: ResearchContext): string {
+export function buildPredictionRepairInstruction(
+  context: ResearchContext,
+  excludedKinds: readonly PredictionKind[] = [],
+): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
-  const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
-  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK. For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon. Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
+  const favoredKinds = withoutExcludedKinds(
+    context.depthProfile.targetKindMix,
+    excludedKinds,
+  ).favored.join(", ");
+  const rangeGuidance = excludedKinds.includes("range")
+    ? ""
+    : " For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon.";
+  return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK.${rangeGuidance} Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
 // MeasurableAs grammar for the event-anchored earnings kinds, shared verbatim by the primary and
@@ -253,8 +314,12 @@ function buildCompletionKindGrammar(
   collectedSources: CollectedSources,
 ): string {
   const clauses: string[] = [];
-  if (isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined) {
+  if (isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup)) {
     clauses.push(`For an earnings-anchored forecast, use ${earningsForecastGrammar()}`);
+  } else if (isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined) {
+    clauses.push(
+      "The Earnings Setup date is provider-estimated and contextual only; do not emit earnings-direction, earnings-move, or earningsReturn grammar.",
+    );
   }
   if (command.depth === "deep") {
     clauses.push(`For a conditional forecast, use ${conditionalForecastGrammar()}`);
@@ -342,6 +407,12 @@ function completionEarningsSetup(
       timing: setup.event.timing,
       sourceIds: setup.event.sourceIds,
       fetchedAt: setup.event.fetchedAt,
+      ...(setup.event.eventDateStatus !== undefined
+        ? { eventDateStatus: setup.event.eventDateStatus }
+        : {}),
+      ...(setup.event.dateConfirmation !== undefined
+        ? { dateConfirmation: setup.event.dateConfirmation }
+        : {}),
       ...(setup.event.epsEstimate !== undefined ? { epsEstimate: setup.event.epsEstimate } : {}),
       ...(setup.event.revenueEstimate !== undefined
         ? { revenueEstimate: setup.event.revenueEstimate }
@@ -383,7 +454,7 @@ function completionOptionsIv(
 // Enough context to author sourced forecasts without replaying the full evidence payload. Web
 // Sources stay under `webSources` so the completion instruction's fresh-web steering reference
 // Still resolves; `allowedSourceIds` remains the citation authority.
-function buildCompletionEvidencePayload(
+export function buildCompletionEvidencePayload(
   report: ResearchReport,
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -411,7 +482,7 @@ function buildCompletionEvidencePayload(
 // Narrative-only projection of the first-attempt report so the completion pass can see what has
 // Already been written without the raw evidence or prior-stage transcript. Predictions and sources
 // Are omitted: existingPredictions and the compact source index already carry them.
-function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
+export function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
   return {
     summary: report.summary,
     keyFindings: report.keyFindings,
@@ -426,7 +497,7 @@ function buildCompletionReportDraft(report: ResearchReport): Record<string, unkn
 
 // The critique stage output from the prior-stage transcript, projected to stage + content only.
 // The completion pass keeps just this stage instead of the full analysis transcript.
-function completionCritiqueStage(
+export function completionCritiqueStage(
   priorStages: readonly unknown[],
 ): { readonly stage: string; readonly content: string } | undefined {
   for (const entry of priorStages) {
@@ -443,50 +514,94 @@ function completionCritiqueStage(
   return undefined;
 }
 
-function buildPredictionCompletionInstruction(
+export function buildPredictionCompletionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
   completion: PredictionCompletionPrompt,
+  excludedKinds: readonly PredictionKind[] = [],
 ): string {
   const subjects = context.depthProfile.predictionSubjects.join(", ");
-  const favoredKinds = context.depthProfile.targetKindMix.favored.join(", ");
+  const favoredKinds = withoutExcludedKinds(
+    context.depthProfile.targetKindMix,
+    excludedKinds,
+  ).favored.join(", ");
   const coverage = predictionCoverageGuidance(
     completion.existingPredictions,
-    supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects),
+    supportedPredictionKinds(
+      command,
+      collectedSources,
+      context.depthProfile.predictionSubjects,
+      excludedKinds,
+    ),
   );
   const allowedSubjectSteering = buildAllowedSubjectSteering(
     context.depthProfile.predictionSubjects,
   );
   const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)}${buildCompletionKindGrammar(command, collectedSources)}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  const conditionalActivationGuidance =
+    command.depth === "deep"
+      ? (buildConditionalPredictionActivationGuidance(
+          context.calibrationContext?.conditionalPredictions,
+        ) ?? "")
+      : "";
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${buildPolarityGuidance(excludedKinds)}${buildCompletionKindGrammar(command, collectedSources)}${conditionalActivationGuidance}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
-function buildPrimaryPredictionInstruction(
+export function buildPrimaryPredictionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
+  excludedKinds: readonly PredictionKind[] = [],
+  options: {
+    readonly businessFrameworkEvidenceProjected?: boolean;
+    // Describes where, and whether, this pipeline's evidence payload carries the profile digest.
+    // The surviving legacy payload ships both the extendedEvidence item and a top-level digest.
+    // Naming a location the payload does not have invites uncitable prose.
+    readonly webSubjectProfileEvidence?: {
+      readonly projected: boolean;
+      readonly path: string;
+    };
+  } = {},
 ): string {
   const conditionalPredictionInstruction =
     command.depth === "deep"
       ? ` Deep runs may use Conditional Predictions when evidence supports a conditional setup — ${conditionalForecastGrammar()}`
       : "";
+  const conditionalActivationGuidance =
+    command.depth === "deep"
+      ? (buildConditionalPredictionActivationGuidance(
+          context.calibrationContext?.conditionalPredictions,
+        ) ?? "")
+      : "";
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
+  const earningsForecastEligible =
+    isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup);
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
-  const earningsPredictionInstruction = hasEarningsSetup
-    ? ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`
-    : "";
-  const businessFrameworkInstruction = hasBusinessFramework
-    ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
-    : "";
-  const webSubjectProfileInstruction = hasWebSubjectProfile
-    ? " A cited Web Subject Profile is in evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects."
-    : "";
+  let earningsPredictionInstruction = "";
+  if (earningsForecastEligible) {
+    earningsPredictionInstruction = ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`;
+  } else if (hasEarningsSetup) {
+    earningsPredictionInstruction =
+      " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps.";
+  }
+  const businessFrameworkInstruction =
+    hasBusinessFramework && options.businessFrameworkEvidenceProjected !== false
+      ? " A deterministic Business Framework is in evidence.extendedEvidence as category business-framework. You may author concise sourced explanations under extras.businessFramework.sections for Business, Phase, Moat, Growth, Management, Risk, and Valuation; code owns phase, posture labels, metrics, and gaps. Cite existing sourceIds and disclose missing segment, customer, management, KPI, or analyst-estimate evidence instead of guessing. Do not add scores, composite ratings, or trade-action labels."
+      : "";
+  const profileEvidence = options.webSubjectProfileEvidence ?? {
+    projected: true,
+    path: "evidence.extendedEvidence as category web-subject-profile and extras.webSubjectProfile",
+  };
+  const webSubjectProfileInstruction =
+    hasWebSubjectProfile && profileEvidence.projected
+      ? ` A cited Web Subject Profile is in ${profileEvidence.path}. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
+      : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a default horizon near ${String(context.depthProfile.defaultPredictionHorizon)} trading days. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}. The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.${conditionalPredictionInstruction}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(context.depthProfile.targetKindMix)}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects))}${buildForecastDiversityGuidance(command, collectedSources)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction
@@ -525,7 +640,7 @@ export function buildStageSteeringSegment(
   return steering.length > 0 ? steering : undefined;
 }
 
-function postSynthesisAuditGuidance(): Record<string, string> {
+export function postSynthesisAuditGuidance(): Record<string, string> {
   return {
     status: "warning-only telemetry; do not retry or omit supported findings solely for this audit",
     unsupportedNumericClaims:
@@ -541,7 +656,7 @@ function postSynthesisAuditGuidance(): Record<string, string> {
 // Recommendation-shaped subjects ("promising stocks", rankings) draw reader-directed advice even
 // Though the base prompt forbids it, so the retry must name the exact violation and the neutral
 // Phrasing that replaces it.
-function buildReportLanguageRepairInstruction(
+export function buildReportLanguageRepairInstruction(
   reportValidationErrors: readonly string[],
 ): string | undefined {
   const languageErrors = reportValidationErrors.filter((error) =>

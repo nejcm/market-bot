@@ -7,14 +7,14 @@
     calibrationSlices,
     formatDateMinute,
     reliabilityBins,
+    type SidebarView,
     type CalibrationSliceGroup,
   } from "../view-model";
-  import type { View } from "./console-types";
   import CalibrationReliabilityChart from "./calibration-reliability-chart.svelte";
 
   interface Props {
     readonly calibration: CalibrationDetail;
-    readonly onNavigate: (view: View) => void;
+    readonly onNavigate: (view: SidebarView) => void;
   }
 
   let { calibration, onNavigate }: Props = $props();

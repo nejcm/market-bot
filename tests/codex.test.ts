@@ -362,6 +362,42 @@ describe("createCodexProvider — generate", () => {
     ).rejects.toThrow("exit 2");
   });
 
+  // The 2026-07-30 evaluation run lost three calls to `exit 1` with an empty stderr, so an
+  // Exhausted usage limit was indistinguishable from a crash. Under --json the CLI reports the
+  // Reason on stdout; these pin that it reaches the thrown message.
+  test("surfaces a stdout error event when exec fails with empty stderr", async () => {
+    const stream = `${JSON.stringify({ type: "thread.started" })}\n${JSON.stringify({
+      type: "error",
+      message: "You have hit your usage limit. Try again later.",
+    })}\n`;
+    const spawn = makeSpawn({ exec: { exitCode: 1, stdout: stream, stderr: "" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    // Deliberately a phrase the no-diagnostic fallback does not contain. Asserting "usage limit"
+    // Passed even with the stdout parsing removed, because the fallback names that case too.
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("Try again later");
+  });
+
+  test("names the absence of a diagnostic rather than throwing an empty reason", async () => {
+    const spawn = makeSpawn({ exec: { exitCode: 1, stdout: "", stderr: "" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("no diagnostic on stderr or stdout");
+  });
+
+  // Auth detection previously read stderr only, so an auth failure reported on stdout lost its
+  // Actionable hint and arrived as a generic exec failure.
+  test("keeps the auth hint when the auth error arrives on stdout", async () => {
+    const stream = `${JSON.stringify({ type: "turn.failed", error: "login required" })}\n`;
+    const spawn = makeSpawn({ exec: { exitCode: 1, stdout: stream, stderr: "" } });
+    const provider = createCodexProvider(baseConfig, spawn);
+    await expect(
+      provider.generate({ model: "gpt-5.4-mini", messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("codex login");
+  });
+
   test("applies codex model override for quickModel", async () => {
     const called: string[] = [];
     const spawn: SpawnImpl = async (args) => {

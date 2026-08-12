@@ -32,8 +32,11 @@ export function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): n
 }
 
 export function marketUpdateHorizonBucket(horizonTradingDays: number): string {
+  if (horizonTradingDays <= 1) {
+    return "1d";
+  }
   if (horizonTradingDays <= 5) {
-    return "1-5d";
+    return "2-5d";
   }
   if (horizonTradingDays <= 10) {
     return "6-10d";
@@ -157,6 +160,10 @@ export interface SourceProviderAlias {
   readonly rawRef?: string;
 }
 
+export function sourceProvider(source: Source): string | undefined {
+  return source.provider ?? source.providerAliases?.[0]?.provider;
+}
+
 export interface SourceGap {
   readonly source: string;
   readonly message: string;
@@ -165,7 +172,47 @@ export interface SourceGap {
   readonly capability?: SourceGapCapability;
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
+  readonly triage?: SourceGapTriage;
+  // Present only for fetch-failed/circuit-open gaps that actually retried: how the retry
+  // Loop unfolded and how each iteration failed, so a reader can tell "timed out after 3
+  // Network attempts, then the local circuit breaker refused a 4th" from the artifact
+  // Without inferring retry/breaker behavior from source. See `SourceGapAttempts` for what
+  // "Count" does and does not mean when the breaker cuts a retry chain short.
+  readonly attempts?: SourceGapAttempts;
 }
+
+// "circuit-open" is distinct from "non-transient": a non-transient classification means the
+// Provider (or network) responded and the response wasn't worth retrying; "circuit-open" means
+// No request was sent at all — market-bot's own per-host breaker (source-request.ts) refused
+// To send it. A reader must not attribute a "circuit-open" attempt to the remote provider.
+export type SourceGapAttemptClassification =
+  | "timeout"
+  | "server-error"
+  | "network"
+  | "circuit-open"
+  | "non-transient";
+
+export interface SourceGapAttemptFailure {
+  readonly attempt: number;
+  readonly classification: SourceGapAttemptClassification;
+  readonly message: string;
+}
+
+export interface SourceGapAttempts {
+  // Total retry-loop iterations, including a final iteration where the local circuit
+  // Breaker refused to send a request (see `failures[].classification === "circuit-open"`).
+  // Not necessarily the number of requests that reached the network — cross-reference
+  // `failures` for that.
+  readonly count: number;
+  // Wall-clock milliseconds from the first attempt through the final failure, including
+  // Any per-host queuing/throttle delay imposed by source-request.ts's resilience layer
+  // (shared with other concurrent requests to the same host) and the retry sleeps
+  // Themselves — not purely the provider's response latency.
+  readonly elapsedMs: number;
+  readonly failures: readonly SourceGapAttemptFailure[];
+}
+
+export type SourceGapTriage = "material" | "diagnostic";
 
 export type SourceGapCapability =
   | "market-data"
@@ -229,6 +276,29 @@ export interface WebGatherSanitizerAudit {
   readonly removedChromeHtmlCount: number;
 }
 
+export type WebEvidenceUtilizationLevel = "insufficient-sample" | "low" | "medium" | "high";
+
+export interface WebEvidenceUtilization {
+  readonly version: 1;
+  readonly acceptedCurrentRun: number;
+  readonly usedCurrentRun: number;
+  readonly profileUsed: number;
+  readonly primaryReportCited: number;
+  readonly structuredExtraCited: number;
+  readonly unusedCurrentRun: number;
+  readonly ratio: number;
+  readonly level: WebEvidenceUtilizationLevel;
+}
+
+export interface WebGatherAcceptancePolicy {
+  readonly version: 1;
+  readonly mode: "reused-profile-default" | "reused-profile-after-low-utilization";
+  readonly sourceRunDirName: string;
+  readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
+  readonly priorUtilizationRatio?: number;
+  readonly implicitPerQueryAcceptanceCap: 2 | 3;
+}
+
 export type ModelInputSanitizerProfile =
   | "open-web"
   | "news"
@@ -274,6 +344,8 @@ export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly fallback?: WebGatherFallbackAudit;
   // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
   readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
+  // Present only on a rejected request whose Exa call exhausted retries (see `SourceGap.attempts`).
+  readonly attempts?: SourceGapAttempts;
 }
 
 export interface WebGatherDuplicateResultAudit {
@@ -295,6 +367,7 @@ export interface WebGatherFallbackAudit {
 
 export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherAuditEntry> & {
   readonly sanitizer: WebGatherSanitizerAudit;
+  readonly acceptancePolicy?: WebGatherAcceptancePolicy;
 };
 
 export interface DomainPlaybookSelectionAudit {
@@ -313,13 +386,24 @@ export interface DomainPlaybookSelectionAudit {
 export type PostSynthesisAuditWarningCode =
   | "unsupported-numeric-claim"
   | "weak-evidence-posture-missing"
-  | "fresh-web-unused";
+  | "fresh-web-unused"
+  | "gap-shaped-claim-cited";
 
 export interface PostSynthesisAuditWarning {
   readonly code: PostSynthesisAuditWarningCode;
   readonly location: string;
   readonly message: string;
   readonly sourceIds: readonly string[];
+}
+
+export interface RelocatedGapClaim {
+  readonly location: string;
+  readonly text: string;
+}
+
+export interface RelocatedGapClaims {
+  readonly count: number;
+  readonly items: readonly RelocatedGapClaim[];
 }
 
 export interface MarketSnapshot {
@@ -341,7 +425,27 @@ export interface MarketSnapshot {
   // At the single normalize point. Optional: absent for Massive fallback quotes,
   // ETFs/ADRs, or any payload lacking these fields. See ADR 0004.
   readonly fundamentals?: MarketFundamentals;
+  // The observedAt field records when this snapshot was fetched, not when the quote was struck.
+  // An upstream-cached prior-session price still carries a fresh fetch time in observedAt.
+  // Judge price age from quoteTimeUtc when present; only Yahoo populates it today.
   readonly observedAt: string;
+  // The quoteTimeUtc field records the provider's quote timestamp in ISO 8601 UTC.
+  // The field is optional and is emitted only for payloads with a Yahoo regularMarketTime.
+  // The quoteTimeUtc field is not interchangeable with observedAt and is never a fetch time.
+  // Deterministic artifact renderers consume it through resolveMarketSnapshotPriceAsOf; see ADR 0004.
+  readonly quoteTimeUtc?: string;
+}
+
+export type MarketSnapshotPriceAsOf =
+  | { readonly kind: "quote-time"; readonly instant: string }
+  | { readonly kind: "fetch-time-only"; readonly instant: string };
+
+export function resolveMarketSnapshotPriceAsOf(
+  snapshot: Pick<MarketSnapshot, "observedAt" | "quoteTimeUtc">,
+): MarketSnapshotPriceAsOf {
+  return snapshot.quoteTimeUtc === undefined
+    ? { kind: "fetch-time-only", instant: snapshot.observedAt }
+    : { kind: "quote-time", instant: snapshot.quoteTimeUtc };
 }
 
 export interface MarketFundamentals {
@@ -420,9 +524,13 @@ export type ExtendedEvidenceCategory =
   | "sec-edgar"
   | "valuation"
   | "financial-lens"
+  | "subsequent-events"
   | "business-framework"
   | "web-subject-profile"
   | "yahoo-fundamentals"
+  | "analyst-estimates"
+  | "analyst-estimate-context"
+  | "institutional-ownership"
   | "equity-events"
   | "fred-macro"
   | "options-iv"
@@ -522,6 +630,27 @@ export type PredictionKind =
   | "earnings-move"
   | "conditional";
 
+export const EARNINGS_EVENT_DATE_STATUSES = [
+  "provider-estimated",
+  "issuer-confirmed",
+  "exchange-confirmed",
+] as const;
+
+export type EarningsEventDateStatus = (typeof EARNINGS_EVENT_DATE_STATUSES)[number];
+
+export function isEarningsEventDateStatus(value: unknown): value is EarningsEventDateStatus {
+  return EARNINGS_EVENT_DATE_STATUSES.includes(value as EarningsEventDateStatus);
+}
+
+export interface EarningsForecastTelemetry {
+  readonly eventDateStatus: EarningsEventDateStatus | "not-present";
+  readonly policy: "legacy-ungated" | "confirmed-only";
+  readonly grammarEligible: boolean;
+  readonly eligiblePredictionCount: number;
+  readonly suppressedPredictionCount: number;
+  readonly suppressionReason?: "event-date-not-confirmed" | "earnings-setup-not-present";
+}
+
 /** Maximum distance from 0.5 treated as near-base-rate forecast telemetry. */
 export const NEAR_BASE_RATE_BAND = 0.1;
 
@@ -536,6 +665,9 @@ export interface Prediction {
   readonly horizonTradingDays: number;
   readonly probability: number;
   readonly sourceIds: readonly string[];
+  // Code-owned certainty of the event anchor for earnings forecasts. Optional
+  // So historical artifacts remain readable.
+  readonly eventDateStatus?: EarningsEventDateStatus;
   // Stamped deterministically during report assembly; model-provided values
   // Are never trusted. Absent on historical forecasts, which resolve
   // Permanently under scoring policy v2.
@@ -549,7 +681,7 @@ export interface PredictionCompletionAudit {
   readonly acceptedPredictionIds: readonly string[];
   readonly rejectedCandidateCount: number;
   readonly rejectionReasons: readonly string[];
-  readonly outcome: "improved" | "no-eligible-candidates" | "failed";
+  readonly outcome: "improved" | "no-candidates-returned" | "all-candidates-rejected" | "failed";
   readonly failureReason?: string;
 }
 
@@ -580,6 +712,34 @@ export interface Scenario {
   readonly sourceIds: readonly string[];
 }
 
+export type EquityAnalysisDimensionStatus =
+  | "complete"
+  | "partial"
+  | "blocked"
+  | "not-applicable"
+  | "not-assessed";
+
+export interface EquityAnalysisCompletenessDimension {
+  readonly status: EquityAnalysisDimensionStatus;
+  readonly reasonCodes: readonly string[];
+  readonly asOf: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface EquityAnalysisCompleteness {
+  readonly version: 1;
+  readonly financialCoreStatus: "complete" | "partial" | "blocked";
+  readonly coverageLevel: "comprehensive" | "substantial" | "limited";
+  readonly asOf: string;
+  readonly dimensions: {
+    readonly primaryFinancials: EquityAnalysisCompletenessDimension;
+    readonly valuation: EquityAnalysisCompletenessDimension;
+    readonly expectations: EquityAnalysisCompletenessDimension;
+    readonly capitalOwnership: EquityAnalysisCompletenessDimension;
+    readonly operatingKpis: EquityAnalysisCompletenessDimension;
+  };
+}
+
 // Report Integrity grades the deterministic post-synthesis pruning outcome;
 // Research Quality is the worse of Evidence Quality and Report Integrity.
 // Both are optional at tolerant read boundaries (historical reports predate
@@ -588,6 +748,12 @@ export type ReportIntegrity = "high" | "medium" | "low";
 
 export function isReportIntegrity(value: unknown): value is ReportIntegrity {
   return value === "high" || value === "medium" || value === "low";
+}
+
+export interface PredictionShortfall {
+  readonly emittedCount: number;
+  readonly targetCount: number;
+  readonly missingCount: number;
 }
 
 export interface ResearchReport {
@@ -609,6 +775,8 @@ export interface ResearchReport {
   readonly reportIntegrity?: ReportIntegrity;
   readonly researchQuality?: ReportIntegrity;
   readonly researchQualityDriver?: string;
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
+  readonly predictionShortfall?: PredictionShortfall;
   readonly dataGaps: readonly string[];
   readonly predictions: readonly Prediction[];
   readonly sources: readonly Source[];
@@ -661,6 +829,28 @@ export interface WebSourceSynthesisInput {
   readonly advisories: readonly WebSourceSynthesisAdvisory[];
 }
 
+// Warn-only source-text telemetry keeps the analytics aggregate text-free.
+// Trace items retain the matched phrase and field needed to diagnose attributed third-party wording.
+export interface SourceTextResearchOnlySummary {
+  readonly scannedCount: number;
+  readonly flaggedCount: number;
+  readonly flaggedByKind: Readonly<Partial<Record<SourceKind, number>>>;
+  readonly flaggedByProvider: Readonly<Record<string, number>>;
+}
+
+export interface SourceTextResearchOnlyItem {
+  readonly sourceId: string;
+  readonly kind: SourceKind;
+  readonly provider: string;
+  readonly field: "title" | "summary" | "snippet";
+  readonly match: string;
+}
+
+export interface SourceTextResearchOnlyAudit {
+  readonly summary: SourceTextResearchOnlySummary;
+  readonly items: readonly SourceTextResearchOnlyItem[];
+}
+
 export interface RunTrace {
   readonly schemaVersion?: 2;
   readonly runId: string;
@@ -706,7 +896,9 @@ export interface RunTrace {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
   readonly evidenceRequestLoop?: EvidenceRequestLoopAudit;
   readonly webGatherLoop?: WebGatherLoopAudit;
+  readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webSourceSynthesisInputs?: readonly WebSourceSynthesisInput[];
+  readonly sourceTextResearchOnly: SourceTextResearchOnlyAudit;
   readonly historicalContext?: HistoricalContextAudit;
   readonly spotlightSelection?: {
     readonly cap: number;
@@ -722,7 +914,9 @@ export interface RunTrace {
   /** Legacy artifacts only. New runs write predictionCompletion. */
   readonly predictionReplacementAttempted?: boolean;
   readonly predictionErrors?: readonly string[];
+  readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly reportValidationRetryErrors?: readonly string[];
+  readonly relocatedGapClaims?: RelocatedGapClaims;
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly warnings: readonly PostSynthesisAuditWarning[];

@@ -86,7 +86,7 @@ market-bot market-overview --asset equity
 | Command                                                            | Purpose                                                                                                                                                       |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `market-overview --asset equity\|crypto [--horizon days] [prompt]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases; prompt text steers spotlight selection and final synthesis |
-| `equity <SYMBOL>`                                                  | Single-instrument equity brief; `--deep` adds Evidence Request Loop + Coverage Panel                                                                          |
+| `equity <SYMBOL>`                                                  | Single-instrument equity brief; `--deep` adds deterministic SEC/Tradier/peer packets + Coverage Panel                                                         |
 | `crypto <SYMBOL>`                                                  | Single-instrument crypto brief; `--deep` adds Coverage Panel                                                                                                  |
 | `research <subject> [--deep]`                                      | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions                              |
 | `alpha-search --asset equity`                                      | Research Leads only — no predictions or calibration side effects; later `score` runs update alpha validation artifacts                                        |
@@ -158,7 +158,7 @@ bun run src/cli.ts market-overview --asset equity
 | --------------------------- | ----------------------- | ----------------------------------------------------------- |
 | Model                       | Quick model             | Synthesis model                                             |
 | Coverage panel              | No                      | Yes — two concurrent role stages before critique            |
-| Evidence Request Loop       | No                      | Yes — equity only; SEC filing + Tradier IV on request       |
+| Deterministic packets       | No                      | Yes — equity only; target SEC, Tradier IV, and peer packets |
 | Alpha search pages          | Brief limit             | Deep page limit                                             |
 | Thematic research forecasts | Proxy-only, if resolved | Proxy-only, with a higher non-direction forecast mix target |
 

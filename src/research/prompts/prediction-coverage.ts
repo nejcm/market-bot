@@ -1,6 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { Prediction, PredictionKind } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
+import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 
 // A run may advertise `iv` forecast candidates only when it carries citeable options-IV
 // Evidence — an extended-evidence item with at least one sourceId. Source gaps (e.g. a missing
@@ -42,12 +43,16 @@ export function buildPredictionCoverage(
   };
 }
 
+// `excludedKinds` withdraws kinds a specific path cannot support from every surface the prompt
+// Advertises — coverage notes, DSL, diversity and mix guidance all read this list. Empty by
+// Default, so every existing caller's output is unchanged.
 export function supportedPredictionKinds(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   predictionSubjects: readonly string[],
+  excludedKinds: readonly PredictionKind[] = [],
 ): readonly PredictionKind[] {
-  return [
+  const kinds: readonly PredictionKind[] = [
     "direction",
     "relative",
     ...(command.assetClass === "equity" && isVixAllowedSubject(predictionSubjects)
@@ -59,10 +64,11 @@ export function supportedPredictionKinds(
     "range",
     "macro",
     ...(command.depth === "deep" ? (["conditional"] as const) : []),
-    ...(isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined
+    ...(isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup)
       ? (["earnings-direction", "earnings-move"] as const)
       : []),
   ];
+  return excludedKinds.length === 0 ? kinds : kinds.filter((kind) => !excludedKinds.includes(kind));
 }
 
 export function predictionCoverageGuidance(

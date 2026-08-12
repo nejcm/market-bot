@@ -1,15 +1,12 @@
 import type {
   SourceGap,
+  SourceGapAttempts,
   SourceGapCapability,
   SourceGapCause,
   SourceGapEvidenceQualityImpact,
+  SourceGapTriage,
 } from "./types";
 
-export type SourceGapAnalyticsClass =
-  | "missingCredential"
-  | "fetchFailed"
-  | "unsupportedCoverage"
-  | "other";
 type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circuit-open">;
 
 // Exhaustive membership tables keyed by every union member.
@@ -44,6 +41,11 @@ const SOURCE_GAP_EVIDENCE_QUALITY_IMPACT_TABLE = {
   "no-cap": true,
 } satisfies Record<SourceGapEvidenceQualityImpact, true>;
 
+const SOURCE_GAP_TRIAGE_TABLE = {
+  material: true,
+  diagnostic: true,
+} satisfies Record<SourceGapTriage, true>;
+
 const SOURCE_GAP_CAUSES: ReadonlySet<string> = new Set(Object.keys(SOURCE_GAP_CAUSE_TABLE));
 const SOURCE_GAP_CAPABILITIES: ReadonlySet<string> = new Set(
   Object.keys(SOURCE_GAP_CAPABILITY_TABLE),
@@ -51,6 +53,7 @@ const SOURCE_GAP_CAPABILITIES: ReadonlySet<string> = new Set(
 const SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS: ReadonlySet<string> = new Set(
   Object.keys(SOURCE_GAP_EVIDENCE_QUALITY_IMPACT_TABLE),
 );
+const SOURCE_GAP_TRIAGES: ReadonlySet<string> = new Set(Object.keys(SOURCE_GAP_TRIAGE_TABLE));
 
 export function isSourceGapCause(value: unknown): value is SourceGapCause {
   return typeof value === "string" && SOURCE_GAP_CAUSES.has(value);
@@ -66,6 +69,10 @@ export function isSourceGapEvidenceQualityImpact(
   return typeof value === "string" && SOURCE_GAP_EVIDENCE_QUALITY_IMPACTS.has(value);
 }
 
+export function isSourceGapTriage(value: unknown): value is SourceGapTriage {
+  return typeof value === "string" && SOURCE_GAP_TRIAGES.has(value);
+}
+
 export interface SourceGapInput {
   readonly source: string;
   readonly message: string;
@@ -74,6 +81,8 @@ export interface SourceGapInput {
   readonly capability?: SourceGapCapability;
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
+  readonly triage?: SourceGapTriage;
+  readonly attempts?: SourceGapAttempts;
 }
 
 export function sourceGap(input: SourceGapInput): SourceGap {
@@ -87,6 +96,8 @@ export function sourceGap(input: SourceGapInput): SourceGap {
     ...(input.evidenceQualityImpact !== undefined
       ? { evidenceQualityImpact: input.evidenceQualityImpact }
       : {}),
+    ...(input.triage !== undefined ? { triage: input.triage } : {}),
+    ...(input.attempts !== undefined ? { attempts: input.attempts } : {}),
   };
 }
 
@@ -155,6 +166,8 @@ export function sourceGapWithContext(
     ...(capability !== undefined ? { capability } : {}),
     ...(cause !== undefined ? { cause } : {}),
     ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
+    ...(gap.triage !== undefined ? { triage: gap.triage } : {}),
+    ...(gap.attempts !== undefined ? { attempts: gap.attempts } : {}),
   });
 }
 
@@ -162,12 +175,14 @@ export function fetchFailureSourceGap(
   source: string,
   message: string,
   cause: FetchFailureSourceGapCause = "fetch-failed",
+  attempts?: SourceGapAttempts,
 ): SourceGap {
   return sourceGap({
     source,
     message,
     cause,
     evidenceQualityImpact: "core-cap",
+    ...(attempts !== undefined ? { attempts } : {}),
   });
 }
 
@@ -286,35 +301,16 @@ export function consolidateSecCompanyFactGaps(gaps: readonly SourceGap[]): reado
   });
 }
 
-export function sourceGapAnalyticsClass(gap: SourceGap): SourceGapAnalyticsClass {
-  const { cause } = gap;
-  switch (cause) {
-    case "missing-credential": {
-      return "missingCredential";
-    }
-    case "fetch-failed":
-    case "circuit-open": {
-      return "fetchFailed";
-    }
-    case "unsupported-coverage": {
-      return "unsupportedCoverage";
-    }
-    case "stale-fallback":
-    case "repeat-fallback":
-    case "malformed-response":
-    case "validation-failed":
-    case "provider-data-missing":
-    case undefined: {
-      return "other";
-    }
-    default: {
-      return assertNever(cause);
-    }
-  }
-}
-
 export function isRepeatFallbackGap(gap: SourceGap): boolean {
   return gap.cause === "repeat-fallback";
+}
+
+export function isIntendedFallbackGap(gap: SourceGap): boolean {
+  // Impact alone also marks material non-fallback gaps, so the cause check is load-bearing.
+  return (
+    (gap.cause === "repeat-fallback" || gap.cause === "stale-fallback") &&
+    gap.evidenceQualityImpact === "no-cap"
+  );
 }
 
 export function isCoreEvidenceQualityGap(gap: SourceGap): boolean {
@@ -338,8 +334,4 @@ export function marketContextGap(gap: SourceGap): SourceGap {
     capability: "market-context",
     evidenceQualityImpact: "no-cap",
   });
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled source gap cause: ${String(value)}`);
 }

@@ -9,6 +9,7 @@ import {
   parseCalibrationContext,
   refreshCalibrationContext,
 } from "../src/research/calibration-context";
+import { buildConditionalPredictionActivationGuidance } from "../src/research/prompts/final-synthesis";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { CalibrationSummary } from "../src/scoring/types";
 
@@ -86,10 +87,26 @@ describe("buildCalibrationBlock", () => {
   };
 
   test.each([
-    ["asset class", "asset class equity", { byAssetClass: { equity: actionableMetric } }],
-    ["job type", "job type equity", { byJobType: { equity: actionableMetric } }],
-    ["default horizon", "default horizon 1-5d", { byHorizonBucket: { "1-5d": actionableMetric } }],
-    ["current regime", "current regime mixed", { byMarketRegime: { mixed: actionableMetric } }],
+    [
+      "asset class",
+      "asset class equity",
+      { byAssetClass: { equity: actionableMetric, crypto: actionableMetric } },
+    ],
+    [
+      "job type",
+      "job type equity",
+      { byJobType: { equity: actionableMetric, crypto: actionableMetric } },
+    ],
+    [
+      "default horizon",
+      "default horizon 2-5d",
+      { byHorizonBucket: { "2-5d": actionableMetric, "6-10d": actionableMetric } },
+    ],
+    [
+      "current regime",
+      "current regime mixed",
+      { byMarketRegime: { mixed: actionableMetric, "risk-on": actionableMetric } },
+    ],
   ])(
     "adds probability guidance for an actionable negative %s slice",
     (_name, triggerLabel, calibration) => {
@@ -103,25 +120,60 @@ describe("buildCalibrationBlock", () => {
   );
 
   test.each([
-    ["below outcome floor", { byAssetClass: { equity: { ...actionableMetric, count: 29 } } }],
-    ["below run floor", { byJobType: { equity: { ...actionableMetric, runCount: 9 } } }],
+    [
+      "below outcome floor",
+      {
+        byAssetClass: {
+          equity: { ...actionableMetric, count: 29 },
+          crypto: actionableMetric,
+        },
+      },
+    ],
+    [
+      "below run floor",
+      {
+        byJobType: {
+          equity: { ...actionableMetric, runCount: 9 },
+          crypto: actionableMetric,
+        },
+      },
+    ],
     [
       "statistically inconclusive",
       {
         byHorizonBucket: {
-          "1-5d": { ...actionableMetric, brierScore: 0.3, brierStandardError: 0.03 },
+          "2-5d": { ...actionableMetric, brierScore: 0.3, brierStandardError: 0.03 },
+          "6-10d": actionableMetric,
         },
       },
     ],
-    ["legacy", { byAssetClass: { equity: { brierScore: 0.4, count: 30 } } }],
-    ["non-applicable", { byAssetClass: { crypto: actionableMetric } }],
+    [
+      "legacy",
+      {
+        byAssetClass: {
+          equity: { brierScore: 0.4, count: 30 },
+          crypto: actionableMetric,
+        },
+      },
+    ],
+    ["non-applicable", { byJobType: { crypto: actionableMetric, research: actionableMetric } }],
   ])("omits calibration entirely for a %s slice", (_name, calibration) => {
     expect(buildCalibrationBlock(calibration, command, calibrationRunContext())).toBeUndefined();
   });
 
+  test("includes an actionable single-cell dimension", () => {
+    const block = buildCalibrationBlock(
+      { byAssetClass: { equity: actionableMetric } },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toContain("asset class equity");
+  });
+
   test("uses the depth profile default forecast horizon", () => {
     const block = buildCalibrationBlock(
-      { byHorizonBucket: { "11-15d": actionableMetric } },
+      { byHorizonBucket: { "1-5d": actionableMetric, "11-15d": actionableMetric } },
       command,
       calibrationRunContext(15),
     );
@@ -132,16 +184,19 @@ describe("buildCalibrationBlock", () => {
   test("includes only qualifying applicable slices", () => {
     const block = buildCalibrationBlock(
       {
-        byAssetClass: { equity: actionableMetric },
-        byJobType: { equity: { ...actionableMetric, count: 29 } },
-        byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric },
+        byAssetClass: { equity: actionableMetric, crypto: actionableMetric },
+        byJobType: {
+          equity: { ...actionableMetric, count: 29 },
+          crypto: actionableMetric,
+        },
+        byHorizonBucket: { "2-5d": actionableMetric, "6-10d": actionableMetric },
       },
       command,
       calibrationRunContext(),
     );
 
     expect(block).toContain("asset class equity");
-    expect(block).toContain("default horizon 1-5d");
+    expect(block).toContain("default horizon 2-5d");
     expect(block).not.toContain("job type equity");
     expect(block).not.toContain("6-10d");
   });
@@ -179,6 +234,41 @@ describe("parseCalibrationContext", () => {
     const parsed = parseCalibrationContext(structuredClone(summary) as unknown);
 
     expect(parsed).toEqual(summary);
+  });
+
+  test("preserves conditional prediction counts for activation guidance", () => {
+    const parsed = parseCalibrationContext({
+      conditionalPredictions: { activatedCount: 4, voidedCount: 13 },
+    });
+
+    expect(parsed?.conditionalPredictions).toEqual({ activatedCount: 4, voidedCount: 13 });
+    expect(buildConditionalPredictionActivationGuidance(parsed?.conditionalPredictions)).toContain(
+      "4 of 17 resolved conditionals activated; 13 voided",
+    );
+  });
+
+  test("returns no activation guidance for fresh-corpus zero counts", () => {
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 0, voidedCount: 0 }),
+    ).toBeUndefined();
+  });
+
+  test("requires at least ten resolved conditionals for activation guidance", () => {
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 4, voidedCount: 4 }),
+    ).toBeUndefined();
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 5, voidedCount: 5 }),
+    ).toBeDefined();
+  });
+
+  test("requires a void rate of at least fifty percent for activation guidance", () => {
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 95, voidedCount: 5 }),
+    ).toBeUndefined();
+    expect(
+      buildConditionalPredictionActivationGuidance({ activatedCount: 5, voidedCount: 5 }),
+    ).toBeDefined();
   });
 
   test("drops fields with the wrong primitive type instead of trusting them", () => {

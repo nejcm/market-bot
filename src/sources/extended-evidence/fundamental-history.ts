@@ -3,13 +3,14 @@ import type { CollectContext } from "../types";
 import { readArray } from "./utils";
 import {
   SEC_METRIC_DEFINITIONS,
-  fetchSecCompanyFactsForSymbol,
   isFactObservableAsOf,
   periodMonths,
   readSecFactValue,
+  type SecCompanyFactsResult,
   type SecFactValue,
   type SecMetricDefinition,
 } from "./sec-edgar";
+import { isRevenueConceptInRecencyBucket } from "./financial-statement-definitions";
 
 export type FundamentalHistorySeriesKey =
   | "revenue"
@@ -26,7 +27,7 @@ export type FundamentalHistorySeriesKey =
 
 export interface FundamentalHistoryPoint {
   readonly value: number;
-  readonly form: "10-K" | "TTM";
+  readonly form: "10-K" | "20-F" | "TTM";
   readonly fy: number;
   readonly fp: string;
   readonly periodStart: string;
@@ -85,6 +86,12 @@ interface SelectedFacts {
   readonly facts: readonly SecFactValue[];
 }
 
+interface RankedSelectedFacts extends SelectedFacts {
+  readonly priority: number;
+  readonly unitPriority: number;
+  readonly latest: SecFactValue;
+}
+
 interface FactWithPeriod extends SecFactValue {
   readonly fp: string;
   readonly fy: number;
@@ -119,7 +126,8 @@ const RAW_SERIES: readonly RawSeriesDefinition[] = [
 
 const MAX_ANNUAL_POINTS = 10;
 const MAX_CAGR_YEARS = 5;
-const DAYS_PER_YEAR = 365.2425;
+export const DAYS_PER_YEAR = 365.2425;
+export const MIN_CAGR_ANNUAL_POINTS = 3;
 const ALIGNMENT_MIN_DAYS = 350;
 const ALIGNMENT_MAX_DAYS = 380;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
@@ -134,28 +142,62 @@ function metricDefinition(key: RawSeriesDefinition["key"]): SecMetricDefinition 
   return definition;
 }
 
-function selectFacts(payload: unknown, definition: SecMetricDefinition): SelectedFacts | undefined {
+function selectFacts(
+  payload: unknown,
+  definition: SecMetricDefinition,
+  analysisAsOf?: string,
+): SelectedFacts | undefined {
   if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
     return undefined;
   }
   const gaap = payload.facts["us-gaap"];
-  for (const concept of definition.concepts) {
+  const ranked: RankedSelectedFacts[] = [];
+  for (const [priority, concept] of definition.concepts.entries()) {
     const fact = isRecord(gaap[concept]) ? gaap[concept] : undefined;
     const units = fact !== undefined && isRecord(fact.units) ? fact.units : undefined;
     if (units === undefined) {
       continue;
     }
-    for (const currency of definition.unitKeys) {
+    for (const [unitPriority, currency] of definition.unitKeys.entries()) {
       const facts = readArray(units, currency).flatMap((value) => {
         const parsed = readSecFactValue(value);
         return parsed === undefined ? [] : [parsed];
       });
       if (facts.length > 0) {
-        return { concept, currency, facts };
+        if (definition.key !== "revenue") {
+          return { concept, currency, facts };
+        }
+        const [latest] = facts
+          .filter((candidate) => isFactObservableAsOf(candidate, analysisAsOf))
+          .toSorted(
+            (left, right) =>
+              (right.end ?? "").localeCompare(left.end ?? "") ||
+              (right.filed ?? "").localeCompare(left.filed ?? ""),
+          );
+        if (latest !== undefined) {
+          ranked.push({ concept, currency, facts, priority, unitPriority, latest });
+        }
       }
     }
   }
-  return undefined;
+  const latestPeriodEnd = ranked
+    .map((candidate) => candidate.latest.end ?? "")
+    .toSorted()
+    .at(-1);
+  if (latestPeriodEnd === undefined || latestPeriodEnd === "") {
+    return undefined;
+  }
+  return ranked
+    .filter((candidate) =>
+      isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd),
+    )
+    .toSorted(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.unitPriority - right.unitPriority ||
+        left.concept.localeCompare(right.concept) ||
+        left.currency.localeCompare(right.currency),
+    )[0];
 }
 
 function factSignature(fact: SecFactValue): string {
@@ -341,7 +383,7 @@ function ttmPoint(
   };
 }
 
-function cagr(
+export function fundamentalHistoryCagr(
   annual: readonly FundamentalHistoryPoint[],
   notes: string[],
 ): FundamentalHistoryCagr | undefined {
@@ -354,7 +396,7 @@ function cagr(
     const days = daysBetween(point.periodEnd, latest.periodEnd);
     return days !== undefined && days >= 0 && days / DAYS_PER_YEAR <= MAX_CAGR_YEARS;
   });
-  if (window.length < 3) {
+  if (window.length < MIN_CAGR_ANNUAL_POINTS) {
     notes.push(
       `cagr:insufficient-points: ${String(window.length)} annual point(s) in the <=5 FY window`,
     );
@@ -387,13 +429,13 @@ function rawSeries(
   definition: RawSeriesDefinition,
   analysisAsOf?: string,
 ): FundamentalHistorySeries {
-  const selected = selectFacts(payload, metricDefinition(definition.key));
+  const selected = selectFacts(payload, metricDefinition(definition.key), analysisAsOf);
   const notes: string[] = [];
   if (selected === undefined) {
     notes.push("annual:missing-concept: no SEC facts found for the ordered concept list");
     const annual: readonly FundamentalHistoryPoint[] = [];
     ttmPoint(annual, [], "", notes);
-    const growth = cagr(annual, notes);
+    const growth = fundamentalHistoryCagr(annual, notes);
     return {
       ...definition,
       annual,
@@ -447,7 +489,7 @@ function rawSeries(
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
   }
-  const growth = cagr(annual, notes);
+  const growth = fundamentalHistoryCagr(annual, notes);
   return {
     ...definition,
     concept: selected.concept,
@@ -533,7 +575,7 @@ function pairSeries(
   }
 
   if (key === "freeCashFlowProxy") {
-    const growth = cagr(annual, notes);
+    const growth = fundamentalHistoryCagr(annual, notes);
     return {
       key,
       label,
@@ -586,6 +628,23 @@ export function deriveFundamentalHistory(
       rawSeries(payload, definition, input.analysisAsOf),
     ]),
   ) as Record<RawSeriesDefinition["key"], FundamentalHistorySeries>;
+  return {
+    version: 1,
+    generatedAt: input.generatedAt,
+    symbol: input.symbol.toUpperCase(),
+    sourceId: input.sourceId,
+    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
+    series: buildFundamentalHistorySeries(raw),
+  };
+}
+
+export type FundamentalHistoryRawSeries = Readonly<
+  Record<RawSeriesDefinition["key"], FundamentalHistorySeries>
+>;
+
+export function buildFundamentalHistorySeries(
+  raw: FundamentalHistoryRawSeries,
+): FundamentalHistoryArtifact["series"] {
   const freeCashFlowProxy = pairSeries(
     "freeCashFlowProxy",
     "Free cash flow proxy",
@@ -616,32 +675,25 @@ export function deriveFundamentalHistory(
   );
 
   return {
-    version: 1,
-    generatedAt: input.generatedAt,
-    symbol: input.symbol.toUpperCase(),
-    sourceId: input.sourceId,
-    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
-    series: {
-      revenue: raw.revenue,
-      grossProfit: raw.grossProfit,
-      operatingIncome: raw.operatingIncome,
-      netIncome: raw.netIncome,
-      dilutedEps: raw.dilutedEps,
-      operatingCashFlow: raw.operatingCashFlow,
-      capex: raw.capex,
-      freeCashFlowProxy,
-      grossMargin,
-      operatingMargin,
-      netMargin,
-    },
+    revenue: raw.revenue,
+    grossProfit: raw.grossProfit,
+    operatingIncome: raw.operatingIncome,
+    netIncome: raw.netIncome,
+    dilutedEps: raw.dilutedEps,
+    operatingCashFlow: raw.operatingCashFlow,
+    capex: raw.capex,
+    freeCashFlowProxy,
+    grossMargin,
+    operatingMargin,
+    netMargin,
   };
 }
 
-export async function collectFundamentalHistory(
+export function fundamentalHistoryFromCompanyFacts(
   context: CollectContext,
   symbol: string,
-): Promise<FundamentalHistoryArtifact | undefined> {
-  const facts = await fetchSecCompanyFactsForSymbol(context, symbol);
+  facts: SecCompanyFactsResult,
+): FundamentalHistoryArtifact | undefined {
   if (facts.factsPayload === undefined || facts.sourceId === undefined) {
     return undefined;
   }

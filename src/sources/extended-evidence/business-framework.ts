@@ -8,6 +8,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
@@ -378,8 +379,16 @@ export function addBusinessFrameworkEvidence(
   const dividendsPaid = readMetric(secItem?.metrics, "dividendsPaid");
   const shareRepurchases = readMetric(secItem?.metrics, "shareRepurchases");
   const dividendYield = readMetric(yahooItem?.metrics, "dividendYield");
-  const grossMargin = ratio(grossProfit, revenue);
-  const operatingMargin = ratio(operatingIncome, revenue);
+  const grossMargin = selectedFinancialLensDerivedMetric(
+    secItem,
+    "grossMargin",
+    ratio(grossProfit, revenue),
+  );
+  const operatingMargin = selectedFinancialLensDerivedMetric(
+    secItem,
+    "operatingMargin",
+    ratio(operatingIncome, revenue),
+  );
   const currentRatio = readMetric(financialLensItem?.metrics, "currentRatio");
   const debtToMarketCap = readMetric(financialLensItem?.metrics, "debtToMarketCap");
   const hasCapitalReturnEvidence = hasCapitalReturn({

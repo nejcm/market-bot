@@ -74,9 +74,12 @@ describe("applicableCalibrationSlices", () => {
     };
     const slices = applicableCalibrationSlices(
       {
-        byAssetClass: { equity: actionableMetric },
-        byJobType: { equity: { ...actionableMetric, count: 29 } },
-        byHorizonBucket: { "1-5d": actionableMetric },
+        byAssetClass: { equity: actionableMetric, crypto: actionableMetric },
+        byJobType: {
+          equity: { ...actionableMetric, count: 29 },
+          crypto: actionableMetric,
+        },
+        byHorizonBucket: { "1-5d": actionableMetric, "6-10d": actionableMetric },
       },
       {
         assetClass: "equity",
@@ -94,6 +97,70 @@ describe("applicableCalibrationSlices", () => {
       { dimension: "predictionHorizon", actionable: true, reason: "actionable-negative" },
       { dimension: "marketRegime", actionable: false, reason: "slice-unavailable" },
     ]);
+  });
+
+  test("distinguishes single-cell prediction horizons from empty market-update horizons", () => {
+    const metric = {
+      brierScore: 0.2658,
+      count: 83,
+      runCount: 22,
+      brierStandardError: 0.01,
+    };
+    const keys = {
+      assetClass: "equity",
+      jobType: "equity",
+      predictionHorizon: "1-5d",
+      marketRegime: "mixed",
+    } as const;
+
+    const instrumentHorizon = applicableCalibrationSlices(
+      { byHorizonBucket: { "1-5d": metric } },
+      keys,
+    ).find(({ dimension }) => dimension === "predictionHorizon");
+    const marketUpdateHorizon = applicableCalibrationSlices(
+      { byMarketUpdateHorizonBucket: {} },
+      { ...keys, jobType: "market-overview" },
+    ).find(({ dimension }) => dimension === "predictionHorizon");
+
+    expect(instrumentHorizon).toMatchObject({
+      dimension: "predictionHorizon",
+      key: "1-5d",
+      actionable: false,
+      reason: "not-negative-with-confidence",
+      populationStatus: "single-cell-dimension",
+    });
+    expect(marketUpdateHorizon).toEqual({
+      dimension: "predictionHorizon",
+      key: "1-5d",
+      actionable: false,
+      reason: "slice-unavailable",
+      populationStatus: "empty-dimension",
+    });
+  });
+
+  test("keeps single-cell telemetry without gating actionability", () => {
+    const metric = {
+      brierScore: 0.4,
+      count: 30,
+      runCount: 10,
+      brierStandardError: 0.05,
+    };
+    const assetClass = applicableCalibrationSlices(
+      { byAssetClass: { equity: metric } },
+      {
+        assetClass: "equity",
+        jobType: "equity",
+        predictionHorizon: "2-5d",
+        marketRegime: "mixed",
+      },
+    ).find(({ dimension }) => dimension === "assetClass");
+
+    expect(assetClass).toMatchObject({
+      actionable: true,
+      reason: "actionable-negative",
+      populationStatus: "single-cell-dimension",
+      metric,
+    });
   });
 });
 

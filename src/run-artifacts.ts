@@ -20,17 +20,33 @@ import {
   type ResearchReport,
   type Source,
   type SourceGap,
+  type SourceGapAttemptClassification,
+  type SourceGapAttemptFailure,
+  type SourceGapAttempts,
   type SubjectKind,
   type VerifiedMarketSnapshot,
 } from "./domain/types";
+import { readEquityAnalysisCompleteness } from "./domain/equity-analysis-completeness";
 import {
   isSourceGapCapability,
   isSourceGapCause,
   isSourceGapEvidenceQualityImpact,
+  isSourceGapTriage,
 } from "./domain/source-gaps";
 import { isPredictionKind, renderClaimForMeasurableAs } from "./forecast/observable";
 import { CURRENT_SCORING_POLICY_VERSION } from "./scoring/policy";
+import { normalizePredictionShortfall } from "./report/prediction-shortfall";
+import {
+  readWebSubjectProfileAnswer,
+  readWebSubjectProfileFacts,
+} from "./report/report-extras-contract";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import {
+  isDeepEquityReport,
+  readDeepEquityEvidenceBundle,
+  unresolvedDeepEquityBundleSourceIds,
+} from "./deep-equity/artifact-schema";
+import type { DeepEquityEvidenceBundleV1 } from "./deep-equity/types";
 import type {
   MissAutopsyCause,
   MissAutopsyEntry,
@@ -38,9 +54,7 @@ import type {
   PredictionScoreStatus,
 } from "./scoring/types";
 import {
-  EVIDENCE_LANES,
-  LEGACY_EVIDENCE_LANES,
-  type EvidenceLane,
+  isEvidenceLane,
   type EvidenceLanesArtifact,
   type LaneCoverageStatus,
   type LaneRequirement,
@@ -48,10 +62,30 @@ import {
   type SourcePlanArtifact,
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
+import {
+  readFinancialStatementsArtifact,
+  type FinancialStatementsArtifact,
+} from "./sources/extended-evidence/financial-statements-contract";
+import {
+  readSubsequentFinancingBridgeArtifact,
+  type SubsequentFinancingBridgeArtifact,
+} from "./sources/extended-evidence/subsequent-financing";
+import {
+  readCapitalOwnershipArtifact,
+  type CapitalOwnershipArtifact,
+} from "./sources/extended-evidence/capital-ownership";
 import type {
   PeerImpliedRange,
   PeerImpliedRangeSuppressedReason,
 } from "./sources/extended-evidence/valuation-comps";
+import {
+  readValuationWorkbenchArtifact,
+  type ValuationWorkbenchArtifact,
+} from "./sources/extended-evidence/valuation-workbench-contract";
+import {
+  readReverseDcfArtifact,
+  type ReverseDcfArtifact,
+} from "./sources/extended-evidence/reverse-dcf";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistorySeriesKey,
@@ -71,7 +105,6 @@ import {
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   type WebSubjectProfileAnswer,
   type WebSubjectProfileArtifact,
-  type WebSubjectProfileFact,
 } from "./web-evidence/contract";
 import {
   isRecord,
@@ -108,6 +141,7 @@ export function readReportMarketRegimeLabel(report: ResearchReport): MarketRegim
 export interface RunArtifactStatus {
   readonly report: ArtifactFileStatus;
   readonly score: ArtifactFileStatus;
+  readonly evidenceBundle?: ArtifactFileStatus;
 }
 
 // The parsed core of one run directory. Only produced when report.json loads
@@ -120,6 +154,7 @@ export interface RunArtifact {
   readonly scores: readonly PredictionScore[];
   readonly missAutopsies: readonly MissAutopsyEntry[];
   readonly marketSnapshots: readonly MarketSnapshot[];
+  readonly sourceGaps: readonly SourceGap[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly verifiedRepresentativeSnapshots?: readonly VerifiedMarketSnapshot[];
   readonly themeCatalysts?: readonly ThemeCatalystItem[];
@@ -127,10 +162,16 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
+  readonly financialStatements?: FinancialStatementsArtifact;
+  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
+  readonly capitalOwnership?: CapitalOwnershipArtifact;
   readonly peerImpliedRange?: PeerImpliedRange;
+  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  readonly reverseDcf?: ReverseDcfArtifact;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
+  readonly deepEquityEvidenceBundle?: DeepEquityEvidenceBundleV1;
   readonly status: RunArtifactStatus;
 }
 
@@ -152,6 +193,7 @@ export interface WebSubjectProfileRunArtifact {
   readonly runDirName: string;
   readonly report: ResearchReport;
   readonly webSubjectProfile: WebSubjectProfileArtifact;
+  readonly analytics?: unknown;
 }
 
 export interface LoadedRunArtifact {
@@ -163,6 +205,10 @@ interface JsonFileResult {
   readonly status: ArtifactFileStatus;
   readonly value?: unknown;
 }
+
+export type LoadedDeepEquityEvidenceBundle =
+  | { readonly status: "ok"; readonly value: DeepEquityEvidenceBundleV1 }
+  | { readonly status: "absent" | "malformed" };
 
 export interface ThemeCatalystItem {
   readonly label: string;
@@ -186,13 +232,13 @@ const EXTENDED_EVIDENCE_CATEGORIES: ReadonlySet<string> = new Set<ExtendedEviden
   "options-iv",
   "on-chain",
   "financial-lens",
+  "subsequent-events",
   "business-framework",
   "web-subject-profile",
   "yahoo-fundamentals",
-]);
-const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set([
-  ...EVIDENCE_LANES,
-  ...LEGACY_EVIDENCE_LANES,
+  "analyst-estimates",
+  "analyst-estimate-context",
+  "institutional-ownership",
 ]);
 const LANE_REQUIREMENTS: ReadonlySet<string> = new Set<LaneRequirement>(["required", "optional"]);
 const LANE_COVERAGE_STATUSES: ReadonlySet<string> = new Set<LaneCoverageStatus>([
@@ -232,10 +278,6 @@ function isExtendedEvidenceCategory(value: unknown): value is ExtendedEvidenceCa
 
 function isSubjectKind(value: unknown): value is SubjectKind {
   return value === "company" || value === "crypto-asset" || value === "theme";
-}
-
-function isEvidenceLane(value: unknown): value is EvidenceLane {
-  return typeof value === "string" && EVIDENCE_LANE_SET.has(value);
 }
 
 function isLaneRequirement(value: unknown): value is LaneRequirement {
@@ -412,6 +454,8 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
     const evidenceQualityImpact = isSourceGapEvidenceQualityImpact(item.evidenceQualityImpact)
       ? item.evidenceQualityImpact
       : undefined;
+    const triage = isSourceGapTriage(item.triage) ? item.triage : undefined;
+    const attempts = readSourceGapAttempts(item.attempts);
     return [
       {
         source: item.source,
@@ -421,9 +465,51 @@ function readSourceGaps(value: unknown): readonly SourceGap[] {
         ...(capability !== undefined ? { capability } : {}),
         ...(cause !== undefined ? { cause } : {}),
         ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
+        ...(triage !== undefined ? { triage } : {}),
+        ...(attempts !== undefined ? { attempts } : {}),
       },
     ];
   });
+}
+
+function isSourceGapAttemptClassification(value: unknown): value is SourceGapAttemptClassification {
+  return (
+    value === "timeout" ||
+    value === "server-error" ||
+    value === "network" ||
+    value === "circuit-open" ||
+    value === "non-transient"
+  );
+}
+
+function isSourceGapAttemptFailure(value: unknown): value is SourceGapAttemptFailure {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.attempt) &&
+    (value.attempt as number) > 0 &&
+    isSourceGapAttemptClassification(value.classification) &&
+    typeof value.message === "string"
+  );
+}
+
+export function readSourceGapAttempts(value: unknown): SourceGapAttempts | undefined {
+  if (
+    !isRecord(value) ||
+    !Number.isInteger(value.count) ||
+    (value.count as number) < 1 ||
+    typeof value.elapsedMs !== "number" ||
+    !Number.isFinite(value.elapsedMs) ||
+    value.elapsedMs < 0 ||
+    !Array.isArray(value.failures) ||
+    !value.failures.every(isSourceGapAttemptFailure)
+  ) {
+    return;
+  }
+  return {
+    count: value.count as number,
+    elapsedMs: value.elapsedMs,
+    failures: value.failures,
+  };
 }
 
 function readExtendedEvidenceItems(value: unknown): readonly ExtendedEvidenceItem[] {
@@ -508,6 +594,13 @@ function readReport(value: unknown): ResearchReport | undefined {
     value.verifiedRepresentativeSnapshots,
   );
   const researchQualityDriver = readString(value, "researchQualityDriver");
+  const equityAnalysisCompleteness = readEquityAnalysisCompleteness(
+    value.equityAnalysisCompleteness,
+  );
+  const normalizedShortfall = normalizePredictionShortfall(
+    value.predictionShortfall,
+    stringArrayValue(value.dataGaps),
+  );
   return {
     runId,
     jobType: value.jobType,
@@ -530,7 +623,11 @@ function readReport(value: unknown): ResearchReport | undefined {
     ...(isReportIntegrity(value.reportIntegrity) ? { reportIntegrity: value.reportIntegrity } : {}),
     ...(isReportIntegrity(value.researchQuality) ? { researchQuality: value.researchQuality } : {}),
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
-    dataGaps: stringArrayValue(value.dataGaps),
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
+    ...(normalizedShortfall.predictionShortfall === undefined
+      ? {}
+      : { predictionShortfall: normalizedShortfall.predictionShortfall }),
+    dataGaps: normalizedShortfall.dataGaps,
     predictions: readPredictions(value.predictions),
     sources: readSources(value.sources),
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
@@ -913,7 +1010,12 @@ function hasFinancialLensShape(value: unknown): boolean {
     FINANCIAL_LENS_POSTURES.has(value.posture) &&
     Array.isArray(value.metrics) &&
     value.metrics.every(hasFinancialLensMetricShape) &&
-    readStringArray(value, "sourceIds") !== undefined
+    readStringArray(value, "sourceIds") !== undefined &&
+    (value.currentStatus === undefined ||
+      value.currentStatus === "current" ||
+      value.currentStatus === "partial") &&
+    (value.currentStatusReasonCodes === undefined ||
+      readStringArray(value, "currentStatusReasonCodes") !== undefined)
   );
 }
 
@@ -1035,7 +1137,7 @@ function hasFundamentalHistoryPointShape(value: unknown): boolean {
   return (
     isRecord(value) &&
     readNumber(value, "value") !== undefined &&
-    (value.form === "10-K" || value.form === "TTM") &&
+    (value.form === "10-K" || value.form === "20-F" || value.form === "TTM") &&
     readNumber(value, "fy") !== undefined &&
     readString(value, "fp") !== undefined &&
     readString(value, "periodStart") !== undefined &&
@@ -1160,15 +1262,6 @@ function readBusinessFrameworkArtifact(value: unknown): BusinessFrameworkArtifac
   return value as unknown as BusinessFrameworkArtifact;
 }
 
-function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAnswer | undefined {
-  if (!isRecord(value)) {
-    return;
-  }
-  const answer = readString(value, "answer");
-  const sourceIds = readStringArray(value, "sourceIds");
-  return answer === undefined || sourceIds === undefined ? undefined : { answer, sourceIds };
-}
-
 function readWebSubjectProfileQuestions(
   value: unknown,
   subjectKind: SubjectKind,
@@ -1190,21 +1283,6 @@ function readWebSubjectProfileQuestions(
     entries.push([key, answer]);
   }
   return Object.fromEntries(entries);
-}
-
-function readWebSubjectProfileFacts(value: unknown): readonly WebSubjectProfileFact[] | undefined {
-  if (!Array.isArray(value)) {
-    return;
-  }
-  const facts = value.flatMap((item): readonly WebSubjectProfileFact[] => {
-    if (!isRecord(item)) {
-      return [];
-    }
-    const claim = readString(item, "claim");
-    const sourceIds = readStringArray(item, "sourceIds");
-    return claim === undefined || sourceIds === undefined ? [] : [{ claim, sourceIds }];
-  });
-  return facts.length === value.length ? facts : undefined;
 }
 
 function readWebSubjectProfileArtifact(value: unknown): WebSubjectProfileArtifact | undefined {
@@ -1323,10 +1401,23 @@ function scoreStatusFor(
   return parsed === undefined ? "malformed" : "ok";
 }
 
+function readBundleOrSidecar<T>(
+  deepEquity: boolean,
+  bundleValue: unknown,
+  sidecarFile: JsonFileResult | undefined,
+  reader: (value: unknown) => T | undefined,
+): T | undefined {
+  if (deepEquity) {
+    return reader(bundleValue);
+  }
+  return sidecarFile?.status === "ok" ? reader(sidecarFile.value) : undefined;
+}
+
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
 const MARKET_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.marketSnapshots;
+const SOURCE_GAPS_FILE = RUN_ARTIFACT_FILES.sourceGaps;
 const VERIFIED_MARKET_SNAPSHOT_FILE = RUN_ARTIFACT_FILES.verifiedMarketSnapshot;
 const VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE = RUN_ARTIFACT_FILES.verifiedRepresentativeSnapshots;
 const THEME_CATALYSTS_FILE = RUN_ARTIFACT_FILES.themeCatalysts;
@@ -1334,10 +1425,34 @@ const SOURCE_PLAN_FILE = RUN_ARTIFACT_FILES.sourcePlan;
 const EVIDENCE_LANES_FILE = RUN_ARTIFACT_FILES.evidenceLanes;
 const SOURCE_LEDGER_FILE = RUN_ARTIFACT_FILES.sourceLedger;
 const FINANCIAL_LENSES_FILE = RUN_ARTIFACT_FILES.financialLenses;
+const FINANCIAL_STATEMENTS_FILE = RUN_ARTIFACT_FILES.financialStatements;
+const SUBSEQUENT_FINANCING_FILE = RUN_ARTIFACT_FILES.subsequentFinancing;
+const CAPITAL_OWNERSHIP_FILE = RUN_ARTIFACT_FILES.capitalOwnership;
 const VALUATION_COMPS_FILE = RUN_ARTIFACT_FILES.valuationComps;
+const VALUATION_WORKBENCH_FILE = RUN_ARTIFACT_FILES.valuationWorkbench;
+const REVERSE_DCF_FILE = RUN_ARTIFACT_FILES.reverseDcf;
 const FUNDAMENTAL_HISTORY_FILE = RUN_ARTIFACT_FILES.fundamentalHistory;
 const BUSINESS_FRAMEWORK_FILE = RUN_ARTIFACT_FILES.businessFramework;
 const WEB_SUBJECT_PROFILE_FILE = RUN_ARTIFACT_FILES.webSubjectProfile;
+const EVIDENCE_BUNDLE_FILE = RUN_ARTIFACT_FILES.evidenceBundle;
+
+export async function loadDeepEquityEvidenceBundle(
+  runDir: string,
+  additionalKnownSourceIds: readonly string[] = [],
+): Promise<LoadedDeepEquityEvidenceBundle> {
+  const file = await readJsonFile(join(runDir, EVIDENCE_BUNDLE_FILE));
+  if (file.status !== "ok") {
+    return { status: file.status };
+  }
+  const bundle = readDeepEquityEvidenceBundle(file.value);
+  if (
+    bundle === undefined ||
+    unresolvedDeepEquityBundleSourceIds(bundle, additionalKnownSourceIds).length > 0
+  ) {
+    return { status: "malformed" };
+  }
+  return { status: "ok", value: bundle };
+}
 
 // Reads one run directory. Returns an artifact only when report.json loads to a
 // Valid report; score.json is read only in that case (matching the historical
@@ -1353,61 +1468,173 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     return { status: { report: reportStatus, score: "absent" } };
   }
 
+  const deepEquity = isDeepEquityReport(report);
+  const deepEquityEvidenceBundleFile = deepEquity
+    ? await loadDeepEquityEvidenceBundle(
+        runDir,
+        report.sources.map((source) => source.id),
+      )
+    : undefined;
+  const deepEquityEvidenceBundle =
+    deepEquityEvidenceBundleFile?.status === "ok" ? deepEquityEvidenceBundleFile.value : undefined;
   const scoreFile = await readJsonFile(join(runDir, SCORE_FILE));
   const parsedScores = scoreFile.status === "ok" ? readScores(scoreFile.value) : undefined;
   const missAutopsyFile = await readJsonFile(join(runDir, MISS_AUTOPSY_FILE));
-  const snapshotFile = await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
-  const verifiedSnapshotFile = await readJsonFile(join(runDir, VERIFIED_MARKET_SNAPSHOT_FILE));
+  const snapshotFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, MARKET_SNAPSHOTS_FILE));
+  const sourceGapsFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, SOURCE_GAPS_FILE));
+  const verifiedSnapshotFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, VERIFIED_MARKET_SNAPSHOT_FILE));
   const verifiedRepresentativeSnapshotsFile = await readJsonFile(
     join(runDir, VERIFIED_REPRESENTATIVE_SNAPSHOTS_FILE),
   );
   const themeCatalystsFile = await readJsonFile(join(runDir, THEME_CATALYSTS_FILE));
-  const sourcePlanFile = await readJsonFile(join(runDir, SOURCE_PLAN_FILE));
-  const evidenceLanesFile = await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
-  const sourceLedgerFile = await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
-  const financialLensesFile = await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
-  const valuationCompsFile = await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
-  const fundamentalHistoryFile = await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
-  const businessFrameworkFile = await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
-  const webSubjectProfileFile = await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
+  const sourcePlanFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, SOURCE_PLAN_FILE));
+  const evidenceLanesFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, EVIDENCE_LANES_FILE));
+  const sourceLedgerFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, SOURCE_LEDGER_FILE));
+  const financialLensesFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, FINANCIAL_LENSES_FILE));
+  const financialStatementsFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, FINANCIAL_STATEMENTS_FILE));
+  const subsequentFinancingFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, SUBSEQUENT_FINANCING_FILE));
+  const capitalOwnershipFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, CAPITAL_OWNERSHIP_FILE));
+  const valuationCompsFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, VALUATION_COMPS_FILE));
+  const valuationWorkbenchFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, VALUATION_WORKBENCH_FILE));
+  const reverseDcfFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, REVERSE_DCF_FILE));
+  const fundamentalHistoryFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, FUNDAMENTAL_HISTORY_FILE));
+  const businessFrameworkFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, BUSINESS_FRAMEWORK_FILE));
+  const webSubjectProfileFile = deepEquity
+    ? undefined
+    : await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
   const status: RunArtifactStatus = {
     report: "ok",
     score: scoreStatusFor(scoreFile, parsedScores),
+    ...(deepEquityEvidenceBundleFile !== undefined
+      ? { evidenceBundle: deepEquityEvidenceBundleFile.status }
+      : {}),
   };
-  const verifiedMarketSnapshot =
-    verifiedSnapshotFile.status === "ok"
-      ? readVerifiedMarketSnapshot(verifiedSnapshotFile.value)
-      : undefined;
+  const verifiedMarketSnapshot = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.evidence.verifiedMarketSnapshot,
+    verifiedSnapshotFile,
+    readVerifiedMarketSnapshot,
+  );
   const verifiedRepresentativeSnapshots =
     verifiedRepresentativeSnapshotsFile.status === "ok"
       ? readVerifiedMarketSnapshots(verifiedRepresentativeSnapshotsFile.value)
       : readVerifiedMarketSnapshots(report.verifiedRepresentativeSnapshots);
   const themeCatalysts =
     themeCatalystsFile.status === "ok" ? readThemeCatalysts(themeCatalystsFile.value) : [];
-  const sourcePlan =
-    sourcePlanFile.status === "ok" ? readSourcePlan(sourcePlanFile.value) : undefined;
-  const evidenceLanes =
-    evidenceLanesFile.status === "ok" ? readEvidenceLanes(evidenceLanesFile.value) : undefined;
-  const sourceLedger =
-    sourceLedgerFile.status === "ok" ? readSourceLedger(sourceLedgerFile.value) : undefined;
-  const financialLenses =
-    financialLensesFile.status === "ok"
-      ? readFinancialLensesArtifact(financialLensesFile.value)
-      : undefined;
-  const peerImpliedRange =
-    valuationCompsFile.status === "ok" ? readPeerImpliedRange(valuationCompsFile.value) : undefined;
-  const fundamentalHistory =
-    fundamentalHistoryFile.status === "ok"
-      ? readFundamentalHistoryArtifact(fundamentalHistoryFile.value)
-      : undefined;
-  const businessFramework =
-    businessFrameworkFile.status === "ok"
-      ? readBusinessFrameworkArtifact(businessFrameworkFile.value)
-      : undefined;
-  const webSubjectProfile =
-    webSubjectProfileFile.status === "ok"
-      ? readWebSubjectProfileArtifact(webSubjectProfileFile.value)
-      : undefined;
+  const sourcePlan = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.governance.sourcePlan,
+    sourcePlanFile,
+    readSourcePlan,
+  );
+  const sourceGaps = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.governance.sourceGaps,
+    sourceGapsFile,
+    readSourceGaps,
+  );
+  const evidenceLanes = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.governance.evidenceLanes,
+    evidenceLanesFile,
+    readEvidenceLanes,
+  );
+  const sourceLedger = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.governance.sourceLedger,
+    sourceLedgerFile,
+    readSourceLedger,
+  );
+  const financialLenses = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.financialLenses,
+    financialLensesFile,
+    readFinancialLensesArtifact,
+  );
+  const financialStatements = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.financialStatements,
+    financialStatementsFile,
+    readFinancialStatementsArtifact,
+  );
+  const subsequentFinancing = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.subsequentFinancing,
+    subsequentFinancingFile,
+    readSubsequentFinancingBridgeArtifact,
+  );
+  const capitalOwnership = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.capitalOwnership,
+    capitalOwnershipFile,
+    readCapitalOwnershipArtifact,
+  );
+  const peerImpliedRange = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.valuationComps,
+    valuationCompsFile,
+    readPeerImpliedRange,
+  );
+  const valuationWorkbench = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.valuationWorkbench,
+    valuationWorkbenchFile,
+    readValuationWorkbenchArtifact,
+  );
+  const reverseDcf = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.reverseDcf,
+    reverseDcfFile,
+    readReverseDcfArtifact,
+  );
+  const fundamentalHistory = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.fundamentalHistory,
+    fundamentalHistoryFile,
+    readFundamentalHistoryArtifact,
+  );
+  const businessFramework = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.derived.businessFramework,
+    businessFrameworkFile,
+    readBusinessFrameworkArtifact,
+  );
+  const webSubjectProfile = readBundleOrSidecar(
+    deepEquity,
+    deepEquityEvidenceBundle?.evidence.webSubjectProfile,
+    webSubjectProfileFile,
+    readWebSubjectProfileArtifact,
+  );
 
   return {
     artifact: {
@@ -1415,7 +1642,10 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       report,
       scores: parsedScores ?? [],
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
-      marketSnapshots: readSnapshots(snapshotFile.value),
+      marketSnapshots: deepEquity
+        ? readSnapshots(deepEquityEvidenceBundle?.evidence.marketSnapshots)
+        : readSnapshots(snapshotFile?.value),
+      sourceGaps: sourceGaps ?? [],
       ...(verifiedMarketSnapshot !== undefined ? { verifiedMarketSnapshot } : {}),
       ...(verifiedRepresentativeSnapshots.length > 0 ? { verifiedRepresentativeSnapshots } : {}),
       ...(themeCatalysts.length > 0 ? { themeCatalysts } : {}),
@@ -1423,10 +1653,16 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
       ...(evidenceLanes !== undefined ? { evidenceLanes } : {}),
       ...(sourceLedger !== undefined ? { sourceLedger } : {}),
       ...(financialLenses !== undefined ? { financialLenses } : {}),
+      ...(financialStatements !== undefined ? { financialStatements } : {}),
+      ...(subsequentFinancing !== undefined ? { subsequentFinancing } : {}),
+      ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
       ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
+      ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
+      ...(reverseDcf !== undefined ? { reverseDcf } : {}),
       ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
       ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),
+      ...(deepEquityEvidenceBundle !== undefined ? { deepEquityEvidenceBundle } : {}),
       status,
     },
     status,
@@ -1462,6 +1698,23 @@ export async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArti
 // Full artifact scans always read from disk until the index can hydrate RunArtifact payloads.
 export async function scanRunArtifacts(dataDir: string): Promise<RunArtifactScan> {
   return await scanRunArtifactsFromDisk(dataDir);
+}
+
+async function readWebSubjectProfileForRun(
+  runDir: string,
+  report: ResearchReport,
+): Promise<WebSubjectProfileArtifact | undefined> {
+  if (isDeepEquityReport(report)) {
+    const bundleFile = await loadDeepEquityEvidenceBundle(
+      runDir,
+      report.sources.map((source) => source.id),
+    );
+    return bundleFile.status === "ok"
+      ? readWebSubjectProfileArtifact(bundleFile.value.evidence.webSubjectProfile)
+      : undefined;
+  }
+  const profileFile = await readJsonFile(join(runDir, WEB_SUBJECT_PROFILE_FILE));
+  return profileFile.status === "ok" ? readWebSubjectProfileArtifact(profileFile.value) : undefined;
 }
 
 export async function scanWebSubjectProfileRunArtifacts(
@@ -1504,13 +1757,13 @@ export async function scanWebSubjectProfileRunArtifacts(
         ? []
         : [
             (async () => {
-              const profileFile = await readJsonFile(
-                join(candidate.runDir, WEB_SUBJECT_PROFILE_FILE),
+              const analyticsFile = await readJsonFile(
+                join(candidate.runDir, RUN_ARTIFACT_FILES.analytics),
               );
-              const webSubjectProfile =
-                profileFile.status === "ok"
-                  ? readWebSubjectProfileArtifact(profileFile.value)
-                  : undefined;
+              const webSubjectProfile = await readWebSubjectProfileForRun(
+                candidate.runDir,
+                candidate.report,
+              );
               return webSubjectProfile === undefined ||
                 webSubjectProfile.subjectKind !== input.subjectKind ||
                 webSubjectProfile.subjectId.toUpperCase() !== input.subjectId.toUpperCase()
@@ -1519,6 +1772,7 @@ export async function scanWebSubjectProfileRunArtifacts(
                     runDirName: candidate.runDirName,
                     report: candidate.report,
                     webSubjectProfile,
+                    ...(analyticsFile.status === "ok" ? { analytics: analyticsFile.value } : {}),
                   };
             })(),
           ],

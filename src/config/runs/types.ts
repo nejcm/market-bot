@@ -36,7 +36,8 @@ export type RunConfig = Record<RunKey, RunParams>;
 export interface ResolvedRunParams {
   readonly quickModel: string;
   readonly synthesisModel: string;
-  readonly modelParams: ModelParams | undefined;
+  readonly quickModelParams: ModelParams | undefined;
+  readonly synthesisModelParams: ModelParams | undefined;
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
   readonly targetPredictions: number;

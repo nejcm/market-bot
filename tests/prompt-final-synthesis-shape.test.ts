@@ -43,7 +43,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -104,7 +105,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["AAPL"],
           focus: ["thesis"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -174,7 +176,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: depthProfile.predictionSubjects,
           focus: depthProfile.focus,
           targetKindMix: depthProfile.targetKindMix,
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -232,7 +235,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["BTC"],
           focus: ["thesis"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "crypto",
@@ -377,7 +381,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["AAPL"],
           focus: ["ticker research"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -444,7 +449,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -481,14 +487,16 @@ describe("buildStagePrompt final-synthesis shape", () => {
           runCount: 10,
           brierStandardError: 0.05,
         },
+        crypto: { brierScore: 0.25, count: 30, runCount: 10, brierStandardError: 0.05 },
       },
-      byHorizonBucket: {
-        "1-5d": {
+      byMarketUpdateHorizonBucket: {
+        "2-5d": {
           brierScore: 0.3,
           count: 30,
           runCount: 10,
           brierStandardError: 0.03,
         },
+        "6-10d": { brierScore: 0.25, count: 30, runCount: 10, brierStandardError: 0.05 },
       },
     };
 
@@ -515,7 +523,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -543,7 +552,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
     expect(block).toContain("asset class equity");
     expect(block).not.toContain("Overall");
     expect(block).not.toContain("direction");
-    expect(block).not.toContain("default horizon 1-5d");
+    expect(block).not.toContain("default horizon 2-5d");
     expect(block).toContain("only to discipline probability confidence");
     expect(parsed.predictionCompletion).toBeDefined();
   });
@@ -587,7 +596,8 @@ describe("buildStagePrompt final-synthesis shape", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -628,7 +638,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
       "the primary (pre-colon) symbol must be one of these allowed subjects",
     );
     expect(parsed.instruction).toContain(
-      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO, VTI, ITOT, IWB, SCHB share the broad-us-index class",
     );
     // The one existing prediction is a bare `direction` call, so no broad-index slot is occupied.
     expect(parsed.instruction).not.toContain("already occupy these broad-us-index slots");
@@ -725,6 +735,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
             symbol: "AAPL",
             date: "2026-07-30",
             timing: "amc",
+            eventDateStatus: "issuer-confirmed",
             sourceIds: ["earnings-aapl"],
             fetchedAt: "2026-06-01T00:00:00.000Z",
           },

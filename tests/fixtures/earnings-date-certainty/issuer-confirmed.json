@@ -1,0 +1,42 @@
+{
+  "analysisAsOf": "2026-07-20T12:00:00.000Z",
+  "setup": {
+    "event": {
+      "symbol": "AAPL",
+      "date": "2026-07-30",
+      "timing": "amc",
+      "eventDateStatus": "provider-estimated",
+      "dateStatus": "provider-estimated",
+      "sourceIds": ["extended-finnhub-events-aapl"],
+      "fetchedAt": "2026-07-20T12:00:00.000Z"
+    },
+    "gaps": []
+  },
+  "rawSnapshots": [
+    {
+      "id": "raw-sec-submissions-aapl",
+      "adapter": "sec-submissions",
+      "fetchedAt": "2026-07-20T12:00:00.000Z",
+      "payload": {
+        "name": "Apple Inc.",
+        "tickers": ["AAPL"],
+        "website": "https://www.apple.com",
+        "investorWebsite": "https://investor.apple.com"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "id": "web-aapl-ir-earnings",
+      "title": "Apple quarterly results event",
+      "url": "https://investor.apple.com/events/quarterly-results",
+      "publisher": "Apple Inc.",
+      "fetchedAt": "2026-07-18T09:00:00.000Z",
+      "kind": "web",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "exa",
+      "summary": "Apple Inc. will release its quarterly financial results after market close on July 30, 2026."
+    }
+  ]
+}

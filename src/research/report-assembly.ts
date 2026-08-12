@@ -3,9 +3,11 @@ import type { ResearchSubjectCommand } from "../cli/job-registry";
 import {
   isMarketUpdateJobType,
   marketUpdateMetadataOf,
+  type EquityAnalysisCompleteness,
   type KeyFinding,
   type MarketSnapshot,
   type Prediction,
+  type RelocatedGapClaim,
   type ResearchReport,
   type Scenario,
   type Source,
@@ -13,9 +15,19 @@ import {
 } from "../domain/types";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { dedupeSourceGaps } from "../domain/source-gaps";
+import { classifyGap } from "../report/gap-triage";
+import {
+  derivePredictionShortfall,
+  withoutPredictionShortfallProtocolGaps,
+} from "../report/prediction-shortfall";
 import { validatePredictions, validateResearchReport } from "../report/schema";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import { CURRENT_SCORING_POLICY_VERSION } from "../scoring/policy";
+import {
+  applyEarningsForecastPolicy,
+  hasConfirmedEarningsDate,
+} from "../forecast/earnings-eligibility";
+import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
 import { isRecord, nonEmptyStringArrayValue, readString } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { extractCatalystDate } from "./catalyst-date";
@@ -34,6 +46,7 @@ import {
 } from "./research-subject-identity";
 import type { SpotlightSelectionResult } from "./spotlights";
 import { assessEvidenceQuality } from "./evidence-quality";
+import { isGapShapedClaimForRelocation } from "./gap-shaped-claims";
 import { assessSourcePlan, buildSourcePlan } from "./source-plan";
 
 // ---------------------------------------------------------------------------
@@ -86,6 +99,123 @@ function readFindings(value: unknown): readonly KeyFinding[] {
       };
     })
     .filter((item): item is KeyFinding => item !== undefined);
+}
+
+const RELOCATABLE_FINDING_SECTIONS = [
+  "keyFindings",
+  "bullCase",
+  "bearCase",
+  "risks",
+  "catalysts",
+] as const;
+
+type RelocatableFindingSection = (typeof RELOCATABLE_FINDING_SECTIONS)[number];
+
+interface FindingPartition {
+  readonly findings: readonly KeyFinding[];
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+interface BusinessFrameworkRelocation {
+  readonly modelExtras: Record<string, unknown>;
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+export interface PreparedReportClaims {
+  readonly findings: Readonly<Record<RelocatableFindingSection, readonly KeyFinding[]>>;
+  readonly modelExtras: Record<string, unknown>;
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+function partitionGapShapedFindings(
+  section: RelocatableFindingSection,
+  findings: readonly KeyFinding[],
+): FindingPartition {
+  const retained: KeyFinding[] = [];
+  const relocatedGapClaims: RelocatedGapClaim[] = [];
+  for (const [index, finding] of findings.entries()) {
+    if (finding.sourceIds.length === 0 && isGapShapedClaimForRelocation(finding.text)) {
+      relocatedGapClaims.push({ location: `${section}[${index}]`, text: finding.text });
+    } else {
+      retained.push(finding);
+    }
+  }
+  return { findings: retained, relocatedGapClaims };
+}
+
+function relocateBusinessFrameworkClaims(
+  modelExtras: Record<string, unknown>,
+  collectedSources: CollectedSources,
+): BusinessFrameworkRelocation {
+  const framework = modelExtras.businessFramework;
+  if (
+    collectedSources.businessFramework === undefined ||
+    !isRecord(framework) ||
+    !Array.isArray(framework.sections)
+  ) {
+    return { modelExtras, relocatedGapClaims: [] };
+  }
+  const relocatedGapClaims: RelocatedGapClaim[] = [];
+  const sections = framework.sections.map((section, index) => {
+    const name = isRecord(section) && typeof section.name === "string" ? section.name : undefined;
+    const deterministicSection =
+      name !== undefined && isBusinessFrameworkSectionName(name)
+        ? collectedSources.businessFramework?.sections.find((candidate) => candidate.name === name)
+        : undefined;
+    if (
+      !isRecord(section) ||
+      name === undefined ||
+      !isBusinessFrameworkSectionName(name) ||
+      deterministicSection === undefined ||
+      typeof section.text !== "string" ||
+      nonEmptyStringArrayValue(section.sourceIds).length > 0 ||
+      deterministicSection.sourceIds.length > 0 ||
+      !isGapShapedClaimForRelocation(section.text)
+    ) {
+      return section;
+    }
+    relocatedGapClaims.push({
+      location: `Business Framework sections[${index}] (${name})`,
+      text: section.text,
+    });
+    return Object.fromEntries(Object.entries(section).filter(([key]) => key !== "text"));
+  });
+  return relocatedGapClaims.length === 0
+    ? { modelExtras, relocatedGapClaims }
+    : {
+        modelExtras: {
+          ...modelExtras,
+          businessFramework: { ...framework, sections },
+        },
+        relocatedGapClaims,
+      };
+}
+
+export function prepareReportClaims(
+  payload: ModelReportPayload,
+  collectedSources: CollectedSources,
+): PreparedReportClaims {
+  const partitions = Object.fromEntries(
+    RELOCATABLE_FINDING_SECTIONS.map((section) => [
+      section,
+      partitionGapShapedFindings(section, readFindings(payload[section])),
+    ]),
+  ) as Record<RelocatableFindingSection, FindingPartition>;
+  const rawModelExtras =
+    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
+      ? (payload.extras as Record<string, unknown>)
+      : {};
+  const frameworkRelocation = relocateBusinessFrameworkClaims(rawModelExtras, collectedSources);
+  return {
+    findings: Object.fromEntries(
+      RELOCATABLE_FINDING_SECTIONS.map((section) => [section, partitions[section].findings]),
+    ) as Record<RelocatableFindingSection, readonly KeyFinding[]>,
+    modelExtras: frameworkRelocation.modelExtras,
+    relocatedGapClaims: [
+      ...RELOCATABLE_FINDING_SECTIONS.flatMap((section) => partitions[section].relocatedGapClaims),
+      ...frameworkRelocation.relocatedGapClaims,
+    ],
+  };
 }
 
 function readScenarios(value: unknown): readonly Scenario[] {
@@ -238,6 +368,52 @@ export function buildSourceList(
           fetchedAt ?? missingRegistryProvenanceFetchedAt(command),
         )
       : [];
+  const financialStatementsSource =
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    collectedSources.financialStatements !== undefined &&
+    !collectedSources.extendedSources.some(
+      (source) => source.id === collectedSources.financialStatements?.sourceId,
+    )
+      ? {
+          id: collectedSources.financialStatements.sourceId,
+          title: `${command.symbol} canonical financial statements`,
+          fetchedAt: collectedSources.financialStatements.analysisAsOf,
+          kind: "extended-evidence" as const,
+          assetClass: "equity" as const,
+          symbol: command.symbol,
+          provider: "sec-edgar",
+          ...(collectedSources.financialStatements.sourceUrl !== undefined
+            ? { url: collectedSources.financialStatements.sourceUrl }
+            : {}),
+        }
+      : undefined;
+  const existingSourceIds = new Set([
+    ...collectedSources.extendedSources.map((source) => source.id),
+    ...(financialStatementsSource !== undefined ? [financialStatementsSource.id] : []),
+  ]);
+  const structuredFinancialGapSources =
+    isInstrumentCommand(command) && collectedSources.financialStatements !== undefined
+      ? [
+          ...new Set(
+            collectedSources.financialStatements.structuredFinancialGaps.flatMap(
+              (gap) => gap.sourceIds,
+            ),
+          ),
+        ]
+          .filter((sourceId) => !existingSourceIds.has(sourceId))
+          .map(
+            (sourceId): Source => ({
+              id: sourceId,
+              title: `${command.symbol} structured financial filing evidence`,
+              fetchedAt: collectedSources.financialStatements!.analysisAsOf,
+              kind: "extended-evidence",
+              assetClass: "equity",
+              symbol: command.symbol,
+              provider: "sec-edgar",
+            }),
+          )
+      : [];
 
   return [
     ...marketSources,
@@ -249,6 +425,8 @@ export function buildSourceList(
     ...(isInstrumentCommand(command) || command.jobType === "research"
       ? collectedSources.extendedSources
       : []),
+    ...(financialStatementsSource !== undefined ? [financialStatementsSource] : []),
+    ...structuredFinancialGapSources,
     ...(historicalContext?.sources ?? []),
     ...registrySources,
   ];
@@ -609,7 +787,7 @@ function withoutDeterministicGapRestatements(
 }
 
 function withoutModelPredictionCountGaps(modelGaps: readonly string[]): readonly string[] {
-  return modelGaps.filter((gap) => {
+  return withoutPredictionShortfallProtocolGaps(modelGaps).filter((gap) => {
     const normalized = gap.toLowerCase();
     return !(
       /\bpredictions?\b/u.test(normalized) &&
@@ -728,9 +906,25 @@ export interface AssembleResearchReportInput {
   readonly depthProfile: DepthProfile;
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
+  /** Derived by the orchestrator before the canonical source-gap boundary, so the same verdict
+   *  that produced this run's freshness gaps is the one recorded here. */
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
+  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 export function assembleResearchReport(input: AssembleResearchReportInput): ResearchReport {
+  return assembleResearchReportWithRelocations(input).report;
+}
+
+export interface AssembleResearchReportResult {
+  readonly report: ResearchReport;
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+  readonly sourceGaps: readonly SourceGap[];
+}
+
+export function assembleResearchReportWithRelocations(
+  input: AssembleResearchReportInput,
+): AssembleResearchReportResult {
   const {
     runId,
     generatedAt,
@@ -741,18 +935,48 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     depthProfile,
     context,
     sources,
+    suppressedEarningsPredictionCountOffset = 0,
   } = input;
+  const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
+  const sourceGaps = collectedSources.sourceGaps.map((gap) => ({
+    ...gap,
+    triage: classifyGap(gap, reportSymbol),
+  }));
 
-  const gatedPredictions = researchPredictionGate({
-    command,
+  const earningsGatedPredictions = applyEarningsForecastPolicy({
     predictions: predResult.predictions,
+    setup: collectedSources.earningsSetup,
+    policy: "confirmed-only",
+  });
+  const researchGatedPredictions = researchPredictionGate({
+    command,
+    predictions: earningsGatedPredictions.predictions,
     collectedSources,
   });
+  const {
+    findings: preparedFindings,
+    modelExtras,
+    relocatedGapClaims,
+  } = prepareReportClaims(payload, collectedSources);
+  const keyFindings = preferSnapshotCitationsForFindings(
+    preparedFindings.keyFindings,
+    collectedSources,
+  );
+  const bullCase = preferSnapshotCitationsForFindings(preparedFindings.bullCase, collectedSources);
+  const bearCase = preferSnapshotCitationsForFindings(preparedFindings.bearCase, collectedSources);
+  const risks = preferSnapshotCitationsForFindings(preparedFindings.risks, collectedSources);
+  const catalysts = preferSnapshotCitationsForFindings(
+    preparedFindings.catalysts,
+    collectedSources,
+  );
   const deterministicGapEntries = deterministicSourceGapEntries(command, collectedSources);
   const deterministicGapTexts = deterministicGapEntries.map((gap) => gap.text);
   const modelGapEntries = withoutDeterministicGapRestatements(
     withoutModelProviderGapDuplicates(
-      withoutModelPredictionCountGaps(nonEmptyStringArrayValue(payload.dataGaps)),
+      withoutModelPredictionCountGaps([
+        ...nonEmptyStringArrayValue(payload.dataGaps),
+        ...relocatedGapClaims.map((claim) => claim.text),
+      ]),
       collectedSources.sourceGaps,
     ),
     deterministicGapTexts,
@@ -761,22 +985,27 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     uniqueDataGapEntries([
       ...modelGapEntries,
       ...deterministicGapEntries,
-      ...gatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
+      ...researchGatedPredictions.gaps.map((gap) => reportDataGapEntry(gap)),
+      ...(collectedSources.earningsSetup !== undefined &&
+      !hasConfirmedEarningsDate(collectedSources.earningsSetup)
+        ? [
+            reportDataGapEntry(
+              "earningsForecastGate: earnings-return predictions suppressed because the event date is provider-estimated; official issuer or direct exchange confirmation is required",
+            ),
+          ]
+        : []),
     ]),
   ).map((gap) => gap.text);
   // Stamp the current scoring policy on every accepted Prediction. The stamp
   // Is deterministic: model-provided policy metadata never survives assembly.
-  const stampedPredictions = gatedPredictions.predictions.map((candidate) => ({
+  const stampedPredictions = researchGatedPredictions.predictions.map((candidate) => ({
     ...candidate,
     scoringPolicyVersion: CURRENT_SCORING_POLICY_VERSION,
   }));
-  const shortfall = gatedPredictions.predictions.length < depthProfile.targetPredictions;
-  const dataGaps = shortfall
-    ? [
-        ...dataGapsRaw,
-        `predictionShortfall: emitted ${String(gatedPredictions.predictions.length)} of ${String(depthProfile.targetPredictions)} target predictions; evidence did not support more`,
-      ]
-    : dataGapsRaw;
+  const predictionShortfall = derivePredictionShortfall(
+    researchGatedPredictions.predictions.length,
+    depthProfile.targetPredictions,
+  );
 
   // The orchestrator assesses evidence quality once, before synthesis, and stamps the
   // Result onto context.evidenceQualityAssessment, so the real flow always takes the
@@ -790,10 +1019,6 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         assessSourcePlan(buildSourcePlan(command, generatedAt), collectedSources, generatedAt),
       generatedAt,
     ).label;
-  const modelExtras =
-    typeof payload.extras === "object" && payload.extras !== null && !Array.isArray(payload.extras)
-      ? (payload.extras as Record<string, unknown>)
-      : {};
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
@@ -801,23 +1026,6 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     modelExtras,
     collectedSources,
   });
-  const keyFindings = preferSnapshotCitationsForFindings(
-    readFindings(payload.keyFindings),
-    collectedSources,
-  );
-  const bullCase = preferSnapshotCitationsForFindings(
-    readFindings(payload.bullCase),
-    collectedSources,
-  );
-  const bearCase = preferSnapshotCitationsForFindings(
-    readFindings(payload.bearCase),
-    collectedSources,
-  );
-  const risks = preferSnapshotCitationsForFindings(readFindings(payload.risks), collectedSources);
-  const catalysts = preferSnapshotCitationsForFindings(
-    readFindings(payload.catalysts),
-    collectedSources,
-  );
   const scenarios = preferSnapshotCitationsForScenarios(
     readScenarios(payload.scenarios),
     collectedSources,
@@ -831,8 +1039,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
           collectedSources,
         })
       : undefined;
+  const { equityAnalysisCompleteness } = input;
 
-  return validateResearchReport({
+  const report = validateResearchReport({
     runId,
     jobType: command.jobType,
     assetClass: command.assetClass,
@@ -849,7 +1058,9 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
     catalysts,
     scenarios,
     evidenceQuality,
-    dataGaps,
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
+    ...(predictionShortfall !== undefined ? { predictionShortfall } : {}),
+    dataGaps: dataGapsRaw,
     predictions: stampedPredictions,
     sources,
     ...((isInstrumentCommand(command) || command.jobType === "research") &&
@@ -870,6 +1081,16 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
       ...(resolvedSpotlights !== undefined ? { spotlights: resolvedSpotlights } : {}),
       ...(catalystCalendar !== undefined ? { catalystCalendar } : {}),
       ...extendedEvidenceExtras,
+      ...(command.jobType === "equity"
+        ? {
+            earningsForecasts: {
+              ...earningsGatedPredictions.telemetry,
+              suppressedPredictionCount:
+                earningsGatedPredictions.telemetry.suppressedPredictionCount +
+                suppressedEarningsPredictionCountOffset,
+            },
+          }
+        : {}),
       depth: command.depth,
       depthProfile,
       ...marketUpdateExtras(command),
@@ -886,4 +1107,5 @@ export function assembleResearchReport(input: AssembleResearchReportInput): Rese
         : {}),
     },
   });
+  return { report, relocatedGapClaims, sourceGaps };
 }

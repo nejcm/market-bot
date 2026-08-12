@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
@@ -38,6 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  mock.restore();
   for (const dir of tmpDirs) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -211,7 +212,46 @@ describe("collectSources", () => {
     );
   });
 
-  test("merges valuation comps artifacts, peer sources, raw snapshots, and gaps", async () => {
+  // Guards A2.2: SEC_FILING_TEXT_MAX_RESPONSE_BYTES only relaxes the ceiling for the
+  // `sec-filing-text` adapter's own request (set at its call site in
+  // Evidence-request-tools.ts). Every other adapter, including one whose actual streamed body
+  // (not just its content-length header) exceeds 5MB, must still fail at the unmodified global
+  // Default.
+  test("still rejects a non-SEC adapter's actual streamed body above the unmodified global default", async () => {
+    const oversizedBody = "x".repeat(5_500_000);
+    const { context } = createCollectContext(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 1000 },
+      new Date("2026-05-20T00:00:00.000Z"),
+      async () => new Response(oversizedBody),
+      [],
+    );
+
+    const result = await context.request.text({
+      url: "https://example.test/oversized-stream",
+      adapter: "oversized-source",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        source: "oversized-source",
+        message: "oversized-source source response exceeded 5000000 bytes",
+        cause: "fetch-failed",
+      }),
+    );
+  });
+
+  test("uses canonical financial derivations without legacy comparison passes", async () => {
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const financialLensModule = await import("../src/sources/extended-evidence/financial-lens");
+    const valuationModule = await import("../src/sources/extended-evidence/valuation");
+    const deriveLegacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "deriveFundamentalHistory",
+    );
+    const addFinancialLensEvidence = spyOn(financialLensModule, "addFinancialLensEvidence");
+    const addValuationEvidence = spyOn(valuationModule, "addValuationEvidence");
     const marketCaps: Readonly<Record<string, number>> = {
       NVDA: 1000,
       AMD: 390,
@@ -227,8 +267,10 @@ describe("collectSources", () => {
       VRT: 5,
     };
     let nvdaCompanyFactsRequests = 0;
+    const recordedRequests: string[] = [];
     const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
       const url = String(input);
+      recordedRequests.push(url);
       if (url.includes("/v7/finance/quote")) {
         const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
         return jsonResponse({
@@ -258,6 +300,7 @@ describe("collectSources", () => {
       if (url.includes("companyfacts")) {
         if (url.includes("CIK0000000001")) {
           nvdaCompanyFactsRequests += 1;
+          return jsonResponse(collectorSecPayload(100));
         }
         return jsonResponse(collectorSecPayload());
       }
@@ -297,8 +340,41 @@ describe("collectSources", () => {
       version: 1,
       symbol: "NVDA",
       sourceId: "extended-sec-edgar-nvda-fundamentals",
+      series: { revenue: { concept: "Revenues" } },
     });
+    expect(
+      result.financialLenses?.lenses
+        .flatMap((lens) => lens.metrics)
+        .find((metric) => metric.key === "grossMargin")?.value,
+    ).toBe(0.4);
+    expect(deriveLegacyFundamentalHistory).not.toHaveBeenCalled();
+    expect(addFinancialLensEvidence).toHaveBeenCalledTimes(1);
+    expect(addValuationEvidence).toHaveBeenCalledTimes(1);
+    expect(
+      addValuationEvidence.mock.calls[0]?.[2]?.items.some(
+        (item) => item.metrics?.financialLensSelectionVersion === 1,
+      ),
+    ).toBe(true);
+    expect(
+      addFinancialLensEvidence.mock.calls[0]?.[2]?.items.some(
+        (item) => item.metrics?.financialLensSelectionVersion === 1,
+      ),
+    ).toBe(true);
     expect(nvdaCompanyFactsRequests).toBe(1);
+    expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(1);
+    for (const cik of Object.values(cikBySymbol)) {
+      const paddedCik = String(cik).padStart(10, "0");
+      expect(
+        recordedRequests.filter((url) => url.includes(`/companyfacts/CIK${paddedCik}.json`)),
+      ).toHaveLength(1);
+      expect(
+        recordedRequests.filter((url) => url.includes(`/submissions/CIK${paddedCik}.json`)),
+      ).toHaveLength(1);
+    }
+    const peerQuoteRequests = recordedRequests.filter((url) =>
+      url.includes("/v7/finance/quote?symbols=AMD%2CAVGO%2CANET%2CVRT"),
+    );
+    expect(peerQuoteRequests).toHaveLength(1);
     expect(
       result.rawSnapshots.filter((snapshot) => snapshot.adapter === "sec-companyfacts"),
     ).toHaveLength(5);
@@ -316,6 +392,217 @@ describe("collectSources", () => {
       corePeerCount: 2,
       valuationSupportability: "supported",
     });
+  });
+
+  test("skips legacy fundamental history in the no-packet canonical path", async () => {
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const legacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "fundamentalHistoryFromCompanyFacts",
+    );
+    const recordedRequests: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      recordedRequests.push(url);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+        cacheDir: tempCacheDir(),
+      },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.secTargetPacket).toBeUndefined();
+    expect(result.financialStatements).toBeDefined();
+    expect(result.fundamentalHistory).toBeDefined();
+    expect(legacyFundamentalHistory).not.toHaveBeenCalled();
+    expect(
+      recordedRequests.filter((url) => url.includes("/companyfacts/CIK0000000001.json")),
+    ).toHaveLength(1);
+  });
+
+  test("derives the no-packet legacy fallback from a single company facts fetch", async () => {
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const legacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "fundamentalHistoryFromCompanyFacts",
+    );
+    const recordedRequests: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      recordedRequests.push(url);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({});
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+      },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.financialStatements).toBeUndefined();
+    expect(result.fundamentalHistory).toBeUndefined();
+    expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
+    expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(2);
+  });
+
+  test("keeps valuation comps evidence in fallback financial lens consumption", async () => {
+    const financialStatementsModule =
+      await import("../src/sources/extended-evidence/financial-statements");
+    const fundamentalHistoryModule =
+      await import("../src/sources/extended-evidence/fundamental-history");
+    const financialLensModule = await import("../src/sources/extended-evidence/financial-lens");
+    const valuationModule = await import("../src/sources/extended-evidence/valuation");
+    const marketCaps: Readonly<Record<string, number>> = {
+      NVDA: 1000,
+      AMD: 390,
+      AVGO: 590,
+      ANET: 790,
+      VRT: 990,
+    };
+    const cikBySymbol: Readonly<Record<string, number>> = {
+      NVDA: 1,
+      AMD: 2,
+      AVGO: 3,
+      ANET: 4,
+      VRT: 5,
+    };
+    const deriveFinancialStatements = spyOn(
+      financialStatementsModule,
+      "deriveFinancialStatements",
+    ).mockReturnValue(undefined as never);
+    const deriveLegacyFundamentalHistory = spyOn(
+      fundamentalHistoryModule,
+      "deriveFundamentalHistory",
+    );
+    const addFinancialLensEvidence = spyOn(financialLensModule, "addFinancialLensEvidence");
+    const addValuationEvidence = spyOn(valuationModule, "addValuationEvidence");
+    const fetchImpl = async (request: RequestInfo | URL): Promise<Response> => {
+      const url = String(request);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: {
+            result: symbols.map((symbol) => collectorQuote(symbol, marketCaps[symbol] ?? 500)),
+          },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse(
+          Object.fromEntries(
+            Object.entries(cikBySymbol).map(([symbol, cik], index) => [
+              String(index),
+              { cik_str: cik, ticker: symbol, title: symbol },
+            ]),
+          ),
+        );
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({
+          sic: "3674",
+          sicDescription: "Semiconductors & Related Devices",
+          filings: { recent: { form: [], filingDate: [] } },
+        });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse({ chart: { result: [] } });
+      }
+      return jsonResponse({});
+    };
+
+    try {
+      const result = await collectSources(
+        { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+        {
+          equityMoverLimit: 2,
+          cryptoMoverLimit: 2,
+          newsLimit: 2,
+          sourceTimeoutMs: 1000,
+          cacheDir: tempCacheDir(),
+        },
+        { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+      );
+
+      expect(result.financialStatements).toBeUndefined();
+      expect(result.fundamentalHistory).toBeDefined();
+      expect(result.financialLenses).toBeDefined();
+      expect(deriveLegacyFundamentalHistory).toHaveBeenCalledTimes(1);
+      expect(addFinancialLensEvidence).toHaveBeenCalledTimes(1);
+      expect(addValuationEvidence).toHaveBeenCalledTimes(1);
+      expect(
+        addValuationEvidence.mock.calls[0]?.[2]?.items.some(
+          (item) => item.metrics?.financialLensSelectionVersion === 1,
+        ),
+      ).toBe(false);
+      expect(
+        addFinancialLensEvidence.mock.calls[0]?.[2]?.items.some(
+          (item) => item.metrics?.financialLensSelectionVersion === 1,
+        ),
+      ).toBe(false);
+      expect(result.valuationComps?.summary.valuationSupportability).toBe("supported");
+      expect(
+        result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,
+      ).toMatchObject({
+        corePeerCount: 2,
+        valuationSupportability: "supported",
+      });
+    } finally {
+      deriveFinancialStatements.mockRestore();
+    }
   });
 
   test("records a peer-valuation skip gap when target valuation is unavailable", async () => {

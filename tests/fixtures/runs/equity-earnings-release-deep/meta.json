@@ -1,0 +1,30 @@
+{
+  "now": "2026-08-10T08:38:33.859Z",
+  "argv": ["equity", "AAPL", "--deep"],
+  "quickModel": "gpt-5.6-luna",
+  "synthesisModel": "gpt-5.6-sol",
+  "challengerModels": [],
+  "secUserAgent": "market-bot fixture replay contact@example.invalid",
+  "webGatherDisabled": false,
+  "evidenceRequestOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  },
+  "webGatherOptions": {
+    "maxRounds": 2,
+    "maxToolCalls": 4,
+    "sourceBudget": 8,
+    "themeOverrides": {
+      "maxRounds": 2,
+      "maxToolCalls": 6,
+      "sourceBudget": 12
+    }
+  },
+  "codeVersion": {
+    "branch": "feat/equity-completeness-phase0",
+    "commit": "61c693fae9141d21eaafeb3ac6744bc266c3201e",
+    "commitShort": "61c693fae914",
+    "dirty": true
+  }
+}

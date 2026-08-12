@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
-import type { Source } from "../src/domain/types";
+import type { ResearchReport, RunTrace, Source } from "../src/domain/types";
+import { buildRunAnalytics } from "../src/research/run-analytics";
 import { buildRunTrace } from "../src/research/run-trace";
 import { assessEvidenceQuality } from "../src/research/evidence-quality";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
@@ -44,8 +45,20 @@ function configFor(): AppConfig {
   };
 }
 
-function traceFor(command: ResearchCommand, sources: CollectedSources) {
+function traceFor(
+  command: ResearchCommand,
+  sources: CollectedSources,
+  options: {
+    readonly report?: ResearchReport;
+    readonly relocatedGapClaims?: readonly {
+      readonly location: string;
+      readonly text: string;
+    }[];
+    readonly webGatherLoop?: RunTrace["webGatherLoop"];
+  } = {},
+) {
   const generatedAt = "2026-05-19T00:00:00.000Z";
+  const report = options.report ?? researchReport();
   const sourcePlanning = assessSourcePlan(
     buildSourcePlan(command, generatedAt),
     sources,
@@ -59,7 +72,8 @@ function traceFor(command: ResearchCommand, sources: CollectedSources) {
     runParams: {
       quickModel: "quick-test",
       synthesisModel: "synthesis-test",
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
       minimumKeyFindings: 5,
       minimumScenarios: 3,
       targetPredictions: 6,
@@ -71,10 +85,11 @@ function traceFor(command: ResearchCommand, sources: CollectedSources) {
     },
     codeVersion: { dirty: false },
     evidenceQualityAssessment: assessEvidenceQuality(sourcePlanning, generatedAt),
-    report: researchReport(),
+    report,
     stageOutputs: [],
     costPricing: [],
     collectedSources: sources,
+    ...(options.webGatherLoop !== undefined ? { webGatherLoop: options.webGatherLoop } : {}),
     historicalContext: {
       generatedAt,
       recentDays: 90,
@@ -107,9 +122,12 @@ function traceFor(command: ResearchCommand, sources: CollectedSources) {
     predictionCompletion: undefined,
     predictionErrors: [],
     reportValidationErrors: [],
+    ...(options.relocatedGapClaims !== undefined
+      ? { relocatedGapClaims: options.relocatedGapClaims }
+      : {}),
     postSynthesisWarnings: [],
     integrityAudit: {
-      report: researchReport(),
+      report,
       reportIntegrity: "high",
       researchQuality: "high",
       prunedItemCount: 0,
@@ -124,6 +142,143 @@ function traceFor(command: ResearchCommand, sources: CollectedSources) {
 }
 
 describe("run trace builder", () => {
+  test("audits research-only source text without altering it", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const syntheticSources: Source[] = [
+      {
+        id: "fair-value",
+        title: "Fair value review",
+        summary: "The model estimates fair value at $100.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "web",
+        provider: "exa",
+      },
+      {
+        id: "sell-side",
+        title: "Analyst update",
+        summary: "Sell-side estimates moved higher.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "news",
+        provider: "finnhub",
+      },
+      {
+        id: "clean",
+        title: "Quarterly update",
+        summary: "Revenue increased year over year.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "news",
+        provider: "marketaux",
+      },
+      {
+        id: "snippet-only",
+        title: "Analyst update",
+        snippet: "Analysts raised the price target.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "news",
+        provider: "yahoo-news",
+      },
+      {
+        id: "title-only",
+        title: "Price target rises after earnings",
+        summary: "Revenue increased year over year.",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "extended-evidence",
+      },
+    ];
+    const originalSources = structuredClone(syntheticSources);
+    const report = researchReport({ sources: syntheticSources });
+    const trace = traceFor(command, collectedSources(), { report });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSources(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.sourceTextResearchOnly).toEqual({
+      scannedCount: 5,
+      flaggedCount: 3,
+      flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
+      flaggedByProvider: { exa: 1, "yahoo-news": 1, unknown: 1 },
+    });
+    expect(trace.sourceTextResearchOnly).toEqual({
+      summary: {
+        scannedCount: 5,
+        flaggedCount: 3,
+        flaggedByKind: { web: 1, news: 1, "extended-evidence": 1 },
+        flaggedByProvider: { exa: 1, "yahoo-news": 1, unknown: 1 },
+      },
+      items: [
+        {
+          sourceId: "fair-value",
+          kind: "web",
+          provider: "exa",
+          field: "title",
+          match: "Fair value",
+        },
+        {
+          sourceId: "fair-value",
+          kind: "web",
+          provider: "exa",
+          field: "summary",
+          match: "fair value",
+        },
+        {
+          sourceId: "snippet-only",
+          kind: "news",
+          provider: "yahoo-news",
+          field: "snippet",
+          match: "price target",
+        },
+        {
+          sourceId: "title-only",
+          kind: "extended-evidence",
+          provider: "unknown",
+          field: "title",
+          match: "Price target",
+        },
+      ],
+    });
+    expect(trace.sourceTextResearchOnly.items).toHaveLength(4);
+    expect(report.sources).toEqual(originalSources);
+  });
+
+  test("records relocated gap claims only when items exist", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const sources = collectedSources();
+    const relocated = traceFor(command, sources, {
+      relocatedGapClaims: [
+        {
+          location: "risks[0]",
+          text: "FRED macro data was not available for this run",
+        },
+      ],
+    });
+    const empty = traceFor(command, sources, { relocatedGapClaims: [] });
+
+    expect(relocated.relocatedGapClaims).toEqual({
+      count: 1,
+      items: [
+        {
+          location: "risks[0]",
+          text: "FRED macro data was not available for this run",
+        },
+      ],
+    });
+    expect(empty.relocatedGapClaims).toBeUndefined();
+  });
+
   test("builds trace fields from run inputs and stage records", () => {
     const generatedAt = "2026-05-19T00:00:00.000Z";
     const command = {
@@ -146,7 +301,8 @@ describe("run trace builder", () => {
       runParams: {
         quickModel: "quick-test",
         synthesisModel: "synthesis-test",
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
         minimumKeyFindings: 5,
         minimumScenarios: 3,
         targetPredictions: 6,
@@ -229,7 +385,7 @@ describe("run trace builder", () => {
       schemaVersion: 2,
       runId: "run-1",
       jobType: "market-overview",
-      marketUpdateHorizonBucket: "1-5d",
+      marketUpdateHorizonBucket: "2-5d",
       provider: "mock",
       quickModel: "quick-test",
       synthesisModel: "synthesis-test",
@@ -261,6 +417,103 @@ describe("run trace builder", () => {
     );
 
     expect(trace.reportIntegrityAudit).not.toHaveProperty("advisories");
+    expect(trace.webEvidenceUtilization).toBeUndefined();
+  });
+
+  test("carries the same versioned utilization object as analytics", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const webSources: Source[] = [
+      {
+        id: "web-1",
+        title: "Apple source one",
+        fetchedAt: "2026-05-18T00:00:00.000Z",
+        kind: "web",
+      },
+      {
+        id: "web-2",
+        title: "Apple source two",
+        fetchedAt: "2026-05-18T00:00:00.000Z",
+        kind: "web",
+      },
+    ];
+    const report = researchReport({
+      sources: webSources,
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
+    });
+    const sources = collectedSources({ extendedSources: webSources });
+    const trace = traceFor(command, sources, { report });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: sources,
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(trace.webEvidenceUtilization).toEqual({
+      version: 1,
+      acceptedCurrentRun: 2,
+      usedCurrentRun: 1,
+      profileUsed: 0,
+      primaryReportCited: 1,
+      structuredExtraCited: 0,
+      unusedCurrentRun: 1,
+      ratio: 0.5,
+      level: "insufficient-sample",
+    });
+    expect(analytics.webEvidenceUtilization).toEqual(trace.webEvidenceUtilization);
+  });
+
+  test("preserves the reused-profile acceptance policy from the gather audit", () => {
+    const acceptancePolicy = {
+      version: 1,
+      mode: "reused-profile-after-low-utilization",
+      sourceRunDirName: "prior-aapl",
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+      implicitPerQueryAcceptanceCap: 2,
+    } as const;
+    const trace = traceFor(
+      {
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        depth: "deep",
+      },
+      collectedSources(),
+      {
+        webGatherLoop: {
+          rounds: 1,
+          acceptedRequests: [],
+          rejectedRequests: [],
+          sourceUnitsUsed: 0,
+          executedTools: [],
+          emittedGaps: [],
+          sanitizer: {
+            sourceCount: 0,
+            sanitizedSourceCount: 0,
+            emptyAfterSanitizeCount: 0,
+            inputCharCount: 0,
+            outputCharCount: 0,
+            removedInstructionSpanCount: 0,
+            removedChromeHtmlCount: 0,
+          },
+          acceptancePolicy,
+        },
+      },
+    );
+
+    expect(trace.webGatherLoop?.acceptancePolicy).toEqual(acceptancePolicy);
+    expect(trace.webEvidenceUtilization).toMatchObject({
+      acceptedCurrentRun: 0,
+      ratio: 0,
+      level: "insufficient-sample",
+    });
   });
 
   test("records per-web-source synthesis inputs when web sources were gathered", () => {

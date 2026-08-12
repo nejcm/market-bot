@@ -7,6 +7,8 @@ import type {
   ExtendedEvidenceCollectionResult,
 } from "./types";
 import { collectFinnhubEvents } from "./extended-evidence/finnhub-events";
+import { collectAnalystExpectations } from "./extended-evidence/analyst-expectations";
+import { collectInstitutionalOwnership } from "./extended-evidence/institutional-ownership";
 import { collectFred } from "./extended-evidence/fred-macro";
 import { collectGlassnode } from "./extended-evidence/glassnode-on-chain";
 import { collectSec } from "./extended-evidence/sec-edgar";
@@ -17,16 +19,15 @@ function emptyExtendedEvidence(): ExtendedEvidenceCollectionResult {
   return { rawSnapshots: [], sources: [], sourceGaps: [] };
 }
 
-async function collectProviderEvidence(
+export function providerResultToExtendedEvidence(
   ctx: CollectContext,
   assetClass: AssetClass,
-  provider: ProviderCollector,
-): Promise<ExtendedEvidenceCollectionResult> {
+  result: Awaited<ReturnType<ProviderCollector>>,
+): ExtendedEvidenceCollectionResult {
   if (!isInstrumentCommand(ctx.command)) {
     return emptyExtendedEvidence();
   }
 
-  const result = await provider(ctx);
   const gaps = result.gaps.map(extendedEvidenceGap);
   const extendedEvidence: ExtendedEvidence = {
     instrument: { symbol: ctx.command.symbol, assetClass },
@@ -39,6 +40,14 @@ async function collectProviderEvidence(
     extendedEvidence,
     sourceGaps: gaps,
   };
+}
+
+async function collectProviderEvidence(
+  ctx: CollectContext,
+  assetClass: AssetClass,
+  provider: ProviderCollector,
+): Promise<ExtendedEvidenceCollectionResult> {
+  return providerResultToExtendedEvidence(ctx, assetClass, await provider(ctx));
 }
 
 export function createProviderExtendedEvidenceAdapter(
@@ -92,6 +101,18 @@ export const finnhubEventsExtendedEvidenceAdapter = createProviderExtendedEviden
   collectFinnhubEvents,
 );
 
+export const analystExpectationsExtendedEvidenceAdapter = createProviderExtendedEvidenceAdapter(
+  "extended-evidence-analyst-expectations",
+  "equity",
+  collectAnalystExpectations,
+);
+
+export const institutionalOwnershipExtendedEvidenceAdapter = createProviderExtendedEvidenceAdapter(
+  "extended-evidence-institutional-ownership",
+  "equity",
+  collectInstitutionalOwnership,
+);
+
 export const fredExtendedEvidenceAdapter = createProviderExtendedEvidenceAdapter(
   "extended-evidence-fred-macro",
   "equity",
@@ -113,6 +134,8 @@ export const glassnodeExtendedEvidenceAdapter = createProviderExtendedEvidenceAd
 export const equityExtendedEvidenceAdapter = createMultiExtendedEvidenceAdapter("equity", [
   secEdgarExtendedEvidenceAdapter,
   finnhubEventsExtendedEvidenceAdapter,
+  analystExpectationsExtendedEvidenceAdapter,
+  institutionalOwnershipExtendedEvidenceAdapter,
   fredExtendedEvidenceAdapter,
   tradierExtendedEvidenceAdapter,
 ]);

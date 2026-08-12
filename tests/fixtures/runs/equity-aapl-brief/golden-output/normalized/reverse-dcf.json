@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "generatedAt": "<generatedAt>",
+  "symbol": "AAPL",
+  "status": "suppressed",
+  "reason": "reconciled-ttm-fcf-unavailable",
+  "detail": "A reconciled TTM free-cash-flow input is unavailable.",
+  "sourceIds": []
+}

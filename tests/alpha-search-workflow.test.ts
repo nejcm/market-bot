@@ -634,6 +634,10 @@ describe("alpha-search workflow", () => {
     expect(result.markdown).toContain("rank improvement 4");
     expect(result.markdown).toContain("upvotes/mention 3");
     expect(result.trace.stages).toContain("sec-fundamentals-collection");
+    const { sourceTextResearchOnly } = result.trace;
+    expect(sourceTextResearchOnly.summary.scannedCount).toBeGreaterThan(0);
+    expect(sourceTextResearchOnly.summary.scannedCount).toBe(result.report.sources.length);
+    expect(result.analytics.sourceTextResearchOnly).toEqual(sourceTextResearchOnly.summary);
 
     const reportJson = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),

@@ -13,6 +13,7 @@ const consolePort = Number(process.env.MARKET_BOT_CONSOLE_PORT) || DEFAULT_CONSO
 
 export default defineConfig({
   root: "app",
+  publicDir: resolve(rootDir, "../assets"),
   plugins: [tailwindcss(), svelte()],
   resolve: {
     alias: {
@@ -22,6 +23,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rolldownOptions: {
+      checks: { pluginTimings: false },
+      output: {
+        codeSplitting: {
+          groups: [{ name: "vendor", test: /node_modules[\\/]/u, maxSize: 450 * 1024 }],
+        },
+      },
+    },
   },
   server: {
     proxy: {

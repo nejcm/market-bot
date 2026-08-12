@@ -4,10 +4,15 @@
 // Registry so adapters and the collector can depend on it without import cycles.
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
 import { withCache, type CacheOptions } from "./cache";
-import { DEFAULT_RETRY_DELAYS_MS, isTransientError, sleep } from "./retry-utils";
+import {
+  classifyTransientFailure,
+  DEFAULT_RETRY_DELAYS_MS,
+  isTransientError,
+  sleep,
+} from "./retry-utils";
 import type {
   CollectContext,
   FetchJsonRequestFn,
@@ -37,7 +42,19 @@ class SourceCircuitOpenError extends Error {
 const DEFAULT_HOST_MIN_DELAY_MS = 1000;
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_OPEN_MS = 60_000;
-const MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
+// Global default response-byte ceiling, applied to every adapter unless a `SourceRequest`
+// Supplies its own `maxResponseBytes` (see `SourceRequest.maxResponseBytes`). Do not relax this
+// Default for a specific adapter's needs — pass a scoped `maxResponseBytes` on that adapter's
+// Request instead (see `SEC_FILING_TEXT_MAX_RESPONSE_BYTES` for the one adapter that needs it).
+export const DEFAULT_MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
+// Scoped ceiling for the `sec-filing-text` adapter only. MSFT's FY2026 10-K decompresses to
+// 8.6M bytes; 16M gives ~2x headroom while bounding the transient memory a single filing fetch
+// Can hold (chunk copy + decode), since `collectSecFilingEvidence` fans out 10-K/10-Q/8-K/6-K
+// Fetches concurrently with no shared memory budget across them. Section-selective retrieval (a
+// Smaller per-request fix) is not available: SEC serves one monolithic primary document with no
+// Per-section endpoint, and a byte Range has no relation to section boundaries (see the A2
+// Remediation plan).
+export const SEC_FILING_TEXT_MAX_RESPONSE_BYTES = 16_000_000;
 const hostStates = new Map<string, HostState>();
 
 let hostMinDelayMs = DEFAULT_HOST_MIN_DELAY_MS;
@@ -73,6 +90,7 @@ function shouldRecordCircuitFailure(error: unknown): boolean {
 async function readCappedChunks(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   adapter: string,
+  maxResponseBytes: number,
   chunks: Uint8Array[] = [],
   total = 0,
 ): Promise<{ readonly chunks: readonly Uint8Array[]; readonly total: number }> {
@@ -81,13 +99,11 @@ async function readCappedChunks(
     return { chunks, total };
   }
   const nextTotal = total + value.byteLength;
-  if (nextTotal > MAX_SOURCE_RESPONSE_BYTES) {
-    throw new Error(
-      `${adapter} source response exceeded ${String(MAX_SOURCE_RESPONSE_BYTES)} bytes`,
-    );
+  if (nextTotal > maxResponseBytes) {
+    throw new Error(`${adapter} source response exceeded ${String(maxResponseBytes)} bytes`);
   }
   chunks.push(value);
-  return readCappedChunks(reader, adapter, chunks, nextTotal);
+  return readCappedChunks(reader, adapter, maxResponseBytes, chunks, nextTotal);
 }
 
 async function runWithHostResilience<T>(
@@ -188,26 +204,26 @@ async function fetchPayload<TPayload>(
   });
 }
 
-async function readCappedResponseText(response: Response, adapter: string): Promise<string> {
+async function readCappedResponseText(
+  response: Response,
+  adapter: string,
+  maxResponseBytes: number,
+): Promise<string> {
   const contentLength = response.headers.get("content-length");
-  if (contentLength !== null && Number(contentLength) > MAX_SOURCE_RESPONSE_BYTES) {
-    throw new Error(
-      `${adapter} source response exceeded ${String(MAX_SOURCE_RESPONSE_BYTES)} bytes`,
-    );
+  if (contentLength !== null && Number(contentLength) > maxResponseBytes) {
+    throw new Error(`${adapter} source response exceeded ${String(maxResponseBytes)} bytes`);
   }
 
   const reader = response.body?.getReader();
   if (reader === undefined) {
     const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_SOURCE_RESPONSE_BYTES) {
-      throw new Error(
-        `${adapter} source response exceeded ${String(MAX_SOURCE_RESPONSE_BYTES)} bytes`,
-      );
+    if (new TextEncoder().encode(text).byteLength > maxResponseBytes) {
+      throw new Error(`${adapter} source response exceeded ${String(maxResponseBytes)} bytes`);
     }
     return text;
   }
 
-  const { chunks, total } = await readCappedChunks(reader, adapter);
+  const { chunks, total } = await readCappedChunks(reader, adapter, maxResponseBytes);
   const body = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) {
@@ -232,7 +248,10 @@ async function fetchJson(
     timeoutMs,
     fetchImpl,
     "application/json",
-    async (response) => JSON.parse(await readCappedResponseText(response, adapter)) as unknown,
+    async (response) =>
+      JSON.parse(
+        await readCappedResponseText(response, adapter, DEFAULT_MAX_SOURCE_RESPONSE_BYTES),
+      ) as unknown,
     init,
   );
 }
@@ -243,6 +262,7 @@ async function fetchText(
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  maxResponseBytes: number,
   init: RequestInit = {},
 ): Promise<FetchTextResult> {
   return fetchPayload(
@@ -252,7 +272,7 @@ async function fetchText(
     timeoutMs,
     fetchImpl,
     "text/html, text/plain;q=0.9, */*;q=0.1",
-    async (response) => readCappedResponseText(response, adapter),
+    async (response) => readCappedResponseText(response, adapter, maxResponseBytes),
     init,
   );
 }
@@ -268,6 +288,44 @@ export function setSourceHostMinDelayMsForTests(ms: number): void {
   hostMinDelayMs = ms;
 }
 
+// Mutable per-call accumulator threaded through the retry recursion below. Not part of any
+// Public API: `fetchJsonOrGap`/`fetchTextOrGap` create one, read it after the retry chain
+// Settles, and use it to attach `SourceGap.attempts` telemetry (attempt count, elapsed time,
+// Per-attempt failure classification) without changing retry count, delays, or the thrown
+// Error's identity/message.
+interface RetryAttemptState {
+  readonly failures: SourceGapAttemptFailure[];
+  readonly startedAt: number;
+}
+
+function newRetryAttemptState(): RetryAttemptState {
+  return { failures: [], startedAt: performance.now() };
+}
+
+function recordRetryAttemptFailure(state: RetryAttemptState, error: unknown): void {
+  state.failures.push({
+    // 1-based attempt number: this is the (failures.length + 1)-th time the retry loop
+    // Tried something, whether or not the attempt actually reached the network (a
+    // "Circuit-open" classification means it did not — see `SourceGapAttemptClassification`).
+    attempt: state.failures.length + 1,
+    classification: classifyTransientFailure(error),
+    message: error instanceof Error ? error.message : "source request failed",
+  });
+}
+
+// Only populated once at least one retry actually happened. A single failed attempt with no
+// Retry (the overwhelming majority of fetch-failure gaps today) carries no new information
+// Here, so it stays silent and every existing single-attempt gap is unchanged.
+function retryAttemptsTelemetry(state: RetryAttemptState): SourceGapAttempts | undefined {
+  return state.failures.length > 1
+    ? {
+        count: state.failures.length,
+        elapsedMs: Math.round(performance.now() - state.startedAt),
+        failures: state.failures,
+      }
+    : undefined;
+}
+
 async function fetchJsonWithRetry(
   url: string,
   adapter: string,
@@ -275,11 +333,13 @@ async function fetchJsonWithRetry(
   timeoutMs: number,
   fetchImpl: FetchLike,
   remainingDelays: readonly number[],
+  attemptState: RetryAttemptState,
   init?: RequestInit,
 ): Promise<FetchJsonResult> {
   try {
     return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
   } catch (error: unknown) {
+    recordRetryAttemptFailure(attemptState, error);
     const [nextDelay] = remainingDelays;
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
@@ -292,6 +352,7 @@ async function fetchJsonWithRetry(
       timeoutMs,
       fetchImpl,
       remainingDelays.slice(1),
+      attemptState,
       init,
     );
   }
@@ -303,12 +364,15 @@ async function fetchTextWithRetry(
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  maxResponseBytes: number,
   remainingDelays: readonly number[],
+  attemptState: RetryAttemptState,
   init?: RequestInit,
 ): Promise<FetchTextResult> {
   try {
-    return await fetchText(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
+    return await fetchText(url, adapter, fetchedAt, timeoutMs, fetchImpl, maxResponseBytes, init);
   } catch (error: unknown) {
+    recordRetryAttemptFailure(attemptState, error);
     const [nextDelay] = remainingDelays;
     if (nextDelay === undefined || !isTransientError(error)) {
       throw error;
@@ -320,7 +384,9 @@ async function fetchTextWithRetry(
       fetchedAt,
       timeoutMs,
       fetchImpl,
+      maxResponseBytes,
       remainingDelays.slice(1),
+      attemptState,
       init,
     );
   }
@@ -335,6 +401,7 @@ async function fetchJsonOrGap(
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
   init?: RequestInit,
 ): Promise<FetchJsonResult | SourceGap> {
+  const attemptState = newRetryAttemptState();
   try {
     return await fetchJsonWithRetry(
       url,
@@ -343,6 +410,7 @@ async function fetchJsonOrGap(
       timeoutMs,
       fetchImpl,
       retryDelaysMs,
+      attemptState,
       init,
     );
   } catch (error: unknown) {
@@ -351,6 +419,7 @@ async function fetchJsonOrGap(
       adapter,
       message,
       error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
+      retryAttemptsTelemetry(attemptState),
     );
   }
 }
@@ -361,9 +430,11 @@ async function fetchTextOrGap(
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  maxResponseBytes: number,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
   init?: RequestInit,
 ): Promise<FetchTextResult | SourceGap> {
+  const attemptState = newRetryAttemptState();
   try {
     return await fetchTextWithRetry(
       url,
@@ -371,7 +442,9 @@ async function fetchTextOrGap(
       fetchedAt,
       timeoutMs,
       fetchImpl,
+      maxResponseBytes,
       retryDelaysMs,
+      attemptState,
       init,
     );
   } catch (error: unknown) {
@@ -380,6 +453,7 @@ async function fetchTextOrGap(
       adapter,
       message,
       error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
+      retryAttemptsTelemetry(attemptState),
     );
   }
 }
@@ -425,6 +499,7 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
       options.fetchedAt,
       options.sourceTimeoutMs,
       request.fetch?.(options.fetchImpl) ?? options.fetchImpl,
+      request.maxResponseBytes ?? DEFAULT_MAX_SOURCE_RESPONSE_BYTES,
       options.retryDelaysMs,
       request.init,
     );

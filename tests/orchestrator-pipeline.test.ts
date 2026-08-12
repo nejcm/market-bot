@@ -34,7 +34,7 @@ describe("runResearchJob pipeline stages", () => {
       "market-overview-equity": {
         quickModel: "combo-quick",
         synthesisModel: "combo-synthesis",
-        modelParams: { temperature: 0.2, reasoningEffort: "medium" },
+        modelParams: { temperature: 0.2 },
         targetPredictions: 2,
       },
       "market-overview-crypto": {},
@@ -84,7 +84,11 @@ describe("runResearchJob pipeline stages", () => {
 
     const result = await runResearchJob({
       command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
-      config,
+      config: {
+        ...config,
+        quickReasoningEffort: "low",
+        synthesisReasoningEffort: "high",
+      },
       runConfig,
       provider,
       collectedSources: collectedSourceBundle({
@@ -98,11 +102,11 @@ describe("runResearchJob pipeline stages", () => {
     });
 
     expect(requests).toEqual([
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "medium" } },
-      { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "medium" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
+      { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "high" } },
     ]);
     expect(result.trace.quickModel).toBe("combo-quick");
     expect(result.trace.synthesisModel).toBe("combo-synthesis");
@@ -871,7 +875,7 @@ describe("runResearchJob pipeline stages", () => {
     });
   });
 
-  test("pruned predictions are absent from persisted reports and scoring input", async () => {
+  test("pruned predictions update shortfall consumers before persistence and scoring", async () => {
     const dataDir = tempDataDir("market-bot-integrity-scoring");
     await writeHistoricalRun({
       dataDir,
@@ -920,6 +924,13 @@ describe("runResearchJob pipeline stages", () => {
     const result = await persistResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
       config: { ...config, dataDir },
+      runConfig: {
+        "market-overview-equity": {},
+        "market-overview-crypto": {},
+        "research-equity": {},
+        equity: { targetPredictions: 6 },
+        crypto: {},
+      },
       provider,
       collectedSources: collectedSourceBundle({
         rawSnapshots: [],
@@ -935,11 +946,28 @@ describe("runResearchJob pipeline stages", () => {
     expect(result.trace.reportIntegrityAudit?.pruned).toEqual([
       expect.objectContaining({ location: "predictions[5]" }),
     ]);
+    const shortfall = { emittedCount: 5, targetCount: 6, missingCount: 1 };
+    const materialText = "emitted 5 of 6 target predictions; evidence did not support more";
+    expect(result.report.predictionShortfall).toEqual(shortfall);
+    expect(result.markdown).toContain(`- **Material:** ${materialText}`);
+    expect(result.markdown.split(materialText)).toHaveLength(2);
+    expect(result.analytics.predictions.shortfall).toEqual(shortfall);
+    const { predictionTargetHealth } = await import("../app/report-artifact-view");
+    expect(
+      predictionTargetHealth(
+        { predictions: result.analytics.predictions },
+        result.report as unknown as Record<string, unknown>,
+      ),
+    ).toEqual({ count: 5, target: 6, targetMet: false });
 
     const persisted = JSON.parse(
       await readFile(join(result.artifacts.runDir, "report.json"), "utf8"),
-    ) as { readonly predictions: readonly { readonly id: string }[] };
+    ) as {
+      readonly predictions: readonly { readonly id: string }[];
+      readonly predictionShortfall?: typeof shortfall;
+    };
     expect(persisted.predictions.map((prediction) => prediction.id)).toEqual(keptIds);
+    expect(persisted.predictionShortfall).toEqual(shortfall);
 
     // Scoring loads the persisted report, so the pruned prediction must never
     // Receive a score entry even before any horizon elapses.

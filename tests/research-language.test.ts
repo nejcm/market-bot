@@ -122,11 +122,69 @@ describe("violatesResearchOnly", () => {
     "target prices",
     "price target",
     "price targets",
+    "implied price",
+    "implied prices",
+    "intrinsic value",
+    "percentage gap",
+    "% gap",
+    "valuation gap",
+    "implied fair value",
   ]) {
     test(`blocks valuation-certainty wording: "${phrase}"`, () => {
       expect(violatesResearchOnly(phrase)).not.toBeNull();
     });
   }
+
+  for (const text of [
+    "The peer-implied price reference range is a descriptive peer interval.",
+    "The source coverage gap remains open and the observed value is 12.",
+    "The calculation stopped because one or more implied prices are not positive.",
+  ]) {
+    test(`allows descriptive valuation prose: "${text}"`, () => {
+      expect(violatesResearchOnly(text)).toBeNull();
+    });
+  }
+
+  test("allows the sanctioned rendered peer-implied reference-range label", () => {
+    expect(violatesResearchOnly("peer-implied price reference range")).toBeNull();
+  });
+
+  test("allows the explicit research-only target-price disclaimer", () => {
+    expect(violatesResearchOnly("This is valuation context, not a target price.")).toBeNull();
+    expect(violatesResearchOnly("This is a target price.")).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "Although this is not a target price, shares are likely to reach 250 USD within 12 months.",
+      ),
+    ).not.toBeNull();
+    expect(violatesResearchOnly("Not A Target Price, but the stock reaches 300.")).not.toBeNull();
+    expect(
+      violatesResearchOnly("This is not a target prices statement; 400 is achievable."),
+    ).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "Although this is valuation context, not a target price. Shares likely reach 250 USD.",
+      ),
+    ).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "This is valuation context, not a target price. The model states a fair value of 125 USD.",
+      ),
+    ).not.toBeNull();
+  });
+
+  test("blocks a bare peer-implied point price", () => {
+    expect(violatesResearchOnly("The peer-implied price is 125 USD.")).not.toBeNull();
+  });
+
+  test("preserves valuation-certainty and descriptive valuation behavior", () => {
+    expect(violatesResearchOnly("The model states a fair value of 125 USD.")).not.toBeNull();
+    expect(
+      violatesResearchOnly(
+        "The calculation stopped because one or more implied prices are not positive.",
+      ),
+    ).toBeNull();
+  });
 
   const terseImperatives = [
     "Buy now",

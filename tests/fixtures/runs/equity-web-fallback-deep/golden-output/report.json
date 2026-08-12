@@ -1,0 +1,2035 @@
+{
+  "runId": "<runId>",
+  "jobType": "equity",
+  "assetClass": "equity",
+  "symbol": "AAPL",
+  "generatedAt": "<generatedAt>",
+  "summary": "equity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.",
+  "keyFindings": [
+    {
+      "text": "AAPL has a current fixture market snapshot and verified close history.",
+      "sourceIds": ["market-yahoo-equity-aapl", "verified-snapshot-AAPL"]
+    },
+    {
+      "text": "Fixture news coverage is intentionally narrow for regression determinism.",
+      "sourceIds": ["news-equity-1"]
+    },
+    {
+      "text": "The fixture includes an issuer-confirmed earnings event and options reference bar.",
+      "sourceIds": [
+        "news-equity-1",
+        "extended-finnhub-events-aapl",
+        "extended-tradier-earnings-implied-move-aapl"
+      ]
+    }
+  ],
+  "bullCase": [
+    {
+      "text": "The fixture shows positive price momentum in the latest close sequence.",
+      "sourceIds": ["verified-snapshot-AAPL"]
+    }
+  ],
+  "bearCase": [
+    {
+      "text": "The fixture omits live optional providers, limiting corroboration.",
+      "sourceIds": ["news-equity-1"]
+    }
+  ],
+  "risks": [
+    {
+      "text": "Static cassette inputs can become stale versus live market conditions.",
+      "sourceIds": ["market-yahoo-equity-aapl"]
+    }
+  ],
+  "catalysts": [
+    {
+      "text": "AAPL fixture news remains the only current catalyst input.",
+      "sourceIds": ["news-equity-1"]
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "Base",
+      "description": "AAPL remains within a fixture-defined evidence envelope.",
+      "sourceIds": ["market-yahoo-equity-aapl"]
+    }
+  ],
+  "evidenceQuality": "medium",
+  "equityAnalysisCompleteness": {
+    "version": 1,
+    "financialCoreStatus": "complete",
+    "coverageLevel": "substantial",
+    "asOf": "2026-06-15T14:30:00.000Z",
+    "dimensions": {
+      "primaryFinancials": {
+        "status": "complete",
+        "reasonCodes": [],
+        "asOf": "2026-06-15T14:30:00.000Z",
+        "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+      },
+      "valuation": {
+        "status": "complete",
+        "reasonCodes": [],
+        "asOf": "2026-06-15T14:30:00.000Z",
+        "sourceIds": [
+          "market-yahoo-equity-aapl",
+          "extended-sec-edgar-aapl-filings",
+          "extended-sec-edgar-aapl-fundamentals",
+          "market-yahoo-equity-msft",
+          "extended-sec-edgar-msft-fundamentals",
+          "extended-sec-edgar-msft-filings",
+          "market-yahoo-equity-googl",
+          "extended-sec-edgar-googl-fundamentals",
+          "extended-sec-edgar-googl-filings",
+          "market-yahoo-equity-amzn",
+          "extended-sec-edgar-amzn-fundamentals",
+          "extended-sec-edgar-amzn-filings",
+          "market-yahoo-equity-meta",
+          "extended-sec-edgar-meta-fundamentals",
+          "extended-sec-edgar-meta-filings",
+          "market-yahoo-equity-dell",
+          "extended-sec-edgar-dell-fundamentals",
+          "extended-sec-edgar-dell-filings"
+        ]
+      },
+      "expectations": {
+        "status": "complete",
+        "reasonCodes": [],
+        "asOf": "2026-06-15T14:30:00.000Z",
+        "sourceIds": ["extended-finnhub-events-aapl", "news-equity-1"]
+      },
+      "capitalOwnership": {
+        "status": "partial",
+        "reasonCodes": [
+          "diluted-share-history-missing",
+          "sbc-history-missing",
+          "payout-evidence-missing",
+          "ownership-external-context-available"
+        ],
+        "asOf": "2026-06-15T14:30:00.000Z",
+        "sourceIds": [
+          "market-yahoo-equity-aapl",
+          "extended-finnhub-ownership-aapl-institutional",
+          "extended-finnhub-ownership-aapl-insider-transactions"
+        ]
+      },
+      "operatingKpis": {
+        "status": "not-assessed",
+        "reasonCodes": ["operating-kpi-registry-unconfigured"],
+        "asOf": "2026-06-15T14:30:00.000Z",
+        "sourceIds": []
+      }
+    }
+  },
+  "dataGaps": [
+    "sec-edgar: Missing SEC company facts: dilutedShares, currentAssets, currentLiabilities [AAPL]",
+    "sec-edgar: Missing comparable SEC company facts for YoY deltas: cash, debt [AAPL]",
+    "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
+    "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities [MSFT]",
+    "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt [MSFT]",
+    "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities [GOOGL]",
+    "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt [GOOGL]",
+    "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities [AMZN]",
+    "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt [AMZN]",
+    "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities [META]",
+    "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt [META]",
+    "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities [DELL]",
+    "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt [DELL]",
+    "valuation-peers: Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target",
+    "web-gather: a model web query was rejected for drifting off-subject",
+    "web-gather: a repeated model web request was skipped",
+    "Fixture replay uses static source cassettes.",
+    "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+    "business-framework: Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability"
+  ],
+  "predictions": [
+    {
+      "id": "aapl-earnings-direction",
+      "claim": "AAPL closes higher than its pre-earnings close 1 trading days after the 2026-07-10 earnings event",
+      "kind": "earnings-direction",
+      "subject": "AAPL",
+      "measurableAs": "earningsReturn(AAPL, 2026-07-10, +1) > 0",
+      "horizonTradingDays": 1,
+      "probability": 0.58,
+      "sourceIds": ["news-equity-1", "extended-finnhub-events-aapl"],
+      "eventDateStatus": "issuer-confirmed",
+      "scoringPolicyVersion": 3
+    },
+    {
+      "id": "aapl-earnings-move",
+      "claim": "AAPL moves more than 3.5% from its pre-earnings close 1 trading days after the 2026-07-10 earnings event",
+      "kind": "earnings-move",
+      "subject": "AAPL",
+      "measurableAs": "abs(earningsReturn(AAPL, 2026-07-10, +1)) > 0.035",
+      "horizonTradingDays": 1,
+      "probability": 0.55,
+      "sourceIds": [
+        "news-equity-1",
+        "extended-finnhub-events-aapl",
+        "extended-tradier-earnings-implied-move-aapl"
+      ],
+      "eventDateStatus": "issuer-confirmed",
+      "scoringPolicyVersion": 3
+    }
+  ],
+  "sources": [
+    {
+      "id": "market-yahoo-equity-aapl",
+      "title": "AAPL market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "AAPL"
+          }
+        ],
+        "displayName": "Apple Inc.",
+        "exchange": "NasdaqGS"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-spy",
+      "title": "SPY market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "SPY",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "SPY"
+          }
+        ],
+        "displayName": "SPY proxy",
+        "exchange": "NasdaqGS"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-qqq",
+      "title": "QQQ market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "QQQ",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "QQQ"
+          }
+        ],
+        "displayName": "QQQ proxy",
+        "exchange": "NasdaqGS"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-iwm",
+      "title": "IWM market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "IWM",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "IWM"
+          }
+        ],
+        "displayName": "IWM proxy",
+        "exchange": "NasdaqGS"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-dia",
+      "title": "DIA market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "DIA",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "DIA"
+          }
+        ],
+        "displayName": "DIA proxy",
+        "exchange": "NasdaqGS"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-^vix",
+      "title": "^VIX market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "^VIX",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "^VIX"
+          }
+        ],
+        "displayName": "^VIX proxy",
+        "exchange": "CBOE"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-^vix3m",
+      "title": "^VIX3M market snapshot",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "^VIX3M",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "^VIX3M"
+          }
+        ],
+        "displayName": "^VIX3M proxy",
+        "exchange": "CBOE"
+      }
+    },
+    {
+      "id": "verified-snapshot-AAPL",
+      "title": "AAPL verified market snapshot (OHLCV + indicators, 2026-05-01)",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "yahoo"
+    },
+    {
+      "id": "news-equity-1",
+      "fetchedAt": "2026-06-15T13:30:00.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "finnhub",
+      "title": "Apple announces July 10, 2026 financial results webcast",
+      "url": "https://www.apple.com/newsroom/2026/06/apple-announces-third-quarter-results-date/",
+      "canonicalUrl": "https://apple.com/newsroom/2026/06/apple-announces-third-quarter-results-date",
+      "publisher": "Apple Newsroom",
+      "summary": "Apple Inc. will release its quarterly financial results on July 10, 2026.",
+      "providerArticleId": "1",
+      "providerAliases": [
+        {
+          "provider": "finnhub",
+          "providerArticleId": "1",
+          "publisher": "Apple Newsroom",
+          "fetchedAt": "2026-06-15T13:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-2",
+      "fetchedAt": "2026-06-15T13:30:00.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Apple fixture headline",
+      "url": "https://example.com/apple-fixture",
+      "canonicalUrl": "https://example.com/apple-fixture",
+      "publisher": "Example News",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "Example News",
+          "fetchedAt": "2026-06-15T13:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "extended-sec-edgar-aapl-filings",
+      "title": "AAPL SEC filings",
+      "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Apple Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000320193"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "AAPL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-aapl-fundamentals",
+      "title": "AAPL SEC fundamentals",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Apple Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000320193"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "AAPL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-finnhub-events-aapl",
+      "title": "AAPL equity events",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-finnhub-analyst-aapl-eps",
+      "title": "AAPL external EPS estimate consensus",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-finnhub-analyst-aapl-revenue",
+      "title": "AAPL external revenue estimate consensus",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-finnhub-analyst-aapl-ebitda",
+      "title": "AAPL external EBITDA estimate consensus",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-finnhub-analyst-aapl-context",
+      "title": "AAPL external analyst range context",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-finnhub-ownership-aapl-institutional",
+      "title": "AAPL external institutional ownership context",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-finnhub-ownership-aapl-insider-transactions",
+      "title": "AAPL external insider transactions context",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub"
+    },
+    {
+      "id": "extended-tradier-iv-aapl",
+      "title": "AAPL options IV",
+      "url": "https://api.tradier.com/v1/markets/options/chains?symbol=AAPL&expiration=2026-07-17&greeks=true",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "tradier"
+    },
+    {
+      "id": "market-yahoo-equity-msft",
+      "title": "MSFT Yahoo valuation peer quote",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "MSFT",
+      "provider": "yahoo",
+      "identity": {
+        "exchange": "NasdaqGS",
+        "quoteCurrency": "USD",
+        "displayName": "Microsoft",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "MSFT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-msft-fundamentals",
+      "title": "MSFT SEC fundamentals",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "MSFT",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Microsoft Corp.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000001"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "MSFT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-msft-filings",
+      "title": "MSFT SEC filings",
+      "url": "https://data.sec.gov/submissions/CIK0000000001.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "MSFT",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Microsoft Corp.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000001"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "MSFT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "market-yahoo-equity-googl",
+      "title": "GOOGL Yahoo valuation peer quote",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "GOOGL",
+      "provider": "yahoo",
+      "identity": {
+        "exchange": "NasdaqGS",
+        "quoteCurrency": "USD",
+        "displayName": "Alphabet",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "GOOGL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-googl-fundamentals",
+      "title": "GOOGL SEC fundamentals",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000002.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "GOOGL",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Alphabet Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000002"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "GOOGL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-googl-filings",
+      "title": "GOOGL SEC filings",
+      "url": "https://data.sec.gov/submissions/CIK0000000002.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "GOOGL",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Alphabet Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000002"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "GOOGL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "market-yahoo-equity-amzn",
+      "title": "AMZN Yahoo valuation peer quote",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "AMZN",
+      "provider": "yahoo",
+      "identity": {
+        "exchange": "NasdaqGS",
+        "quoteCurrency": "USD",
+        "displayName": "Amazon",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "AMZN"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-amzn-fundamentals",
+      "title": "AMZN SEC fundamentals",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000003.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AMZN",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Amazon.com Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000003"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "AMZN"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-amzn-filings",
+      "title": "AMZN SEC filings",
+      "url": "https://data.sec.gov/submissions/CIK0000000003.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AMZN",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Amazon.com Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000003"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "AMZN"
+          }
+        ]
+      }
+    },
+    {
+      "id": "market-yahoo-equity-meta",
+      "title": "META Yahoo valuation peer quote",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "META",
+      "provider": "yahoo",
+      "identity": {
+        "exchange": "NasdaqGS",
+        "quoteCurrency": "USD",
+        "displayName": "Meta",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "META"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-meta-fundamentals",
+      "title": "META SEC fundamentals",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000004.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "META",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Meta Platforms Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000004"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "META"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-meta-filings",
+      "title": "META SEC filings",
+      "url": "https://data.sec.gov/submissions/CIK0000000004.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "META",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Meta Platforms Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000004"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "META"
+          }
+        ]
+      }
+    },
+    {
+      "id": "market-yahoo-equity-dell",
+      "title": "DELL Yahoo valuation peer quote",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "DELL",
+      "provider": "yahoo",
+      "identity": {
+        "exchange": "NYSE",
+        "quoteCurrency": "USD",
+        "displayName": "Dell",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "DELL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-dell-fundamentals",
+      "title": "DELL SEC fundamentals",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000005.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "DELL",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Dell Technologies Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000005"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "DELL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-dell-filings",
+      "title": "DELL SEC filings",
+      "url": "https://data.sec.gov/submissions/CIK0000000005.json",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "DELL",
+      "provider": "sec-edgar",
+      "identity": {
+        "displayName": "Dell Technologies Inc.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000000005"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "DELL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-tradier-earnings-implied-move-aapl",
+      "title": "AAPL earnings implied move",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "tradier"
+    },
+    {
+      "id": "web-aapl-6c345d05",
+      "title": "Apple capital allocation update",
+      "url": "https://investor.example/aapl-capital-allocation",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "web",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "firecrawl",
+      "canonicalUrl": "https://investor.example/aapl-capital-allocation",
+      "rawRef": "raw-firecrawl-search-2026-06-15T14:30:00.000Z",
+      "summary": "Apple continued its capital-return program.",
+      "snippet": "Apple described investment priorities and shareholder distributions."
+    },
+    {
+      "id": "web-aapl-b15b01d7",
+      "title": "Apple services operating KPI review",
+      "url": "https://industry.example/apple-services-kpis",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "web",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "firecrawl",
+      "canonicalUrl": "https://industry.example/apple-services-kpis",
+      "rawRef": "raw-firecrawl-search-2026-06-15T14:30:00.000Z",
+      "summary": "Apple services growth and installed-base engagement remain operating indicators.",
+      "snippet": "Apple services growth and installed-base engagement provide recurring-revenue context."
+    }
+  ],
+  "extendedEvidence": {
+    "instrument": {
+      "symbol": "AAPL",
+      "assetClass": "equity"
+    },
+    "items": [
+      {
+        "category": "sec-edgar",
+        "title": "AAPL SEC Fundamental Evidence",
+        "summary": "Recent SEC filings: 8-K 2026-05-01. SEC Fundamental Evidence: revenue 210000000000 (11.1% YoY), gross profit 100000000000 (13.6% YoY), operating income 70000000000 (16.7% YoY), net income attributable to parent 58000000000 (16.0% YoY), diluted EPS 3.8 (18.7% YoY), cash 60000000000, operating cash flow 65000000000 (12.1% YoY), capex 7000000000 (16.7% YoY), debt 100000000000.",
+        "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "sic": "3571",
+          "sicDescription": "Electronic Computers",
+          "revenue": 210000000000,
+          "revenuePeriodEnd": "2026-03-31",
+          "revenuePeriodMonths": 6,
+          "revenuePrior": 189000000000,
+          "revenueDeltaPercent": 11.11111111111111,
+          "grossProfit": 100000000000,
+          "grossProfitPeriodEnd": "2026-03-31",
+          "grossProfitPeriodMonths": 6,
+          "grossProfitPrior": 88000000000,
+          "grossProfitDeltaPercent": 13.636363636363635,
+          "operatingIncome": 70000000000,
+          "operatingIncomePeriodEnd": "2026-03-31",
+          "operatingIncomePeriodMonths": 6,
+          "operatingIncomePrior": 60000000000,
+          "operatingIncomeDeltaPercent": 16.666666666666664,
+          "netIncome": 58000000000,
+          "netIncomePeriodEnd": "2026-03-31",
+          "netIncomePeriodMonths": 6,
+          "netIncomePrior": 50000000000,
+          "netIncomeDeltaPercent": 16,
+          "dilutedEps": 3.8,
+          "dilutedEpsPeriodEnd": "2026-03-31",
+          "dilutedEpsPeriodMonths": 6,
+          "dilutedEpsPrior": 3.2,
+          "dilutedEpsDeltaPercent": 18.74999999999999,
+          "operatingCashFlow": 65000000000,
+          "operatingCashFlowPeriodEnd": "2026-03-31",
+          "operatingCashFlowPeriodMonths": 6,
+          "operatingCashFlowPrior": 58000000000,
+          "operatingCashFlowDeltaPercent": 12.068965517241379,
+          "capex": 7000000000,
+          "capexPeriodEnd": "2026-03-31",
+          "capexPeriodMonths": 6,
+          "capexPrior": 6000000000,
+          "capexDeltaPercent": 16.666666666666664,
+          "cash": 60000000000,
+          "cashPeriodEnd": "2026-03-31",
+          "debt": 100000000000,
+          "debtPeriodEnd": "2026-03-31",
+          "grossMarginSelectedValue": 0.47619047619047616,
+          "grossMarginSelectedPeriodEnd": "2026-03-31",
+          "grossMarginSelectedPeriodMonths": 6,
+          "operatingMarginSelectedValue": 0.3333333333333333,
+          "operatingMarginSelectedPeriodEnd": "2026-03-31",
+          "operatingMarginSelectedPeriodMonths": 6,
+          "netMarginSelectedValue": 0.2761904761904762,
+          "netMarginSelectedPeriodEnd": "2026-03-31",
+          "netMarginSelectedPeriodMonths": 6,
+          "freeCashFlowProxySelectedValue": 58000000000,
+          "freeCashFlowProxySelectedPeriodEnd": "2026-03-31",
+          "freeCashFlowProxySelectedPeriodMonths": 6,
+          "cashConversionSelectedValue": 1.1206896551724137,
+          "cashConversionSelectedPeriodEnd": "2026-03-31",
+          "cashConversionSelectedPeriodMonths": 6,
+          "netDebtSelectedValue": 40000000000,
+          "netDebtSelectedPeriodEnd": "2026-03-31",
+          "financialLensSelectionVersion": 1
+        },
+        "identity": {
+          "displayName": "Apple Inc.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000320193"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "AAPL"
+            }
+          ]
+        }
+      },
+      {
+        "category": "equity-events",
+        "title": "AAPL equity events",
+        "summary": "Finnhub returned 1 earnings calendar record.",
+        "sourceIds": ["extended-finnhub-events-aapl"],
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      {
+        "category": "analyst-estimates",
+        "title": "AAPL external EPS estimate consensus",
+        "summary": "Finnhub returned 1 EPS estimate consensus record.",
+        "sourceIds": ["extended-finnhub-analyst-aapl-eps"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "period": "2026-09-30",
+          "mean": 1.72,
+          "median": 1.7,
+          "high": 1.9,
+          "low": 1.5,
+          "count": 28
+        }
+      },
+      {
+        "category": "analyst-estimates",
+        "title": "AAPL external revenue estimate consensus",
+        "summary": "Finnhub returned 1 revenue estimate consensus record.",
+        "sourceIds": ["extended-finnhub-analyst-aapl-revenue"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "period": "2026-09-30",
+          "mean": 98000000000,
+          "median": 97500000000,
+          "high": 103000000000,
+          "low": 92000000000,
+          "count": 24
+        }
+      },
+      {
+        "category": "analyst-estimates",
+        "title": "AAPL external EBITDA estimate consensus",
+        "summary": "Finnhub returned 1 EBITDA estimate consensus record.",
+        "sourceIds": ["extended-finnhub-analyst-aapl-ebitda"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "period": "2026-09-30",
+          "mean": 35000000000,
+          "median": 34500000000,
+          "high": 38000000000,
+          "low": 32000000000,
+          "count": 18
+        }
+      },
+      {
+        "category": "analyst-estimate-context",
+        "title": "AAPL external analyst range context",
+        "summary": "External analyst estimate range from Finnhub (context only, not market-bot authored).",
+        "sourceIds": ["extended-finnhub-analyst-aapl-context"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "mean": 240,
+          "median": 235,
+          "high": 280,
+          "low": 190,
+          "count": 42,
+          "provider": "finnhub"
+        }
+      },
+      {
+        "category": "institutional-ownership",
+        "title": "AAPL external institutional ownership context",
+        "summary": "External institutional ownership data from Finnhub (context only, not market-bot authored).",
+        "sourceIds": ["extended-finnhub-ownership-aapl-institutional"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "provider": "finnhub",
+          "holderCount": 2,
+          "reportedShares": 2230000000,
+          "reportedOwnershipPercent": 0.14800000000000002
+        }
+      },
+      {
+        "category": "institutional-ownership",
+        "title": "AAPL external insider transaction context",
+        "summary": "External insider transaction data from Finnhub (context only, not market-bot authored).",
+        "sourceIds": ["extended-finnhub-ownership-aapl-insider-transactions"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "provider": "finnhub",
+          "transactionCount": 2,
+          "purchaseCount": 1,
+          "saleCount": 1,
+          "netShareChange": 7000
+        }
+      },
+      {
+        "category": "options-iv",
+        "title": "AAPL options IV",
+        "summary": "Near-term option chain median implied volatility is 0.330.",
+        "sourceIds": ["extended-tradier-iv-aapl"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "medianIv": 0.33
+        }
+      },
+      {
+        "category": "valuation",
+        "title": "AAPL Valuation Evidence",
+        "summary": "Valuation Evidence: market cap $3000.0B, enterprise value $3040.0B, 6-month revenue $210.0B, annualized revenue $420.0B, EV/annualized revenue 7.24x, market cap/annualized revenue 7.14x, debt/market cap 0.03x, net debt/market cap 0.01x; market cap as of 2026-06-15; cash/debt as of 2026-03-31. Peer comps supportability: supported; median EV/annualized revenue 7.41x, IQR 5.30x-9.55x.",
+        "sourceIds": [
+          "market-yahoo-equity-aapl",
+          "extended-sec-edgar-aapl-filings",
+          "extended-sec-edgar-aapl-fundamentals",
+          "market-yahoo-equity-msft",
+          "extended-sec-edgar-msft-fundamentals",
+          "extended-sec-edgar-msft-filings",
+          "market-yahoo-equity-googl",
+          "extended-sec-edgar-googl-fundamentals",
+          "extended-sec-edgar-googl-filings",
+          "market-yahoo-equity-amzn",
+          "extended-sec-edgar-amzn-fundamentals",
+          "extended-sec-edgar-amzn-filings",
+          "market-yahoo-equity-meta",
+          "extended-sec-edgar-meta-fundamentals",
+          "extended-sec-edgar-meta-filings",
+          "market-yahoo-equity-dell",
+          "extended-sec-edgar-dell-fundamentals",
+          "extended-sec-edgar-dell-filings"
+        ],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "marketCap": 3000000000000,
+          "cash": 60000000000,
+          "debt": 100000000000,
+          "netDebt": 40000000000,
+          "enterpriseValue": 3040000000000,
+          "latestPeriodRevenue": 210000000000,
+          "annualizedRevenue": 420000000000,
+          "quoteObservedAt": "2026-06-15T14:30:00.000Z",
+          "revenuePeriodMonths": 6,
+          "revenuePeriodEnd": "2026-03-31",
+          "cashPeriodEnd": "2026-03-31",
+          "debtPeriodEnd": "2026-03-31",
+          "sic": "3571",
+          "sicDescription": "Electronic Computers",
+          "evToAnnualizedRevenue": 7.238095238095238,
+          "marketCapToAnnualizedRevenue": 7.142857142857143,
+          "debtToMarketCap": 0.03333333333333333,
+          "netDebtToMarketCap": 0.013333333333333334,
+          "corePeerCount": 4,
+          "peerMedianEvToAnnualizedRevenue": 7.408333333333333,
+          "peerP25EvToAnnualizedRevenue": 5.295138888888889,
+          "peerP75EvToAnnualizedRevenue": 9.55,
+          "valuationSupportability": "supported"
+        },
+        "identity": {
+          "displayName": "Apple Inc.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000320193"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "AAPL"
+            }
+          ]
+        }
+      },
+      {
+        "category": "yahoo-fundamentals",
+        "title": "AAPL Yahoo Fundamentals Evidence",
+        "summary": "Yahoo Fundamentals: trailing PE 31.00x, forward PE 28.00x, price/book 45.00x, EPS TTM 6.40.",
+        "sourceIds": ["market-yahoo-equity-aapl"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "trailingPE": 31,
+          "forwardPE": 28,
+          "priceToBook": 45,
+          "epsTrailingTwelveMonths": 6.4,
+          "sharesOutstanding": 15000000000
+        },
+        "identity": {
+          "exchange": "NasdaqGS",
+          "quoteCurrency": "USD",
+          "displayName": "Apple Inc.",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "AAPL"
+            }
+          ]
+        }
+      },
+      {
+        "category": "financial-lens",
+        "title": "AAPL Financial Lens Evidence",
+        "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 47.6%, Operating margin 33.3%, Net margin 27.6%, FCF proxy $58.0B); Growth criteria-supported (Revenue YoY 11.1%, Gross profit YoY 13.6%, Operating income YoY 16.7%, Net income (attrib.) YoY 16.0%); Financial Strength criteria-mixed (Cash $60.0B, Debt $100.0B, Net debt $40.0B, Debt/market cap 3.3%); Value criteria-supported (Enterprise value $3040.0B, Annualized revenue $420.0B, EV/revenue 7.24x, Market cap/revenue 7.14x); Momentum criteria-supported (Latest close $217, SMA50 212.51, RSI14 52.73, MACD histogram 0.08).",
+        "sourceIds": [
+          "extended-sec-edgar-aapl-filings",
+          "extended-sec-edgar-aapl-fundamentals",
+          "market-yahoo-equity-aapl",
+          "market-yahoo-equity-msft",
+          "extended-sec-edgar-msft-fundamentals",
+          "extended-sec-edgar-msft-filings",
+          "market-yahoo-equity-googl",
+          "extended-sec-edgar-googl-fundamentals",
+          "extended-sec-edgar-googl-filings",
+          "market-yahoo-equity-amzn",
+          "extended-sec-edgar-amzn-fundamentals",
+          "extended-sec-edgar-amzn-filings",
+          "market-yahoo-equity-meta",
+          "extended-sec-edgar-meta-fundamentals",
+          "extended-sec-edgar-meta-filings",
+          "market-yahoo-equity-dell",
+          "extended-sec-edgar-dell-fundamentals",
+          "extended-sec-edgar-dell-filings",
+          "verified-snapshot-AAPL"
+        ],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "qualityPosture": "criteria-supported",
+          "grossMargin": 0.47619047619047616,
+          "grossMarginPeriodEnd": "2026-03-31",
+          "operatingMargin": 0.3333333333333333,
+          "operatingMarginPeriodEnd": "2026-03-31",
+          "netMargin": 0.2761904761904762,
+          "netMarginPeriodEnd": "2026-03-31",
+          "freeCashFlowProxy": 58000000000,
+          "freeCashFlowProxyPeriodEnd": "2026-03-31",
+          "cashConversion": 1.1206896551724137,
+          "cashConversionPeriodEnd": "2026-03-31",
+          "growthPosture": "criteria-supported",
+          "revenueDeltaPercent": 11.11111111111111,
+          "revenueDeltaPercentPeriodEnd": "2026-03-31",
+          "grossProfitDeltaPercent": 13.636363636363635,
+          "grossProfitDeltaPercentPeriodEnd": "2026-03-31",
+          "operatingIncomeDeltaPercent": 16.666666666666664,
+          "operatingIncomeDeltaPercentPeriodEnd": "2026-03-31",
+          "netIncomeDeltaPercent": 16,
+          "netIncomeDeltaPercentPeriodEnd": "2026-03-31",
+          "dilutedEpsDeltaPercent": 18.74999999999999,
+          "dilutedEpsDeltaPercentPeriodEnd": "2026-03-31",
+          "operatingCashFlowDeltaPercent": 12.068965517241379,
+          "operatingCashFlowDeltaPercentPeriodEnd": "2026-03-31",
+          "financialStrengthPosture": "criteria-mixed",
+          "cash": 60000000000,
+          "cashPeriodEnd": "2026-03-31",
+          "debt": 100000000000,
+          "debtPeriodEnd": "2026-03-31",
+          "netDebt": 40000000000,
+          "netDebtPeriodEnd": "2026-03-31",
+          "debtToMarketCap": 0.03333333333333333,
+          "debtToMarketCapPeriodEnd": "2026-03-31",
+          "netDebtToMarketCap": 0.013333333333333334,
+          "netDebtToMarketCapPeriodEnd": "2026-03-31",
+          "valuePosture": "criteria-supported",
+          "enterpriseValue": 3040000000000,
+          "enterpriseValuePeriodEnd": "2026-06-15T14:30:00.000Z",
+          "annualizedRevenue": 420000000000,
+          "annualizedRevenuePeriodEnd": "2026-03-31",
+          "evToAnnualizedRevenue": 7.238095238095238,
+          "evToAnnualizedRevenuePeriodEnd": "2026-03-31",
+          "marketCapToAnnualizedRevenue": 7.142857142857143,
+          "marketCapToAnnualizedRevenuePeriodEnd": "2026-03-31",
+          "valuationSupportability": "supported",
+          "valuationSupportabilityPeriodEnd": "2026-03-31",
+          "peRatio": 31,
+          "peRatioPeriodEnd": "2026-06-15T14:30:00.000Z",
+          "forwardPe": 28,
+          "forwardPePeriodEnd": "2026-06-15T14:30:00.000Z",
+          "priceToBook": 45,
+          "priceToBookPeriodEnd": "2026-06-15T14:30:00.000Z",
+          "pcfRatio": 23.076923076923077,
+          "pcfRatioPeriodEnd": "2026-03-31",
+          "momentumPosture": "criteria-supported",
+          "latestClose": 216.6,
+          "latestClosePeriodEnd": "2026-06-15T14:30:00.000Z",
+          "sma50": 212.5128,
+          "sma50PeriodEnd": "2026-06-15T14:30:00.000Z",
+          "rsi14": 52.73342335536868,
+          "rsi14PeriodEnd": "2026-06-15T14:30:00.000Z",
+          "macdHistogram": 0.07721083702343323,
+          "macdHistogramPeriodEnd": "2026-06-15T14:30:00.000Z",
+          "interimCadence": "quarterly",
+          "latestReportedPeriodEnd": "2026-03-31",
+          "expectedDuePeriodEnd": "2026-03-31"
+        },
+        "identity": {
+          "displayName": "Apple Inc.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000320193"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "AAPL"
+            }
+          ]
+        }
+      },
+      {
+        "category": "business-framework",
+        "title": "AAPL Business Framework Evidence",
+        "summary": "Business Framework: Business criteria-supported (Revenue $210.0B, Gross profit $100.0B, Operating income $70.0B); Phase classification (Phase operating-leverage, Revenue YoY 11.1%); Moat criteria-supported (Gross margin 47.6%, Operating margin 33.3%); Growth criteria-supported (Revenue YoY 11.1%, Operating income YoY 16.7%, Net income YoY 16.0%); Management insufficient-data; Risk criteria-supported (Debt/market cap 3.3%); Valuation criteria-supported (Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 7.24x).",
+        "sourceIds": [
+          "extended-sec-edgar-aapl-filings",
+          "extended-sec-edgar-aapl-fundamentals",
+          "market-yahoo-equity-aapl",
+          "market-yahoo-equity-msft",
+          "extended-sec-edgar-msft-fundamentals",
+          "extended-sec-edgar-msft-filings",
+          "market-yahoo-equity-googl",
+          "extended-sec-edgar-googl-fundamentals",
+          "extended-sec-edgar-googl-filings",
+          "market-yahoo-equity-amzn",
+          "extended-sec-edgar-amzn-fundamentals",
+          "extended-sec-edgar-amzn-filings",
+          "market-yahoo-equity-meta",
+          "extended-sec-edgar-meta-fundamentals",
+          "extended-sec-edgar-meta-filings",
+          "market-yahoo-equity-dell",
+          "extended-sec-edgar-dell-fundamentals",
+          "extended-sec-edgar-dell-filings",
+          "verified-snapshot-AAPL"
+        ],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "phase": "operating-leverage",
+          "businessPosture": "criteria-supported",
+          "phasePosture": "criteria-supported",
+          "moatPosture": "criteria-supported",
+          "growthPosture": "criteria-supported",
+          "managementPosture": "insufficient-data",
+          "riskPosture": "criteria-supported",
+          "valuationPosture": "criteria-supported"
+        },
+        "identity": {
+          "displayName": "Apple Inc.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000320193"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "AAPL"
+            }
+          ]
+        }
+      },
+      {
+        "category": "web-subject-profile",
+        "title": "Web Subject Profile",
+        "summary": "Cited web subject profile captured for AAPL.",
+        "sourceIds": ["web-aapl-6c345d05", "web-aapl-b15b01d7"],
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      }
+    ],
+    "gaps": [
+      {
+        "source": "sec-edgar",
+        "message": "Missing SEC company facts: dilutedShares, currentAssets, currentLiabilities",
+        "symbol": "AAPL",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing comparable SEC company facts for YoY deltas: cash, debt",
+        "symbol": "AAPL",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "fred-macro",
+        "message": "MARKET_BOT_FRED_API_KEY is not set",
+        "provider": "fred",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "MSFT"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing comparable SEC company facts for YoY deltas: revenue, cash, debt",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "MSFT"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "GOOGL"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing comparable SEC company facts for YoY deltas: revenue, cash, debt",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "GOOGL"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "AMZN"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing comparable SEC company facts for YoY deltas: revenue, cash, debt",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "AMZN"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "META"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing comparable SEC company facts for YoY deltas: revenue, cash, debt",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "META"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "DELL"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "Missing comparable SEC company facts for YoY deltas: revenue, cash, debt",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "symbol": "DELL"
+      },
+      {
+        "source": "valuation-peers",
+        "message": "Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target",
+        "symbol": "DELL",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "web-gather",
+        "message": "a model web query was rejected for drifting off-subject",
+        "provider": "exa",
+        "capability": "web-gather",
+        "cause": "validation-failed",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "web-gather",
+        "message": "a repeated model web request was skipped",
+        "provider": "exa",
+        "capability": "web-gather",
+        "cause": "validation-failed",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "business-framework",
+        "message": "Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      }
+    ]
+  },
+  "notFinancialAdvice": true,
+  "extras": {
+    "earningsSetup": {
+      "expectationBar": [
+        {
+          "text": "The deterministic fixture records the issuer-confirmed date and options reference bar.",
+          "sourceIds": [
+            "news-equity-1",
+            "extended-finnhub-events-aapl",
+            "extended-tradier-earnings-implied-move-aapl"
+          ]
+        }
+      ],
+      "event": {
+        "symbol": "AAPL",
+        "date": "2026-07-10",
+        "timing": "amc",
+        "eventDateStatus": "issuer-confirmed",
+        "epsEstimate": 1.72,
+        "revenueEstimate": 98000000000,
+        "sourceIds": ["extended-finnhub-events-aapl", "news-equity-1"],
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "dateConfirmation": {
+          "sourceId": "news-equity-1",
+          "sourceType": "issuer-press-release",
+          "sourceUrl": "https://www.apple.com/newsroom/2026/06/apple-announces-third-quarter-results-date/",
+          "evidenceSpan": "will release its quarterly financial results on July 10, 2026.",
+          "issuerIdentity": {
+            "symbol": "AAPL",
+            "matchedBy": "official-host"
+          },
+          "confirmedAt": "2026-06-15T13:30:00.000Z"
+        }
+      },
+      "impliedMove": {
+        "expiration": "2026-07-17",
+        "strike": 200,
+        "spot": 198.5,
+        "straddleMidpoint": 7,
+        "impliedMovePct": 0.03526448362720403,
+        "sourceIds": ["extended-tradier-earnings-implied-move-aapl"],
+        "observedAt": "2026-06-15T14:30:00.000Z"
+      },
+      "gaps": []
+    },
+    "historicalContext": {
+      "summary": "No prior run artifacts matched this research scope.",
+      "sourceIds": [],
+      "gaps": ["No prior ticker runs found for AAPL", "No prior equity market-update runs found"]
+    },
+    "businessFramework": {
+      "version": 2,
+      "phase": "operating-leverage",
+      "sourceIds": [
+        "extended-sec-edgar-aapl-filings",
+        "extended-sec-edgar-aapl-fundamentals",
+        "market-yahoo-equity-aapl",
+        "market-yahoo-equity-msft",
+        "extended-sec-edgar-msft-fundamentals",
+        "extended-sec-edgar-msft-filings",
+        "market-yahoo-equity-googl",
+        "extended-sec-edgar-googl-fundamentals",
+        "extended-sec-edgar-googl-filings",
+        "market-yahoo-equity-amzn",
+        "extended-sec-edgar-amzn-fundamentals",
+        "extended-sec-edgar-amzn-filings",
+        "market-yahoo-equity-meta",
+        "extended-sec-edgar-meta-fundamentals",
+        "extended-sec-edgar-meta-filings",
+        "market-yahoo-equity-dell",
+        "extended-sec-edgar-dell-fundamentals",
+        "extended-sec-edgar-dell-filings",
+        "verified-snapshot-AAPL"
+      ],
+      "gaps": [
+        {
+          "code": "analyst-consensus",
+          "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+        }
+      ],
+      "sections": [
+        {
+          "name": "Business",
+          "posture": "criteria-supported",
+          "summary": "Business criteria-supported (Revenue $210.0B, Gross profit $100.0B, Operating income $70.0B)",
+          "metrics": [
+            {
+              "key": "revenue",
+              "label": "Revenue",
+              "value": 210000000000,
+              "unit": "currency",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ],
+              "currency": "USD"
+            },
+            {
+              "key": "grossProfit",
+              "label": "Gross profit",
+              "value": 100000000000,
+              "unit": "currency",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ],
+              "currency": "USD"
+            },
+            {
+              "key": "operatingIncome",
+              "label": "Operating income",
+              "value": 70000000000,
+              "unit": "currency",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ],
+              "currency": "USD"
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
+          "gaps": []
+        },
+        {
+          "name": "Phase",
+          "posture": "criteria-supported",
+          "summary": "Phase classification (Phase operating-leverage, Revenue YoY 11.1%)",
+          "metrics": [
+            {
+              "key": "phase",
+              "label": "Phase",
+              "value": "operating-leverage",
+              "unit": "text",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals",
+                "market-yahoo-equity-aapl"
+              ]
+            },
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 11.11111111111111,
+              "unit": "whole-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ]
+            }
+          ],
+          "sourceIds": [
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-aapl"
+          ],
+          "gaps": []
+        },
+        {
+          "name": "Moat",
+          "posture": "criteria-supported",
+          "summary": "Moat criteria-supported (Gross margin 47.6%, Operating margin 33.3%)",
+          "metrics": [
+            {
+              "key": "grossMargin",
+              "label": "Gross margin",
+              "value": 0.47619047619047616,
+              "unit": "ratio-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ]
+            },
+            {
+              "key": "operatingMargin",
+              "label": "Operating margin",
+              "value": 0.3333333333333333,
+              "unit": "ratio-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
+          "gaps": []
+        },
+        {
+          "name": "Growth",
+          "posture": "criteria-supported",
+          "summary": "Growth criteria-supported (Revenue YoY 11.1%, Operating income YoY 16.7%, Net income YoY 16.0%)",
+          "metrics": [
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 11.11111111111111,
+              "unit": "whole-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ]
+            },
+            {
+              "key": "operatingIncomeDeltaPercent",
+              "label": "Operating income YoY",
+              "value": 16.666666666666664,
+              "unit": "whole-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ]
+            },
+            {
+              "key": "netIncomeDeltaPercent",
+              "label": "Net income YoY",
+              "value": 16,
+              "unit": "whole-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals"
+              ]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-aapl-filings", "extended-sec-edgar-aapl-fundamentals"],
+          "gaps": [
+            {
+              "code": "analyst-consensus",
+              "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+            }
+          ]
+        },
+        {
+          "name": "Management",
+          "posture": "insufficient-data",
+          "summary": "Management insufficient-data",
+          "metrics": [],
+          "sourceIds": [],
+          "gaps": []
+        },
+        {
+          "name": "Risk",
+          "posture": "criteria-supported",
+          "summary": "Risk criteria-supported (Debt/market cap 3.3%)",
+          "metrics": [
+            {
+              "key": "debtToMarketCap",
+              "label": "Debt/market cap",
+              "value": 0.03333333333333333,
+              "unit": "ratio-percent",
+              "sourceIds": [
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals",
+                "market-yahoo-equity-aapl",
+                "market-yahoo-equity-msft",
+                "extended-sec-edgar-msft-fundamentals",
+                "extended-sec-edgar-msft-filings",
+                "market-yahoo-equity-googl",
+                "extended-sec-edgar-googl-fundamentals",
+                "extended-sec-edgar-googl-filings",
+                "market-yahoo-equity-amzn",
+                "extended-sec-edgar-amzn-fundamentals",
+                "extended-sec-edgar-amzn-filings",
+                "market-yahoo-equity-meta",
+                "extended-sec-edgar-meta-fundamentals",
+                "extended-sec-edgar-meta-filings",
+                "market-yahoo-equity-dell",
+                "extended-sec-edgar-dell-fundamentals",
+                "extended-sec-edgar-dell-filings",
+                "verified-snapshot-AAPL"
+              ]
+            }
+          ],
+          "sourceIds": [
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-aapl",
+            "market-yahoo-equity-msft",
+            "extended-sec-edgar-msft-fundamentals",
+            "extended-sec-edgar-msft-filings",
+            "market-yahoo-equity-googl",
+            "extended-sec-edgar-googl-fundamentals",
+            "extended-sec-edgar-googl-filings",
+            "market-yahoo-equity-amzn",
+            "extended-sec-edgar-amzn-fundamentals",
+            "extended-sec-edgar-amzn-filings",
+            "market-yahoo-equity-meta",
+            "extended-sec-edgar-meta-fundamentals",
+            "extended-sec-edgar-meta-filings",
+            "market-yahoo-equity-dell",
+            "extended-sec-edgar-dell-fundamentals",
+            "extended-sec-edgar-dell-filings",
+            "verified-snapshot-AAPL"
+          ],
+          "gaps": []
+        },
+        {
+          "name": "Valuation",
+          "posture": "criteria-supported",
+          "summary": "Valuation criteria-supported (Trailing PE 31.00x, Forward PE 28.00x, EV/revenue 7.24x)",
+          "metrics": [
+            {
+              "key": "trailingPE",
+              "label": "Trailing PE",
+              "value": 31,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            },
+            {
+              "key": "forwardPE",
+              "label": "Forward PE",
+              "value": 28,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-aapl"]
+            },
+            {
+              "key": "evToAnnualizedRevenue",
+              "label": "EV/revenue",
+              "value": 7.238095238095238,
+              "unit": "ratio",
+              "sourceIds": [
+                "market-yahoo-equity-aapl",
+                "extended-sec-edgar-aapl-filings",
+                "extended-sec-edgar-aapl-fundamentals",
+                "market-yahoo-equity-msft",
+                "extended-sec-edgar-msft-fundamentals",
+                "extended-sec-edgar-msft-filings",
+                "market-yahoo-equity-googl",
+                "extended-sec-edgar-googl-fundamentals",
+                "extended-sec-edgar-googl-filings",
+                "market-yahoo-equity-amzn",
+                "extended-sec-edgar-amzn-fundamentals",
+                "extended-sec-edgar-amzn-filings",
+                "market-yahoo-equity-meta",
+                "extended-sec-edgar-meta-fundamentals",
+                "extended-sec-edgar-meta-filings",
+                "market-yahoo-equity-dell",
+                "extended-sec-edgar-dell-fundamentals",
+                "extended-sec-edgar-dell-filings"
+              ]
+            }
+          ],
+          "sourceIds": [
+            "market-yahoo-equity-aapl",
+            "extended-sec-edgar-aapl-filings",
+            "extended-sec-edgar-aapl-fundamentals",
+            "market-yahoo-equity-msft",
+            "extended-sec-edgar-msft-fundamentals",
+            "extended-sec-edgar-msft-filings",
+            "market-yahoo-equity-googl",
+            "extended-sec-edgar-googl-fundamentals",
+            "extended-sec-edgar-googl-filings",
+            "market-yahoo-equity-amzn",
+            "extended-sec-edgar-amzn-fundamentals",
+            "extended-sec-edgar-amzn-filings",
+            "market-yahoo-equity-meta",
+            "extended-sec-edgar-meta-fundamentals",
+            "extended-sec-edgar-meta-filings",
+            "market-yahoo-equity-dell",
+            "extended-sec-edgar-dell-fundamentals",
+            "extended-sec-edgar-dell-filings"
+          ],
+          "gaps": []
+        }
+      ],
+      "reconciliation": {
+        "resolvedGaps": [
+          "business-description",
+          "capital-allocation",
+          "company-kpis",
+          "customer-concentration",
+          "cyclicality",
+          "geographic-mix",
+          "management-track-record",
+          "pricing-power",
+          "purchase-recurrence",
+          "risk-factors",
+          "segment-mix"
+        ],
+        "profileSourceIds": ["web-aapl-6c345d05", "web-aapl-b15b01d7"]
+      }
+    },
+    "webSubjectProfile": {
+      "version": 3,
+      "subjectKind": "company",
+      "subjectId": "AAPL",
+      "subjectLabel": "Apple Inc.",
+      "symbol": "AAPL",
+      "companyName": "Apple Inc.",
+      "subjectSummary": {
+        "answer": "Apple combines device sales with a recurring services ecosystem.",
+        "sourceIds": ["web-aapl-6c345d05", "web-aapl-b15b01d7"]
+      },
+      "questions": {
+        "whatItDoes": {
+          "answer": "Apple designs devices and operates related software and services.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "howItMakesMoney": {
+          "answer": "Revenue comes from products and a growing services stream.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "customers": {
+          "answer": "The company serves consumers, developers, enterprises, and education customers.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "geography": {
+          "answer": "Apple serves a global installed base.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "purchaseRecurrence": {
+          "answer": "Services subscriptions and device replacement cycles support repeat purchases.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "pricingPower": {
+          "answer": "Ecosystem integration supports differentiated product and service pricing.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "recessionCyclicality": {
+          "answer": "Hardware demand remains exposed to consumer replacement timing.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "managementTrackRecord": {
+          "answer": "Management continued a documented capital-return program.",
+          "sourceIds": ["web-aapl-6c345d05"]
+        },
+        "capitalAllocation": {
+          "answer": "Capital allocation includes investment and shareholder distributions.",
+          "sourceIds": ["web-aapl-6c345d05"]
+        },
+        "companyKpis": {
+          "answer": "Services growth and installed-base engagement are operating indicators.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        },
+        "riskFactors": {
+          "answer": "Demand cyclicality and platform competition remain material uncertainties.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        }
+      },
+      "recentMaterialEvents": [
+        {
+          "claim": "The fixture records a recent capital-allocation update.",
+          "sourceIds": ["web-aapl-6c345d05"]
+        }
+      ],
+      "factLedger": [
+        {
+          "claim": "Services growth is identified as a company operating indicator.",
+          "sourceIds": ["web-aapl-b15b01d7"]
+        }
+      ],
+      "openGaps": ["The deterministic web cassette does not establish live market conditions."],
+      "sourceIds": ["web-aapl-6c345d05", "web-aapl-b15b01d7"]
+    },
+    "earningsForecasts": {
+      "eventDateStatus": "issuer-confirmed",
+      "policy": "confirmed-only",
+      "grammarEligible": true,
+      "eligiblePredictionCount": 2,
+      "suppressedPredictionCount": 0
+    },
+    "depth": "deep",
+    "depthProfile": {
+      "depth": "deep",
+      "analystStyle": "fuller analyst-style",
+      "minimumKeyFindings": 6,
+      "minimumScenarios": 3,
+      "targetPredictions": 5,
+      "defaultPredictionHorizon": 5,
+      "predictionSubjects": ["AAPL"],
+      "focus": [
+        "thesis",
+        "evidence",
+        "catalysts",
+        "bull case",
+        "bear case",
+        "scenarios",
+        "data gaps"
+      ],
+      "targetKindMix": {
+        "favored": ["relative", "range"],
+        "minNonDirection": 2
+      }
+    },
+    "marketRegime": {
+      "assetClass": "equity",
+      "label": "risk-on",
+      "proxyCount": 6,
+      "drivers": [
+        "equity breadth proxies positive: 4/4",
+        "trend positive: 4/4 proxies above 50-day average",
+        "VIX term structure contango: VIX 16.00 vs VIX3M 18.00"
+      ],
+      "sourceIds": [
+        "market-yahoo-equity-spy",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m"
+      ]
+    }
+  },
+  "reportIntegrity": "high",
+  "researchQuality": "medium",
+  "researchQualityDriver": "macro indicator evidence missing; remediation: configure MARKET_BOT_FRED_API_KEY or rerun",
+  "predictionShortfall": {
+    "emittedCount": 2,
+    "targetCount": 5,
+    "missingCount": 3
+  }
+}

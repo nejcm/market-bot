@@ -18,7 +18,7 @@ export function newsQuery(command: ResearchCommand): string {
 export function recencyDays(command: ResearchCommand): number {
   const bucket = marketUpdateHorizonBucketOf(command);
   if (bucket !== undefined) {
-    return bucket === "1-5d" ? 3 : 10;
+    return bucket === "1d" || bucket === "2-5d" ? 3 : 10;
   }
 
   return 30;

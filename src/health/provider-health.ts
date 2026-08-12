@@ -5,6 +5,7 @@ import {
   isSourceGapCapability,
   isSourceGapCause,
   isSourceGapEvidenceQualityImpact,
+  isSourceGapTriage,
   sourceGapStatusCode,
 } from "../domain/source-gaps";
 import {
@@ -20,6 +21,12 @@ import {
 } from "../domain/types";
 import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import { isDeepEquityReport } from "../deep-equity/artifact-schema";
+import {
+  loadDeepEquityEvidenceBundle,
+  readSourceGapAttempts,
+  type LoadedDeepEquityEvidenceBundle,
+} from "../run-artifacts";
 import { isRecord, numberAt } from "../guards";
 import {
   buildValidation,
@@ -181,6 +188,8 @@ export function parseSourceGap(value: unknown): SourceGap | undefined {
   const evidenceQualityImpact = isSourceGapEvidenceQualityImpact(value.evidenceQualityImpact)
     ? value.evidenceQualityImpact
     : undefined;
+  const triage = isSourceGapTriage(value.triage) ? value.triage : undefined;
+  const attempts = readSourceGapAttempts(value.attempts);
 
   return {
     source,
@@ -190,6 +199,8 @@ export function parseSourceGap(value: unknown): SourceGap | undefined {
     ...(capability !== undefined ? { capability } : {}),
     ...(cause !== undefined ? { cause } : {}),
     ...(evidenceQualityImpact !== undefined ? { evidenceQualityImpact } : {}),
+    ...(triage !== undefined ? { triage } : {}),
+    ...(attempts !== undefined ? { attempts } : {}),
   };
 }
 
@@ -248,6 +259,15 @@ function parseSources(value: unknown): readonly SourceHealth[] {
   });
 }
 
+function parseSourceIds(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.flatMap((item) => {
+        const id = isRecord(item) ? stringValue(item.id) : undefined;
+        return id === undefined ? [] : [id];
+      })
+    : [];
+}
+
 function parsePredictionHorizons(value: unknown): readonly number[] {
   if (!Array.isArray(value)) {
     return [];
@@ -289,13 +309,44 @@ function depthFrom(
   return undefined;
 }
 
+function deepEquityBundleStatusGap(status: "absent" | "malformed"): SourceGap {
+  return {
+    source: "deep-equity-evidence-bundle",
+    provider: "run-artifact",
+    capability: "extended-evidence",
+    cause: status === "absent" ? "provider-data-missing" : "validation-failed",
+    evidenceQualityImpact: "core-cap",
+    message:
+      status === "absent"
+        ? "deep-equity evidence bundle is absent; provider-health coverage is unknown"
+        : "deep-equity evidence bundle is malformed or invalid; provider-health coverage is unknown",
+  };
+}
+
+function deepEquitySourceGaps(
+  bundle: LoadedDeepEquityEvidenceBundle | undefined,
+): readonly SourceGap[] {
+  if (bundle?.status === "ok") {
+    const { sourceGaps } = bundle.value.governance;
+    return sourceGaps;
+  }
+  return [deepEquityBundleStatusGap(bundle?.status ?? "absent")];
+}
+
 async function loadRunHealth(runDir: string): Promise<RunHealth> {
   const reportRaw = await readJson(join(runDir, REPORT_FILE));
   const report = isRecord(reportRaw) ? reportRaw : {};
   const analyticsRaw = await readJson(join(runDir, ANALYTICS_FILE));
   const analytics = isRecord(analyticsRaw) ? analyticsRaw : undefined;
   const score = parseScoreCounts(await readJson(join(runDir, SCORE_FILE)));
-  const sourceGaps = parseSourceGaps(await readJson(join(runDir, SOURCE_GAPS_FILE)));
+  const reportSourceIds = parseSourceIds(report.sources);
+  const deepEquity = isDeepEquityReport(report);
+  const deepEquityBundle = deepEquity
+    ? await loadDeepEquityEvidenceBundle(runDir, reportSourceIds)
+    : undefined;
+  const sourceGaps = deepEquity
+    ? deepEquitySourceGaps(deepEquityBundle)
+    : parseSourceGaps(await readJson(join(runDir, SOURCE_GAPS_FILE)));
   const generatedAt = stringValue(report.generatedAt);
   const symbol = stringValue(report.symbol);
   const depth = depthFrom(report, analytics);

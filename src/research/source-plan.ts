@@ -1,6 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import {
   isMarketUpdateJobType,
+  sourceProvider,
   type AssetClass,
   type Source,
   type SourceGap,
@@ -13,12 +14,13 @@ import {
   resolveResearchSubject,
   type ResolvedResearchSubject,
 } from "./research-subject-identity";
+import { deepEquityRecipeLanes } from "../deep-equity/acquisition-recipe";
 
 function normalizedSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
 }
 
-export const EVIDENCE_LANES = [
+const EVIDENCE_LANES = [
   "market-data",
   "supplemental-market",
   "news",
@@ -34,7 +36,7 @@ export const EVIDENCE_LANES = [
   "subject-profile",
 ] as const;
 
-export const LEGACY_EVIDENCE_LANES = [
+const LEGACY_EVIDENCE_LANES = [
   "macro-context",
   "verified-snapshot",
   "sec-edgar",
@@ -45,6 +47,15 @@ export const LEGACY_EVIDENCE_LANES = [
 ] as const;
 
 export type EvidenceLane = (typeof EVIDENCE_LANES)[number] | (typeof LEGACY_EVIDENCE_LANES)[number];
+
+const EVIDENCE_LANE_SET: ReadonlySet<string> = new Set([
+  ...EVIDENCE_LANES,
+  ...LEGACY_EVIDENCE_LANES,
+]);
+
+export function isEvidenceLane(value: unknown): value is EvidenceLane {
+  return typeof value === "string" && EVIDENCE_LANE_SET.has(value);
+}
 
 export type EvidenceClass = "core" | "material" | "supplemental";
 export type LaneRequirement = "required" | "optional";
@@ -379,7 +390,10 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
     evidenceClass: () => "supplemental",
     applies: (command) =>
       isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep",
-    sourceIds: (sources) => sources.valuationComps?.peers.flatMap((peer) => peer.sourceIds) ?? [],
+    sourceIds: (sources) =>
+      sources.valuationComps?.summary.valuationSupportability === "supported"
+        ? sources.valuationComps.peers.flatMap((peer) => peer.sourceIds)
+        : [],
     gapMatches: (gap) => gap.source === "valuation-peers",
   },
   {
@@ -416,10 +430,6 @@ function gapText(gap: SourceGap): string {
 
 function syntheticMissingGap(lane: EvidenceLane): readonly string[] {
   return [`${lane}: planned evidence lane had no backing source or recorded gap`];
-}
-
-function sourceProvider(source: Source): string | undefined {
-  return source.provider ?? source.providerAliases?.[0]?.provider;
 }
 
 function marketProvider(assetClass: AssetClass, sourceId: string): string {
@@ -630,8 +640,16 @@ export function buildSourcePlan(
 ): SourcePlanArtifactV2 {
   const normalizedCommand = normalizeResearchCommandDepth(command);
   const subject = resolvedSubject ?? resolveResearchSubject(normalizedCommand);
-  const planned = LANE_DEFINITIONS.filter((definition) =>
-    definition.applies(normalizedCommand, subject),
+  const deepEquityLanes =
+    isInstrumentCommand(normalizedCommand) &&
+    normalizedCommand.assetClass === "equity" &&
+    normalizedCommand.depth === "deep"
+      ? deepEquityRecipeLanes()
+      : undefined;
+  const planned = LANE_DEFINITIONS.filter(
+    (definition) =>
+      (deepEquityLanes === undefined || deepEquityLanes.has(definition.lane)) &&
+      definition.applies(normalizedCommand, subject),
   );
   return {
     version: 2,

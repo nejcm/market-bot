@@ -1,4 +1,8 @@
-import type { ResearchReport } from "../domain/types";
+import type {
+  ResearchReport,
+  WebEvidenceUtilization,
+  WebEvidenceUtilizationLevel,
+} from "../domain/types";
 import { isRecord } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "../research/extended-evidence-projections";
@@ -91,5 +95,49 @@ export function computeWebSourceUsage(
     reportCitedIds,
     extrasCitedIds,
     currentRunUsedIds,
+  };
+}
+
+export function classifyWebEvidenceUtilization(
+  acceptedCurrentRun: number,
+  ratio: number,
+): WebEvidenceUtilizationLevel {
+  if (acceptedCurrentRun < 4) {
+    return "insufficient-sample";
+  }
+  if (ratio >= 0.5) {
+    return "high";
+  }
+  return ratio >= 0.25 ? "medium" : "low";
+}
+
+export function buildWebEvidenceUtilization(
+  report: ResearchReport,
+  collectedSources: CollectedSources,
+  webGatherAttempted: boolean,
+): WebEvidenceUtilization | undefined {
+  const usage = computeWebSourceUsage(report, collectedSources);
+  const acceptedCurrentRun = usage.currentRunIds.size;
+  if (!webGatherAttempted && acceptedCurrentRun === 0) {
+    return undefined;
+  }
+  const currentRunReportCited = [...usage.reportCitedIds].filter((id) =>
+    usage.currentRunIds.has(id),
+  ).length;
+  const currentRunStructuredExtraCited = [...usage.extrasCitedIds].filter((id) =>
+    usage.currentRunIds.has(id),
+  ).length;
+  const usedCurrentRun = usage.currentRunUsedIds.size;
+  const ratio = acceptedCurrentRun === 0 ? 0 : usedCurrentRun / acceptedCurrentRun;
+  return {
+    version: 1,
+    acceptedCurrentRun,
+    usedCurrentRun,
+    profileUsed: usage.profileUsedIds.size,
+    primaryReportCited: currentRunReportCited,
+    structuredExtraCited: currentRunStructuredExtraCited,
+    unusedCurrentRun: acceptedCurrentRun - usedCurrentRun,
+    ratio,
+    level: classifyWebEvidenceUtilization(acceptedCurrentRun, ratio),
   };
 }

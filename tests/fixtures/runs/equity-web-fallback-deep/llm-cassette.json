@@ -1,0 +1,70 @@
+{
+  "entries": {
+    "web-gather|fixture-quick": [
+      {
+        "content": "{\"requests\":[{\"tool\":\"web_search\",\"args\":{\"query\":\"AAPL recent capital allocation and services KPI updates\",\"searchType\":\"background\"},\"rationale\":\"Find recent corroboration and explicit gaps beyond filed company background.\"},{\"tool\":\"web_search\",\"args\":{\"query\":\"unrelated semiconductor supply chain\",\"searchType\":\"background\"},\"rationale\":\"Collect unrelated industry context.\"},{\"tool\":\"web_fetch\",\"args\":{\"url\":\"https://investor.example/aapl-capital-allocation\"},\"rationale\":\"Fetch the surfaced issuer capital-allocation source.\"},{\"tool\":\"web_fetch\",\"args\":{\"url\":\"https://investor.example/aapl-capital-allocation\"},\"rationale\":\"Fetch the same surfaced source again.\"},{\"tool\":\"web_fetch\",\"args\":{\"url\":\"https://industry.example/apple-services-kpis\"},\"rationale\":\"Fetch the surfaced services KPI source.\"}]}",
+        "tokenEstimate": 30,
+        "costEstimateUsd": 0
+      }
+    ],
+    "web-subject-profile|fixture-quick": [
+      {
+        "content": "{\"subjectLabel\":\"Apple Inc.\",\"companyName\":\"Apple Inc.\",\"subjectSummary\":{\"answer\":\"Apple combines device sales with a recurring services ecosystem.\",\"sourceIds\":[\"web-aapl-6c345d05\",\"web-aapl-b15b01d7\"]},\"questions\":{\"whatItDoes\":{\"answer\":\"Apple designs devices and operates related software and services.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"howItMakesMoney\":{\"answer\":\"Revenue comes from products and a growing services stream.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"customers\":{\"answer\":\"The company serves consumers, developers, enterprises, and education customers.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"geography\":{\"answer\":\"Apple serves a global installed base.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"purchaseRecurrence\":{\"answer\":\"Services subscriptions and device replacement cycles support repeat purchases.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"pricingPower\":{\"answer\":\"Ecosystem integration supports differentiated product and service pricing.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"recessionCyclicality\":{\"answer\":\"Hardware demand remains exposed to consumer replacement timing.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"managementTrackRecord\":{\"answer\":\"Management continued a documented capital-return program.\",\"sourceIds\":[\"web-aapl-6c345d05\"]},\"capitalAllocation\":{\"answer\":\"Capital allocation includes investment and shareholder distributions.\",\"sourceIds\":[\"web-aapl-6c345d05\"]},\"companyKpis\":{\"answer\":\"Services growth and installed-base engagement are operating indicators.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]},\"riskFactors\":{\"answer\":\"Demand cyclicality and platform competition remain material uncertainties.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]}},\"recentMaterialEvents\":[{\"claim\":\"The fixture records a recent capital-allocation update.\",\"sourceIds\":[\"web-aapl-6c345d05\"]}],\"factLedger\":[{\"claim\":\"Services growth is identified as a company operating indicator.\",\"sourceIds\":[\"web-aapl-b15b01d7\"]}],\"openGaps\":[\"The deterministic web cassette does not establish live market conditions.\"]}",
+        "tokenEstimate": 40,
+        "costEstimateUsd": 0
+      }
+    ],
+    "playbook-selection|fixture-quick": [
+      {
+        "content": "{\"selections\":[]}",
+        "tokenEstimate": 10,
+        "costEstimateUsd": 0
+      }
+    ],
+    "specialist-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-aapl-deep specialist analysis\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "equity-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-analysis-comprehensive equity analysis\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "critique|fixture-quick": [
+      {
+        "content": "{\"critique\":\"equity-aapl-deep critique\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "final-synthesis|fixture-synthesis": [
+      {
+        "content": "{\"summary\":\"equity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and verified snapshot evidence.\",\"keyFindings\":[{\"text\":\"AAPL has a current fixture market snapshot and verified close history.\",\"sourceIds\":[\"market-yahoo-equity-aapl\",\"verified-snapshot-AAPL\"]},{\"text\":\"Fixture news coverage is intentionally narrow for regression determinism.\",\"sourceIds\":[\"news-equity-1\"]},{\"text\":\"The fixture includes an issuer-confirmed earnings event and options reference bar.\",\"sourceIds\":[\"news-equity-1\",\"extended-finnhub-events-aapl\",\"extended-tradier-earnings-implied-move-aapl\"]}],\"bullCase\":[{\"text\":\"The fixture shows positive price momentum in the latest close sequence.\",\"sourceIds\":[\"verified-snapshot-AAPL\"]}],\"bearCase\":[{\"text\":\"The fixture omits live optional providers, limiting corroboration.\",\"sourceIds\":[\"news-equity-1\"]}],\"risks\":[{\"text\":\"Static cassette inputs can become stale versus live market conditions.\",\"sourceIds\":[\"market-yahoo-equity-aapl\"]}],\"catalysts\":[{\"text\":\"AAPL fixture news remains the only current catalyst input.\",\"sourceIds\":[\"news-equity-1\"]}],\"scenarios\":[{\"name\":\"Base\",\"description\":\"AAPL remains within a fixture-defined evidence envelope.\",\"sourceIds\":[\"market-yahoo-equity-aapl\"]}],\"dataGaps\":[\"Fixture replay uses static source cassettes.\"],\"predictions\":[{\"id\":\"aapl-earnings-direction\",\"kind\":\"earnings-direction\",\"subject\":\"AAPL\",\"measurableAs\":\"earningsReturn(AAPL, 2026-07-10, +1) > 0\",\"horizonTradingDays\":1,\"probability\":0.58,\"sourceIds\":[\"news-equity-1\",\"extended-finnhub-events-aapl\"]},{\"id\":\"aapl-earnings-move\",\"kind\":\"earnings-move\",\"subject\":\"AAPL\",\"measurableAs\":\"abs(earningsReturn(AAPL, 2026-07-10, +1)) > 0.035\",\"horizonTradingDays\":1,\"probability\":0.55,\"sourceIds\":[\"news-equity-1\",\"extended-finnhub-events-aapl\",\"extended-tradier-earnings-implied-move-aapl\"]}],\"extras\":{\"earningsSetup\":{\"expectationBar\":[{\"text\":\"The deterministic fixture records the issuer-confirmed date and options reference bar.\",\"sourceIds\":[\"news-equity-1\",\"extended-finnhub-events-aapl\",\"extended-tradier-earnings-implied-move-aapl\"]}]}}}",
+        "tokenEstimate": 70
+      },
+      {
+        "content": "{\"predictions\":[]}",
+        "tokenEstimate": 10
+      }
+    ],
+    "instrument-evidence-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-aapl-deep instrument evidence\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ],
+    "market-behavior-analysis|fixture-quick": [
+      {
+        "content": "{\"analysis\":\"equity-aapl-deep market behavior\"}",
+        "tokenEstimate": 20,
+        "costEstimateUsd": 0
+      }
+    ]
+  }
+}

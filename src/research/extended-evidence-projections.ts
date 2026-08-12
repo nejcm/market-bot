@@ -1,5 +1,9 @@
 import { isBusinessFrameworkSectionName } from "../sources/extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../web-evidence";
+import type {
+  BusinessFrameworkExtra,
+  WebSubjectProfileExtra,
+} from "../report/report-extras-contract";
 import { isRecord, nonEmptyStringArrayValue } from "../guards";
 import type { CollectedSources, EarningsSetupCollected } from "../sources/types";
 
@@ -37,7 +41,10 @@ function modelBusinessFrameworkSections(
   return sections;
 }
 
-function businessFrameworkExtra(modelExtra: unknown, collectedSources: CollectedSources): unknown {
+function businessFrameworkExtra(
+  modelExtra: unknown,
+  collectedSources: CollectedSources,
+): BusinessFrameworkExtra | undefined {
   const artifact = collectedSources.businessFramework;
   if (artifact === undefined) {
     return undefined;
@@ -55,7 +62,10 @@ function businessFrameworkExtra(modelExtra: unknown, collectedSources: Collected
         posture: section.posture,
         summary: section.summary,
         metrics: section.metrics,
-        sourceIds: modelSection?.sourceIds ?? section.sourceIds,
+        sourceIds:
+          modelSection !== undefined && modelSection.sourceIds.length > 0
+            ? modelSection.sourceIds
+            : section.sourceIds,
         gaps: section.gaps,
         ...(modelSection !== undefined ? { text: modelSection.text } : {}),
       };
@@ -64,7 +74,9 @@ function businessFrameworkExtra(modelExtra: unknown, collectedSources: Collected
   };
 }
 
-function webSubjectProfileExtra(artifact: WebSubjectProfileArtifact | undefined): unknown {
+function webSubjectProfileExtra(
+  artifact: WebSubjectProfileArtifact | undefined,
+): WebSubjectProfileExtra | undefined {
   if (artifact === undefined) {
     return undefined;
   }

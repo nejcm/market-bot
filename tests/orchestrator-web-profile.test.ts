@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
 import { isRecord } from "../src/guards";
-import { collectedSources as collectedSourceBundle } from "./support/fixtures";
+import {
+  collectedSources as collectedSourceBundle,
+  deepEquityEvidenceBundle,
+} from "./support/fixtures";
 import {
   config,
   createDataDirRegistry,
@@ -15,6 +18,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Source } from "../src/domain/types";
 import type { ModelProvider } from "../src/model/types";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 const { cleanupDataDirs, tempDataDir } = createDataDirRegistry();
 
@@ -303,7 +307,7 @@ describe("runResearchJob web subject profile", () => {
       factLedger: [expect.objectContaining({ claim: "Apple sells hardware and services." })],
     });
     await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
+      readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
     ).resolves.toContain('"companyName": "Apple Inc."');
     const webGatherAudit = JSON.parse(
       await readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
@@ -505,42 +509,102 @@ describe("runResearchJob web subject profile", () => {
       }),
       "utf8",
     );
+    const priorProfile = {
+      version: 3 as const,
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      subjectKind: "company" as const,
+      subjectId: "AAPL",
+      subjectLabel: "Apple Inc.",
+      symbol: "AAPL",
+      companyName: "Apple Inc.",
+      subjectSummary: answer,
+      questions: {
+        whatItDoes: answer,
+        howItMakesMoney: answer,
+        customers: answer,
+        geography: answer,
+        purchaseRecurrence: answer,
+        pricingPower: answer,
+        recessionCyclicality: answer,
+        managementTrackRecord: answer,
+        capitalAllocation: answer,
+        companyKpis: answer,
+        riskFactors: answer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] }],
+      openGaps: [],
+      sourceIds: [priorWebSource.id],
+      secFilingBasisDate: "2026-05-01",
+    };
+    const priorBundle = deepEquityEvidenceBundle();
     await writeFile(
-      join(priorRunDir, "normalized", "web-subject-profile.json"),
+      join(priorRunDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      JSON.stringify(
+        deepEquityEvidenceBundle({
+          run: { symbol: "AAPL", analysisAsOf: "2026-05-01T00:00:00.000Z" },
+          evidence: {
+            ...priorBundle.evidence,
+            extendedSources: [priorWebSource],
+            webSubjectProfile: priorProfile,
+          },
+          governance: {
+            ...priorBundle.governance,
+            sourcePlan: {
+              ...priorBundle.governance.sourcePlan,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+            },
+            evidenceLanes: {
+              ...priorBundle.governance.evidenceLanes,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+            },
+            sourceLedger: {
+              version: 2,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+              sources: [
+                {
+                  id: priorWebSource.id,
+                  kind: priorWebSource.kind,
+                  lane: "subject-profile",
+                  posture: "covered",
+                  relatedGapIds: [],
+                  fetchedAt: priorWebSource.fetchedAt,
+                },
+              ],
+            },
+          },
+          context: {
+            historicalContext: {
+              ...priorBundle.context.historicalContext,
+              generatedAt: "2026-05-01T00:00:00.000Z",
+            },
+          },
+        }),
+      ),
+      "utf8",
+    );
+    await writeFile(
+      join(priorRunDir, "analytics.json"),
       JSON.stringify({
-        version: 3,
-        generatedAt: "2026-05-01T00:00:00.000Z",
-        subjectKind: "company",
-        subjectId: "AAPL",
-        subjectLabel: "Apple Inc.",
-        symbol: "AAPL",
-        companyName: "Apple Inc.",
-        subjectSummary: answer,
-        questions: {
-          whatItDoes: answer,
-          howItMakesMoney: answer,
-          customers: answer,
-          geography: answer,
-          purchaseRecurrence: answer,
-          pricingPower: answer,
-          recessionCyclicality: answer,
-          managementTrackRecord: answer,
-          capitalAllocation: answer,
-          companyKpis: answer,
-          riskFactors: answer,
+        version: 2,
+        runId: "prior-aapl",
+        webEvidenceUtilization: {
+          version: 1,
+          acceptedCurrentRun: 5,
+          usedCurrentRun: 1,
+          profileUsed: 0,
+          primaryReportCited: 1,
+          structuredExtraCited: 0,
+          unusedCurrentRun: 4,
+          ratio: 0.2,
+          level: "low",
         },
-        recentMaterialEvents: [],
-        factLedger: [
-          { claim: "Apple sells hardware and services.", sourceIds: [priorWebSource.id] },
-        ],
-        openGaps: [],
-        sourceIds: [priorWebSource.id],
-        secFilingBasisDate: "2026-05-01",
       }),
       "utf8",
     );
 
     const prompts: Record<string, unknown>[] = [];
+    const acceptedSearchNumResults: number[] = [];
     const provider: ModelProvider = {
       name: "mock",
       generate: async (request) => {
@@ -551,7 +615,18 @@ describe("runResearchJob web subject profile", () => {
         }
         if (prompt.stage === "web-gather") {
           return {
-            content: JSON.stringify({ requests: [] }),
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: {
+                    query: "AAPL Apple recent product news",
+                    searchType: "news",
+                  },
+                  rationale: "recent material developments",
+                },
+              ],
+            }),
             tokenEstimate: 10,
             costEstimateUsd: 0.001,
           };
@@ -567,7 +642,7 @@ describe("runResearchJob web subject profile", () => {
       },
     };
 
-    const result = await runResearchJob({
+    const result = await persistResearchJob({
       command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
       config: {
         ...evidenceConfig,
@@ -577,7 +652,35 @@ describe("runResearchJob web subject profile", () => {
       },
       provider,
       collectedSources: collectedSourceBundle({ marketSnapshots, newsSources }),
-      sourceFetchImpl: secEvidenceFetch,
+      sourceFetchImpl: async (input, init) => {
+        const url = String(input);
+        if (url.includes("api.exa.ai/search")) {
+          const body =
+            typeof init?.body === "string"
+              ? (JSON.parse(init.body) as { readonly numResults?: number })
+              : {};
+          if (body.numResults !== undefined) {
+            acceptedSearchNumResults.push(body.numResults);
+          }
+          return Response.json({
+            results: [
+              {
+                id: "exa-current-1",
+                url: "https://example.com/apple-current-1",
+                title: "Apple current product update",
+                summary: "Apple announced a current product update.",
+              },
+              {
+                id: "exa-current-2",
+                url: "https://example.com/apple-current-2",
+                title: "Apple current services update",
+                summary: "Apple announced a current services update.",
+              },
+            ],
+          });
+        }
+        return secEvidenceFetch(input);
+      },
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
@@ -606,6 +709,7 @@ describe("runResearchJob web subject profile", () => {
       ],
     });
     expect(prompts.map((prompt) => prompt.stage)).not.toContain("web-subject-profile");
+    expect(acceptedSearchNumResults).toEqual([2]);
     expect(result.collectedSources.webSubjectProfile).toMatchObject({
       subjectKind: "company",
       companyName: "Apple Inc.",
@@ -618,6 +722,37 @@ describe("runResearchJob web subject profile", () => {
       companyName: "Apple Inc.",
       sourceIds: [priorWebSource.id],
     });
+    const expectedAcceptancePolicy = {
+      version: 1,
+      mode: "reused-profile-after-low-utilization",
+      sourceRunDirName: "prior-aapl",
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+      implicitPerQueryAcceptanceCap: 2,
+    } as const;
+    expect(result.trace.webGatherLoop?.acceptancePolicy).toEqual(expectedAcceptancePolicy);
+    expect(result.analytics.webGatherAcceptancePolicy).toEqual(expectedAcceptancePolicy);
+    const persistedTrace = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "trace.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const persistedAnalytics = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "analytics.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const persistedAudit = JSON.parse(
+      await readFile(join(result.artifacts.normalizedDir, "web-gather-audit.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect((persistedTrace.webGatherLoop as Record<string, unknown>).acceptancePolicy).toEqual(
+      expectedAcceptancePolicy,
+    );
+    expect(persistedAnalytics.webGatherAcceptancePolicy).toEqual(expectedAcceptancePolicy);
+    expect(persistedAudit.acceptancePolicy).toEqual(expectedAcceptancePolicy);
+    expect(
+      (persistedAudit.acceptedRequests as readonly Record<string, unknown>[])[0]?.args,
+    ).toMatchObject({ numResults: 2 });
+    expect(result.report).not.toHaveProperty("webEvidenceUtilization");
+    expect(result.report).not.toHaveProperty("webGatherAcceptancePolicy");
+    expect(result.report.evidenceQuality).toBe(result.analytics.evidenceQuality.label);
+    expect(result.report.researchQuality).toBe(result.analytics.reportIntegrity?.researchQuality);
   });
 
   test("does not reuse Web Subject Profile when web gather is disabled", async () => {
@@ -847,7 +982,7 @@ describe("runResearchJob web subject profile", () => {
       }),
     );
     await expect(
-      readFile(join(result.artifacts.normalizedDir, "web-subject-profile.json"), "utf8"),
+      readFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.evidenceBundle), "utf8"),
     ).resolves.toContain("profile timeout");
   });
 

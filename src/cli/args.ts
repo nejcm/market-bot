@@ -1,7 +1,7 @@
 import type { AssetClass, Depth } from "../domain/types";
 import { isResearchJobType, runTypeFixedAssetClass } from "../domain/run-types";
 import { createInstrument } from "../domain/instrument";
-import { HISTORY_SECTIONS, type HistorySection } from "../history/artifacts";
+import { HISTORY_SECTIONS, type HistorySection } from "../history/sections";
 import {
   commandLabel,
   isInstrumentCommand,

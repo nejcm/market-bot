@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,7 +11,14 @@ import {
 } from "../src/history/artifacts";
 import { readInstrumentTimeline } from "../src/history/timeline-reader";
 import type { ModelProvider } from "../src/model/types";
-import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
+import {
+  deepEquityEvidenceBundle,
+  marketSnapshot,
+  prediction,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -23,7 +30,10 @@ function writeRun(
   generatedAt: string,
   summary: string,
   risk: string,
-  options: { readonly writeScore?: boolean } = {},
+  options: {
+    readonly writeScore?: boolean;
+    readonly predictionTargetCount?: number;
+  } = {},
 ): void {
   const writeScore = options.writeScore ?? true;
   const runDir = join(dataDir, runId);
@@ -40,6 +50,15 @@ function writeRun(
       keyFindings: [{ text: `${summary} finding`, sourceIds: ["s1"] }],
       risks: [{ text: risk, sourceIds: ["s1"] }],
       dataGaps: [`${summary} gap`],
+      ...(options.predictionTargetCount === undefined
+        ? {}
+        : {
+            predictionShortfall: {
+              emittedCount: 1,
+              targetCount: options.predictionTargetCount,
+              missingCount: options.predictionTargetCount - 1,
+            },
+          }),
       predictions: [
         prediction({
           id: "p1",
@@ -96,6 +115,69 @@ function writeRun(
 }
 
 describe("history artifacts", () => {
+  test("uses the deep bundle, not legacy snapshot sidecars, for timeline freshness", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-bundle-freshness-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-deep", "2026-06-01T00:00:00.000Z", "Deep thesis", "Deep risk");
+    const runDir = join(dataDir, "run-deep");
+    const report = JSON.parse(
+      await readFile(join(runDir, RUN_ARTIFACT_FILES.report), "utf8"),
+    ) as Record<string, unknown>;
+    writeJson(join(runDir, RUN_ARTIFACT_FILES.report), {
+      ...report,
+      extras: { depth: "deep" },
+    });
+    const base = deepEquityEvidenceBundle();
+    const snapshot = marketSnapshot({
+      sourceId: "bundle-market",
+      symbol: "AAPL",
+      observedAt: "2026-06-01T00:00:00.000Z",
+    });
+    writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        run: { symbol: "AAPL", analysisAsOf: "2026-06-01T00:00:00.000Z" },
+        evidence: { ...base.evidence, marketSnapshots: [snapshot] },
+        governance: {
+          ...base.governance,
+          sourceLedger: {
+            version: 2,
+            generatedAt: "2026-06-01T00:00:00.000Z",
+            sources: [
+              {
+                id: snapshot.sourceId,
+                kind: "market-data",
+                lane: "market-data",
+                posture: "covered",
+                relatedGapIds: [],
+                observedAt: snapshot.observedAt,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+    const future = new Date("2030-01-01T00:00:00.000Z");
+
+    await utimes(join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot), future, future).catch(
+      async () => {
+        writeJson(
+          join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot),
+          verifiedMarketSnapshot(),
+        );
+        await utimes(join(runDir, RUN_ARTIFACT_FILES.verifiedMarketSnapshot), future, future);
+      },
+    );
+    const afterLegacyTouch = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+    await utimes(join(runDir, RUN_ARTIFACT_FILES.evidenceBundle), future, future);
+    const afterBundleTouch = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+
+    expect(afterLegacyTouch.source).toBe("history");
+    expect(afterBundleTouch.source).toBe("live");
+  });
+
   test("rebuilds derived index and per-instrument timeline from run artifacts", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-artifacts-"));
     const dataDir = join(rootDir, "runs");
@@ -236,13 +318,17 @@ describe("history artifacts", () => {
     writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk");
     await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
 
+    let capturedParams: unknown = null;
     const provider: ModelProvider = {
       name: "test",
-      generate: async () => ({
-        content: "The research thesis shifted from old evidence to new evidence.",
-        tokenEstimate: 10,
-        costEstimateUsd: 0.01,
-      }),
+      generate: async (request) => {
+        capturedParams = request.params;
+        return {
+          content: "The research thesis shifted from old evidence to new evidence.",
+          tokenEstimate: 10,
+          costEstimateUsd: 0.01,
+        };
+      },
     };
     const delta = await buildThesisDelta({
       dataDir,
@@ -253,17 +339,56 @@ describe("history artifacts", () => {
       narrative: true,
       provider,
       model: "test-model",
+      modelParams: { reasoningEffort: "medium" },
       now: new Date("2026-06-06T00:00:00.000Z"),
     });
 
     expect(delta.sections.summary?.added).toEqual(["New thesis"]);
     expect(delta.sections.summary?.removed).toEqual(["Old thesis"]);
     expect(delta.narrative?.model).toBe("test-model");
+    expect(capturedParams).toEqual({ temperature: 0.2, reasoningEffort: "medium" });
     const persisted = await readFile(
       join(rootDir, "history", "deltas", "equity-AAPL-run-old-to-run-new.json"),
       "utf8",
     );
     expect(persisted).toContain("The research thesis shifted");
+  });
+
+  test("carries structured prediction shortfalls into thesis snapshots and deltas", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-shortfall-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-old", "2026-06-01T00:00:00.000Z", "Old thesis", "Old risk", {
+      predictionTargetCount: 3,
+    });
+    writeRun(dataDir, "run-new", "2026-06-05T00:00:00.000Z", "New thesis", "New risk", {
+      predictionTargetCount: 4,
+    });
+    await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
+
+    const { timeline } = await readInstrumentTimeline(dataDir, "equity", "AAPL");
+    expect(timeline.entries[0]?.thesis.dataGaps).toContain(
+      "emitted 1 of 3 target predictions; evidence did not support more",
+    );
+    expect(timeline.entries[1]?.thesis.dataGaps).toContain(
+      "emitted 1 of 4 target predictions; evidence did not support more",
+    );
+
+    const delta = await buildThesisDelta({
+      dataDir,
+      symbol: "AAPL",
+      assetClass: "equity",
+      since: "run-old",
+      to: "run-new",
+      now: new Date("2026-06-06T00:00:00.000Z"),
+    });
+    expect(delta.sections.dataGaps).toMatchObject({
+      added: ["New thesis gap", "emitted 1 of 4 target predictions; evidence did not support more"],
+      removed: [
+        "Old thesis gap",
+        "emitted 1 of 3 target predictions; evidence did not support more",
+      ],
+    });
   });
 
   test("rejects narratives with trade-action language and persists nothing", async () => {

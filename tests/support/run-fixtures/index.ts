@@ -6,6 +6,7 @@ import { resolveConfig, type AppConfig } from "../../../src/config";
 import { createProvider } from "../../../src/model/factory";
 import type { ModelProvider } from "../../../src/model/types";
 import { collectSources } from "../../../src/sources/collector";
+import type { FetchLike } from "../../../src/sources/types";
 import {
   persistResearchJob,
   type PersistedResearchJobResult,
@@ -24,6 +25,7 @@ export interface FixtureMeta {
   readonly quickModel?: string;
   readonly synthesisModel?: string;
   readonly challengerModels?: readonly string[];
+  readonly configuredProviders?: readonly ("exa" | "finnhub" | "firecrawl" | "tradier")[];
   readonly secUserAgent?: string;
   readonly webGatherDisabled?: boolean;
   readonly evidenceRequestOptions?: {
@@ -40,6 +42,7 @@ export interface FixtureMeta {
 
 export interface LoadedFixture {
   readonly name: string;
+  readonly dir: string;
   readonly dataCassette: DataCassette;
   readonly llmCassette: LlmCassette;
   readonly meta: FixtureMeta;
@@ -49,12 +52,19 @@ export interface RunFixtureOptions {
   readonly llm: "replay" | "live";
   readonly keepDataDir?: boolean;
   readonly dataDir?: string;
+  readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
+  readonly onDataRequest?: (request: FixtureDataRequest) => void;
 }
 
 export interface RunFixtureResult extends PersistedResearchJobResult {
   readonly dataDir: string;
   readonly cleanup: () => Promise<void>;
+}
+
+export interface FixtureDataRequest {
+  readonly method: string;
+  readonly url: string;
 }
 
 interface FixtureDataDir {
@@ -85,6 +95,7 @@ export async function loadFixture(name: string): Promise<LoadedFixture> {
   const dir = join(FIXTURE_ROOT, name);
   return {
     name,
+    dir,
     dataCassette: await readJson<DataCassette>(join(dir, "data-cassette.json")),
     llmCassette: await readJson<LlmCassette>(join(dir, "llm-cassette.json")),
     meta: await readJson<FixtureMeta>(join(dir, "meta.json")),
@@ -122,9 +133,16 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
     meta.secUserAgent === undefined
       ? (({ secUserAgent: _secUserAgent, ...rest }) => rest)(config.sourceOptions)
       : config.sourceOptions;
+  const configuredProviders = new Set(meta.configuredProviders);
   return {
     ...config,
-    sourceOptions,
+    sourceOptions: {
+      ...sourceOptions,
+      ...(configuredProviders.has("exa") ? { exaApiKey: "fixture-token" } : {}),
+      ...(configuredProviders.has("finnhub") ? { finnhubApiToken: "fixture-token" } : {}),
+      ...(configuredProviders.has("firecrawl") ? { firecrawlApiKey: "fixture-token" } : {}),
+      ...(configuredProviders.has("tradier") ? { tradierApiToken: "fixture-token" } : {}),
+    },
     evidenceRequestOptions: meta.evidenceRequestOptions ?? {
       maxRounds: 0,
       maxToolCalls: 0,
@@ -145,6 +163,65 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
   };
 }
 
+function createLiveFixtureConfig(meta: FixtureMeta, dataDir: string): AppConfig {
+  const baseFixtureConfig = createFixtureConfig(meta, dataDir);
+  const liveConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+  return {
+    ...baseFixtureConfig,
+    provider: liveConfig.provider,
+    quickModel: liveConfig.quickModel,
+    synthesisModel: liveConfig.synthesisModel,
+    modelTimeoutMs: liveConfig.modelTimeoutMs,
+    ...(liveConfig.apiKey !== undefined ? { apiKey: liveConfig.apiKey } : {}),
+    ...(liveConfig.baseUrl !== undefined ? { baseUrl: liveConfig.baseUrl } : {}),
+    ...(liveConfig.codexQuickModel !== undefined
+      ? { codexQuickModel: liveConfig.codexQuickModel }
+      : {}),
+    ...(liveConfig.codexSynthesisModel !== undefined
+      ? { codexSynthesisModel: liveConfig.codexSynthesisModel }
+      : {}),
+    ...(liveConfig.quickReasoningEffort !== undefined
+      ? { quickReasoningEffort: liveConfig.quickReasoningEffort }
+      : {}),
+    ...(liveConfig.synthesisReasoningEffort !== undefined
+      ? { synthesisReasoningEffort: liveConfig.synthesisReasoningEffort }
+      : {}),
+    ...(liveConfig.codexQuickReasoningEffort !== undefined
+      ? { codexQuickReasoningEffort: liveConfig.codexQuickReasoningEffort }
+      : {}),
+    ...(liveConfig.codexSynthesisReasoningEffort !== undefined
+      ? { codexSynthesisReasoningEffort: liveConfig.codexSynthesisReasoningEffort }
+      : {}),
+  };
+}
+
+function fixtureConfig(meta: FixtureMeta, dataDir: string, llm: "replay" | "live"): AppConfig {
+  return llm === "live"
+    ? createLiveFixtureConfig(meta, dataDir)
+    : createFixtureConfig(meta, dataDir);
+}
+
+function observedFetch(
+  inner: FetchLike,
+  observer: ((request: FixtureDataRequest) => void) | undefined,
+): FetchLike {
+  if (observer === undefined) {
+    return inner;
+  }
+  return async (input, init) => {
+    if (typeof input === "string") {
+      observer({ method: (init?.method ?? "GET").toUpperCase(), url: input });
+      return inner(input, init);
+    }
+    const { url } = input instanceof URL ? { url: input.href } : input;
+    observer({
+      method: (init?.method ?? "GET").toUpperCase(),
+      url,
+    });
+    return inner(input, init);
+  };
+}
+
 export async function runFixture(
   name: string,
   options?: RunFixtureOptions,
@@ -153,8 +230,11 @@ export async function runFixture(
   const fixture = await loadFixture(name);
   const { dataDir: requestedDataDir } = resolvedOptions;
   const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
-  const config = createFixtureConfig(fixture.meta, dataDir);
-  const fetchImpl = makeReplayFetch(fixture.dataCassette);
+  const config = fixtureConfig(fixture.meta, dataDir, resolvedOptions.llm);
+  const fetchImpl = observedFetch(
+    resolvedOptions.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
+    resolvedOptions.onDataRequest,
+  );
   const provider =
     resolvedOptions.provider ??
     (resolvedOptions.llm === "replay"

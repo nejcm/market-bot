@@ -15,11 +15,15 @@ function predictionLine(predictions: RunAnalytics["predictions"]): string {
     ? `${String(predictions.count)}/${String(predictions.targetCount)} target met`
     : `${String(predictions.count)}/${String(predictions.targetCount)} target (${String(
         missing,
-      )} short${predictions.shortfall?.disclosed === false ? ", undisclosed" : ""})`;
+      )} short)`;
   const signal = `${String(predictions.informativeCount)} informative, ${String(
     predictions.nearBaseRateCount,
   )} near base rate${predictions.signalTargetMet ? "" : " (below signal floor)"}`;
   return `  Predictions: ${target} · ${signal}`;
+}
+
+function earningsForecastLine(earnings: NonNullable<RunAnalytics["earningsForecasts"]>): string {
+  return `  Earnings forecasts: ${earnings.eventDateStatus} · ${String(earnings.eligiblePredictionCount)} eligible, ${String(earnings.suppressedPredictionCount)} suppressed`;
 }
 
 function evidenceLaneLine(lanes: NonNullable<RunAnalytics["evidenceLanes"]>): string {
@@ -37,28 +41,20 @@ function auditLine(audit: NonNullable<RunAnalytics["postSynthesisAudit"]>): stri
   return `  Audit: ${String(audit.warningCount)} warning(s)${codes === "" ? "" : ` [${codes}]`}`;
 }
 
-function sourceGapClassLine(analytics: RunAnalytics): string | undefined {
-  // Cosmetic digest must never abort: tolerate analytics that predates the
-  // SourceGapClasses field or omits sourceFunnel entirely.
+function sourceGapCauseLine(analytics: RunAnalytics): string | undefined {
+  /* Cosmetic digest must never abort: tolerate analytics that predates the
+   * sourceGapsByCause field or omits sourceFunnel entirely. */
   const funnel = analytics.sourceFunnel as RunAnalytics["sourceFunnel"] | undefined;
-  const classes = funnel?.sourceGapClasses;
+  const causes = funnel?.sourceGapsByCause;
   const total = funnel?.sourceGaps?.total ?? 0;
-  if (classes === undefined || total === 0) {
+  if (causes === undefined || total === 0) {
     return undefined;
   }
-  const parts: string[] = [];
-  if (classes.missingCredential > 0) {
-    parts.push(`${String(classes.missingCredential)} credential`);
-  }
-  if (classes.unsupportedCoverage > 0) {
-    parts.push(`${String(classes.unsupportedCoverage)} unsupported`);
-  }
-  if (classes.fetchFailed > 0) {
-    parts.push(`${String(classes.fetchFailed)} fetch-failed`);
-  }
-  if (classes.other > 0) {
-    parts.push(`${String(classes.other)} other`);
-  }
+  const parts = Object.entries(causes)
+    .toSorted(([leftKey, leftCount], [rightKey, rightCount]) =>
+      rightCount === leftCount ? leftKey.localeCompare(rightKey) : rightCount - leftCount,
+    )
+    .map(([cause, count]) => `${String(count)} ${cause}`);
   return `  Source gaps: ${String(total)} total (${parts.join(", ")})`;
 }
 
@@ -106,6 +102,9 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
     `Run quality — ${analytics.jobType}${subjectLabel(analytics)} (${analytics.runId})`,
     predictionLine(predictions),
   ];
+  if (analytics.earningsForecasts !== undefined) {
+    lines.push(earningsForecastLine(analytics.earningsForecasts));
+  }
   if (predictions.completion !== undefined) {
     lines.push(
       `  Completion: ${predictions.completion.outcome} · ${String(predictions.completion.acceptedCount)} accepted, ${String(predictions.completion.rejectedCount)} rejected`,
@@ -120,7 +119,7 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
     `  Evidence Quality: ${evidenceQuality.label ?? evidenceQuality.confidence ?? "low"} · ${String(evidenceQuality.dataGapCount)} data gap(s)`,
   );
 
-  const gapLine = sourceGapClassLine(analytics);
+  const gapLine = sourceGapCauseLine(analytics);
   if (gapLine !== undefined) {
     lines.push(gapLine);
   }

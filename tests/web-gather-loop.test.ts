@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { ModelParams } from "../src/model/types";
@@ -6,6 +6,7 @@ import type { Source, WebSearchType } from "../src/domain/types";
 import { runWebGatherLoop, type WebGatherStageOutput } from "../src/web-evidence/web-gather-loop";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { FetchLike } from "../src/sources/types";
+import { resetSourceResilienceForTests } from "../src/sources/source-request";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 
 const command: ResearchCommand = {
@@ -14,6 +15,22 @@ const command: ResearchCommand = {
   symbol: "AAPL",
   depth: "deep",
 };
+
+const lowPriorAcceptancePolicy = {
+  version: 1,
+  mode: "reused-profile-after-low-utilization",
+  sourceRunDirName: "prior-aapl",
+  priorUtilizationLevel: "low",
+  priorUtilizationRatio: 0.2,
+  implicitPerQueryAcceptanceCap: 2,
+} as const;
+
+const defaultReuseAcceptancePolicy = {
+  version: 1,
+  mode: "reused-profile-default",
+  sourceRunDirName: "prior-aapl",
+  implicitPerQueryAcceptanceCap: 3,
+} as const;
 
 const config: AppConfig = {
   provider: "openai",
@@ -64,7 +81,8 @@ const context: ResearchContext = {
   runParams: {
     quickModel: "quick-test",
     synthesisModel: "synthesis-test",
-    modelParams: undefined as ModelParams | undefined,
+    quickModelParams: undefined as ModelParams | undefined,
+    synthesisModelParams: undefined as ModelParams | undefined,
     minimumKeyFindings: 5,
     minimumScenarios: 3,
     targetPredictions: 6,
@@ -278,6 +296,13 @@ function secFilingSource(overrides: Partial<Source> = {}): Source {
 }
 
 describe("runWebGatherLoop", () => {
+  // The per-host circuit breaker (source-request.ts) is process-global state, intentionally
+  // Not scoped per test. Reset it before each test so failure counts from one test's hard-
+  // Failure scenarios never leak into and change the behavior of the next.
+  beforeEach(() => {
+    resetSourceResilienceForTests();
+  });
+
   test("skips outside enabled deep web-gather scope", async () => {
     const result = await runWebGatherLoop({
       command: { ...command, depth: "brief" },
@@ -564,6 +589,7 @@ describe("runWebGatherLoop", () => {
       collectedSources: collectedSources(),
       context,
       reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: recorded.fetch,
       retryDelaysMs: [],
@@ -590,15 +616,16 @@ describe("runWebGatherLoop", () => {
         }),
     });
 
-    expect(recorded.searchNumResults).toEqual([8, 3]);
+    expect(recorded.searchNumResults).toEqual([8, 2]);
     expect(result.audit?.acceptedRequests).toEqual([
       expect.objectContaining({
         args: expect.objectContaining({ numResults: 8 }),
       }),
       expect.objectContaining({
-        args: expect.objectContaining({ numResults: 3 }),
+        args: expect.objectContaining({ numResults: 2 }),
       }),
     ]);
+    expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
   });
 
   test("widens thematic list research without explicit equity words", async () => {
@@ -1024,8 +1051,7 @@ describe("runWebGatherLoop", () => {
     ]);
   });
 
-  test("allows web fetch only for URLs surfaced by prior search", async () => {
-    let round = 0;
+  test("runs deep-equity web acquisition as one planning call and one batch", async () => {
     const contexts: ResearchContext[] = [];
     const result = await runWebGatherLoop({
       command,
@@ -1038,48 +1064,43 @@ describe("runWebGatherLoop", () => {
       fetchImpl: exaFetch,
       retryDelaysMs: [],
       generateRound: async (_sources, roundContext) => {
-        round += 1;
         contexts.push(roundContext);
         return stage({
-          requests:
-            round === 1
-              ? [
-                  {
-                    tool: "web_search",
-                    args: { query: "AAPL business model", searchType: "background" },
-                    rationale: "find relevant urls",
-                  },
-                ]
-              : [
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://example.com/aapl-business" },
-                    rationale: "fetch full result",
-                  },
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://evil.example/not-surfaced" },
-                    rationale: "bad url",
-                  },
-                ],
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL business model", searchType: "background" },
+              rationale: "find relevant urls",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business" },
+              rationale: "fetch full result",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://evil.example/not-surfaced" },
+              rationale: "bad url",
+            },
+          ],
         });
       },
     });
 
-    expect(contexts[1]?.webGather?.surfacedUrls).toContain("https://example.com/aapl-business");
-    expect(result.audit?.acceptedRequests).toHaveLength(2);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]?.webGather?.maxRounds).toBe(1);
+    expect(result.stageOutputs).toHaveLength(1);
+    expect(result.audit?.rounds).toBe(1);
+    expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual([
+      "web_search",
+      "web_fetch",
+    ]);
     expect(result.audit?.rejectedRequests).toEqual([
       expect.objectContaining({
         tool: "web_fetch",
         reason: "web_fetch url was not returned by web_search in this run",
       }),
     ]);
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        source: "web-gather",
-        message: "a model web fetch was rejected because the site is not on the fetch allowlist",
-      }),
-    );
     expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toEqual([
       "exa-search",
       "exa-contents",
@@ -1087,7 +1108,6 @@ describe("runWebGatherLoop", () => {
   });
 
   test("rejects duplicate web gather requests after normalization", async () => {
-    let round = 0;
     const result = await runWebGatherLoop({
       command,
       config,
@@ -1098,40 +1118,34 @@ describe("runWebGatherLoop", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: exaFetch,
       retryDelaysMs: [],
-      generateRound: async () => {
-        round += 1;
-        return stage({
-          requests:
-            round === 1
-              ? [
-                  {
-                    tool: "web_search",
-                    args: { query: "Apple business model", searchType: "background" },
-                    rationale: "find relevant urls",
-                  },
-                  {
-                    tool: "web_search",
-                    args: {
-                      query: "  apple   BUSINESS   model  ",
-                      searchType: "background",
-                    },
-                    rationale: "duplicate query",
-                  },
-                ]
-              : [
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://example.com/aapl-business" },
-                    rationale: "fetch surfaced url",
-                  },
-                  {
-                    tool: "web_fetch",
-                    args: { url: "https://example.com/aapl-business?utm_source=feed" },
-                    rationale: "duplicate canonical url",
-                  },
-                ],
-        });
-      },
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "Apple business model", searchType: "background" },
+              rationale: "find relevant urls",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "  apple   BUSINESS   model  ",
+                searchType: "background",
+              },
+              rationale: "duplicate query",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business" },
+              rationale: "fetch surfaced url",
+            },
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business?utm_source=feed" },
+              rationale: "duplicate canonical url",
+            },
+          ],
+        }),
     });
 
     expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual([
@@ -1148,18 +1162,11 @@ describe("runWebGatherLoop", () => {
         reason: "duplicate web gather request",
       }),
     ]);
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        source: "web-gather",
-        message: "a repeated model web request was skipped",
-      }),
-    );
-    expect(result.collectedSources.sourceGaps).toContainEqual(
-      expect.objectContaining({
-        source: "web-gather",
-        message: "a repeated model web request was skipped",
-      }),
-    );
+    expect(
+      result.collectedSources.sourceGaps.filter(
+        (gap) => gap.message === "a repeated model web request was skipped",
+      ),
+    ).toHaveLength(2);
   });
 
   test("rejects web search when asymmetric source budget is exhausted", async () => {
@@ -1599,6 +1606,7 @@ describe("runWebGatherLoop", () => {
         }),
         context,
         reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        acceptancePolicy: defaultReuseAcceptancePolicy,
         now: new Date("2026-05-19T00:00:00.000Z"),
         fetchImpl: recording.fetch,
         retryDelaysMs: [],
@@ -1622,6 +1630,48 @@ describe("runWebGatherLoop", () => {
           args: expect.objectContaining({ searchType, numResults: 3 }),
         }),
       ]);
+      expect(result.audit?.acceptancePolicy).toEqual(defaultReuseAcceptancePolicy);
+    });
+  }
+
+  for (const searchType of narrowedSearchTypes) {
+    test(`narrows the default ingestion to 2 after low prior utilization for ${searchType} searches`, async () => {
+      const recording = recordingExaFetch();
+      const result = await runWebGatherLoop({
+        command,
+        config: {
+          ...config,
+          webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+        },
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        }),
+        context,
+        reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+        acceptancePolicy: lowPriorAcceptancePolicy,
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        fetchImpl: recording.fetch,
+        retryDelaysMs: [],
+        generateRound: async () =>
+          stage({
+            requests: [
+              {
+                tool: "web_search",
+                args: { query: "AAPL Apple recent product news", searchType },
+                rationale: "recent material developments",
+              },
+            ],
+          }),
+      });
+
+      expect(recording.searchNumResults).toEqual([2]);
+      expect(result.audit?.acceptedRequests).toEqual([
+        expect.objectContaining({
+          tool: "web_search",
+          args: expect.objectContaining({ searchType, numResults: 2 }),
+        }),
+      ]);
+      expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
     });
   }
 
@@ -1635,6 +1685,7 @@ describe("runWebGatherLoop", () => {
       }),
       context,
       reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
       now: new Date("2026-05-19T00:00:00.000Z"),
       fetchImpl: recording.fetch,
       retryDelaysMs: [],
@@ -1657,6 +1708,7 @@ describe("runWebGatherLoop", () => {
         args: expect.objectContaining({ numResults: 6 }),
       }),
     ]);
+    expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
   });
 
   test("leaves the default ingestion at 5 without reused profile coverage", async () => {
@@ -1802,6 +1854,127 @@ describe("runWebGatherLoop", () => {
       unavailableReason: "no-firecrawl-key",
     });
     expect(fetchedUrls.every((url) => url.includes("api.exa.ai"))).toBe(true);
+  });
+
+  test("records attempt count and elapsed time when Exa retries time out and exhaust before the breaker trips", async () => {
+    let calls = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: async () => {
+        calls += 1;
+        const timeoutError = new Error("The operation timed out.");
+        timeoutError.name = "TimeoutError";
+        throw timeoutError;
+      },
+      // Only two delays: fewer retries than CIRCUIT_FAILURE_THRESHOLD (3), so the breaker
+      // Never trips and every attempt is a genuine (failed) network call. This is the
+      // "Clean" retry-exhaustion shape; see the next test for the breaker-tail shape that
+      // Production's default retry delays actually produce.
+      retryDelaysMs: [1, 1],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model", searchType: "background" },
+              rationale: "profile evidence",
+            },
+          ],
+        }),
+    });
+
+    // Initial attempt plus two transient retries, all exhausted.
+    expect(calls).toBe(3);
+    const exaFailure = result.collectedSources.sourceGaps.find(
+      (gap) => gap.provider === "exa" && gap.cause === "fetch-failed",
+    );
+    expect(exaFailure?.attempts).toMatchObject({ count: 3 });
+    expect(exaFailure?.attempts?.elapsedMs).toBeGreaterThan(0);
+    expect(exaFailure?.attempts?.failures).toEqual([
+      { attempt: 1, classification: "timeout", message: "The operation timed out." },
+      { attempt: 2, classification: "timeout", message: "The operation timed out." },
+      { attempt: 3, classification: "timeout", message: "The operation timed out." },
+    ]);
+
+    const rejected = result.audit?.rejectedRequests.find(
+      (entry) => entry.status === "rejected" && entry.reason === exaFailure?.message,
+    );
+    expect(rejected?.attempts).toEqual(exaFailure?.attempts);
+  });
+
+  test("records a circuit-open tail attempt when retries exhaust after the breaker trips (production retry-delay shape)", async () => {
+    // CIRCUIT_FAILURE_THRESHOLD is 3: with three retry delays (four possible attempts, the
+    // Same count as DEFAULT_RETRY_DELAYS_MS), the per-host breaker trips on the third
+    // Consecutive failure and refuses to send the fourth request at all. This is the ONLY
+    // Shape a fully-exhausted Exa retry chain can take under production's default retry
+    // Delays, so it is the shape C1 exists to make legible in the audit artifact.
+    let calls = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 },
+      },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: async () => {
+        calls += 1;
+        const timeoutError = new Error("The operation timed out.");
+        timeoutError.name = "TimeoutError";
+        throw timeoutError;
+      },
+      retryDelaysMs: [1, 1, 1],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model", searchType: "background" },
+              rationale: "profile evidence",
+            },
+          ],
+        }),
+    });
+
+    // Only 3 requests ever reach the network; the 4th retry-loop iteration is the breaker
+    // Refusing to send, not a 4th network call.
+    expect(calls).toBe(3);
+    // The breaker's refusal is what ultimately terminates the retry loop, so the top-level
+    // Gap now reads "circuit-open", not "fetch-failed" — the timeout reason that caused all
+    // Of this has moved out of the top-level cause/message and survives only in `attempts`.
+    const exaFailure = result.collectedSources.sourceGaps.find(
+      (gap) => gap.provider === "exa" && gap.cause === "circuit-open",
+    );
+    expect(exaFailure?.message).toContain("circuit open");
+    expect(exaFailure?.attempts).toMatchObject({ count: 4 });
+    expect(exaFailure?.attempts?.elapsedMs).toBeGreaterThan(0);
+    expect(exaFailure?.attempts?.failures).toEqual([
+      { attempt: 1, classification: "timeout", message: "The operation timed out." },
+      { attempt: 2, classification: "timeout", message: "The operation timed out." },
+      { attempt: 3, classification: "timeout", message: "The operation timed out." },
+      {
+        attempt: 4,
+        classification: "circuit-open",
+        message: expect.stringContaining("circuit open"),
+      },
+    ]);
+
+    const rejected = result.audit?.rejectedRequests.find(
+      (entry) => entry.status === "rejected" && entry.reason === exaFailure?.message,
+    );
+    expect(rejected?.attempts).toEqual(exaFailure?.attempts);
   });
 
   test("accepts a background search for a topic the SEC packet does not cover", async () => {

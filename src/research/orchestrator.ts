@@ -3,11 +3,12 @@ import { readCodeVersion } from "../code-version";
 import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
-import type { ResearchCommand } from "../cli/args";
+import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucket,
+  type MarketSnapshot,
   type Mover,
   type ResearchReport,
   type RunTrace,
@@ -48,18 +49,21 @@ import {
 import { refreshCalibrationContext } from "./calibration-context";
 import {
   buildPlaybookSelectionPrompt,
+  buildRecordedStageSteering,
   buildStagePrompt,
-  buildStageSteeringSegment,
+  type StageInput,
 } from "./prompts";
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
+import { rederivePredictionShortfallReportAfterPruning } from "../report/prediction-shortfall";
 import { validateResearchReport } from "../report/schema";
 import {
   runForecastDisagreement,
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
+import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
 import { computeWebSourceUsage, runWebEvidencePhase } from "../web-evidence";
 import {
   loadAlphaWatchlistForSpotlights,
@@ -71,6 +75,12 @@ import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
+  deriveEquityAnalysisCompleteness,
+  equityAnalysisCompletenessGaps,
+  type EquityAnalysisCompletenessInput,
+} from "../sources/extended-evidence/equity-analysis-completeness";
+import { applyOfficialEarningsDateConfirmation } from "../sources/extended-evidence/earnings-date-confirmation";
+import {
   assessSourcePlan,
   buildSourcePlan,
   type EvidenceLanesArtifact,
@@ -81,6 +91,15 @@ import {
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
 import { buildRunTrace } from "./run-trace";
+import { createSourceRequestContext } from "../sources/source-request";
+import {
+  runFinancialTableExtractionPhase,
+  type FinancialTableExtractionPhaseResult,
+} from "./financial-table-extraction-phase";
+import type { FinancialTablePacket } from "../sources/extended-evidence/untagged-financial-tables-contract";
+import { FINANCIAL_TABLE_SEMANTIC_FIELDS } from "../sources/extended-evidence/untagged-financial-table-validation";
+import { buildDeepEquityEvidenceBundle } from "../deep-equity/evidence";
+import type { DeepEquityEvidenceBundleV1 } from "../deep-equity/types";
 
 export interface RunResearchJobInput {
   readonly command: ResearchCommand;
@@ -115,10 +134,25 @@ export interface RunResearchJobResult {
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly marketUpdateMovers?: readonly Mover[];
+  readonly deepEquityEvidenceBundle?: DeepEquityEvidenceBundleV1;
 }
 
 export interface PersistedResearchJobResult extends RunResearchJobResult {
   readonly artifacts: RunArtifactPaths;
+}
+
+function matchingMarketSnapshot(
+  command: ResearchCommand,
+  collectedSources: CollectedSources,
+): MarketSnapshot | undefined {
+  if (!isInstrumentCommand(command)) {
+    return undefined;
+  }
+  const symbol = command.symbol.toUpperCase();
+  return collectedSources.marketSnapshots.find(
+    (snapshot) =>
+      snapshot.assetClass === command.assetClass && snapshot.symbol.toUpperCase() === symbol,
+  );
 }
 
 const MAX_PREDICTION_REPROMPTS = 2;
@@ -166,7 +200,7 @@ async function runModelStage(
   const priorStages = input.priorStages ?? [];
   const reprompt = input.reprompt ?? {};
   const loaded = await loadStagePrompt(stage, job.command, job.config.promptDir);
-  const prompt = buildStagePrompt(stage, {
+  const stageInput: StageInput = {
     command: job.command,
     collectedSources,
     config: job.config,
@@ -179,13 +213,16 @@ async function runModelStage(
     ...(reprompt.predictionCompletion !== undefined
       ? { predictionCompletion: reprompt.predictionCompletion }
       : {}),
-  });
+  };
+  const prompt = buildStagePrompt(stage, stageInput);
   const startedAt = performance.now();
+  const modelParams =
+    stage === "final-synthesis"
+      ? context.runParams.synthesisModelParams
+      : context.runParams.quickModelParams;
   const response = await job.provider.generate({
     model,
-    ...(context.runParams.modelParams !== undefined
-      ? { params: context.runParams.modelParams }
-      : {}),
+    ...(modelParams !== undefined ? { params: modelParams } : {}),
     responseFormat: "json",
     messages: [
       {
@@ -200,14 +237,7 @@ async function runModelStage(
   });
   const endedAt = performance.now();
 
-  const steering = buildStageSteeringSegment(
-    stage,
-    job.command,
-    collectedSources,
-    context,
-    reprompt.predictionErrors ?? [],
-    reprompt.predictionCompletion,
-  );
+  const steering = buildRecordedStageSteering(stage, stageInput);
 
   return {
     stage,
@@ -219,6 +249,67 @@ async function runModelStage(
       : {}),
     ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
     ...(steering !== undefined ? { steering } : {}),
+  };
+}
+
+async function runFinancialTableMappingStage(
+  packet: FinancialTablePacket,
+  filingReportDate: string,
+  job: RunResearchJobInput,
+  runParams: ResolvedRunParams,
+): Promise<StageOutput & { readonly stage: "financial-table-mapping" }> {
+  const loaded = await loadStagePrompt(
+    "financial-table-mapping",
+    job.command,
+    job.config.promptDir,
+  );
+  const prompt = JSON.stringify({
+    stage: "financial-table-mapping",
+    instruction: loaded.instruction,
+    goal: loaded.goal,
+    filing: packet.source,
+    filingReportDate,
+    allowedFields: FINANCIAL_TABLE_SEMANTIC_FIELDS,
+    tables: packet.tables.map((table) => ({
+      id: table.id,
+      sourceTableIndex: table.sourceTableIndex,
+      context: table.context,
+      ...(table.title !== undefined ? { title: table.title } : {}),
+      ...(table.unitText !== undefined ? { unitText: table.unitText } : {}),
+      ...(table.unitCellRef !== undefined ? { unitCellRef: table.unitCellRef } : {}),
+      ...(table.inheritedHeaderRefs !== undefined
+        ? { inheritedHeaderRefs: table.inheritedHeaderRefs }
+        : {}),
+      rows: table.rows.map((row) => ({
+        rowIndex: row.rowIndex,
+        cells: row.cells.map((cell) => ({
+          ref: cell.ref,
+          text: cell.text,
+          headerRefs: cell.headerRefs,
+        })),
+      })),
+    })),
+  });
+  const startedAt = performance.now();
+  const response = await job.provider.generate({
+    model: runParams.quickModel,
+    ...(runParams.quickModelParams !== undefined ? { params: runParams.quickModelParams } : {}),
+    responseFormat: "json",
+    messages: [
+      { role: "system", content: withUntrustedModelInputRule(loaded.system) },
+      { role: "user", content: prompt },
+    ],
+  });
+  const endedAt = performance.now();
+  return {
+    stage: "financial-table-mapping",
+    content: response.content,
+    tokenEstimate: response.tokenEstimate,
+    durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
+    ...(response.costEstimateUsd !== undefined
+      ? { costEstimateUsd: response.costEstimateUsd }
+      : {}),
+    ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
   };
 }
 
@@ -250,8 +341,8 @@ async function runPlaybookSelection(
   const startedAt = performance.now();
   const response = await input.provider.generate({
     model: context.runParams.quickModel,
-    ...(context.runParams.modelParams !== undefined
-      ? { params: context.runParams.modelParams }
+    ...(context.runParams.quickModelParams !== undefined
+      ? { params: context.runParams.quickModelParams }
       : {}),
     responseFormat: "json",
     messages: [
@@ -332,8 +423,8 @@ async function runForecastDisagreementPhase(input: {
         providerName: input.jobInput.provider.name,
         baselineModel: input.runParams.synthesisModel,
         challengerModels,
-        ...(input.runParams.modelParams !== undefined
-          ? { modelParams: input.runParams.modelParams }
+        ...(input.runParams.synthesisModelParams !== undefined
+          ? { modelParams: input.runParams.synthesisModelParams }
           : {}),
         loaded,
         report: {
@@ -383,6 +474,39 @@ async function runForecastDisagreementPhase(input: {
     });
   }
   return { report, challengerModels, stageOutputs: [] };
+}
+
+// The optional slice of CollectedSources the completeness derivation reads. Exact-optional
+// Property types mean each field has to be spread conditionally rather than passed as undefined.
+function equityCompletenessSources(
+  collectedSources: CollectedSources,
+): Partial<EquityAnalysisCompletenessInput> {
+  return {
+    ...(collectedSources.financialStatements !== undefined
+      ? { financialStatements: collectedSources.financialStatements }
+      : {}),
+    ...(collectedSources.extendedEvidence !== undefined
+      ? { extendedEvidence: collectedSources.extendedEvidence }
+      : {}),
+    ...(collectedSources.earningsSetup !== undefined
+      ? { earningsSetup: collectedSources.earningsSetup }
+      : {}),
+    ...(collectedSources.analystExpectations !== undefined
+      ? { analystExpectations: collectedSources.analystExpectations }
+      : {}),
+    ...(collectedSources.analystExpectationsSignal !== undefined
+      ? { analystExpectationsSignal: collectedSources.analystExpectationsSignal }
+      : {}),
+    ...(collectedSources.institutionalOwnership !== undefined
+      ? { institutionalOwnership: collectedSources.institutionalOwnership }
+      : {}),
+    ...(collectedSources.institutionalOwnershipSignal !== undefined
+      ? { institutionalOwnershipSignal: collectedSources.institutionalOwnershipSignal }
+      : {}),
+    ...(collectedSources.capitalOwnership !== undefined
+      ? { capitalOwnership: collectedSources.capitalOwnership }
+      : {}),
+  };
 }
 
 export async function runResearchJob(input: RunResearchJobInput): Promise<RunResearchJobResult> {
@@ -449,6 +573,44 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       }) as Promise<StageOutput & { readonly stage: "evidence-request" }>,
   });
   ({ collectedSources } = evidenceLoop);
+  let financialTableExtraction: FinancialTableExtractionPhaseResult = {
+    collectedSources,
+    stageOutputs: [],
+  };
+  if (
+    isInstrumentCommand(command) &&
+    command.assetClass === "equity" &&
+    collectedSources.financialStatements?.structuredFinancialGaps.some(
+      (gap) => gap.code === "untagged-6-k",
+    ) === true
+  ) {
+    const requestContext = createSourceRequestContext(
+      input.config.sourceOptions,
+      now,
+      input.sourceFetchImpl ?? fetch,
+      input.sourceRetryDelaysMs,
+    );
+    financialTableExtraction = await runFinancialTableExtractionPhase({
+      symbol: command.symbol,
+      generatedAt,
+      collectedSources,
+      collect: {
+        request: requestContext.request,
+        ...(input.config.sourceOptions.secUserAgent !== undefined
+          ? { secUserAgent: input.config.sourceOptions.secUserAgent }
+          : {}),
+      },
+      generateMapping: (packet, filingReportDate) =>
+        runFinancialTableMappingStage(packet, filingReportDate, jobInput, runParams),
+    });
+    collectedSources = {
+      ...financialTableExtraction.collectedSources,
+      sourceGaps: [
+        ...financialTableExtraction.collectedSources.sourceGaps,
+        ...requestContext.staleFallbackGaps,
+      ],
+    };
+  }
   const webEvidence = await runWebEvidencePhase({
     command,
     config: input.config,
@@ -469,6 +631,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       }),
   });
   ({ collectedSources } = webEvidence);
+  collectedSources = applyOfficialEarningsDateConfirmation({
+    collectedSources,
+    analysisAsOf: generatedAt,
+  });
   const { webGatherLoop, webSubjectProfile } = webEvidence;
   const marketUpdate = await runMarketUpdatePhase({
     command,
@@ -493,6 +659,34 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   };
   const { spotlightCandidates, spotlightSelection, spotlightOutput, marketUpdateMovers } =
     marketUpdate;
+  // Completeness is derived once, here, so its freshness gaps reach the model along with every
+  // Other gap and report assembly re-uses the same verdict instead of relabelling after the fact.
+  const equityAnalysisCompleteness =
+    command.jobType === "equity"
+      ? deriveEquityAnalysisCompleteness({
+          // Collection's timestamp, not the run's: `reportingFreshness` was derived at
+          // `analysisAsOf` (both are the collector's `fetchedAt`), and a run that starts before
+          // UTC midnight and collects after it would otherwise put a filing deadline on one side
+          // For the lens metrics and the other for the gaps.
+          asOf: collectedSources.financialStatements?.analysisAsOf ?? generatedAt,
+          assetClass: command.assetClass,
+          ...(isInstrumentCommand(command) ? { symbol: command.symbol } : {}),
+          ...equityCompletenessSources(collectedSources),
+        })
+      : undefined;
+  if (equityAnalysisCompleteness !== undefined) {
+    collectedSources = {
+      ...collectedSources,
+      sourceGaps: [
+        ...collectedSources.sourceGaps,
+        ...equityAnalysisCompletenessGaps(
+          equityAnalysisCompleteness,
+          collectedSources.reportingFreshness,
+          isInstrumentCommand(command) ? command.symbol : undefined,
+        ),
+      ],
+    };
+  }
   // Final canonical source-gap boundary; later phases must not append gaps without re-normalizing.
   collectedSources = normalizeCanonicalSourceGaps(collectedSources);
   // The fallback plan must derive from checked-in subject resolution only, not
@@ -501,6 +695,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const sourcePlanning = assessSourcePlan(frozenSourcePlan, collectedSources, generatedAt);
   const evidenceQualityAssessment = assessEvidenceQuality(sourcePlanning, generatedAt);
   context = { ...context, sourcePlanning, evidenceQualityAssessment };
+  const sources = buildSourceList(command, collectedSources, historicalContext, generatedAt);
   const plannedStages = plannedResearchStages(command);
   const playbookSelection = await runPlaybookSelection(
     jobInput,
@@ -509,7 +704,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     plannedStages,
   );
   const playbookContext = playbookSelection.context;
-  const { analysisOutputs, critiqueOutput } = await runAnalysisPhase({
+  const playbookAudit: PlaybookSelectionAudit = playbookSelection.audit;
+  const playbookSelectionOutput = playbookSelection.output;
+  const reasoning = await runAnalysisPhase({
     command,
     collectedSources,
     context: playbookContext,
@@ -522,7 +719,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ...(stageInput.priorStages !== undefined ? { priorStages: stageInput.priorStages } : {}),
       }),
   });
-  const sources = buildSourceList(command, collectedSources, historicalContext, generatedAt);
+  const { analysisOutputs, critiqueOutput } = reasoning;
   const knownSourceIds = new Set(sources.map((source) => source.id));
   // Build the emission-time subject allowlist from the resolved run params.
   // Research runs use researchPredictionGate instead; pass undefined so no double-drop occurs.
@@ -537,6 +734,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     context: playbookContext,
     sources,
     knownSourceIds,
+    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
     ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
     priorStages: [...analysisOutputs, critiqueOutput],
     maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
@@ -549,6 +747,19 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ...(reprompt !== undefined ? { reprompt } : {}),
       }),
   });
+  collectedSources = { ...collectedSources, sourceGaps: synthesis.sourceGaps };
+  const deepEquityEvidenceBundle =
+    isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep"
+      ? buildDeepEquityEvidenceBundle({
+          symbol: command.symbol,
+          analysisAsOf: generatedAt,
+          collectedSources,
+          historicalContext,
+          sourcePlan: sourcePlanning.sourcePlan,
+          evidenceLanes: sourcePlanning.evidenceLanes,
+          sourceLedger: sourcePlanning.sourceLedger,
+        })
+      : undefined;
   const postSynthesisWarnings = auditPostSynthesisReport(
     synthesis.report,
     computeWebSourceUsage(synthesis.report, collectedSources),
@@ -556,12 +767,17 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   // Deterministic Report Integrity Audit: prune blocking violations from the
   // Schema-valid synthesis output before forecast disagreement so pruned
   // Predictions never reach challengers, persistence, or scoring.
-  const integrityAudit = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
+  const integrityAuditResult = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
+  const integrityAudit = {
+    ...integrityAuditResult,
+    report: rederivePredictionShortfallReportAfterPruning(integrityAuditResult.report),
+  };
+  const integrityReport = reconcileEarningsForecastTelemetry(integrityAudit.report);
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,
     generatedAt,
     runParams,
-    report: validateResearchReport(integrityAudit.report),
+    report: validateResearchReport(integrityReport),
   });
   const { report, challengerModels } = forecastDisagreementPhase;
   const forecastDisagreement = forecastDisagreementPhase.artifact;
@@ -574,15 +790,17 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionTrimWarnings,
     predictionCompletion,
     reportValidationErrors,
+    relocatedGapClaims,
   } = synthesis;
   const codeVersion = readCodeVersion();
   const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
   const stageOutputs: readonly StageOutput[] = [
     ...evidenceLoop.stageOutputs,
+    ...financialTableExtraction.stageOutputs,
     ...webGatherLoop.stageOutputs,
     ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
-    playbookSelection.output,
+    ...(playbookSelectionOutput === undefined ? [] : [playbookSelectionOutput]),
     ...analysisOutputs,
     critiqueOutput,
     ...synthesis.stageOutputs,
@@ -609,12 +827,13 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(webGatherLoop.audit !== undefined ? { webGatherLoop: webGatherLoop.audit } : {}),
     historicalContext,
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
-    playbookAudit: playbookSelection.audit,
+    playbookAudit,
     predictionRetryErrors,
     predictionTrimWarnings,
     predictionCompletion,
     predictionErrors,
     reportValidationErrors,
+    relocatedGapClaims,
     postSynthesisWarnings,
     integrityAudit,
     sourcePlanning,
@@ -644,10 +863,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(calibrationContext !== undefined ? { calibrationContext } : {}),
     ...(forecastPersistence !== undefined ? { forecastPersistence } : {}),
   });
+  const marketSnapshot = matchingMarketSnapshot(command, collectedSources);
 
   return {
     report,
-    markdown: renderMarkdownReport(report),
+    markdown: renderMarkdownReport(report, marketSnapshot, collectedSources),
     trace,
     analytics,
     stageOutputs,
@@ -660,6 +880,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(spotlightCandidates !== undefined ? { spotlightCandidates } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
     ...(marketUpdateMovers !== undefined ? { marketUpdateMovers } : {}),
+    ...(deepEquityEvidenceBundle !== undefined ? { deepEquityEvidenceBundle } : {}),
   };
 }
 

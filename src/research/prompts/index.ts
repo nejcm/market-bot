@@ -1,7 +1,7 @@
 import type { StageLabel } from "../prompt-loader";
 import { buildAnalysisStagePrompt } from "./analysis-stages";
 import { buildEvidenceRequestStagePrompt } from "./evidence-request";
-import { buildFinalSynthesisStagePrompt } from "./final-synthesis";
+import { buildFinalSynthesisStagePrompt, buildStageSteeringSegment } from "./final-synthesis";
 import type { StageInput } from "./stage-envelope";
 import { buildWebGatherStagePrompt } from "./web-gather";
 import { buildWebSubjectProfileStagePrompt } from "./web-subject-profile";
@@ -23,6 +23,22 @@ export function buildStagePrompt(stage: StageLabel, input: StageInput): string {
     return buildFinalSynthesisStagePrompt(input);
   }
   return buildAnalysisStagePrompt(stage, input);
+}
+
+// Recorded StageOutput.steering for whichever builder buildStagePrompt just used. Routed on the
+// Same condition so the audit record and the prompt can never describe different guidance.
+export function buildRecordedStageSteering(
+  stage: StageLabel,
+  input: StageInput,
+): string | undefined {
+  return buildStageSteeringSegment(
+    stage,
+    input.command,
+    input.collectedSources,
+    input.context,
+    input.predictionRepromptErrors ?? [],
+    input.predictionCompletion,
+  );
 }
 
 export type { PredictionCompletionPrompt, StageInput } from "./stage-envelope";

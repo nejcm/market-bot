@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { canonicalRequestUrl } from "../../../src/sources/cache";
 import type { FetchLike } from "../../../src/sources/types";
 
@@ -5,6 +7,8 @@ export interface DataCassetteEntry {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string;
+  readonly bodyFile?: string;
+  readonly sha256?: string;
 }
 
 export interface DataCassette {
@@ -74,14 +78,28 @@ function storedHeaders(headers: Headers): Record<string, string> {
   return result;
 }
 
-export function makeReplayFetch(cassette: DataCassette): FetchLike {
+async function replayBody(entry: DataCassetteEntry, fixtureDir?: string): Promise<string> {
+  if (entry.bodyFile === undefined) {
+    return entry.body;
+  }
+  if (fixtureDir === undefined) {
+    throw new Error("Fixture data cassette entry bodyFile requires a fixture directory");
+  }
+  const body = await readFile(join(fixtureDir, entry.bodyFile), "utf8");
+  if (entry.sha256 !== undefined && (await sha256Hex(body)) !== entry.sha256) {
+    throw new Error(`Fixture data cassette body hash mismatch: ${entry.bodyFile}`);
+  }
+  return body;
+}
+
+export function makeReplayFetch(cassette: DataCassette, fixtureDir?: string): FetchLike {
   return async (input, init) => {
     const key = await dataCassetteKey(input, init);
     const entry = cassette.entries[key];
     if (entry === undefined) {
       throw new Error(`Fixture data cassette miss: ${key}`);
     }
-    return new Response(entry.body, {
+    return new Response(await replayBody(entry, fixtureDir), {
       status: entry.status,
       headers: replayHeaders(entry.headers),
     });

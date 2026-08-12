@@ -1,5 +1,15 @@
 import type { RunDetail } from "../types";
-import type { MarketSnapshot } from "../../src/domain/types";
+import { readGapTriage, type GapTriage } from "../../src/report/gap-triage";
+import {
+  normalizePredictionShortfallReport,
+  predictionShortfallCompactText,
+  readPredictionShortfall,
+} from "../../src/report/prediction-shortfall";
+import {
+  resolveMarketSnapshotPriceAsOf,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+} from "../../src/domain/types";
 import type {
   FinancialLensName,
   FinancialLensPosture,
@@ -9,7 +19,27 @@ import type {
   FundamentalHistoryPoint,
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
-import type { PeerImpliedRange } from "../../src/sources/extended-evidence/valuation-comps";
+import {
+  compactNumber,
+  projectEquityReader,
+  type EquityReaderAnalystEstimateDistribution,
+  type EquityReaderAppendixCompleteness,
+  type EquityReaderBalanceSheetHistory,
+  type EquityReaderConsensusItem,
+  type EquityReaderFinancialCoreStatus,
+  type EquityReaderFinancialPosition,
+  type EquityReaderProjection,
+  type EquityReaderValuationContext,
+} from "../../src/report/equity-reader";
+import type {
+  PeerImpliedRange,
+  ValuationCompsRow,
+} from "../../src/sources/extended-evidence/valuation-comps";
+import type {
+  ValuationMetricResult,
+  ValuationWorkbenchArtifact,
+} from "../../src/sources/extended-evidence/valuation-workbench-contract";
+import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import {
   CURRENCY_SYMBOLS,
   formatLensValue,
@@ -26,7 +56,6 @@ import type {
   SourceView,
 } from "../report-artifact-view";
 import {
-  VERIFIED_SNAPSHOT_PATH,
   businessFrameworkView,
   extendedEvidenceItems,
   financialLensStatTiles,
@@ -38,7 +67,6 @@ import {
   scenarios,
   scoredForecasts,
   sources,
-  splitDataGaps,
   stringArray,
   textItems,
   tradingViewUrl,
@@ -50,6 +78,11 @@ import {
   type SnapshotView,
   type WebSubjectProfileView,
 } from "./view-model";
+
+export {
+  COMPLETENESS_REASON_CODE_LABELS,
+  completenessReasonCodeLabel,
+} from "./run-workspace-completeness";
 
 export interface RunWorkspaceTextItem {
   readonly text: string;
@@ -76,6 +109,7 @@ export interface RunWorkspaceReportView {
 export interface RunWorkspaceFinancialLensGroup {
   readonly lens: FinancialLensName;
   readonly posture: FinancialLensPosture;
+  readonly sourceIds: readonly string[];
   readonly tiles: readonly FinancialLensStatTile[];
 }
 
@@ -98,6 +132,10 @@ export interface RunWorkspaceEvidenceView {
 export interface RunWorkspaceGapsView {
   readonly shortfalls: readonly string[];
   readonly otherGaps: readonly string[];
+  readonly triagedGaps: readonly {
+    readonly text: string;
+    readonly triage: GapTriage;
+  }[];
   readonly visible: boolean;
 }
 
@@ -111,20 +149,29 @@ export interface RunWorkspaceSnapshotView {
 }
 
 export interface RunWorkspaceEquityHeaderFinancial {
-  readonly key: "marketCap" | "trailingPE" | "forwardPE" | "dividendYield" | "sharesOutstanding";
+  readonly key:
+    | "marketCap"
+    | "trailingPE"
+    | "forwardPE"
+    | "forwardEPS"
+    | "dividendYield"
+    | "sharesOutstanding";
   readonly label: string;
   readonly value: string;
   readonly caption: string;
+  readonly sourceIds: readonly string[];
 }
 
 export interface RunWorkspaceEquityHeaderView {
   readonly displayName: string;
   readonly symbol: string;
-  readonly price: string;
-  readonly quoteCurrency: string;
-  readonly dailyChange: string;
-  readonly changeDirection: "positive" | "negative" | "flat";
-  readonly asOf: string;
+  readonly price?: string;
+  readonly quoteCurrency?: string;
+  readonly dailyChange?: string;
+  readonly changeDirection?: "positive" | "negative" | "flat";
+  readonly observedAt?: string;
+  readonly priceAsOf?: MarketSnapshotPriceAsOf;
+  readonly sourceIds: readonly string[];
   readonly financials: readonly RunWorkspaceEquityHeaderFinancial[];
 }
 
@@ -154,12 +201,78 @@ export interface RunWorkspaceFundamentalHistoryCard {
   readonly trendLabel?: string;
   readonly periodRange: string;
   readonly sourceCaption: string;
+  readonly sourceIds: readonly string[];
+  readonly basis: "annual" | "ttm";
+  readonly periodEnd: string;
+  readonly filedAt: string;
+  readonly pointCount: number;
   readonly disclosure?: string;
   readonly geometry: RunWorkspaceSparklineGeometry;
 }
 
 export interface RunWorkspaceFundamentalHistoryView {
   readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
+}
+
+export interface RunWorkspaceFinancialTrendRow {
+  readonly period: string;
+  readonly revenue: string;
+  readonly netIncome: string;
+  readonly operatingMargin: string;
+  readonly freeCashFlow: string;
+}
+
+export interface RunWorkspaceFinancialTrendView {
+  readonly columns: readonly ["Period", "Revenue", "Net income", "Operating margin", "FCF"];
+  readonly reportingCurrency?: string;
+  readonly sourceIds: readonly string[];
+  readonly rows: readonly RunWorkspaceFinancialTrendRow[];
+}
+
+export interface RunWorkspaceBalanceSheetHistoryRow {
+  readonly period: string;
+  readonly cash: string;
+  readonly debt: string;
+  readonly dilutedShares: string;
+}
+
+export interface RunWorkspaceBalanceSheetHistoryView {
+  readonly reportingCurrency?: string;
+  readonly sourceIds: readonly string[];
+  readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
+}
+
+export interface RunWorkspaceFinancialPositionMetric {
+  readonly label: "Cash" | "Debt" | "Diluted shares";
+  readonly value: string;
+  readonly dateBasis: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceFinancialPositionView {
+  readonly reportingCurrency?: string;
+  readonly metrics: readonly RunWorkspaceFinancialPositionMetric[];
+}
+
+export interface RunWorkspaceEarningsConsensusItem {
+  readonly label: string;
+  readonly value: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceEarningsConsensusView {
+  readonly items: readonly RunWorkspaceEarningsConsensusItem[];
+}
+
+export interface RunWorkspaceAnalystEstimateDistribution {
+  readonly title: string;
+  readonly period?: string;
+  readonly mean: string;
+  readonly median: string;
+  readonly high: string;
+  readonly low: string;
+  readonly count: string;
+  readonly sourceIds: readonly string[];
 }
 
 export interface RunWorkspacePeerImpliedRangeGeometry {
@@ -171,6 +284,7 @@ export type RunWorkspacePeerImpliedRangeView =
   | {
       readonly status: "derived";
       readonly label: string;
+      readonly sourceIds: readonly string[];
       readonly position: "below-range" | "within-range" | "above-range";
       readonly positionLabel: string;
       readonly lowLabel: string;
@@ -184,17 +298,217 @@ export type RunWorkspacePeerImpliedRangeView =
   | {
       readonly status: "suppressed";
       readonly label: string;
+      readonly sourceIds: readonly string[];
+      readonly suppressionReason: string;
+      readonly message: string;
+    };
+
+export type RunWorkspaceEquitySnapshotState = "available" | "partial" | "unavailable";
+
+export interface RunWorkspaceEquitySnapshotCard {
+  readonly key: string;
+  readonly label: string;
+  readonly state: RunWorkspaceEquitySnapshotState;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceEquitySnapshotPricePerformance extends RunWorkspaceEquitySnapshotCard {
+  readonly key: "pricePerformance";
+  readonly price?: string;
+  readonly change24h?: string;
+  readonly changeDirection?: "positive" | "negative" | "flat";
+  readonly quoteCurrency?: string;
+  readonly observedAt?: string;
+  readonly priceAsOf?: MarketSnapshotPriceAsOf;
+}
+
+export interface RunWorkspaceEquitySnapshotReferenceRange extends RunWorkspaceEquitySnapshotCard {
+  readonly key: "peerReferenceRange";
+  readonly display: string;
+  readonly positionLabel?: string;
+  readonly disclosure: string;
+}
+
+export interface RunWorkspaceEquitySnapshotMetric {
+  readonly key:
+    | "ttmRevenue"
+    | "ttmFreeCashFlowProxy"
+    | "ttmDilutedEps"
+    | "ttmOperatingMargin"
+    | "forwardPE"
+    | "forwardEPS"
+    | "marketCap"
+    | "trailingPE"
+    | "dividendYield"
+    | "sharesOutstanding";
+  readonly label: string;
+  readonly state: "available" | "unavailable";
+  readonly value?: string;
+  readonly dateBasis?: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceEquitySnapshotKeyMetrics extends RunWorkspaceEquitySnapshotCard {
+  readonly key: "keyDatedMetrics";
+  readonly metrics: readonly RunWorkspaceEquitySnapshotMetric[];
+  readonly foldedYahooMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
+}
+
+export interface RunWorkspaceEquitySnapshotMiniChart extends RunWorkspaceEquitySnapshotCard {
+  readonly key: "revenue" | "freeCashFlowProxy" | "operatingMargin" | "dilutedEps";
+  readonly value?: string;
+  readonly period?: string;
+  readonly geometry?: RunWorkspaceSparklineGeometry;
+}
+
+export interface RunWorkspaceEquitySnapshotMiniCharts {
+  readonly key: "miniCharts";
+  readonly label: string;
+  readonly state: RunWorkspaceEquitySnapshotState;
+  readonly charts: readonly RunWorkspaceEquitySnapshotMiniChart[];
+}
+
+export interface RunWorkspaceEquitySnapshotLensPosture {
+  readonly lens: FinancialLensName;
+  readonly posture: FinancialLensPosture;
+  readonly postureLabel: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceEquitySnapshotDriverCard extends RunWorkspaceEquitySnapshotCard {
+  readonly key: "bullCaseDrivers" | "bearCaseDrivers";
+  readonly items: readonly RunWorkspaceTextItem[];
+}
+
+export interface RunWorkspaceEquitySnapshotFinancialLensDrivers {
+  readonly key: "financialLensDrivers";
+  readonly label: string;
+  readonly state: RunWorkspaceEquitySnapshotState;
+  readonly postures: RunWorkspaceEquitySnapshotCard & {
+    readonly key: "lensPostures";
+    readonly items: readonly RunWorkspaceEquitySnapshotLensPosture[];
+  };
+  readonly bullCase: RunWorkspaceEquitySnapshotDriverCard;
+  readonly bearCase: RunWorkspaceEquitySnapshotDriverCard;
+}
+
+export interface RunWorkspaceEquitySnapshotView {
+  readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
+  readonly peerReferenceRange: RunWorkspaceEquitySnapshotReferenceRange;
+  readonly keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics;
+  readonly miniCharts: RunWorkspaceEquitySnapshotMiniCharts;
+  readonly financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers;
+}
+
+export interface RunWorkspaceValuationMetricCell {
+  readonly display: string;
+  readonly status: ValuationMetricResult["status"];
+  readonly detail?: string;
+}
+
+export interface RunWorkspaceHistoricalValuationRow {
+  readonly basis: string;
+  readonly periodEnd: string;
+  readonly publicAt: string;
+  readonly price: string;
+  readonly priceToEarnings: RunWorkspaceValuationMetricCell;
+  readonly priceToSales: RunWorkspaceValuationMetricCell;
+  readonly enterpriseValueToRevenue: RunWorkspaceValuationMetricCell;
+  readonly priceToFreeCashFlow: RunWorkspaceValuationMetricCell;
+}
+
+export interface RunWorkspaceValuationPeerRow {
+  readonly symbol: string;
+  readonly role: string;
+  readonly status: string;
+  readonly multiple: string;
+  readonly currency: string;
+  readonly inputDates: string;
+}
+
+export interface RunWorkspaceExcludedValuationPeerRow {
+  readonly symbol: string;
+  readonly role: string;
+  readonly reason: string;
+  readonly sourceIds: readonly string[];
+}
+
+export interface RunWorkspaceValuationWorkbenchView {
+  readonly reportingCurrency: string;
+  readonly quoteCurrency: string;
+  readonly priceSelectionRule: string;
+  readonly trailingDisclosure: string;
+  readonly rows: readonly RunWorkspaceHistoricalValuationRow[];
+  readonly suppressionReasons: readonly string[];
+  readonly peerSupportability: string;
+  readonly peerSuppression?: string;
+  readonly peerRows: readonly RunWorkspaceValuationPeerRow[];
+  readonly excludedPeerRows: readonly RunWorkspaceExcludedValuationPeerRow[];
+}
+
+export type RunWorkspaceReverseDcfView =
+  | {
+      readonly status: "computed";
+      readonly startingFcf: string;
+      readonly startingFcfDates: string;
+      readonly enterpriseValue: string;
+      readonly enterpriseValueDate: string;
+      readonly horizonYears: number;
+      readonly terminalGrowthRatesPct: readonly number[];
+      readonly rows: readonly {
+        readonly discountRatePct: number;
+        readonly cells: readonly string[];
+      }[];
+    }
+  | {
+      readonly status: "suppressed";
       readonly message: string;
     };
 
 export interface RunWorkspaceTableOfContentsEntry {
   readonly key: string;
   readonly label: string;
+  readonly advancedOnly: boolean;
+}
+
+export interface RunWorkspaceEquityPresentationView {
+  readonly defaultView: {
+    readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
+    readonly researchSummary: string;
+    readonly companySummary: RunWorkspaceTextItem;
+    readonly financialTrends?: RunWorkspaceFinancialTrendView;
+    readonly financialPosition?: RunWorkspaceFinancialPositionView;
+    readonly keyMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
+    readonly valuationContext: RunWorkspaceEquitySnapshotReferenceRange;
+    readonly findings: readonly RunWorkspaceTextItem[];
+    readonly cases: readonly RunWorkspaceCaseSection[];
+    readonly earningsConsensus: RunWorkspaceEarningsConsensusView;
+    readonly financialCoreStatus?: EquityReaderFinancialCoreStatus;
+    readonly materialGaps: readonly string[];
+  };
+  readonly advanced: {
+    readonly completeness?: EquityReaderAppendixCompleteness;
+    readonly financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers;
+    readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
+    readonly keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics;
+    readonly miniCharts: RunWorkspaceEquitySnapshotMiniCharts;
+    readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
+    readonly reverseDcf?: RunWorkspaceReverseDcfView;
+    readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
+    readonly analystEstimateDistributions: readonly RunWorkspaceAnalystEstimateDistribution[];
+    readonly extendedItems: readonly ExtendedEvidenceItemView[];
+    readonly diagnosticGaps: readonly string[];
+    readonly balanceSheetHistory?: RunWorkspaceBalanceSheetHistoryView;
+    readonly scenarios: readonly ScenarioView[];
+  };
 }
 
 export interface RunWorkspaceView {
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
+  readonly equityPresentation?: RunWorkspaceEquityPresentationView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
+  readonly valuationWorkbench?: RunWorkspaceValuationWorkbenchView;
+  readonly reverseDcf?: RunWorkspaceReverseDcfView;
   readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
   readonly report: RunWorkspaceReportView;
   readonly forecasts: RunWorkspaceForecastsView;
@@ -215,6 +529,8 @@ const PEER_IMPLIED_RANGE_POSITION_LABELS = {
   "above-range": "Above range",
 } satisfies Record<Extract<PeerImpliedRange, { status: "derived" }>["position"], string>;
 
+const PEER_REFERENCE_RANGE_LABEL = "Peer-implied price reference range";
+
 function rangeGeometry(
   range: Extract<PeerImpliedRange, { status: "derived" }>,
 ): RunWorkspacePeerImpliedRangeGeometry {
@@ -229,34 +545,217 @@ function rangeGeometry(
   };
 }
 
+function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf): string {
+  return `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+}
+
+function valuationRowPriceAsOf(row: ValuationCompsRow): MarketSnapshotPriceAsOf | undefined {
+  return (
+    row.priceAsOf ??
+    (row.quoteObservedAt === undefined
+      ? undefined
+      : { kind: "fetch-time-only", instant: row.quoteObservedAt })
+  );
+}
+
+function valuationTargetPriceAsOf(
+  detail: RunDetail,
+  fallbackFetchTime: string | null | undefined,
+): MarketSnapshotPriceAsOf | undefined {
+  if (detail.valuationWorkbench?.peerComparison.status === "available") {
+    return valuationRowPriceAsOf(detail.valuationWorkbench.peerComparison.valuationComps.target);
+  }
+  return fallbackFetchTime === null || fallbackFetchTime === undefined
+    ? undefined
+    : { kind: "fetch-time-only", instant: fallbackFetchTime };
+}
+
+function valuationRowInputDates(row: ValuationCompsRow): string {
+  const priceAsOf = valuationRowPriceAsOf(row);
+  return (
+    [
+      ...(priceAsOf === undefined ? [] : [priceAsOfLabel(priceAsOf)]),
+      ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
+      ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
+      ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
+    ].join(" · ") || "—"
+  );
+}
+
 export function peerImpliedRangeView(
   detail: RunDetail,
 ): RunWorkspacePeerImpliedRangeView | undefined {
-  const range = detail.peerImpliedRange;
-  if (range === undefined) {
+  return peerImpliedRangeFromProjection(
+    projectEquityReaderForDetail(detail).defaultView.valuationContext,
+  );
+}
+
+function peerImpliedRangeFromProjection(
+  valuation: EquityReaderValuationContext,
+): RunWorkspacePeerImpliedRangeView | undefined {
+  if (valuation.kind !== "peer-range") {
     return undefined;
   }
+  const { range, sourceIds } = valuation;
   const { label } = range;
-  if (range.status === "suppressed") {
+  if (valuation.status === "suppressed") {
     return {
       status: "suppressed",
       label,
-      message: `Reference range suppressed: ${range.suppressedReason}.`,
+      sourceIds,
+      suppressionReason: valuation.range.suppressedReason,
+      message: `Reference range suppressed: ${valuation.range.suppressedReason}.`,
     };
   }
-  const { inputs } = range;
+  const { inputs } = valuation.range;
+  const { priceAsOf } = valuation;
+  const priceDate = priceAsOf === undefined ? "price time unavailable" : priceAsOfLabel(priceAsOf);
   return {
     status: "derived",
     label,
-    position: range.position,
-    positionLabel: PEER_IMPLIED_RANGE_POSITION_LABELS[range.position],
-    lowLabel: `Low ${formatReferencePrice(range.low)}`,
-    midLabel: `Mid ${formatReferencePrice(range.mid)}`,
-    highLabel: `High ${formatReferencePrice(range.high)}`,
+    sourceIds,
+    position: valuation.range.position,
+    positionLabel: PEER_IMPLIED_RANGE_POSITION_LABELS[valuation.range.position],
+    lowLabel: `Low ${formatReferencePrice(valuation.range.low)}`,
+    midLabel: `Mid ${formatReferencePrice(valuation.range.mid)}`,
+    highLabel: `High ${formatReferencePrice(valuation.range.high)}`,
     currentLabel: `Current price ${formatReferencePrice(inputs.currentPrice)}`,
-    methodDisclosure: `Method: ${range.basis}; ${range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo quote ${inputs.quoteObservedAt ?? "unavailable"}.`,
+    methodDisclosure: `Method: ${valuation.range.basis}; ${valuation.range.formula}. Inputs: P25 ${inputs.peerP25EvToAnnualizedRevenue.toFixed(2)}x, median ${inputs.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, P75 ${inputs.peerP75EvToAnnualizedRevenue.toFixed(2)}x; annualized revenue ${formatLensValue(inputs.annualizedRevenue, "currency", "USD")}, net debt ${formatLensValue(inputs.netDebt, "currency", "USD")}, shares ${scaleCurrency(inputs.sharesOutstanding)}, current price ${formatReferencePrice(inputs.currentPrice)}, Yahoo price ${priceDate}.`,
     boundaryDisclosure: "Boundary rule: prices equal to low or high are within range.",
-    geometry: rangeGeometry(range),
+    geometry: rangeGeometry(valuation.range),
+  };
+}
+
+function valuationMetricCell(metric: ValuationMetricResult): RunWorkspaceValuationMetricCell {
+  if (metric.status === "suppressed") {
+    return { display: metric.display, status: metric.status, detail: metric.detail };
+  }
+  if (metric.status === "not-applicable") {
+    return { display: metric.display, status: metric.status, detail: metric.rationale };
+  }
+  if (metric.status === "not-meaningful") {
+    return {
+      display: metric.display,
+      status: metric.status,
+      detail: metric.reason.replaceAll("-", " "),
+    };
+  }
+  return { display: metric.display, status: metric.status };
+}
+
+function valuationPeerRows(
+  artifact: ValuationWorkbenchArtifact,
+): readonly RunWorkspaceValuationPeerRow[] {
+  if (artifact.peerComparison.status === "suppressed") {
+    return [];
+  }
+  const { valuationComps } = artifact.peerComparison;
+  return [valuationComps.target, ...valuationComps.peers].map((row) => ({
+    symbol: row.symbol,
+    role: row.symbol === valuationComps.target.symbol ? "target" : (row.role ?? "peer"),
+    status: row.usable ? "usable" : "excluded",
+    multiple:
+      row.evToAnnualizedRevenue === undefined ? "N/M" : `${row.evToAnnualizedRevenue.toFixed(2)}x`,
+    currency: row.quoteCurrency ?? "—",
+    inputDates: valuationRowInputDates(row),
+  }));
+}
+
+export function valuationWorkbenchView(
+  detail: RunDetail,
+): RunWorkspaceValuationWorkbenchView | undefined {
+  const artifact = detail.valuationWorkbench;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const { trailingBasis } = artifact.historicalMultiples;
+  const peerSupportability =
+    artifact.peerComparison.status === "available"
+      ? artifact.peerComparison.valuationComps.summary.valuationSupportability
+      : "suppressed";
+  return {
+    reportingCurrency: artifact.reportingCurrency ?? "unavailable",
+    quoteCurrency: artifact.quoteCurrency ?? "unavailable",
+    priceSelectionRule: artifact.historicalMultiples.priceSelectionRule,
+    trailingDisclosure:
+      trailingBasis.status === "available"
+        ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
+        : trailingBasis.detail,
+    rows: artifact.historicalMultiples.observations.map((observation) => ({
+      basis: observation.basis.toUpperCase(),
+      periodEnd: observation.periodEnd,
+      publicAt: observation.publicAt,
+      price:
+        observation.price === null
+          ? "—"
+          : `${observation.price.close.toFixed(2)} ${observation.price.currency} · ${observation.price.sessionDate}`,
+      priceToEarnings: valuationMetricCell(observation.metrics.priceToEarnings),
+      priceToSales: valuationMetricCell(observation.metrics.priceToSales),
+      enterpriseValueToRevenue: valuationMetricCell(observation.metrics.enterpriseValueToRevenue),
+      priceToFreeCashFlow: valuationMetricCell(observation.metrics.priceToFreeCashFlow),
+    })),
+    suppressionReasons: artifact.historicalMultiples.suppressionReasons,
+    peerSupportability,
+    ...(artifact.peerComparison.status === "suppressed"
+      ? { peerSuppression: artifact.peerComparison.detail }
+      : {}),
+    peerRows: valuationPeerRows(artifact),
+    excludedPeerRows:
+      artifact.peerComparison.status === "available"
+        ? artifact.peerComparison.valuationComps.excludedPeers.map((peer) => ({
+            symbol: peer.symbol,
+            role: peer.role,
+            reason: peer.reason,
+            sourceIds: peer.sourceIds,
+          }))
+        : [],
+  };
+}
+
+function formatReverseDcfAmount(value: number, currency: string): string {
+  return `${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value)} ${currency}`;
+}
+
+export function reverseDcfView(detail: RunDetail): RunWorkspaceReverseDcfView | undefined {
+  const artifact: ReverseDcfArtifact | undefined = detail.reverseDcf;
+  if (artifact === undefined) {
+    return undefined;
+  }
+  if (artifact.status === "suppressed") {
+    return {
+      status: "suppressed",
+      message: `${artifact.reason}: ${artifact.detail}`,
+    };
+  }
+  const priceAsOf = valuationTargetPriceAsOf(
+    detail,
+    artifact.assumptions.enterpriseValue.observedAt,
+  );
+  return {
+    status: "computed",
+    startingFcf: formatReverseDcfAmount(
+      artifact.assumptions.startingFcf.value,
+      artifact.assumptions.startingFcf.currency,
+    ),
+    startingFcfDates: `period ${artifact.assumptions.startingFcf.periodEnd} · public ${artifact.assumptions.startingFcf.publicAt}`,
+    enterpriseValue: formatReverseDcfAmount(
+      artifact.assumptions.enterpriseValue.value,
+      artifact.assumptions.enterpriseValue.currency,
+    ),
+    enterpriseValueDate:
+      priceAsOf === undefined
+        ? `fetch time ${artifact.assumptions.enterpriseValue.observedAt}`
+        : priceAsOfLabel(priceAsOf),
+    horizonYears: artifact.assumptions.horizonYears,
+    terminalGrowthRatesPct: artifact.assumptions.terminalGrowthRatesPct,
+    rows: artifact.grid.rows.map((row) => ({
+      discountRatePct: row.discountRatePct,
+      cells: row.cells.map((cell) =>
+        cell.status === "solved" ? `${cell.solvedFiveYearFcfGrowthPct.toFixed(2)}%` : "not solved",
+      ),
+    })),
   };
 }
 
@@ -358,6 +857,11 @@ export function fundamentalHistoryView(
         ...(trendLabel !== undefined ? { trendLabel } : {}),
         periodRange: `FY ${String(firstAnnual.fy)}–FY ${String(lastAnnual.fy)} · ${firstAnnual.periodEnd} to ${lastAnnual.periodEnd}`,
         sourceCaption: "SEC EDGAR · companyfacts",
+        sourceIds: [artifact.sourceId],
+        basis: latest.form === "TTM" ? ("ttm" as const) : ("annual" as const),
+        periodEnd: latest.periodEnd,
+        filedAt: latest.filedAt,
+        pointCount: points.length,
         ...(epsTtmApproximation !== undefined
           ? {
               disclosure:
@@ -369,6 +873,138 @@ export function fundamentalHistoryView(
     ];
   });
   return cards.length === 0 ? undefined : { cards };
+}
+
+function financialTrendFromProjection(
+  trends: EquityReaderProjection["defaultView"]["financialTrends"],
+): RunWorkspaceFinancialTrendView | undefined {
+  if (trends === undefined) {
+    return undefined;
+  }
+  return {
+    columns: ["Period", "Revenue", "Net income", "Operating margin", "FCF"],
+    ...(trends.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: trends.reportingCurrency }),
+    sourceIds: trends.sourceIds,
+    rows: trends.rows,
+  };
+}
+
+function statementAmount(value: number | undefined, currency: string | undefined): string {
+  if (value === undefined) {
+    return "—";
+  }
+  return currency === undefined
+    ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)
+    : formatLensValue(value, "currency", currency);
+}
+
+function balanceSheetHistoryFromProjection(
+  history: EquityReaderBalanceSheetHistory | undefined,
+): RunWorkspaceBalanceSheetHistoryView | undefined {
+  if (history === undefined) {
+    return undefined;
+  }
+  return {
+    ...(history.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: history.reportingCurrency }),
+    sourceIds: history.sourceIds,
+    rows: history.rows.map((row) => ({
+      period: row.period,
+      cash: statementAmount(row.cash?.value, history.reportingCurrency),
+      debt: statementAmount(row.debt?.value, history.reportingCurrency),
+      dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
+    })),
+  };
+}
+
+function financialPositionFromProjection(
+  position: EquityReaderFinancialPosition | undefined,
+): RunWorkspaceFinancialPositionView | undefined {
+  if (position === undefined) {
+    return undefined;
+  }
+  const metrics: RunWorkspaceFinancialPositionMetric[] = [];
+  for (const [label, item] of [
+    ["Cash", position.cash],
+    ["Debt", position.debt],
+    ["Diluted shares", position.dilutedShares],
+  ] as const) {
+    if (item === undefined) {
+      continue;
+    }
+    metrics.push({
+      label,
+      value:
+        label === "Diluted shares"
+          ? scaleCurrency(item.value)
+          : statementAmount(item.value, position.reportingCurrency),
+      dateBasis: `period ${item.periodEnd} · filed ${item.filedAt}`,
+      sourceIds: item.sourceIds,
+    });
+  }
+  return {
+    ...(position.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: position.reportingCurrency }),
+    metrics,
+  };
+}
+
+function earningsConsensusFromProjection(
+  items: readonly EquityReaderConsensusItem[],
+): RunWorkspaceEarningsConsensusView {
+  return {
+    items: items.map((item) => {
+      if (item.kind === "earnings-date") {
+        return {
+          label: "Upcoming earnings",
+          value: `${item.date} · ${item.timing} · ${item.status}`,
+          sourceIds: item.sourceIds,
+        };
+      }
+      if (item.kind === "eps-consensus") {
+        return {
+          label: "EPS consensus",
+          value: `${String(item.value)} · single-provider snapshot`,
+          sourceIds: item.sourceIds,
+        };
+      }
+      if (item.kind === "revenue-consensus") {
+        return {
+          label: "Revenue consensus",
+          value: `${compactNumber(item.value)} · single-provider snapshot`,
+          sourceIds: item.sourceIds,
+        };
+      }
+      return {
+        label: item.title,
+        value: `Mean ${compactNumber(item.mean)}${item.period === undefined ? "" : ` for ${item.period}`}${item.count === undefined ? "" : ` · ${String(item.count)} estimates`}`,
+        sourceIds: item.sourceIds,
+      };
+    }),
+  };
+}
+
+function compactOrDash(item: number | undefined): string {
+  return item === undefined ? "—" : compactNumber(item);
+}
+
+function analystEstimateDistributionsFromProjection(
+  distributions: readonly EquityReaderAnalystEstimateDistribution[],
+): readonly RunWorkspaceAnalystEstimateDistribution[] {
+  return distributions.map((distribution) => ({
+    title: distribution.title,
+    ...(distribution.period === undefined ? {} : { period: distribution.period }),
+    mean: compactOrDash(distribution.mean),
+    median: compactOrDash(distribution.median),
+    high: compactOrDash(distribution.high),
+    low: compactOrDash(distribution.low),
+    count: distribution.count === undefined ? "—" : String(distribution.count),
+    sourceIds: distribution.sourceIds,
+  }));
 }
 
 const CASE_SECTIONS: readonly {
@@ -393,17 +1029,54 @@ function matchingMarketSnapshot(detail: RunDetail): MarketSnapshot | undefined {
   );
 }
 
+function projectEquityReaderForDetail(detail: RunDetail): EquityReaderProjection {
+  const marketSnapshot = matchingMarketSnapshot(detail);
+  return projectEquityReader({
+    report: detail.report,
+    ...(marketSnapshot === undefined ? {} : { marketSnapshot }),
+    ...(detail.fundamentalHistory === undefined
+      ? {}
+      : { fundamentalHistory: detail.fundamentalHistory }),
+    ...(detail.financialStatements === undefined
+      ? {}
+      : { financialStatements: detail.financialStatements }),
+    ...(detail.valuationWorkbench === undefined
+      ? {}
+      : { valuationWorkbench: detail.valuationWorkbench }),
+    ...(detail.peerImpliedRange === undefined ? {} : { peerImpliedRange: detail.peerImpliedRange }),
+    ...(detail.sourceGaps === undefined ? {} : { sourceGaps: detail.sourceGaps }),
+  });
+}
+
+function renderedPriceSummary(
+  summary: string,
+  sourceIds: readonly string[],
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
+  if (marketSnapshot === undefined || !sourceIds.includes(marketSnapshot.sourceId)) {
+    return summary;
+  }
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const label = priceAsOfLabel(priceAsOf);
+  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  return summary
+    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+}
+
 function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquityHeaderFinancial[] {
-  const quoteCurrency = snapshot.identity?.quoteCurrency ?? "USD";
-  const observed = snapshot.observedAt;
+  const quoteCurrency = snapshot.identity?.quoteCurrency;
+  const priceDate = priceAsOfLabel(resolveMarketSnapshotPriceAsOf(snapshot));
+  const sourceIds = snapshot.sourceId.trim() === "" ? [] : [snapshot.sourceId];
   const candidates: readonly (RunWorkspaceEquityHeaderFinancial | undefined)[] = [
-    snapshot.marketCap === undefined
+    snapshot.marketCap === undefined || quoteCurrency === undefined
       ? undefined
       : {
           key: "marketCap",
           label: "Market cap",
           value: formatLensValue(snapshot.marketCap, "currency", quoteCurrency),
-          caption: `Yahoo quote · point in time · ${observed}`,
+          caption: `Yahoo quote · point in time · ${priceDate}`,
+          sourceIds,
         },
     snapshot.fundamentals?.trailingPE === undefined
       ? undefined
@@ -414,7 +1087,8 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
             snapshot.fundamentals.trailingPE,
             snapshot.fundamentals.epsTrailingTwelveMonths,
           ),
-          caption: `Yahoo quote · trailing 12M · ${observed}`,
+          caption: `Yahoo quote · trailing 12M · ${priceDate}`,
+          sourceIds,
         },
     snapshot.fundamentals?.forwardPE === undefined
       ? undefined
@@ -422,7 +1096,22 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "forwardPE",
           label: "Forward P/E",
           value: formatPeRatio(snapshot.fundamentals.forwardPE, snapshot.fundamentals.epsForward),
-          caption: `Yahoo quote · forward · ${observed}`,
+          caption: `Yahoo quote · forward · ${priceDate}`,
+          sourceIds,
+        },
+    snapshot.fundamentals?.epsForward === undefined
+      ? undefined
+      : {
+          key: "forwardEPS",
+          label: "Forward EPS",
+          value: (() => {
+            const value = formatLensValue(snapshot.fundamentals.epsForward, "number");
+            const symbol =
+              quoteCurrency === undefined ? undefined : CURRENCY_SYMBOLS[quoteCurrency];
+            return symbol === undefined ? value : `${symbol}${value}`;
+          })(),
+          caption: `Yahoo quote · forward · ${priceDate}`,
+          sourceIds,
         },
     snapshot.fundamentals?.dividendYield === undefined
       ? undefined
@@ -430,7 +1119,8 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "dividendYield",
           label: "Dividend yield",
           value: formatLensValue(snapshot.fundamentals.dividendYield, "whole-percent"),
-          caption: `Yahoo quote · quote snapshot · ${observed}`,
+          caption: `Yahoo quote · quote snapshot · ${priceDate}`,
+          sourceIds,
         },
     snapshot.fundamentals?.sharesOutstanding === undefined
       ? undefined
@@ -438,7 +1128,8 @@ function headerFinancials(snapshot: MarketSnapshot): readonly RunWorkspaceEquity
           key: "sharesOutstanding",
           label: "Shares outstanding",
           value: scaleCurrency(snapshot.fundamentals.sharesOutstanding),
-          caption: `Yahoo quote · point in time · ${observed}`,
+          caption: `Yahoo quote · point in time · ${priceDate}`,
+          sourceIds,
         },
   ];
   return candidates.filter(
@@ -461,27 +1152,44 @@ export function equityHeaderView(detail: RunDetail): RunWorkspaceEquityHeaderVie
   if (snapshot === undefined) {
     return undefined;
   }
-  const quoteCurrency = snapshot.identity?.quoteCurrency ?? "USD";
-  const change = formatLensValue(snapshot.changePercent24h, "whole-percent");
+  const quoteCurrency = snapshot.identity?.quoteCurrency;
+  const hasPrice = Number.isFinite(snapshot.price);
+  const hasChange = Number.isFinite(snapshot.changePercent24h);
+  const change = hasChange
+    ? formatLensValue(snapshot.changePercent24h, "whole-percent")
+    : undefined;
+  const observedAt = snapshot.observedAt.trim() || undefined;
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
+  const sourceIds = snapshot.sourceId.trim() === "" ? [] : [snapshot.sourceId];
 
   return {
     displayName: snapshot.identity?.displayName?.trim() || snapshot.name?.trim() || snapshot.symbol,
     symbol: snapshot.symbol,
-    price: formatLensValue(snapshot.price, "currency", quoteCurrency),
-    quoteCurrency,
-    dailyChange: snapshot.changePercent24h > 0 ? `+${change}` : change,
-    changeDirection: dailyChangeDirection(snapshot.changePercent24h),
-    asOf: `Yahoo quote · ${snapshot.observedAt}`,
+    ...(hasPrice
+      ? {
+          price:
+            quoteCurrency === undefined
+              ? formatLensValue(snapshot.price, "number")
+              : formatLensValue(snapshot.price, "currency", quoteCurrency),
+        }
+      : {}),
+    ...(quoteCurrency === undefined ? {} : { quoteCurrency }),
+    ...(change === undefined
+      ? {}
+      : {
+          dailyChange: snapshot.changePercent24h > 0 ? `+${change}` : change,
+          changeDirection: dailyChangeDirection(snapshot.changePercent24h),
+        }),
+    ...(observedAt === undefined ? {} : { observedAt }),
+    priceAsOf,
+    sourceIds,
     financials: headerFinancials(snapshot),
   };
 }
 
 function snapshotView(detail: RunDetail): RunWorkspaceSnapshotView | undefined {
-  const { jobType, availableFiles } = detail.summary;
-  if (
-    (jobType !== "equity" && jobType !== "crypto") ||
-    !availableFiles.includes(VERIFIED_SNAPSHOT_PATH)
-  ) {
+  const { jobType } = detail.summary;
+  if (jobType !== "equity" && jobType !== "crypto") {
     return undefined;
   }
 
@@ -489,89 +1197,742 @@ function snapshotView(detail: RunDetail): RunWorkspaceSnapshotView | undefined {
   return value === undefined ? undefined : { value, tradingViewUrl: tradingViewUrl(value.symbol) };
 }
 
-export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
-  const { report } = detail;
-  const summary = typeof report?.summary === "string" ? report.summary : "";
-  const financialLensStats = financialLensStatTiles(detail.financialLenses);
-  const financialLensGroups =
-    detail.financialLenses?.lenses
-      .map(
-        (lens): RunWorkspaceFinancialLensGroup => ({
-          lens: lens.name,
-          posture: lens.posture,
-          tiles: financialLensStats.filter((tile) => tile.lens === lens.name),
-        }),
-      )
-      .filter((group) => group.tiles.length > 0) ?? [];
-  const findings = textItems(report, "keyFindings");
-  const cases = CASE_SECTIONS.map((section) => ({
+function uniqueSourceIds(sourceIds: readonly string[]): readonly string[] {
+  return [...new Set(sourceIds.filter((sourceId) => sourceId.trim() !== ""))];
+}
+
+function financialLensGroupViews(detail: RunDetail): readonly RunWorkspaceFinancialLensGroup[] {
+  const financialLensStats = financialLensStatTiles(
+    detail.financialLenses,
+    detail.marketSnapshots ?? [],
+  );
+  return (
+    detail.financialLenses?.lenses.map(
+      (lens): RunWorkspaceFinancialLensGroup => ({
+        lens: lens.name,
+        posture: lens.posture,
+        sourceIds: lens.sourceIds,
+        tiles: financialLensStats.filter((tile) => tile.lens === lens.name),
+      }),
+    ) ?? []
+  );
+}
+
+function reportCaseSections(
+  report: Record<string, unknown> | undefined,
+): readonly RunWorkspaceCaseSection[] {
+  return CASE_SECTIONS.map((section) => ({
     ...section,
     items: textItems(report, section.key),
   })).filter((section) => section.items.length > 0);
+}
+
+interface EquitySnapshotProjectionInputs {
+  readonly equityHeader?: RunWorkspaceEquityHeaderView;
+  readonly peerImpliedRange?: RunWorkspacePeerImpliedRangeView;
+  readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
+  readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
+  readonly cases: readonly RunWorkspaceCaseSection[];
+}
+
+const SNAPSHOT_TTM_METRICS: readonly {
+  readonly key: Extract<
+    RunWorkspaceEquitySnapshotMetric["key"],
+    "ttmRevenue" | "ttmFreeCashFlowProxy" | "ttmDilutedEps" | "ttmOperatingMargin"
+  >;
+  readonly historyKey: RunWorkspaceFundamentalHistoryCard["key"];
+  readonly label: string;
+}[] = [
+  { key: "ttmRevenue", historyKey: "revenue", label: "TTM revenue" },
+  {
+    key: "ttmFreeCashFlowProxy",
+    historyKey: "freeCashFlowProxy",
+    label: "TTM FCF proxy",
+  },
+  { key: "ttmDilutedEps", historyKey: "dilutedEps", label: "TTM diluted EPS" },
+  {
+    key: "ttmOperatingMargin",
+    historyKey: "operatingMargin",
+    label: "TTM operating margin",
+  },
+];
+
+const SNAPSHOT_CHARTS: readonly {
+  readonly key: RunWorkspaceEquitySnapshotMiniChart["key"];
+  readonly label: string;
+}[] = [
+  { key: "revenue", label: "Revenue" },
+  { key: "freeCashFlowProxy", label: "FCF proxy" },
+  { key: "operatingMargin", label: "Operating margin" },
+  { key: "dilutedEps", label: "Diluted EPS" },
+];
+
+const FOLDED_YAHOO_METRIC_KEYS = new Set<RunWorkspaceEquityHeaderFinancial["key"]>([
+  "marketCap",
+  "trailingPE",
+  "dividendYield",
+  "sharesOutstanding",
+]);
+
+const SIMPLE_METRIC_KEYS: readonly RunWorkspaceEquitySnapshotMetric["key"][] = [
+  "marketCap",
+  "ttmRevenue",
+  "ttmOperatingMargin",
+  "ttmFreeCashFlowProxy",
+];
+
+function simpleKeyMetrics(
+  keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics,
+): readonly RunWorkspaceEquitySnapshotMetric[] {
+  const available = [...keyDatedMetrics.metrics, ...keyDatedMetrics.foldedYahooMetrics].filter(
+    (metric) => metric.state === "available" && metric.value !== undefined,
+  );
+  const core = SIMPLE_METRIC_KEYS.flatMap((key) => {
+    const metric = available.find((candidate) => candidate.key === key);
+    return metric === undefined ? [] : [metric];
+  });
+  const valuation =
+    available.find((metric) => metric.key === "forwardPE") ??
+    available.find((metric) => metric.key === "trailingPE");
+  return valuation === undefined ? core : [...core, valuation];
+}
+
+function snapshotState(
+  availableCount: number,
+  expectedCount: number,
+): RunWorkspaceEquitySnapshotState {
+  if (availableCount === 0) {
+    return "unavailable";
+  }
+  return availableCount === expectedCount ? "available" : "partial";
+}
+
+function snapshotTtmMetric(
+  definition: (typeof SNAPSHOT_TTM_METRICS)[number],
+  fundamentalHistory: RunWorkspaceFundamentalHistoryView | undefined,
+): RunWorkspaceEquitySnapshotMetric {
+  const card = fundamentalHistory?.cards.find(
+    (candidate) => candidate.key === definition.historyKey && candidate.basis === "ttm",
+  );
+  if (card === undefined) {
+    return {
+      key: definition.key,
+      label: definition.label,
+      state: "unavailable",
+      sourceIds: [],
+    };
+  }
+  return {
+    key: definition.key,
+    label: definition.label,
+    state: "available",
+    value: card.value,
+    dateBasis: `period ${card.periodEnd} · filed ${card.filedAt}`,
+    sourceIds: card.sourceIds,
+  };
+}
+
+function snapshotForwardMetric(
+  key: "forwardPE" | "forwardEPS",
+  label: string,
+  equityHeader: RunWorkspaceEquityHeaderView | undefined,
+): RunWorkspaceEquitySnapshotMetric {
+  const financial = equityHeader?.financials.find((candidate) => candidate.key === key);
+  if (financial === undefined) {
+    return { key, label, state: "unavailable", sourceIds: [] };
+  }
+  return {
+    key,
+    label,
+    state: "available",
+    value: financial.value,
+    ...(equityHeader?.priceAsOf === undefined
+      ? {}
+      : { dateBasis: priceAsOfLabel(equityHeader.priceAsOf) }),
+    sourceIds: financial.sourceIds,
+  };
+}
+
+function foldedYahooMetric(
+  financial: RunWorkspaceEquityHeaderFinancial,
+): RunWorkspaceEquitySnapshotMetric {
+  return {
+    key: financial.key as Extract<
+      RunWorkspaceEquitySnapshotMetric["key"],
+      "marketCap" | "trailingPE" | "dividendYield" | "sharesOutstanding"
+    >,
+    label: financial.label,
+    state: "available",
+    value: financial.value,
+    dateBasis: financial.caption,
+    sourceIds: financial.sourceIds,
+  };
+}
+
+function postureLabel(posture: FinancialLensPosture): string {
+  const label = posture.replaceAll("-", " ");
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
+
+function snapshotDriverCard(
+  key: "bullCaseDrivers" | "bearCaseDrivers",
+  label: "Bull-case driver" | "Bear-case driver",
+  cases: readonly RunWorkspaceCaseSection[],
+): RunWorkspaceEquitySnapshotDriverCard {
+  const caseKey = key === "bullCaseDrivers" ? "bullCase" : "bearCase";
+  const items =
+    cases
+      .find((section) => section.key === caseKey)
+      ?.items.filter((item) => item.sourceIds.length > 0)
+      .slice(0, 2) ?? [];
+  return {
+    key,
+    label,
+    state: items.length > 0 ? "available" : "unavailable",
+    sourceIds: uniqueSourceIds(items.flatMap((item) => item.sourceIds)),
+    items,
+  };
+}
+
+function snapshotReferenceRange(
+  peerImpliedRange: RunWorkspacePeerImpliedRangeView | undefined,
+): RunWorkspaceEquitySnapshotReferenceRange {
+  const disclosure = "Peer-derived reference range for context only; not a target price.";
+  if (peerImpliedRange === undefined) {
+    return {
+      key: "peerReferenceRange",
+      label: PEER_REFERENCE_RANGE_LABEL,
+      state: "unavailable",
+      sourceIds: [],
+      display: "N/M — peer evidence unavailable: reference range is unavailable",
+      disclosure,
+    };
+  }
+  if (peerImpliedRange.status === "suppressed") {
+    return {
+      key: "peerReferenceRange",
+      label: PEER_REFERENCE_RANGE_LABEL,
+      state: "unavailable",
+      sourceIds: peerImpliedRange.sourceIds,
+      display: `N/M — peer evidence unavailable: ${peerImpliedRange.suppressionReason}`,
+      disclosure,
+    };
+  }
+  return {
+    key: "peerReferenceRange",
+    label: PEER_REFERENCE_RANGE_LABEL,
+    state: "available",
+    sourceIds: peerImpliedRange.sourceIds,
+    display: `${peerImpliedRange.lowLabel} · ${peerImpliedRange.midLabel} · ${peerImpliedRange.highLabel}`,
+    positionLabel: peerImpliedRange.positionLabel,
+    disclosure,
+  };
+}
+
+function composeEquitySnapshot(
+  inputs: EquitySnapshotProjectionInputs,
+): RunWorkspaceEquitySnapshotView {
+  const { equityHeader, peerImpliedRange, fundamentalHistory, financialLensGroups, cases } = inputs;
+  const priceFieldCount = [
+    equityHeader?.price,
+    equityHeader?.dailyChange,
+    equityHeader?.quoteCurrency,
+    equityHeader?.priceAsOf,
+    equityHeader?.sourceIds[0],
+  ].filter((value) => value !== undefined).length;
+  const pricePerformance: RunWorkspaceEquitySnapshotPricePerformance = {
+    key: "pricePerformance",
+    label: "Price",
+    state: snapshotState(priceFieldCount, 5),
+    sourceIds: equityHeader?.sourceIds ?? [],
+    ...(equityHeader?.price === undefined ? {} : { price: equityHeader.price }),
+    ...(equityHeader?.dailyChange === undefined ? {} : { change24h: equityHeader.dailyChange }),
+    ...(equityHeader?.changeDirection === undefined
+      ? {}
+      : { changeDirection: equityHeader.changeDirection }),
+    ...(equityHeader?.quoteCurrency === undefined
+      ? {}
+      : { quoteCurrency: equityHeader.quoteCurrency }),
+    ...(equityHeader?.observedAt === undefined ? {} : { observedAt: equityHeader.observedAt }),
+    ...(equityHeader?.priceAsOf === undefined ? {} : { priceAsOf: equityHeader.priceAsOf }),
+  };
+
+  const peerReferenceRange = snapshotReferenceRange(peerImpliedRange);
+
+  const metrics = [
+    ...SNAPSHOT_TTM_METRICS.map((definition) => snapshotTtmMetric(definition, fundamentalHistory)),
+    snapshotForwardMetric("forwardPE", "Forward P/E", equityHeader),
+    snapshotForwardMetric("forwardEPS", "Forward EPS", equityHeader),
+  ];
+  const foldedYahooMetrics =
+    equityHeader?.financials
+      .filter((financial) => FOLDED_YAHOO_METRIC_KEYS.has(financial.key))
+      .map((financial) => foldedYahooMetric(financial)) ?? [];
+  const keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics = {
+    key: "keyDatedMetrics",
+    label: "Key dated metrics",
+    state: snapshotState(
+      metrics.filter((metric) => metric.state === "available").length,
+      metrics.length,
+    ),
+    sourceIds: uniqueSourceIds(
+      [...metrics, ...foldedYahooMetrics].flatMap((metric) => metric.sourceIds),
+    ),
+    metrics,
+    foldedYahooMetrics,
+  };
+
+  const charts = SNAPSHOT_CHARTS.map(({ key, label }): RunWorkspaceEquitySnapshotMiniChart => {
+    const card = fundamentalHistory?.cards.find((candidate) => candidate.key === key);
+    if (card === undefined) {
+      return {
+        key,
+        label,
+        state: "unavailable",
+        sourceIds: [],
+      };
+    }
+    return {
+      key,
+      label,
+      state: card.pointCount < 2 ? "partial" : "available",
+      sourceIds: card.sourceIds,
+      value: card.value,
+      period: card.valuePeriod,
+      geometry: card.geometry,
+    };
+  });
+  const miniCharts: RunWorkspaceEquitySnapshotMiniCharts = {
+    key: "miniCharts",
+    label: "Fundamental trends",
+    state: snapshotState(
+      charts.filter((chart) => chart.state !== "unavailable").length,
+      charts.length,
+    ),
+    charts,
+  };
+
+  const postures = financialLensGroups.map((group) => ({
+    lens: group.lens,
+    posture: group.posture,
+    postureLabel: postureLabel(group.posture),
+    sourceIds: group.sourceIds,
+  }));
+  const postureCard = {
+    key: "lensPostures" as const,
+    label: "Financial Lens postures",
+    state: postures.length > 0 ? ("available" as const) : ("unavailable" as const),
+    sourceIds: uniqueSourceIds(postures.flatMap((posture) => posture.sourceIds)),
+    items: postures,
+  };
+  const bullCase = snapshotDriverCard("bullCaseDrivers", "Bull-case driver", cases);
+  const bearCase = snapshotDriverCard("bearCaseDrivers", "Bear-case driver", cases);
+  const driverAvailableCount = [postureCard, bullCase, bearCase].filter(
+    (card) => card.state === "available",
+  ).length;
+  const financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers = {
+    key: "financialLensDrivers",
+    label: "Financial Lens drivers",
+    state: snapshotState(driverAvailableCount, 3),
+    postures: postureCard,
+    bullCase,
+    bearCase,
+  };
+
+  return {
+    pricePerformance,
+    peerReferenceRange,
+    keyDatedMetrics,
+    miniCharts,
+    financialLensDrivers,
+  };
+}
+
+export function equitySnapshotView(detail: RunDetail): RunWorkspaceEquitySnapshotView | undefined {
+  if (detail.summary.jobType !== "equity") {
+    return undefined;
+  }
+  const equityHeader = equityHeaderView(detail);
+  const peerImpliedRange = peerImpliedRangeView(detail);
+  const fundamentalHistory = fundamentalHistoryView(detail);
+  return composeEquitySnapshot({
+    ...(equityHeader === undefined ? {} : { equityHeader }),
+    ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
+    ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
+    financialLensGroups: financialLensGroupViews(detail),
+    cases: reportCaseSections(detail.report),
+  });
+}
+
+export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
+  const report = normalizePredictionShortfallReport(detail.report);
+  const isEquityPresentation =
+    detail.summary.jobType === "equity" &&
+    (detail.summary.assetClass === undefined || detail.summary.assetClass === "equity");
+  const readerProjection = projectEquityReaderForDetail({
+    ...detail,
+    ...(report === undefined ? {} : { report }),
+  });
+  const summary = typeof report?.summary === "string" ? report.summary : "";
+  const financialLensGroups = financialLensGroupViews(detail);
+  const findings = textItems(report, "keyFindings");
+  const cases = reportCaseSections(report);
   const scenarioItems = scenarios(report);
 
   const forecastItems = scoredForecasts(report, detail.score, detail.missAutopsy);
   const targetHealth = predictionTargetHealth(detail.analytics, report);
-  const splitGaps = splitDataGaps(stringArray(report, "dataGaps"));
+  const predictionShortfall = readPredictionShortfall(report?.predictionShortfall);
+  const projectedGaps = isEquityPresentation
+    ? [...readerProjection.defaultView.materialGaps, ...readerProjection.appendix.diagnosticGaps]
+    : stringArray(report, "dataGaps");
+  const splitGaps = isEquityPresentation
+    ? { shortfalls: [], otherGaps: projectedGaps }
+    : {
+        shortfalls:
+          predictionShortfall === undefined
+            ? []
+            : [predictionShortfallCompactText(predictionShortfall)],
+        otherGaps: projectedGaps,
+      };
+  const equityShortfallDisclosed = isEquityPresentation && predictionShortfall !== undefined;
+  const reportSymbol = typeof report?.symbol === "string" ? report.symbol : detail.summary.symbol;
+  const triagedGaps = (isEquityPresentation ? projectedGaps : splitGaps.otherGaps).map((gap) => ({
+    text: gap,
+    triage: readGapTriage(gap, detail.sourceGaps, reportSymbol),
+  }));
   const forecastsVisible =
-    forecastItems.length > 0 || splitGaps.shortfalls.length > 0 || targetHealth !== undefined;
+    forecastItems.length > 0 ||
+    splitGaps.shortfalls.length > 0 ||
+    equityShortfallDisclosed ||
+    targetHealth !== undefined;
 
   const historicalContext = historicalContextAuditView(detail.trace);
   const webSubjectProfile = webSubjectProfileView(report, detail.webSubjectProfile);
   const businessFramework = businessFrameworkView(report, detail.businessFramework);
-  const extendedItems = extendedEvidenceItems(report);
+  const marketSnapshot = matchingMarketSnapshot(detail);
+  const extendedItems = extendedEvidenceItems(report).map((item) => ({
+    ...item,
+    summary: renderedPriceSummary(item.summary, item.sourceIds, marketSnapshot),
+  }));
   const snapshot = snapshotView(detail);
   const equityHeader = equityHeaderView(detail);
   const fundamentalHistory = fundamentalHistoryView(detail);
-  const peerImpliedRange = peerImpliedRangeView(detail);
-  const gapsVisible = splitGaps.shortfalls.length > 0 || splitGaps.otherGaps.length > 0;
+  const valuationWorkbench = valuationWorkbenchView(detail);
+  const reverseDcf = reverseDcfView(detail);
+  const peerImpliedRange = peerImpliedRangeFromProjection(
+    readerProjection.defaultView.valuationContext,
+  );
+  const financialTrends = financialTrendFromProjection(
+    readerProjection.defaultView.financialTrends,
+  );
+  const balanceSheetHistory = balanceSheetHistoryFromProjection(
+    readerProjection.appendix.balanceSheetHistory,
+  );
+  const financialPosition = financialPositionFromProjection(
+    readerProjection.defaultView.financialPosition,
+  );
+  const earningsConsensus = earningsConsensusFromProjection(
+    readerProjection.defaultView.earningsConsensus,
+  );
+  const analystEstimateDistributions = analystEstimateDistributionsFromProjection(
+    readerProjection.appendix.analystEstimateDistributions,
+  );
+  const equitySnapshot = isEquityPresentation
+    ? composeEquitySnapshot({
+        ...(equityHeader === undefined ? {} : { equityHeader }),
+        ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
+        ...(fundamentalHistory === undefined ? {} : { fundamentalHistory }),
+        financialLensGroups,
+        cases,
+      })
+    : undefined;
+  const materialGaps = isEquityPresentation
+    ? readerProjection.defaultView.materialGaps
+    : triagedGaps.filter((gap) => gap.triage === "material").map((gap) => gap.text);
+  const diagnosticGaps = isEquityPresentation
+    ? readerProjection.appendix.diagnosticGaps
+    : triagedGaps.filter((gap) => gap.triage === "diagnostic").map((gap) => gap.text);
+  const description = readerProjection.defaultView.companyDescription;
+  const equityPresentation: RunWorkspaceEquityPresentationView | undefined =
+    equitySnapshot === undefined
+      ? undefined
+      : {
+          defaultView: {
+            pricePerformance: equitySnapshot.pricePerformance,
+            researchSummary: summary,
+            companySummary: { text: description.text, sourceIds: description.sourceIds },
+            ...(financialTrends === undefined ? {} : { financialTrends }),
+            ...(financialPosition === undefined ? {} : { financialPosition }),
+            keyMetrics: simpleKeyMetrics(equitySnapshot.keyDatedMetrics),
+            valuationContext: {
+              ...equitySnapshot.peerReferenceRange,
+              label: "Valuation context",
+            },
+            findings,
+            cases: ["risks", "catalysts", "bullCase", "bearCase"].flatMap((key) =>
+              cases.filter((section) => section.key === key),
+            ),
+            earningsConsensus,
+            ...(readerProjection.defaultView.financialCoreStatus === undefined
+              ? {}
+              : { financialCoreStatus: readerProjection.defaultView.financialCoreStatus }),
+            materialGaps,
+          },
+          advanced: {
+            ...(readerProjection.appendix.completeness === undefined
+              ? {}
+              : { completeness: readerProjection.appendix.completeness }),
+            financialLensDrivers: equitySnapshot.financialLensDrivers,
+            financialLensGroups,
+            keyDatedMetrics: equitySnapshot.keyDatedMetrics,
+            miniCharts: equitySnapshot.miniCharts,
+            ...(valuationWorkbench === undefined ? {} : { valuationWorkbench }),
+            ...(reverseDcf === undefined ? {} : { reverseDcf }),
+            ...(peerImpliedRange === undefined ? {} : { peerImpliedRange }),
+            analystEstimateDistributions,
+            extendedItems,
+            diagnosticGaps,
+            ...(balanceSheetHistory === undefined ? {} : { balanceSheetHistory }),
+            scenarios: scenarioItems,
+          },
+        };
+  const gapsVisible = splitGaps.shortfalls.length > 0 || triagedGaps.length > 0;
 
-  const tableOfContents = [
-    { key: "summary", label: "Summary", visible: summary !== "" },
-    {
-      key: "financialLensStats",
-      label: "Financial lens stats",
-      visible: financialLensGroups.length > 0,
-    },
-    { key: "findings", label: "Key findings", visible: findings.length > 0 },
-    { key: "cases", label: "Cases & risks", visible: cases.length > 0 },
-    { key: "scenarios", label: "Scenarios", visible: scenarioItems.length > 0 },
-    { key: "snapshot", label: "Market snapshot", visible: snapshot !== undefined },
-    {
-      key: "fundamentalHistory",
-      label: "Fundamental history",
-      visible: fundamentalHistory !== undefined,
-    },
-    {
-      key: "peerImpliedRange",
-      label: "Peer-implied price reference range",
-      visible: peerImpliedRange !== undefined,
-    },
-    { key: "history", label: "Historical context", visible: historicalContext !== undefined },
-    {
-      key: "webSubjectProfile",
-      label: "Web Subject Profile",
-      visible: webSubjectProfile !== undefined,
-    },
-    {
-      key: "businessFramework",
-      label: "Business framework",
-      visible: businessFramework !== undefined,
-    },
-    {
-      key: "extendedEvidence",
-      label: "Extended evidence",
-      visible: extendedItems.length > 0,
-    },
-    { key: "forecasts", label: "Forecasts", visible: forecastsVisible },
-    { key: "gaps", label: "Data gaps", visible: gapsVisible },
-  ]
+  const tableOfContents = (
+    equityPresentation === undefined
+      ? [
+          { key: "summary", label: "Summary", visible: summary !== "", advancedOnly: false },
+          {
+            key: "findings",
+            label: "Key findings",
+            visible: findings.length > 0,
+            advancedOnly: false,
+          },
+          { key: "cases", label: "Cases & risks", visible: cases.length > 0, advancedOnly: false },
+          {
+            key: "snapshot",
+            label: "Market snapshot",
+            visible: snapshot !== undefined,
+            advancedOnly: false,
+          },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: false },
+          {
+            key: "scenarios",
+            label: "Scenarios",
+            visible: scenarioItems.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "valuationWorkbench",
+            label: "Valuation workbench",
+            visible: valuationWorkbench !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "reverseDcf",
+            label: "Reverse DCF input sensitivity",
+            visible: reverseDcf !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "peerImpliedRange",
+            label: "Peer-implied price reference range",
+            visible: peerImpliedRange !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "financialLensStats",
+            label: "Financial lens stats",
+            visible: financialLensGroups.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "fundamentalHistory",
+            label: "Fundamental history",
+            visible: fundamentalHistory !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "extendedEvidence",
+            label: "Extended evidence",
+            visible: extendedItems.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "webSubjectProfile",
+            label: "Web Subject Profile",
+            visible: webSubjectProfile !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "businessFramework",
+            label: "Business framework",
+            visible: businessFramework !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "history",
+            label: "Historical context",
+            visible: historicalContext !== undefined,
+            advancedOnly: false,
+          },
+          { key: "gaps", label: "Data gaps", visible: gapsVisible, advancedOnly: false },
+        ]
+      : [
+          { key: "equityOverview", label: "Price", visible: true, advancedOnly: false },
+          {
+            key: "researchSummary",
+            label: "Research summary",
+            visible: summary !== "",
+            advancedOnly: false,
+          },
+          { key: "summary", label: "Company summary", visible: true, advancedOnly: false },
+          {
+            key: "financialTrends",
+            label: "Financial trends",
+            visible: financialTrends !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "financialPosition",
+            label: "Financial position",
+            visible: equityPresentation.defaultView.financialPosition !== undefined,
+            advancedOnly: false,
+          },
+          {
+            key: "findings",
+            label: "Key findings",
+            visible: findings.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "cases",
+            label: "Cases",
+            visible: equityPresentation.defaultView.cases.length > 0,
+            advancedOnly: false,
+          },
+          {
+            key: "snapshot",
+            label: "Market snapshot",
+            visible: snapshot !== undefined,
+            advancedOnly: false,
+          },
+          { key: "forecasts", label: "Forecasts", visible: forecastsVisible, advancedOnly: false },
+          {
+            key: "scenarios",
+            label: "Scenarios",
+            visible: scenarioItems.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "valuationWorkbench",
+            label: "Valuation workbench",
+            visible: valuationWorkbench !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "reverseDcf",
+            label: "Reverse DCF input sensitivity",
+            visible: reverseDcf !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "peerImpliedRange",
+            /* Short enough to sit in the ledger nav strip; the section itself
+               spells the full name out. */
+            label: "Peer-implied range",
+            visible: peerImpliedRange !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "earningsConsensus",
+            label: "Earnings & consensus",
+            visible: true,
+            advancedOnly: false,
+          },
+          {
+            key: "equityMetrics",
+            label: "Detailed equity metrics",
+            visible: true,
+            advancedOnly: true,
+          },
+          {
+            key: "financialLensStats",
+            label: "Financial lens stats",
+            visible: financialLensGroups.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "fundamentalHistory",
+            label: "Fundamental history",
+            visible: fundamentalHistory !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "balanceSheetHistory",
+            label: "Balance sheet & share count",
+            visible: balanceSheetHistory !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "analystEstimateDistributions",
+            label: "Analyst estimate distributions",
+            visible: analystEstimateDistributions.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "extendedEvidence",
+            label: "Extended evidence",
+            visible: extendedItems.length > 0,
+            advancedOnly: true,
+          },
+          {
+            key: "webSubjectProfile",
+            label: "Web Subject Profile",
+            visible: webSubjectProfile !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "businessFramework",
+            label: "Business framework",
+            visible: businessFramework !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "equityCompleteness",
+            label: "Completeness diagnostics",
+            visible: equityPresentation.advanced.completeness !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "history",
+            label: "Historical context",
+            visible: historicalContext !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "gaps",
+            label: "Coverage & material gaps",
+            visible: true,
+            advancedOnly: false,
+          },
+          {
+            key: "rawMarkdown",
+            label: "Raw markdown",
+            visible: detail.markdown !== undefined,
+            advancedOnly: true,
+          },
+        ]
+  )
     .filter((entry) => entry.visible)
-    .map(({ key, label }) => ({ key, label }));
+    .map(({ key, label, advancedOnly }) => ({ key, label, advancedOnly }));
 
   return {
     ...(equityHeader !== undefined ? { equityHeader } : {}),
+    ...(equityPresentation !== undefined ? { equityPresentation } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),
+    ...(valuationWorkbench !== undefined ? { valuationWorkbench } : {}),
+    ...(reverseDcf !== undefined ? { reverseDcf } : {}),
     ...(peerImpliedRange !== undefined ? { peerImpliedRange } : {}),
     report: {
       summary,
@@ -595,7 +1956,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       ...(businessFramework !== undefined ? { businessFramework } : {}),
       extendedItems,
     },
-    gaps: { ...splitGaps, visible: gapsVisible },
+    gaps: { ...splitGaps, triagedGaps, visible: gapsVisible },
     sources: { items: sources(report) },
     ...(snapshot !== undefined ? { snapshot } : {}),
     tableOfContents,

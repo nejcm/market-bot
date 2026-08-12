@@ -1,4 +1,5 @@
 import type { RunDetail } from "./types";
+import { predictionShortfallMaterialGaps } from "../src/report/prediction-shortfall";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { isRecord, stringArrayValue } from "../src/guards";
 
@@ -96,7 +97,10 @@ function formatReportFields(report: Record<string, unknown>): string | undefined
     }
   }
 
-  const dataGaps = stringArrayValue(report.dataGaps);
+  const dataGaps = predictionShortfallMaterialGaps(
+    report.predictionShortfall,
+    stringArrayValue(report.dataGaps),
+  );
   if (dataGaps.length > 0) {
     parts.push(`Data gaps:\n${dataGaps.map((gap) => `- ${gap}`).join("\n")}`);
   }

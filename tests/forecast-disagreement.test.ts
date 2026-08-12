@@ -84,9 +84,11 @@ async function runWithChallenger(content: string): Promise<{
 describe("forecast disagreement", () => {
   test("includes the analysis cutoff in challenger prompts", async () => {
     let analysisAsOf = "";
+    let params: unknown = null;
     const provider: ModelProvider = {
       name: "openai",
       generate: async (request) => {
+        ({ params } = request);
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         analysisAsOf = typeof prompt.analysisAsOf === "string" ? prompt.analysisAsOf : "";
         return {
@@ -104,10 +106,12 @@ describe("forecast disagreement", () => {
       baselineModel: "gpt-5.5",
       challengerModels: ["gpt-5.4"],
       loaded: loadedPrompt,
+      modelParams: { reasoningEffort: "high" },
       report: challengerReport,
     });
 
     expect(analysisAsOf).toBe(challengerReport.generatedAt);
+    expect(params).toEqual({ reasoningEffort: "high" });
   });
 
   test("maps spread to neutral bands", () => {

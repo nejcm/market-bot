@@ -12,7 +12,7 @@
   import { Input } from "$lib/components/ui/input";
   import * as Sheet from "$lib/components/ui/sheet";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { formatDateMinute, runCountsLabel, runLabel } from "../view-model";
+  import { formatDateMinute, runCountsLabel, runLabel, type SidebarView } from "../view-model";
   import type { View } from "./console-types";
   import type { RunSummary } from "../../types";
   import logoUrl from "../../../assets/logo.png";
@@ -29,7 +29,8 @@
     readonly onQueryChange: (value: string) => void;
     readonly onTypeFilterChange: (value: string) => void;
     readonly onSelectRun: (runId: string) => void;
-    readonly onNavigate: (view: View) => void;
+    readonly onNavigate: (view: SidebarView) => void;
+    mobileOpen?: boolean | undefined;
   }
 
   const typeTextMap: Record<string, string> = {
@@ -56,36 +57,35 @@
     onTypeFilterChange,
     onSelectRun,
     onNavigate,
+    mobileOpen = $bindable(false),
   }: Props = $props();
-
-  let mobileOpen = $state(false);
 
   const navItems = $derived([
     {
-      key: "dashboard" as View,
+      key: "dashboard" as SidebarView,
       label: "Dashboard",
       icon: LayoutGrid,
       badge: 0,
     },
-    { key: "search" as View, label: "Search", icon: Search, badge: 0 },
-    { key: "jobs" as View, label: "Jobs", icon: Play, badge: activeJobCount },
+    { key: "search" as SidebarView, label: "Search", icon: Search, badge: 0 },
+    { key: "jobs" as SidebarView, label: "Jobs", icon: Play, badge: activeJobCount },
     {
-      key: "calibration" as View,
+      key: "calibration" as SidebarView,
       label: "Calibration",
       icon: Target,
       badge: 0,
     },
     {
-      key: "alpha-cohorts" as View,
+      key: "alpha-cohorts" as SidebarView,
       label: "Alpha Cohorts",
       icon: ListFilter,
       badge: 0,
     },
-    { key: "health" as View, label: "Health", icon: Activity, badge: 0 },
+    { key: "health" as SidebarView, label: "Health", icon: Activity, badge: 0 },
   ]);
   const typeOptions = $derived(["all", ...runTypes]);
 
-  function navigateAndClose(target: View): void {
+  function navigateAndClose(target: SidebarView): void {
     onNavigate(target);
     mobileOpen = false;
   }
@@ -229,8 +229,13 @@
   {@render content()}
 </aside>
 
+<!-- The run workspace carries its own trigger in the sticky run nav, so this
+     bar stands down there; the sheet itself stays mounted and portalled. -->
 <div
-  class="fixed w-full top-0 z-30 border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden"
+  class="fixed top-0 z-30 w-full border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden {view ===
+  'run'
+    ? 'hidden'
+    : ''}"
 >
   <Sheet.Sheet bind:open={mobileOpen}>
     <Sheet.SheetTrigger>

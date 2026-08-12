@@ -13,6 +13,9 @@ import {
   type BuildSourcePlanResult,
 } from "../src/research/source-plan";
 import type { CollectedSources } from "../src/sources/types";
+// Internal seam: exercises real salvage output end-to-end through the lane
+// Coverage/evidence-quality pipeline (finding 6).
+import { buildWebSubjectProfileEvidence } from "../src/web-evidence/web-subject-profile";
 import {
   collectedSources,
   marketSnapshot,
@@ -118,6 +121,95 @@ describe("source plan", () => {
       evidenceClass: "material",
     });
     expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
+  });
+
+  test("keeps subject-profile lane covered for a salvaged (partially rejected) profile (finding 6)", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const webSource = {
+      id: "web-aapl-12345678",
+      title: "Apple company profile",
+      fetchedAt: generatedAt,
+      kind: "web" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      provider: "exa",
+    };
+    const answer = { answer: "Apple sells devices and services.", sourceIds: [webSource.id] };
+    const questions = Object.fromEntries(
+      [
+        "whatItDoes",
+        "howItMakesMoney",
+        "customers",
+        "geography",
+        "purchaseRecurrence",
+        "pricingPower",
+        "recessionCyclicality",
+        "managementTrackRecord",
+        "capitalAllocation",
+        "companyKpis",
+        "riskFactors",
+      ].map((key) => [key, answer]),
+    );
+    const modelContent = JSON.stringify({
+      companyName: "Apple Inc.",
+      subjectSummary: answer,
+      questions,
+      recentMaterialEvents: [
+        { claim: "Apple announced a services event.", sourceIds: ["disallowed-source"] },
+      ],
+      factLedger: [
+        { claim: "Apple sells iPhone, Mac, and services.", sourceIds: [webSource.id] },
+        { claim: "Apple grew services revenue.", sourceIds: [webSource.id] },
+      ],
+      openGaps: [],
+    });
+    const result = buildWebSubjectProfileEvidence({
+      command,
+      subject: {
+        subjectKind: "company",
+        subjectId: "AAPL",
+        subjectLabel: "Apple Inc.",
+        assetClass: "equity",
+        symbol: "AAPL",
+      },
+      generatedAt,
+      modelContent,
+      webSources: [webSource],
+      extendedEvidence: undefined,
+    });
+
+    // The salvage keeps one gap (the rejected event); that must not read as a
+    // Total lane gap once the surviving content flows through buildSourcePlan.
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.artifact).toBeDefined();
+    const plan = plannedAndAssessed(
+      command,
+      collectedSources({
+        ...(result.artifact !== undefined ? { webSubjectProfile: result.artifact } : {}),
+        // Freshness (subject-profile lane) resolves the cited source's
+        // FetchedAt from extendedSources, not from the profile artifact.
+        extendedSources: [webSource],
+        sourceGaps: result.sourceGaps,
+        ...(result.extendedEvidence !== undefined
+          ? { extendedEvidence: result.extendedEvidence }
+          : {}),
+      }),
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
+      status: "covered",
+      coveredSourceIds: [webSource.id],
+    });
+    const subjectProfileCheck = assessEvidenceQuality(plan, generatedAt).checks.find(
+      (check) => check.capability === "subject-profile",
+    );
+    expect(subjectProfileCheck?.coverage).toBe("pass");
+    expect(subjectProfileCheck?.passed).toBe(true);
   });
 
   test("records a gap for every uncovered lane in a sparse deep-equity run", () => {
@@ -758,14 +850,18 @@ describe("source plan", () => {
 
   function valuationComps(
     usable: boolean,
-    supportability: "supported" | "screening-only" | "not-supportable",
+    supportability: NonNullable<
+      CollectedSources["valuationComps"]
+    >["summary"]["valuationSupportability"],
     usablePeerCount: number,
-  ): CollectedSources["valuationComps"] {
+  ): NonNullable<CollectedSources["valuationComps"]> {
     return {
       version: 1,
       generatedAt,
       target: { symbol: "NVDA", sourceIds: ["market-yahoo-equity-nvda"], usable },
-      peers: [{ symbol: "AMD", sourceIds: ["market-yahoo-equity-amd"], usable: false }],
+      peers: [
+        { symbol: "AMD", sourceIds: ["market-yahoo-equity-amd"], usable: usablePeerCount > 0 },
+      ],
       excludedPeers: [],
       peerUniverseSourceIds: [],
       summary: {
@@ -783,6 +879,63 @@ describe("source plan", () => {
       },
     };
   }
+
+  function peerValuationLane(
+    supportability: NonNullable<
+      CollectedSources["valuationComps"]
+    >["summary"]["valuationSupportability"],
+    usablePeerCount: number,
+    peerSymbols: readonly string[] = ["AMD"],
+  ) {
+    const comps = valuationComps(true, supportability, usablePeerCount);
+    const plan = plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      collectedSources({
+        valuationComps: {
+          ...comps,
+          peers: peerSymbols.map((symbol) => ({
+            symbol,
+            sourceIds: [`market-yahoo-equity-${symbol.toLowerCase()}`],
+            usable: true,
+          })),
+        },
+      }),
+    );
+    return plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation");
+  }
+
+  test("covers peer valuation when supportability is supported and peers are present", () => {
+    expect(peerValuationLane("supported", 3)).toMatchObject({
+      status: "covered",
+      coveredSourceIds: ["market-yahoo-equity-amd"],
+    });
+  });
+
+  test("gaps peer valuation when supportability is screening-only and peers are present", () => {
+    expect(peerValuationLane("screening-only", 2)).toMatchObject({
+      status: "gap",
+      coveredSourceIds: [],
+    });
+  });
+
+  test("gaps peer valuation when supportability is not meaningful with three usable peers", () => {
+    expect(peerValuationLane("not-meaningful", 3, ["AMD", "INTC", "AVGO"])).toMatchObject({
+      status: "gap",
+      coveredSourceIds: [],
+    });
+  });
+
+  test("gaps peer valuation when no peers were fetched", () => {
+    const plan = plannedAndAssessed(
+      { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" },
+      collectedSources(),
+    );
+
+    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "peer-valuation")).toMatchObject({
+      status: "gap",
+      coveredSourceIds: [],
+    });
+  });
 
   test("assessSourcePlan flags an unusable covered target valuation and drops the label", () => {
     const plan = equityValuationRun({

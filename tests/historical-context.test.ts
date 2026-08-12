@@ -78,6 +78,7 @@ describe("loadHistoricalContext", () => {
         summary: "Recent AAPL detail.",
         keyFindings: [{ text: "AAPL demand improved.", sourceIds: ["news-1"] }],
         predictions: [scoredPrediction],
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
       }),
       snapshots: [marketSnapshot({ symbol: "AAPL", price: 200, changePercent24h: 3 })],
       score: {
@@ -171,6 +172,9 @@ describe("loadHistoricalContext", () => {
       scoreStatus: "resolved",
       scoreOutcome: "hit",
     });
+    expect(context.runs[0]?.dataGaps).toEqual([
+      "emitted 1 of 3 target predictions; evidence did not support more",
+    ]);
     expect(context.runs[1]?.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL"]);
     expect(context.sources.map((source) => source.id)).toEqual([
       "history-report-ticker-recent",
@@ -618,7 +622,15 @@ describe("loadHistoricalContext", () => {
       await writeRun({
         dataDir,
         runDirName: runId,
-        report: researchReport({ runId, jobType: "daily", assetClass: "equity", generatedAt }),
+        report: researchReport({
+          runId,
+          jobType: "daily",
+          assetClass: "equity",
+          generatedAt,
+          extras: {
+            marketUpdateHorizonBucket: runId === "same-day-new" ? "1-5d" : "2-5d",
+          },
+        }),
       });
     }
     await writeRun({

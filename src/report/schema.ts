@@ -1,4 +1,5 @@
 import {
+  isEarningsEventDateStatus,
   isReportIntegrity,
   SOURCE_KINDS,
   type EvidenceQuality,
@@ -7,9 +8,16 @@ import {
   type ResearchReport,
   type Scenario,
 } from "../domain/types";
+import {
+  assertEquityAnalysisCompleteness,
+  EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,
+} from "../domain/equity-analysis-completeness";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import { retainedEvidenceSpanForEarningsDate } from "../sources/extended-evidence/earnings-date-confirmation";
 import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
+import { validatePredictionShortfall } from "./prediction-shortfall";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -36,19 +44,35 @@ function assertSourceKinds(sources: ResearchReport["sources"]): void {
   }
 }
 
-function validateSourceIds(
+const MAX_SOURCE_ID_VALIDATION_ERRORS = 12;
+
+function collectSourceIdErrors(
+  path: string,
   sourceIds: readonly string[],
   knownSourceIds: ReadonlySet<string>,
+  requireAny: boolean,
+  errors: string[],
 ): void {
-  if (sourceIds.length === 0) {
-    throw new Error("Major findings must reference source IDs");
+  if (requireAny && sourceIds.length === 0) {
+    errors.push(`${path} must reference at least one source ID`);
   }
 
   for (const sourceId of sourceIds) {
     if (!knownSourceIds.has(sourceId)) {
-      throw new Error(`Unknown source ID: ${sourceId}`);
+      errors.push(`${path} cites unknown source ID: ${sourceId}`);
     }
   }
+}
+
+function assertNoSourceIdErrors(errors: readonly string[]): void {
+  if (errors.length === 0) {
+    return;
+  }
+  const visibleErrors = errors.slice(0, MAX_SOURCE_ID_VALIDATION_ERRORS);
+  const hiddenCount = errors.length - visibleErrors.length;
+  throw new Error(
+    [...visibleErrors, ...(hiddenCount > 0 ? [`(+${hiddenCount} more)`] : [])].join("; "),
+  );
 }
 
 // This raw-value reader is all-or-nothing and falls back to an empty array.
@@ -58,37 +82,46 @@ function readStringArray(value: unknown): readonly string[] {
 }
 
 function validateKnownSourceIds(
-  section: string,
+  path: string,
   sourceIds: readonly string[],
   knownSourceIds: ReadonlySet<string>,
   requireAny: boolean,
+  errors: string[],
 ): void {
-  if (requireAny && sourceIds.length === 0) {
-    throw new Error(`${section} items must reference source IDs`);
-  }
-  for (const sourceId of sourceIds) {
-    if (!knownSourceIds.has(sourceId)) {
-      throw new Error(`Unknown source ID: ${sourceId}`);
-    }
-  }
+  collectSourceIdErrors(path, sourceIds, knownSourceIds, requireAny, errors);
 }
 
 function validateFindings(
+  section: string,
   findings: readonly KeyFinding[],
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
-  for (const finding of findings) {
-    validateSourceIds(finding.sourceIds, knownSourceIds);
+  for (const [index, finding] of findings.entries()) {
+    collectSourceIdErrors(`${section}[${index}]`, finding.sourceIds, knownSourceIds, true, errors);
   }
 }
 
 function validateScenarios(
   scenarios: readonly Scenario[],
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
-  for (const scenario of scenarios) {
-    validateSourceIds(scenario.sourceIds, knownSourceIds);
+  for (const [index, scenario] of scenarios.entries()) {
+    collectSourceIdErrors(`scenarios[${index}]`, scenario.sourceIds, knownSourceIds, true, errors);
   }
+}
+
+function extendedEvidenceLanguageText(report: ResearchReport): readonly {
+  readonly title: string;
+  readonly summary: string;
+}[] {
+  return (
+    report.extendedEvidence?.items.map((item) => ({
+      title: item.title,
+      summary: item.summary,
+    })) ?? []
+  );
 }
 
 export function assertSafeReportLanguage(report: ResearchReport): void {
@@ -101,6 +134,7 @@ export function assertSafeReportLanguage(report: ResearchReport): void {
     catalysts: report.catalysts,
     scenarios: report.scenarios,
     researchQualityDriver: report.researchQualityDriver,
+    extendedEvidence: extendedEvidenceLanguageText(report),
     renderedExtras: researchOnlyExtraText(report.extras),
   });
 
@@ -237,28 +271,75 @@ function webSubjectProfileText(extra: unknown): readonly string[] {
   ];
 }
 
-function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateEarningsSetupExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (extra === undefined || !isRecord(extra)) {
     return;
   }
   // Validate source IDs on event.
   const event = isRecord(extra.event) ? extra.event : undefined;
   if (event !== undefined) {
+    if (event.eventDateStatus !== undefined && !isEarningsEventDateStatus(event.eventDateStatus)) {
+      throw new Error("Earnings Setup eventDateStatus is invalid");
+    }
     validateKnownSourceIds(
-      "Earnings Setup event",
+      "Earnings Setup event.sourceIds",
       readStringArray(event.sourceIds),
       knownSourceIds,
       false,
+      errors,
     );
+    const confirmation = isRecord(event.dateConfirmation) ? event.dateConfirmation : undefined;
+    if (event.eventDateStatus === "provider-estimated" && confirmation !== undefined) {
+      throw new Error("Provider-estimated Earnings Setup cannot carry date confirmation");
+    }
+    if (
+      event.eventDateStatus === "issuer-confirmed" ||
+      event.eventDateStatus === "exchange-confirmed"
+    ) {
+      const sourceId = confirmation?.sourceId;
+      const sourceType = confirmation?.sourceType;
+      const evidenceSpan = confirmation?.evidenceSpan;
+      const sourceUrl = confirmation?.sourceUrl;
+      const confirmedAt = confirmation?.confirmedAt;
+      const identity = isRecord(confirmation?.issuerIdentity)
+        ? confirmation.issuerIdentity
+        : undefined;
+      if (
+        typeof sourceId !== "string" ||
+        !knownSourceIds.has(sourceId) ||
+        !readStringArray(event.sourceIds).includes(sourceId) ||
+        (event.eventDateStatus === "issuer-confirmed"
+          ? sourceType !== "issuer-ir-event" &&
+            sourceType !== "issuer-press-release" &&
+            sourceType !== "sec-8-k" &&
+            sourceType !== "sec-6-k"
+          : sourceType !== "official-exchange") ||
+        typeof evidenceSpan !== "string" ||
+        typeof event.date !== "string" ||
+        retainedEvidenceSpanForEarningsDate(evidenceSpan, event.date) === undefined ||
+        typeof sourceUrl !== "string" ||
+        sourceUrl.trim() === "" ||
+        typeof confirmedAt !== "string" ||
+        confirmedAt.trim() === "" ||
+        identity?.symbol !== event.symbol
+      ) {
+        throw new Error("Confirmed Earnings Setup requires complete official evidence");
+      }
+    }
   }
   // Validate source IDs on the deterministic implied move.
   const impliedMove = isRecord(extra.impliedMove) ? extra.impliedMove : undefined;
   if (impliedMove !== undefined) {
     validateKnownSourceIds(
-      "Earnings Setup impliedMove",
+      "Earnings Setup impliedMove.sourceIds",
       readStringArray(impliedMove.sourceIds),
       knownSourceIds,
       false,
+      errors,
     );
   }
   // Validate source IDs on model-authored bullet sections.
@@ -267,79 +348,140 @@ function validateEarningsSetupExtra(extra: unknown, knownSourceIds: ReadonlySet<
     if (!Array.isArray(bullets)) {
       continue;
     }
-    for (const bullet of bullets) {
+    for (const [index, bullet] of bullets.entries()) {
       if (isRecord(bullet)) {
         validateKnownSourceIds(
-          `Earnings Setup ${key}`,
+          `Earnings Setup ${key}[${index}]`,
           readStringArray(bullet.sourceIds),
           knownSourceIds,
           typeof bullet.text === "string",
+          errors,
         );
       }
     }
   }
 }
 
-function validateBusinessFrameworkExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateEarningsForecastCertainty(report: ResearchReport): void {
+  const earningsPredictions = report.predictions.filter(
+    (prediction) => prediction.kind === "earnings-direction" || prediction.kind === "earnings-move",
+  );
+  for (const prediction of earningsPredictions) {
+    if (
+      prediction.eventDateStatus !== undefined &&
+      !isEarningsEventDateStatus(prediction.eventDateStatus)
+    ) {
+      throw new Error(`Prediction ${prediction.id} has invalid eventDateStatus`);
+    }
+  }
+
+  const rawTelemetry = report.extras?.earningsForecasts;
+  const telemetry = readEarningsForecastTelemetry(report);
+  if (rawTelemetry !== undefined && telemetry === undefined) {
+    throw new Error("Earnings forecast telemetry is invalid");
+  }
+  if (telemetry === undefined) {
+    return;
+  }
+  if (telemetry.eligiblePredictionCount !== earningsPredictions.length) {
+    throw new Error("Earnings forecast telemetry eligible count conflicts with report predictions");
+  }
+  const confirmedStatus =
+    telemetry.eventDateStatus === "issuer-confirmed" ||
+    telemetry.eventDateStatus === "exchange-confirmed";
+  if (telemetry.policy === "confirmed-only") {
+    if (telemetry.grammarEligible !== confirmedStatus) {
+      throw new Error("Earnings forecast telemetry eligibility conflicts with event-date status");
+    }
+    if (!confirmedStatus && earningsPredictions.length > 0) {
+      throw new Error("Unconfirmed earnings dates cannot anchor earnings predictions");
+    }
+  }
+  if (telemetry.eventDateStatus === "not-present") {
+    return;
+  }
+  for (const prediction of earningsPredictions) {
+    if (prediction.eventDateStatus !== telemetry.eventDateStatus) {
+      throw new Error(`Prediction ${prediction.id} eventDateStatus conflicts with telemetry`);
+    }
+  }
+}
+
+function validateBusinessFrameworkExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Business Framework",
+    "Business Framework sourceIds",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
+    errors,
   );
   if (!Array.isArray(extra.sections)) {
     return;
   }
-  for (const section of extra.sections) {
+  for (const [index, section] of extra.sections.entries()) {
     if (!isRecord(section)) {
       continue;
     }
+    const sectionName = typeof section.name === "string" ? ` (${section.name})` : "";
     validateKnownSourceIds(
-      "Business Framework",
+      `Business Framework sections[${index}]${sectionName}`,
       readStringArray(section.sourceIds),
       knownSourceIds,
       typeof section.text === "string",
+      errors,
     );
   }
   if (isRecord(extra.reconciliation)) {
     validateKnownSourceIds(
-      "Business Framework reconciliation",
+      "Business Framework reconciliation.profileSourceIds",
       readStringArray(extra.reconciliation.profileSourceIds),
       knownSourceIds,
       false,
+      errors,
     );
   }
 }
 
-function validateWebSubjectProfileExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateWebSubjectProfileExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Web Subject Profile",
+    "Web Subject Profile sourceIds",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
+    errors,
   );
   if (isRecord(extra.subjectSummary)) {
     validateKnownSourceIds(
-      "Web Subject Profile",
+      "Web Subject Profile subjectSummary",
       readStringArray(extra.subjectSummary.sourceIds),
       knownSourceIds,
       typeof extra.subjectSummary.answer === "string" && extra.subjectSummary.answer !== "",
+      errors,
     );
   }
   if (isRecord(extra.questions)) {
-    for (const question of Object.values(extra.questions)) {
+    for (const [key, question] of Object.entries(extra.questions)) {
       if (isRecord(question)) {
         validateKnownSourceIds(
-          "Web Subject Profile",
+          `Web Subject Profile questions.${key}`,
           readStringArray(question.sourceIds),
           knownSourceIds,
           typeof question.answer === "string" && question.answer !== "",
+          errors,
         );
       }
     }
@@ -349,76 +491,93 @@ function validateWebSubjectProfileExtra(extra: unknown, knownSourceIds: Readonly
     if (!Array.isArray(facts)) {
       continue;
     }
-    for (const fact of facts) {
+    for (const [index, fact] of facts.entries()) {
       if (isRecord(fact)) {
         validateKnownSourceIds(
-          "Web Subject Profile",
+          `Web Subject Profile ${key}[${index}]`,
           readStringArray(fact.sourceIds),
           knownSourceIds,
           typeof fact.claim === "string" && fact.claim !== "",
+          errors,
         );
       }
     }
   }
 }
 
-function validateHistoricalContextExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateHistoricalContextExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra)) {
     return;
   }
   validateKnownSourceIds(
-    "Historical Context",
+    "Historical Context sourceIds",
     readStringArray(extra.sourceIds),
     knownSourceIds,
     false,
+    errors,
   );
   if (!Array.isArray(extra.items)) {
     return;
   }
-  for (const item of extra.items) {
+  for (const [index, item] of extra.items.entries()) {
     if (!isRecord(item)) {
       continue;
     }
     validateKnownSourceIds(
-      "Historical Context",
+      `Historical Context items[${index}]`,
       readStringArray(item.sourceIds),
       knownSourceIds,
       typeof item.text === "string",
+      errors,
     );
   }
 }
 
-function validateSpotlightsExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateSpotlightsExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return;
   }
-  for (const item of extra.items) {
+  for (const [index, item] of extra.items.entries()) {
     if (!isRecord(item)) {
       continue;
     }
     validateKnownSourceIds(
-      "Market Spotlights",
+      `Market Spotlights items[${index}]`,
       readStringArray(item.sourceIds),
       knownSourceIds,
       typeof item.symbol === "string" &&
         (typeof item.rationale === "string" || typeof item.text === "string"),
+      errors,
     );
   }
 }
 
-function validateCatalystCalendarExtra(extra: unknown, knownSourceIds: ReadonlySet<string>): void {
+function validateCatalystCalendarExtra(
+  extra: unknown,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
   if (!isRecord(extra) || !Array.isArray(extra.items)) {
     return;
   }
-  for (const item of extra.items) {
+  for (const [index, item] of extra.items.entries()) {
     if (!isRecord(item)) {
       continue;
     }
     validateKnownSourceIds(
-      "Catalyst Calendar",
+      `Catalyst Calendar items[${index}]`,
       readStringArray(item.sourceIds),
       knownSourceIds,
       typeof item.label === "string",
+      errors,
     );
   }
 }
@@ -456,18 +615,44 @@ function validateProxyResolutionExtra(extra: unknown): void {
 function validateRenderedExtras(
   extras: ResearchReport["extras"],
   knownSourceIds: ReadonlySet<string>,
+  errors: string[],
 ): void {
   if (extras === undefined) {
     return;
   }
-  validateHistoricalContextExtra(extras.historicalContext, knownSourceIds);
-  validateSpotlightsExtra(extras.spotlights, knownSourceIds);
-  validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds);
+  validateHistoricalContextExtra(extras.historicalContext, knownSourceIds, errors);
+  validateSpotlightsExtra(extras.spotlights, knownSourceIds, errors);
+  validateCatalystCalendarExtra(extras.catalystCalendar, knownSourceIds, errors);
   validateResearchSubjectExtra(extras.researchSubject);
   validateProxyResolutionExtra(extras.proxyResolution);
-  validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds);
-  validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds);
-  validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds);
+  validateEarningsSetupExtra(extras.earningsSetup, knownSourceIds, errors);
+  validateBusinessFrameworkExtra(extras.businessFramework, knownSourceIds, errors);
+  validateWebSubjectProfileExtra(extras.webSubjectProfile, knownSourceIds, errors);
+}
+
+function validateEquityAnalysisCompleteness(
+  report: ResearchReport,
+  knownSourceIds: ReadonlySet<string>,
+  errors: string[],
+): void {
+  const completeness = report.equityAnalysisCompleteness;
+  if (completeness === undefined) {
+    return;
+  }
+  if (report.jobType !== "equity" || report.assetClass !== "equity") {
+    throw new Error("Equity analysis completeness is allowed only on equity reports");
+  }
+  assertEquityAnalysisCompleteness(completeness);
+  for (const key of EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS) {
+    const dimension = completeness.dimensions[key];
+    validateKnownSourceIds(
+      `equityAnalysisCompleteness.${key}`,
+      dimension.sourceIds,
+      knownSourceIds,
+      false,
+      errors,
+    );
+  }
 }
 
 export function validatePredictions(
@@ -516,17 +701,24 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
   if (report.researchQualityDriver !== undefined && report.researchQualityDriver.trim() === "") {
     throw new Error("Research report researchQualityDriver must be non-empty when set");
   }
+  if (report.predictionShortfall !== undefined) {
+    validatePredictionShortfall(report.predictionShortfall);
+  }
 
   const knownSourceIds = new Set(report.sources.map((source) => source.id));
+  const sourceIdErrors: string[] = [];
 
   assertSourceKinds(report.sources);
-  validateFindings(report.keyFindings, knownSourceIds);
-  validateFindings(report.bullCase, knownSourceIds);
-  validateFindings(report.bearCase, knownSourceIds);
-  validateFindings(report.risks, knownSourceIds);
-  validateFindings(report.catalysts, knownSourceIds);
-  validateScenarios(report.scenarios, knownSourceIds);
-  validateRenderedExtras(report.extras, knownSourceIds);
+  validateFindings("keyFindings", report.keyFindings, knownSourceIds, sourceIdErrors);
+  validateFindings("bullCase", report.bullCase, knownSourceIds, sourceIdErrors);
+  validateFindings("bearCase", report.bearCase, knownSourceIds, sourceIdErrors);
+  validateFindings("risks", report.risks, knownSourceIds, sourceIdErrors);
+  validateFindings("catalysts", report.catalysts, knownSourceIds, sourceIdErrors);
+  validateScenarios(report.scenarios, knownSourceIds, sourceIdErrors);
+  validateEquityAnalysisCompleteness(report, knownSourceIds, sourceIdErrors);
+  validateRenderedExtras(report.extras, knownSourceIds, sourceIdErrors);
+  assertNoSourceIdErrors(sourceIdErrors);
+  validateEarningsForecastCertainty(report);
   assertSafeReportLanguage(report);
 
   return report;

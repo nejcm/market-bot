@@ -13,7 +13,7 @@ import {
 } from "../src/research/research-subject-identity";
 import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
 import { createRecordingProvider } from "../tests/support/run-fixtures/llm-cassette";
-import { goldenOutputPath, writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
+import { writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
 import type { FixtureMeta } from "../tests/support/run-fixtures";
 import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
 
@@ -131,13 +131,13 @@ async function main(): Promise<void> {
       "utf8",
     );
     await writeFile(join(fixtureDir, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`, "utf8");
-    await writeGoldenOutput(result.artifacts.runDir, fixtureName);
+    const goldenFiles = await writeGoldenOutput(result.artifacts.runDir, fixtureName);
     await assertNoSecretsInFiles(
       [
         join(fixtureDir, "data-cassette.json"),
         join(fixtureDir, "llm-cassette.json"),
         join(fixtureDir, "meta.json"),
-        goldenOutputPath(fixtureName),
+        ...goldenFiles,
       ],
       knownSecretValues(process.env),
     );

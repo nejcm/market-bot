@@ -32,6 +32,7 @@ import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/sp
 import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
 import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
+import type { DeepEquityEvidenceBundleV1 } from "./deep-equity/types";
 
 export interface RunArtifactWrite {
   readonly file: RunArtifactFileName;
@@ -50,6 +51,7 @@ export interface ResearchRunManifestResult {
   readonly sourcePlan: SourcePlanArtifact;
   readonly evidenceLanes: EvidenceLanesArtifact;
   readonly sourceLedger: SourceLedgerArtifact;
+  readonly deepEquityEvidenceBundle?: DeepEquityEvidenceBundleV1;
   readonly forecastDisagreement?: ForecastDisagreementArtifact;
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
@@ -77,6 +79,7 @@ export interface AlphaSearchManifestInput {
 interface CollectedSourceSidecar {
   readonly file: RunArtifactFileName;
   readonly value: (result: ResearchRunManifestResult) => unknown;
+  readonly omitWhenUndefined?: boolean;
 }
 
 const COMMON_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = [
@@ -108,6 +111,14 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     value: (result) => result.collectedSources.valuationComps ?? null,
   },
   {
+    file: RUN_ARTIFACT_FILES.valuationWorkbench,
+    value: (result) => result.collectedSources.valuationWorkbench ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.reverseDcf,
+    value: (result) => result.collectedSources.reverseDcf ?? null,
+  },
+  {
     file: RUN_ARTIFACT_FILES.financialLenses,
     value: (result) => result.collectedSources.financialLenses ?? null,
   },
@@ -116,20 +127,65 @@ const INSTRUMENT_COLLECTED_SOURCE_SIDECARS: readonly CollectedSourceSidecar[] = 
     value: (result) => result.collectedSources.fundamentalHistory ?? null,
   },
   {
+    file: RUN_ARTIFACT_FILES.financialStatements,
+    value: (result) => result.collectedSources.financialStatements ?? null,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.untaggedFinancialStatements,
+    value: (result) => result.collectedSources.untaggedFinancialStatements,
+    omitWhenUndefined: true,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.subsequentFinancing,
+    value: (result) => result.collectedSources.subsequentFinancing,
+    omitWhenUndefined: true,
+  },
+  {
+    file: RUN_ARTIFACT_FILES.capitalOwnership,
+    value: (result) => result.collectedSources.capitalOwnership,
+    omitWhenUndefined: true,
+  },
+  {
     file: RUN_ARTIFACT_FILES.businessFramework,
     value: (result) => result.collectedSources.businessFramework ?? null,
   },
 ];
 
+const DEEP_EQUITY_BUNDLE_COMPONENT_FILES: ReadonlySet<RunArtifactFileName> = new Set([
+  RUN_ARTIFACT_FILES.marketSnapshots,
+  RUN_ARTIFACT_FILES.supplementalMarketSnapshots,
+  RUN_ARTIFACT_FILES.newsSources,
+  RUN_ARTIFACT_FILES.extendedSources,
+  RUN_ARTIFACT_FILES.extendedEvidence,
+  RUN_ARTIFACT_FILES.sourceGaps,
+  RUN_ARTIFACT_FILES.sourcePlan,
+  RUN_ARTIFACT_FILES.evidenceLanes,
+  RUN_ARTIFACT_FILES.sourceLedger,
+  RUN_ARTIFACT_FILES.historicalContext,
+  RUN_ARTIFACT_FILES.verifiedMarketSnapshot,
+  RUN_ARTIFACT_FILES.instrumentIdentity,
+  RUN_ARTIFACT_FILES.valuationComps,
+  RUN_ARTIFACT_FILES.valuationWorkbench,
+  RUN_ARTIFACT_FILES.reverseDcf,
+  RUN_ARTIFACT_FILES.financialLenses,
+  RUN_ARTIFACT_FILES.fundamentalHistory,
+  RUN_ARTIFACT_FILES.financialStatements,
+  RUN_ARTIFACT_FILES.subsequentFinancing,
+  RUN_ARTIFACT_FILES.capitalOwnership,
+  RUN_ARTIFACT_FILES.businessFramework,
+  RUN_ARTIFACT_FILES.webSubjectProfile,
+]);
+
 function sidecarWrites(
   result: ResearchRunManifestResult,
   sidecars: readonly CollectedSourceSidecar[],
 ): readonly RunArtifactWrite[] {
-  return sidecars.map((sidecar) => ({
-    file: sidecar.file,
-    kind: "json",
-    value: sidecar.value(result),
-  }));
+  return sidecars.flatMap((sidecar): readonly RunArtifactWrite[] => {
+    const value = sidecar.value(result);
+    return sidecar.omitWhenUndefined === true && value === undefined
+      ? []
+      : [{ file: sidecar.file, kind: "json", value }];
+  });
 }
 
 // The Theme Catalyst Calendar items assembled onto the report extras, persisted
@@ -144,6 +200,11 @@ export function buildResearchRunManifest(
   config: AppConfig,
   result: ResearchRunManifestResult,
 ): readonly RunArtifactWrite[] {
+  const isDeepEquity =
+    command.jobType === "equity" && command.assetClass === "equity" && command.depth === "deep";
+  if (isDeepEquity && result.deepEquityEvidenceBundle === undefined) {
+    throw new Error("Deep-equity runs require an evidence bundle artifact");
+  }
   const writes: RunArtifactWrite[] = [
     {
       file: RUN_ARTIFACT_FILES.rawSnapshots,
@@ -257,7 +318,17 @@ export function buildResearchRunManifest(
     { file: RUN_ARTIFACT_FILES.trace, kind: "json", value: result.trace },
   );
 
-  return writes;
+  if (!isDeepEquity) {
+    return writes;
+  }
+  return [
+    ...writes.filter((write) => !DEEP_EQUITY_BUNDLE_COMPONENT_FILES.has(write.file)),
+    {
+      file: RUN_ARTIFACT_FILES.evidenceBundle,
+      kind: "json",
+      value: result.deepEquityEvidenceBundle,
+    },
+  ];
 }
 
 export function buildAlphaSearchManifest(

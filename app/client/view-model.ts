@@ -24,8 +24,16 @@ import type {
   FinancialLensMetric,
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
+import {
+  readBusinessFrameworkExtra,
+  readWebSubjectProfileExtra,
+  webSubjectProfileQuestionKeys,
+  type BusinessFrameworkExtraGap,
+  type WebSubjectProfileFactValue,
+} from "../../src/report/report-extras-contract";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { isRecord, numberAt, readStringVerbatim } from "../../src/guards";
+import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/types";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
@@ -52,32 +60,6 @@ const BUSINESS_FRAMEWORK_POSTURES = [
   "insufficient-data",
 ] as const;
 
-const WEB_SUBJECT_PROFILE_QUESTION_KEYS = {
-  company: [
-    "whatItDoes",
-    "howItMakesMoney",
-    "customers",
-    "geography",
-    "purchaseRecurrence",
-    "pricingPower",
-    "recessionCyclicality",
-    "managementTrackRecord",
-    "capitalAllocation",
-    "companyKpis",
-    "riskFactors",
-  ],
-  "crypto-asset": [
-    "whatItDoes",
-    "valueAccrual",
-    "supplyIssuance",
-    "usageAdoption",
-    "governanceBuilders",
-    "competitionMoat",
-    "keyRisks",
-  ],
-  theme: ["whatItIs", "whyNow", "beneficiaries", "headwinds", "keyDebates", "howItPlaysOut"],
-} as const;
-
 function isBusinessFrameworkSectionName(value: string): value is BusinessFrameworkSectionName {
   return (BUSINESS_FRAMEWORK_SECTION_NAMES as readonly string[]).includes(value);
 }
@@ -102,8 +84,6 @@ export {
   scenarios,
   scoredForecasts,
   sources,
-  formatShortfallGap,
-  splitDataGaps,
   stringArray,
   textItems,
 } from "../report-artifact-view";
@@ -116,7 +96,6 @@ export type {
   PredictionScoreView,
   PredictionTargetHealth,
   ScoredForecast,
-  SplitDataGaps,
 } from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
@@ -324,7 +303,7 @@ export type CalibrationSliceGroup =
   | "byHorizonBucket"
   | "byMarketRegime";
 
-const HORIZON_BUCKET_ORDER = ["1-5d", "6-10d", "11-15d", "16-20d"];
+const HORIZON_BUCKET_ORDER = ["1d", "2-5d", "6-10d", "11-15d", "16-20d"];
 
 export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadline {
   const summary = detail.summary ?? {};
@@ -605,7 +584,10 @@ function financialLensSourceLabel(sourceIds: readonly string[]): string | undefi
   return undefined;
 }
 
-function financialLensMetricCaption(metric: FinancialLensMetric): string | undefined {
+function financialLensMetricCaption(
+  metric: FinancialLensMetric,
+  marketSnapshots: readonly MarketSnapshot[],
+): string | undefined {
   const source = financialLensSourceLabel(metric.sourceIds);
   if (source === undefined) {
     return undefined;
@@ -615,6 +597,16 @@ function financialLensMetricCaption(metric: FinancialLensMetric): string | undef
   }
   const date = metric.periodEnd.slice(0, 10);
   if (metric.periodMonths === undefined) {
+    const marketSnapshot = marketSnapshots.find((snapshot) =>
+      metric.sourceIds.includes(snapshot.sourceId),
+    );
+    if (marketSnapshot !== undefined) {
+      const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+      return `${source} · ${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+    }
+    if (metric.sourceIds.some((sourceId) => sourceId.includes("yahoo"))) {
+      return `${source} · fetch time ${metric.periodEnd}`;
+    }
     return `${source} · observed ${date}`;
   }
   const period = metric.periodMonths === 12 ? "FY" : `${String(metric.periodMonths)}M`;
@@ -623,6 +615,7 @@ function financialLensMetricCaption(metric: FinancialLensMetric): string | undef
 
 export function financialLensStatTiles(
   artifact?: FinancialLensArtifact,
+  marketSnapshots: readonly MarketSnapshot[] = [],
 ): readonly FinancialLensStatTile[] {
   if (artifact === undefined) {
     return [];
@@ -633,7 +626,7 @@ export function financialLensStatTiles(
         typeof metric.value === "string"
           ? metric.value
           : formatLensValue(metric.value, metric.unit, metric.currency);
-      const caption = financialLensMetricCaption(metric);
+      const caption = financialLensMetricCaption(metric, marketSnapshots);
       return {
         key: metric.key,
         lens: lens.name,
@@ -646,115 +639,65 @@ export function financialLensStatTiles(
   );
 }
 
-const BUSINESS_FRAMEWORK_UNITS: ReadonlySet<string> = new Set<BusinessFrameworkMetric["unit"]>([
-  "ratio",
-  "ratio-percent",
-  "whole-percent",
-  "currency",
-  "number",
-  "text",
-]);
-
-function stringArray(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
+function businessFrameworkMetricTile(metric: BusinessFrameworkMetric): BusinessFrameworkMetricTile {
+  return {
+    key: metric.key,
+    label: metric.label,
+    value:
+      typeof metric.value === "string"
+        ? metric.value
+        : formatLensValue(metric.value, metric.unit, metric.currency),
+    sourceIds: metric.sourceIds,
+  };
 }
 
-function businessFrameworkMetricTile(value: unknown): BusinessFrameworkMetricTile | undefined {
-  const record = readRecord(value);
-  if (record === undefined) {
-    return undefined;
-  }
-  const key = readStringVerbatim(record, "key");
-  const label = readStringVerbatim(record, "label");
-  const unit = readStringVerbatim(record, "unit");
-  const raw = record.value;
-  if (
-    key === undefined ||
-    label === undefined ||
-    unit === undefined ||
-    !BUSINESS_FRAMEWORK_UNITS.has(unit) ||
-    (typeof raw !== "number" && typeof raw !== "string")
-  ) {
-    return undefined;
-  }
-  const currency = readStringVerbatim(record, "currency");
-  const typedUnit = unit as BusinessFrameworkMetric["unit"];
-  return {
-    key,
-    label,
-    value: typeof raw === "string" ? raw : formatLensValue(raw, typedUnit, currency),
-    sourceIds: stringArray(record.sourceIds),
-  };
+// The reader keeps a gap's code for the markdown renderer; the Console shows text only.
+function businessFrameworkGapText(gap: BusinessFrameworkExtraGap): string {
+  return typeof gap === "string" ? gap : gap.text;
 }
 
 function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | undefined {
-  const record = readRecord(value);
-  if (record === undefined) {
+  const framework = readBusinessFrameworkExtra(value);
+  if (framework === undefined) {
     return undefined;
   }
-  const phase = readStringVerbatim(record, "phase");
+  // View policy: the Console header is the phase, so an unknown or absent phase
+  // Suppresses the whole card. Absent `sections` renders as no sections.
+  const { phase } = framework;
   if (phase === undefined || !isBusinessLifecyclePhase(phase)) {
     return undefined;
   }
-  const rawSections = Array.isArray(record.sections) ? record.sections : [];
-  const sections = rawSections.flatMap((item): readonly BusinessFrameworkSectionView[] => {
-    const section = readRecord(item);
-    if (section === undefined) {
-      return [];
-    }
-    const name = readStringVerbatim(section, "name");
-    const posture = readStringVerbatim(section, "posture");
-    const summary = readStringVerbatim(section, "summary");
-    if (
-      name === undefined ||
-      posture === undefined ||
-      summary === undefined ||
-      !isBusinessFrameworkSectionName(name) ||
-      !isBusinessFrameworkPosture(posture)
-    ) {
-      return [];
-    }
-    const text = readStringVerbatim(section, "text");
-    const metrics = Array.isArray(section.metrics)
-      ? section.metrics.flatMap((metric) => {
-          const tile = businessFrameworkMetricTile(metric);
-          return tile === undefined ? [] : [tile];
-        })
-      : [];
-    return [
-      {
-        name,
-        posture,
-        summary,
-        ...(text !== undefined ? { text } : {}),
-        metrics,
-        sourceIds: stringArray(section.sourceIds),
-        gaps: businessFrameworkGapTexts(section.gaps),
-      },
-    ];
-  });
+  const sections = (framework.sections ?? []).flatMap(
+    (section): readonly BusinessFrameworkSectionView[] => {
+      const { name, posture, summary, text } = section;
+      if (
+        name === undefined ||
+        posture === undefined ||
+        summary === undefined ||
+        !isBusinessFrameworkSectionName(name) ||
+        !isBusinessFrameworkPosture(posture)
+      ) {
+        return [];
+      }
+      return [
+        {
+          name,
+          posture,
+          summary,
+          ...(text !== undefined ? { text } : {}),
+          metrics: section.metrics.map(businessFrameworkMetricTile),
+          sourceIds: section.sourceIds,
+          gaps: section.gaps.map(businessFrameworkGapText),
+        },
+      ];
+    },
+  );
   return {
     phase,
     sections,
-    sourceIds: stringArray(record.sourceIds),
-    gaps: businessFrameworkGapTexts(record.gaps),
+    sourceIds: framework.sourceIds,
+    gaps: framework.gaps.map(businessFrameworkGapText),
   };
-}
-
-function businessFrameworkGapTexts(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.flatMap((gap) => {
-    if (typeof gap === "string") {
-      return [gap];
-    }
-    const record = readRecord(gap);
-    const text = record === undefined ? undefined : readStringVerbatim(record, "text");
-    return text === undefined ? [] : [text];
-  });
 }
 
 export function businessFrameworkView(
@@ -794,42 +737,39 @@ const WEB_SUBJECT_PROFILE_QUESTION_LABELS: Readonly<Record<WebSubjectProfileQues
     howItPlaysOut: "How it plays out",
   };
 
-function webProfileFacts(value: unknown): readonly WebSubjectProfileFactView[] {
-  return Array.isArray(value)
-    ? value.flatMap((item): readonly WebSubjectProfileFactView[] => {
-        const record = readRecord(item);
-        const claim = readStringVerbatim(record, "claim");
-        const sourceIds = stringArray(record?.sourceIds);
-        return claim === undefined || sourceIds.length === 0 ? [] : [{ claim, sourceIds }];
-      })
-    : [];
+// View policy: an uncited fact is not shown, and a claim the reader kept without
+// Text (`claim: undefined`) has nothing to render.
+function webProfileFacts(
+  facts: readonly WebSubjectProfileFactValue[],
+): readonly WebSubjectProfileFactView[] {
+  return facts.flatMap(({ claim, sourceIds }): readonly WebSubjectProfileFactView[] =>
+    claim === undefined || sourceIds.length === 0 ? [] : [{ claim, sourceIds }],
+  );
 }
 
 function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | undefined {
-  const record = readRecord(value);
-  if (record === undefined) {
+  const profile = readWebSubjectProfileExtra(value);
+  if (profile === undefined) {
     return undefined;
   }
-  const rawQuestions = readRecord(record.questions);
-  const subjectKind = readStringVerbatim(record, "subjectKind");
-  const keys =
-    subjectKind === "company" || subjectKind === "crypto-asset" || subjectKind === "theme"
-      ? WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind]
-      : WEB_SUBJECT_PROFILE_QUESTION_KEYS.company;
+  // View policy: an answer is shown only when it has text and a citation; an
+  // Absent `questions` record renders as no questions.
+  const rawQuestions = profile.questions;
   const questions =
     rawQuestions === undefined
       ? []
-      : keys.flatMap((key): readonly WebSubjectProfileQuestionView[] => {
-          const question = readRecord(rawQuestions[key]);
-          const answer = readStringVerbatim(question, "answer");
-          const sourceIds = stringArray(question?.sourceIds);
-          return answer === undefined || answer === "" || sourceIds.length === 0
-            ? []
-            : [{ key, label: WEB_SUBJECT_PROFILE_QUESTION_LABELS[key], answer, sourceIds }];
-        });
-  const rawSummary = readRecord(record.subjectSummary);
-  const summaryAnswer = readStringVerbatim(rawSummary, "answer");
-  const summarySourceIds = stringArray(rawSummary?.sourceIds);
+      : webSubjectProfileQuestionKeys(profile.subjectKind).flatMap(
+          (key): readonly WebSubjectProfileQuestionView[] => {
+            const question = rawQuestions[key];
+            const answer = question?.answer;
+            const sourceIds = question?.sourceIds ?? [];
+            return answer === undefined || answer === "" || sourceIds.length === 0
+              ? []
+              : [{ key, label: WEB_SUBJECT_PROFILE_QUESTION_LABELS[key], answer, sourceIds }];
+          },
+        );
+  const summaryAnswer = profile.subjectSummary?.answer;
+  const summarySourceIds = profile.subjectSummary?.sourceIds ?? [];
   const subjectSummary =
     summaryAnswer === undefined || summaryAnswer === "" || summarySourceIds.length === 0
       ? undefined
@@ -839,9 +779,9 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
           answer: summaryAnswer,
           sourceIds: summarySourceIds,
         };
-  const recentMaterialEvents = webProfileFacts(record.recentMaterialEvents);
-  const factLedger = webProfileFacts(record.factLedger);
-  const openGaps = stringArray(record.openGaps);
+  const recentMaterialEvents = webProfileFacts(profile.recentMaterialEvents);
+  const factLedger = webProfileFacts(profile.factLedger);
+  const { subjectKind, openGaps } = profile;
   if (
     questions.length === 0 &&
     recentMaterialEvents.length === 0 &&
@@ -850,9 +790,10 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
   ) {
     return undefined;
   }
-  const subjectLabel =
-    readStringVerbatim(record, "subjectLabel") ?? readStringVerbatim(record, "companyName");
-  const generatedAt = readStringVerbatim(record, "generatedAt");
+  const subjectLabel = profile.subjectLabel ?? profile.companyName;
+  // Not part of the extras contract — the extras projection strips it — but the
+  // Sidecar artifact this same mapper reads still carries it.
+  const generatedAt = readStringVerbatim(readRecord(value), "generatedAt");
   return {
     ...(subjectKind !== undefined ? { subjectKind } : {}),
     ...(subjectLabel !== undefined ? { subjectLabel } : {}),
@@ -862,7 +803,7 @@ function webSubjectProfileFromValue(value: unknown): WebSubjectProfileView | und
     recentMaterialEvents,
     factLedger,
     openGaps,
-    sourceIds: stringArray(record.sourceIds),
+    sourceIds: profile.sourceIds,
   };
 }
 
@@ -1000,9 +941,7 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
         shortfall:
           shortfall === undefined
             ? "none"
-            : `${String(numberAt(shortfall, ["missingCount"]))} missing${
-                shortfall.disclosed === true ? ", disclosed" : ""
-              }`,
+            : `${String(numberAt(shortfall, ["missingCount"]))} missing`,
         calibration: formatSkill(readFiniteNumber(calibration?.brierSkillScore)),
         snapshotFreshness:
           snapshotAge === undefined || snapshotSymbol === undefined

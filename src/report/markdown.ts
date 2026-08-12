@@ -1,10 +1,15 @@
 import {
   isInstrumentJobType,
+  resolveMarketSnapshotPriceAsOf,
   researchReportEvidenceQuality,
+  type EquityAnalysisDimensionStatus,
+  type ExtendedEvidenceItem,
   type KeyFinding,
+  type MarketSnapshot,
   type Prediction,
   type ResearchReport,
   type Scenario,
+  type SourceGap,
 } from "../domain/types";
 import { renderClaimForMeasurableAs } from "../forecast/observable";
 import { RESEARCH_ONLY_NOTE } from "./schema";
@@ -15,6 +20,31 @@ import {
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
 import { isRecord, readNumber } from "../guards";
+import { readGapTriage, type GapTriage } from "./gap-triage";
+import {
+  readBusinessFrameworkExtra,
+  readWebSubjectProfileExtra,
+  webSubjectProfileQuestionKeys,
+  type WebSubjectProfileAnswerValue,
+  type WebSubjectProfileExtraValue,
+  type WebSubjectProfileFactValue,
+} from "./report-extras-contract";
+import type { WebSubjectProfileQuestionKey } from "../web-evidence/contract";
+import { predictionShortfallMaterialGaps } from "./prediction-shortfall";
+import type { CollectedSources } from "../sources/types";
+import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";
+import {
+  compactNumber,
+  projectEquityReader,
+  type EquityReaderAnalystEstimateDistribution,
+  type EquityReaderAppendixCompleteness,
+  type EquityReaderBalanceSheetHistory,
+  type EquityReaderCompanyDescription,
+  type EquityReaderConsensusItem,
+  type EquityReaderFinancialTrends,
+  type EquityReaderMarketMultiple,
+  type EquityReaderValuationContext,
+} from "./equity-reader";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
@@ -35,6 +65,55 @@ function markdownText(value: string): string {
   });
 }
 
+function formatTrendAmount(value: number | undefined): string {
+  return value === undefined ? "—" : compactNumber(value);
+}
+
+function renderGap(
+  gap: string,
+  reportSymbol?: string,
+  placement?: GapTriage,
+  sourceGaps: readonly SourceGap[] = [],
+): string {
+  const triage = placement ?? readGapTriage(gap, sourceGaps, reportSymbol);
+  return `- **${triage === "material" ? "Material" : "Diagnostic"}:** ${markdownText(gap)}`;
+}
+
+function completenessStatusChip(status: EquityAnalysisDimensionStatus): string {
+  if (status === "not-assessed") {
+    return "`not assessed — inputs unavailable`";
+  }
+  return `\`${status.replaceAll("-", " ")}\``;
+}
+
+function renderEquityCompletenessChips(report: ResearchReport): readonly string[] {
+  const completeness = report.equityAnalysisCompleteness;
+  if (completeness === undefined) {
+    return [];
+  }
+  return [
+    `Analysis Completeness: financial core ${completenessStatusChip(completeness.financialCoreStatus)}`,
+  ];
+}
+
+function renderCompletenessAppendix(
+  completeness: EquityReaderAppendixCompleteness | undefined,
+): string {
+  if (completeness === undefined) {
+    return "";
+  }
+  const dimensions = completeness.dimensions
+    .map((dimension) => `${dimension.label} ${completenessStatusChip(dimension.status)}`)
+    .join(" · ");
+  return [
+    "## Analysis Completeness",
+    "",
+    `Coverage: \`${completeness.coverageLevel}\``,
+    `Dimension Status: ${dimensions}`,
+    "",
+  ].join("\n");
+}
+
 // Diverges from guards.readStringArray (record+key, undefined on miss) and
 // Guards.stringArrayValue (filters mixed arrays): all-or-nothing over a raw value.
 function readStringArray(value: unknown): readonly string[] {
@@ -46,7 +125,20 @@ function knownSourceIds(report: ResearchReport, sourceIds: unknown): readonly st
   return readStringArray(sourceIds).filter((sourceId) => known.has(sourceId));
 }
 
-function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
+// Render policy. The extras readers keep the per-item valid entries of a mixed
+// Array because the Research Console renders them, but markdown has always
+// Treated any non-string member as making the whole array unusable.
+function citedSourceIds(
+  report: ResearchReport,
+  row: { readonly sourceIds: readonly string[]; readonly sourceIdsComplete: boolean },
+): readonly string[] {
+  return row.sourceIdsComplete ? knownSourceIds(report, row.sourceIds) : [];
+}
+
+function collectReportSourceIds(
+  report: ResearchReport,
+  additionalSourceIds: readonly string[] = [],
+): ReadonlySet<string> {
   const ids = new Set<string>();
   const add = (sourceIds: readonly string[]) => {
     for (const sourceId of sourceIds) {
@@ -81,38 +173,26 @@ function collectReportSourceIds(report: ResearchReport): ReadonlySet<string> {
       }
     });
   }
-  const framework = report.extras?.businessFramework;
-  if (isRecord(framework)) {
-    add(knownSourceIds(report, framework.sourceIds));
-    if (Array.isArray(framework.sections)) {
-      framework.sections.forEach((section) => {
-        if (isRecord(section)) {
-          add(knownSourceIds(report, section.sourceIds));
-        }
-      });
-    }
+  // Same typed values the renderers below use — one traversal contract, so a new
+  // Field cannot appear in one place and silently lose its citations in the other.
+  const framework = readBusinessFrameworkExtra(report.extras?.businessFramework);
+  if (framework !== undefined) {
+    add(citedSourceIds(report, framework));
+    (framework.sections ?? []).forEach((section) => add(citedSourceIds(report, section)));
   }
-  const profile = report.extras?.webSubjectProfile;
-  if (isRecord(profile)) {
-    add(knownSourceIds(report, profile.sourceIds));
-    if (isRecord(profile.questions)) {
-      Object.values(profile.questions).forEach((question) => {
-        if (isRecord(question)) {
-          add(knownSourceIds(report, question.sourceIds));
-        }
-      });
-    }
-    for (const key of ["recentMaterialEvents", "factLedger"] as const) {
-      const facts = profile[key];
-      if (Array.isArray(facts)) {
-        facts.forEach((fact) => {
-          if (isRecord(fact)) {
-            add(knownSourceIds(report, fact.sourceIds));
-          }
-        });
-      }
-    }
+  const profile = readWebSubjectProfileExtra(report.extras?.webSubjectProfile);
+  if (profile !== undefined) {
+    add(citedSourceIds(report, profile));
+    // Every parsed row is cited, including one whose text is blank or missing —
+    // Suppressing it is the renderer's decision, not this traversal's.
+    Object.values(profile.questions ?? {}).forEach((question) =>
+      add(citedSourceIds(report, question)),
+    );
+    [...profile.recentMaterialEvents, ...profile.factLedger].forEach((fact) =>
+      add(citedSourceIds(report, fact)),
+    );
   }
+  add(knownSourceIds(report, additionalSourceIds));
 
   return ids;
 }
@@ -136,12 +216,15 @@ function sourceInventoryLine(
   return `- ${String(uncitedCount)} uncited normalized source(s) omitted from markdown (${inventory}). Full source arrays remain in report.json and console files.`;
 }
 
-function renderSources(report: ResearchReport): string {
+function renderSources(
+  report: ResearchReport,
+  additionalSourceIds: readonly string[] = [],
+): string {
   if (report.sources.length === 0) {
     return "- No sources.";
   }
 
-  const citedIds = collectReportSourceIds(report);
+  const citedIds = collectReportSourceIds(report, additionalSourceIds);
   const citedSources = report.sources.filter((source) => citedIds.has(source.id));
   const uncitedCount = report.sources.length - citedSources.length;
   const rows = citedSources.map(
@@ -186,7 +269,243 @@ function renderPredictions(predictions: readonly Prediction[]): string {
   return `## Predictions\n\n${rows}\n`;
 }
 
-function renderExtendedEvidence(report: ResearchReport): string {
+function renderPriceProvenance(
+  summary: string,
+  sourceIds: readonly string[],
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
+  if (marketSnapshot === undefined || !sourceIds.includes(marketSnapshot.sourceId)) {
+    return summary;
+  }
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const label = `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  return summary
+    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+}
+
+function renderCompanyDescription(description: EquityReaderCompanyDescription): string {
+  const refs = sourceRefs(description.sourceIds);
+  return `## What the Company Does\n\n${description.status === "unavailable" ? "- " : ""}${markdownText(description.text)}${refs === "" ? "" : ` ${refs}`}\n`;
+}
+
+function quoteCurrency(snapshot: MarketSnapshot): string {
+  return snapshot.identity?.quoteCurrency ?? "";
+}
+
+function renderPriceAndMarketDate(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
+  if (marketSnapshot === undefined) {
+    return "## Price and Market Date\n\n- No current normalized price is available.\n";
+  }
+  const currency = quoteCurrency(marketSnapshot);
+  const price = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(
+    marketSnapshot.price,
+  );
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
+  const label = `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+  const summary = `Observed price: ${price}${currency === "" ? "" : ` ${currency}`}; price as of ${label}.`;
+  const refs = sourceRefs(knownSourceIds(report, [marketSnapshot.sourceId]));
+  return `## Price and Market Date\n\n${summary}${refs === "" ? "" : ` ${refs}`}\n`;
+}
+
+export function renderFinancialTrends(
+  report: ResearchReport,
+  sources: Pick<CollectedSources, "fundamentalHistory"> | undefined,
+): string {
+  const projection = projectEquityReader({
+    report,
+    ...(sources?.fundamentalHistory === undefined
+      ? {}
+      : { fundamentalHistory: sources.fundamentalHistory }),
+  });
+  return renderProjectedFinancialTrends(report, projection.defaultView.financialTrends);
+}
+
+function renderProjectedFinancialTrends(
+  report: ResearchReport,
+  trends: EquityReaderFinancialTrends | undefined,
+): string {
+  if (trends === undefined) {
+    return "## Financial Trends\n\n- Three-to-five-year and TTM history is unavailable.\n";
+  }
+  const rows = trends.rows.map((row) =>
+    [row.period, row.revenue, row.netIncome, row.operatingMargin, row.freeCashFlow].join(" | "),
+  );
+  const refs = sourceRefs(knownSourceIds(report, trends.sourceIds));
+  return [
+    "## Financial Trends",
+    "",
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    "",
+    "Period | Revenue | Net income | Operating margin | FCF",
+    "--- | ---: | ---: | ---: | ---:",
+    ...rows,
+    "",
+  ].join("\n");
+}
+
+function renderBalanceSheetAndShareCount(
+  report: ResearchReport,
+  history: EquityReaderBalanceSheetHistory | undefined,
+): string {
+  if (history === undefined) {
+    return "### Balance Sheet and Share Count\n\n- Balance-sheet and diluted-share history is unavailable.\n";
+  }
+  const rows = history.rows.map((row) =>
+    [
+      row.period,
+      formatTrendAmount(row.cash?.value),
+      formatTrendAmount(row.debt?.value),
+      formatTrendAmount(row.dilutedShares?.value),
+    ].join(" | "),
+  );
+  const refs = sourceRefs(knownSourceIds(report, history.sourceIds));
+  return [
+    "### Balance Sheet and Share Count",
+    "",
+    `Cash and debt amounts${history.reportingCurrency === undefined ? "" : ` in ${markdownText(history.reportingCurrency)}`}; diluted shares are weighted-average shares.${refs === "" ? "" : ` ${refs}`}`,
+    "",
+    "Period | Cash | Debt | Diluted shares",
+    "--- | ---: | ---: | ---:",
+    ...rows,
+    "",
+  ].join("\n");
+}
+
+function renderValuationContext(
+  report: ResearchReport,
+  valuation: EquityReaderValuationContext,
+): string {
+  if (valuation.kind === "peer-range" && valuation.status === "derived") {
+    const { range, priceAsOf } = valuation;
+    let position = "above";
+    if (range.position === "within-range") {
+      position = "within";
+    } else if (range.position === "below-range") {
+      position = "below";
+    }
+    const date =
+      priceAsOf === undefined
+        ? undefined
+        : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
+    const refs = sourceRefs(knownSourceIds(report, valuation.sourceIds));
+    const compactMetrics = renderCompactValuationMetrics(report);
+    return [
+      "## Valuation Context",
+      "",
+      `The observed quote is ${position} the peer-implied price reference range of ${range.low.toFixed(2)}–${range.high.toFixed(2)} ${range.inputs.quoteCurrency}${date === undefined ? "" : ` as of ${date}`}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}`,
+      ...(compactMetrics.length === 0 ? [] : ["", ...compactMetrics]),
+      "",
+    ].join("\n");
+  }
+  let metrics: readonly EquityReaderMarketMultiple[] = [];
+  let sourceIds: readonly string[] = [];
+  if (valuation.kind === "market-multiples") {
+    ({ metrics, sourceIds } = valuation);
+  } else if (valuation.kind === "peer-range") {
+    ({ fallbackMetrics: metrics, fallbackSourceIds: sourceIds } = valuation);
+  }
+  const renderedMetrics = metrics.map((metric) => {
+    let label = "price/book";
+    if (metric.key === "trailingPE") {
+      label = "trailing P/E";
+    } else if (metric.key === "forwardPE") {
+      label = "forward P/E";
+    }
+    return `${label} ${metric.value.toFixed(2)}x`;
+  });
+  const refs = sourceRefs(knownSourceIds(report, sourceIds));
+  const includePriceToBook = !metrics.some((metric) => metric.key === "priceToBook");
+  const compactMetrics = renderCompactValuationMetrics(report, includePriceToBook);
+  const compactPriceToBookAvailable =
+    includePriceToBook &&
+    firstEvidenceMetric(
+      (report.extendedEvidence?.items ?? []).filter(
+        (item) => item.category === "yahoo-fundamentals",
+      ),
+      "priceToBook",
+    ) !== undefined;
+  let context = `Observed market multiples are ${renderedMetrics.join(", ")}`;
+  if (renderedMetrics.length === 0) {
+    context = compactPriceToBookAvailable
+      ? "No peer-derived reference range is available"
+      : "No peer-derived reference range or normalized market multiple is available";
+  }
+  return [
+    "## Valuation Context",
+    "",
+    `${context}; this is valuation context, not a target price.${refs === "" ? "" : ` ${refs}`}`,
+    ...(compactMetrics.length === 0 ? [] : ["", ...compactMetrics]),
+    "",
+  ].join("\n");
+}
+
+function renderConsensusItem(report: ResearchReport, item: EquityReaderConsensusItem): string {
+  const refs = sourceRefs(knownSourceIds(report, item.sourceIds));
+  const citation = refs === "" ? "" : ` ${refs}`;
+  if (item.kind === "earnings-date") {
+    return `- **Upcoming earnings:** ${markdownText(item.symbol)} on ${item.date} (${item.timing}; ${item.status})${citation}`;
+  }
+  if (item.kind === "eps-consensus") {
+    return `- **EPS consensus:** ${String(item.value)} (single-provider snapshot)${citation}`;
+  }
+  if (item.kind === "revenue-consensus") {
+    return `- **Revenue consensus:** ${compactNumber(item.value)} (single-provider snapshot)${citation}`;
+  }
+  return `- **${markdownText(item.title)}:** mean ${compactNumber(item.mean)}${item.period === undefined ? "" : ` for ${item.period}`}${item.count === undefined ? "" : ` (${String(item.count)} estimates)`}${citation}`;
+}
+
+function renderCompactEarningsAndConsensus(
+  report: ResearchReport,
+  items: readonly EquityReaderConsensusItem[],
+): string {
+  const rows = items.map((item) => renderConsensusItem(report, item));
+  return [
+    "## Upcoming Earnings and Consensus",
+    "",
+    ...(rows.length === 0 ? ["- No upcoming earnings or consensus snapshot is available."] : rows),
+    "",
+  ].join("\n");
+}
+
+function renderGapSection(
+  title: string,
+  gaps: readonly string[],
+  emptyMessage: string,
+  reportSymbol?: string,
+  placement?: GapTriage,
+): string {
+  const rows =
+    gaps.length === 0
+      ? `- ${emptyMessage}`
+      : gaps.map((gap) => renderGap(gap, reportSymbol, placement)).join("\n");
+  return `## ${title}\n\n${rows}\n`;
+}
+
+function renderAppendixSection(markdown: string): string {
+  return markdown.replaceAll(/^(#{2,5})(?= )/gmu, "#$1");
+}
+
+function renderDiagnosticGapSummary(count: number, disclosedGaps: readonly string[]): string {
+  const noun = count === 1 ? "gap" : "gaps";
+  const disclosures = disclosedGaps.map((gap) => renderGap(gap, undefined, "diagnostic"));
+  const pointer =
+    count > disclosedGaps.length
+      ? [
+          `- ${String(count)} diagnostic data ${noun}; see the Research Console Advanced view or report.json for details.`,
+        ]
+      : [];
+  return `## Diagnostic Data Gaps\n\n${[...disclosures, ...pointer].join("\n")}\n`;
+}
+
+function renderExtendedEvidence(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+): string {
   if (!isInstrumentJobType(report.jobType)) {
     return "";
   }
@@ -200,10 +519,112 @@ function renderExtendedEvidence(report: ResearchReport): string {
   const rows = items
     .map((item) => {
       const refs = sourceRefs(item.sourceIds);
-      return `- **${markdownText(item.title)}:** ${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`;
+      const summary = renderPriceProvenance(item.summary, item.sourceIds, marketSnapshot);
+      return `- **${markdownText(item.title)}:** ${markdownText(summary)}${refs === "" ? "" : ` ${refs}`}`;
     })
     .join("\n");
-  return `## Extended Evidence\n\n${rows}\n`;
+  return `${renderAnalystAndOwnershipContext(report)}## Extended Evidence\n\n${rows}\n`;
+}
+
+function renderAnalystAndOwnershipContext(report: ResearchReport): string {
+  return `${renderAnalystEstimateContext(report)}${renderInstitutionalOwnershipContext(report)}`;
+}
+
+function formatDistributionValue(value: number | undefined): string {
+  return value === undefined ? "—" : compactNumber(value);
+}
+
+function renderAnalystEstimateDistributions(
+  report: ResearchReport,
+  distributions: readonly EquityReaderAnalystEstimateDistribution[],
+): string {
+  if (distributions.length === 0) {
+    return "";
+  }
+  const rows = distributions.flatMap((distribution) => {
+    const refs = sourceRefs(knownSourceIds(report, distribution.sourceIds));
+    return [
+      `### ${markdownText(distribution.title)}${refs === "" ? "" : ` ${refs}`}`,
+      "",
+      ...(distribution.period === undefined
+        ? []
+        : [`Period: ${markdownText(distribution.period)}`, ""]),
+      "Mean | Median | High | Low | Count",
+      "---: | ---: | ---: | ---: | ---:",
+      [
+        formatDistributionValue(distribution.mean),
+        formatDistributionValue(distribution.median),
+        formatDistributionValue(distribution.high),
+        formatDistributionValue(distribution.low),
+        distribution.count === undefined ? "—" : String(distribution.count),
+      ].join(" | "),
+      "",
+    ];
+  });
+  return ["## Analyst Estimate Distributions", "", ...rows].join("\n");
+}
+
+function renderAnalystEstimateContext(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType)) {
+    return "";
+  }
+  const items =
+    report.extendedEvidence?.items.filter((item) => item.category === "analyst-estimate-context") ??
+    [];
+  const rows = items.flatMap((item) => {
+    const { metrics } = item;
+    if (metrics === undefined) {
+      return [];
+    }
+    const { mean, median, high, low, count } = metrics;
+    const distribution = [
+      ["Mean", mean],
+      ["Median", median],
+      ["High", high],
+      ["Low", low],
+      ["Count", count],
+    ].flatMap(([label, value]) =>
+      typeof value === "number" ? [`- **${String(label)}:** ${String(value)}`] : [],
+    );
+    if (distribution.length === 0) {
+      return [];
+    }
+    const refs = sourceRefs(item.sourceIds);
+    return [`${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`, ...distribution];
+  });
+  return rows.length === 0 ? "" : `## External Analyst Estimate Context\n\n${rows.join("\n")}\n`;
+}
+
+function renderInstitutionalOwnershipContext(report: ResearchReport): string {
+  if (!isInstrumentJobType(report.jobType)) {
+    return "";
+  }
+  const items =
+    report.extendedEvidence?.items.filter((item) => item.category === "institutional-ownership") ??
+    [];
+  const rows = items.flatMap((item) => {
+    const { metrics } = item;
+    if (metrics === undefined) {
+      return [];
+    }
+    const values = [
+      ["Institutional holders", metrics.holderCount],
+      ["Reported shares", metrics.reportedShares],
+      ["Reported ownership percent", metrics.reportedOwnershipPercent],
+      ["Insider transactions", metrics.transactionCount],
+      ["Purchases", metrics.purchaseCount],
+      ["Sales", metrics.saleCount],
+      ["Net share change", metrics.netShareChange],
+    ].flatMap(([label, value]) =>
+      typeof value === "number" ? [`- **${String(label)}:** ${String(value)}`] : [],
+    );
+    if (values.length === 0) {
+      return [];
+    }
+    const refs = sourceRefs(item.sourceIds);
+    return [`${markdownText(item.summary)}${refs === "" ? "" : ` ${refs}`}`, ...values];
+  });
+  return rows.length === 0 ? "" : `## External Ownership Context\n\n${rows.join("\n")}\n`;
 }
 
 function renderHistoricalContext(report: ResearchReport): string {
@@ -349,7 +770,7 @@ function reportMarketUpdateBucket(report: ResearchReport): string {
   if (typeof report.extras?.marketUpdateHorizonBucket === "string") {
     return report.extras.marketUpdateHorizonBucket;
   }
-  return report.jobType === "weekly" ? "11-15d" : "1-5d";
+  return report.jobType === "weekly" ? "11-15d" : "2-5d";
 }
 
 function renderAlphaSearchCoverage(report: ResearchReport): string {
@@ -423,10 +844,11 @@ function socialDriverText(lead: {
 }
 
 function renderAlphaSearchReport(report: ResearchReport): string {
+  const materialGaps = predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps);
   const gaps =
-    report.dataGaps.length === 0
+    materialGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
+      : materialGaps.map((gap) => renderGap(gap)).join("\n");
   const sources = renderSources(report);
   const leads = readAlphaSearchLeads(report.extras);
   const rawLeadLimit = readAlphaSearchLeadDisplayLimit(report.extras);
@@ -501,39 +923,48 @@ function renderBusinessFramework(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType)) {
     return "";
   }
-  const framework = report.extras?.businessFramework;
-  if (!isRecord(framework) || !Array.isArray(framework.sections)) {
+  const framework = readBusinessFrameworkExtra(report.extras?.businessFramework);
+  // A framework without a `sections` array has no section to render — distinct
+  // From one whose sections parsed to none, which still gets the header.
+  if (framework?.sections === undefined) {
     return "";
   }
-  const phase = typeof framework.phase === "string" ? framework.phase : "insufficient-data";
   const rows = framework.sections.flatMap((section) => {
-    if (!isRecord(section) || typeof section.name !== "string") {
+    const { name } = section;
+    // A nameless section is unrenderable, but its sources are still cited by
+    // CollectReportSourceIds — which is why the reader keeps the row.
+    if (name === undefined) {
+      return [];
+    }
+    // Render policy, not parsing: the equity reader already covers these three.
+    if (
+      report.jobType === "equity" &&
+      report.assetClass === "equity" &&
+      ["business", "phase", "growth"].includes(name.trim().toLowerCase())
+    ) {
       return [];
     }
     const posture =
-      section.name !== "Phase" && typeof section.posture === "string"
+      name !== "Phase" && section.posture !== undefined
         ? ` (${markdownText(section.posture)})`
         : "";
-    let text = "";
-    const { text: sectionText, summary } = section;
-    if (typeof sectionText === "string") {
-      text = sectionText;
-    } else if (typeof summary === "string") {
-      text = summary;
-    }
+    const text = section.text ?? section.summary ?? "";
     if (text === "") {
       return [];
     }
-    const refs = sourceRefs(knownSourceIds(report, section.sourceIds));
+    const refs = sourceRefs(citedSourceIds(report, section));
     return [
-      `- **${markdownText(section.name)}**${posture}: ${markdownText(text)}${refs === "" ? "" : ` ${refs}`}`,
+      `- **${markdownText(name)}**${posture}: ${markdownText(text)}${refs === "" ? "" : ` ${refs}`}`,
     ];
   });
-  const gaps = readFrameworkGapTexts(framework.gaps).map((gap) => `- ${markdownText(gap)}`);
+  // Render policy: gap codes are dropped, only the text is shown.
+  const gaps = framework.gaps.map(
+    (gap) => `- ${markdownText(typeof gap === "string" ? gap : gap.text)}`,
+  );
   return [
     "## Business Framework",
     "",
-    `Phase: ${markdownText(phase)}`,
+    `Phase: ${markdownText(framework.phase ?? "insufficient-data")}`,
     "",
     ...rows,
     ...(gaps.length > 0 ? ["", "### Framework Data Gaps", "", ...gaps] : []),
@@ -541,49 +972,92 @@ function renderBusinessFramework(report: ResearchReport): string {
   ].join("\n");
 }
 
-function readFrameworkGapTexts(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.flatMap((gap) => {
-    if (typeof gap === "string") {
-      return [gap];
+function firstEvidenceMetric(
+  items: readonly ExtendedEvidenceItem[],
+  key: string,
+): { readonly item: ExtendedEvidenceItem; readonly value: number } | undefined {
+  for (const item of items) {
+    const value = readNumber(item.metrics ?? {}, key);
+    if (value !== undefined) {
+      return { item, value };
     }
-    return isRecord(gap) && typeof gap.text === "string" ? [gap.text] : [];
-  });
+  }
+  return undefined;
 }
 
-const WEB_SUBJECT_PROFILE_LABELS: Record<string, readonly [string, string][]> = {
-  company: [
-    ["whatItDoes", "What It Does"],
-    ["howItMakesMoney", "How It Makes Money"],
-    ["customers", "Customers"],
-    ["geography", "Geography"],
-    ["purchaseRecurrence", "Purchase Recurrence"],
-    ["pricingPower", "Pricing Power"],
-    ["recessionCyclicality", "Recession Cyclicality"],
-    ["managementTrackRecord", "Management Track Record"],
-    ["capitalAllocation", "Capital Allocation"],
-    ["companyKpis", "Company-specific KPIs"],
-    ["riskFactors", "Disclosed Risk Factors"],
-  ],
-  "crypto-asset": [
-    ["whatItDoes", "What It Does"],
-    ["valueAccrual", "Value Accrual"],
-    ["supplyIssuance", "Supply And Issuance"],
-    ["usageAdoption", "Usage And Adoption"],
-    ["governanceBuilders", "Governance And Builders"],
-    ["competitionMoat", "Competition And Moat"],
-    ["keyRisks", "Key Risks"],
-  ],
-  theme: [
-    ["whatItIs", "What It Is"],
-    ["whyNow", "Why Now"],
-    ["beneficiaries", "Beneficiaries"],
-    ["headwinds", "Headwinds"],
-    ["keyDebates", "Key Debates"],
-    ["howItPlaysOut", "How It Plays Out"],
-  ],
+function renderCompactValuationMetrics(
+  report: ResearchReport,
+  includePriceToBook = true,
+): readonly string[] {
+  if (report.jobType !== "equity" || report.assetClass !== "equity") {
+    return [];
+  }
+  const items = report.extendedEvidence?.items ?? [];
+  const options = items.filter((item) => item.category === "options-iv");
+  const plainIv = firstEvidenceMetric(options, "medianIv");
+  const ivBuckets = [
+    ["medianIv30Dte", "30-day"],
+    ["medianIv7Dte", "7-day"],
+    ["medianIv60Dte", "60-day"],
+    ["medianIv90Dte", "90-day"],
+  ] as const;
+  const [bucketedIv] = ivBuckets.flatMap(([key, tenor]) => {
+    const match = firstEvidenceMetric(options, key);
+    return match === undefined ? [] : [{ ...match, tenor }];
+  });
+  const iv = plainIv ?? bucketedIv;
+  const fundamentals = items.filter((item) => item.category === "yahoo-fundamentals");
+  const priceToBook = firstEvidenceMetric(fundamentals, "priceToBook");
+  const epsTtm = firstEvidenceMetric(fundamentals, "epsTrailingTwelveMonths");
+  const values = [
+    ...(iv === undefined
+      ? []
+      : [
+          `${"tenor" in iv ? `${iv.tenor} ` : "near-term "}options implied volatility ${iv.value.toFixed(3)}`,
+        ]),
+    ...(!includePriceToBook || priceToBook === undefined
+      ? []
+      : [`price/book ${priceToBook.value.toFixed(2)}x`]),
+    ...(epsTtm === undefined ? [] : [`EPS TTM ${epsTtm.value.toFixed(2)}`]),
+  ];
+  if (values.length === 0) {
+    return [];
+  }
+  const sourceIds = [
+    ...(iv?.item.sourceIds ?? []),
+    ...(includePriceToBook ? (priceToBook?.item.sourceIds ?? []) : []),
+    ...(epsTtm?.item.sourceIds ?? []),
+  ];
+  const refs = sourceRefs(knownSourceIds(report, [...new Set(sourceIds)]));
+  return [`- **Observed metrics:** ${values.join(", ")}${refs === "" ? "" : ` ${refs}`}`];
+}
+
+// Title Case labels are markdown-specific; only the key order is shared, via
+// The contract's webSubjectProfileQuestionKeys. Exhaustiveness is compiler-enforced.
+const WEB_SUBJECT_PROFILE_LABELS: Readonly<Record<WebSubjectProfileQuestionKey, string>> = {
+  whatItDoes: "What It Does",
+  howItMakesMoney: "How It Makes Money",
+  customers: "Customers",
+  geography: "Geography",
+  purchaseRecurrence: "Purchase Recurrence",
+  pricingPower: "Pricing Power",
+  recessionCyclicality: "Recession Cyclicality",
+  managementTrackRecord: "Management Track Record",
+  capitalAllocation: "Capital Allocation",
+  companyKpis: "Company-specific KPIs",
+  riskFactors: "Disclosed Risk Factors",
+  valueAccrual: "Value Accrual",
+  supplyIssuance: "Supply And Issuance",
+  usageAdoption: "Usage And Adoption",
+  governanceBuilders: "Governance And Builders",
+  competitionMoat: "Competition And Moat",
+  keyRisks: "Key Risks",
+  whatItIs: "What It Is",
+  whyNow: "Why Now",
+  beneficiaries: "Beneficiaries",
+  headwinds: "Headwinds",
+  keyDebates: "Key Debates",
+  howItPlaysOut: "How It Plays Out",
 };
 
 function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): string | undefined {
@@ -607,28 +1081,23 @@ function filingBasisEntry(metrics: Readonly<Record<string, number | string>>): s
 const PROFILE_NON_ANSWER_RE =
   /(^|\b)(not\s+(disclosed|quantified|available|provided|broken\s+out)|undisclosed|no\s+(disclosure|quantified\s+disclosure)|does\s+not\s+disclose|is\s+not\s+broken\s+out|are\s+not\s+broken\s+out)\b/iu;
 
-function substantiveAnswerSourceIds(value: unknown): readonly string[] {
-  if (!isRecord(value) || typeof value.answer !== "string") {
+function substantiveAnswerSourceIds(
+  value: WebSubjectProfileAnswerValue | undefined,
+): readonly string[] {
+  const answer = value?.answer?.trim() ?? "";
+  if (answer === "" || PROFILE_NON_ANSWER_RE.test(answer) || value?.sourceIdsComplete !== true) {
     return [];
   }
-  const answer = value.answer.trim();
-  return answer === "" || PROFILE_NON_ANSWER_RE.test(answer)
-    ? []
-    : readStringArray(value.sourceIds);
+  return value.sourceIds;
 }
 
-function profileAnswerSourceIds(profile: Record<string, unknown>): ReadonlySet<string> {
-  const ids = new Set<string>();
-  for (const sourceId of substantiveAnswerSourceIds(profile.subjectSummary)) {
-    ids.add(sourceId);
-  }
-  const questions = isRecord(profile.questions) ? profile.questions : {};
-  for (const question of Object.values(questions)) {
-    for (const sourceId of substantiveAnswerSourceIds(question)) {
-      ids.add(sourceId);
-    }
-  }
-  return ids;
+function profileAnswerSourceIds(profile: WebSubjectProfileExtraValue): ReadonlySet<string> {
+  return new Set([
+    ...substantiveAnswerSourceIds(profile.subjectSummary),
+    ...Object.values(profile.questions ?? {}).flatMap((question) =>
+      substantiveAnswerSourceIds(question),
+    ),
+  ]);
 }
 
 // Renders the SEC filing basis/verification line for company profiles from the
@@ -636,16 +1105,16 @@ function profileAnswerSourceIds(profile: Record<string, unknown>): ReadonlySet<s
 // Disclosure when only the annual 10-K is cited.
 function companyFilingBasisLine(
   report: ResearchReport,
-  profile: Record<string, unknown>,
+  profile: WebSubjectProfileExtraValue,
 ): string | undefined {
-  const citedSourceIds = profileAnswerSourceIds(profile);
-  if (citedSourceIds.size === 0) {
+  const answerSourceIds = profileAnswerSourceIds(profile);
+  if (answerSourceIds.size === 0) {
     return undefined;
   }
   const items = (report.extendedEvidence?.items ?? []).filter(
     (item) =>
       item.category === "sec-edgar" &&
-      item.sourceIds.some((sourceId) => citedSourceIds.has(sourceId)),
+      item.sourceIds.some((sourceId) => answerSourceIds.has(sourceId)),
   );
   const entries = items.flatMap((item) =>
     item.metrics !== undefined ? [filingBasisEntry(item.metrics)] : [],
@@ -669,50 +1138,52 @@ function renderWebSubjectProfile(report: ResearchReport): string {
   if (!isInstrumentJobType(report.jobType) && report.jobType !== "research") {
     return "";
   }
-  const profile = report.extras?.webSubjectProfile;
-  if (!isRecord(profile) || !isRecord(profile.questions)) {
+  const profile = readWebSubjectProfileExtra(report.extras?.webSubjectProfile);
+  // No `questions` record at all means no profile section, unlike an empty one.
+  if (profile?.questions === undefined) {
     return "";
   }
-  const { questions } = profile;
-  const subjectKind = typeof profile.subjectKind === "string" ? profile.subjectKind : "company";
-  const labels =
-    WEB_SUBJECT_PROFILE_LABELS[subjectKind] ?? WEB_SUBJECT_PROFILE_LABELS.company ?? [];
-  const subjectSummary = isRecord(profile.subjectSummary) ? profile.subjectSummary : undefined;
+  const { questions, subjectSummary } = profile;
+  const subjectKind = profile.subjectKind ?? "company";
+  // The wrapper falls back to the company key order for unknown kinds, so
+  // Identity against the company order == "company or unknown kind".
+  const questionKeys = webSubjectProfileQuestionKeys(subjectKind);
+  const usesCompanyLabels = questionKeys === webSubjectProfileQuestionKeys("company");
+  const trimEquityReaderDuplicates =
+    report.jobType === "equity" && report.assetClass === "equity" && usesCompanyLabels;
+  // An empty answer still renders here — the empty-profile producer path emits
+  // One — but is suppressed per question below.
   const summary =
-    subjectSummary !== undefined && typeof subjectSummary.answer === "string"
+    !trimEquityReaderDuplicates && subjectSummary?.answer !== undefined
       ? [
           `${markdownText(subjectSummary.answer)}${sourceRefs(
-            knownSourceIds(report, subjectSummary.sourceIds),
+            citedSourceIds(report, subjectSummary),
           )}`,
         ]
       : [];
-  const rows = labels.flatMap(([key, label]) => {
+  const rows = questionKeys.flatMap((key) => {
     const answer = questions[key];
-    if (!isRecord(answer) || typeof answer.answer !== "string" || answer.answer === "") {
+    if (answer?.answer === undefined || answer.answer === "") {
       return [];
     }
-    const refs = sourceRefs(knownSourceIds(report, answer.sourceIds));
-    return [`- **${label}:** ${markdownText(answer.answer)}${refs === "" ? "" : ` ${refs}`}`];
+    const refs = sourceRefs(citedSourceIds(report, answer));
+    return [
+      `- **${WEB_SUBJECT_PROFILE_LABELS[key]}:** ${markdownText(answer.answer)}${refs === "" ? "" : ` ${refs}`}`,
+    ];
   });
-  const events = Array.isArray(profile.recentMaterialEvents)
-    ? profile.recentMaterialEvents.flatMap((event) => {
-        if (!isRecord(event) || typeof event.claim !== "string") {
-          return [];
-        }
-        const refs = sourceRefs(knownSourceIds(report, event.sourceIds));
-        return [`- ${markdownText(event.claim)}${refs === "" ? "" : ` ${refs}`}`];
-      })
-    : [];
-  const facts = Array.isArray(profile.factLedger)
-    ? profile.factLedger.flatMap((fact) => {
-        if (!isRecord(fact) || typeof fact.claim !== "string") {
-          return [];
-        }
-        const refs = sourceRefs(knownSourceIds(report, fact.sourceIds));
-        return [`- ${markdownText(fact.claim)}${refs === "" ? "" : ` ${refs}`}`];
-      })
-    : [];
-  const gaps = readStringArray(profile.openGaps).map((gap) => `- ${markdownText(gap)}`);
+  const factRows = (rowsIn: readonly WebSubjectProfileFactValue[]): readonly string[] =>
+    rowsIn.flatMap((row) => {
+      if (row.claim === undefined) {
+        return [];
+      }
+      const refs = sourceRefs(citedSourceIds(report, row));
+      return [`- ${markdownText(row.claim)}${refs === "" ? "" : ` ${refs}`}`];
+    });
+  const events = factRows(profile.recentMaterialEvents);
+  const facts = trimEquityReaderDuplicates ? [] : factRows(profile.factLedger);
+  const gaps = (profile.openGapsComplete ? profile.openGaps : []).map(
+    (gap) => `- ${markdownText(gap)}`,
+  );
   if (rows.length === 0 && events.length === 0 && facts.length === 0 && gaps.length === 0) {
     return "";
   }
@@ -743,11 +1214,24 @@ function renderEarningsSetup(report: ResearchReport): string {
   const symbol = typeof event.symbol === "string" ? event.symbol : "";
   const date = typeof event.date === "string" ? event.date : "";
   const timing = typeof event.timing === "string" ? event.timing : "unknown";
-  const isProviderEstimated = event.dateStatus === "provider-estimated";
+  const eventDateStatus = event.eventDateStatus ?? event.dateStatus;
+  const isProviderEstimated = eventDateStatus === "provider-estimated";
+  const confirmationSourceId =
+    isRecord(event.dateConfirmation) && typeof event.dateConfirmation.sourceId === "string"
+      ? event.dateConfirmation.sourceId
+      : undefined;
+  let certaintyLabel = "";
+  if (isProviderEstimated) {
+    certaintyLabel = " — date provider-estimated (Finnhub), unconfirmed";
+  } else if (eventDateStatus === "issuer-confirmed") {
+    certaintyLabel = ` — date issuer-confirmed${confirmationSourceId === undefined ? "" : ` [${markdownText(confirmationSourceId)}]`}`;
+  } else if (eventDateStatus === "exchange-confirmed") {
+    certaintyLabel = ` — date exchange-confirmed${confirmationSourceId === undefined ? "" : ` [${markdownText(confirmationSourceId)}]`}`;
+  }
   const lines = [
     "## Earnings Setup",
     "",
-    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${isProviderEstimated ? " — date provider-estimated (Finnhub), unconfirmed" : ""}`,
+    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${certaintyLabel}`,
   ];
 
   if (typeof event.epsEstimate === "number") {
@@ -804,15 +1288,16 @@ function renderEarningsSetup(report: ResearchReport): string {
   return lines.join("\n");
 }
 
-const EXTENDED_EVIDENCE_SECTION_RENDERERS: readonly ((report: ResearchReport) => string)[] = [
-  renderBusinessFramework,
-  renderWebSubjectProfile,
-  renderExtendedEvidence,
-  renderEarningsSetup,
-];
-
-function renderExtendedEvidenceSections(report: ResearchReport): readonly string[] {
-  return EXTENDED_EVIDENCE_SECTION_RENDERERS.map((render) => render(report));
+function renderExtendedEvidenceSections(
+  report: ResearchReport,
+  marketSnapshot: MarketSnapshot | undefined,
+): readonly string[] {
+  return [
+    renderBusinessFramework(report),
+    renderWebSubjectProfile(report),
+    renderExtendedEvidence(report, marketSnapshot),
+    renderEarningsSetup(report),
+  ];
 }
 
 function reportTitle(report: ResearchReport): string {
@@ -825,16 +1310,52 @@ function reportTitle(report: ResearchReport): string {
   return `${report.assetClass} Market Overview`;
 }
 
-export function renderMarkdownReport(report: ResearchReport): string {
+export function renderMarkdownReport(
+  report: ResearchReport,
+  marketSnapshot?: MarketSnapshot,
+  collectedSources?: MarkdownCollectedSources,
+): string {
   if (report.jobType === "alpha-search") {
     return renderAlphaSearchReport(report);
   }
 
+  if (report.jobType === "equity" && report.assetClass === "equity") {
+    return renderEquityMarkdownReport(report, marketSnapshot, collectedSources, {
+      reportTitle,
+      renderSources,
+      renderCompletenessChips: renderEquityCompletenessChips,
+      renderCompanyDescription,
+      renderPriceAndMarketDate,
+      renderFinancialTrends: renderProjectedFinancialTrends,
+      renderValuationContext,
+      renderFindings,
+      renderCatalystCalendar,
+      renderEarningsConsensus: renderCompactEarningsAndConsensus,
+      renderGapSection,
+      renderAppendixSection,
+      renderCompletenessAppendix,
+      renderBalanceSheet: renderBalanceSheetAndShareCount,
+      renderScenarios,
+      renderBusinessFramework,
+      renderWebSubjectProfile,
+      renderAnalystDistributions: renderAnalystEstimateDistributions,
+      renderAnalystAndOwnershipContext,
+      renderDiagnosticGapSummary,
+      renderEarningsSetup,
+      renderHistoricalContext,
+      renderSpotlights,
+      renderPredictions,
+    });
+  }
+
   const title = reportTitle(report);
+  const materialGaps = predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps);
   const gaps =
-    report.dataGaps.length === 0
+    materialGaps.length === 0
       ? "- No material gaps identified."
-      : report.dataGaps.map((gap) => `- ${markdownText(gap)}`).join("\n");
+      : materialGaps
+          .map((gap) => renderGap(gap, report.symbol, undefined, collectedSources?.sourceGaps))
+          .join("\n");
   const sources = renderSources(report);
 
   return [
@@ -853,6 +1374,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     ...(report.researchQualityDriver !== undefined
       ? [`Research Quality Driver: ${report.researchQualityDriver}`]
       : []),
+    ...renderEquityCompletenessChips(report),
     "",
     "## Summary",
     "",
@@ -866,7 +1388,7 @@ export function renderMarkdownReport(report: ResearchReport): string {
     renderFindings("Catalysts", report.catalysts),
     renderCatalystCalendar(report),
     renderScenarios(report.scenarios),
-    ...renderExtendedEvidenceSections(report),
+    ...renderExtendedEvidenceSections(report, marketSnapshot),
     renderHistoricalContext(report),
     renderSpotlights(report),
     renderPredictions(report.predictions),

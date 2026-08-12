@@ -12,6 +12,11 @@ import {
   researchReport,
 } from "./support/fixtures";
 
+const emptySourceTextAudit = {
+  summary: { scannedCount: 0, flaggedCount: 0, flaggedByKind: {}, flaggedByProvider: {} },
+  items: [],
+} as const;
+
 const trace: RunTrace = {
   runId: "run-1",
   jobType: "equity",
@@ -45,6 +50,7 @@ const trace: RunTrace = {
       },
     ],
   },
+  sourceTextResearchOnly: emptySourceTextAudit,
   evidenceRequestLoop: {
     rounds: 1,
     acceptedRequests: [
@@ -236,8 +242,14 @@ describe("run analytics", () => {
       calibrationContext: {
         generatedAt: "2026-05-18T00:00:00.000Z",
         resolvedCount: 12,
-        byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
-        byJobType: { equity: { brierScore: 0.22, count: 6 } },
+        byAssetClass: {
+          equity: { brierScore: 0.2, count: 8 },
+          crypto: { brierScore: 0.25, count: 4 },
+        },
+        byJobType: {
+          equity: { brierScore: 0.22, count: 6 },
+          crypto: { brierScore: 0.25, count: 4 },
+        },
         byHorizonBucket: {
           "1-5d": {
             brierScore: 0.4,
@@ -270,11 +282,10 @@ describe("run analytics", () => {
     });
     expect(analytics.modelInputSanitization).toEqual(trace.modelInputSanitization);
     expect(analytics.sourceFunnel.sourceGaps.bySource).toEqual({ "marketaux-news": 1 });
-    expect(analytics.sourceFunnel.sourceGapClasses).toEqual({
-      fetchFailed: 0,
-      missingCredential: 1,
-      unsupportedCoverage: 0,
-      other: 0,
+    expect(analytics.sourceFunnel.sourceGapsByCause).toEqual({ "missing-credential": 1 });
+    expect(analytics.providerEndpointAvailability?.marketauxNews).toEqual({
+      status: "available",
+      evidence: ["marketaux-news"],
     });
     expect(analytics.evidenceQuality.extendedEvidence.itemsByCategory).toEqual({ "sec-edgar": 1 });
     expect(analytics.predictions).toMatchObject({
@@ -299,7 +310,6 @@ describe("run analytics", () => {
         emittedCount: 2,
         targetCount: 3,
         missingCount: 1,
-        disclosed: false,
       },
     });
     expect(analytics.calibrationAtGeneration).toMatchObject({
@@ -336,8 +346,10 @@ describe("run analytics", () => {
           count: 30,
           runCount: 10,
           brierStandardError: 0.05,
+          lowerConfidenceBound: 0.287_93,
           actionable: true,
           reason: "actionable-negative",
+          populationStatus: "single-cell-dimension",
         },
         {
           dimension: "marketRegime",
@@ -347,11 +359,6 @@ describe("run analytics", () => {
         },
       ],
     });
-    expect(
-      analytics.calibrationAtGeneration?.guidanceAssessments?.find(
-        ({ dimension }) => dimension === "predictionHorizon",
-      )?.lowerConfidenceBound,
-    ).toBeCloseTo(0.287_93);
     expect(analytics.verifiedMarketSnapshot).toEqual({
       symbol: "AAPL",
       analysisDate: "2026-05-19",
@@ -393,6 +400,26 @@ describe("run analytics", () => {
       emittedGapCount: 0,
     });
   });
+
+  test.each([
+    { targetPredictions: -1, expectedTarget: 0, expectedShortfall: undefined },
+    {
+      targetPredictions: 2.5,
+      expectedTarget: 2,
+      expectedShortfall: { emittedCount: 1, targetCount: 2, missingCount: 1 },
+    },
+  ])("sanitizes invalid analytics prediction targets %#", (example) => {
+    const analytics = buildRunAnalytics({
+      report: researchReport({ predictions: [prediction()] }),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: example.targetPredictions,
+    });
+
+    expect(analytics.predictions.targetCount).toBe(example.expectedTarget);
+    expect(analytics.predictions.shortfall).toEqual(example.expectedShortfall);
+  });
 });
 
 describe("forecast quality telemetry (3.2)", () => {
@@ -411,6 +438,7 @@ describe("forecast quality telemetry (3.2)", () => {
     stages: ["specialist-analysis", "final-synthesis"],
     tokenEstimate: 100,
     costEstimateUsd: 0.01,
+    sourceTextResearchOnly: emptySourceTextAudit,
     domainPlaybooks: { selected: [], rejected: [] },
   };
 
@@ -474,7 +502,8 @@ describe("forecast quality telemetry (3.2)", () => {
         id: "p4",
         kind: "range",
         subject: "AAPL",
-        measurableAs: "close(AAPL, +5) outside [170, 230]",
+        measurableAs: "close(AAPL, +10) outside [170, 230]",
+        horizonTradingDays: 10,
         probability: 0.35,
       }),
     ];
@@ -552,6 +581,36 @@ describe("forecast quality telemetry (3.2)", () => {
     ];
     const result = predictionsFor(preds);
     expect(result.mixWarnings.every((w) => !w.includes("direction kind"))).toBe(true);
+  });
+
+  test("multiple identical horizons produce a horizon-monoculture mix warning", () => {
+    const result = predictionsFor([
+      prediction({ id: "p1", horizonTradingDays: 5 }),
+      prediction({ id: "p2", horizonTradingDays: 5 }),
+    ]);
+
+    expect(result.mixWarnings).toContain(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
+  });
+
+  test("a single prediction does not produce a horizon-monoculture mix warning", () => {
+    const result = predictionsFor([prediction({ id: "p1", horizonTradingDays: 5 })]);
+
+    expect(result.mixWarnings).not.toContain(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
+  });
+
+  test("different horizons do not produce a horizon-monoculture mix warning", () => {
+    const result = predictionsFor([
+      prediction({ id: "p1", horizonTradingDays: 5 }),
+      prediction({ id: "p2", horizonTradingDays: 10 }),
+    ]);
+
+    expect(result.mixWarnings).not.toContain(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
   });
 
   test("zero predictions yields signalTargetMet: true with empty warnings", () => {
@@ -674,6 +733,17 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources!.usageRatio).toBe(0.8);
     expect(analytics.webSources!.usageWarning).toBeUndefined();
     expect(analytics.reusedProfileWebSources).toBeUndefined();
+    expect(analytics.webEvidenceUtilization).toEqual({
+      version: 1,
+      acceptedCurrentRun: 5,
+      usedCurrentRun: 4,
+      profileUsed: 3,
+      primaryReportCited: 3,
+      structuredExtraCited: 0,
+      unusedCurrentRun: 1,
+      ratio: 0.8,
+      level: "high",
+    });
   });
 
   test("counts a web source cited only in authored extras as extrasCited, not unused", () => {
@@ -703,6 +773,13 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources!.unused).toBe(1);
     expect(analytics.webSources!.usageRatio).toBe(0.5);
     expect(analytics.webSources!.usageWarning).toBeUndefined();
+    expect(analytics.webEvidenceUtilization).toMatchObject({
+      primaryReportCited: 0,
+      structuredExtraCited: 1,
+      usedCurrentRun: 1,
+      ratio: 0.5,
+      level: "insufficient-sample",
+    });
   });
 
   test("does not double-count a web source cited in both a primary claim and extras", () => {
@@ -727,6 +804,12 @@ describe("web source roles accounting", () => {
     expect(analytics.webSources!.reportCited).toBe(1);
     expect(analytics.webSources!.extrasCited).toBe(0);
     expect(analytics.webSources!.unused).toBe(0);
+    expect(analytics.webEvidenceUtilization).toMatchObject({
+      primaryReportCited: 1,
+      structuredExtraCited: 1,
+      usedCurrentRun: 1,
+      ratio: 1,
+    });
   });
 
   test("does not count the deterministic webSubjectProfile digest as extrasCited", () => {
@@ -762,6 +845,168 @@ describe("web source roles accounting", () => {
     // Union of profileUsed + extrasCited covers all three, so nothing is falsely unused.
     expect(analytics.webSources!.unused).toBe(0);
     expect(analytics.webSources!.usageRatio).toBe(1);
+    expect(analytics.webEvidenceUtilization).toMatchObject({
+      profileUsed: 2,
+      structuredExtraCited: 1,
+      usedCurrentRun: 3,
+    });
+  });
+
+  test.each([
+    { accepted: 0, used: 0 },
+    { accepted: 1, used: 1 },
+    { accepted: 3, used: 3 },
+  ])(
+    "classifies $accepted accepted current-run sources as insufficient-sample",
+    ({ accepted, used }) => {
+      const sources = Array.from({ length: accepted }, (_, index) => webSource(`web-${index + 1}`));
+      const report = researchReport({
+        sources,
+        keyFindings:
+          used === 0
+            ? []
+            : [
+                {
+                  text: "Finding",
+                  sourceIds: sources.slice(0, used).map((source) => source.id),
+                },
+              ],
+      });
+      const analytics = buildRunAnalytics({
+        report,
+        trace: {
+          ...trace,
+          webGatherLoop: {
+            rounds: 1,
+            acceptedRequests: [],
+            rejectedRequests: [],
+            sourceUnitsUsed: 0,
+            executedTools: [],
+            emittedGaps: [],
+            sanitizer: {
+              sourceCount: 0,
+              sanitizedSourceCount: 0,
+              emptyAfterSanitizeCount: 0,
+              inputCharCount: 0,
+              outputCharCount: 0,
+              removedInstructionSpanCount: 0,
+              removedChromeHtmlCount: 0,
+            },
+          },
+        },
+        collectedSources: collectedSourceBundle(),
+        stageOutputs: [],
+        targetPredictions: 0,
+      });
+
+      expect(analytics.webEvidenceUtilization?.acceptedCurrentRun).toBe(accepted);
+      expect(analytics.webEvidenceUtilization?.level).toBe("insufficient-sample");
+    },
+  );
+
+  test.each([
+    { accepted: 4, used: 2, ratio: 0.5, level: "high" },
+    { accepted: 4, used: 1, ratio: 0.25, level: "medium" },
+    { accepted: 5, used: 2, ratio: 0.4, level: "medium" },
+    { accepted: 5, used: 1, ratio: 0.2, level: "low" },
+  ] as const)(
+    "classifies utilization ratio $ratio as $level",
+    ({ accepted, used, ratio, level }) => {
+      const sources = Array.from({ length: accepted }, (_, index) => webSource(`web-${index + 1}`));
+      const analytics = buildRunAnalytics({
+        report: researchReport({
+          sources,
+          keyFindings: [
+            {
+              text: "Finding",
+              sourceIds: sources.slice(0, used).map((source) => source.id),
+            },
+          ],
+        }),
+        trace,
+        collectedSources: collectedSourceBundle(),
+        stageOutputs: [],
+        targetPredictions: 0,
+      });
+
+      expect(analytics.webEvidenceUtilization?.ratio).toBe(ratio);
+      expect(analytics.webEvidenceUtilization?.level).toBe(level);
+    },
+  );
+
+  test("excludes reused-profile sources from the utilization numerator and denominator", () => {
+    const report = researchReport({
+      generatedAt: "2026-06-30T00:00:00.000Z",
+      sources: [
+        webSource("web-1"),
+        webSource("web-2"),
+        webSource("web-3"),
+        webSource("web-current-1"),
+      ],
+      keyFindings: [
+        { text: "Reused finding", sourceIds: ["web-1"] },
+        { text: "Current finding", sourceIds: ["web-current-1"] },
+      ],
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace,
+      collectedSources: collectedSourceBundle({
+        webSubjectProfile: webProfile,
+        webSubjectProfileReuse: {
+          runDirName: "prior-aapl",
+          generatedAt: "2026-06-28T00:00:00.000Z",
+        },
+      }),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webEvidenceUtilization).toMatchObject({
+      acceptedCurrentRun: 1,
+      usedCurrentRun: 1,
+      primaryReportCited: 1,
+      ratio: 1,
+      level: "insufficient-sample",
+    });
+  });
+
+  test("low utilization does not alter Evidence Quality or Research Quality", () => {
+    const report = researchReport({
+      evidenceQuality: "high",
+      reportIntegrity: "high",
+      researchQuality: "high",
+      sources: [webSource("web-1"), webSource("web-2"), webSource("web-3"), webSource("web-4")],
+    });
+    const analytics = buildRunAnalytics({
+      report,
+      trace: {
+        ...trace,
+        evidenceQualityAssessment: {
+          version: 1,
+          rubricVersion: 2,
+          label: "high",
+          checks: [],
+          limitingReasons: [],
+        },
+        reportIntegrityAudit: {
+          reportIntegrity: "high",
+          researchQuality: "high",
+          prunedItemCount: 0,
+          advisoryWarningCount: 0,
+          pruned: [],
+        },
+      },
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+    });
+
+    expect(analytics.webEvidenceUtilization?.level).toBe("low");
+    expect(report.evidenceQuality).toBe("high");
+    expect(report.researchQuality).toBe("high");
+    expect(analytics.evidenceQuality.label).toBe("high");
+    expect(analytics.reportIntegrity?.researchQuality).toBe("high");
   });
 
   test("separates reused profile web sources from current-run web coverage", () => {

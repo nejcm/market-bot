@@ -6,6 +6,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
+    "allowArbitraryExtensions": true,
     "skipLibCheck": true,
     "types": ["bun-types"],
     "baseUrl": ".",

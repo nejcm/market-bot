@@ -1,0 +1,1760 @@
+{
+  "fixture": "aapl",
+  "symbol": "AAPL",
+  "analysisAsOf": "2026-06-15T14:30:00.000Z",
+  "taxonomy": "us-gaap",
+  "reportingCurrency": "USD",
+  "interimCadence": "quarterly",
+  "statements": {
+    "revenue": {
+      "selectedConcept": "Revenues",
+      "selectedFact": {
+        "concept": "Revenues",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 210000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "Revenues",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 383000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "Revenues",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 391000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "Revenues",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 405000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "Revenues",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 189000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "Revenues",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 210000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": {
+        "value": 426000000000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "Revenues",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 405000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "Revenues",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 210000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "Revenues",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 189000000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "grossProfit": {
+      "selectedConcept": "GrossProfit",
+      "selectedFact": {
+        "concept": "GrossProfit",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 100000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "GrossProfit",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 170000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "GrossProfit",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 180000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "GrossProfit",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 190000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "GrossProfit",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 88000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "GrossProfit",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 100000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": {
+        "value": 202000000000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "GrossProfit",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 190000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "GrossProfit",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 100000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "GrossProfit",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 88000000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "operatingIncome": {
+      "selectedConcept": "OperatingIncomeLoss",
+      "selectedFact": {
+        "concept": "OperatingIncomeLoss",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 70000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "OperatingIncomeLoss",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 115000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "OperatingIncomeLoss",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 123000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "OperatingIncomeLoss",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 130000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "OperatingIncomeLoss",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 60000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "OperatingIncomeLoss",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 70000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": {
+        "value": 140000000000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "OperatingIncomeLoss",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 130000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "OperatingIncomeLoss",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 70000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "OperatingIncomeLoss",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 60000000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "netIncome": {
+      "selectedConcept": "NetIncomeLoss",
+      "selectedFact": {
+        "concept": "NetIncomeLoss",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 58000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "NetIncomeLoss",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 97000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetIncomeLoss",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 102000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetIncomeLoss",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 108000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "NetIncomeLoss",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 50000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetIncomeLoss",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 58000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": {
+        "value": 116000000000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "NetIncomeLoss",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 108000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "NetIncomeLoss",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 58000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "NetIncomeLoss",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 50000000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "cash": {
+      "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
+      "selectedFact": {
+        "concept": "CashAndCashEquivalentsAtCarryingValue",
+        "periodKey": "instant|2026-03-31",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 60000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [],
+      "interim": [
+        {
+          "concept": "CashAndCashEquivalentsAtCarryingValue",
+          "periodKey": "instant|2026-03-31",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 60000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": null
+    },
+    "currentAssets": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "currentLiabilities": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "totalAssets": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "totalLiabilities": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "stockholdersEquity": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "debt": {
+      "selectedConcept": "LongTermDebt",
+      "selectedFact": {
+        "concept": "LongTermDebt",
+        "periodKey": "instant|2026-03-31",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 100000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [],
+      "interim": [
+        {
+          "concept": "LongTermDebt",
+          "periodKey": "instant|2026-03-31",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 100000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": null
+    },
+    "operatingCashFlow": {
+      "selectedConcept": "NetCashProvidedByUsedInOperatingActivities",
+      "selectedFact": {
+        "concept": "NetCashProvidedByUsedInOperatingActivities",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 65000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 110000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 118000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 125000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 58000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 65000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": {
+        "value": 132000000000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "NetCashProvidedByUsedInOperatingActivities",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 125000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "NetCashProvidedByUsedInOperatingActivities",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 65000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "NetCashProvidedByUsedInOperatingActivities",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 58000000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "capitalExpenditure": {
+      "selectedConcept": "PaymentsToAcquirePropertyPlantAndEquipment",
+      "selectedFact": {
+        "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 7000000000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 11000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 12000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 13000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 6000000000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 7000000000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": {
+        "value": 14000000000,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD",
+        "components": {
+          "fiscalYear": {
+            "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 13000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "latestYearToDate": {
+            "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 7000000000,
+            "currency": "USD",
+            "unit": "USD"
+          },
+          "priorYearToDate": {
+            "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 6000000000,
+            "currency": "USD",
+            "unit": "USD"
+          }
+        }
+      }
+    },
+    "dividendsPaid": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "shareRepurchases": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "dilutedEps": {
+      "selectedConcept": "EarningsPerShareDiluted",
+      "selectedFact": {
+        "concept": "EarningsPerShareDiluted",
+        "periodKey": "2025-10-01|2026-03-31",
+        "periodStart": "2025-10-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-01",
+        "accession": null,
+        "value": 3.8,
+        "currency": "USD",
+        "unit": "USD/shares"
+      },
+      "annual": [
+        {
+          "concept": "EarningsPerShareDiluted",
+          "periodKey": "2022-10-01|2023-09-30",
+          "periodStart": "2022-10-01",
+          "periodEnd": "2023-09-30",
+          "form": "10-K",
+          "filingDate": "2023-11-01",
+          "accession": null,
+          "value": 6.13,
+          "currency": "USD",
+          "unit": "USD/shares"
+        },
+        {
+          "concept": "EarningsPerShareDiluted",
+          "periodKey": "2023-10-01|2024-09-30",
+          "periodStart": "2023-10-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-K",
+          "filingDate": "2024-11-01",
+          "accession": null,
+          "value": 6.5,
+          "currency": "USD",
+          "unit": "USD/shares"
+        },
+        {
+          "concept": "EarningsPerShareDiluted",
+          "periodKey": "2024-10-01|2025-09-30",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-K",
+          "filingDate": "2025-11-01",
+          "accession": null,
+          "value": 7,
+          "currency": "USD",
+          "unit": "USD/shares"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "EarningsPerShareDiluted",
+          "periodKey": "2024-10-01|2025-03-31",
+          "periodStart": "2024-10-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-01",
+          "accession": null,
+          "value": 3.2,
+          "currency": "USD",
+          "unit": "USD/shares"
+        },
+        {
+          "concept": "EarningsPerShareDiluted",
+          "periodKey": "2025-10-01|2026-03-31",
+          "periodStart": "2025-10-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-01",
+          "accession": null,
+          "value": 3.8,
+          "currency": "USD",
+          "unit": "USD/shares"
+        }
+      ],
+      "ttm": {
+        "value": 7.6000000000000005,
+        "periodStart": "2025-04-01",
+        "periodEnd": "2026-03-31",
+        "currency": "USD",
+        "unit": "USD/shares",
+        "components": {
+          "fiscalYear": {
+            "concept": "EarningsPerShareDiluted",
+            "periodKey": "2024-10-01|2025-09-30",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "form": "10-K",
+            "filingDate": "2025-11-01",
+            "accession": null,
+            "value": 7,
+            "currency": "USD",
+            "unit": "USD/shares"
+          },
+          "latestYearToDate": {
+            "concept": "EarningsPerShareDiluted",
+            "periodKey": "2025-10-01|2026-03-31",
+            "periodStart": "2025-10-01",
+            "periodEnd": "2026-03-31",
+            "form": "10-Q",
+            "filingDate": "2026-05-01",
+            "accession": null,
+            "value": 3.8,
+            "currency": "USD",
+            "unit": "USD/shares"
+          },
+          "priorYearToDate": {
+            "concept": "EarningsPerShareDiluted",
+            "periodKey": "2024-10-01|2025-03-31",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-03-31",
+            "form": "10-Q",
+            "filingDate": "2025-05-01",
+            "accession": null,
+            "value": 3.2,
+            "currency": "USD",
+            "unit": "USD/shares"
+          }
+        }
+      }
+    },
+    "dilutedShares": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    }
+  },
+  "canonical": {
+    "fundamentalHistory": {
+      "revenue": {
+        "concept": "Revenues",
+        "annual": [
+          {
+            "value": 383000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 391000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 405000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 426000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 2.8299394757567597,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "grossProfit": {
+        "concept": "GrossProfit",
+        "annual": [
+          {
+            "value": 170000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 180000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 190000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 202000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 5.7146859886039625,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "operatingIncome": {
+        "concept": "OperatingIncomeLoss",
+        "annual": [
+          {
+            "value": 115000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 123000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 130000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 140000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 6.31731493089509,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "netIncome": {
+        "concept": "NetIncomeLoss",
+        "annual": [
+          {
+            "value": 97000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 102000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 108000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 116000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 5.513876043341925,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "dilutedEps": {
+        "concept": "EarningsPerShareDiluted",
+        "annual": [
+          {
+            "value": 6.13,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 6.5,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 7,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD/shares"
+          }
+        ],
+        "ttm": {
+          "value": 7.6000000000000005,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD/shares"
+        },
+        "cagr": {
+          "percent": 6.855893348617692,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "operatingCashFlow": {
+        "concept": "NetCashProvidedByUsedInOperatingActivities",
+        "annual": [
+          {
+            "value": 110000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 118000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 125000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 132000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 6.595558047958883,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "capex": {
+        "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+        "annual": [
+          {
+            "value": 11000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 12000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 13000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 14000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 8.705064254373163,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "freeCashFlowProxy": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 99000000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 106000000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 112000000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 118000000000,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": {
+          "percent": 6.358582129313106,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        },
+        "marginChange": null
+      },
+      "grossMargin": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 0.44386422976501305,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.46035805626598464,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.4691358024691358,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 0.47417840375586856,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": null,
+        "marginChange": {
+          "percentagePoints": 2.5271572704122724,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        }
+      },
+      "operatingMargin": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 0.3002610966057441,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3145780051150895,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.32098765432098764,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 0.3286384976525822,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": null,
+        "marginChange": {
+          "percentagePoints": 2.072655771524351,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        }
+      },
+      "netMargin": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 0.25326370757180156,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-10-01",
+            "periodEnd": "2023-09-30",
+            "periodMonths": 12,
+            "filedAt": "2023-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.2608695652173913,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-10-01",
+            "periodEnd": "2024-09-30",
+            "periodMonths": 12,
+            "filedAt": "2024-11-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.26666666666666666,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-10-01",
+            "periodEnd": "2025-09-30",
+            "periodMonths": 12,
+            "filedAt": "2025-11-01",
+            "currency": "USD"
+          }
+        ],
+        "ttm": {
+          "value": 0.27230046948356806,
+          "form": "TTM",
+          "fy": 2026,
+          "fp": "TTM",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2026-03-31",
+          "periodMonths": 12,
+          "filedAt": "2026-05-01",
+          "currency": "USD"
+        },
+        "cagr": null,
+        "marginChange": {
+          "percentagePoints": 1.3402959094865108,
+          "years": 2.001410022108599,
+          "periodStart": "2023-09-30",
+          "periodEnd": "2025-09-30"
+        }
+      }
+    },
+    "financialLens": {
+      "Quality": {
+        "posture": "criteria-supported",
+        "metrics": {
+          "grossMargin": {
+            "key": "grossMargin",
+            "label": "Gross margin",
+            "value": 0.47619047619047616,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "operatingMargin": {
+            "key": "operatingMargin",
+            "label": "Operating margin",
+            "value": 0.3333333333333333,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "netMargin": {
+            "key": "netMargin",
+            "label": "Net margin",
+            "value": 0.2761904761904762,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "freeCashFlowProxy": {
+            "key": "freeCashFlowProxy",
+            "label": "FCF proxy",
+            "value": 58000000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "cashConversion": {
+            "key": "cashConversion",
+            "label": "Cash conversion",
+            "value": 1.1206896551724137,
+            "unit": "ratio",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          }
+        }
+      },
+      "Growth": {
+        "posture": "criteria-supported",
+        "metrics": {
+          "revenueDeltaPercent": {
+            "key": "revenueDeltaPercent",
+            "label": "Revenue YoY",
+            "value": 11.11111111111111,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "grossProfitDeltaPercent": {
+            "key": "grossProfitDeltaPercent",
+            "label": "Gross profit YoY",
+            "value": 13.636363636363635,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "operatingIncomeDeltaPercent": {
+            "key": "operatingIncomeDeltaPercent",
+            "label": "Operating income YoY",
+            "value": 16.666666666666664,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "netIncomeDeltaPercent": {
+            "key": "netIncomeDeltaPercent",
+            "label": "Net income (attrib.) YoY",
+            "value": 16,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "dilutedEpsDeltaPercent": {
+            "key": "dilutedEpsDeltaPercent",
+            "label": "Diluted EPS YoY",
+            "value": 18.74999999999999,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          },
+          "operatingCashFlowDeltaPercent": {
+            "key": "operatingCashFlowDeltaPercent",
+            "label": "Operating cash flow YoY",
+            "value": 12.068965517241379,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31",
+            "periodMonths": 6
+          }
+        }
+      },
+      "Financial Strength": {
+        "posture": "criteria-not-supported",
+        "metrics": {
+          "cash": {
+            "key": "cash",
+            "label": "Cash",
+            "value": 60000000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31"
+          },
+          "debt": {
+            "key": "debt",
+            "label": "Debt",
+            "value": 100000000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31"
+          },
+          "netDebt": {
+            "key": "netDebt",
+            "label": "Net debt",
+            "value": 40000000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "periodEnd": "2026-03-31"
+          }
+        }
+      },
+      "Value": {
+        "posture": "insufficient-data",
+        "metrics": {}
+      },
+      "Momentum": {
+        "posture": "insufficient-data",
+        "metrics": {}
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import {
 import { runConfig } from "./profiles";
 import type { ResolvedRunParams, RunBaseParams, RunConfig, RunKey } from "./types";
 import { CODE_DEFAULTS } from "./profiles/shared";
+import type { ModelParams, ReasoningEffort } from "../../model/types";
 
 function toRunKey(command: ResearchCommand): RunKey {
   if (isInstrumentCommand(command)) {
@@ -38,6 +39,10 @@ function mergeModelParams(
   }
 
   return { ...base, ...override };
+}
+
+function reasoningParams(effort: ReasoningEffort | undefined): ModelParams | undefined {
+  return effort === undefined ? undefined : { reasoningEffort: effort };
 }
 
 function defaultPredictionHorizonFor(command: ResearchCommand, merged: RunBaseParams): number {
@@ -93,11 +98,24 @@ export function resolveRunParams(
     appConfig.provider === "codex"
       ? (appConfig.codexSynthesisModel ?? appConfig.synthesisModel)
       : appConfig.synthesisModel;
+  const quickReasoningEffort =
+    appConfig.provider === "codex"
+      ? appConfig.codexQuickReasoningEffort
+      : appConfig.quickReasoningEffort;
+  const synthesisReasoningEffort =
+    appConfig.provider === "codex"
+      ? appConfig.codexSynthesisReasoningEffort
+      : appConfig.synthesisReasoningEffort;
+  const profileModelParams = merged.modelParams;
 
   return {
     quickModel: merged.quickModel ?? defaultQuickModel,
     synthesisModel: merged.synthesisModel ?? defaultSynthesisModel,
-    modelParams: mergeModelParams(appConfig.modelParams, merged.modelParams),
+    quickModelParams: mergeModelParams(reasoningParams(quickReasoningEffort), profileModelParams),
+    synthesisModelParams: mergeModelParams(
+      reasoningParams(synthesisReasoningEffort),
+      profileModelParams,
+    ),
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
     targetPredictions: targetPredictionsFor(normalizedCommand, merged, proxy),

@@ -46,8 +46,27 @@ function compactEvidence(evidence: Record<string, unknown>): Record<string, numb
   return result;
 }
 
-function hasSourceGap(report: ResearchReport): boolean {
-  return report.dataGaps.some((gap) => SOURCE_GAP_PATTERN.test(gap));
+function hasSourceGap(report: ResearchReport, prediction: Prediction): boolean {
+  const citedSources = report.sources.filter((source) => prediction.sourceIds.includes(source.id));
+  return report.dataGaps.some((gap) => {
+    const separator = gap.indexOf(":");
+    if (separator <= 0 || !SOURCE_GAP_PATTERN.test(gap)) {
+      return false;
+    }
+    // `src/sources/extended-evidence/finnhub-events.ts` mints per-endpoint
+    // `finnhub-events-${index + 1}` adapter IDs, while
+    // `src/sources/provider-endpoint-availability.ts` declares canonical gap source
+    // `finnhub-events`; strip that numeric endpoint suffix before matching the cited lane.
+    const lane = gap.slice(0, separator).trim().toLowerCase().replace(/-\d+$/u, "");
+    // A gap is prediction-local only when its lane maps to a cited source's structured metadata.
+    return citedSources.some((source) => {
+      const provider = source.provider?.toLowerCase();
+      return (
+        (provider !== undefined && (lane === provider || lane === `${provider}-${source.kind}`)) ||
+        `-${source.id.toLowerCase()}-`.includes(`-${lane}-`)
+      );
+    });
+  });
 }
 
 function classifyCause(input: {
@@ -56,18 +75,6 @@ function classifyCause(input: {
   readonly direction: ForecastErrorDirection;
 }): { readonly cause: MissAutopsyCause; readonly signals: readonly string[] } {
   const signals: string[] = [];
-  if (hasSourceGap(input.report)) {
-    signals.push("forecast-time report disclosed provider/source evidence gaps");
-    return { cause: "source_gap", signals };
-  }
-  if (input.report.dataGaps.length > 0 || input.prediction.sourceIds.length === 0) {
-    signals.push(
-      input.report.dataGaps.length > 0
-        ? "forecast-time report disclosed data gaps"
-        : "prediction carried no direct source citations",
-    );
-    return { cause: "data_gap", signals };
-  }
   if (
     (input.direction === "overpredicted" &&
       input.prediction.probability >= EXTREME_OVERCONFIDENCE_THRESHOLD) ||
@@ -76,6 +83,14 @@ function classifyCause(input: {
   ) {
     signals.push("forecast probability was extreme relative to the resolved event");
     return { cause: "model_overconfidence", signals };
+  }
+  if (input.prediction.sourceIds.length === 0) {
+    signals.push("prediction carried no direct source citations");
+    return { cause: "data_gap", signals };
+  }
+  if (hasSourceGap(input.report, input.prediction)) {
+    signals.push("forecast-time report disclosed provider/source evidence gaps in a cited lane");
+    return { cause: "source_gap", signals };
   }
   signals.push("persisted artifacts do not identify a deterministic cause");
   return { cause: "insufficient_evidence", signals };

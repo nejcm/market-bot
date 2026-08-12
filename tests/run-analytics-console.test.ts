@@ -11,11 +11,17 @@ function baseAnalytics(): RunAnalytics {
     assetClass: "equity",
     symbol: "AAPL",
     depth: "deep",
+    sourceTextResearchOnly: {
+      scannedCount: 0,
+      flaggedCount: 0,
+      flaggedByKind: {},
+      flaggedByProvider: {},
+    },
     sourceFunnel: {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },
       sourceGaps: { total: 0, bySource: {} },
-      sourceGapClasses: { missingCredential: 0, fetchFailed: 0, unsupportedCoverage: 0, other: 0 },
+      sourceGapsByCause: {},
       dataGaps: { total: 0 },
     },
     newsDedupe: {
@@ -83,7 +89,7 @@ describe("run analytics console", () => {
     expect(output.startsWith("Run quality — market-overview (run-1)")).toBe(true);
   });
 
-  test("flags an undisclosed prediction shortfall and below-floor signal", () => {
+  test("flags a prediction shortfall and below-floor signal", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
@@ -92,14 +98,14 @@ describe("run analytics console", () => {
         count: 3,
         targetCount: 5,
         targetMet: false,
-        shortfall: { emittedCount: 3, targetCount: 5, missingCount: 2, disclosed: false },
+        shortfall: { emittedCount: 3, targetCount: 5, missingCount: 2 },
         informativeCount: 1,
         nearBaseRateCount: 2,
         signalTargetMet: false,
       },
     });
 
-    expect(output).toContain("Predictions: 3/5 target (2 short, undisclosed)");
+    expect(output).toContain("Predictions: 3/5 target (2 short)");
     expect(output).toContain("1 informative, 2 near base rate (below signal floor)");
   });
 
@@ -120,6 +126,22 @@ describe("run analytics console", () => {
     });
 
     expect(output).toContain("Completion: improved · 2 accepted, 1 rejected");
+  });
+
+  test("renders explicit earnings eligibility and suppression counts", () => {
+    const output = renderRunAnalyticsConsole({
+      ...baseAnalytics(),
+      earningsForecasts: {
+        eventDateStatus: "provider-estimated",
+        policy: "confirmed-only",
+        grammarEligible: false,
+        eligiblePredictionCount: 0,
+        suppressedPredictionCount: 2,
+        suppressionReason: "event-date-not-confirmed",
+      },
+    });
+
+    expect(output).toContain("Earnings forecasts: provider-estimated · 0 eligible, 2 suppressed");
   });
 
   test("renders evidence lanes with a limiting-gap note", () => {
@@ -173,25 +195,39 @@ describe("run analytics console", () => {
     expect(output).toContain("  ! all emitted predictions are direction kind");
   });
 
-  test("renders source-gap classification breakdown", () => {
+  test("renders source-gap cause breakdown", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
       sourceFunnel: {
         ...analytics.sourceFunnel,
         sourceGaps: { total: 5, bySource: {} },
-        sourceGapClasses: {
-          missingCredential: 2,
-          fetchFailed: 1,
-          unsupportedCoverage: 1,
-          other: 1,
+        sourceGapsByCause: {
+          "missing-credential": 2,
+          "fetch-failed": 1,
+          "unsupported-coverage": 1,
+          "validation-failed": 1,
         },
       },
     });
 
     expect(output).toContain(
-      "Source gaps: 5 total (2 credential, 1 unsupported, 1 fetch-failed, 1 other)",
+      "Source gaps: 5 total (2 missing-credential, 1 fetch-failed, 1 unsupported-coverage, 1 validation-failed)",
     );
+  });
+
+  test("renders stale fallback and provider data missing as separate causes", () => {
+    const analytics = baseAnalytics();
+    const output = renderRunAnalyticsConsole({
+      ...analytics,
+      sourceFunnel: {
+        ...analytics.sourceFunnel,
+        sourceGaps: { total: 8, bySource: {} },
+        sourceGapsByCause: { "stale-fallback": 1, "provider-data-missing": 7 },
+      },
+    });
+
+    expect(output).toContain("Source gaps: 8 total (7 provider-data-missing, 1 stale-fallback)");
   });
 
   test("omits source-gap line when no gaps exist", () => {

@@ -12,15 +12,153 @@ import {
   readRunFile,
   searchRunReports,
 } from "../app/artifacts";
-import { researchReport } from "./support/fixtures";
+import {
+  deepEquityEvidenceBundle,
+  marketSnapshot,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { predictionTargetHealth } from "../app/report-artifact-view";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 describe("research console app artifacts", () => {
+  test("projects deep-equity detail evidence from the bundle", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "deep-detail");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    const snapshot = marketSnapshot({ sourceId: "bundle-market", price: 123 });
+    const base = deepEquityEvidenceBundle();
+    writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "deep-detail",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extras: { depth: "deep" },
+      }),
+    );
+    writeJson(
+      join(runDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        evidence: {
+          ...base.evidence,
+          marketSnapshots: [snapshot],
+          verifiedMarketSnapshot: verifiedMarketSnapshot(),
+        },
+        governance: {
+          ...base.governance,
+          sourceLedger: {
+            version: 2,
+            generatedAt: "2026-05-19T00:00:00.000Z",
+            sources: [
+              {
+                id: snapshot.sourceId,
+                kind: "market-data",
+                lane: "market-data",
+                posture: "covered",
+                relatedGapIds: [],
+                observedAt: snapshot.observedAt,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    writeJson(join(runDir, RUN_ARTIFACT_FILES.marketSnapshots), [
+      marketSnapshot({ sourceId: "legacy-market", price: 999 }),
+    ]);
+
+    const detail = await readRunDetail(dataDir, "deep-detail");
+
+    expect(detail?.marketSnapshots?.[0]?.price).toBe(123);
+    expect(detail?.verifiedMarketSnapshot?.symbol).toBe("AAPL");
+  });
+
+  test("projects canonical statements while tolerating historical runs", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const canonicalDir = join(dataDir, "canonical");
+    const historicalDir = join(dataDir, "historical");
+    mkdirSync(join(canonicalDir, "normalized"), { recursive: true });
+    mkdirSync(historicalDir, { recursive: true });
+    const artifact = deriveFinancialStatements(
+      {},
+      {
+        symbol: "AAPL",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        analysisAsOf: "2026-06-01T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    writeJson(join(canonicalDir, "report.json"), researchReport({ runId: "canonical" }));
+    writeJson(join(canonicalDir, "normalized", "financial-statements.json"), artifact);
+    writeJson(join(historicalDir, "report.json"), researchReport({ runId: "historical" }));
+
+    const canonical = await readRunDetail(dataDir, "canonical");
+    const historical = await readRunDetail(dataDir, "historical");
+
+    expect(canonical?.financialStatements).toEqual(artifact);
+    expect(historical?.financialStatements).toBeUndefined();
+  });
+
+  test("normalizes legacy prediction shortfalls on the Console read path", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "legacy-shortfall");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "legacy-shortfall",
+        dataGaps: ["predictionShortfall: emitted 0 of 3", "Missing provider evidence"],
+      }),
+    );
+
+    const detail = await readRunDetail(dataDir, "legacy-shortfall");
+
+    expect(detail?.report?.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 3,
+      missingCount: 3,
+    });
+    expect(detail?.report?.dataGaps).toEqual(["Missing provider evidence"]);
+  });
+
+  test("prefers post-prune analytics health over a reconstructed legacy shortfall", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "legacy-stale-shortfall");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "legacy-stale-shortfall",
+        dataGaps: ["predictionShortfall: emitted 5 of 6"],
+      }),
+    );
+    writeJson(join(runDir, "analytics.json"), {
+      predictions: { count: 4, targetCount: 6, targetMet: false },
+    });
+
+    const detail = await readRunDetail(dataDir, "legacy-stale-shortfall");
+
+    expect(detail?.report?.predictionShortfall).toEqual({
+      emittedCount: 5,
+      targetCount: 6,
+      missingCount: 1,
+    });
+    expect(predictionTargetHealth(detail?.analytics, detail?.report)).toEqual({
+      count: 4,
+      target: 6,
+      targetMet: false,
+    });
+  });
+
   test("indexes run summaries from report artifacts", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "run-a");

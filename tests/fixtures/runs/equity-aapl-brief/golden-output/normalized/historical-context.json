@@ -1,0 +1,26 @@
+{
+  "generatedAt": "<generatedAt>",
+  "recentDays": 0,
+  "anchorMonths": [],
+  "runs": [],
+  "sources": [],
+  "gaps": ["No prior ticker runs found for AAPL", "No prior equity market-update runs found"],
+  "audit": {
+    "scannedRunCount": 0,
+    "malformedRunCount": 0,
+    "malformedScoreCount": 0,
+    "candidateRunCount": 0,
+    "selectedRunCount": 0,
+    "recentSelectedCount": 0,
+    "anchorSelectedCount": 0,
+    "sameSymbolSelectedCount": 0,
+    "spotlightSymbolSelectedCount": 0,
+    "sameSubjectSelectedCount": 0,
+    "sameHorizonSelectedCount": 0,
+    "crossHorizonSelectedCount": 0,
+    "resolvedMissRunCount": 0,
+    "missCorrectionSelectedCount": 0,
+    "gapCount": 2
+  },
+  "artifactDeltas": []
+}

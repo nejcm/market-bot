@@ -13,25 +13,25 @@ import {
 } from "../domain/types";
 import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
-import type { ModelProvider } from "../model/types";
+import type { ModelParams, ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { violatesResearchOnly } from "../domain/research-language";
 import {
   buildReportSearchEntries,
   openQuestions,
   predictionClaim,
-  REPORT_SEARCH_SECTIONS,
   type ReportSearchEntry,
 } from "../report-search-entries";
+import type { HistorySection } from "./sections";
+
 import { scanRunArtifacts } from "../run-artifacts";
 import { searchHistoryEntriesFromIndex } from "../run-artifact-index";
 import { MUTABLE_SIDECARS, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord, readStringVerbatim } from "../guards";
+import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 
-export const HISTORY_SECTIONS = [...REPORT_SEARCH_SECTIONS, "fundamentals", "validation"] as const;
-
-export type HistorySection = (typeof HISTORY_SECTIONS)[number];
+export { HISTORY_SECTIONS, type HistorySection } from "./sections";
 
 export type ThesisScope = "instrument" | "market-update";
 
@@ -142,6 +142,7 @@ export interface ThesisDeltaInput {
   readonly narrative?: boolean;
   readonly provider?: ModelProvider;
   readonly model?: string;
+  readonly modelParams?: ModelParams;
   readonly now?: Date;
 }
 
@@ -277,7 +278,7 @@ function thesisState(
     bearCase: report.bearCase,
     risks: report.risks,
     catalysts: report.catalysts,
-    dataGaps: report.dataGaps,
+    dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps),
     predictions: report.predictions,
     openQuestions: openQuestions(report, scores),
   };
@@ -798,6 +799,7 @@ async function generateNarrative(
   delta: Omit<ThesisDelta, "narrative">,
   provider: ModelProvider,
   model: string,
+  modelParams: ModelParams | undefined,
 ): Promise<ThesisDelta["narrative"]> {
   const response = await provider.generate({
     model,
@@ -813,7 +815,10 @@ async function generateNarrative(
         content: JSON.stringify(delta, undefined, 2),
       },
     ],
-    params: { temperature: 0.2 },
+    params: {
+      temperature: 0.2,
+      ...modelParams,
+    },
   });
   const text = response.content.trim();
   if (violatesResearchOnly(text) !== null) {
@@ -866,6 +871,7 @@ export async function buildThesisDelta(input: ThesisDeltaInput): Promise<ThesisD
               throw new Error("A model provider is required for --narrative");
             })(),
           input.model ?? "unknown",
+          input.modelParams,
         )
       : undefined;
   const delta: ThesisDelta = narrative === undefined ? base : { ...base, narrative };

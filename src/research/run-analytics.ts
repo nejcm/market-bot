@@ -1,13 +1,19 @@
 import {
   NEAR_BASE_RATE_BAND,
   researchReportEvidenceQuality,
+  sourceProvider,
+  type EarningsForecastTelemetry,
+  type PredictionShortfall,
   type ReportIntegrity,
   type ResearchReport,
   type RunTrace,
   type Source,
   type SourceGap,
+  type SourceTextResearchOnlySummary,
+  type WebEvidenceUtilization,
+  type WebGatherAcceptancePolicy,
 } from "../domain/types";
-import { isRepeatFallbackGap, sourceGapAnalyticsClass } from "../domain/source-gaps";
+import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";
 import { brierSkillScore } from "../scoring/calibration";
@@ -17,6 +23,7 @@ import {
   type ApplicableCalibrationKeys,
   type CalibrationGuidanceDimension,
   type CalibrationGuidanceReason,
+  type CalibrationPopulationStatus,
 } from "./calibration-guidance";
 import type { CalibrationContext } from "./research-context-types";
 import type { ForecastPersistence } from "./forecast-persistence";
@@ -24,7 +31,20 @@ import type { CostPricing } from "../model/pricing";
 import type { StageRepromptReason } from "./final-synthesis";
 import type { EvidenceLaneSummaryV2 } from "./source-plan";
 import { DAY_MS } from "../config/shared";
-import { computeWebSourceUsage, roundWebSubjectProfileAgeDays } from "../web-evidence";
+import {
+  buildWebEvidenceUtilization,
+  computeWebSourceUsage,
+  roundWebSubjectProfileAgeDays,
+} from "../web-evidence";
+import { readEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
+import {
+  derivePredictionShortfall,
+  predictionShortfallGapCount,
+} from "../report/prediction-shortfall";
+import {
+  deriveProviderEndpointAvailability,
+  type ProviderEndpointAvailability,
+} from "../sources/provider-endpoint-availability";
 
 export interface RunAnalyticsStage {
   readonly stage: string;
@@ -60,6 +80,7 @@ export interface RunAnalytics {
   readonly codeVersion?: RunTrace["codeVersion"];
   readonly reproducibility?: RunTrace["reproducibility"];
   readonly modelInputSanitization?: RunTrace["modelInputSanitization"];
+  readonly sourceTextResearchOnly: SourceTextResearchOnlySummary;
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -74,16 +95,12 @@ export interface RunAnalytics {
       readonly total: number;
       readonly bySource: Readonly<Record<string, number>>;
     };
-    readonly sourceGapClasses: {
-      readonly missingCredential: number;
-      readonly fetchFailed: number;
-      readonly unsupportedCoverage: number;
-      readonly other: number;
-    };
+    readonly sourceGapsByCause: Readonly<Record<string, number>>;
     readonly dataGaps: {
       readonly total: number;
     };
   };
+  readonly providerEndpointAvailability?: Readonly<Record<string, ProviderEndpointAvailability>>;
   readonly newsDedupe: NewsCollectionAnalytics;
   readonly evidenceQuality: {
     readonly label?: ResearchReport["evidenceQuality"];
@@ -121,7 +138,11 @@ export interface RunAnalytics {
       readonly initialCount: number;
       readonly acceptedCount: number;
       readonly rejectedCount: number;
-      readonly outcome: "improved" | "no-eligible-candidates" | "failed";
+      readonly outcome:
+        | "improved"
+        | "no-candidates-returned"
+        | "all-candidates-rejected"
+        | "failed";
     };
     /** Legacy artifact compatibility. */
     readonly replacementAttempted: boolean;
@@ -135,12 +156,7 @@ export interface RunAnalytics {
     readonly uncitedCount: number;
     readonly targetCount: number;
     readonly targetMet: boolean;
-    readonly shortfall?: {
-      readonly emittedCount: number;
-      readonly targetCount: number;
-      readonly missingCount: number;
-      readonly disclosed: boolean;
-    };
+    readonly shortfall?: PredictionShortfall;
     readonly forecastDisagreement?: {
       readonly participantCount: number;
       readonly successfulParticipantCount: number;
@@ -153,9 +169,10 @@ export interface RunAnalytics {
     readonly informativeCount: number;
     /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count. */
     readonly signalTargetMet: boolean;
-    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate). */
+    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate, same horizon). */
     readonly mixWarnings: readonly string[];
   };
+  readonly earningsForecasts?: EarningsForecastTelemetry;
   readonly postSynthesisAudit?: {
     readonly warningCount: number;
     readonly byCode: Readonly<Record<string, number>>;
@@ -229,6 +246,8 @@ export interface RunAnalytics {
     readonly ageDays: number;
     readonly runDirName: string;
   };
+  readonly webEvidenceUtilization?: WebEvidenceUtilization;
+  readonly webGatherAcceptancePolicy?: WebGatherAcceptancePolicy;
   readonly runShape: {
     readonly traceStages: readonly string[];
     readonly stages: readonly {
@@ -245,6 +264,10 @@ export interface RunAnalytics {
     readonly costPricing?: readonly CostPricing[];
     readonly durationMs?: number;
   };
+}
+
+function sanitizedPredictionTargetCount(targetCount: number): number {
+  return Number.isFinite(targetCount) ? Math.max(0, Math.trunc(targetCount)) : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +301,7 @@ export interface RunAnalyticsCalibrationGuidanceAssessment {
   readonly lowerConfidenceBound?: number;
   readonly actionable: boolean;
   readonly reason: CalibrationGuidanceReason;
+  readonly populationStatus?: CalibrationPopulationStatus;
 }
 
 function countBy<T>(
@@ -294,27 +318,8 @@ function countBy<T>(
   return counts;
 }
 
-function sourceProvider(source: Source): string | undefined {
-  if (source.provider !== undefined) {
-    return source.provider;
-  }
-  return source.providerAliases?.[0]?.provider;
-}
-
 function sourceGaps(collectedSources: CollectedSources): readonly SourceGap[] {
   return collectedSources.sourceGaps;
-}
-
-function sourceGapClasses(
-  gaps: readonly SourceGap[],
-): RunAnalytics["sourceFunnel"]["sourceGapClasses"] {
-  const classes = countBy(gaps, sourceGapAnalyticsClass);
-  return {
-    missingCredential: classes.missingCredential ?? 0,
-    fetchFailed: classes.fetchFailed ?? 0,
-    unsupportedCoverage: classes.unsupportedCoverage ?? 0,
-    other: classes.other ?? 0,
-  };
 }
 
 function selectedNewsAliasDuplicateCount(sources: readonly Source[]): number {
@@ -434,7 +439,15 @@ function calibrationAtGeneration(
     input.calibrationGuidanceKeys === undefined
       ? undefined
       : applicableCalibrationSlices(calibration, input.calibrationGuidanceKeys).map(
-          ({ dimension, key, metric, actionable, reason, lowerConfidenceBound }) => ({
+          ({
+            dimension,
+            key,
+            metric,
+            actionable,
+            reason,
+            lowerConfidenceBound,
+            populationStatus,
+          }) => ({
             dimension,
             key,
             ...(metric !== undefined
@@ -450,6 +463,7 @@ function calibrationAtGeneration(
             ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
             actionable,
             reason,
+            ...(populationStatus !== undefined ? { populationStatus } : {}),
           }),
         );
   if (
@@ -619,16 +633,12 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
             (item) => isRecord(item) && item.band === "high",
           ).length,
         };
-  const missingPredictionCount = Math.max(0, input.targetPredictions - report.predictions.length);
-  const predictionShortfall =
-    missingPredictionCount === 0
-      ? undefined
-      : {
-          emittedCount: report.predictions.length,
-          targetCount: input.targetPredictions,
-          missingCount: missingPredictionCount,
-          disclosed: report.dataGaps.some((gap) => gap.startsWith("predictionShortfall:")),
-        };
+  const targetPredictions = sanitizedPredictionTargetCount(input.targetPredictions);
+  const predictionShortfall = derivePredictionShortfall(
+    report.predictions.length,
+    targetPredictions,
+  );
+  const dataGapCount = predictionShortfallGapCount(report.predictionShortfall, report.dataGaps);
 
   const emittedPredictions = report.predictions;
   const nearBaseRateCount = emittedPredictions.filter((prediction) =>
@@ -649,6 +659,16 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       "all emitted probabilities cluster near the base rate of 0.5; predictions carry limited signal",
     );
   }
+  if (
+    emittedPredictions.length > 1 &&
+    emittedPredictions.every(
+      (prediction) => prediction.horizonTradingDays === emittedPredictions[0]?.horizonTradingDays,
+    )
+  ) {
+    mixWarnings.push(
+      "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
+  }
   const calibrationSnapshot = calibrationAtGeneration(input);
   const verifiedSnapshot = verifiedMarketSnapshotFreshness(collectedSources);
   const postSynthesisAudit =
@@ -658,6 +678,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
           warningCount: trace.postSynthesisAudit.warningCount,
           byCode: countBy(trace.postSynthesisAudit.warnings, (warning) => warning.code),
         };
+  const earningsForecasts = trace.earningsForecasts ?? readEarningsForecastTelemetry(report);
+  const webEvidenceUtilization =
+    trace.webEvidenceUtilization ??
+    buildWebEvidenceUtilization(report, collectedSources, trace.webGatherLoop !== undefined);
 
   return {
     version: 2,
@@ -672,6 +696,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
     ...(trace.modelInputSanitization !== undefined
       ? { modelInputSanitization: trace.modelInputSanitization }
       : {}),
+    sourceTextResearchOnly: trace.sourceTextResearchOnly.summary,
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,
@@ -686,18 +711,27 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         total: gaps.length,
         bySource: countBy(gaps, (gap) => gap.source),
       },
-      sourceGapClasses: sourceGapClasses(gaps),
+      sourceGapsByCause: countBy(gaps, (gap) => gap.cause),
       dataGaps: {
-        total: report.dataGaps.length,
+        total: dataGapCount,
       },
     },
+    ...(report.jobType === "equity"
+      ? {
+          providerEndpointAvailability: deriveProviderEndpointAvailability(
+            collectedSources.rawSnapshots,
+            gaps,
+            collectedSources.earningsSetup?.impliedMove !== undefined,
+          ),
+        }
+      : {}),
     newsDedupe: newsDedupe(input),
     evidenceQuality: {
       label: researchReportEvidenceQuality(report),
       ...(trace.evidenceQualityAssessment !== undefined
         ? { assessment: trace.evidenceQualityAssessment }
         : {}),
-      dataGapCount: report.dataGaps.length,
+      dataGapCount,
       extendedEvidence: {
         itemCount: extendedEvidence?.items.length ?? 0,
         gapCount: extendedEvidence?.gaps.length ?? 0,
@@ -735,8 +769,8 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ),
       citedCount,
       uncitedCount: report.predictions.length - citedCount,
-      targetCount: input.targetPredictions,
-      targetMet: report.predictions.length >= input.targetPredictions,
+      targetCount: targetPredictions,
+      targetMet: report.predictions.length >= targetPredictions,
       ...(predictionShortfall !== undefined ? { shortfall: predictionShortfall } : {}),
       ...(forecastDisagreement !== undefined ? { forecastDisagreement } : {}),
       nearBaseRateCount,
@@ -744,6 +778,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       signalTargetMet,
       mixWarnings,
     },
+    ...(earningsForecasts !== undefined ? { earningsForecasts } : {}),
     ...(postSynthesisAudit !== undefined ? { postSynthesisAudit } : {}),
     ...(trace.reportIntegrityAudit !== undefined
       ? {
@@ -784,6 +819,10 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       : {}),
     ...(verifiedSnapshot !== undefined ? { verifiedMarketSnapshot: verifiedSnapshot } : {}),
     ...webSourceRoles(report, collectedSources, trace),
+    ...(webEvidenceUtilization !== undefined ? { webEvidenceUtilization } : {}),
+    ...(trace.webGatherLoop?.acceptancePolicy !== undefined
+      ? { webGatherAcceptancePolicy: trace.webGatherLoop.acceptancePolicy }
+      : {}),
     runShape: {
       traceStages: trace.stages,
       stages: input.stageOutputs.map((output) => ({

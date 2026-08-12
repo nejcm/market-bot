@@ -1,0 +1,30 @@
+{
+  "analysisAsOf": "2026-07-20T12:00:00.000Z",
+  "setup": {
+    "event": {
+      "symbol": "AAPL",
+      "date": "2026-07-30",
+      "timing": "amc",
+      "eventDateStatus": "provider-estimated",
+      "dateStatus": "provider-estimated",
+      "sourceIds": ["extended-finnhub-events-aapl"],
+      "fetchedAt": "2026-07-20T12:00:00.000Z"
+    },
+    "gaps": []
+  },
+  "rawSnapshots": [],
+  "sources": [
+    {
+      "id": "finnhub-agreement",
+      "title": "Finnhub earnings calendar",
+      "url": "https://finnhub.io/calendar/earnings",
+      "publisher": "Finnhub",
+      "fetchedAt": "2026-07-20T12:00:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "AAPL",
+      "provider": "finnhub",
+      "summary": "Apple Inc. will report quarterly results on July 30, 2026."
+    }
+  ]
+}

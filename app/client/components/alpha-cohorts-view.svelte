@@ -5,12 +5,12 @@
     alphaRejectionBucketRows,
     alphaStaleLeadRows,
     formatDateMinute,
+    type SidebarView,
   } from "../view-model";
-  import type { View } from "./console-types";
 
   interface Props {
     readonly detail: AlphaCohortDetail;
-    readonly onNavigate: (view: View) => void;
+    readonly onNavigate: (view: SidebarView) => void;
   }
 
   let { detail, onNavigate }: Props = $props();

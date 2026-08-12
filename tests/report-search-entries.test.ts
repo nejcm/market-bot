@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildReportSearchEntries,
+  openQuestions,
   reportSearchCandidates,
   type ReportSearchCandidate,
 } from "../src/report-search-entries";
@@ -77,6 +78,17 @@ function find(
 }
 
 describe("reportSearchCandidates", () => {
+  test("carries structured prediction shortfalls into open questions", () => {
+    expect(
+      openQuestions(
+        researchReport({
+          predictionShortfall: { emittedCount: 0, targetCount: 3, missingCount: 3 },
+        }),
+        [],
+      ),
+    ).toEqual(["Data gap: emitted 0 of 3 target predictions; evidence did not support more"]);
+  });
+
   test("console scope emits the agreed section order with console labels and text", () => {
     const candidates = reportSearchCandidates(report, "console");
 

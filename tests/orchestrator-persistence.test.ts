@@ -166,100 +166,139 @@ function parseResearchCommand(args: readonly string[]): ResearchCommand {
   throw new Error("Expected research command");
 }
 
+type PersistedWorkflow = Awaited<ReturnType<typeof runWorkflow>>;
+
+async function expectArtifactLayout(workflow: PersistedWorkflow): Promise<void> {
+  await expect(readdir(workflow.artifacts.runDir)).resolves.toEqual(
+    expect.arrayContaining([
+      "normalized",
+      "raw",
+      "analytics.json",
+      "report.json",
+      "report.md",
+      "stages.json",
+      "trace.json",
+    ]),
+  );
+  await expect(readdir(workflow.artifacts.rawDir)).resolves.toEqual(["snapshots.json"]);
+  const normalizedFiles = await readdir(workflow.artifacts.normalizedDir);
+  if (workflow.report.jobType === "equity") {
+    expect(normalizedFiles).toEqual(
+      expect.arrayContaining(["evidence-bundle.json", "market-context.json"]),
+    );
+    expect(normalizedFiles).not.toContain("market-snapshots.json");
+    expect(normalizedFiles).not.toContain("source-gaps.json");
+  } else {
+    expect(normalizedFiles).toEqual(
+      expect.arrayContaining([
+        "extended-evidence.json",
+        "extended-sources.json",
+        "market-context.json",
+        "market-snapshots.json",
+        "news-sources.json",
+        "source-gaps.json",
+      ]),
+    );
+  }
+  await expect(readFile(join(workflow.artifacts.runDir, "report.md"), "utf8")).resolves.toContain(
+    "Research-only note",
+  );
+  await expect(readFile(join(workflow.artifacts.runDir, "stages.json"), "utf8")).resolves.toContain(
+    "final-synthesis",
+  );
+}
+
+const persistenceCases: readonly {
+  readonly name: string;
+  readonly command: ResearchCommand;
+  readonly symbol: string;
+  readonly expectedJobType: "market-overview" | "equity" | "crypto";
+  readonly expectedAssetClass: AssetClass;
+  readonly specialAssertion: "no-symbol" | "weekly-alias" | "equity-symbol" | "crypto-depth";
+}[] = [
+  {
+    name: "daily equity",
+    command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+    symbol: "AAPL",
+    expectedJobType: "market-overview",
+    expectedAssetClass: "equity",
+    specialAssertion: "no-symbol",
+  },
+  {
+    name: "daily crypto",
+    command: legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
+    symbol: "BTC",
+    expectedJobType: "market-overview",
+    expectedAssetClass: "crypto",
+    specialAssertion: "no-symbol",
+  },
+  {
+    name: "weekly equity",
+    command: legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
+    symbol: "AAPL",
+    expectedJobType: "market-overview",
+    expectedAssetClass: "equity",
+    specialAssertion: "weekly-alias",
+  },
+  {
+    name: "deep equity",
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+    symbol: "AAPL",
+    expectedJobType: "equity",
+    expectedAssetClass: "equity",
+    specialAssertion: "equity-symbol",
+  },
+  {
+    name: "deep crypto",
+    command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+    symbol: "BTC",
+    expectedJobType: "crypto",
+    expectedAssetClass: "crypto",
+    specialAssertion: "crypto-depth",
+  },
+];
+
 describe("orchestrator persistence across job types", () => {
-  test("persists daily, weekly, and ticker workflows with matching artifact layout", async () => {
-    const workflows = [
-      await runWorkflow(
-        legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
-        "AAPL",
-      ),
-      await runWorkflow(
-        legacyMarketOverviewCommand("daily", { assetClass: "crypto", depth: "brief" }),
-        "BTC",
-      ),
-      await runWorkflow(
-        legacyMarketOverviewCommand("weekly", { assetClass: "equity", depth: "brief" }),
-        "AAPL",
-      ),
-      await runWorkflow(
-        { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
-        "AAPL",
-      ),
-      await runWorkflow(
-        { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
-        "BTC",
-      ),
-    ];
+  for (const fixture of persistenceCases) {
+    test(`persists ${fixture.name} with the matching artifact layout`, async () => {
+      const workflow = await runWorkflow(fixture.command, fixture.symbol);
 
-    for (const workflow of workflows) {
-      await expect(readdir(workflow.artifacts.runDir)).resolves.toEqual(
-        expect.arrayContaining([
-          "normalized",
-          "raw",
-          "analytics.json",
-          "report.json",
-          "report.md",
-          "stages.json",
-          "trace.json",
-        ]),
-      );
-      await expect(readdir(workflow.artifacts.rawDir)).resolves.toEqual(["snapshots.json"]);
-      await expect(readdir(workflow.artifacts.normalizedDir)).resolves.toEqual(
-        expect.arrayContaining([
-          "extended-evidence.json",
-          "extended-sources.json",
-          "market-context.json",
-          "market-snapshots.json",
-          "news-sources.json",
-          "source-gaps.json",
-        ]),
-      );
-      await expect(
-        readFile(join(workflow.artifacts.runDir, "report.md"), "utf8"),
-      ).resolves.toContain("Research-only note");
-      await expect(
-        readFile(join(workflow.artifacts.runDir, "stages.json"), "utf8"),
-      ).resolves.toContain("final-synthesis");
-    }
-
-    expect(workflows.map((workflow) => workflow.report.jobType)).toEqual([
-      "market-overview",
-      "market-overview",
-      "market-overview",
-      "equity",
-      "crypto",
-    ]);
-    expect(workflows.map((workflow) => workflow.report.assetClass)).toEqual([
-      "equity",
-      "crypto",
-      "equity",
-      "equity",
-      "crypto",
-    ]);
-    expect(workflows[0]?.report.symbol).toBeUndefined();
-    expect(workflows[2]?.trace.legacyMarketUpdateAlias).toBe("weekly");
-    expect(workflows[3]?.report.symbol).toBe("AAPL");
-    expect(workflows[4]?.trace.depth).toBe("deep");
-    expect(workflows[4]?.report.extras?.depth).toBe("deep");
-  });
+      await expectArtifactLayout(workflow);
+      expect(workflow.report.jobType).toBe(fixture.expectedJobType);
+      expect(workflow.report.assetClass).toBe(fixture.expectedAssetClass);
+      if (fixture.specialAssertion === "no-symbol") {
+        expect(workflow.report.symbol).toBeUndefined();
+      } else if (fixture.specialAssertion === "weekly-alias") {
+        expect(workflow.trace.legacyMarketUpdateAlias).toBe("weekly");
+      } else if (fixture.specialAssertion === "equity-symbol") {
+        expect(workflow.report.symbol).toBe("AAPL");
+      } else {
+        expect(workflow.trace.depth).toBe("deep");
+        expect(workflow.report.extras?.depth).toBe("deep");
+      }
+    });
+  }
 
   test("persists canonical market-overview fields from CLI-shaped commands", async () => {
     const overview = await runWorkflow(
       parseResearchCommand(["market-overview", "--asset", "equity", "--horizon", "7"]),
       "AAPL",
     );
-    const alias = await runWorkflow(parseResearchCommand(["daily", "--asset", "equity"]), "AAPL");
 
     expect(overview.report.jobType).toBe("market-overview");
     expect(overview.report.horizonTradingDays).toBe(7);
     expect(overview.report.extras?.marketUpdateHorizonBucket).toBe("6-10d");
     expect(overview.trace.jobType).toBe("market-overview");
     expect(overview.trace.marketUpdateHorizonBucket).toBe("6-10d");
+  });
+
+  test("persists canonical legacy-alias fields from CLI-shaped commands", async () => {
+    const alias = await runWorkflow(parseResearchCommand(["daily", "--asset", "equity"]), "AAPL");
 
     expect(alias.report.jobType).toBe("market-overview");
     expect(alias.report.horizonTradingDays).toBe(5);
     expect(alias.report.extras?.legacyMarketUpdateAlias).toBe("daily");
-    expect(alias.report.extras?.marketUpdateHorizonBucket).toBe("1-5d");
+    expect(alias.report.extras?.marketUpdateHorizonBucket).toBe("2-5d");
     expect(alias.trace.legacyMarketUpdateAlias).toBe("daily");
   });
 });

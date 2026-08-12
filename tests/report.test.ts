@@ -4,12 +4,20 @@ import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../s
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { validateResearchReport } from "../src/report/schema";
-import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
+import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
+import {
+  assembleResearchReport,
+  assembleResearchReportWithRelocations,
+  buildSourceList,
+  prepareReportClaims,
+} from "../src/research/report-assembly";
+import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type { DepthProfile, ResearchContext } from "../src/research/research-context-types";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import type { SpotlightSelectionResult } from "../src/research/spotlights";
+import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { auditSourceTextResearchOnly } from "../src/research/source-text-audit";
 import { collectedSources, marketSnapshot, newsSource, prediction } from "./support/fixtures";
 
 const report: ResearchReport = {
@@ -46,6 +54,268 @@ const report: ResearchReport = {
   ],
   notFinancialAdvice: true,
 };
+
+function validationErrorMessage(candidate: ResearchReport): string {
+  try {
+    validateResearchReport(candidate);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("Expected report validation to fail");
+}
+
+function equityEvidenceSource(id: string): Source {
+  return {
+    id,
+    title: id,
+    fetchedAt: "2026-05-19T00:00:00.000Z",
+    kind: "market-data",
+    assetClass: "equity",
+    symbol: "AAPL",
+  };
+}
+
+function observedMetricsRow(markdown: string): string | undefined {
+  return markdown.split("\n").find((line) => line.startsWith("- **Observed metrics:**"));
+}
+
+test("renders not-assessed completeness as a non-success status chip", () => {
+  const asOf = "2026-05-19T00:00:00.000Z";
+  const dimension = {
+    status: "partial" as const,
+    reasonCodes: ["fixture-partial"],
+    asOf,
+    sourceIds: [],
+  };
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "TEST",
+    equityAnalysisCompleteness: {
+      version: 1,
+      financialCoreStatus: "partial",
+      coverageLevel: "limited",
+      asOf,
+      dimensions: {
+        primaryFinancials: dimension,
+        valuation: dimension,
+        expectations: {
+          status: "not-assessed",
+          reasonCodes: ["expectations-provider-credential-missing"],
+          asOf,
+          sourceIds: [],
+        },
+        capitalOwnership: dimension,
+        operatingKpis: {
+          status: "not-assessed",
+          reasonCodes: ["operating-kpi-registry-unconfigured"],
+          asOf,
+          sourceIds: [],
+        },
+      },
+    },
+  });
+
+  expect(markdown).toContain("Expectations `not assessed — inputs unavailable`");
+  expect(markdown).toContain("Operating KPIs `not assessed — inputs unavailable`");
+  expect(markdown).not.toContain("Expectations `complete`");
+});
+
+test.each([
+  { emittedCount: 1, targetCount: 5, missingCount: 4 },
+  { emittedCount: 0, targetCount: 5, missingCount: 5 },
+])("renders structured prediction shortfalls last and exactly once", (predictionShortfall) => {
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    predictionShortfall,
+    dataGaps: ["Primary revenue evidence missing."],
+  });
+  const appendixAt = markdown.indexOf("## Appendix");
+  const reader = markdown.slice(0, appendixAt);
+  const appendix = markdown.slice(appendixAt);
+  const text = `emitted ${String(predictionShortfall.emittedCount)} of 5 target predictions; evidence did not support more`;
+
+  expect(reader).toContain(`- **Material:** ${text}`);
+  expect(reader.indexOf(text)).toBeGreaterThan(reader.indexOf("Primary revenue evidence missing."));
+  expect(markdown.split(text)).toHaveLength(2);
+  expect(markdown).not.toContain("predictionShortfall:");
+  expect(appendix).not.toContain(text);
+});
+
+test("rejects an invalid structured prediction shortfall at report validation", () => {
+  expect(() =>
+    validateResearchReport({
+      ...report,
+      predictionShortfall: { emittedCount: 1, targetCount: 5, missingCount: 3 },
+    }),
+  ).toThrow("missingCount === targetCount - emittedCount > 0");
+});
+
+test("summarizes diagnostic gaps with a pointer to retained artifacts", () => {
+  const diagnosticGaps = [
+    "finnhub-events: configured token returned 403",
+    "tradier-options: API token missing",
+  ];
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: diagnosticGaps,
+    },
+    undefined,
+    {
+      sourceGaps: diagnosticGaps.map((gap) => {
+        const [source, message] = gap.split(": ", 2);
+        return sourceGap({ source: source!, message: message!, triage: "diagnostic" });
+      }),
+    },
+  );
+
+  expect(markdown).toContain(
+    "2 diagnostic data gaps; see the Research Console Advanced view or report.json for details.",
+  );
+  expect(markdown).not.toContain("configured token returned 403");
+  expect(markdown).not.toContain("tradier-options: API token missing");
+});
+
+test("retains intended fallback disclosures under Diagnostic Data Gaps", () => {
+  const fallbackGaps = [
+    sourceGap({
+      source: "web-subject-profile",
+      message:
+        "Reused web subject profile from 2026-07-31T13:38:07.729Z (10.2 days old); latest SEC filing basis 2026-07-31.",
+      cause: "stale-fallback",
+      evidenceQualityImpact: "no-cap",
+      triage: "diagnostic",
+    }),
+    sourceGap({
+      source: "news-seen",
+      message: "Persistent news dedupe kept 10 relevant repeat fallback(s)",
+      cause: "repeat-fallback",
+      evidenceQualityImpact: "no-cap",
+      triage: "diagnostic",
+    }),
+  ];
+  const dataGaps = fallbackGaps.map((gap) => `${gap.source}: ${gap.message}`);
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps,
+    },
+    undefined,
+    { sourceGaps: fallbackGaps },
+  );
+  const materialSection = markdown.slice(
+    markdown.indexOf("## Material Data Gaps"),
+    markdown.indexOf("## Appendix"),
+  );
+  const diagnosticSection = markdown.slice(markdown.indexOf("### Diagnostic Data Gaps"));
+  const additionalGap = sourceGap({
+    source: "tradier-options",
+    message: "Optional options evidence unavailable",
+    triage: "diagnostic",
+  });
+  const deepRunMarkdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: [...dataGaps, `${additionalGap.source}: ${additionalGap.message}`],
+    },
+    undefined,
+    { sourceGaps: [...fallbackGaps, additionalGap] },
+  );
+
+  expect(materialSection).not.toContain("Reused web subject profile");
+  expect(materialSection).not.toContain("Persistent news dedupe");
+  expect(diagnosticSection).toContain(
+    "- **Diagnostic:** web-subject-profile: Reused web subject profile",
+  );
+  expect(diagnosticSection).toContain("- **Diagnostic:** news-seen: Persistent news dedupe");
+  expect(diagnosticSection).not.toContain("see the Research Console Advanced view");
+  expect(deepRunMarkdown).toContain(
+    "3 diagnostic data gaps; see the Research Console Advanced view or report.json for details.",
+  );
+});
+
+test("renders an uncited real company description as a paragraph", () => {
+  const description = "Apple designs and sells consumer technology products.";
+  const markdown = renderMarkdownReport({
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    extras: {
+      webSubjectProfile: {
+        subjectSummary: {
+          answer: description,
+          sourceIds: ["unknown-source"],
+        },
+      },
+    },
+  });
+
+  expect(markdown).toContain(`## What the Company Does\n\n${description}\n`);
+  expect(markdown).not.toContain(`\n- ${description}`);
+});
+
+test("declares missing revenue history instead of leaving unexplained trend-table blanks", () => {
+  const history = deriveFundamentalHistory(
+    {
+      facts: {
+        "us-gaap": {
+          NetIncomeLoss: {
+            units: {
+              USD: [
+                {
+                  val: 20,
+                  form: "10-K",
+                  fp: "FY",
+                  fy: 2024,
+                  filed: "2024-11-01",
+                  start: "2023-10-01",
+                  end: "2024-09-30",
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    {
+      symbol: "AAPL",
+      generatedAt: "2025-08-01T00:00:00.000Z",
+      analysisAsOf: "2025-08-01T00:00:00.000Z",
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    },
+  );
+  const markdown = renderMarkdownReport(
+    {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      dataGaps: [],
+    },
+    undefined,
+    { fundamentalHistory: history },
+  );
+
+  expect(markdown).toContain("FY ending 2024-09-30 (filed 2024-11-01) | — | 20 | — | —");
+  expect(markdown).toContain(
+    "**Material:** fundamental-history-revenue: SEC revenue history is unavailable",
+  );
+});
 
 const spotlightSource: Source = {
   id: "market-yahoo-equity-roku",
@@ -135,7 +405,8 @@ function assemblyContext(
     runParams: {
       quickModel: "quick",
       synthesisModel: "synthesis",
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
       minimumKeyFindings: 0,
       minimumScenarios: 0,
       targetPredictions: 0,
@@ -199,6 +470,233 @@ describe("report schema and rendering", () => {
     expect(validateResearchReport(report)).toEqual(report);
   });
 
+  test("aggregates source ID failures with finding paths", () => {
+    const message = validationErrorMessage({
+      ...report,
+      keyFindings: [
+        report.keyFindings[0]!,
+        report.keyFindings[0]!,
+        { text: "Unsupported finding.", sourceIds: ["fred-unemployment"] },
+      ],
+      risks: [report.risks[0]!, { text: "Uncited risk.", sourceIds: [] }],
+      catalysts: [{ text: "Uncited catalyst.", sourceIds: [] }],
+    });
+
+    expect(message).toContain("keyFindings[2] cites unknown source ID: fred-unemployment");
+    expect(message).toContain("risks[1] must reference at least one source ID");
+    expect(message).toContain("catalysts[0] must reference at least one source ID");
+  });
+
+  test("names an uncited scenario without calling it a major finding", () => {
+    const message = validationErrorMessage({
+      ...report,
+      scenarios: [{ name: "Base", description: "Conditions persist.", sourceIds: [] }],
+    });
+
+    expect(message).toBe("scenarios[0] must reference at least one source ID");
+    expect(message).not.toContain("Major findings");
+  });
+
+  test("names the Business Framework section index and name", () => {
+    const message = validationErrorMessage({
+      ...report,
+      extras: {
+        businessFramework: {
+          sections: [
+            { name: "Business" },
+            { name: "Phase" },
+            { name: "Moat" },
+            { name: "Growth" },
+            { name: "Management", text: "No management disclosure was provided.", sourceIds: [] },
+          ],
+        },
+      },
+    });
+
+    expect(message).toBe(
+      "Business Framework sections[4] (Management) must reference at least one source ID",
+    );
+  });
+
+  test("caps aggregated source ID failures at twelve items", () => {
+    const message = validationErrorMessage({
+      ...report,
+      keyFindings: Array.from({ length: 13 }, (_, index) => ({
+        text: `Uncited finding ${index}`,
+        sourceIds: [],
+      })),
+      risks: [],
+      scenarios: [],
+    });
+
+    expect(message).toContain("keyFindings[11] must reference at least one source ID");
+    expect(message).not.toContain("keyFindings[12]");
+    expect(message).toEndWith("(+1 more)");
+  });
+
+  test("relocates an uncited gap-shaped risk into data gaps", () => {
+    const text = "No guidance was provided for FY26";
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const payload = {
+      summary: "AAPL evidence summary.",
+      risks: [{ text, sourceIds: [] }],
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const prepared = prepareReportClaims(payload, collected);
+    const assembled = assembleResearchReport({
+      runId: "gap-relocation",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.dataGaps).toContain(text);
+    expect(assembled.risks).toEqual([]);
+    expect(prepared.relocatedGapClaims).toEqual([
+      {
+        location: "risks[0]",
+        text,
+      },
+    ]);
+  });
+
+  test("keeps rejecting an ordinary uncited business claim", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const collected = collectedSources();
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    expect(() =>
+      assembleResearchReport({
+        runId: "ordinary-uncited-risk",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        command,
+        payload: {
+          summary: "AAPL evidence summary.",
+          risks: [{ text: "Revenue data shows no growth in the segment", sourceIds: [] }],
+        },
+        predResult: { predictions: [], errors: [] },
+        collectedSources: collected,
+        depthProfile,
+        context: assemblyContext(depthProfile),
+        sources: [],
+      }),
+    ).toThrow("risks[0] must reference at least one source ID");
+  });
+
+  test("does not relocate a cited gap-shaped finding", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const payload = {
+      summary: "AAPL evidence summary.",
+      risks: [{ text: "No segment disclosure was provided", sourceIds: ["market-aapl"] }],
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const prepared = prepareReportClaims(payload, collected);
+    const assembled = assembleResearchReport({
+      runId: "cited-gap-claim",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.risks).toEqual(payload.risks);
+    expect(prepared.relocatedGapClaims).toEqual([]);
+    expect(assembled.predictionShortfall).toBeUndefined();
+  });
+
+  test("derives the shortfall after the earnings eligibility gate", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const depthProfile = { ...assemblyDepthProfile("AAPL"), targetPredictions: 1 };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      earningsSetup: {
+        event: {
+          symbol: "AAPL",
+          date: "2026-07-30",
+          timing: "amc",
+          eventDateStatus: "provider-estimated",
+          dateStatus: "provider-estimated",
+          sourceIds: ["market-aapl"],
+          fetchedAt: "2026-06-01T00:00:00.000Z",
+        },
+        gaps: [],
+      },
+    });
+
+    const assembled = assembleResearchReport({
+      runId: "earnings-gated-shortfall",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "AAPL evidence summary.",
+        dataGaps: [
+          "predictionShortfall: required 1, received 0",
+          "Earnings evidence remains incomplete.",
+        ],
+      },
+      predResult: {
+        predictions: [
+          prediction({
+            id: "earnings-direction",
+            kind: "earnings-direction",
+            subject: "AAPL",
+            measurableAs: "earningsReturn(AAPL, 2026-07-30, +1) > 0",
+            horizonTradingDays: 1,
+          }),
+        ],
+        errors: [],
+      },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+
+    expect(assembled.predictions).toEqual([]);
+    expect(assembled.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 1,
+      missingCount: 1,
+    });
+    expect(assembled.dataGaps).toContain("Earnings evidence remains incomplete.");
+    expect(assembled.dataGaps).not.toContain("predictionShortfall: required 1, received 0");
+  });
+
   test("renders Finnhub earnings dates as provider-estimated and unconfirmed", () => {
     const markdown = renderMarkdownReport({
       ...report,
@@ -223,7 +721,7 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain("date provider-estimated (Finnhub), unconfirmed");
   });
 
-  test("validates web sources and web-subject-profile extended evidence", () => {
+  test("keeps qualitative web profile answers while omitting equity reader duplicates", () => {
     const answer = {
       answer: "Apple sells devices and services.",
       sourceIds: ["web-aapl-12345678"],
@@ -298,13 +796,38 @@ describe("report schema and rendering", () => {
     const markdown = renderMarkdownReport(validateResearchReport(webReport));
 
     expect(markdown).toContain("AAPL web profile is cited. [web-aapl-12345678]");
-    expect(markdown).toContain("## Extended Evidence");
+    expect(markdown).not.toContain("## Extended Evidence");
     expect(markdown).toContain("## Web Subject Profile");
-    expect(markdown).toContain("**Management Track Record:**");
+    expect(markdown).toContain("**What It Does:**");
+    expect(markdown).toContain("**Customers:**");
+    expect(markdown).toContain("**Geography:**");
+    expect(markdown).toContain("**Pricing Power:**");
+    expect(markdown).toContain("**Recession Cyclicality:**");
+    expect(markdown).toContain("**Capital Allocation:**");
+    expect(markdown).toContain("**Company-specific KPIs:**");
     expect(markdown).toContain("**Disclosed Risk Factors:**");
-    expect(markdown).toContain("### Fact Ledger");
+    expect(markdown).toContain("**How It Makes Money:**");
+    expect(markdown).toContain("**Purchase Recurrence:**");
+    expect(markdown).toContain("**Management Track Record:**");
+    expect(markdown).not.toContain("### Fact Ledger");
+    expect(markdown).not.toContain("Public web evidence captured for AAPL.");
     expect(markdown).toContain("Apple sells devices and services. [web-aapl-12345678]");
     expect(markdown).toContain("- [web-aapl-12345678] AAPL company page");
+
+    const issuerMarkdown = renderMarkdownReport(
+      validateResearchReport({
+        ...webReport,
+        extras: {
+          webSubjectProfile: {
+            ...(webReport.extras?.webSubjectProfile as Record<string, unknown>),
+            subjectKind: "issuer",
+          },
+        },
+      }),
+    );
+    expect(issuerMarkdown).toContain("**How It Makes Money:**");
+    expect(issuerMarkdown).not.toContain("Public web evidence captured for AAPL.");
+    expect(issuerMarkdown).not.toContain("### Fact Ledger");
   });
 
   test("renders the SEC filing basis line for company profiles", () => {
@@ -634,7 +1157,9 @@ describe("report schema and rendering", () => {
       },
     };
 
-    expect(() => validateResearchReport(webReport)).toThrow("Unknown source ID: unknown-web");
+    expect(() => validateResearchReport(webReport)).toThrow(
+      "Web Subject Profile subjectSummary cites unknown source ID: unknown-web",
+    );
   });
 
   test("rejects unknown source kinds", () => {
@@ -1036,10 +1561,10 @@ describe("report schema and rendering", () => {
           },
         },
       }),
-    ).toThrow("Unknown source ID: missing-source");
+    ).toThrow("Catalyst Calendar items[0] cites unknown source ID: missing-source");
   });
 
-  test("dedupes model and deterministic data gaps by normalized text", () => {
+  test("dedupes data gaps and stamps structured material and diagnostic triage", () => {
     const command = legacyMarketOverviewCommand("daily", {
       assetClass: "equity",
       depth: "brief",
@@ -1061,7 +1586,8 @@ describe("report schema and rendering", () => {
       runParams: {
         quickModel: "quick",
         synthesisModel: "synthesis",
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
         minimumKeyFindings: 0,
         minimumScenarios: 0,
         targetPredictions: 0,
@@ -1081,7 +1607,7 @@ describe("report schema and rendering", () => {
       calibrationContext: undefined,
     };
 
-    const assembled = assembleResearchReport({
+    const assembled = assembleResearchReportWithRelocations({
       runId: "run-1",
       generatedAt: "2026-06-01T00:00:00.000Z",
       command,
@@ -1117,6 +1643,12 @@ describe("report schema and rendering", () => {
             message: " source request failed   with status 403 ",
             cause: "fetch-failed",
           }),
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "Optional options evidence unavailable",
+            cause: "missing-credential",
+          }),
         ],
       }),
       depthProfile,
@@ -1124,7 +1656,11 @@ describe("report schema and rendering", () => {
       sources: [],
     });
 
-    expect(assembled.dataGaps).toEqual(["massive-news: source request failed with status 403"]);
+    expect(assembled.report.dataGaps).toEqual([
+      "massive-news: source request failed with status 403",
+      "tradier-options: Optional options evidence unavailable",
+    ]);
+    expect(assembled.sourceGaps.map((gap) => gap.triage)).toEqual(["material", "diagnostic"]);
   });
 
   test("dedupes model provider gap prose against deterministic source gaps", () => {
@@ -1151,7 +1687,8 @@ describe("report schema and rendering", () => {
       runParams: {
         quickModel: "quick",
         synthesisModel: "synthesis",
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
         minimumKeyFindings: 0,
         minimumScenarios: 0,
         targetPredictions: 0,
@@ -1411,8 +1948,12 @@ describe("report schema and rendering", () => {
       "Model caveat remains untagged.",
       "researchProxyForecastGate: dropped predictions because no listed prediction proxy was resolved",
       "optional-news: optional provider unavailable",
-      "predictionShortfall: emitted 0 of 1 target predictions; evidence did not support more",
     ]);
+    expect(assembled.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 1,
+      missingCount: 1,
+    });
   });
 
   test("dedupes conflicting source gap impacts before report ordering", () => {
@@ -1877,12 +2418,20 @@ describe("report schema and rendering", () => {
     });
   });
 
-  test("merges model-authored business framework text into deterministic sections", () => {
+  test("falls back to deterministic framework source IDs while preserving model precedence", () => {
     const source: Source = {
       id: "market-aapl",
       title: "AAPL market snapshot",
       fetchedAt: "2026-06-01T00:00:00.000Z",
       kind: "market-data",
+      assetClass: "equity",
+      symbol: "AAPL",
+    };
+    const modelSource: Source = {
+      id: "news-aapl",
+      title: "AAPL operating update",
+      fetchedAt: "2026-06-01T00:00:00.000Z",
+      kind: "news",
       assetClass: "equity",
       symbol: "AAPL",
     };
@@ -1899,7 +2448,12 @@ describe("report schema and rendering", () => {
               {
                 name: "Business",
                 text: "AAPL has cited revenue evidence and disclosed segment gaps.",
-                sourceIds: ["market-aapl"],
+                sourceIds: [],
+              },
+              {
+                name: "Growth",
+                text: "AAPL has cited growth evidence.",
+                sourceIds: ["news-aapl"],
               },
             ],
           },
@@ -1922,6 +2476,14 @@ describe("report schema and rendering", () => {
               sourceIds: ["market-aapl"],
               gaps: ["Segment mix unavailable"],
             },
+            {
+              name: "Growth",
+              posture: "criteria-mixed",
+              summary: "Growth criteria-mixed.",
+              metrics: [],
+              sourceIds: ["market-aapl"],
+              gaps: [],
+            },
           ],
           sourceIds: ["market-aapl"],
           gaps: ["Segment mix unavailable"],
@@ -1929,10 +2491,16 @@ describe("report schema and rendering", () => {
       }),
       depthProfile: assemblyDepthProfile("AAPL"),
       context: assemblyContext(assemblyDepthProfile("AAPL")),
-      sources: [source],
+      sources: [source, modelSource],
     });
 
-    expect(assembled.extras?.businessFramework).toMatchObject({
+    const framework = assembled.extras?.businessFramework as
+      | {
+          readonly phase?: string;
+          readonly sections?: readonly Record<string, unknown>[];
+        }
+      | undefined;
+    expect(framework).toMatchObject({
       phase: "capital-return",
       sections: [
         {
@@ -1941,8 +2509,256 @@ describe("report schema and rendering", () => {
           text: "AAPL has cited revenue evidence and disclosed segment gaps.",
           sourceIds: ["market-aapl"],
         },
+        {
+          name: "Growth",
+          text: "AAPL has cited growth evidence.",
+          sourceIds: ["news-aapl"],
+        },
       ],
     });
+  });
+
+  test("relocates an uncited gap-shaped Business Framework section", () => {
+    const text = "No guidance was provided for FY26";
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const payload = {
+      summary: "AAPL framework evidence is incomplete.",
+      extras: {
+        businessFramework: {
+          sections: [
+            {
+              name: "Management",
+              text,
+              sourceIds: [],
+            },
+          ],
+        },
+      },
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      businessFramework: {
+        version: 1,
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        symbol: "AAPL",
+        phase: "operating-leverage",
+        sections: [
+          {
+            name: "Management",
+            posture: "insufficient-data",
+            summary: "Management evidence is incomplete.",
+            metrics: [],
+            sourceIds: [],
+            gaps: ["Management evidence unavailable"],
+          },
+        ],
+        sourceIds: [],
+        gaps: ["Management evidence unavailable"],
+      },
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const prepared = prepareReportClaims(payload, collected);
+    const assembled = assembleResearchReport({
+      runId: "framework-gap-relocation",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const framework = assembled.extras?.businessFramework as {
+      readonly sections: readonly Record<string, unknown>[];
+    };
+
+    expect(assembled.dataGaps).toContain(text);
+    expect(framework.sections[0]).toMatchObject({
+      name: "Management",
+      summary: "Management evidence is incomplete.",
+    });
+    expect(framework.sections[0]).not.toHaveProperty("text");
+    expect(prepared.relocatedGapClaims).toEqual([
+      {
+        location: "Business Framework sections[0] (Management)",
+        text,
+      },
+    ]);
+  });
+
+  test("keeps gap-shaped Business Framework text when projected fallback IDs cite it", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const text = "No management evidence was provided";
+    const payload = {
+      summary: "AAPL framework evidence is incomplete.",
+      extras: {
+        businessFramework: {
+          sections: [{ name: "Management", text, sourceIds: [] }],
+        },
+      },
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      businessFramework: {
+        version: 1,
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        symbol: "AAPL",
+        phase: "operating-leverage",
+        sections: [
+          {
+            name: "Management",
+            posture: "criteria-supported",
+            summary: "Management evidence is available.",
+            metrics: [],
+            sourceIds: ["market-aapl"],
+            gaps: [],
+          },
+        ],
+        sourceIds: ["market-aapl"],
+        gaps: [],
+      },
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const result = assembleResearchReportWithRelocations({
+      runId: "framework-fallback-citation",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const framework = result.report.extras?.businessFramework as {
+      readonly sections: readonly Record<string, unknown>[];
+    };
+
+    expect(framework.sections[0]).toMatchObject({
+      name: "Management",
+      text,
+      sourceIds: ["market-aapl"],
+    });
+    expect(result.report.dataGaps).not.toContain(text);
+    expect(result.relocatedGapClaims).toEqual([]);
+  });
+
+  test("does not relocate an unknown Business Framework section", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const text = "No liquidity evidence was provided";
+    const payload = {
+      summary: "AAPL framework evidence is incomplete.",
+      extras: {
+        businessFramework: {
+          sections: [{ name: "Liquidity", text, sourceIds: [] }],
+        },
+      },
+    };
+    const collected = collectedSources({
+      marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
+      businessFramework: {
+        version: 1,
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        symbol: "AAPL",
+        phase: "operating-leverage",
+        sections: [
+          {
+            name: "Management",
+            posture: "criteria-supported",
+            summary: "Management evidence is available.",
+            metrics: [],
+            sourceIds: ["market-aapl"],
+            gaps: [],
+          },
+        ],
+        sourceIds: ["market-aapl"],
+        gaps: [],
+      },
+    });
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const result = assembleResearchReportWithRelocations({
+      runId: "framework-unknown-section",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload,
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collected,
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: buildSourceList(command, collected),
+    });
+    const framework = result.report.extras?.businessFramework as {
+      readonly sections: readonly Record<string, unknown>[];
+    };
+
+    expect(framework.sections).toHaveLength(1);
+    expect(framework.sections[0]).not.toHaveProperty("text");
+    expect(result.report.dataGaps).not.toContain(text);
+    expect(result.relocatedGapClaims).toEqual([]);
+  });
+
+  test("projects every deterministic business framework section without model-authored text", () => {
+    const sectionNames = [
+      "Business",
+      "Phase",
+      "Moat",
+      "Growth",
+      "Management",
+      "Risk",
+      "Valuation",
+    ] as const;
+    const sections = sectionNames.map((name, index) => ({
+      name,
+      posture: "criteria-supported" as const,
+      summary: `${name} deterministic summary.`,
+      metrics: [],
+      sourceIds: [`framework-source-${String(index + 1)}`],
+      gaps: [`${name} deterministic gap.`],
+    }));
+
+    const projected = projectExtendedEvidenceReportExtras({
+      modelExtras: {},
+      collectedSources: collectedSources({
+        businessFramework: {
+          version: 1,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          symbol: "AAPL",
+          phase: "capital-return",
+          sections,
+          sourceIds: sections.flatMap((section) => section.sourceIds),
+          gaps: ["Framework deterministic gap."],
+        },
+      }),
+    });
+
+    expect(projected.businessFramework).toEqual({
+      version: 1,
+      phase: "capital-return",
+      sourceIds: sections.flatMap((section) => section.sourceIds),
+      gaps: ["Framework deterministic gap."],
+      sections,
+    });
+    expect(
+      (
+        projected.businessFramework as { readonly sections: readonly Record<string, unknown>[] }
+      ).sections.every((section) => !Object.hasOwn(section, "text")),
+    ).toBe(true);
   });
 
   test("writes canonical research subject extras", () => {
@@ -2187,7 +3003,7 @@ describe("report schema and rendering", () => {
         ...report,
         keyFindings: [{ text: "Unsupported finding.", sourceIds: ["missing"] }],
       }),
-    ).toThrow("Unknown source ID");
+    ).toThrow("keyFindings[0] cites unknown source ID: missing");
   });
 
   test("rejects empty research quality driver", () => {
@@ -2279,6 +3095,55 @@ describe("report schema and rendering", () => {
 
     expect(markdown).toContain("## Extended Evidence");
     expect(markdown).toContain("[extended-fred-macro]");
+  });
+
+  test("renders price-derived evidence with quote or fetch time provenance", () => {
+    const priceSourceId = "market-btc";
+    const cryptoReport: ResearchReport = {
+      ...report,
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      sources: [
+        {
+          id: priceSourceId,
+          title: "BTC market snapshot",
+          fetchedAt: "2026-05-19T14:31:00.000Z",
+          kind: "market-data",
+          assetClass: "crypto",
+          symbol: "BTC",
+        },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "crypto", symbol: "BTC" },
+        items: [
+          {
+            category: "valuation",
+            title: "BTC Valuation Evidence",
+            summary: "Valuation Evidence: market cap as of 2026-05-19; cash/debt as of 2026-03-31.",
+            sourceIds: [priceSourceId],
+            observedAt: "2026-05-19T14:31:00.000Z",
+          },
+        ],
+        gaps: [],
+      },
+    };
+    const fetchedSnapshot = marketSnapshot({
+      sourceId: priceSourceId,
+      observedAt: "2026-05-19T14:31:00.000Z",
+    });
+    const quotedSnapshot = marketSnapshot({
+      sourceId: priceSourceId,
+      observedAt: "2026-05-19T14:31:00.000Z",
+      quoteTimeUtc: "2026-05-19T14:29:07.000Z",
+    });
+
+    const fetchedMarkdown = renderMarkdownReport(cryptoReport, fetchedSnapshot);
+    const quotedMarkdown = renderMarkdownReport(cryptoReport, quotedSnapshot);
+
+    expect(fetchedMarkdown).toContain("market cap fetch time 2026-05-19T14:31:00.000Z");
+    expect(fetchedMarkdown).not.toContain("market cap quote time");
+    expect(quotedMarkdown).toContain("market cap quote time 2026-05-19T14:29:07.000Z");
   });
 
   test("escapes generic report metadata in Markdown", () => {
@@ -2431,6 +3296,54 @@ describe("report schema and rendering", () => {
     ).toThrow("trade-action language");
   });
 
+  test.each(["title", "summary", "snippet"] as const)(
+    "exempts attributed source %s while retaining research-only telemetry",
+    (field) => {
+      const candidate = {
+        ...report,
+        sources: [{ ...report.sources[0]!, [field]: "Fair value is $100." }],
+      };
+
+      expect(() => assertSafeReportLanguage(candidate)).not.toThrow();
+      expect(auditSourceTextResearchOnly(candidate.sources).summary.flaggedCount).toBeGreaterThan(
+        0,
+      );
+    },
+  );
+
+  test.each([
+    { summary: "Fair value is $100." },
+    { keyFindings: [{ text: "Fair value is $100.", sourceIds: ["source-1"] }] },
+  ])("keeps authored report text behind the research-only gate", (authoredFields) => {
+    expect(() => assertSafeReportLanguage({ ...report, ...authoredFields })).toThrow(
+      "trade-action language",
+    );
+  });
+
+  test("gates attributed source text copied into derived extended evidence", () => {
+    expect(() =>
+      assertSafeReportLanguage({
+        ...report,
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items: [
+            {
+              category: "sec-edgar",
+              title: "SEC filing excerpt",
+              summary: "Fair value is $100.",
+              sourceIds: ["source-1"],
+              observedAt: "2026-05-19T00:00:00.000Z",
+            },
+          ],
+          gaps: [],
+        },
+      }),
+    ).toThrow("trade-action language");
+  });
+
   test("rejects rendered extras with unknown source IDs or trade-action language", () => {
     expect(() =>
       validateResearchReport({
@@ -2441,7 +3354,7 @@ describe("report schema and rendering", () => {
           },
         },
       }),
-    ).toThrow("Unknown source ID");
+    ).toThrow("Historical Context items[0] cites unknown source ID: missing");
 
     expect(() =>
       validateResearchReport({
@@ -2465,7 +3378,7 @@ describe("report schema and rendering", () => {
           },
         },
       }),
-    ).toThrow("Unknown source ID");
+    ).toThrow("Business Framework sections[0] (Business) cites unknown source ID: missing");
 
     expect(() =>
       validateResearchReport({
@@ -2497,6 +3410,28 @@ describe("report schema and rendering", () => {
           symbol: "AAPL",
         },
       ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "options-iv",
+            title: "AAPL options IV",
+            summary: "Near-term option chain median implied volatility is 0.330.",
+            sourceIds: ["source-1"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { medianIv: 0.33 },
+          },
+          {
+            category: "yahoo-fundamentals",
+            title: "AAPL Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["source-1"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { priceToBook: 45, epsTrailingTwelveMonths: 6.4 },
+          },
+        ],
+        gaps: [],
+      },
       extras: {
         businessFramework: {
           phase: "capital-return",
@@ -2505,13 +3440,49 @@ describe("report schema and rendering", () => {
             {
               name: "Business",
               posture: "criteria-supported",
-              text: "Revenue evidence is available.",
+              text: "Business financial trend restatement.",
               sourceIds: ["source-1"],
             },
             {
               name: "Phase",
               posture: "criteria-supported",
-              summary: "Phase classification (Phase capital-return)",
+              summary: "Phase financial trend restatement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Moat",
+              posture: "criteria-supported",
+              text: "Moat criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: " growth ",
+              posture: "criteria-supported",
+              text: "Growth financial trend restatement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Management",
+              posture: "insufficient-data",
+              text: "Management criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Risk",
+              posture: "criteria-mixed",
+              text: "Risk criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Valuation",
+              posture: "criteria-not-supported",
+              text: "Valuation criteria judgement.",
+              sourceIds: ["source-1"],
+            },
+            {
+              name: "Unit Economics",
+              posture: "criteria-supported",
+              text: "Unit economics criteria judgement.",
               sourceIds: ["source-1"],
             },
           ],
@@ -2521,12 +3492,119 @@ describe("report schema and rendering", () => {
 
     expect(markdown).toContain("## Business Framework");
     expect(markdown).toContain("Phase: capital-return");
-    expect(markdown).toContain("Revenue evidence is available. [source-1]");
+    expect(markdown).toContain("Moat criteria judgement. [source-1]");
+    expect(markdown).toContain("Management criteria judgement. [source-1]");
+    expect(markdown).toContain("Risk criteria judgement. [source-1]");
+    expect(markdown).toContain("Valuation criteria judgement. [source-1]");
+    expect(markdown).toContain("Unit economics criteria judgement. [source-1]");
     expect(markdown).toContain(
-      String.raw`- **Phase**: Phase classification \(Phase capital-return\) [source-1]`,
+      "- **Observed metrics:** near-term options implied volatility 0.330, price/book 45.00x, EPS TTM 6.40 [source-1]",
     );
-    expect(markdown).not.toContain("**Phase** (criteria-supported)");
+    expect(markdown).not.toContain("- **Business** (criteria-supported):");
+    expect(markdown).not.toContain("- **Phase**:");
+    expect(markdown).not.toContain("Growth financial trend restatement.");
     expect(markdown).toContain("Management evidence unavailable");
+  });
+
+  test("renders readable IV from single-expiry and term-structure evidence", () => {
+    const renderEvidence = (
+      items: NonNullable<ResearchReport["extendedEvidence"]>["items"],
+    ): string =>
+      renderMarkdownReport({
+        ...report,
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        sources: [
+          equityEvidenceSource("term-iv"),
+          equityEvidenceSource("single-iv"),
+          equityEvidenceSource("malformed-iv"),
+          equityEvidenceSource("yahoo-fundamentals"),
+        ],
+        extendedEvidence: {
+          instrument: { assetClass: "equity", symbol: "AAPL" },
+          items,
+          gaps: [],
+        },
+      });
+    const termStructure = {
+      category: "options-iv" as const,
+      title: "AAPL IV term structure",
+      summary: "Tradier IV term structure: 30D 0.310.",
+      sourceIds: ["term-iv"],
+      observedAt: "2026-05-19T00:00:00.000Z",
+      metrics: { medianIv30Dte: 0.31 },
+    };
+    const singleExpiry = {
+      category: "options-iv" as const,
+      title: "AAPL options IV",
+      summary: "Near-term option chain median implied volatility is 0.330.",
+      sourceIds: ["single-iv"],
+      observedAt: "2026-05-19T00:00:00.000Z",
+      metrics: { medianIv: 0.33 },
+    };
+
+    expect(observedMetricsRow(renderEvidence([termStructure]))).toEqual(
+      "- **Observed metrics:** 30-day options implied volatility 0.310 [term-iv]",
+    );
+    expect(observedMetricsRow(renderEvidence([termStructure, singleExpiry]))).toEqual(
+      "- **Observed metrics:** near-term options implied volatility 0.330 [single-iv]",
+    );
+    expect(
+      observedMetricsRow(
+        renderEvidence([
+          {
+            ...singleExpiry,
+            sourceIds: ["malformed-iv"],
+            metrics: { medianIv: Number.NaN },
+          },
+          {
+            category: "yahoo-fundamentals",
+            title: "AAPL Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["yahoo-fundamentals"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { priceToBook: 45 },
+          },
+        ]),
+      ),
+    ).toEqual("- **Observed metrics:** price/book 45.00x [yahoo-fundamentals]");
+  });
+
+  test("keeps no-snapshot valuation context consistent with persisted multiples", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      sources: [equityEvidenceSource("yahoo-fundamentals")],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "yahoo-fundamentals",
+            title: "AAPL Yahoo Fundamentals Evidence",
+            summary: "Yahoo fundamentals captured.",
+            sourceIds: ["yahoo-fundamentals"],
+            observedAt: "2026-05-19T00:00:00.000Z",
+            metrics: { priceToBook: 45 },
+          },
+        ],
+        gaps: [],
+      },
+    });
+
+    expect(markdown).toContain(
+      [
+        "## Valuation Context",
+        "",
+        "No peer-derived reference range is available; this is valuation context, not a target price.",
+        "",
+        "- **Observed metrics:** price/book 45.00x [yahoo-fundamentals]",
+        "",
+        "## Catalysts",
+      ].join("\n"),
+    );
   });
 
   test("renders only well-shaped alpha-search extras", () => {
@@ -2868,7 +3946,7 @@ describe("market update delta rendering", () => {
       }),
     );
     const summaryAt = markdown.indexOf("## Summary");
-    const deltaAt = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
+    const deltaAt = markdown.indexOf("## What Changed Since Last 2-5d Market Overview");
     const findingsAt = markdown.indexOf("## Key Findings");
     expect(summaryAt).toBeGreaterThanOrEqual(0);
     expect(deltaAt).toBeGreaterThan(summaryAt);
@@ -2891,7 +3969,7 @@ describe("market update delta rendering", () => {
       }),
     );
     expect(markdown).toContain(
-      "## What Changed Since Last 1-5d Market Overview\n\nNo prior comparable market-overview run to compare — this is the first.",
+      "## What Changed Since Last 2-5d Market Overview\n\nNo prior comparable market-overview run to compare — this is the first.",
     );
     expect(markdown).not.toContain("Regime:");
   });
@@ -2918,7 +3996,7 @@ describe("market update delta rendering", () => {
         ],
       }),
     );
-    const start = markdown.indexOf("## What Changed Since Last 1-5d Market Overview");
+    const start = markdown.indexOf("## What Changed Since Last 2-5d Market Overview");
     const section = markdown.slice(start, markdown.indexOf("## Key Findings"));
     expect(section).toContain("Regime:");
     expect(violatesResearchOnly(section)).toBeNull();

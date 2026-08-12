@@ -199,6 +199,7 @@ describe("loadStagePrompt — real prompt files", () => {
   test("loads all real base.md files without error", async () => {
     const stages = [
       "evidence-request",
+      "financial-table-mapping",
       "web-gather",
       "web-subject-profile",
       "playbook-selection",
@@ -228,6 +229,9 @@ describe("loadStagePrompt — real prompt files", () => {
     const result = await loadStagePrompt("final-synthesis", dailyEquityCommand);
     expect(result.instruction).toContain("Do not include trade actions");
     expect(result.instruction).toContain('Never write "investors should"');
+    expect(result.instruction).toContain("Do not author provider-availability gaps in `dataGaps`");
+    expect(result.instruction).toContain("correct Material or Diagnostic classification");
+    expect(result.instruction).toContain("Continue to author genuine research gaps");
   });
 
   test("real web-gather prompt widens thematic list searches", async () => {

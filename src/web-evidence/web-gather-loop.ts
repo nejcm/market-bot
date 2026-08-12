@@ -7,10 +7,12 @@ import type {
   ExtendedEvidenceItem,
   Source,
   SourceGap,
+  SourceGapAttempts,
   WebGatherSanitizerAudit,
   WebGatherLoopAudit,
   WebGatherDuplicateResultAudit,
   WebGatherToolName,
+  WebGatherAcceptancePolicy,
   WebSearchType,
   JsonToolLoopAuditEntry,
 } from "../domain/types";
@@ -46,6 +48,7 @@ import {
   webSubjectProfileSubjectForCommand,
 } from "./web-subject-profile";
 import {
+  parseModelRequests,
   runJsonToolLoop,
   type JsonToolLoopAccepted,
   type JsonToolLoopRoundState,
@@ -82,6 +85,7 @@ interface WebGatherLoopInput {
   readonly fetchImpl?: FetchLike;
   readonly retryDelaysMs?: readonly number[];
   readonly reusedProfileCoverage?: WebGatherContext["reusedProfileCoverage"];
+  readonly acceptancePolicy?: WebGatherAcceptancePolicy;
   readonly generateRound: (
     collectedSources: CollectedSources,
     context: ResearchContext,
@@ -114,8 +118,16 @@ interface ValidationState {
   readonly command: ResearchCommand;
   readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
   readonly reusedProfileCoverage: WebGatherContext["reusedProfileCoverage"];
+  readonly acceptancePolicy: WebGatherAcceptancePolicy | undefined;
   readonly config: AppConfig;
   readonly round: number;
+}
+
+interface WebGatherExecutionAudit {
+  readonly sanitizer: WebGatherSanitizerAudit;
+  readonly freshness?: NonNullable<WebGatherToolOutput["freshness"]>;
+  readonly fallback?: NonNullable<WebGatherToolOutput["fallback"]>;
+  readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
 }
 
 const ALLOWED_TOOLS: ReadonlySet<string> = new Set(Object.keys(WEB_GATHER_TOOL_UNITS));
@@ -284,6 +296,7 @@ function withDefaultSearchNumResults(
   },
   command: ResearchCommand,
   coverage: WebGatherContext["reusedProfileCoverage"],
+  acceptancePolicy: WebGatherAcceptancePolicy | undefined,
   thematicListSearchWidened: boolean,
 ): { readonly query: string; readonly searchType: WebSearchType; readonly numResults?: number } {
   if (parsedArgs.numResults !== undefined) {
@@ -293,7 +306,11 @@ function withDefaultSearchNumResults(
     return { ...parsedArgs, numResults: MAX_WEB_GATHER_SEARCH_RESULTS };
   }
   if (coverage?.present === true) {
-    return { ...parsedArgs, numResults: REUSED_PROFILE_DEFAULT_SEARCH_RESULTS };
+    return {
+      ...parsedArgs,
+      numResults:
+        acceptancePolicy?.implicitPerQueryAcceptanceCap ?? REUSED_PROFILE_DEFAULT_SEARCH_RESULTS,
+    };
   }
   return parsedArgs;
 }
@@ -351,14 +368,76 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
-  const executionAudits: {
-    readonly sanitizer: WebGatherSanitizerAudit;
-    readonly freshness?: NonNullable<WebGatherToolOutput["freshness"]>;
-    readonly fallback?: NonNullable<WebGatherToolOutput["fallback"]>;
-    readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
+  const executionAudits: WebGatherExecutionAudit[] = [];
+  const executionRejections: {
+    readonly acceptedRequestIndex: number;
+    readonly reason: string;
+    readonly attempts?: SourceGapAttempts;
   }[] = [];
-  const executionRejections: { readonly acceptedRequestIndex: number; readonly reason: string }[] =
-    [];
+  const toolContext =
+    input.collectedSources.resolvedInstrumentIdentity !== undefined
+      ? {
+          ...collectContext.context,
+          instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
+        }
+      : collectContext.context;
+  const acquireRequest = (request: ModelWebGatherRequest) =>
+    withStaleFallbackGaps(collectContext, () =>
+      executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
+    );
+  const mergeRequestOutput = (
+    currentSources: CollectedSources,
+    outputWithStale: Awaited<ReturnType<typeof acquireRequest>>,
+  ): { readonly state: CollectedSources; readonly gaps: readonly SourceGap[] } => {
+    const headlineDedupe = dedupeWebSourcesByHeadline(
+      currentSources.extendedSources,
+      outputWithStale.sources,
+    );
+    if (outputWithStale.failedExaRequest !== undefined) {
+      executionRejections.push({
+        acceptedRequestIndex: executionAudits.length,
+        reason: outputWithStale.failedExaRequest.reason,
+        ...(outputWithStale.failedExaRequest.attempts !== undefined
+          ? { attempts: outputWithStale.failedExaRequest.attempts }
+          : {}),
+      });
+    }
+    executionAudits.push({
+      sanitizer: outputWithStale.sanitizer,
+      ...(outputWithStale.freshness !== undefined ? { freshness: outputWithStale.freshness } : {}),
+      ...(outputWithStale.fallback !== undefined ? { fallback: outputWithStale.fallback } : {}),
+      ...(headlineDedupe.rejected.length > 0 ? { duplicateResults: headlineDedupe.rejected } : {}),
+    });
+    return {
+      state: mergeToolOutput(command, currentSources, {
+        ...outputWithStale,
+        sources: headlineDedupe.kept,
+      }),
+      gaps: outputWithStale.gaps,
+    };
+  };
+  if (
+    isInstrumentCommand(command) &&
+    command.jobType === "equity" &&
+    command.assetClass === "equity" &&
+    command.depth === "deep"
+  ) {
+    return runDeepEquityWebGatherBatch({
+      input,
+      command,
+      config,
+      webGatherOptions,
+      subjectTerms,
+      secFilingCoverage,
+      surfacedUrls,
+      seenKeys,
+      thematicListSearchWidened,
+      acquireRequest,
+      mergeRequestOutput,
+      executionAudits,
+      executionRejections,
+    });
+  }
 
   const loop = await runJsonToolLoop<
     CollectedSources,
@@ -405,6 +484,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           command,
           secFilingCoverage,
           reusedProfileCoverage: input.reusedProfileCoverage,
+          acceptancePolicy: input.acceptancePolicy,
           config,
           round: roundState.round,
         },
@@ -412,45 +492,8 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       ),
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
-      const toolContext =
-        input.collectedSources.resolvedInstrumentIdentity !== undefined
-          ? {
-              ...collectContext.context,
-              instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity,
-            }
-          : collectContext.context;
-      const outputWithStale = await withStaleFallbackGaps(collectContext, () =>
-        executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
-      );
-      // Every rejection points to accepted coverage or an earlier kept candidate in this batch,
-      // So dedupe cannot empty web coverage and deliberately emits no source gap.
-      const headlineDedupe = dedupeWebSourcesByHeadline(
-        currentSources.extendedSources,
-        outputWithStale.sources,
-      );
-      if (outputWithStale.failedExaRequest !== undefined) {
-        executionRejections.push({
-          acceptedRequestIndex: executionAudits.length,
-          reason: outputWithStale.failedExaRequest.reason,
-        });
-      }
-      executionAudits.push({
-        sanitizer: outputWithStale.sanitizer,
-        ...(outputWithStale.freshness !== undefined
-          ? { freshness: outputWithStale.freshness }
-          : {}),
-        ...(outputWithStale.fallback !== undefined ? { fallback: outputWithStale.fallback } : {}),
-        ...(headlineDedupe.rejected.length > 0
-          ? { duplicateResults: headlineDedupe.rejected }
-          : {}),
-      });
-      return {
-        state: mergeToolOutput(command, currentSources, {
-          ...outputWithStale,
-          sources: headlineDedupe.kept,
-        }),
-        gaps: outputWithStale.gaps,
-      };
+      const outputWithStale = await acquireRequest(request);
+      return mergeRequestOutput(currentSources, outputWithStale);
     },
   });
 
@@ -465,13 +508,176 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       })),
       rejectedRequests: [
         ...loop.audit.rejectedRequests,
-        ...executionRejections.map(({ acceptedRequestIndex, reason }) => ({
-          ...loop.audit.acceptedRequests[acceptedRequestIndex]!,
-          status: "rejected" as const,
-          reason,
-        })),
+        ...executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
+          executionRejectedEntry(
+            loop.audit.acceptedRequests[acceptedRequestIndex]!,
+            reason,
+            attempts,
+          ),
+        ),
       ],
       sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
+      ...(input.acceptancePolicy !== undefined ? { acceptancePolicy: input.acceptancePolicy } : {}),
+    },
+  };
+}
+
+async function runDeepEquityWebGatherBatch(input: {
+  readonly input: WebGatherLoopInput;
+  readonly command: ResearchCommand;
+  readonly config: AppConfig;
+  readonly webGatherOptions: AppConfig["webGatherOptions"];
+  readonly subjectTerms: readonly string[];
+  readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
+  readonly surfacedUrls: Set<string>;
+  readonly seenKeys: Set<string>;
+  readonly thematicListSearchWidened: { value: boolean };
+  readonly acquireRequest: (request: ModelWebGatherRequest) => Promise<WebGatherToolOutput>;
+  readonly mergeRequestOutput: (
+    currentSources: CollectedSources,
+    output: WebGatherToolOutput,
+  ) => { readonly state: CollectedSources; readonly gaps: readonly SourceGap[] };
+  readonly executionAudits: WebGatherExecutionAudit[];
+  readonly executionRejections: {
+    readonly acceptedRequestIndex: number;
+    readonly reason: string;
+    readonly attempts?: SourceGapAttempts;
+  }[];
+}): Promise<WebGatherLoopResult> {
+  const roundState: JsonToolLoopRoundState<WebGatherStageOutput> = {
+    round: 1,
+    sourceUnitsUsed: 0,
+    toolCallsUsed: 0,
+    priorStages: [],
+  };
+  const stageOutput = await input.input.generateRound(
+    input.input.collectedSources,
+    withWebGatherContext(input.input.context, {
+      round: 1,
+      availableTools: AVAILABLE_TOOLS,
+      toolUnits: WEB_GATHER_TOOL_UNITS,
+      sourceUnitsUsed: 0,
+      toolCallsUsed: 0,
+      maxRounds: 1,
+      maxToolCalls: input.webGatherOptions.maxToolCalls,
+      sourceBudget: input.webGatherOptions.sourceBudget,
+      surfacedUrls: [],
+      subjectTerms: input.subjectTerms,
+      ...(input.secFilingCoverage !== undefined
+        ? { secFilingCoverage: input.secFilingCoverage }
+        : {}),
+      ...(input.input.reusedProfileCoverage !== undefined
+        ? { reusedProfileCoverage: input.input.reusedProfileCoverage }
+        : {}),
+    }),
+    [],
+  );
+  const parsed = parseModelRequests(
+    stageOutput.content,
+    "Web gather stage returned invalid JSON",
+    "Web gather stage must return JSON object with requests array",
+  );
+  if (typeof parsed === "string") {
+    const gap = webGatherMalformedGap(parsed);
+    return {
+      collectedSources: mergeGaps(input.command, input.input.collectedSources, [gap]),
+      stageOutputs: [stageOutput],
+      audit: {
+        rounds: 1,
+        acceptedRequests: [],
+        rejectedRequests: [],
+        sourceUnitsUsed: 0,
+        executedTools: [],
+        emittedGaps: [gap],
+        sanitizer: aggregateSanitizerAudit([]),
+        ...(input.input.acceptancePolicy !== undefined
+          ? { acceptancePolicy: input.input.acceptancePolicy }
+          : {}),
+      },
+    };
+  }
+  const searchRequests = parsed.filter(
+    (request) => !isRecord(request) || request.tool !== "web_fetch",
+  );
+  const fetchRequests = parsed.filter(
+    (request) => isRecord(request) && request.tool === "web_fetch",
+  );
+  const validationState: ValidationState = {
+    seenKeys: input.seenKeys,
+    surfacedUrls: input.surfacedUrls,
+    thematicListSearchWidened: input.thematicListSearchWidened,
+    subject: webGatherSubjectForRun(
+      input.command,
+      input.input.collectedSources,
+    ) as WebGatherSubject,
+    subjectTerms: input.subjectTerms,
+    command: input.command,
+    secFilingCoverage: input.secFilingCoverage,
+    reusedProfileCoverage: input.input.reusedProfileCoverage,
+    acceptancePolicy: input.input.acceptancePolicy,
+    config: input.config,
+    round: 1,
+  };
+  const searchValidation = validateRequests(searchRequests, validationState, roundState);
+  const searchOutputs = await Promise.all(
+    searchValidation.requests.map((request) => input.acquireRequest(request.request)),
+  );
+  let collectedSources =
+    searchValidation.gaps.length === 0
+      ? input.input.collectedSources
+      : mergeGaps(input.command, input.input.collectedSources, searchValidation.gaps);
+  const emittedGaps = [...searchValidation.gaps];
+  for (const output of searchOutputs) {
+    const merged = input.mergeRequestOutput(collectedSources, output);
+    collectedSources = merged.state;
+    emittedGaps.push(...merged.gaps);
+  }
+  const searchSourceUnits = searchValidation.requests.reduce(
+    (total, request) => total + request.sourceUnits,
+    0,
+  );
+  const fetchValidation = validateRequests(fetchRequests, validationState, {
+    round: 1,
+    sourceUnitsUsed: searchSourceUnits,
+    toolCallsUsed: searchValidation.requests.length,
+    priorStages: [],
+  });
+  const fetchOutputs = await Promise.all(
+    fetchValidation.requests.map((request) => input.acquireRequest(request.request)),
+  );
+  if (fetchValidation.gaps.length > 0) {
+    collectedSources = mergeGaps(input.command, collectedSources, fetchValidation.gaps);
+    emittedGaps.push(...fetchValidation.gaps);
+  }
+  for (const output of fetchOutputs) {
+    const merged = input.mergeRequestOutput(collectedSources, output);
+    collectedSources = merged.state;
+    emittedGaps.push(...merged.gaps);
+  }
+  const acceptedRequests = [...searchValidation.requests, ...fetchValidation.requests];
+  return {
+    collectedSources,
+    stageOutputs: [stageOutput],
+    audit: {
+      rounds: 1,
+      acceptedRequests: acceptedRequests.map((entry, index) => ({
+        ...entry.audit,
+        ...input.executionAudits[index]!,
+      })),
+      rejectedRequests: [
+        ...searchValidation.rejected,
+        ...fetchValidation.rejected,
+        ...input.executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
+          executionRejectedEntry(acceptedRequests[acceptedRequestIndex]!.audit, reason, attempts),
+        ),
+      ],
+      sourceUnitsUsed: acceptedRequests.reduce((total, request) => total + request.sourceUnits, 0),
+      executedTools: acceptedRequests.map((request) => request.tool),
+      emittedGaps,
+      sanitizer: aggregateSanitizerAudit(input.executionAudits.map((audit) => audit.sanitizer)),
+      ...(input.input.acceptancePolicy !== undefined
+        ? { acceptancePolicy: input.input.acceptancePolicy }
+        : {}),
     },
   };
 }
@@ -653,6 +859,7 @@ function validateRequest(
       parsedArgs,
       state.command,
       state.reusedProfileCoverage,
+      state.acceptancePolicy,
       state.thematicListSearchWidened.value,
     );
     const acceptedRequest = validateAcceptedRequest(
@@ -869,6 +1076,22 @@ function isOnSubjectQuery(
   return subjectTerms.some((term) =>
     term.includes(" ") ? ` ${normalized} `.includes(` ${term} `) : tokens.has(term),
   );
+}
+
+// Shared by both audit-assembly sites (the generic json-tool loop and the deep-equity batch
+// Path) so a rejected-by-execution entry (an Exa call that failed outright, as opposed to one
+// Rejected at validation time) is built identically in both places.
+function executionRejectedEntry<TEntry extends JsonToolLoopAuditEntry>(
+  acceptedEntry: TEntry,
+  reason: string,
+  attempts: SourceGapAttempts | undefined,
+): TEntry & { status: "rejected"; reason: string; attempts?: SourceGapAttempts } {
+  return {
+    ...acceptedEntry,
+    status: "rejected" as const,
+    reason,
+    ...(attempts !== undefined ? { attempts } : {}),
+  };
 }
 
 function requestKey(request: ModelWebGatherRequest): string {

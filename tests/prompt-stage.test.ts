@@ -48,7 +48,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -111,7 +112,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers", "cross-asset themes", "risks", "source gaps"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -167,7 +169,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -212,7 +215,7 @@ describe("buildStagePrompt", () => {
       "Allowed prediction subjects for this run:",
     );
     expect(parsed.predictionRepair?.instruction).toContain(
-      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO share the broad-us-index class",
+      "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO, VTI, ITOT, IWB, SCHB share the broad-us-index class",
     );
     expect(parsed.predictionRepair?.instruction).toContain(
       "For range forecasts, vary the horizon or range bounds",
@@ -250,7 +253,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -303,7 +307,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -316,6 +321,12 @@ describe("buildStagePrompt", () => {
           byMarketRegime: {
             mixed: {
               brierScore: 0.4,
+              count: 30,
+              runCount: 10,
+              brierStandardError: 0.05,
+            },
+            "risk-on": {
+              brierScore: 0.25,
               count: 30,
               runCount: 10,
               brierStandardError: 0.05,
@@ -364,7 +375,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",
@@ -421,7 +433,8 @@ describe("buildStagePrompt", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime", "movers"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",

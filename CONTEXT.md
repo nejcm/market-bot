@@ -8,6 +8,20 @@ All artifacts and terms below are research-only: they do not imply investment co
 
 A sourced artifact summarizing evidence, uncertainty, scenarios, risks, and gaps.
 
+## Default View
+
+The reader-facing surface of a deep-equity report or Console run: what the company does; price with
+market date and freshness; a three-to-five-year plus TTM trend table; valuation context positioned
+relative to the observed quote and never as a target price; catalysts and risks; upcoming earnings
+and consensus; and material data gaps.
+
+## Appendix
+
+The trailing detail surface containing reverse DCF, full valuation tables, full peer rows and
+excluded-peer diagnostics, institutional and insider detail, analyst estimate distributions,
+options IV, the subsequent-financing bridge, capital ownership, and the five Financial Lenses with
+their posture labels. Collection drops nothing; only placement changes.
+
 ## Research Console App
 
 Local UI for browsing run history, Research Views, Sources, Source Gaps, evidence quality, analytics, and provider health.
@@ -80,7 +94,13 @@ Public market value, point-in-time or windowed, used to resolve a Prediction.
 
 ## Prediction
 
-Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Observable forecast whose `probability` is the chance `measurableAs` is true; bearish or in-range views use probabilities below 0.5 under the asymmetric grammar. The public claim renders from `measurableAs`, not model text. Depth targets are soft: shortfalls are disclosed through the structured `ResearchReport.predictionShortfall` contract, never padded. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+
+## Prediction Shortfall
+
+Structured disclosure that a report emitted fewer observable Predictions than its soft target after
+earnings and research-subject gates. It records emitted, target, and missing counts; presentation
+derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
 
 ## Scoring Policy
 
@@ -224,7 +244,7 @@ Market-level evidence that enriches a Market Overview without targeting an Instr
 
 ## Domain Playbook
 
-Checked-in guidance selected after collection and the Evidence Request Loop. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
+Checked-in guidance selected after collection and any deterministic deep-equity packet merge. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
 
 ## Mover
 
@@ -242,6 +262,10 @@ Citeable sector-ETF or index comparison for a Mover that never changes rank.
 
 Deterministic grade of evidence completeness, recency, corroboration, and traceability. Model judgment, narrative uncertainty, and Prediction probability cannot set it.
 
+## Equity Analysis Completeness
+
+Deterministic grade of what an equity issuer's reporting surface makes achievable, including due interim coverage, filing cadence, and per-share and payout evidence. It is distinct from Evidence Quality, which grades what sourcing achieved: complete sourcing can expose an incomplete reporting surface, such as a due quarter the issuer has not filed. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+
 ## Temporal Integrity
 
 Current evidence contains only facts observable by its analysis cutoff. Later facts are excluded; stale fallbacks stay raw-audit-only with disclosure.
@@ -249,6 +273,10 @@ Current evidence contains only facts observable by its analysis cutoff. Later fa
 ## Post-Synthesis Audit
 
 Warn-only, no-model inspection for weak-evidence hygiene (for example unsupported numeric/technical claims or missing evidence posture). It records telemetry without blocking, rewriting, or re-synthesis; Report Integrity Audit handles pruning.
+
+## Gap-Shaped Claim
+
+Narrative absence-of-evidence claim recognized by two consumer-specific predicates. The broad relocation predicate moves an uncited claim from a findings section, or an eligible known Business Framework section with no projected fallback source IDs, into `dataGaps` and records its original path and text in `trace.json:relocatedGapClaims`. The stricter audit predicate emits the observational `gap-shaped-claim-cited` warning when such a claim carries source IDs. The predicates are not interchangeable.
 
 ## Report Integrity Audit
 
@@ -284,7 +312,30 @@ Optional citeable provider that does not drive mover ranking, regime labels, or 
 
 ## Source Gap
 
-Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and `evidence-request` gaps remain separate because their loops differ, while both flow through Source Plan lanes.
+Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
+
+## Not-Assessed
+
+Completeness status for a dimension that could not be evaluated because its inputs were never
+configured or available to the deployment, such as an unconfigured operating-KPI registry or a
+missing optional provider credential or entitlement. It never counts as complete, and never
+upgrades a tier or raises the headline grade relative to counting the same dimension as `partial`.
+Unlike `partial`, it does not mean the dimension was assessed with incomplete data.
+
+## Material Gap
+
+A Material Gap affects what a reader can conclude about the company, such as missing financial
+statements, a failed verified price snapshot, or provider data missing from a core lane, and appears
+in the Default View.
+
+## Diagnostic Gap
+
+A Diagnostic Gap is an instrumentation or entitlement artifact, such as an absent optional
+provider, an entitlement 403, or an unconfigured operating-KPI registry, and appears only in the
+Appendix.
+Prediction shortfalls affect the delivered research scope and appear last among Material Gaps in
+the Default View. Non-equity Console views keep the structured disclosure in a dedicated Shortfall
+block.
 
 ## Source Plan
 
@@ -330,9 +381,21 @@ Optional higher-specificity provider evidence for instrument Research Views.
 
 Sourced issuer operating and financial facts used as Extended Evidence.
 
+## Current Report Evidence
+
+Bounded text from up to two recent SEC current reports — 8-K for domestic filers, 6-K for foreign private issuers — filed within 120 days of collection. Routine 8-Ks must postdate the newest periodic filing, while the newest Item 2.02 earnings release within the window gets one of the two slots despite that floor because it normally precedes the periodic filing and carries nonduplicative results context. The no-periodic-basis path is foreign-private-issuer/6-K only; a domestic filer without a 10-K or 10-Q receives no current-report packet. A substantive EX-99 earnings-release exhibit is preferred over the primary document; a gap discloses when neither reports substantive results.
+
 ## Valuation Evidence
 
 Deterministic Extended Evidence combining market cap, fundamentals, and, for `equity --deep`, peer comps into enterprise value, revenue multiples, peer median/IQR, and supportability. Peers need at least three qualifying candidates and 0.2x–5x market-cap/revenue gates; SIC matching applies except to curated `ticker-mapping` (`curated-no-sic` versus `full` gate profiles). Rejections remain visible. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+
+## Valuation Workbench
+
+Versioned equity sidecar joining canonical annual or reconciled-TTM fundamentals to the first verified close within seven calendar days on or after the inputs became public. It reports P/E, P/S, EV/revenue, and P/FCF with N/M and suppression reasons, and carries the existing peer table/reference range with dates, currencies, supportability, and sources. Missing canonical TTM is suppressed; retained quarter-only periods are never combined into an unreconciled trailing value.
+
+## Reverse DCF Input Sensitivity
+
+An isolated versioned equity sidecar that solves the five-year FCF growth input across 8%–16% discount rates and 0%–4% terminal-growth assumptions. It discloses reconciled-TTM starting FCF, observed enterprise value, input dates, currencies, sources, and the five-year horizon. Missing, non-positive, or currency-incompatible inputs suppress the artifact. Its research-only boundary is defined by [ADR 0001](./docs/adr/0001-research-only-boundary.md).
 
 ## Financial Lens Evidence
 
@@ -352,7 +415,7 @@ Typed fundamentals captured once from normalized Yahoo quotes and emitted as `ya
 
 ## Earnings Setup
 
-For `equity --deep`, deterministic event context when Finnhub reports earnings within 30 days: metadata, optional Tradier implied move, sourced analytical bullets, and gaps. Earnings Predictions use post-event trading-day horizons and `earningsReturn`; IV crush is deferred.
+For `equity --deep`, deterministic event context when Finnhub reports earnings within 30 days: metadata, event-date certainty, optional Tradier implied move, sourced analytical bullets, and gaps. Finnhub dates remain `provider-estimated`; direct issuer IR/press-release or explicit-future SEC 8-K/6-K evidence can establish `issuer-confirmed`, and only a direct official exchange source can establish `exchange-confirmed`. Earnings Predictions use post-event trading-day horizons and `earningsReturn` only for confirmed dates; estimated setups remain contextual. IV crush is deferred.
 
 ## Scored Catalyst
 

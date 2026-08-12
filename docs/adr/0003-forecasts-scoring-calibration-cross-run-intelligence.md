@@ -11,7 +11,9 @@ split-adjusted equity closes, provider-window anchor validation, and calibration
 amended 2026-07-06: primary Near-Base-Rate prompt steering;
 amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range after the first
 resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58;
-consolidated 2026-07-15)
+consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility;
+amended 2026-08-05: structured Prediction shortfall disclosure;
+amended 2026-08-11: conditional-activation calibration guidance)
 
 ## Context
 
@@ -33,10 +35,21 @@ be mistaken for current market evidence.
   forecasts mean `P(B | A)`; a false antecedent produces a terminal `voided` result excluded from
   Brier and reliability metrics.
 - Earnings forecasts anchor their origin and due date to the declared earnings event and timing.
+- New earnings-return grammar is eligible only when the Earnings Setup event date is
+  `issuer-confirmed` or `exchange-confirmed` under ADR 0004. A `provider-estimated` event remains
+  visible contextual evidence but cannot produce `earnings-direction`, `earnings-move`, or
+  `earningsReturn` output. New earnings Predictions persist the event-date status, and report,
+  trace, and analytics telemetry record eligible and suppressed counts so the coverage change is
+  explicit against the Phase 0 baseline.
 - Prediction count is a soft `targetPredictions`, not a quota. After a high- or medium-evidence
   report is valid but below target, one best-effort, predictions-only Forecast Completion Pass may
   add candidates. It preserves the accepted report and Predictions, never retries itself, and
-  leaves any remaining shortfall deterministically disclosed.
+  leaves any remaining shortfall deterministically disclosed. After earnings and research-subject
+  gates, report assembly derives `ResearchReport.predictionShortfall` with non-negative integer
+  emitted, target, and missing counts satisfying `missing = target - emitted > 0`. Presentation
+  derives canonical Material Gap or compact text from that structure; new reports do not encode
+  the protocol in `dataGaps`. Tolerant artifact reads adapt only the anchored historical
+  `predictionShortfall: emitted N of T` form and retain unparseable or conflicting gaps verbatim.
 - Completion candidates must pass the existing observable, citation, subject, and redundancy
   gates and must sit outside the inclusive 0.40-0.60 Near-Base-Rate band. Primary synthesis
   is prompted to keep every emitted Prediction outside the same band — an in-band probability
@@ -58,15 +71,20 @@ be mistaken for current market evidence.
   forecasts overall and at least one event-kind × horizon stratum contains 30 resolved forecasts.
   Reaching both thresholds triggers a separate baseline-design review rather than an automatic
   metric change.
-- Calibration affects primary synthesis and Forecast Completion only through Actionable Negative
-  Calibration. Asset class, job type, default Prediction-horizon bucket, and current Market Regime
-  are assessed independently. A slice qualifies only with at least 30 resolved Predictions and 10
-  distinct Runs and when its Bonferroni-adjusted 98.75% one-sided lower bound
-  (`Brier - 2.2414 × standard error`) is strictly above the 0.25 baseline.
-- Only qualifying slices enter the synthesis prompt, where they guide probability discipline.
-  Calibration cannot suppress Prediction count, reject forecast shapes, change evidence-support
-  requirements, or reject emitted forecasts. Legacy summaries without uncertainty fields remain
-  readable but cannot activate guidance.
+- Calibration affects primary synthesis and Forecast Completion through two independently gated
+  inputs. Actionable Negative Calibration assesses asset class, job type, default
+  Prediction-horizon bucket, and current Market Regime independently. A slice qualifies only with
+  at least 30 resolved Predictions and 10 distinct Runs and when its Bonferroni-adjusted 98.75%
+  one-sided lower bound (`Brier - 2.2414 × standard error`) is strictly above the 0.25 baseline.
+- Conditional-activation guidance enters deep-run primary synthesis and Forecast Completion when
+  at least 10 conditional forecasts have resolved and the aggregate void rate is at least 0.5.
+  It uses activated and voided history to steer antecedents toward plausible events or observed
+  thresholds; it must never suppress or mandate conditional emission. `refreshCalibrationContext`
+  is the runtime source for both calibration-derived steering inputs.
+- Only qualifying Actionable Negative Calibration slices enter the synthesis prompt, where they
+  guide probability discipline. Calibration cannot suppress Prediction count, reject forecast
+  shapes, change evidence-support requirements, or reject emitted forecasts. Legacy summaries
+  without uncertainty fields remain readable but cannot activate that guidance.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved
   listed proxy and emits no predictions when no proxy resolves.
 - Scoring resolves observations through the repository and close cache, then aggregates Brier
@@ -78,6 +96,10 @@ be mistaken for current market evidence.
   historical forecasts and already-resolved scores are never rewritten, and each score result
   persists the policy version that produced it. `horizonTradingDays` keeps its legacy name; under
   policy v3 it is the horizon count whose clock the policy defines per forecast family.
+- Confirmed-date eligibility changes which new earnings forecasts may be emitted, not how a
+  persisted earnings forecast resolves. It therefore does not create a new scoring-policy version;
+  historical provider-estimated forecasts remain readable and resolve under their persisted or
+  legacy policy.
 - Policy v3 clocks: equity close forecasts resolve on the Nth provider-observed session after the
   applicable anchor; crypto close forecasts resolve on the target UTC calendar date, are attempted
   only after that date has fully elapsed (a partial-day price is never graded), and keep the full
@@ -128,8 +150,8 @@ be mistaken for current market evidence.
 - Policy v2 (all forecasts persisted before stamping) gates every due date on the US exchange
   calendar, including crypto and macro/IV forecasts; those forecasts resolve permanently under
   that legacy clock.
-- Conditional forecasts can have low activation rates; calibration output does not yet report
-  activation coverage as a first-class metric.
+- Conditional activation coverage is a first-class calibration metric reported as aggregate
+  activated and voided counts; the guidance gate does not slice it by antecedent type or horizon.
 
 These limitations are implementation facts, not endorsed end-state methodology. Changing baseline,
 price adjustment, or calendar semantics requires a new scoring policy version.
@@ -151,11 +173,17 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 
 - `src/forecast/observable.ts` owns parsing, canonicalization, and expression shape.
 - `src/research/report-assembly.ts` applies subject gates, trims, shortfalls, and policy stamping.
+- `src/report/prediction-shortfall.ts` owns shortfall derivation, validation, presentation text,
+  and anchored legacy normalization for artifact and Console reads.
+- `src/research/orchestrator.ts` re-derives the shortfall immediately after Report Integrity Audit
+  pruning so persisted reports and downstream consumers reflect the retained predictions.
 - `src/scoring/policy.ts` owns the scoring policy registry and per-version clocks.
 - `src/scoring/resolver.ts`, `close-cache.ts`, and `calibration.ts` implement current scoring.
 - `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and
   analytics.
 - `src/research/forecast-disagreement.ts` keeps challenger output separate from canonical scores.
+- `src/forecast/earnings-eligibility.ts` and the primary/completion prompt builders enforce
+  confirmed-date eligibility and persist suppression telemetry.
 - `src/research/historical-context.ts`, `prior-forecast-errors.ts`, and `spotlights.ts` implement
   artifact-backed context, scoped correction, and current-evidence candidate constraints.
 - `src/history/` owns derived search, timelines, and thesis deltas.

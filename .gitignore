@@ -2,6 +2,7 @@ node_modules/
 data/
 coverage/
 app/dist/
+.tmp/
 *.log
 .env
 .env.*
@@ -9,7 +10,7 @@ app/dist/
 .lefthook-local.yml
 .firecrawl
 
-research/
+/research/
 reports/
 plans/
 TODO.md

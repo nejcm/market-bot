@@ -6,8 +6,8 @@ import {
   renderCalibrationConsole,
   MIN_CALIBRATION_SAMPLE,
 } from "../src/scoring/calibration-console";
-import { forecastErrorDirection } from "../src/scoring/miss-autopsy";
-import type { MarketRegimeLabel, Prediction } from "../src/domain/types";
+import { buildMissAutopsyFile, forecastErrorDirection } from "../src/scoring/miss-autopsy";
+import type { MarketRegimeLabel, Prediction, ResearchReport } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { prediction, predictionScore, researchReport } from "./support/fixtures";
 
@@ -1016,11 +1016,18 @@ describe("buildCalibrationSummary", () => {
   test("groups calibration by job type, market cadence, and horizon bucket", () => {
     const pairs = [
       {
+        prediction: { ...basePrediction, horizonTradingDays: 1 },
+        score: makeScore("hit"),
+        assetClass: "equity" as const,
+        jobType: "equity" as const,
+        runId: "r0",
+      },
+      {
         prediction: { ...basePrediction, horizonTradingDays: 5 },
         score: makeScore("hit"),
         assetClass: "equity" as const,
         jobType: "daily" as const,
-        marketUpdateHorizonBucket: "1-5d",
+        marketUpdateHorizonBucket: "2-5d",
         runId: "r1",
       },
       {
@@ -1044,10 +1051,11 @@ describe("buildCalibrationSummary", () => {
 
     expect(summary.byJobType["daily"]?.count).toBe(1);
     expect(summary.byJobType["weekly"]?.count).toBe(1);
-    expect(summary.byJobType["equity"]?.count).toBe(1);
-    expect(summary.byMarketUpdateHorizonBucket["1-5d"]?.count).toBe(1);
+    expect(summary.byJobType["equity"]?.count).toBe(2);
+    expect(summary.byMarketUpdateHorizonBucket["2-5d"]?.count).toBe(1);
     expect(summary.byMarketUpdateHorizonBucket["11-15d"]?.count).toBe(1);
-    expect(summary.byHorizonBucket["1-5d"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["1d"]?.count).toBe(1);
+    expect(summary.byHorizonBucket["2-5d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["11-15d"]?.count).toBe(1);
     expect(summary.byHorizonBucket["16-20d"]?.count).toBe(1);
   });
@@ -1211,6 +1219,99 @@ describe("forecastErrorDirection", () => {
         predictionScore("miss", { resolved: false, outcome: undefined }),
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("buildMissAutopsyFile cause classification", () => {
+  const unrelatedDataGaps = Array.from(
+    { length: 40 },
+    (_, index) => `unrelated-lane-${String(index)}: provider unavailable`,
+  );
+  const citedSource = {
+    id: "extended-sec-edgar-spy-fundamentals",
+    title: "SPY SEC fundamentals",
+    fetchedAt: "2026-05-01T00:00:00.000Z",
+    kind: "extended-evidence" as const,
+    provider: "sec-edgar",
+    symbol: "SPY",
+  };
+
+  function autopsyCause(input: {
+    readonly probability: number;
+    readonly outcome: "hit" | "miss";
+    readonly sourceIds?: readonly string[];
+    readonly dataGaps?: readonly string[];
+    readonly source?: ResearchReport["sources"][number];
+  }) {
+    const source = input.source ?? citedSource;
+    const pred = prediction({
+      probability: input.probability,
+      sourceIds: input.sourceIds ?? [source.id],
+    });
+    const result = buildMissAutopsyFile(
+      researchReport({
+        dataGaps: input.dataGaps ?? unrelatedDataGaps,
+        predictions: [pred],
+        sources: [source],
+      }),
+      [predictionScore(input.outcome, { predictionId: pred.id })],
+      now,
+    );
+    return result.autopsies[0]?.cause;
+  }
+
+  test("classifies extreme misses as model_overconfidence despite unrelated report gaps", () => {
+    expect(autopsyCause({ probability: 0.75, outcome: "miss" })).toBe("model_overconfidence");
+  });
+
+  test("classifies uncited misses as data_gap despite unrelated report gaps", () => {
+    expect(autopsyCause({ probability: 0.65, outcome: "miss", sourceIds: [] })).toBe("data_gap");
+  });
+
+  test("classifies a gap in a cited source lane as source_gap", () => {
+    expect(
+      autopsyCause({
+        probability: 0.65,
+        outcome: "miss",
+        dataGaps: [...unrelatedDataGaps.slice(1), "sec-edgar: provider data missing"],
+      }),
+    ).toBe("source_gap");
+  });
+
+  test("matches a suffixed Finnhub events gap through the cited source id", () => {
+    expect(
+      autopsyCause({
+        probability: 0.65,
+        outcome: "miss",
+        dataGaps: [...unrelatedDataGaps.slice(1), "finnhub-events-2: endpoint unavailable"],
+        source: {
+          ...citedSource,
+          id: "extended-finnhub-events-aapl",
+          provider: "finnhub",
+          symbol: "AAPL",
+        },
+      }),
+    ).toBe("source_gap");
+  });
+
+  test("matches a gap through the cited source provider and kind", () => {
+    expect(
+      autopsyCause({
+        probability: 0.65,
+        outcome: "miss",
+        dataGaps: [...unrelatedDataGaps.slice(1), "finnhub-news: provider unavailable"],
+        source: {
+          ...citedSource,
+          id: "news-equity-1",
+          kind: "news",
+          provider: "finnhub",
+        },
+      }),
+    ).toBe("source_gap");
+  });
+
+  test("classifies misses with only unrelated report gaps as insufficient_evidence", () => {
+    expect(autopsyCause({ probability: 0.65, outcome: "miss" })).toBe("insufficient_evidence");
   });
 });
 
@@ -1428,7 +1529,7 @@ describe("renderCalibrationConsole", () => {
     const output = renderCalibrationConsole(summary);
     expect(output).toContain("direction");
     expect(output).toContain("volatility");
-    expect(output).toContain("1-5d");
+    expect(output).toContain("2-5d");
     expect(output).toContain("11-15d");
     const kindSection = output.slice(output.indexOf("By kind"));
     expect(kindSection).toContain("Brier 0.0000");

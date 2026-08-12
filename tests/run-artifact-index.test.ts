@@ -126,6 +126,7 @@ function writeRun(
           symbol: "AAPL",
         },
       ],
+      predictionShortfall: { emittedCount: 1, targetCount: 2, missingCount: 1 },
       dataGaps: ["needle gap"],
       extras: { depth: "deep" },
     }),
@@ -183,7 +184,7 @@ describe("run artifact index", () => {
         findingCount: 1,
         predictionCount: 1,
         sourceCount: 1,
-        dataGapCount: 1,
+        dataGapCount: 2,
         hasScore: true,
         availableFiles: ["normalized", "report.json", "report.md", "score.json"].filter(
           (path) => path !== "normalized",

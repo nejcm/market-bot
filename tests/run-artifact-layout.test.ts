@@ -19,6 +19,7 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.missAutopsy).toBe("miss-autopsy.json");
     expect(RUN_ARTIFACT_FILES.alphaValidation).toBe("alpha-validation.json");
     expect(RUN_ARTIFACT_FILES.rawSnapshots).toBe(`${RAW_DIR}/snapshots.json`);
+    expect(RUN_ARTIFACT_FILES.evidenceBundle).toBe(`${NORMALIZED_DIR}/evidence-bundle.json`);
 
     expect(RUN_ARTIFACT_FILES.marketSnapshots).toBe(`${NORMALIZED_DIR}/market-snapshots.json`);
     expect(RUN_ARTIFACT_FILES.supplementalMarketSnapshots).toBe(
@@ -47,6 +48,12 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.financialLenses).toBe(`${NORMALIZED_DIR}/financial-lenses.json`);
     expect(RUN_ARTIFACT_FILES.fundamentalHistory).toBe(
       `${NORMALIZED_DIR}/fundamental-history.json`,
+    );
+    expect(RUN_ARTIFACT_FILES.financialStatements).toBe(
+      `${NORMALIZED_DIR}/financial-statements.json`,
+    );
+    expect(RUN_ARTIFACT_FILES.untaggedFinancialStatements).toBe(
+      `${NORMALIZED_DIR}/untagged-financial-statements.json`,
     );
     expect(RUN_ARTIFACT_FILES.businessFramework).toBe(`${NORMALIZED_DIR}/business-framework.json`);
     expect(RUN_ARTIFACT_FILES.webSubjectProfile).toBe(`${NORMALIZED_DIR}/web-subject-profile.json`);

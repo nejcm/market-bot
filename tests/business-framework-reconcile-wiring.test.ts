@@ -118,6 +118,24 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
     ).toEqual([]);
   });
 
+  test("reconciles normally against a partial (salvaged) profile as long as sourceIds survived (B2.3)", () => {
+    // A partially-accepted profile (e.g. Workstream B salvage: some facts/
+    // Questions rejected but sourceIds non-empty) must not be treated as the
+    // Profile.sourceIds.length === 0 skip case.
+    const partialProfile: WebSubjectProfileArtifact = {
+      ...profile(),
+      recentMaterialEvents: [],
+      factLedger: [],
+      sourceIds: ["web-1"],
+    };
+    const artifact = framework([gap("segment-mix"), gap("analyst-consensus")]);
+    const result = reconcileBusinessFrameworkEvidence(
+      bundle(artifact, frameworkGap("AAPL", artifact.gaps), partialProfile),
+    );
+
+    expect(result.businessFramework?.gaps).toEqual([gap("analyst-consensus")]);
+  });
+
   test("returns the original collection when no present code resolves", () => {
     const artifact = framework([gap("customer-concentration")]);
     const staleGap = frameworkGap("AAPL", artifact.gaps);

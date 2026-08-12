@@ -43,8 +43,6 @@ import {
   sidebarViewPath,
   scenarios,
   sources,
-  formatShortfallGap,
-  splitDataGaps,
   textItems,
   tradingViewSymbol,
   tradingViewUrl,
@@ -466,7 +464,7 @@ describe("research console app view model", () => {
               count: 2,
               targetCount: 3,
               targetMet: false,
-              shortfall: { missingCount: 1, disclosed: true },
+              shortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
             },
             calibrationAtGeneration: {
               jobType: { key: "equity", brierScore: 0.2, brierSkillScore: 0.2, count: 8 },
@@ -496,7 +494,7 @@ describe("research console app view model", () => {
         generatedAt: expect.any(String),
         forecasts: "2/3",
         targetMet: false,
-        shortfall: "1 missing, disclosed",
+        shortfall: "1 missing",
         calibration: "skill +0.20",
         snapshotFreshness: "AAPL snapshot 1d",
       },
@@ -623,7 +621,8 @@ describe("calibration view model", () => {
       },
       byHorizonBucket: {
         "6-10d": { brierScore: 0.31, count: 2 },
-        "1-5d": { brierScore: 0.2583, count: 11 },
+        "2-5d": { brierScore: 0.2583, count: 11 },
+        "1d": { brierScore: 0.24, count: 1 },
         custom: { brierScore: 0.5, count: 1 },
       },
       byMarketRegime: {
@@ -667,7 +666,8 @@ describe("calibration view model", () => {
       { key: "range", brierScore: 0.3281, count: 3 },
     ]);
     expect(calibrationSlices(detail, "byHorizonBucket").map((row) => row.key)).toEqual([
-      "1-5d",
+      "1d",
+      "2-5d",
       "6-10d",
       "custom",
     ]);
@@ -1180,33 +1180,60 @@ describe("report artifact parsers", () => {
     ]);
   });
 
-  test("splits prediction shortfall gaps from other data gaps", () => {
-    expect(
-      splitDataGaps(["predictionShortfall: emitted 2 of 3 target predictions", "Missing provider"]),
-    ).toEqual({
-      shortfalls: ["predictionShortfall: emitted 2 of 3 target predictions"],
-      otherGaps: ["Missing provider"],
+  test("retains institutional, analyst, and options evidence for the Advanced appendix", () => {
+    const categories = [
+      "institutional-ownership",
+      "analyst-estimate-context",
+      "analyst-estimates",
+      "options-iv",
+    ];
+    const items = extendedEvidenceItems({
+      extendedEvidence: {
+        items: categories.map((category) => ({
+          category,
+          title: `${category} detail`,
+          summary: `${category} raw evidence`,
+          sourceIds: [`source-${category}`],
+          metrics: { count: 2 },
+        })),
+      },
     });
-    expect(formatShortfallGap("predictionShortfall: emitted 2 of 3 target predictions")).toBe(
-      "emitted 2 of 3 target predictions",
+
+    expect(items.map((item) => item.category)).toEqual(categories);
+    expect(items.map((item) => item.summary)).toEqual(
+      categories.map((category) => `${category} raw evidence`),
     );
-    expect(formatShortfallGap("Missing provider")).toBe("Missing provider");
+    expect(items.flatMap((item) => item.sourceIds)).toEqual(
+      categories.map((category) => `source-${category}`),
+    );
   });
 
-  test("reads prediction target health from analytics with report fallback", () => {
+  test("prefers analytics prediction target health and falls back to report counts", () => {
     expect(
       predictionTargetHealth({ predictions: { count: 2, targetCount: 3, targetMet: false } }),
     ).toEqual({ count: 2, target: 3, targetMet: false });
 
     expect(
+      predictionTargetHealth(undefined, {
+        predictionShortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
+      }),
+    ).toEqual({ count: 2, target: 3, targetMet: false });
+
+    expect(
       predictionTargetHealth(
-        {},
+        { predictions: { count: 9, targetCount: 9, targetMet: true } },
         {
-          predictions: [{ id: "p1" }, { id: "p2" }],
-          extras: { depthProfile: { targetPredictions: 3 } },
+          predictionShortfall: { emittedCount: 2, targetCount: 3, missingCount: 1 },
         },
       ),
-    ).toEqual({ count: 2, target: 3, targetMet: false });
+    ).toEqual({ count: 9, target: 9, targetMet: true });
+
+    expect(
+      predictionTargetHealth(undefined, {
+        predictions: [{}, {}, {}],
+        extras: { depthProfile: { targetPredictions: 3 } },
+      }),
+    ).toEqual({ count: 3, target: 3, targetMet: true });
 
     expect(predictionTargetHealth()).toBeUndefined();
   });
@@ -1648,6 +1675,26 @@ describe("report artifact parsers", () => {
     ).toBeUndefined();
   });
 
+  test("keeps a blank subject label instead of falling back to the company name", () => {
+    const answer = { answer: "Cited answer.", sourceIds: ["web-source"] };
+    const profileWith = (label?: unknown): unknown =>
+      webSubjectProfileView({
+        extras: {
+          webSubjectProfile: {
+            subjectKind: "company",
+            ...(label === undefined ? {} : { subjectLabel: label }),
+            companyName: "Fallback Inc.",
+            questions: { whatItDoes: answer },
+          },
+        },
+      })?.subjectLabel;
+
+    expect(profileWith("")).toBe("");
+    expect(profileWith("   ")).toBe("   ");
+    expect(profileWith()).toBe("Fallback Inc.");
+    expect(profileWith(42)).toBe("Fallback Inc.");
+  });
+
   test("presents current company profile questions", () => {
     const answer = { answer: "Cited answer.", sourceIds: ["web-source"] };
     const profile = webSubjectProfileView({
@@ -1904,7 +1951,7 @@ describe("report artifact parsers", () => {
 
     expect(tiles.map((tile) => tile.caption)).toEqual([
       "SEC EDGAR · FY period ended 2025-06-28",
-      "Yahoo quote · observed 2026-06-21",
+      "Yahoo quote · fetch time 2026-06-21T14:30:00.000Z",
     ]);
   });
 
@@ -2031,5 +2078,22 @@ describe("report artifact parsers", () => {
     expect(
       candidates.find((candidate) => candidate.section === "extendedEvidence")?.text,
     ).toContain("5.4");
+  });
+
+  test("indexes structured prediction shortfalls as canonical data gaps", () => {
+    const candidates = reportSearchCandidates(
+      {
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
+        dataGaps: [],
+      },
+      "console",
+    );
+
+    expect(candidates).toContainEqual({
+      section: "dataGaps",
+      label: "Data gap 1",
+      text: "emitted 1 of 3 target predictions; evidence did not support more",
+      sourceIds: [],
+    });
   });
 });

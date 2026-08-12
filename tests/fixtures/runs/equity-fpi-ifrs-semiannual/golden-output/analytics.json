@@ -1,0 +1,594 @@
+{
+  "version": 2,
+  "runId": "<runId>",
+  "generatedAt": "<generatedAt>",
+  "jobType": "equity",
+  "assetClass": "equity",
+  "symbol": "IFRSSA",
+  "depth": "deep",
+  "codeVersion": "<codeVersion>",
+  "reproducibility": {
+    "effectiveConfigHash": "<effectiveConfigHash>"
+  },
+  "modelInputSanitization": {
+    "entries": [
+      {
+        "provider": "yahoo-news",
+        "ingress": "news",
+        "profile": "news",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 44,
+        "outputChars": 44,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo-news",
+        "ingress": "news",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 12,
+        "outputChars": 12,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo",
+        "ingress": "market-snapshot",
+        "profile": "short-metadata",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 170,
+        "outputChars": 170,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "yahoo",
+        "ingress": "market-snapshot",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 48,
+        "outputChars": 48,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "instrument-identity",
+        "ingress": "instrument-identity",
+        "profile": "short-metadata",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 27,
+        "outputChars": 27,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "instrument-identity",
+        "ingress": "instrument-identity",
+        "profile": "short-metadata",
+        "fieldRole": "publisher",
+        "droppedItemCount": 0,
+        "inputChars": 8,
+        "outputChars": 8,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
+        "provider": "historical-artifact",
+        "ingress": "historical-context",
+        "profile": "legacy-history",
+        "fieldRole": "prose",
+        "droppedItemCount": 0,
+        "inputChars": 77,
+        "outputChars": 77,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      }
+    ]
+  },
+  "sourceTextResearchOnly": {
+    "scannedCount": 10,
+    "flaggedCount": 0,
+    "flaggedByKind": {},
+    "flaggedByProvider": {}
+  },
+  "sourceFunnel": {
+    "rawSnapshots": {
+      "total": 7,
+      "byAdapter": {
+        "yahoo-ticker": 1,
+        "yahoo-regime": 1,
+        "yahoo-news": 1,
+        "sec-tickers": 1,
+        "sec-companyfacts": 1,
+        "sec-submissions": 1,
+        "yahoo-verified-chart": 1
+      }
+    },
+    "reportSources": {
+      "total": 10,
+      "byKind": {
+        "market-data": 8,
+        "news": 1,
+        "extended-evidence": 1
+      },
+      "byProvider": {
+        "yahoo": 8,
+        "yahoo-news": 1,
+        "sec-edgar": 1
+      }
+    },
+    "sourceGaps": {
+      "total": 16,
+      "bySource": {
+        "marketaux-news": 1,
+        "finnhub-news": 1,
+        "sec-edgar": 2,
+        "finnhub-events": 1,
+        "finnhub-eps-estimate": 1,
+        "finnhub-revenue-estimate": 1,
+        "finnhub-ebitda-estimate": 1,
+        "finnhub-analyst-range": 1,
+        "finnhub-institutional-ownership": 1,
+        "finnhub-insider-transactions": 1,
+        "fred-macro": 1,
+        "tradier-options": 1,
+        "valuation-peers": 1,
+        "valuation": 1,
+        "business-framework": 1
+      }
+    },
+    "sourceGapsByCause": {
+      "missing-credential": 11,
+      "provider-data-missing": 2,
+      "unsupported-coverage": 2,
+      "unknown": 1
+    },
+    "dataGaps": {
+      "total": 18
+    }
+  },
+  "providerEndpointAvailability": {
+    "yahooQuote": {
+      "status": "available",
+      "evidence": ["yahoo-ticker"]
+    },
+    "yahooNews": {
+      "status": "available",
+      "evidence": ["yahoo-news"]
+    },
+    "secCompanyTickers": {
+      "status": "available",
+      "evidence": ["sec-tickers"]
+    },
+    "secCompanyFacts": {
+      "status": "available",
+      "evidence": ["sec-companyfacts"]
+    },
+    "secSubmissions": {
+      "status": "available",
+      "evidence": ["sec-submissions"]
+    },
+    "finnhubNews": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-news"],
+      "reason": "missing MARKET_BOT_FINNHUB_API_TOKEN"
+    },
+    "finnhubEvents": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-events"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set"
+    },
+    "finnhubEpsEstimate": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-eps-estimate"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint"
+    },
+    "finnhubRevenueEstimate": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-revenue-estimate"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint"
+    },
+    "finnhubEbitdaEstimate": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-ebitda-estimate"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint"
+    },
+    "finnhubPriceTarget": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-analyst-range"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint"
+    },
+    "finnhubInstitutionalOwnership": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-institutional-ownership"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub institutional ownership endpoint"
+    },
+    "finnhubInsiderTransactions": {
+      "status": "missing-credential",
+      "evidence": ["finnhub-insider-transactions"],
+      "reason": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub insider transactions endpoint"
+    },
+    "tradierOptions": {
+      "status": "missing-credential",
+      "evidence": ["tradier-options"],
+      "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+    },
+    "tradierEarningsImpliedMove": {
+      "status": "missing-credential",
+      "evidence": ["earnings-setup-implied-move", "tradier-options"],
+      "reason": "MARKET_BOT_TRADIER_API_TOKEN is not set"
+    },
+    "fredMacro": {
+      "status": "missing-credential",
+      "evidence": ["fred-macro"],
+      "reason": "MARKET_BOT_FRED_API_KEY is not set"
+    },
+    "marketauxNews": {
+      "status": "missing-credential",
+      "evidence": ["marketaux-news"],
+      "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+    }
+  },
+  "newsDedupe": {
+    "fetchedNewsSourcesByProvider": {
+      "marketaux": 0,
+      "finnhub": 0,
+      "yahoo-news": 1,
+      "massive": 0
+    },
+    "fetchedNewsSourceCount": 1,
+    "canonicalDedupedNewsSourceCount": 1,
+    "canonicalDuplicateNewsSourceCount": 0,
+    "persistentSuppressedNewsSourceCount": 0,
+    "relevantBeforeSeenFilterCount": 1,
+    "relevantSuppressedBySeenFilterCount": 0,
+    "relevantSelectedCount": 1,
+    "repeatFallbackKeptCount": 0,
+    "relevantRepeatKeptCount": 0,
+    "selectedNewsSourceCount": 1,
+    "selectedRelevantTickerNewsSourceCount": 1,
+    "selectedGenericTickerNewsSourceCount": 0,
+    "repeatFallbackUsed": false
+  },
+  "evidenceQuality": {
+    "label": "medium",
+    "assessment": {
+      "version": 1,
+      "rubricVersion": 2,
+      "label": "medium",
+      "checks": [
+        {
+          "capability": "market-data",
+          "evidenceClass": "core",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "supplemental-market",
+          "evidenceClass": "supplemental",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["supplemental-market: evidence missing or unusable"]
+        },
+        {
+          "capability": "news",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "fail",
+          "passed": false,
+          "reasons": ["news: corroboration check failed"]
+        },
+        {
+          "capability": "verified-price-history",
+          "evidenceClass": "core",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "regulatory-filings",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "fail",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["regulatory-filings: freshness check failed"]
+        },
+        {
+          "capability": "corporate-events",
+          "evidenceClass": "material",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["corporate-events: evidence missing or unusable"]
+        },
+        {
+          "capability": "macro-indicators",
+          "evidenceClass": "material",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["macro-indicators: evidence missing or unusable"]
+        },
+        {
+          "capability": "derivatives-volatility",
+          "evidenceClass": "supplemental",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["derivatives-volatility: evidence missing or unusable"]
+        },
+        {
+          "capability": "target-valuation",
+          "evidenceClass": "material",
+          "coverage": "pass",
+          "freshness": "pass",
+          "corroboration": "not-applicable",
+          "passed": true,
+          "reasons": []
+        },
+        {
+          "capability": "peer-valuation",
+          "evidenceClass": "supplemental",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["peer-valuation: evidence missing or unusable"]
+        },
+        {
+          "capability": "subject-profile",
+          "evidenceClass": "supplemental",
+          "coverage": "fail",
+          "freshness": "not-applicable",
+          "corroboration": "not-applicable",
+          "passed": false,
+          "reasons": ["subject-profile: evidence missing or unusable"]
+        }
+      ],
+      "limitingReasons": [
+        "news: corroboration check failed",
+        "regulatory-filings: freshness check failed",
+        "corporate-events: evidence missing or unusable",
+        "macro-indicators: evidence missing or unusable"
+      ]
+    },
+    "dataGapCount": 18,
+    "extendedEvidence": {
+      "itemCount": 5,
+      "gapCount": 14,
+      "itemsByCategory": {
+        "sec-edgar": 1,
+        "valuation": 1,
+        "yahoo-fundamentals": 1,
+        "financial-lens": 1,
+        "business-framework": 1
+      },
+      "gapsBySource": {
+        "sec-edgar": 2,
+        "finnhub-events": 1,
+        "finnhub-eps-estimate": 1,
+        "finnhub-revenue-estimate": 1,
+        "finnhub-ebitda-estimate": 1,
+        "finnhub-analyst-range": 1,
+        "finnhub-institutional-ownership": 1,
+        "finnhub-insider-transactions": 1,
+        "fred-macro": 1,
+        "tradier-options": 1,
+        "valuation-peers": 1,
+        "valuation": 1,
+        "business-framework": 1
+      }
+    },
+    "marketContext": {
+      "itemCount": 0,
+      "gapCount": 0,
+      "itemsByCategory": {},
+      "gapsBySource": {}
+    },
+    "evidenceRequestLoop": {
+      "rounds": 0,
+      "acceptedRequestCount": 0,
+      "rejectedRequestCount": 0,
+      "sourceUnitsUsed": 0,
+      "executedTools": [],
+      "emittedGapCount": 1
+    }
+  },
+  "predictions": {
+    "count": 0,
+    "retryErrorCount": 0,
+    "validationErrorCount": 0,
+    "trimWarningCount": 0,
+    "completion": {
+      "attempted": true,
+      "initialCount": 0,
+      "acceptedCount": 0,
+      "rejectedCount": 0,
+      "outcome": "no-candidates-returned"
+    },
+    "replacementAttempted": false,
+    "byKind": {},
+    "horizonTradingDays": {},
+    "citedCount": 0,
+    "uncitedCount": 0,
+    "targetCount": 5,
+    "targetMet": false,
+    "shortfall": {
+      "emittedCount": 0,
+      "targetCount": 5,
+      "missingCount": 5
+    },
+    "nearBaseRateCount": 0,
+    "informativeCount": 0,
+    "signalTargetMet": true,
+    "mixWarnings": []
+  },
+  "earningsForecasts": {
+    "eventDateStatus": "not-present",
+    "policy": "confirmed-only",
+    "grammarEligible": false,
+    "eligiblePredictionCount": 0,
+    "suppressedPredictionCount": 0,
+    "suppressionReason": "earnings-setup-not-present"
+  },
+  "reportIntegrity": {
+    "label": "high",
+    "researchQuality": "medium",
+    "prunedItemCount": 0,
+    "advisoryWarningCount": 0
+  },
+  "sourcePlan": {
+    "plannedLaneCount": 11,
+    "coreLaneCount": 2,
+    "materialLaneCount": 5,
+    "supplementalLaneCount": 4
+  },
+  "evidenceLanes": {
+    "coveredLaneCount": 5,
+    "gapLaneCount": 6,
+    "coreGapLaneCount": 0,
+    "materialGapLaneCount": 2,
+    "sourceCount": 12,
+    "gapCount": 11,
+    "coverageRatio": 0.45454545454545453
+  },
+  "calibrationAtGeneration": {
+    "generatedAt": "<generatedAt>",
+    "resolvedCount": 0,
+    "guidanceAssessments": [
+      {
+        "dimension": "assetClass",
+        "key": "equity",
+        "actionable": false,
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
+      },
+      {
+        "dimension": "jobType",
+        "key": "equity",
+        "actionable": false,
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
+      },
+      {
+        "dimension": "predictionHorizon",
+        "key": "2-5d",
+        "actionable": false,
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
+      },
+      {
+        "dimension": "marketRegime",
+        "key": "risk-on",
+        "actionable": false,
+        "reason": "slice-unavailable",
+        "populationStatus": "empty-dimension"
+      }
+    ]
+  },
+  "verifiedMarketSnapshot": {
+    "symbol": "IFRSSA",
+    "analysisDate": "2026-06-15",
+    "latestSessionDate": "2026-05-01",
+    "fetchedAt": "2026-06-15T14:30:00.000Z",
+    "latestSessionAgeDays": 45
+  },
+  "runShape": {
+    "traceStages": [
+      "source-collection",
+      "playbook-selection",
+      "specialist-analysis",
+      "instrument-evidence-analysis",
+      "market-behavior-analysis",
+      "critique",
+      "final-synthesis",
+      "final-synthesis"
+    ],
+    "stages": [
+      {
+        "stage": "playbook-selection",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>"
+      },
+      {
+        "stage": "specialist-analysis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>"
+      },
+      {
+        "stage": "instrument-evidence-analysis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>"
+      },
+      {
+        "stage": "market-behavior-analysis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>"
+      },
+      {
+        "stage": "critique",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>"
+      },
+      {
+        "stage": "final-synthesis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "attempt": 1
+      },
+      {
+        "stage": "final-synthesis",
+        "tokenEstimate": "<tokenEstimate>",
+        "durationMs": "<durationMs>",
+        "attempt": 2,
+        "repromptReason": {
+          "predictionCompletion": {
+            "requestedCount": 5,
+            "existingPredictions": []
+          }
+        }
+      }
+    ],
+    "tokenEstimate": "<tokenEstimate>",
+    "durationMs": 0
+  }
+}

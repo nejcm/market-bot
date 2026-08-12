@@ -4,6 +4,7 @@ import type {
   ExtendedEvidenceItem,
   Source,
   SourceGap,
+  SourceGapAttempts,
   SubjectKind,
   WebGatherFallbackAudit,
   WebGatherSanitizerAudit,
@@ -52,6 +53,7 @@ export interface WebGatherToolOutput {
   readonly failedExaRequest?: {
     readonly reason: string;
     readonly cause: "fetch-failed" | "circuit-open";
+    readonly attempts?: SourceGapAttempts;
   };
 }
 

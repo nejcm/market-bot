@@ -2,7 +2,12 @@
 // Dependency-layer consumers that cannot load the phase use the public ./contract leaf.
 // Everything else is internal. Additions to either surface are explicit.
 export { runWebEvidencePhase } from "./web-evidence-phase";
-export { computeWebSourceUsage, type WebSourceUsage } from "./web-source-usage";
+export {
+  buildWebEvidenceUtilization,
+  classifyWebEvidenceUtilization,
+  computeWebSourceUsage,
+  type WebSourceUsage,
+} from "./web-source-usage";
 // The Web Subject Profile contract exposes artifact types and question-key constants.
 // Prompt builders and other profile consumers use the behavior exports below.
 export {

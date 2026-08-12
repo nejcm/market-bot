@@ -452,12 +452,63 @@ describe("runScorePass Observation scoring", () => {
         scoreOutcome: "miss",
         probability: 0.8,
         forecastError: "overpredicted",
-        cause: "source_gap",
+        cause: "model_overconfidence",
         rationale:
-          "Material forecast error with disclosed provider or source coverage gaps at forecast time.",
-        supportingSignals: ["forecast-time report disclosed provider/source evidence gaps"],
+          "Material forecast error where the stated probability was extreme relative to the resolved event.",
+        supportingSignals: ["forecast probability was extreme relative to the resolved event"],
         evidence: { close0: 100, closeN: 95 },
       },
+    ]);
+  });
+
+  test("writes a source_gap autopsy for a miss with a gap in its cited source lane", async () => {
+    const sourceId = "extended-finnhub-events-spy";
+    const runDir = await writeRun(
+      "run-source-gap",
+      report(
+        [
+          {
+            id: "pred-source-gap",
+            claim: "SPY closes higher over 2 trading days.",
+            kind: "direction",
+            subject: "SPY",
+            measurableAs: "close(SPY, +2) > close(SPY, 0)",
+            horizonTradingDays: 2,
+            probability: 0.65,
+            sourceIds: [sourceId],
+          },
+        ],
+        {
+          dataGaps: ["finnhub-events-2: endpoint unavailable"],
+          sources: [
+            {
+              id: sourceId,
+              title: "Finnhub SPY events",
+              fetchedAt: "2026-05-01T00:00:00.000Z",
+              kind: "extended-evidence",
+              provider: "finnhub",
+              symbol: "SPY",
+            },
+          ],
+        },
+      ),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-05-04", value: 100 },
+        { subject, date: "2026-05-05", value: 99 },
+        { subject, date: "2026-05-06", value: 95 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-08T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies).toMatchObject([
+      { predictionId: "pred-source-gap", cause: "source_gap" },
     ]);
   });
 

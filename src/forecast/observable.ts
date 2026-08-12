@@ -981,20 +981,39 @@ function resolveCandidate(
   };
 }
 
+// A relative forecast's canonical subject is the "primary:benchmark" pair, but models routinely
+// Write the bare primary ticker. The projection below finds the relative expression a bare subject
+// Could name — the expression itself for kind `relative`, or the consequent for a `conditional`
+// That wraps one, since a conditional's subject is defined by its consequent (conditionalShape).
+// Both cases are the same authoring slip and normalize identically. A subject that already carries
+// A colon, or that does not match the relative primary, is returned untouched so validateProjection
+// Still rejects a genuine field mismatch.
+function relativeExpressionForSubject(
+  kind: PredictionKind,
+  expression: ObservableExpression,
+): Extract<ObservableExpression, { readonly kind: "relative" }> | undefined {
+  if (kind === "relative" && expression.kind === "relative") {
+    return expression;
+  }
+  if (kind === "conditional" && expression.kind === "conditional") {
+    const { consequent } = expression;
+    return consequent.kind === "relative" ? consequent : undefined;
+  }
+  return undefined;
+}
+
 function normalizePredictionSubject(
   kind: PredictionKind,
   subject: string,
   expression: ObservableExpression,
 ): string {
-  if (
-    kind === "relative" &&
-    expression.kind === "relative" &&
-    !subject.includes(":") &&
-    subject === expression.subjectA
-  ) {
-    return subjectForExpression(expression);
+  if (subject.includes(":")) {
+    return subject;
   }
-  return subject;
+  const relative = relativeExpressionForSubject(kind, expression);
+  return relative !== undefined && subject === relative.subjectA
+    ? subjectForExpression(expression)
+    : subject;
 }
 
 // Minimum trading-day gap between two accepted same-subject `direction` forecasts.
@@ -1002,11 +1021,26 @@ function normalizePredictionSubject(
 // Collapsing them frees prediction slots for genuinely distinct claims.
 export const MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS = 2;
 
-// Broad US index benchmarks that share one redundancy class: a relative forecast against
-// Any of these restates the same market-beta view, so only one per primary subject and exact
-// Horizon is accepted. Exported so completion/repair prompt steering names the same members and
-// Class the validator enforces below (see relativeBenchmarkKey / redundancyKey).
-export const BROAD_US_INDEX_BENCHMARK_SYMBOLS = ["SPY", "QQQ", "DIA", "IVV", "VOO"] as const;
+// Reports display probabilities to two decimals; 0.005 is half that displayed 0.01 precision,
+// So smaller differences are below reader-visible resolution.
+export const RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON = 0.005;
+
+// Benchmarks qualify when they proxy the US equity market or its dominant large-cap/mega-cap beta,
+// Including concentrated large-cap indexes; small- and mid-cap-specific benchmarks are excluded.
+// A relative forecast against any member restates the same broad-market beta view, so only one per
+// Primary subject and exact horizon is accepted. Exported so completion/repair prompt steering names
+// The same members and class the validator enforces below (see relativeBenchmarkKey / redundancyKey).
+export const BROAD_US_INDEX_BENCHMARK_SYMBOLS = [
+  "SPY",
+  "QQQ",
+  "DIA",
+  "IVV",
+  "VOO",
+  "VTI",
+  "ITOT",
+  "IWB",
+  "SCHB",
+] as const;
 export const BROAD_US_INDEX_BENCHMARKS: ReadonlySet<string> = new Set(
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
 );
@@ -1213,6 +1247,28 @@ function rejectRedundantForecasts(forecasts: readonly ObservableForecast[]): {
           ),
         );
         continue;
+      }
+      if (prediction.kind === "relative" && forecast.expression.kind === "relative") {
+        const relativeExpression = forecast.expression;
+        const acceptedRelative = accepted.find(
+          (candidate) =>
+            candidate.prediction.kind === prediction.kind &&
+            candidate.expression.kind === "relative" &&
+            candidate.expression.subjectA === relativeExpression.subjectA &&
+            candidate.horizonTradingDays === horizonTradingDays &&
+            Math.abs(candidate.prediction.probability - prediction.probability) <=
+              RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
+        );
+        if (acceptedRelative?.expression.kind === "relative") {
+          issues.push(
+            issue(
+              "redundant-prediction",
+              `Prediction ${prediction.id}: redundant relative forecast for ${relativeExpression.subjectA} at ${String(horizonTradingDays)} trading days; benchmarks ${acceptedRelative.expression.subjectB} and ${relativeExpression.subjectB} use the same probability within tolerance (${String(acceptedRelative.prediction.probability)} and ${String(prediction.probability)}; epsilon ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)})`,
+              prediction.id,
+            ),
+          );
+          continue;
+        }
       }
       kindSubjectHorizonSeen.add(key);
     }

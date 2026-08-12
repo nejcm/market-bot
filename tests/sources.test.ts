@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { EQUITY_REGIME_SYMBOLS } from "../src/domain/regime-symbols";
 import { normalizeCoinGeckoMarketsPayload } from "../src/sources/coingecko";
@@ -17,11 +18,14 @@ import {
   normalizeMassiveSnapshotPayload,
 } from "../src/sources/massive";
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
-import { normalizeTitle } from "../src/sources/news-utils";
+import { normalizeTitle, recencyDays } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
 import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { sourceGap } from "../src/domain/source-gaps";
 import { collectFinnhubEvents } from "../src/sources/extended-evidence/finnhub-events";
+import { forPrompt } from "../src/research/verified-snapshot-contract";
 import { normalizeYahooQuotePayload, yahooMarketDataAdapter } from "../src/sources/yahoo";
 import { yahooNewsAdapter } from "../src/sources/yahoo-news";
 import type {
@@ -31,8 +35,33 @@ import type {
   SourceRequestExecutor,
 } from "../src/sources/types";
 import type { MarketSnapshot } from "../src/domain/types";
+import { readGoldenOutput } from "./support/run-fixtures/artifacts";
+
+interface GoldenEvidenceBundle {
+  readonly normalized: {
+    readonly "evidence-bundle.json": {
+      readonly evidence: {
+        readonly marketSnapshots: readonly MarketSnapshot[];
+      };
+    };
+  };
+}
 
 const fetchedAt = "2026-05-19T00:00:00.000Z";
+
+test("keeps one- and five-day market news on the short recency window", () => {
+  expect(
+    [1, 5, 10].map((horizonTradingDays) =>
+      recencyDays({
+        jobType: "market-overview",
+        assetClass: "equity",
+        depth: "brief",
+        horizonTradingDays,
+      }),
+    ),
+  ).toEqual([3, 3, 10]);
+});
+
 async function unexpectedTextFetch(): Promise<never> {
   throw new Error("unexpected text fetch");
 }
@@ -137,6 +166,31 @@ function secCompanyFactsPayload(): unknown {
             shares: [secFact(10, { fy: 2025, filed: "2025-07-30", end: "2025-06-29" }), secFact(9)],
           },
         },
+      },
+    },
+  };
+}
+
+function fpiAnnualFact(val: number, instant = false): Record<string, number | string> {
+  return {
+    val,
+    form: "20-F",
+    fp: "FY",
+    fy: 2025,
+    filed: "2026-04-30",
+    ...(!instant ? { start: "2025-01-01" } : {}),
+    end: "2025-12-31",
+    accn: "0001104659-26-052948",
+  };
+}
+
+function fpiCompanyFactsPayload(): unknown {
+  return {
+    facts: {
+      "ifrs-full": {
+        Revenue: { units: { USD: [fpiAnnualFact(529_800_000)] } },
+        CashAndCashEquivalents: { units: { USD: [fpiAnnualFact(3_678_100_000, true)] } },
+        Borrowings: { units: { USD: [fpiAnnualFact(4_103_200_000, true)] } },
       },
     },
   };
@@ -303,6 +357,83 @@ describe("source normalization", () => {
       sharesOutstanding: 14_687_356_000,
       trailingAnnualDividendRate: 1.04,
     });
+  });
+
+  test("derives quoteTimeUtc from regularMarketTime in the committed NBIS cassette", async () => {
+    // This test drives the real captured Yahoo body instead of a hand-built object.
+    // This guards against passing with an input shape that the provider never returns.
+    const cassette = (await Bun.file(
+      join(import.meta.dir, "fixtures", "runs", "equity-nbis-deep", "data-cassette.json"),
+    ).json()) as { readonly entries: Record<string, { readonly body: string }> };
+    const body =
+      cassette.entries["GET  https://query1.finance.yahoo.com/v7/finance/quote?symbols=NBIS"]?.body;
+    expect(body).toBeDefined();
+
+    const [snapshot] = normalizeYahooQuotePayload(JSON.parse(body!), "equity", fetchedAt);
+
+    // The captured body carries regularMarketTime as 1784736964 epoch seconds.
+    expect(snapshot?.quoteTimeUtc).toBe("2026-07-22T16:16:04.000Z");
+    // The quote's own time must not collapse onto the fetch time; that collapse is the bug.
+    expect(snapshot?.observedAt).toBe(fetchedAt);
+    expect(snapshot?.quoteTimeUtc).not.toBe(snapshot?.observedAt);
+  });
+
+  test("preserves sanitized snapshot bytes while stripping quoteTimeUtc for prompts", async () => {
+    const golden = (await readGoldenOutput("equity-nbis-deep")) as unknown as GoldenEvidenceBundle;
+    const [snapshot] = golden.normalized["evidence-bundle.json"].evidence.marketSnapshots;
+    expect(snapshot).toBeDefined();
+
+    const expected = Object.fromEntries(
+      Object.entries(snapshot!).filter(([key]) => key !== "quoteTimeUtc"),
+    );
+    const [projected] = forPrompt([snapshot!]);
+
+    expect(JSON.stringify(projected)).toBe(JSON.stringify(expected));
+    expect(projected).not.toHaveProperty("benchmark");
+  });
+
+  test("omits quoteTimeUtc when the Yahoo quote carries no regularMarketTime", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              regularMarketPrice: 298.01,
+              regularMarketChangePercent: 0.3,
+              regularMarketVolume: 40_000_000,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot).not.toHaveProperty("quoteTimeUtc");
+    expect(snapshot?.observedAt).toBe(fetchedAt);
+  });
+
+  test("omits quoteTimeUtc when regularMarketTime is outside the Date range", () => {
+    const [snapshot] = normalizeYahooQuotePayload(
+      {
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AAPL",
+              regularMarketPrice: 298.01,
+              regularMarketChangePercent: 0.3,
+              regularMarketVolume: 40_000_000,
+              regularMarketTime: Number.MAX_VALUE,
+            },
+          ],
+        },
+      },
+      "equity",
+      fetchedAt,
+    );
+
+    expect(snapshot).not.toHaveProperty("quoteTimeUtc");
   });
 
   test("omits fundamentals when the Yahoo quote carries no fundamental fields (Massive fallback)", () => {
@@ -1839,6 +1970,63 @@ describe("extended evidence provider collection", () => {
     expect(
       result.sources.find((source) => source.id === "extended-sec-edgar-aapl-filings")?.url,
     ).toBe("https://data.sec.gov/submissions/CIK0000320193.json");
+  });
+
+  test("retains target SIC when FPI submissions resolve without legacy facts metrics", async () => {
+    const factsPayload = fpiCompanyFactsPayload();
+    const submissionsPayload = {
+      sic: "7370",
+      sicDescription: "Services-Computer Programming, Data Processing, Etc.",
+      filings: {
+        recent: {
+          form: ["20-F", "6-K"],
+          filingDate: ["2026-04-30", "2026-03-31"],
+        },
+      },
+    };
+    const result = await collectSec(
+      collectContext({
+        command: { jobType: "equity", assetClass: "equity", symbol: "nbis", depth: "brief" },
+        secUserAgent: "market-bot test@example.test",
+        request: requestExecutor({
+          json: async ({ adapter }) => {
+            if (adapter === "sec-tickers") {
+              return rawJson(adapter, {
+                "0": { cik_str: 1_513_845, ticker: "NBIS", title: "Nebius Group N.V." },
+              });
+            }
+            if (adapter === "sec-submissions") {
+              return rawJson(adapter, submissionsPayload);
+            }
+            if (adapter === "sec-companyfacts") {
+              return rawJson(adapter, factsPayload);
+            }
+            throw new Error(`unexpected adapter ${adapter}`);
+          },
+        }),
+      }),
+    );
+
+    expect(result.items).toEqual([]);
+    expect(result.sicClassification).toEqual({
+      sic: "7370",
+      sicDescription: "Services-Computer Programming, Data Processing, Etc.",
+    });
+    const artifact = deriveFinancialStatements(factsPayload, {
+      symbol: "NBIS",
+      generatedAt: fetchedAt,
+      analysisAsOf: fetchedAt,
+      sourceId: "extended-sec-edgar-nbis-fundamentals",
+      submissionsPayload,
+      submissionsSourceId: "extended-sec-edgar-nbis-filings",
+    });
+    const canonical = withCanonicalFinancialLensInputs(
+      { instrument: { symbol: "NBIS", assetClass: "equity" }, items: [], gaps: [] },
+      artifact,
+      result.sicClassification,
+    );
+    expect(canonical.items).toHaveLength(1);
+    expect(canonical.items[0]?.metrics).toMatchObject({ sic: "7370" });
   });
 
   test("collectSec tags target SEC gaps with the upper-cased target symbol", async () => {

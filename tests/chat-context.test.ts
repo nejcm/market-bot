@@ -93,6 +93,7 @@ describe("buildRunChatContext", () => {
           },
         ],
         sources: [{ id: "src-1", title: "Yahoo Finance", kind: "market-data" }],
+        predictionShortfall: { emittedCount: 1, targetCount: 3, missingCount: 2 },
         dataGaps: ["Missing crypto volume data"],
       },
     });
@@ -105,6 +106,7 @@ describe("buildRunChatContext", () => {
     expect(context).toContain("close(SPY, +5) > close(SPY, 0)");
     expect(context).toContain("src-1: Yahoo Finance [market-data]");
     expect(context).toContain("Missing crypto volume data");
+    expect(context).toContain("emitted 1 of 3 target predictions; evidence did not support more");
   });
 
   test("includes verified market snapshot when present", () => {

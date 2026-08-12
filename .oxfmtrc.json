@@ -1,4 +1,11 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["node_modules/**", "coverage/**", "research/**", "plans/**"]
+  "ignorePatterns": [
+    "node_modules/**",
+    "coverage/**",
+    "research/**",
+    "plans/**",
+    "tests/fixtures/runs/**/golden-output/report.md",
+    "tests/fixtures/untagged-financial-corpus/raw/**"
+  ]
 }

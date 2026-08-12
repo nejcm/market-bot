@@ -95,11 +95,11 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       "final-synthesis",
     ]);
     expect(retryPrompt.reportValidationErrors).toContain(
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID; bullCase[0] must reference at least one source ID; bearCase[0] must reference at least one source ID; risks[0] must reference at least one source ID; catalysts[0] must reference at least one source ID; scenarios[0] must reference at least one source ID",
     );
     expect(retryPrompt.allowedSourceIds).toEqual(["market-aapl", "news-equity-1"]);
     expect(result.trace.reportValidationRetryErrors).toEqual([
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID; bullCase[0] must reference at least one source ID; bearCase[0] must reference at least one source ID; risks[0] must reference at least one source ID; catalysts[0] must reference at least one source ID; scenarios[0] must reference at least one source ID",
     ]);
   });
 
@@ -195,7 +195,9 @@ describe("runResearchJob synthesis retry and source gaps", () => {
         }),
         now: new Date("2026-05-19T00:00:00.000Z"),
       }),
-    ).rejects.toThrow(/Report failed validation after 2 repair reprompt\(s\)/u);
+    ).rejects.toThrow(
+      /Report failed validation after 4 final-synthesis call\(s\) \(3 report-repair reprompt\(s\)\)/u,
+    );
     // Initial synthesis + one report-validation reprompt + two bounded repair reprompts.
     expect(finalCalls).toBe(4);
   });
@@ -395,7 +397,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     expect(finalPrompts).toHaveLength(4);
     expect(reportRetryPrompt.reportValidationErrors).toContain(
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID",
     );
     expect(reportRetryPrompt.predictionRepromptErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",
@@ -514,7 +516,8 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     // The exact-context duplicate is deduped and the nested grossProfit gap is folded into
     // The wider grossProfit, capex gap, leaving a single consolidated sec-edgar gap.
-    expect(result.collectedSources.sourceGaps).toEqual([overlappingGap]);
+    // Missing statement sourcing still blocks completeness, but does not establish issuer staleness.
+    expect(result.collectedSources.sourceGaps).toEqual([{ ...overlappingGap, triage: "material" }]);
     expect(result.collectedSources.extendedEvidence?.gaps).toEqual([overlappingGap]);
     expect(result.collectedSources.marketContext?.gaps).toEqual([macroContextGap]);
     expect(regulatoryLane?.gapText).toEqual([
@@ -623,7 +626,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
 
     expect(finalPrompts).toHaveLength(3);
     expect(combinedRetryPrompt.reportValidationErrors).toContain(
-      "Major findings must reference source IDs",
+      "keyFindings[0] must reference at least one source ID",
     );
     expect(combinedRetryPrompt.predictionRepromptErrors).toContain(
       "Prediction bad-relative: subject does not match measurableAs",

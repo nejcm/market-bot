@@ -8,7 +8,9 @@ Accepted
 
 2026-06-30 (amended 2026-07-07: per-stage duration telemetry and distilled completion context;
 amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
-incremental Run Chat provider streaming)
+incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping;
+amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit;
+amended 2026-08-02: untagged extractor evaluation and production execution policy)
 
 ## Context
 
@@ -41,6 +43,17 @@ research boundaries without sharing persistence or scoring semantics.
   Prior-stage output stays structurally nested and is not rewritten.
 - Final synthesis produces the candidate report. Deterministic assembly and validation remain the
   authority over report shape, prediction acceptance, Evidence Quality, and research-only language.
+- Deterministic assembly relocates uncited gap-shaped narrative findings and projected Business
+  Framework section text that remains uncited after deterministic source-ID fallback into
+  `dataGaps` instead of asking the model to invent citations. The trace records every relocation
+  with its original field path and text.
+- Source-ID validation aggregates path-aware violations across the five findings sections,
+  scenarios, equity-analysis completeness, and rendered extras into one error. It exposes the first
+  twelve violations and appends `(+N more)` when additional violations exist.
+- Final-synthesis repair reprompts carry the accumulated, path-aware report-validation error set,
+  bounded to the twelve most recent distinct errors. Retry failure messages report the actual
+  final-synthesis call count and count only genuine report-repair call sites as report-repair
+  reprompts.
 - When high- or medium-evidence synthesis leaves the report short of its prediction target, one
   best-effort completion pass may add predictions only. It is prompted with a distilled context —
   the first-attempt report narrative, the critique stage output, and a compact source index
@@ -50,9 +63,15 @@ research boundaries without sharing persistence or scoring semantics.
   prior-stage transcript. The allowed source-ID list stays the citation authority, so the scoped
   context never invalidates a cite, and deterministic merge and validation remain the authority over
   accepted candidates.
-- The post-synthesis audit records unsupported numeric/technical claims and evidence-posture
-  omissions as warning telemetry. It does not remove claims, lower Evidence Quality, or fail a
-  run.
+- Gap-shaped claim detection is consumer-specific. Relocation uses the broader
+  `isGapShapedClaimForRelocation` predicate; the observational audit uses the stricter
+  `isGapShapedClaimForAuditWarning` predicate. They are not interchangeable: relocation favors
+  recall because an uncited false negative remains validation-fatal, while the warning favors
+  precision because it has no enforcement effect.
+- The post-synthesis audit records unsupported numeric/technical claims, evidence-posture
+  omissions, and cited gap-shaped claims (`gap-shaped-claim-cited`) as warning telemetry. No gate
+  or threshold reads these warnings; the audit does not remove claims, lower Evidence Quality, or
+  fail a run.
 - After schema-valid synthesis and before forecast disagreement, the deterministic Report
   Integrity Audit prunes blocking violations: numeric or technical findings, scenarios, and
   predictions without an eligible supporting source (structural eligibility only — no
@@ -123,12 +142,50 @@ research boundaries without sharing persistence or scoring semantics.
 - Web findings are ephemeral conversational context: not persisted Sources, not inputs to Evidence
   Quality or predictions, and cited inline by URL/title when used.
 
+### Untagged 6-K financial-table mapping
+
+- Untagged SEC HTML financial exhibits are untrusted source documents. Code converts them to a
+  bounded, sha256-addressed table packet with table, row, column, header, unit, and source
+  locators before any model call. Image-only, HTML-of-image, inaccessible PDF, oversized, and
+  irreducibly ambiguous layouts remain unsupported.
+- The `financial-table-mapping` quick-model stage may return only allowlisted semantic fields and
+  references to packet cells. It has no authority to provide numeric values, periods, currency,
+  scale, signs, calculations, confidence, or corrections. Split parenthesis signs and inherited
+  page-continuation headers are represented only by existing packet cell references.
+- Code re-reads every referenced source cell. Strict parsing rejects missing or cross-table
+  references (except packet-declared inherited headers), label/value row or period/value column
+  mismatches, ambiguous numbers or split signs, unresolved periods, unsupported or ambiguous
+  multi-currency units, mixed currencies, and duplicate field-period or value-cell mappings. Code
+  then enforces `assets = liabilities + equity` and every available cash reconciliation, including
+  both pre- and post-foreign-exchange net-change presentations.
+- Only a fully validated current income statement, balance sheet, and cash-flow statement receives
+  `model-validated-table` values. Rejected and partial results retain validation issues and Source
+  Gaps; source evidence is never reclassified to improve coverage.
+- Admission was evaluated on corpus version 1: ten public FPI exhibits, five layout families,
+  eight supported full-statement HTML cases, seven accepted (87.5%), one genuine
+  insufficient-coverage exhibit measured separately, and one image-only exhibit measured as
+  unsupported. PDD's plural-titled cash-flow statement is included as an accepted supported case.
+  The corrected validator recorded zero silently accepted wrong values and zero source-cell
+  mismatches. A fresh SEC fetch of the NBIS exhibit was byte-identical to the fixture and produced
+  the same 14 accepted cell mappings.
+- Passing this evaluation authorizes the extraction subsystem but does not make its facts canonical
+  financial evidence. Immutable evaluation metadata records the corpus result independently from
+  the production execution policy. Production execution is disabled: after the canonical
+  `untagged-6-k` gap is detected, the workflow emits the material gated Source Gap before exhibit
+  discovery, HTTP fetches, packet construction, or model mapping, and emits no extraction sidecar.
+  Tests and evaluation tooling may explicitly enable execution to exercise the existing bounded
+  discovery, mapping, deterministic reread, validation, and optional sidecar flow. Canonical
+  admission remains a separate future decision that must define merge, precedence, completeness,
+  and history semantics.
+
 ## Current operational limitations
 
 - Non-Codex providers do not expose Run Chat live search.
 - Same-origin localhost protection is not authentication if the console is exposed.
 - Chat may disclose selected artifacts and user content to the configured provider and can incur
   paid model or web-search usage.
+- Model mapping quality outside the checked-in HTML-table layout families is unknown. Unsupported
+  images and PDFs require a separate architectural decision and evaluation corpus.
 
 ## Consequences
 
@@ -146,6 +203,9 @@ research boundaries without sharing persistence or scoring semantics.
 - Alpha discovery can be evaluated later without presenting candidates as recommendations.
 - Run Chat streams provider text deltas without becoming reproducible or durable Run Artifact
   state; operators disable chat or web search when disclosure or cost is unacceptable.
+- Untagged table extraction is auditable and fixture-replayable, while deterministic code remains
+  the numeric authority. Passing its corpus gate does not silently widen financial-core
+  completeness.
 
 ## Implementation validation
 
@@ -161,3 +221,10 @@ research boundaries without sharing persistence or scoring semantics.
   `feature-attribution.ts`, and `cohorts.ts` implement alpha-search and later evaluation.
 - `app/chat.ts`, `app/client/components/run-chat.svelte`, `run-chat-storage.ts`, and
   `src/model/codex.ts` implement Run Chat and gated live search.
+- `src/sources/extended-evidence/untagged-financial-table-packet.ts`,
+  `untagged-financial-table-validation.ts`, `untagged-financial-exhibit.ts`, and
+  `untagged-financial-extraction-policy.ts` implement bounded discovery, source-cell parsing,
+  accounting validation, and the evaluation/production execution split.
+- `prompts/financial-table-mapping/base.md` defines the constrained model authority;
+  `tests/fixtures/untagged-financial-corpus/` and `scripts/evaluate-untagged-financial-corpus.ts`
+  record and enforce the extractor evaluation corpus.

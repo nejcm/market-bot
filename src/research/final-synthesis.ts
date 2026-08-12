@@ -1,19 +1,26 @@
 import type { ResearchCommand } from "../cli/args";
 import {
   NEAR_BASE_RATE_BAND,
+  type EquityAnalysisCompleteness,
   type Prediction,
   type PredictionCompletionAudit,
+  type RelocatedGapClaim,
   type ResearchReport,
   type Source,
+  type SourceGap,
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
+import {
+  applyEarningsForecastPolicy,
+  readEarningsForecastTelemetry,
+} from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import type { PredictionCompletionPrompt } from "./prompts";
 import type { ResearchContext } from "./research-context-types";
 import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
-  assembleResearchReport,
+  assembleResearchReportWithRelocations,
   parseModelPayload,
   readPredictions,
   type ModelReportPayload,
@@ -24,11 +31,15 @@ export interface StageReprompt {
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
   readonly predictionCompletion?: PredictionCompletionPrompt;
+  /** Predictions from the attempt being repaired that already validated. A repair reprompt
+   *  regenerates the whole report from a stateless call, so without this the model never sees the
+   *  predictions it is supposed to keep and silently returns fewer than it started with. */
+  readonly retainedPredictions?: readonly Prediction[];
 }
 
 export type StageRepromptReason = Omit<
   StageReprompt,
-  "allowedSourceIds" | "predictionCompletion"
+  "allowedSourceIds" | "predictionCompletion" | "retainedPredictions"
 > & {
   readonly predictionCompletion?: Pick<
     PredictionCompletionPrompt,
@@ -54,12 +65,48 @@ interface FinalSynthesisState {
   readonly output: StageOutput;
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
+  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 interface SynthesisProgress {
   readonly state: FinalSynthesisState;
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
+  /** Best validated prediction set seen so far in this run's repair chain. Retaining the previous
+   *  attempt alone lets a chain ratchet downward: if a repair returns fewer predictions despite the
+   *  survivor guidance, the next repair would anchor to the shrunken set and the loss compounds. */
+  readonly retainedPredictions: readonly Prediction[];
+}
+
+// Survivor guidance tells the model to re-emit a forecast unchanged, so it must only ever name
+// Forecasts that can actually persist. ReadPredictions validates the observable grammar, but
+// AssembleResearchReport applies deterministic report-level policy on top and can still drop one:
+// An earnings forecast for a provider-estimated event is removed by applyEarningsForecastPolicy.
+// Reuse that policy here — with the same "confirmed-only" argument report assembly passes — rather
+// Than restating it, so the guidance and assembly cannot disagree about what survives.
+function retainablePredictions(
+  input: SynthesizeReportUntilValidInput,
+  state: FinalSynthesisState,
+): readonly Prediction[] {
+  return applyEarningsForecastPolicy({
+    predictions: state.predResult.predictions,
+    setup: input.collectedSources.earningsSetup,
+    policy: "confirmed-only",
+  }).predictions;
+}
+
+// Best-so-far is the largest set, not the union of every attempt. Each candidate here is a whole
+// Set that already passed readPredictions, so it is validated *and* post-trim: taking one wholesale
+// Cannot admit an invalid prediction, and cannot resurrect a near-duplicate that
+// RejectRedundantForecasts deliberately dropped. A union would carry both risks and would need
+// Re-validation to undo them. Ties prefer the newer set, which reflects the latest repair feedback.
+function bestRetainedPredictions(
+  input: SynthesizeReportUntilValidInput,
+  previous: readonly Prediction[],
+  state: FinalSynthesisState,
+): readonly Prediction[] {
+  const candidate = retainablePredictions(input, state);
+  return candidate.length >= previous.length ? candidate : previous;
 }
 
 export interface SynthesizeReportUntilValidInput {
@@ -70,6 +117,8 @@ export interface SynthesizeReportUntilValidInput {
   readonly context: ResearchContext;
   readonly sources: readonly Source[];
   readonly knownSourceIds: ReadonlySet<string>;
+  /** Derived once by the orchestrator, before the canonical source-gap boundary. */
+  readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
   /** Subjects the model is allowed to forecast for this run type.
    *  Undefined for research runs — `researchPredictionGate` is the authority there. */
   readonly allowedSubjects?: ReadonlySet<string>;
@@ -83,18 +132,26 @@ export interface SynthesizeReportUntilValidInput {
 
 export interface SynthesizeReportUntilValidResult {
   readonly report: ResearchReport;
+  readonly sourceGaps: readonly SourceGap[];
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
   readonly predictionCompletion?: PredictionCompletionAudit;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
+  readonly relocatedGapClaims: readonly RelocatedGapClaim[];
+}
+
+interface SynthesisCallCounts {
+  readonly totalCalls: number;
+  readonly reportRepairReprompts: number;
 }
 
 export async function synthesizeReportUntilValid(
   input: SynthesizeReportUntilValidInput,
 ): Promise<SynthesizeReportUntilValidResult> {
   let attempt = 0;
+  let reportRepairReprompts = 0;
   const trackedInput: SynthesizeReportUntilValidInput = {
     ...input,
     runFinalSynthesis: async (priorStages, reprompt) => {
@@ -113,22 +170,36 @@ export async function synthesizeReportUntilValid(
     state: initialState,
     stageOutputs: [initialState.output],
     predictionRetryErrors: [],
+    retainedPredictions: retainablePredictions(trackedInput, initialState),
   });
-  const validated = await validateBaseReport(trackedInput, predictionProgress);
+  const validated = await validateBaseReport(
+    trackedInput,
+    predictionProgress,
+    () => ({
+      totalCalls: attempt,
+      reportRepairReprompts,
+    }),
+    () => {
+      reportRepairReprompts += 1;
+    },
+  );
   const completion = await runPredictionCompletion(
     trackedInput,
     validated.progress,
     validated.report,
   );
-  const report = buildReport(trackedInput, completion.progress.state);
+  const assembled = buildReportWithRelocations(trackedInput, completion.progress.state);
+  const { report, relocatedGapClaims, sourceGaps } = assembled;
   return {
     report,
+    sourceGaps,
     stageOutputs: completion.progress.stageOutputs,
     predictionRetryErrors: completion.progress.predictionRetryErrors,
     predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
+    relocatedGapClaims,
   };
 }
 
@@ -160,6 +231,8 @@ function stageRepromptReason(reprompt: StageReprompt | undefined): StageReprompt
 async function validateBaseReport(
   input: SynthesizeReportUntilValidInput,
   progress: SynthesisProgress,
+  callCounts: () => SynthesisCallCounts,
+  recordReportRepairReprompt: () => void,
 ): Promise<{
   readonly progress: SynthesisProgress;
   readonly report: ResearchReport;
@@ -177,9 +250,10 @@ async function validateBaseReport(
   }
 
   const reportRetryPredictionErrors = progress.state.predResult.errors;
-  const validationState = await runAndReadFinalSynthesis(input, {
+  recordReportRepairReprompt();
+  const validationState = await repromptFinalSynthesis(input, progress.retainedPredictions, {
     predictionErrors: reportRetryPredictionErrors,
-    reportValidationErrors,
+    reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
   });
   let validationProgress: SynthesisProgress = {
     state: validationState,
@@ -188,13 +262,18 @@ async function validateBaseReport(
       ...progress.predictionRetryErrors,
       ...reportRetryPredictionErrors,
     ]),
+    retainedPredictions: bestRetainedPredictions(
+      input,
+      progress.retainedPredictions,
+      validationState,
+    ),
   };
 
   const postReportPredictionErrors = validationProgress.state.predResult.errors;
   if (postReportPredictionErrors.length > 0) {
-    const state = await runAndReadFinalSynthesis(input, {
+    const state = await repromptFinalSynthesis(input, validationProgress.retainedPredictions, {
       predictionErrors: postReportPredictionErrors,
-      reportValidationErrors,
+      reportValidationErrors: accumulateReportValidationErrors(reportValidationErrors),
     });
     validationProgress = {
       state,
@@ -203,6 +282,11 @@ async function validateBaseReport(
         ...validationProgress.predictionRetryErrors,
         ...postReportPredictionErrors,
       ]),
+      retainedPredictions: bestRetainedPredictions(
+        input,
+        validationProgress.retainedPredictions,
+        state,
+      ),
     };
   }
 
@@ -211,6 +295,8 @@ async function validateBaseReport(
     validationProgress,
     reportValidationErrors,
     MAX_REPORT_VALIDATION_REPROMPTS,
+    callCounts,
+    recordReportRepairReprompt,
   );
 }
 
@@ -233,25 +319,30 @@ async function buildReportWithRepair(
   progress: SynthesisProgress,
   seenErrors: readonly string[],
   attemptsLeft: number,
+  callCounts: () => SynthesisCallCounts,
+  recordReportRepairReprompt: () => void,
 ): Promise<RepairedReport> {
   try {
     return {
       progress,
       report: buildReport(input, progress.state),
-      reportValidationErrors: uniqueStrings(seenErrors),
+      reportValidationErrors: accumulateReportValidationErrors(seenErrors),
     };
   } catch (error: unknown) {
     const message = errorMessage(error);
+    const accumulatedErrors = accumulateReportValidationErrors([...seenErrors, message]);
     if (attemptsLeft <= 0) {
+      const counts = callCounts();
       throw new Error(
-        `Report failed validation after ${String(MAX_REPORT_VALIDATION_REPROMPTS)} repair reprompt(s): ${message}`,
+        `Report failed validation after ${String(counts.totalCalls)} final-synthesis call(s) (${String(counts.reportRepairReprompts)} report-repair reprompt(s)); accumulated errors: ${accumulatedErrors.join("; ")}`,
         { cause: error },
       );
     }
     const predictionErrors = progress.state.predResult.errors;
-    const state = await runAndReadFinalSynthesis(input, {
+    recordReportRepairReprompt();
+    const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
       ...(predictionErrors.length > 0 ? { predictionErrors } : {}),
-      reportValidationErrors: [message],
+      reportValidationErrors: accumulatedErrors,
     });
     const nextProgress: SynthesisProgress = {
       state,
@@ -260,8 +351,16 @@ async function buildReportWithRepair(
         ...progress.predictionRetryErrors,
         ...predictionErrors,
       ]),
+      retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
     };
-    return buildReportWithRepair(input, nextProgress, [...seenErrors, message], attemptsLeft - 1);
+    return buildReportWithRepair(
+      input,
+      nextProgress,
+      accumulatedErrors,
+      attemptsLeft - 1,
+      callCounts,
+      recordReportRepairReprompt,
+    );
   }
 }
 
@@ -277,15 +376,37 @@ async function runPredictionReprompts(
         return progress;
       }
 
-      const state = await runAndReadFinalSynthesis(input, { predictionErrors: retryErrors });
+      const state = await repromptFinalSynthesis(input, progress.retainedPredictions, {
+        predictionErrors: retryErrors,
+      });
       return {
         state,
         stageOutputs: [...progress.stageOutputs, state.output],
         predictionRetryErrors: uniqueStrings([...progress.predictionRetryErrors, ...retryErrors]),
+        retainedPredictions: bestRetainedPredictions(input, progress.retainedPredictions, state),
       };
     },
     Promise.resolve(initial),
   );
+}
+
+// Every reprompt below is a stateless whole-report regeneration, so the predictions that already
+// Validated have to travel with it or the next attempt silently drops them. This helper is the only
+// Place a repair reprompt is constructed: `retained` is a required positional argument, and the
+// Reprompt parameter's type rejects a `retainedPredictions` key on the object literals every caller
+// Passes, so a new repair site cannot quietly leave survivors out. That excess-property check fires
+// On fresh literals, not on a spread of a wider variable, so this is an enforced convention rather
+// Than a type-level impossibility. The initial attempt is the only caller of
+// RunAndReadFinalSynthesis with no reprompt, and it has no prior attempt to retain anything from.
+async function repromptFinalSynthesis(
+  input: SynthesizeReportUntilValidInput,
+  retained: readonly Prediction[],
+  reprompt: Omit<
+    StageReprompt,
+    "allowedSourceIds" | "retainedPredictions" | "predictionCompletion"
+  >,
+): Promise<FinalSynthesisState> {
+  return runAndReadFinalSynthesis(input, { ...reprompt, retainedPredictions: retained });
 }
 
 async function runAndReadFinalSynthesis(
@@ -457,6 +578,9 @@ async function runPredictionCompletion(
       },
     });
     const payload = parseModelPayload(output.content);
+    const returnedCandidateCount = Array.isArray(payload.predictions)
+      ? payload.predictions.length
+      : 0;
     const merged = mergeCompletionCandidates({
       candidates: payload.predictions,
       existing: report.predictions,
@@ -464,6 +588,8 @@ async function runPredictionCompletion(
       knownSourceIds: input.knownSourceIds,
       allowedSubjects,
     });
+    const suppressedEarningsPredictionCountOffset =
+      readEarningsForecastTelemetry(report)?.suppressedPredictionCount ?? 0;
     const state: FinalSynthesisState = {
       output,
       payload: progress.state.payload,
@@ -472,12 +598,24 @@ async function runPredictionCompletion(
         errors: progress.state.predResult.errors,
         issues: progress.state.predResult.issues,
       },
+      ...(suppressedEarningsPredictionCountOffset > 0
+        ? { suppressedEarningsPredictionCountOffset }
+        : {}),
     };
+    let outcome: PredictionCompletionAudit["outcome"] = "no-candidates-returned";
+    if (merged.acceptedPredictionIds.length > 0) {
+      outcome = "improved";
+    } else if (returnedCandidateCount > 0) {
+      outcome = "all-candidates-rejected";
+    }
     return {
       progress: {
         state,
         stageOutputs: [...progress.stageOutputs, output],
         predictionRetryErrors: progress.predictionRetryErrors,
+        // The completion pass only adds predictions to an accepted report; it never repairs, so the
+        // Best-so-far set carries through untouched.
+        retainedPredictions: progress.retainedPredictions,
       },
       audit: {
         attempted: true,
@@ -486,7 +624,7 @@ async function runPredictionCompletion(
         acceptedPredictionIds: merged.acceptedPredictionIds,
         rejectedCandidateCount: merged.rejectedCandidateCount,
         rejectionReasons: merged.rejectionReasons,
-        outcome: merged.acceptedPredictionIds.length > 0 ? "improved" : "no-eligible-candidates",
+        outcome,
       },
     };
   } catch (error: unknown) {
@@ -513,7 +651,14 @@ function buildReport(
   input: SynthesizeReportUntilValidInput,
   state: FinalSynthesisState,
 ): ResearchReport {
-  return assembleResearchReport({
+  return buildReportWithRelocations(input, state).report;
+}
+
+function buildReportWithRelocations(
+  input: SynthesizeReportUntilValidInput,
+  state: FinalSynthesisState,
+): ReturnType<typeof assembleResearchReportWithRelocations> {
+  return assembleResearchReportWithRelocations({
     runId: input.runId,
     generatedAt: input.generatedAt,
     command: input.command,
@@ -523,6 +668,14 @@ function buildReport(
     depthProfile: input.context.depthProfile,
     context: input.context,
     sources: input.sources,
+    ...(input.equityAnalysisCompleteness !== undefined
+      ? { equityAnalysisCompleteness: input.equityAnalysisCompleteness }
+      : {}),
+    ...(state.suppressedEarningsPredictionCountOffset !== undefined
+      ? {
+          suppressedEarningsPredictionCountOffset: state.suppressedEarningsPredictionCountOffset,
+        }
+      : {}),
   });
 }
 
@@ -534,6 +687,21 @@ function predictionTrimWarnings(predResult: ReturnType<typeof readPredictions>):
 
 function uniqueStrings(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
+}
+
+const MAX_ACCUMULATED_REPORT_VALIDATION_ERRORS = 12;
+
+export function accumulateReportValidationErrors(values: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const newestFirst: string[] = [];
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (value !== undefined && !seen.has(value)) {
+      seen.add(value);
+      newestFirst.push(value);
+    }
+  }
+  return newestFirst.toReversed().slice(-MAX_ACCUMULATED_REPORT_VALIDATION_ERRORS);
 }
 
 function errorMessage(error: unknown): string {

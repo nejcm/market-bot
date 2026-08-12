@@ -651,7 +651,9 @@ describe("validateResearchReport — earningsSetup extras", () => {
         },
       },
     };
-    expect(() => validateResearchReport(report)).toThrow("Unknown source ID: unknown-src");
+    expect(() => validateResearchReport(report)).toThrow(
+      "Earnings Setup event.sourceIds cites unknown source ID: unknown-src",
+    );
   });
 
   test("rejects earningsSetup bullet with unknown source IDs", () => {
@@ -671,7 +673,9 @@ describe("validateResearchReport — earningsSetup extras", () => {
         },
       },
     };
-    expect(() => validateResearchReport(report)).toThrow("Unknown source ID: missing-source");
+    expect(() => validateResearchReport(report)).toThrow(
+      "Earnings Setup expectationBar[0] cites unknown source ID: missing-source",
+    );
   });
 
   test("rejects earningsSetup bullet text without source IDs", () => {
@@ -691,7 +695,9 @@ describe("validateResearchReport — earningsSetup extras", () => {
         },
       },
     };
-    expect(() => validateResearchReport(report)).toThrow("must reference source IDs");
+    expect(() => validateResearchReport(report)).toThrow(
+      "Earnings Setup qualityLandmines[0] must reference at least one source ID",
+    );
   });
 
   test("validates earningsSetup with no bullet sections", () => {
@@ -738,7 +744,9 @@ describe("validateResearchReport — earningsSetup extras", () => {
         },
       },
     };
-    expect(() => validateResearchReport(report)).toThrow("Unknown source ID: orphan-implied-move");
+    expect(() => validateResearchReport(report)).toThrow(
+      "Earnings Setup impliedMove.sourceIds cites unknown source ID: orphan-implied-move",
+    );
   });
 
   test("validates earningsSetup impliedMove with known source IDs", () => {
@@ -1045,6 +1053,7 @@ describe("parseNearEarningsEvent", () => {
       symbol: "AAPL",
       date: "2026-06-15",
       timing: "amc",
+      eventDateStatus: "provider-estimated",
       dateStatus: "provider-estimated",
       epsEstimate: 1.5,
       sourceIds: ["finnhub-1"],
@@ -1129,6 +1138,7 @@ function makeEarningsEvent(symbol = "AAPL", date = "2026-07-24"): EarningsEvent 
     symbol,
     date,
     timing: "amc",
+    eventDateStatus: "provider-estimated",
     dateStatus: "provider-estimated",
     sourceIds: ["src-1"],
     fetchedAt: "2026-07-20T00:00:00.000Z",

@@ -1,7 +1,7 @@
 import { basename, dirname, join } from "node:path";
 import type { SubjectKind } from "./domain/types";
 import { defaultRunArtifactIndexPath } from "./run-artifact-index";
-import type { ModelParams } from "./model/types";
+import type { ModelParams, ReasoningEffort } from "./model/types";
 
 export type ProviderName = "openai" | "openai-compatible" | "codex" | "anthropic";
 
@@ -103,7 +103,10 @@ export interface AppConfig {
   readonly synthesisModel: string;
   readonly codexQuickModel?: string;
   readonly codexSynthesisModel?: string;
-  readonly modelParams?: ModelParams;
+  readonly quickReasoningEffort?: ReasoningEffort;
+  readonly synthesisReasoningEffort?: ReasoningEffort;
+  readonly codexQuickReasoningEffort?: ReasoningEffort;
+  readonly codexSynthesisReasoningEffort?: ReasoningEffort;
   readonly modelTimeoutMs: number;
   readonly dataDir: string;
   readonly promptDir: string;
@@ -122,6 +125,7 @@ export interface AppConfig {
 export interface RunChatConfig {
   readonly disabled: boolean;
   readonly model?: string;
+  readonly modelParams?: ModelParams;
   readonly contextBudgetChars: number;
   readonly maxOutputTokens: number;
   readonly historyTurnCap: number;
@@ -302,9 +306,7 @@ function readApiKey(
   return undefined;
 }
 
-function readReasoningEffort(
-  value: string | undefined,
-): ModelParams["reasoningEffort"] | undefined {
+function readReasoningEffort(value: string | undefined): ReasoningEffort | undefined {
   const effort = readOptionalString(value);
   if (effort === undefined) {
     return undefined;
@@ -542,7 +544,14 @@ export function resolveConfig(
     provider === "anthropic" ? DEFAULT_ANTHROPIC_QUICK_MODEL : DEFAULT_QUICK_MODEL;
   const synthesisModelDefault =
     provider === "anthropic" ? DEFAULT_ANTHROPIC_SYNTHESIS_MODEL : DEFAULT_SYNTHESIS_MODEL;
-  const reasoningEffort = readReasoningEffort(env.MARKET_BOT_REASONING_EFFORT);
+  const quickReasoningEffort = readReasoningEffort(env.MARKET_BOT_QUICK_REASONING_EFFORT);
+  const synthesisReasoningEffort = readReasoningEffort(env.MARKET_BOT_SYNTHESIS_REASONING_EFFORT);
+  const codexQuickReasoningEffort = readReasoningEffort(
+    env.MARKET_BOT_CODEX_QUICK_REASONING_EFFORT,
+  );
+  const codexSynthesisReasoningEffort = readReasoningEffort(
+    env.MARKET_BOT_CODEX_SYNTHESIS_REASONING_EFFORT,
+  );
 
   const dataDir = env.MARKET_BOT_DATA_DIR ?? DEFAULT_DATA_DIR;
   const massiveApiKey =
@@ -561,7 +570,10 @@ export function resolveConfig(
     ...(readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) !== undefined
       ? { codexSynthesisModel: readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) as string }
       : {}),
-    ...(reasoningEffort !== undefined ? { modelParams: { reasoningEffort } } : {}),
+    ...(quickReasoningEffort !== undefined ? { quickReasoningEffort } : {}),
+    ...(synthesisReasoningEffort !== undefined ? { synthesisReasoningEffort } : {}),
+    ...(codexQuickReasoningEffort !== undefined ? { codexQuickReasoningEffort } : {}),
+    ...(codexSynthesisReasoningEffort !== undefined ? { codexSynthesisReasoningEffort } : {}),
     modelTimeoutMs: readPositiveInteger(env.MARKET_BOT_MODEL_TIMEOUT_MS, DEFAULT_MODEL_TIMEOUT_MS),
     dataDir,
     promptDir: readOptionalString(env.MARKET_BOT_PROMPT_DIR) ?? DEFAULT_PROMPT_DIR,

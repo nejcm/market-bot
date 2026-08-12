@@ -1,12 +1,14 @@
 import type { InstrumentCommand } from "../../cli/args";
 import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap, sourceGapWithContext } from "../../domain/source-gaps";
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  MarketSnapshot,
-  Source,
-  SourceGap,
+import {
+  resolveMarketSnapshotPriceAsOf,
+  type ExtendedEvidence,
+  type ExtendedEvidenceItem,
+  type MarketSnapshot,
+  type MarketSnapshotPriceAsOf,
+  type Source,
+  type SourceGap,
 } from "../../domain/types";
 import {
   resolvePeerUniverseWithFallback,
@@ -76,6 +78,7 @@ export interface ValuationCompsRow {
   readonly currentPrice?: number;
   readonly quoteCurrency?: string;
   readonly quoteObservedAt?: string;
+  readonly priceAsOf?: MarketSnapshotPriceAsOf;
   readonly sourceIds: readonly string[];
   readonly usable: boolean;
 }
@@ -185,9 +188,10 @@ export interface ValuationCompsOptions {
   readonly peerUniverseMappings?: PeerUniverseMapping;
   readonly subjectRegistry?: readonly ResearchSubjectRegistryEntry[];
   readonly peerUniverseFallback?: PeerUniverseFallbackContext;
+  readonly secTickerPayload?: unknown;
 }
 
-interface PeerCollection {
+export interface PeerPacket {
   readonly peer: PeerUniversePeer;
   readonly provenance: PeerUniverse["provenance"];
   readonly quote: MarketSnapshot | undefined;
@@ -282,7 +286,7 @@ export async function collectValuationComps(
       peer,
       provenance: universe.provenance,
       quote: quoteBySymbol.get(peer.symbol),
-      sec: await fetchSecCompanyFactsForSymbol(ctx, peer.symbol),
+      sec: await fetchSecCompanyFactsForSymbol(ctx, peer.symbol, options.secTickerPayload),
     })),
   );
   const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
@@ -527,6 +531,7 @@ function targetRow(
       ? { quoteCurrency: snapshot.identity.quoteCurrency }
       : {}),
     ...(snapshot?.observedAt !== undefined ? { quoteObservedAt: snapshot.observedAt } : {}),
+    ...(snapshot !== undefined ? { priceAsOf: resolveMarketSnapshotPriceAsOf(snapshot) } : {}),
     sourceIds: item.sourceIds,
     usable,
   };
@@ -652,7 +657,7 @@ function comparabilityFailure(
 }
 
 function peerRow(
-  entry: PeerCollection,
+  entry: PeerPacket,
   generatedAt: string,
   target: ValuationCompsRow,
 ): ValuationCompsRow {
@@ -718,6 +723,7 @@ function peerRow(
     ...(annualizedRevenue !== undefined ? { annualizedRevenue } : {}),
     ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),
     ...(quote?.observedAt !== undefined ? { quoteObservedAt: quote.observedAt } : {}),
+    ...(quote !== undefined ? { priceAsOf: resolveMarketSnapshotPriceAsOf(quote) } : {}),
     sourceIds,
   };
   return {
@@ -1063,7 +1069,7 @@ function replaceValuationItem(
   };
 }
 
-function sourcesForPeer(command: InstrumentCommand, entry: PeerCollection): readonly Source[] {
+function sourcesForPeer(command: InstrumentCommand, entry: PeerPacket): readonly Source[] {
   const quoteSource =
     entry.quote === undefined
       ? undefined

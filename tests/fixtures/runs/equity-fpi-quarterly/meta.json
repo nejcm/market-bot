@@ -1,0 +1,19 @@
+{
+  "now": "2026-06-15T14:30:00.000Z",
+  "argv": ["equity", "FPIQ", "--deep"],
+  "quickModel": "fixture-quick",
+  "synthesisModel": "fixture-synthesis",
+  "challengerModels": [],
+  "secUserAgent": "market-bot fixture replay contact@example.invalid",
+  "webGatherDisabled": true,
+  "evidenceRequestOptions": {
+    "maxRounds": 1,
+    "maxToolCalls": 1,
+    "sourceBudget": 8
+  },
+  "webGatherOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  }
+}

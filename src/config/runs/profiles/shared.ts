@@ -21,7 +21,7 @@ export const RESEARCH_KIND_MIX = {
 
 export const CODE_DEFAULTS: Omit<
   ResolvedRunParams,
-  "quickModel" | "synthesisModel" | "modelParams"
+  "quickModel" | "synthesisModel" | "quickModelParams" | "synthesisModelParams"
 > = {
   minimumKeyFindings: 3,
   minimumScenarios: 1,

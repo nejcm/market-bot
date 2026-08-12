@@ -9,6 +9,7 @@ import type {
   VerifiedMarketSnapshot,
 } from "../src/domain/types";
 import type { EarningsSetupCollected } from "../src/sources/types";
+import { sanitizeMarketSnapshotMetadata } from "../src/sources/metadata-sanitization";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 import {
   collectedSources,
@@ -79,6 +80,56 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     },
     recentCloses: [],
   };
+
+  test("projects primary, supplemental, and mover snapshots through the prompt allow-list", () => {
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
+    const primaryWithFutureField = {
+      ...marketSnapshot({
+        sourceId: "market-primary",
+        name: "Primary Corp.",
+        identity: { displayName: "Primary Corp.", exchange: "NasdaqGS" },
+        quoteTimeUtc: "2026-06-01T00:00:01.000Z",
+      }),
+      futurePersistedField: "primary-model-leak",
+    };
+    const primary = sanitizeMarketSnapshotMetadata(primaryWithFutureField, "yahoo").snapshot;
+    const supplementalWithFutureField = {
+      ...marketSnapshot({
+        sourceId: "market-supplemental",
+        symbol: "MSFT",
+        name: "Supplemental Corp.",
+        identity: { displayName: "Supplemental Corp.", exchange: "NasdaqGS" },
+        quoteTimeUtc: "2026-06-01T00:00:02.000Z",
+      }),
+      futurePersistedField: "supplemental-model-leak",
+    };
+    const supplemental = sanitizeMarketSnapshotMetadata(
+      supplementalWithFutureField,
+      "yahoo",
+    ).snapshot;
+
+    const evidence = evidenceFor(command, {
+      marketSnapshots: [primary],
+      supplementalMarketSnapshots: [supplemental],
+    }) as {
+      readonly marketSnapshots: readonly Record<string, unknown>[];
+      readonly supplementalMarketSnapshots: readonly Record<string, unknown>[];
+      readonly movers: readonly { readonly snapshot: Record<string, unknown> }[];
+    };
+
+    expect(evidence.marketSnapshots[0]?.sourceId).toBe("market-primary");
+    expect(evidence.marketSnapshots[0]).not.toHaveProperty("quoteTimeUtc");
+    expect(evidence.marketSnapshots[0]).not.toHaveProperty("futurePersistedField");
+    expect(evidence.supplementalMarketSnapshots[0]?.sourceId).toBe("market-supplemental");
+    expect(evidence.supplementalMarketSnapshots[0]).not.toHaveProperty("quoteTimeUtc");
+    expect(evidence.supplementalMarketSnapshots[0]).not.toHaveProperty("futurePersistedField");
+    expect(evidence.movers[0]?.snapshot.sourceId).toBe("market-primary");
+    expect(evidence.movers[0]?.snapshot).not.toHaveProperty("quoteTimeUtc");
+    expect(evidence.movers[0]?.snapshot).not.toHaveProperty("futurePersistedField");
+  });
 
   test("non-gated projector contributes its key only when its source is present", () => {
     const command: ResearchCommand = legacyMarketOverviewCommand("daily", {

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "checkedAt": "2026-07-23T00:00:00.000Z",
+  "reachable": true,
+  "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d2.htm",
+  "fixturePacketSha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e",
+  "livePacketSha256": "4e3eb19ae8fba85cc7a38bee65438d854b271072ff899874dda01cfbc8a77a5e",
+  "byteIdentical": true,
+  "fixtureStatus": "accepted",
+  "liveStatus": "accepted",
+  "valueCount": 14,
+  "cellValuesIdentical": true
+}

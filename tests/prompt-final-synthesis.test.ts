@@ -39,7 +39,8 @@ function kindMixSynthesisInstruction(command: ResearchCommand): string {
         predictionSubjects: depthProfile.predictionSubjects,
         focus: depthProfile.focus,
         targetKindMix: depthProfile.targetKindMix,
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: command.assetClass,
@@ -157,7 +158,8 @@ function finalSynthesisInstruction(
         predictionSubjects: depthProfile.predictionSubjects,
         focus: depthProfile.focus,
         targetKindMix: depthProfile.targetKindMix,
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: command.assetClass,
@@ -175,6 +177,21 @@ function finalSynthesisInstruction(
 }
 
 describe("buildStagePrompt forecast diversity guidance", () => {
+  test("uses the default horizon as an evidence-dependent starting point", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command);
+
+    expect(instruction).toContain(
+      "a starting horizon of 5 trading days; a forecast may depart from it when the cited evidence supports a different resolution window.",
+    );
+    expect(instruction).not.toContain("a default horizon near 5 trading days");
+  });
+
   test("deep instrument runs include forecast-shape diversity guidance", () => {
     const command: ResearchCommand = {
       jobType: "equity",
@@ -192,6 +209,9 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).toContain("range (outside [Lo, Hi])");
     expect(instruction).toContain("conditional");
     expect(instruction).toContain("soft target");
+    expect(instruction).toContain(
+      "Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.",
+    );
     // Distinguishes informative kind from informative probability: a better-measured
     // Kind near 0.5 against correlated benchmarks is not automatically informative.
     expect(instruction).toContain("informative only when its probability departs from 0.5");
@@ -239,6 +259,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
           symbol: "AAPL",
           date: "2026-07-30",
           timing: "amc",
+          eventDateStatus: "issuer-confirmed",
           sourceIds: ["earnings-aapl"],
           fetchedAt: "2026-06-01T00:00:00.000Z",
         },
@@ -250,7 +271,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     expect(instruction).not.toContain("earnings-move");
   });
 
-  test("includes earnings shapes when earningsSetup is present", () => {
+  test("includes earnings shapes when earningsSetup is issuer-confirmed", () => {
     const command: ResearchCommand = {
       jobType: "equity",
       assetClass: "equity",
@@ -263,6 +284,7 @@ describe("buildStagePrompt forecast diversity guidance", () => {
           symbol: "AAPL",
           date: "2026-07-30",
           timing: "amc",
+          eventDateStatus: "issuer-confirmed",
           sourceIds: ["earnings-aapl"],
           fetchedAt: "2026-06-01T00:00:00.000Z",
         },
@@ -271,6 +293,32 @@ describe("buildStagePrompt forecast diversity guidance", () => {
     });
 
     expect(instruction).toContain("earnings-direction or earnings-move");
+  });
+
+  test("keeps provider-estimated setup contextual without earnings grammar", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const instruction = finalSynthesisInstruction(command, {
+      earningsSetup: {
+        event: {
+          symbol: "AAPL",
+          date: "2026-07-30",
+          timing: "amc",
+          eventDateStatus: "provider-estimated",
+          sourceIds: ["earnings-aapl"],
+          fetchedAt: "2026-06-01T00:00:00.000Z",
+        },
+        gaps: [],
+      },
+    });
+
+    expect(instruction).toContain("provider-estimated and unconfirmed");
+    expect(instruction).toContain("Do not emit earnings-direction");
+    expect(instruction).not.toContain("earningsSetup.event.date as YYYY-MM-DD");
   });
 
   test("uses on-subject IV guidance instead of VIX volatility for instrument options evidence", () => {
@@ -336,7 +384,8 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       predictionSubjects: ["AAPL"],
       focus: ["thesis"],
       targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
     },
     marketRegime: {
       assetClass: "equity",
@@ -374,17 +423,20 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     ],
   });
 
-  function buildPrompt(predictionCompletion?: {
-    readonly requestedCount: number;
-    readonly existingPredictions: readonly Prediction[];
-    readonly reportDraft: typeof reportDraft;
-  }): string {
+  function buildPrompt(
+    predictionCompletion?: {
+      readonly requestedCount: number;
+      readonly existingPredictions: readonly Prediction[];
+      readonly reportDraft: typeof reportDraft;
+    },
+    calibrationContext: ResearchContext["calibrationContext"] = context.calibrationContext,
+  ): string {
     return stagePromptFromArgs(
       "final-synthesis",
       command,
       sources,
       config,
-      context,
+      { ...context, calibrationContext },
       loaded,
       priorStages,
       [],
@@ -459,6 +511,91 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
   });
 
+  test("completion steering requires evidence-backed probability differentiation", () => {
+    const parsed = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(parsed.instruction).toContain(
+      "must differ in probability by more than 0.005, backed by a stated evidence-based differentiation",
+    );
+    expect(parsed.instruction).toContain("changing only the benchmark ticker does not add signal");
+  });
+
+  test("completion steering permits evidence-backed horizon variety without requiring it", () => {
+    const parsed = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(parsed.instruction).toContain(
+      "Explore shape and resolution-window variety to find the most informative forecasts rather than defaulting to the same kind repeatedly, varying horizons only where the evidence supports it.",
+    );
+  });
+
+  test("completion instruction explains the positive-only grammar polarity contract", () => {
+    const parsed = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(parsed.instruction).toContain(
+      "The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below 0.40 on the up/outside expression.",
+    );
+  });
+
+  test("includes material conditional activation history in primary and completion instructions", () => {
+    const calibrationContext = {
+      conditionalPredictions: { activatedCount: 4, voidedCount: 13 },
+    };
+    const primary = JSON.parse(buildPrompt(undefined, calibrationContext)) as {
+      readonly instruction?: string;
+    };
+    const completion = JSON.parse(
+      buildPrompt(
+        {
+          requestedCount: 2,
+          existingPredictions: reportDraft.predictions,
+          reportDraft,
+        },
+        calibrationContext,
+      ),
+    ) as { readonly instruction?: string };
+    const clause =
+      "Continue emitting Conditional Predictions when the evidence supports a genuinely conditional setup. Anchor antecedents to scheduled events such as earnings dates, index rebalances, or economic releases, or to threshold levels that the cited price history has already reached, so the antecedent can plausibly occur inside the resolution window. Activation history shows why antecedent quality matters: 4 of 17 resolved conditionals activated; 13 voided because their antecedents did not occur.";
+
+    expect(primary.instruction).toContain(clause);
+    expect(completion.instruction).toContain(clause);
+  });
+
+  test("omits conditional activation guidance when counts are missing", () => {
+    const primary = JSON.parse(buildPrompt()) as { readonly instruction?: string };
+    const completion = JSON.parse(
+      buildPrompt({
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      }),
+    ) as { readonly instruction?: string };
+
+    expect(primary.instruction).not.toContain(
+      "Activation history shows why antecedent quality matters",
+    );
+    expect(completion.instruction).not.toContain(
+      "Activation history shows why antecedent quality matters",
+    );
+  });
+
   test("completion instruction references deterministic anchors present in the distilled evidence", () => {
     const prompt = stagePromptFromArgs(
       "final-synthesis",
@@ -491,6 +628,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
             symbol: "AAPL",
             date: "2026-07-28",
             timing: "amc",
+            eventDateStatus: "issuer-confirmed",
             sourceIds: ["earnings-aapl"],
             fetchedAt: "2026-07-07T20:00:00.000Z",
           },
@@ -590,7 +728,8 @@ describe("StageInput assembly", () => {
           predictionSubjects: ["SPY"],
           focus: ["market regime"],
           targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          modelParams: undefined,
+          quickModelParams: undefined,
+          synthesisModelParams: undefined,
         },
         marketRegime: {
           assetClass: "equity",

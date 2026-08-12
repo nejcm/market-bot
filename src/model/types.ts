@@ -1,5 +1,7 @@
 import type { CostPricing } from "./pricing";
 
+export type ReasoningEffort = "low" | "medium" | "high";
+
 export interface ModelMessage {
   readonly role: "system" | "user" | "assistant";
   readonly content: string;
@@ -13,7 +15,7 @@ export interface ModelParams {
   readonly frequency_penalty?: number;
   readonly presence_penalty?: number;
   readonly stop?: readonly string[];
-  readonly reasoningEffort?: "low" | "medium" | "high";
+  readonly reasoningEffort?: ReasoningEffort;
   readonly verbosity?: "low" | "medium" | "high";
 }
 

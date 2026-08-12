@@ -90,7 +90,7 @@ function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCovera
       "market-overview-equity-short",
       "Market overview equity short horizon",
       runs,
-      (run) => run.assetClass === "equity" && runHorizonBucket(run) === "1-5d",
+      (run) => run.assetClass === "equity" && runHorizonBucket(run) === "2-5d",
     ),
     coverageItem(
       "market-overview-equity-medium",
@@ -102,7 +102,7 @@ function requiredCoverage(runs: readonly RunHealth[]): readonly ValidationCovera
       "market-overview-crypto-short",
       "Market overview crypto short horizon",
       runs,
-      (run) => run.assetClass === "crypto" && runHorizonBucket(run) === "1-5d",
+      (run) => run.assetClass === "crypto" && runHorizonBucket(run) === "2-5d",
     ),
     coverageItem(
       "market-overview-crypto-medium",
@@ -236,11 +236,18 @@ function classifyRoute(
       reason: "SEC extended evidence is nonblocking provider coverage.",
     };
   }
-  if (routeName === "news-seen" || routeHasCause(route, "repeat-fallback")) {
+  // Routes aggregate across runs, so any profile failure wins over reuse and stays blocking.
+  if (
+    routeName === "news-seen" ||
+    routeHasCause(route, "repeat-fallback") ||
+    (routeName === "web-subject-profile" &&
+      !routeHasCause(route, "validation-failed") &&
+      !routeHasCause(route, "provider-data-missing"))
+  ) {
     return {
       ...base,
       classification: "informational",
-      reason: "Persistent news dedupe fallback is disclosed but nonblocking.",
+      reason: "Intended fallback is disclosed but nonblocking.",
     };
   }
   if (route.missingCredential > 0) {

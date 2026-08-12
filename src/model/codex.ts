@@ -107,6 +107,59 @@ function parseEventStream(jsonl: string): { content: string; tokenEstimate: numb
   return { content, tokenEstimate };
 }
 
+// Under --json the CLI reports failures as structured stdout events, and stderr can be empty.
+// On 2026-07-30 an exhausted usage limit surfaced as `exit 1` with no stderr at all, which made a
+// Quota exhaustion indistinguishable from a crash and cost a paid evaluation run its completeness.
+// This repository does not pin the CLI's error-event schema, so collect any error-shaped payload
+// Rather than asserting a field layout: a wrong guess here reintroduces the empty message.
+function parseJsonRecord(line: string): Record<string, unknown> | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function codexFailureDiagnostic(stdout: string): string {
+  const found: string[] = [];
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") {
+      continue;
+    }
+    const record = parseJsonRecord(trimmed);
+    if (record === undefined) {
+      continue;
+    }
+    const type = typeof record.type === "string" ? record.type : "";
+    const errorish = type.includes("error") || type.includes("fail");
+    for (const key of ["error", "message", "reason", "detail"]) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim() !== "" && (errorish || key === "error")) {
+        found.push(value.trim());
+      }
+    }
+    if (errorish && found.length === 0) {
+      found.push(trimmed);
+    }
+  }
+  return [...new Set(found)].join("; ");
+}
+
+// Never let a failure surface as an empty string. When neither stream explains the exit, say that
+// Explicitly and report what was actually received, so the next reader can tell "no diagnostic"
+// From "diagnostic discarded".
+function codexFailureMessage(exitCode: number, stderr: string, stdout: string): string {
+  const diagnostic = stderr !== "" ? stderr : codexFailureDiagnostic(stdout);
+  if (diagnostic !== "") {
+    return `Codex exec failed (exit ${String(exitCode)}): ${diagnostic}`;
+  }
+  return `Codex exec failed (exit ${String(exitCode)}): no diagnostic on stderr or stdout (stdout ${String(stdout.length)} bytes). A usage limit reports this way; check \`codex\` quota before assuming a crash.`;
+}
+
 function readEnv(name: string): string | undefined {
   const value = process.env[name];
   return value !== undefined && value.trim() !== "" ? value : undefined;
@@ -376,10 +429,12 @@ export function createCodexProvider(
 
       if (result.exitCode !== 0) {
         const stderr = result.stderr.trim();
-        if (stderr.toLowerCase().includes("auth") || stderr.toLowerCase().includes("login")) {
-          throw new Error(`Codex session expired. Run: codex login\n${stderr}`);
+        const diagnostic = stderr !== "" ? stderr : codexFailureDiagnostic(result.stdout);
+        const lowered = diagnostic.toLowerCase();
+        if (lowered.includes("auth") || lowered.includes("login")) {
+          throw new Error(`Codex session expired. Run: codex login\n${diagnostic}`);
         }
-        throw new Error(`Codex exec failed (exit ${String(result.exitCode)}): ${stderr}`);
+        throw new Error(codexFailureMessage(result.exitCode, stderr, result.stdout));
       }
 
       const { content: raw, tokenEstimate } = parseEventStream(result.stdout);

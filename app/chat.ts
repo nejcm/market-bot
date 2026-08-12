@@ -297,7 +297,10 @@ export async function handleRunChat(
       messages,
       signal: request.signal,
       webSearch: webSearchActive,
-      params: { max_completion_tokens: deps.chatConfig.maxOutputTokens },
+      params: {
+        ...deps.chatConfig.modelParams,
+        max_completion_tokens: deps.chatConfig.maxOutputTokens,
+      },
     });
 
     return streamResponse(response);

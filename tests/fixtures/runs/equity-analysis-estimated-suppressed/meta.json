@@ -1,0 +1,19 @@
+{
+  "now": "2026-06-15T14:30:00.000Z",
+  "argv": ["equity", "AAPL", "--deep"],
+  "quickModel": "fixture-quick",
+  "synthesisModel": "fixture-synthesis",
+  "challengerModels": [],
+  "webGatherDisabled": true,
+  "evidenceRequestOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  },
+  "webGatherOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  },
+  "configuredProviders": ["finnhub", "tradier"]
+}

@@ -26,6 +26,7 @@ import {
 import { loadRunArtifact } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { isRecord } from "../src/guards";
+import { normalizePredictionShortfallReport } from "../src/report/prediction-shortfall";
 
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
 const MARKDOWN_FILE = RUN_ARTIFACT_FILES.reportMarkdown;
@@ -50,6 +51,10 @@ async function readJsonRecord(path: string): Promise<Record<string, unknown> | u
   } catch {
     return undefined;
   }
+}
+
+async function readReportRecord(path: string): Promise<Record<string, unknown> | undefined> {
+  return normalizePredictionShortfallReport(await readJsonRecord(path));
 }
 
 async function readOptionalText(path: string): Promise<string | undefined> {
@@ -156,7 +161,7 @@ async function searchRun(
   }
 
   const [report, availableFiles] = await Promise.all([
-    readJsonRecord(join(runDir, REPORT_FILE)),
+    readReportRecord(join(runDir, REPORT_FILE)),
     listArtifactFiles(runDir),
   ]);
   if (report === undefined) {
@@ -181,7 +186,7 @@ async function runSummaryFromDir(dataDir: string, runId: string): Promise<RunSum
   }
 
   const [report, availableFiles] = await Promise.all([
-    readJsonRecord(join(runDir, REPORT_FILE)),
+    readReportRecord(join(runDir, REPORT_FILE)),
     listArtifactFiles(runDir),
   ]);
 
@@ -245,7 +250,7 @@ export async function readRunDetail(
 
   const [report, markdown, analytics, trace, score, missAutopsy, indexedSummary] =
     await Promise.all([
-      readJsonRecord(join(runDir, REPORT_FILE)),
+      readReportRecord(join(runDir, REPORT_FILE)),
       readOptionalText(join(runDir, MARKDOWN_FILE)),
       readJsonRecord(join(runDir, ANALYTICS_FILE)),
       readJsonRecord(join(runDir, TRACE_FILE)),
@@ -267,14 +272,27 @@ export async function readRunDetail(
     ...(artifact.artifact !== undefined
       ? { marketSnapshots: artifact.artifact.marketSnapshots }
       : {}),
+    ...(artifact.artifact !== undefined ? { sourceGaps: artifact.artifact.sourceGaps } : {}),
     ...(artifact.artifact?.verifiedMarketSnapshot !== undefined
       ? { verifiedMarketSnapshot: artifact.artifact.verifiedMarketSnapshot }
       : {}),
     ...(artifact.artifact?.financialLenses !== undefined
       ? { financialLenses: artifact.artifact.financialLenses }
       : {}),
+    ...(artifact.artifact?.financialStatements !== undefined
+      ? { financialStatements: artifact.artifact.financialStatements }
+      : {}),
+    ...(artifact.artifact?.subsequentFinancing !== undefined
+      ? { subsequentFinancing: artifact.artifact.subsequentFinancing }
+      : {}),
     ...(artifact.artifact?.peerImpliedRange !== undefined
       ? { peerImpliedRange: artifact.artifact.peerImpliedRange }
+      : {}),
+    ...(artifact.artifact?.valuationWorkbench !== undefined
+      ? { valuationWorkbench: artifact.artifact.valuationWorkbench }
+      : {}),
+    ...(artifact.artifact?.reverseDcf !== undefined
+      ? { reverseDcf: artifact.artifact.reverseDcf }
       : {}),
     ...(artifact.artifact?.fundamentalHistory !== undefined
       ? { fundamentalHistory: artifact.artifact.fundamentalHistory }

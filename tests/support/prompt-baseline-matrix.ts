@@ -318,7 +318,8 @@ function equityContext(): ResearchContext {
       predictionSubjects: ["AAPL", "^VIX", "SPY"],
       focus: ["earnings", "options"],
       targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
     },
     marketRegime: {
       assetClass: "equity",
@@ -327,7 +328,9 @@ function equityContext(): ResearchContext {
       drivers: ["breadth"],
       sourceIds: ["market-spy"],
     },
-    calibrationContext: undefined,
+    calibrationContext: {
+      conditionalPredictions: { activatedCount: 4, voidedCount: 13 },
+    },
     evidenceRequest: evidenceRequestContext,
     webGather: webGatherContext,
     historicalContext,
@@ -385,7 +388,8 @@ function contextFor(command: ResearchCommand): ResearchContext {
       predictionSubjects: ["SPY"],
       focus: ["market regime"],
       targetKindMix: { favored: ["direction"], minNonDirection: 0 },
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
     },
     marketRegime: {
       assetClass: command.assetClass,

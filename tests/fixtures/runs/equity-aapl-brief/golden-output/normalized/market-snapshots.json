@@ -1,0 +1,192 @@
+[
+  {
+    "sourceId": "market-yahoo-equity-aapl",
+    "assetClass": "equity",
+    "symbol": "AAPL",
+    "price": 198.5,
+    "changePercent24h": 1.4,
+    "volume": 62000000,
+    "marketCap": 3000000000000,
+    "open": 197.5,
+    "previousClose": 197.1,
+    "averageVolume": 62001000,
+    "fiftyDayAverage": 195.5,
+    "fundamentals": {
+      "trailingPE": 31,
+      "forwardPE": 28,
+      "priceToBook": 45,
+      "epsTrailingTwelveMonths": 6.4,
+      "sharesOutstanding": 15000000000
+    },
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "Apple Inc.",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "AAPL"
+        }
+      ],
+      "displayName": "Apple Inc.",
+      "exchange": "NasdaqGS"
+    }
+  },
+  {
+    "sourceId": "market-yahoo-equity-spy",
+    "assetClass": "equity",
+    "symbol": "SPY",
+    "price": 520,
+    "changePercent24h": 0.5,
+    "volume": 70000000,
+    "open": 519,
+    "previousClose": 519.5,
+    "averageVolume": 70001000,
+    "fiftyDayAverage": 517,
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "SPY proxy",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "SPY"
+        }
+      ],
+      "displayName": "SPY proxy",
+      "exchange": "NasdaqGS"
+    }
+  },
+  {
+    "sourceId": "market-yahoo-equity-qqq",
+    "assetClass": "equity",
+    "symbol": "QQQ",
+    "price": 450,
+    "changePercent24h": 0.7,
+    "volume": 55000000,
+    "open": 449,
+    "previousClose": 449.3,
+    "averageVolume": 55001000,
+    "fiftyDayAverage": 447,
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "QQQ proxy",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "QQQ"
+        }
+      ],
+      "displayName": "QQQ proxy",
+      "exchange": "NasdaqGS"
+    }
+  },
+  {
+    "sourceId": "market-yahoo-equity-iwm",
+    "assetClass": "equity",
+    "symbol": "IWM",
+    "price": 210,
+    "changePercent24h": 0.2,
+    "volume": 30000000,
+    "open": 209,
+    "previousClose": 209.8,
+    "averageVolume": 30001000,
+    "fiftyDayAverage": 207,
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "IWM proxy",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "IWM"
+        }
+      ],
+      "displayName": "IWM proxy",
+      "exchange": "NasdaqGS"
+    }
+  },
+  {
+    "sourceId": "market-yahoo-equity-dia",
+    "assetClass": "equity",
+    "symbol": "DIA",
+    "price": 390,
+    "changePercent24h": 0.3,
+    "volume": 20000000,
+    "open": 389,
+    "previousClose": 389.7,
+    "averageVolume": 20001000,
+    "fiftyDayAverage": 387,
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "DIA proxy",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "DIA"
+        }
+      ],
+      "displayName": "DIA proxy",
+      "exchange": "NasdaqGS"
+    }
+  },
+  {
+    "sourceId": "market-yahoo-equity-^vix",
+    "assetClass": "equity",
+    "symbol": "^VIX",
+    "price": 16,
+    "changePercent24h": -2,
+    "volume": 0,
+    "open": 15,
+    "previousClose": 18,
+    "averageVolume": 1000,
+    "fiftyDayAverage": 13,
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "^VIX proxy",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "^VIX"
+        }
+      ],
+      "displayName": "^VIX proxy",
+      "exchange": "CBOE"
+    }
+  },
+  {
+    "sourceId": "market-yahoo-equity-^vix3m",
+    "assetClass": "equity",
+    "symbol": "^VIX3M",
+    "price": 18,
+    "changePercent24h": -1,
+    "volume": 0,
+    "open": 17,
+    "previousClose": 19,
+    "averageVolume": 1000,
+    "fiftyDayAverage": 15,
+    "observedAt": "2026-06-15T14:30:00.000Z",
+    "name": "^VIX3M proxy",
+    "identity": {
+      "quoteCurrency": "USD",
+      "aliases": [
+        {
+          "provider": "yahoo",
+          "idKind": "symbol",
+          "value": "^VIX3M"
+        }
+      ],
+      "displayName": "^VIX3M proxy",
+      "exchange": "CBOE"
+    }
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "generatedAt": "<generatedAt>",
+  "symbol": "AAPL",
+  "dilutedShares": [],
+  "stockBasedCompensation": [],
+  "buybacks": [],
+  "dividendsPaid": [],
+  "omissions": [
+    {
+      "code": "diluted-share-history-missing",
+      "message": "Annual diluted-share history is missing"
+    },
+    {
+      "code": "sbc-history-missing",
+      "message": "Annual stock-based compensation history is missing"
+    },
+    {
+      "code": "payout-evidence-missing",
+      "message": "Filed buyback and dividend evidence is missing"
+    }
+  ]
+}

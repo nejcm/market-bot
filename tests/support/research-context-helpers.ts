@@ -98,7 +98,8 @@ export function contextWithHistory(
       predictionSubjects: ["AAPL"],
       focus: ["instrument"],
       targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
     },
     marketRegime: {
       assetClass: "equity",
@@ -126,7 +127,8 @@ export function researchContext(command: ResearchCommand): ResearchContext {
       predictionSubjects: ["SMH"],
       focus: ["market regime"],
       targetKindMix: { favored: ["direction"], minNonDirection: 0 },
-      modelParams: undefined,
+      quickModelParams: undefined,
+      synthesisModelParams: undefined,
     },
     marketRegime: {
       assetClass: "equity",
@@ -213,7 +215,8 @@ export function equityRequiredShapeKinds(opts: {
         predictionSubjects: opts.predictionSubjects,
         focus: ["thesis"],
         targetKindMix: { favored: ["relative", "range"], minNonDirection: 2 },
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: "equity",
@@ -280,7 +283,8 @@ export function completionInstruction(opts: {
           favored: opts.favoredKinds ?? ["relative", "range"],
           minNonDirection: 1,
         },
-        modelParams: undefined,
+        quickModelParams: undefined,
+        synthesisModelParams: undefined,
       },
       marketRegime: {
         assetClass: "equity",

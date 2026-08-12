@@ -1,6 +1,7 @@
 import type { AssetClass, JobType, Prediction, ResearchReport, Source } from "./domain/types";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import { isRecord, readStringVerbatim, stringArrayValue } from "./guards";
+import { predictionShortfallMaterialGaps } from "./report/prediction-shortfall";
 import type { PredictionScore } from "./scoring/types";
 
 export const REPORT_SEARCH_SECTIONS = [
@@ -72,6 +73,7 @@ type ReportSearchInputKey =
   | FindingSection
   | "researchLeads"
   | "rejectedCandidates"
+  | "predictionShortfall"
   | "dataGaps"
   | "predictions"
   | "sources"
@@ -90,7 +92,9 @@ export function openQuestions(
     scores.filter((score) => score.resolved).map((score) => score.predictionId),
   );
   return [
-    ...report.dataGaps.map((gap) => `Data gap: ${gap}`),
+    ...predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).map(
+      (gap) => `Data gap: ${gap}`,
+    ),
     ...report.predictions
       .filter((prediction) => !resolved.has(prediction.id))
       .map((prediction) => `Unresolved prediction: ${predictionClaim(prediction)}`),
@@ -324,7 +328,10 @@ function sourceCandidates(
 }
 
 function dataGapCandidates(report: ReportSearchInput): readonly ReportSearchCandidate[] {
-  return stringArray(report, "dataGaps").map((text, index) => ({
+  return predictionShortfallMaterialGaps(
+    report.predictionShortfall,
+    stringArray(report, "dataGaps"),
+  ).map((text, index) => ({
     section: "dataGaps",
     label: `Data gap ${String(index + 1)}`,
     text,

@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "generatedAt": "<generatedAt>",
+  "run": {
+    "jobType": "equity",
+    "assetClass": "equity",
+    "symbol": "AAPL",
+    "depth": "brief"
+  },
+  "lanes": [
+    {
+      "lane": "market-data",
+      "evidenceClass": "core",
+      "appliesToRun": true,
+      "capability": "market-data"
+    },
+    {
+      "lane": "supplemental-market",
+      "evidenceClass": "supplemental",
+      "appliesToRun": true,
+      "capability": "supplemental-market"
+    },
+    {
+      "lane": "news",
+      "evidenceClass": "material",
+      "appliesToRun": true,
+      "capability": "news"
+    },
+    {
+      "lane": "verified-price-history",
+      "evidenceClass": "core",
+      "appliesToRun": true,
+      "capability": "verified-price-history"
+    },
+    {
+      "lane": "regulatory-filings",
+      "evidenceClass": "material",
+      "appliesToRun": true,
+      "capability": "regulatory-filings"
+    },
+    {
+      "lane": "corporate-events",
+      "evidenceClass": "supplemental",
+      "appliesToRun": true,
+      "capability": "corporate-events"
+    },
+    {
+      "lane": "macro-indicators",
+      "evidenceClass": "supplemental",
+      "appliesToRun": true,
+      "capability": "macro-indicators"
+    },
+    {
+      "lane": "derivatives-volatility",
+      "evidenceClass": "supplemental",
+      "appliesToRun": true,
+      "capability": "derivatives-volatility"
+    },
+    {
+      "lane": "target-valuation",
+      "evidenceClass": "material",
+      "appliesToRun": true,
+      "capability": "target-valuation"
+    }
+  ]
+}

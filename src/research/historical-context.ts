@@ -20,6 +20,7 @@ import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import type { PredictionScore } from "../scoring/types";
 import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
+import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 import {
   commandResearchSubjectIdentity,
   isSameResearchSubjectIdentity,
@@ -392,16 +393,13 @@ function keyExtras(report: ResearchReport): Record<string, unknown> | undefined 
   if (typeof extras.depth === "string") {
     result.depth = extras.depth;
   }
-  if (typeof extras.marketUpdateHorizonBucket === "string") {
+  const bucket = marketUpdateHorizonBucketOf(report);
+  if (bucket !== undefined) {
+    result.marketUpdateHorizonBucket = bucket;
+  } else if (typeof extras.marketUpdateHorizonBucket === "string") {
     result.marketUpdateHorizonBucket = extras.marketUpdateHorizonBucket;
   } else if (typeof extras.marketUpdateCadence === "string") {
-    result.marketUpdateHorizonBucket = extras.marketUpdateCadence === "weekly" ? "11-15d" : "1-5d";
-  }
-  if (result.marketUpdateHorizonBucket === undefined) {
-    const bucket = marketUpdateHorizonBucketOf(report);
-    if (bucket !== undefined) {
-      result.marketUpdateHorizonBucket = bucket;
-    }
+    result.marketUpdateHorizonBucket = extras.marketUpdateCadence === "weekly" ? "11-15d" : "2-5d";
   }
   const { subjectKey, predictionProxySymbol } = reportResearchSubjectIdentity(report);
   if (subjectKey !== undefined) {
@@ -445,7 +443,10 @@ function toRunContext(
     keyFindings: report.keyFindings.slice(0, 5),
     risks: report.risks.slice(0, 5),
     catalysts: report.catalysts.slice(0, 5),
-    dataGaps: report.dataGaps.slice(0, 8),
+    dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).slice(
+      0,
+      8,
+    ),
     predictions: predictionSummaries(report, selected.artifact.scores),
     scoreSummary: scoreSummary(selected.artifact.scores),
     marketSnapshots: compactSnapshots(selected.artifact.snapshots, symbols),

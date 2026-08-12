@@ -6,11 +6,13 @@ This project uses Bun test, oxfmt, oxlint, and TypeScript.
 
 ```sh
 bun test                 # run all tests
-bun test tests/foo.test.ts
+bun test tests/report.test.ts
 bun run typecheck
+bun run app:check
+bun run app:build
 bun run lint
 bun run fmt:check
-bun run check            # fmt + lint + fmt:check + typecheck + test
+bun run check            # fmt + lint + fmt:check + typecheck + app build + test
 ```
 
 ## Static equity fixture tests
@@ -27,34 +29,55 @@ orchestration, report assembly, and schema validation.
 Run the focused fixture suite:
 
 ```sh
-bun test tests/equity-fixture-run.test.ts
+bun test tests/equity-fixture/run.test.ts
 ```
 
 Current checked-in fixtures:
 
 - `tests/fixtures/runs/equity-aapl-brief/`
 - `tests/fixtures/runs/equity-aapl-deep/`
+- `tests/fixtures/runs/equity-web-fallback-deep/`
+- `tests/fixtures/runs/equity-nbis-deep/`
+- `tests/fixtures/runs/equity-fpi-quarterly/`
+- `tests/fixtures/runs/equity-fpi-ifrs-semiannual/`
+- `tests/fixtures/runs/equity-analysis-comprehensive/`
+- `tests/fixtures/runs/equity-analysis-estimated-suppressed/`
 
 Each fixture contains:
 
 - `data-cassette.json` — scrubbed HTTP responses keyed by canonical request.
 - `llm-cassette.json` — ordered model responses keyed by stage and model.
 - `meta.json` — pinned run config, clock, command, and model settings.
-- `golden-output.json` — scrubbed deterministic run output used by the regression test.
+- `golden-output/` — scrubbed deterministic run output used by the regression test:
+  `report.json`, `analytics.json`, exact-text `report.md`, and `normalized/*.json` sidecars.
 
 ## Refreshing golden output
 
 When an intentional deterministic output change affects the fixture artifacts, refresh the golden
-output from the existing cassettes:
+output from the existing cassettes. Check the current output first; replay mode checks by default,
+and `--check-golden` makes that intent explicit:
 
 ```sh
+bun run scripts/replay-fixture-run.ts equity-aapl-brief --check-golden
+bun run scripts/replay-fixture-run.ts equity-aapl-brief --keep # check and retain the isolated temporary replay directory
 bun run scripts/replay-fixture-run.ts equity-aapl-brief --write-golden
 bun run scripts/replay-fixture-run.ts equity-aapl-deep --write-golden
-bun test tests/equity-fixture-run.test.ts
+bun test tests/equity-fixture/run.test.ts
 ```
 
 `--write-golden` uses replayed data and replayed model output. It should not require live provider
-keys or live network access.
+keys or live network access. Before overwriting, it prints an identity-matched, bucketed summary
+against the existing golden. Sign flips, numeric deltas over 25%, sensitive financial fields,
+type changes, and removed warnings or gaps are always printed in full. Prose changes are counted
+and sampled under the normal top-N limit. Markdown uses line matching so inserted or removed lines
+do not shift every successor. Positional array fallbacks are called out and must be reviewed for a
+missing stable identity rule.
+
+Write mode runs the strict golden reader before replacing any files. A layout-invalid entry at the
+`golden-output/` root, such as a stray file or any unexpected root entry, therefore aborts
+`--write-golden` and must be removed by hand. A layout-valid stale `.json` file under
+`golden-output/normalized/` is readable, appears in the pre-write diff, and is removed when the
+writer recreates the normalized file set.
 
 ## Refreshing prompt baseline hashes
 
@@ -66,10 +89,9 @@ intentional, refresh the goldens and inspect the diff:
 UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts
 ```
 
-## Eval mode
+## Live fixture replay
 
-Eval mode replays the static data cassette but uses the live configured model provider. Use it when
-you want to judge prompt, playbook, or model-stage changes against fixed market inputs:
+Live replay uses one static data cassette with the configured live model provider:
 
 ```sh
 bun run scripts/replay-fixture-run.ts equity-aapl-deep --live
@@ -78,6 +100,29 @@ bun run scripts/replay-fixture-run.ts equity-aapl-deep --live
 This writes a run under `data/runs/` and costs live model usage. It requires the same provider setup
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
+
+The replay command accepts exactly one fixture name and one optional mode: `--live`,
+`--keep`, `--check-golden`, or `--write-golden`. Replay mode without a mode flag checks the golden.
+Checks and writes use temporary runs. `--keep` also checks the golden, then retains the replayed run
+in its isolated temporary directory and prints its path for inspection.
+Retained `--keep` directories are not removed automatically; delete them manually when finished.
+
+## Deep-equity presentation assertions
+
+Deep-equity report tests verify that the reader block precedes `## Appendix`, contains the compact
+company, price/freshness, trend, valuation-context, catalyst/risk, earnings/consensus, and material
+gap content, and excludes appendix-only detail. Console tests server-render the workspace at both
+`reportDetail` settings and verify Simple omits appendix markers, Advanced contains them as a strict
+superset with nothing duplicated, and non-equity output is byte-identical across the two. Both
+surfaces derive the trend table through
+`src/report/equity-reader.ts` and classify gaps through `src/report/gap-triage.ts`.
+
+Run the focused suites:
+
+```sh
+bun test tests/report.test.ts tests/run-workspace-view.test.ts tests/research-console-view-model.test.ts tests/app.test.ts
+bun test tests/equity-fixture/run.test.ts
+```
 
 ## Recording fixtures
 
@@ -93,11 +138,28 @@ keys such as `MARKET_BOT_FRED_API_KEY`, `MARKET_BOT_TRADIER_API_TOKEN`,
 `MARKET_BOT_EXA_API_KEY`, and `MARKET_BOT_SEC_USER_AGENT` affect what is captured. Never commit a
 fixture until the recorder's secret scan passes and `bun run check` is green.
 
+### Generated fixture price series
+
+`scripts/generate-fixture-price-series.ts` with `SEED = 17` owns the identical Yahoo chart bodies in
+`equity-aapl-brief`, `equity-aapl-deep`, `equity-analysis-comprehensive`,
+`equity-analysis-estimated-suppressed`, `equity-fpi-quarterly`, and
+`equity-fpi-ifrs-semiannual`. Do not re-record these chart entries independently: preserve the
+existing chart body when updating unrelated cassette data, and use the generator only for an
+intentional shared price-path change before replaying all six goldens.
+
 ## Fixture maintenance rules
 
 - Keep harness helpers in `tests/support/run-fixtures/`.
-- Keep test assertions in `tests/equity-fixture-run.test.ts`; do not mix test-only behavior into
-  production pipeline code.
+- Treat each fixture's `golden-output/` as its value coverage. Assertions cover only
+  non-golden checks such as raw snapshots, separate-file hashes, prompt/model behavior, fields
+  without normalized sidecars, and cross-cutting invariants.
+- Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in
+  `tests/support/run-fixtures/assertions.ts`; do not mix test-only behavior into production
+  pipeline code.
 - Do not hand-edit cassettes unless you are removing an obvious secret and will re-record afterward.
-- If `golden-output.json` changes, inspect the diff for real behavior changes before committing.
-- CI should use regression mode only; live eval and recording are manual developer workflows.
+- If files under `golden-output/` change, inspect the golden-diff summary before committing. Investigate
+  every escalated finding, especially sign flips, large numeric deltas, and removed validation
+  notes, omission notes, or data gaps. Do not accept a positional fallback without checking whether
+  the array now has a stable identity.
+- CI should use regression mode only; live fixture replay and recording are manual developer
+  workflows.

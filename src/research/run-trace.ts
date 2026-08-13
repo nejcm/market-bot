@@ -171,6 +171,7 @@ export function buildRunTrace(input: {
       materialGapLaneCount: input.sourcePlanning.evidenceLanes.summary.materialGapLaneCount,
       sourceCount: input.sourcePlanning.evidenceLanes.summary.sourceCount,
       gapCount: input.sourcePlanning.evidenceLanes.summary.gapCount,
+      suppressedLaneCount: input.sourcePlanning.evidenceLanes.summary.suppressedLaneCount,
       coverageRatio: input.sourcePlanning.evidenceLanes.summary.coverageRatio,
     },
     ...(input.forecastDisagreement !== undefined

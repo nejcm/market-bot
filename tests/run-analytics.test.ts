@@ -266,6 +266,7 @@ describe("run analytics", () => {
         materialGapLaneCount: 0,
         sourceCount: 4,
         gapCount: 1,
+        suppressedLaneCount: 1,
         coverageRatio: 0.6,
       },
       calibrationContext: {
@@ -415,6 +416,7 @@ describe("run analytics", () => {
       materialGapLaneCount: 0,
       sourceCount: 4,
       gapCount: 1,
+      suppressedLaneCount: 1,
       coverageRatio: 0.6,
     });
     expect(analytics.runShape.stages).toEqual([

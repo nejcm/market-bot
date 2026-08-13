@@ -5,6 +5,7 @@ import {
   type AssetClass,
   type Source,
   type SourceGap,
+  type SourceGapCause,
 } from "../domain/types";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
@@ -180,6 +181,7 @@ export interface EvidenceLaneCoverageV2 {
   readonly coveredSourceIds: readonly string[];
   readonly gapIds: readonly string[];
   readonly gapText: readonly string[];
+  readonly gapCauses?: readonly SourceGapCause[];
   readonly freshnessNotes: readonly string[];
   // Lane-specific usability posture layered on top of source-acquisition
   // Coverage. Currently only the target-valuation lane sets it: false means the
@@ -200,6 +202,7 @@ export interface EvidenceLaneSummaryV2 {
   readonly materialGapLaneCount: number;
   readonly sourceCount: number;
   readonly gapCount: number;
+  readonly suppressedLaneCount: number;
   readonly coverageRatio: number;
 }
 
@@ -532,6 +535,13 @@ function summary(lanes: readonly EvidenceLaneCoverageV2[]): EvidenceLaneSummaryV
     ).length,
     sourceCount: lanes.reduce((total, lane) => total + lane.coveredSourceIds.length, 0),
     gapCount: lanes.reduce((total, lane) => total + lane.gapIds.length, 0),
+    suppressedLaneCount: lanes.filter(
+      (lane) =>
+        lane.status !== "covered" &&
+        lane.gapCauses !== undefined &&
+        lane.gapCauses.length > 0 &&
+        lane.gapCauses.every((cause) => cause === "suppressed-by-design"),
+    ).length,
     coverageRatio: plannedLaneCount === 0 ? 1 : coveredLaneCount / plannedLaneCount,
   };
 }
@@ -712,6 +722,13 @@ export function assessSourcePlan(
       planLane.lane,
     );
     const syntheticQualityGaps = qualityGapLines(sourcePlan.run, collectedSources, planLane.lane);
+    const usesMatchedGapLines =
+      syntheticNoProxyGap === undefined &&
+      syntheticQualityGaps.length === 0 &&
+      (sourceIds.length > 0 || matchedGaps.length > 0);
+    const gapCauses = [
+      ...new Set(matchedGaps.flatMap((gap) => (gap.cause === undefined ? [] : [gap.cause]))),
+    ];
     const gapLines =
       syntheticNoProxyGap ??
       (syntheticQualityGaps.length > 0
@@ -734,6 +751,7 @@ export function assessSourcePlan(
       coveredSourceIds: sourceIds,
       gapIds,
       gapText: gapLines,
+      ...(usesMatchedGapLines && gapCauses.length > 0 ? { gapCauses } : {}),
       freshnessNotes: freshnessNotes(entries),
       ...(supportable !== undefined ? { supportable } : {}),
     };

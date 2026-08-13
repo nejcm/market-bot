@@ -123,6 +123,62 @@ describe("source plan", () => {
     expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
   });
 
+  test("reports backed gap causes without counting unreachable or synthetic lanes as suppressed", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    } as const;
+    const suppressed = plannedAndAssessed(
+      command,
+      collectedSources({
+        sourceGaps: [
+          sourceGap({
+            source: "sec-untagged-financials",
+            message: "source suppressed by capability gate",
+            capability: "extended-evidence",
+            cause: "suppressed-by-design",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+    );
+    const unreachable = plannedAndAssessed(
+      command,
+      collectedSources({
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-options",
+            message: "missing MARKET_BOT_TRADIER_API_TOKEN",
+            capability: "extended-evidence",
+            cause: "missing-credential",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+    );
+    const synthetic = plannedAndAssessed(command, collectedSources());
+
+    expect(
+      suppressed.evidenceLanes.lanes.find((lane) => lane.lane === "regulatory-filings"),
+    ).toMatchObject({ status: "gap", gapCauses: ["suppressed-by-design"] });
+    expect(suppressed.evidenceLanes.summary.suppressedLaneCount).toBe(1);
+    expect(
+      unreachable.evidenceLanes.lanes.find((lane) => lane.lane === "derivatives-volatility"),
+    ).toMatchObject({ status: "gap", gapCauses: ["missing-credential"] });
+    expect(unreachable.evidenceLanes.summary.suppressedLaneCount).toBe(0);
+    expect(
+      synthetic.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")?.gapCauses,
+    ).toBeUndefined();
+    expect(synthetic.evidenceLanes.summary.suppressedLaneCount).toBe(0);
+    expect([
+      suppressed.evidenceLanes.summary.coverageRatio,
+      unreachable.evidenceLanes.summary.coverageRatio,
+      synthetic.evidenceLanes.summary.coverageRatio,
+    ]).toEqual([0, 0, 0]);
+  });
+
   test("keeps subject-profile lane covered for a salvaged (partially rejected) profile (finding 6)", () => {
     const command: ResearchCommand = {
       jobType: "equity",

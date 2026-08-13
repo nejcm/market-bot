@@ -15,7 +15,9 @@ import {
   incompleteFinancialStatementNotes,
 } from "./financial-statement-selection";
 import {
+  CANONICAL_SEC_FORMS,
   SEC_COMPANYFACTS_UNIT_SCALE,
+  isAnnualReportForm,
   type CanonicalSecForm,
   type FinancialStatementFact,
   type FinancialStatementEquityStack,
@@ -92,10 +94,11 @@ export function canonicalizeSecForm(value: string):
   | undefined {
   const amendment = value.endsWith("/A");
   const canonical = amendment ? value.slice(0, -2) : value;
-  if (canonical !== "10-K" && canonical !== "10-Q" && canonical !== "20-F" && canonical !== "6-K") {
+  const canonicalForm = CANONICAL_SEC_FORMS.find((form) => form === canonical);
+  if (canonicalForm === undefined) {
     return undefined;
   }
-  return { form: value as SupportedSecForm, canonicalForm: canonical, amendment };
+  return { form: value as SupportedSecForm, canonicalForm, amendment };
 }
 
 function readFiscalYear(value: Record<string, unknown>): number | undefined {
@@ -274,8 +277,8 @@ function taxonomyScore(
   if (revenueIndex === -1) {
     throw new Error("Financial statement definitions must include revenue");
   }
-  const revenueAnnual = seriesFacts[revenueIndex]?.filter(
-    (fact) => fact.canonicalForm === "10-K" || fact.canonicalForm === "20-F",
+  const revenueAnnual = seriesFacts[revenueIndex]?.filter((fact) =>
+    isAnnualReportForm(fact.canonicalForm),
   );
   const latestAnnual =
     revenueAnnual
@@ -335,9 +338,7 @@ function selectReportingCurrency(
     throw new Error("Financial statement definitions must include revenue");
   }
   const revenueFacts = allFactsForDefinition(payload, taxonomy, revenue).filter(
-    (fact) =>
-      isObservable(fact, analysisAsOf) &&
-      (fact.canonicalForm === "10-K" || fact.canonicalForm === "20-F"),
+    (fact) => isObservable(fact, analysisAsOf) && isAnnualReportForm(fact.canonicalForm),
   );
   const pool =
     revenueFacts.length > 0
@@ -389,7 +390,7 @@ function periodType(
   fact: ParsedFact,
   definition: FinancialStatementSeriesDefinition,
 ): "annual" | "interim" {
-  if (fact.canonicalForm !== "10-K" && fact.canonicalForm !== "20-F") {
+  if (!isAnnualReportForm(fact.canonicalForm)) {
     return "interim";
   }
   if (definition.kind === "instant") {

@@ -6,11 +6,12 @@ import {
   type FundamentalHistoryRawSeries,
   type FundamentalHistorySeries,
 } from "./fundamental-history";
-import type {
-  FinancialStatementFact,
-  FinancialStatementSeries,
-  FinancialStatementSeriesKey,
-  FinancialStatementsArtifact,
+import {
+  isAnnualReportForm,
+  type FinancialStatementFact,
+  type FinancialStatementSeries,
+  type FinancialStatementSeriesKey,
+  type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import {
   financialStatementFacts,
@@ -70,7 +71,7 @@ function annualPoint(fact: FinancialStatementFact): FundamentalHistoryPoint | un
     months === undefined ||
     months < 10 ||
     months > 14 ||
-    (fact.canonicalForm !== "10-K" && fact.canonicalForm !== "20-F")
+    !isAnnualReportForm(fact.canonicalForm)
   ) {
     return undefined;
   }

@@ -11,6 +11,7 @@ import {
   type SecMetricDefinition,
 } from "./sec-edgar";
 import { isRevenueConceptInRecencyBucket } from "./financial-statement-definitions";
+import type { AnnualReportForm } from "./financial-statements-contract";
 
 export type FundamentalHistorySeriesKey =
   | "revenue"
@@ -27,7 +28,7 @@ export type FundamentalHistorySeriesKey =
 
 export interface FundamentalHistoryPoint {
   readonly value: number;
-  readonly form: "10-K" | "20-F" | "TTM";
+  readonly form: AnnualReportForm | "TTM";
   readonly fy: number;
   readonly fp: string;
   readonly periodStart: string;

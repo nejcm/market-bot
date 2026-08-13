@@ -2,9 +2,30 @@ import { isRecord } from "../../guards";
 
 export type FinancialStatementTaxonomy = "us-gaap" | "ifrs-full";
 
-export type CanonicalSecForm = "10-K" | "10-Q" | "20-F" | "6-K";
+export const CANONICAL_SEC_FORMS = ["10-K", "10-Q", "20-F", "6-K"] as const;
 
-export type SupportedSecForm = CanonicalSecForm | `${CanonicalSecForm}/A`;
+export type CanonicalSecForm = (typeof CANONICAL_SEC_FORMS)[number];
+
+const SUPPORTED_SEC_FORMS = [
+  ...CANONICAL_SEC_FORMS,
+  ...CANONICAL_SEC_FORMS.map((form) => `${form}/A` as const),
+] as const;
+
+export type SupportedSecForm = (typeof SUPPORTED_SEC_FORMS)[number];
+
+// SEC forms that represent annual reports.
+const ANNUAL_REPORT_FORMS = ["10-K", "20-F"] as const;
+
+export type AnnualReportForm = (typeof ANNUAL_REPORT_FORMS)[number];
+
+export const ANNUAL_REPORT_FORMS_WITH_AMENDMENTS: readonly (
+  | AnnualReportForm
+  | `${AnnualReportForm}/A`
+)[] = ANNUAL_REPORT_FORMS.flatMap((form) => [form, `${form}/A` as const]);
+
+export function isAnnualReportForm(form: CanonicalSecForm): form is AnnualReportForm {
+  return ANNUAL_REPORT_FORMS.some((annualForm) => annualForm === form);
+}
 
 export type FinancialStatementExtractionMethod = "sec-companyfacts";
 
@@ -204,18 +225,9 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     numberField(value, "value") !== undefined &&
     stringField(value, "periodKey") !== undefined &&
     (value.periodType === "annual" || value.periodType === "interim") &&
-    (value.form === "10-K" ||
-      value.form === "10-K/A" ||
-      value.form === "10-Q" ||
-      value.form === "10-Q/A" ||
-      value.form === "20-F" ||
-      value.form === "20-F/A" ||
-      value.form === "6-K" ||
-      value.form === "6-K/A") &&
-    (value.canonicalForm === "10-K" ||
-      value.canonicalForm === "10-Q" ||
-      value.canonicalForm === "20-F" ||
-      value.canonicalForm === "6-K") &&
+    // `.some` accepts the unknown left operand that `.includes` rejects in strict TypeScript.
+    SUPPORTED_SEC_FORMS.some((form) => value.form === form) &&
+    CANONICAL_SEC_FORMS.some((form) => value.canonicalForm === form) &&
     typeof value.amendment === "boolean" &&
     (value.accessionNumber === null || typeof value.accessionNumber === "string") &&
     stringField(value, "filedAt") !== undefined &&

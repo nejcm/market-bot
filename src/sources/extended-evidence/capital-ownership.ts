@@ -1,9 +1,10 @@
 import { isRecord } from "../../guards";
 import type { CollectContext } from "../types";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
-import type {
-  FinancialStatementTaxonomy,
-  FinancialStatementsArtifact,
+import {
+  ANNUAL_REPORT_FORMS_WITH_AMENDMENTS,
+  type FinancialStatementTaxonomy,
+  type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 
@@ -265,12 +266,12 @@ function annualConceptFacts(
   for (const definition of definitions) {
     const selected = conceptUnitFacts(payload, definition, unit).flatMap(
       (fact): readonly CapitalOwnershipPeriodFact[] => {
+        if (!isRecord(fact)) {
+          return [];
+        }
+        const annualForm = ANNUAL_REPORT_FORMS_WITH_AMENDMENTS.find((form) => fact.form === form);
         if (
-          !isRecord(fact) ||
-          (fact.form !== "10-K" &&
-            fact.form !== "10-K/A" &&
-            fact.form !== "20-F" &&
-            fact.form !== "20-F/A") ||
+          annualForm === undefined ||
           typeof fact.val !== "number" ||
           !Number.isFinite(fact.val) ||
           typeof fact.start !== "string" ||
@@ -287,7 +288,7 @@ function annualConceptFacts(
             periodStart: fact.start,
             periodEnd: fact.end,
             filedAt: fact.filed,
-            form: fact.form,
+            form: annualForm,
             taxonomy: definition.taxonomy,
             concept: definition.concept,
             unit,

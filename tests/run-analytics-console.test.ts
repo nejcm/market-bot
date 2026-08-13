@@ -155,7 +155,6 @@ describe("run analytics console", () => {
         materialGapLaneCount: 0,
         sourceCount: 12,
         gapCount: 2,
-        suppressedLaneCount: 0,
         coverageRatio: 0.75,
       },
     });

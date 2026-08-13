@@ -950,7 +950,6 @@ export interface RunTrace {
     readonly materialGapLaneCount: number;
     readonly sourceCount: number;
     readonly gapCount: number;
-    readonly suppressedLaneCount: number;
     readonly coverageRatio: number;
   };
   readonly forecastDisagreement?: {

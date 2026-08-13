@@ -505,7 +505,6 @@
     "materialGapLaneCount": 2,
     "sourceCount": 13,
     "gapCount": 11,
-    "suppressedLaneCount": 0,
     "coverageRatio": 0.45454545454545453
   },
   "calibrationAtGeneration": {

@@ -932,8 +932,6 @@ function hasEvidenceLaneSummaryShape(value: unknown): boolean {
     readNumber(value, "gapLaneCount") !== undefined &&
     readNumber(value, "sourceCount") !== undefined &&
     readNumber(value, "gapCount") !== undefined &&
-    (value.suppressedLaneCount === undefined ||
-      readNumber(value, "suppressedLaneCount") !== undefined) &&
     readNumber(value, "coverageRatio") !== undefined
   );
 }

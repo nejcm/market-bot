@@ -80,7 +80,6 @@ function planning(
         ).length,
         sourceCount: sources.length,
         gapCount: coverage.filter((lane) => lane.status === "gap").length,
-        suppressedLaneCount: 0,
         coverageRatio:
           coverage.length === 0
             ? 1

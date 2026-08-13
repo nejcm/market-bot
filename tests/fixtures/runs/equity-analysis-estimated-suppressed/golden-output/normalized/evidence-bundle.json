@@ -6346,7 +6346,6 @@
         "materialGapLaneCount": 1,
         "sourceCount": 32,
         "gapCount": 17,
-        "suppressedLaneCount": 0,
         "coverageRatio": 0.7272727272727273
       }
     },

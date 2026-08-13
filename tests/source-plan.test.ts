@@ -123,7 +123,7 @@ describe("source plan", () => {
     expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
   });
 
-  test("reports backed gap causes without counting partial, unreachable, or synthetic lanes as suppressed", () => {
+  test("reports backed gap causes for suppression, credentials, and mixed gaps", () => {
     const command = {
       jobType: "equity",
       assetClass: "equity",
@@ -183,19 +183,15 @@ describe("source plan", () => {
     expect(
       suppressed.evidenceLanes.lanes.find((lane) => lane.lane === "regulatory-filings"),
     ).toMatchObject({ status: "gap", gapCauses: ["suppressed-by-design"] });
-    expect(suppressed.evidenceLanes.summary.suppressedLaneCount).toBe(1);
     expect(
       unreachable.evidenceLanes.lanes.find((lane) => lane.lane === "derivatives-volatility"),
     ).toMatchObject({ status: "gap", gapCauses: ["missing-credential"] });
-    expect(unreachable.evidenceLanes.summary.suppressedLaneCount).toBe(0);
     expect(
       partiallyUncaused.evidenceLanes.lanes.find((lane) => lane.lane === "regulatory-filings"),
     ).toMatchObject({ status: "gap", gapCauses: ["suppressed-by-design"] });
-    expect(partiallyUncaused.evidenceLanes.summary.suppressedLaneCount).toBe(0);
     expect(
       synthetic.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")?.gapCauses,
     ).toBeUndefined();
-    expect(synthetic.evidenceLanes.summary.suppressedLaneCount).toBe(0);
     expect([
       suppressed.evidenceLanes.summary.coverageRatio,
       unreachable.evidenceLanes.summary.coverageRatio,

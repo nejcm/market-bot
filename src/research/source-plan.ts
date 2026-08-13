@@ -202,7 +202,6 @@ export interface EvidenceLaneSummaryV2 {
   readonly materialGapLaneCount: number;
   readonly sourceCount: number;
   readonly gapCount: number;
-  readonly suppressedLaneCount: number;
   readonly coverageRatio: number;
 }
 
@@ -516,10 +515,7 @@ function freshnessNotes(entries: readonly SourceLedgerEntry[]): readonly string[
   return latest === undefined ? [] : [`latest evidence timestamp ${latest}`];
 }
 
-function summary(
-  lanes: readonly EvidenceLaneCoverageV2[],
-  fullyCausedGapLanes: ReadonlySet<EvidenceLane>,
-): EvidenceLaneSummaryV2 {
+function summary(lanes: readonly EvidenceLaneCoverageV2[]): EvidenceLaneSummaryV2 {
   const coveredLaneCount = lanes.filter((lane) => lane.status === "covered").length;
   const gapLaneCount = lanes.filter((lane) => lane.status === "gap").length;
   const plannedLaneCount = lanes.length;
@@ -538,14 +534,6 @@ function summary(
     ).length,
     sourceCount: lanes.reduce((total, lane) => total + lane.coveredSourceIds.length, 0),
     gapCount: lanes.reduce((total, lane) => total + lane.gapIds.length, 0),
-    suppressedLaneCount: lanes.filter(
-      (lane) =>
-        lane.status !== "covered" &&
-        fullyCausedGapLanes.has(lane.lane) &&
-        lane.gapCauses !== undefined &&
-        lane.gapCauses.length > 0 &&
-        lane.gapCauses.every((cause) => cause === "suppressed-by-design"),
-    ).length,
     coverageRatio: plannedLaneCount === 0 ? 1 : coveredLaneCount / plannedLaneCount,
   };
 }
@@ -711,7 +699,6 @@ export function assessSourcePlan(
   generatedAt: string,
 ): BuildSourcePlanResult {
   const ledger: SourceLedgerEntry[] = [];
-  const fullyCausedGapLanes = new Set<EvidenceLane>();
   const coverage = sourcePlan.lanes.map((planLane): EvidenceLaneCoverageV2 => {
     const definition = LANE_DEFINITIONS_BY_LANE.get(planLane.lane);
     const { evidenceClass } = planLane;
@@ -734,9 +721,6 @@ export function assessSourcePlan(
     const gapCauses = [
       ...new Set(matchedGaps.flatMap((gap) => (gap.cause === undefined ? [] : [gap.cause]))),
     ];
-    if (matchedGaps.length > 0 && matchedGaps.every((gap) => gap.cause !== undefined)) {
-      fullyCausedGapLanes.add(planLane.lane);
-    }
     const gapLines =
       syntheticNoProxyGap ??
       (syntheticQualityGaps.length > 0
@@ -771,7 +755,7 @@ export function assessSourcePlan(
       version: 2,
       generatedAt,
       lanes: coverage,
-      summary: summary(coverage, fullyCausedGapLanes),
+      summary: summary(coverage),
     },
     sourceLedger: {
       version: 2,

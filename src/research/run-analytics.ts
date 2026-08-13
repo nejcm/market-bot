@@ -201,7 +201,6 @@ export interface RunAnalytics {
     readonly materialGapLaneCount: number;
     readonly sourceCount: number;
     readonly gapCount: number;
-    readonly suppressedLaneCount: number;
     readonly coverageRatio: number;
   };
   readonly calibrationAtGeneration?: {
@@ -818,7 +817,6 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
             materialGapLaneCount: sourcePlanSummary.materialGapLaneCount,
             sourceCount: sourcePlanSummary.sourceCount,
             gapCount: sourcePlanSummary.gapCount,
-            suppressedLaneCount: sourcePlanSummary.suppressedLaneCount,
             coverageRatio: sourcePlanSummary.coverageRatio,
           },
         }

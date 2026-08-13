@@ -122,6 +122,71 @@ describe("canonical financial statements", () => {
     expect(canonicalizeSecForm("40-F")).toBeUndefined();
   });
 
+  test("pins pure-MJDS 40-F annual facts being silently discarded", () => {
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: {
+            CAD: [
+              annual(100, 2024, "40-F"),
+              interim({
+                value: 60,
+                year: 2025,
+                endMonthDay: "06-30",
+                form: "6-K",
+                fiscalPeriod: "H1",
+              }),
+            ],
+          },
+          ProfitLoss: {
+            CAD: [
+              annual(10, 2024, "40-F/A"),
+              interim({
+                value: 6,
+                year: 2025,
+                endMonthDay: "06-30",
+                form: "6-K",
+                fiscalPeriod: "H1",
+              }),
+            ],
+          },
+          Assets: {
+            CAD: [
+              instant(200, 2024, "40-F"),
+              fact({
+                value: 210,
+                form: "6-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "H1",
+                filedAt: "2025-08-15",
+                periodEnd: "2025-06-30",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    const { revenue, netIncome } = artifact.statements.incomeStatement;
+    const { totalAssets } = artifact.statements.balanceSheet;
+    expect(artifact).toMatchObject({
+      taxonomy: "ifrs-full",
+      reportingCurrency: "CAD",
+      structuredFinancialGaps: [],
+    });
+    // Defect witness: plan 0006 Phase 4 flips these to populated annual series.
+    expect({
+      revenue: revenue.annual,
+      netIncome: netIncome.annual,
+      totalAssets: totalAssets.annual,
+    }).toEqual({ revenue: [], netIncome: [], totalAssets: [] });
+    expect({
+      revenue: revenue.interim.map((item) => item.value),
+      netIncome: netIncome.interim.map((item) => item.value),
+      totalAssets: totalAssets.interim.map((item) => item.value),
+    }).toEqual({ revenue: [60], netIncome: [6], totalAssets: [210] });
+  });
+
   test("surfaces standard noncontrolling and temporary-equity facts", () => {
     const artifact = derive(
       payload({

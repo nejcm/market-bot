@@ -1,6 +1,13 @@
 # Plan 0006 — 40-F annual facts, and the remaining contracts from 0004/0005
 
-**Status: Decided, not started** — as of 2026-08-14.
+**Status: Complete** — implemented 2026-08-14, `a6b696a`..`3d0e6d4`.
+
+All eight implementation phases landed with `bun run check` green at each commit.
+Two defects were caught by independent review that a passing check did not
+surface, both recorded inline below: the incomplete restatement inventory
+(Validation 2 amendment) and the `run-artifacts.ts:1142` split guard (Phase 4
+prerequisite 1). A third — a coverage regression in the Phase 2 witness — was
+caught by mutation-testing the Phase 4 diff and is recorded in Phase 4.
 
 Supersedes the 2026-08-13 draft of this file. Three of that draft's five findings
 were wrong; the corrections are recorded inline below so they are not
@@ -417,14 +424,47 @@ every guard pair.
 
 Phases 1, 6, 7, 8 are low risk.
 
-## Objective check
+## Objective check — verified 2026-08-14
 
-- `git status` is clean and `plans/` is tracked.
-- A companyfacts payload containing only `40-F`, `40-F/A`, and `6-K` yields a
-  populated annual series with `periodType: "annual"` on the `40-F` facts.
-- The literal pair `"10-K"`/`"20-F"` appears in exactly one place in
-  `src/sources/extended-evidence/`.
-- Adding an unproducible form to `CANONICAL_SEC_FORMS` fails `tsc`.
-- A `factLedger` fact with empty `sourceIds` does not survive a read.
-- Changing a base metric key in `buildFredMacroMetrics` fails a test.
-- `bun run knip` is a gate that can demonstrably fail, and its mode is documented.
+Every item below was confirmed by execution, not inspection. Where a check asserts
+that something *can fail*, the failure was reproduced and captured.
+
+- ✅ `git status` is clean and `plans/` is tracked (`git check-ignore` exits 1).
+- ✅ A companyfacts payload containing only `40-F`, `40-F/A`, and `6-K` yields a
+  populated annual series with `periodType: "annual"` on the `40-F` facts —
+  pinned in `tests/financial-statements.test.ts`, including `value`, `periodEnd`,
+  `fiscalYear`, and `currency`.
+- ✅ The literal pair `"10-K"`/`"20-F"` appears in exactly one place in
+  `src/sources/extended-evidence/` — `financial-statements-contract.ts:24`.
+- ✅ Adding an unproducible form to `CANONICAL_SEC_FORMS` fails `tsc`
+  (captured: `TS2322: Type '"BOGUS"' is not assignable to type 'SecFilingForm'`).
+- ✅ A `factLedger` fact with empty `sourceIds` does not survive a read, while a
+  partially-uncited profile still round-trips (`686fc08` preserved).
+- ✅ Changing a base metric key in `buildFredMacroMetrics` fails a test
+  (captured: `DGS10` → `DGS2Renamed` fails `tests/regime.test.ts`).
+- ✅ `bun run knip` demonstrably fails on an unreferenced `src/` file, and its
+  mode is documented in `docs/testing.md`.
+- ✅ Two `40-F`-conditional mutations of `toSelectedFact` (`value * 7 + 1`;
+  `fiscalYear: 1900` + `currency: "XXX"`) each fail the suite. Both passed
+  2801/2801 before the Phase 4 assertion was strengthened.
+
+## What review caught that `bun run check` did not
+
+Recorded because it is the plan's own thesis, tested:
+
+1. **Incomplete inventory.** This plan named four restatement sites; there were
+   six. The missed `fundamental-history-canonical.ts:73` would have let Phase 4
+   ship green while emitting an empty fundamental history for exactly the MJDS
+   filers it exists to fix.
+2. **A guard split created by the fix.** Deriving `FundamentalHistoryPoint.form`
+   from `AnnualReportForm` (Phase 3) left `hasFundamentalHistoryPointShape`
+   (`run-artifacts.ts:1142`) hand-listed. Phase 4 would then have made the
+   *entire* fundamental history artifact vanish on read for mixed filers —
+   silently, since `undefined` is a legal absent-artifact result.
+3. **A witness weakened into uselessness.** Phase 4 rewrote the Phase 2
+   assertion to project away `value`, `periodEnd`, `currency`, and `fiscalYear`.
+   Mutation testing proved two `40-F`-conditional corruptions passed the full
+   suite green.
+
+All three were invisible to `bun run check`. None were caught by the builder that
+wrote them.

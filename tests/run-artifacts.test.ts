@@ -9,7 +9,7 @@ import {
 } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { readDeepEquityEvidenceBundle } from "../src/deep-equity/artifact-schema";
-import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {
   marketSnapshot,
@@ -390,7 +390,7 @@ describe("loadRunArtifact", () => {
                 USD: [
                   {
                     val: 100,
-                    form: "20-F",
+                    form: "40-F",
                     fp: "FY",
                     fy: 2025,
                     filed: "2026-03-01",
@@ -555,24 +555,24 @@ describe("loadRunArtifact", () => {
     expect(artifact?.reverseDcf).toEqual(sensitivity);
   });
 
-  test("round-trips a validated fundamental-history sidecar", async () => {
+  test("round-trips a validated 40-F fundamental-history sidecar", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "fundamental-history");
-    const fundamentalHistory = deriveFundamentalHistory(
+    const financialStatements = deriveFinancialStatements(
       {
         facts: {
-          "us-gaap": {
-            Revenues: {
+          "ifrs-full": {
+            Revenue: {
               units: {
-                USD: [
+                CAD: [
                   {
                     val: 100,
-                    form: "10-K",
+                    form: "40-F",
                     fp: "FY",
                     fy: 2024,
-                    filed: "2024-11-01",
-                    start: "2023-10-01",
-                    end: "2024-09-30",
+                    filed: "2025-02-15",
+                    start: "2024-01-01",
+                    end: "2024-12-31",
                   },
                 ],
               },
@@ -581,17 +581,19 @@ describe("loadRunArtifact", () => {
         },
       },
       {
-        symbol: "AAPL",
+        symbol: "BNS",
         generatedAt: "2025-08-01T00:00:00.000Z",
         analysisAsOf: "2025-08-01T00:00:00.000Z",
-        sourceId: "extended-sec-edgar-aapl-fundamentals",
+        sourceId: "extended-sec-edgar-bns-fundamentals",
       },
     );
+    const fundamentalHistory = deriveFundamentalHistoryFromFinancialStatements(financialStatements);
     await writeJson(join(runDir, "report.json"), researchReport({ runId: "fundamental-history" }));
     await writeJson(join(runDir, "normalized", "fundamental-history.json"), fundamentalHistory);
 
     const { artifact } = await loadRunArtifact(runDir);
 
+    expect(fundamentalHistory.series.revenue.annual[0]?.form).toBe("40-F");
     expect(artifact?.fundamentalHistory).toEqual(fundamentalHistory);
   });
 

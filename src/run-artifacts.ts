@@ -63,6 +63,7 @@ import {
 } from "./research/source-plan";
 import type { FinancialLensArtifact } from "./sources/extended-evidence/financial-lens";
 import {
+  FUNDAMENTAL_HISTORY_POINT_FORMS,
   readFinancialStatementsArtifact,
   type FinancialStatementsArtifact,
 } from "./sources/extended-evidence/financial-statements-contract";
@@ -1139,7 +1140,7 @@ function hasFundamentalHistoryPointShape(value: unknown): boolean {
   return (
     isRecord(value) &&
     readNumber(value, "value") !== undefined &&
-    (value.form === "10-K" || value.form === "20-F" || value.form === "TTM") &&
+    FUNDAMENTAL_HISTORY_POINT_FORMS.some((form) => value.form === form) &&
     readNumber(value, "fy") !== undefined &&
     readString(value, "fp") !== undefined &&
     readString(value, "periodStart") !== undefined &&

@@ -3,6 +3,7 @@ import {
   canonicalizeSecForm,
   deriveFinancialStatements,
 } from "../src/sources/extended-evidence/financial-statements";
+import type { FinancialStatementSeries } from "../src/sources/extended-evidence/financial-statements-contract";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 
 interface FactInput {
@@ -64,6 +65,21 @@ function derive(
   });
 }
 
+function annualFormMetadata(series: FinancialStatementSeries) {
+  return series.annual.map(
+    ({ value, form, canonicalForm, periodType, amendment, periodEnd, fiscalYear, currency }) => ({
+      value,
+      form,
+      canonicalForm,
+      periodType,
+      amendment,
+      periodEnd,
+      fiscalYear,
+      currency,
+    }),
+  );
+}
+
 function annual(value: number, year: number, form = "10-K"): Record<string, unknown> {
   return fact({
     value,
@@ -119,10 +135,14 @@ describe("canonical financial statements", () => {
         amendment: true,
       });
     }
-    expect(canonicalizeSecForm("40-F")).toBeUndefined();
+    expect(canonicalizeSecForm("40-F")).toEqual({
+      form: "40-F",
+      canonicalForm: "40-F",
+      amendment: false,
+    });
   });
 
-  test("pins pure-MJDS 40-F annual facts being silently discarded", () => {
+  test("derives pure-MJDS 40-F annual facts", () => {
     const artifact = derive(
       payload({
         "ifrs-full": {
@@ -174,12 +194,49 @@ describe("canonical financial statements", () => {
       reportingCurrency: "CAD",
       structuredFinancialGaps: [],
     });
-    // Defect witness: plan 0006 Phase 4 flips these to populated annual series.
+    // Pins 40-F and 40-F/A as canonical annual facts, including amendment metadata.
     expect({
-      revenue: revenue.annual,
-      netIncome: netIncome.annual,
-      totalAssets: totalAssets.annual,
-    }).toEqual({ revenue: [], netIncome: [], totalAssets: [] });
+      revenue: annualFormMetadata(revenue),
+      netIncome: annualFormMetadata(netIncome),
+      totalAssets: annualFormMetadata(totalAssets),
+    }).toEqual({
+      revenue: [
+        {
+          value: 100,
+          form: "40-F",
+          canonicalForm: "40-F",
+          periodType: "annual",
+          amendment: false,
+          periodEnd: "2024-12-31",
+          fiscalYear: 2024,
+          currency: "CAD",
+        },
+      ],
+      netIncome: [
+        {
+          value: 10,
+          form: "40-F/A",
+          canonicalForm: "40-F",
+          periodType: "annual",
+          amendment: true,
+          periodEnd: "2024-12-31",
+          fiscalYear: 2024,
+          currency: "CAD",
+        },
+      ],
+      totalAssets: [
+        {
+          value: 200,
+          form: "40-F",
+          canonicalForm: "40-F",
+          periodType: "annual",
+          amendment: false,
+          periodEnd: "2024-12-31",
+          fiscalYear: 2024,
+          currency: "CAD",
+        },
+      ],
+    });
     expect({
       revenue: revenue.interim.map((item) => item.value),
       netIncome: netIncome.interim.map((item) => item.value),

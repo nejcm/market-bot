@@ -1,5 +1,11 @@
 import { isRecord, readNumber, readString } from "../../src/guards";
 import { financialStatementPeriodMonths } from "../../src/sources/extended-evidence/financial-statement-selection";
+import {
+  CANONICAL_SEC_FORMS,
+  isAnnualReportForm,
+  type AnnualReportForm,
+  type CanonicalSecForm,
+} from "../../src/sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryPoint } from "../../src/sources/extended-evidence/fundamental-history";
 import {
   isFactObservableAsOf,
@@ -53,7 +59,7 @@ interface CompleteLegacyFact extends SecFactValue {
 
 interface CanonicalFact {
   readonly value: number;
-  readonly canonicalForm: "10-K" | "10-Q" | "20-F" | "6-K";
+  readonly canonicalForm: CanonicalSecForm;
   readonly amendment: boolean;
   readonly accessionNumber: string | null;
   readonly filedAt: string;
@@ -64,6 +70,8 @@ interface CanonicalFact {
   readonly concept: string;
   readonly unit: string;
 }
+
+type CanonicalAnnualFact = CanonicalFact & { readonly canonicalForm: AnnualReportForm };
 
 export interface EligibleCanonicalPoint {
   readonly periodKey: string;
@@ -302,9 +310,7 @@ export function legacyEligiblePoints(
 
 function parseCanonicalForm(value: string): CanonicalFact["canonicalForm"] | undefined {
   const canonical = value.endsWith("/A") ? value.slice(0, -2) : value;
-  return canonical === "10-K" || canonical === "10-Q" || canonical === "20-F" || canonical === "6-K"
-    ? canonical
-    : undefined;
+  return CANONICAL_SEC_FORMS.find((form) => form === canonical);
 }
 
 function readFiscalYear(value: Readonly<Record<string, unknown>>): number | undefined {
@@ -400,12 +406,12 @@ export function canonicalEligiblePoints(
       return fact === undefined ? [] : [fact];
     })
     .filter((fact) => fact.periodEnd <= cutoff && fact.filedAt <= cutoff)
-    .filter((fact) => fact.canonicalForm === "10-K" || fact.canonicalForm === "20-F")
+    .filter((fact): fact is CanonicalAnnualFact => isAnnualReportForm(fact.canonicalForm))
     .filter((fact) => {
       const months = financialStatementPeriodMonths(fact);
       return months !== undefined && months >= 10 && months <= 14;
     });
-  const byPeriod = new Map<string, CanonicalFact[]>();
+  const byPeriod = new Map<string, CanonicalAnnualFact[]>();
   for (const fact of candidates) {
     const key = canonicalPeriodKey(fact);
     byPeriod.set(key, [...(byPeriod.get(key) ?? []), fact]);
@@ -420,7 +426,7 @@ export function canonicalEligiblePoints(
       periodKey: key,
       point: {
         value: fact.value,
-        form: fact.canonicalForm as "10-K" | "20-F",
+        form: fact.canonicalForm,
         fy: fact.fiscalYear,
         fp: fact.fiscalPeriod,
         periodStart: fact.periodStart!,

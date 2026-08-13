@@ -28,6 +28,16 @@ and fixture recording.
   run them, scrub output, and assert invariants.
 - Refresh fixture golden output with `bun run scripts/replay-fixture-run.ts <fixture-name>
 --write-golden` after intentional deterministic output changes.
+- Tests claiming to verify a producer/consumer contract must obtain producer-owned artifacts by
+  calling the writer, not by hand-building an object literal matching the reader's expectations;
+  otherwise the test proves only that the reader accepts what the test author believes the writer
+  emits. A focused unit test of a reader's own logic may construct its input.
+- `tests/web-subject-profile-reuse.test.ts`, test `reuses an FPI profile from the filing evidence
+collection path`, is the model: it calls `executeEvidenceRequestTool` with a raw SEC submissions
+  payload and asserts on what the tool actually returns.
+- Builders in `tests/support/fixtures.ts` remain correct for inputs the system does not produce
+  (commands, config, provider payloads); they are not a licence to synthesize an artifact the system
+  writes.
 - Do not loosen an assertion to make a flaky test pass — find the cause.
 
 ### Implementation plan verification

@@ -233,7 +233,8 @@ export type SourceGapCause =
   | "repeat-fallback"
   | "malformed-response"
   | "validation-failed"
-  | "provider-data-missing";
+  | "provider-data-missing"
+  | "suppressed-by-design";
 
 export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap" | "no-cap";
 

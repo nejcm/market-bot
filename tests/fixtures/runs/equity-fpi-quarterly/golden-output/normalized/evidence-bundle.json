@@ -776,6 +776,7 @@
           "symbol": "FPIQ",
           "provider": "market-bot",
           "capability": "extended-evidence",
+          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -4343,6 +4344,7 @@
         "symbol": "FPIQ",
         "provider": "market-bot",
         "capability": "extended-evidence",
+        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap",
         "triage": "material"
       },
@@ -4485,6 +4487,7 @@
             "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
             "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN"
           ],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T13:30:00.000Z"]
         },
         {
@@ -4509,6 +4512,7 @@
             "sec-edgar: No SEC company facts found for FPIQ",
             "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported"
           ],
+          "gapCauses": ["provider-data-missing", "unsupported-coverage"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {
@@ -4518,6 +4522,7 @@
           "coveredSourceIds": [],
           "gapIds": ["corporate-events:gap:1"],
           "gapText": ["finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -4527,6 +4532,7 @@
           "coveredSourceIds": [],
           "gapIds": ["macro-indicators:gap:1"],
           "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -4536,6 +4542,7 @@
           "coveredSourceIds": [],
           "gapIds": ["derivatives-volatility:gap:1"],
           "gapText": ["tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -4547,6 +4554,7 @@
           "gapText": [
             "valuation: Peer-implied price reference range suppressed for FPIQ: peer supportability is not supported"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"],
           "supportable": true
         },
@@ -4559,6 +4567,7 @@
           "gapText": [
             "valuation-peers: Peer Universe unavailable for FPIQ: No checked-in peer mapping or subject-registry representative match"
           ],
+          "gapCauses": ["unsupported-coverage"],
           "freshnessNotes": []
         },
         {

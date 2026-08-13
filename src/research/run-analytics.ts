@@ -94,6 +94,7 @@ export interface RunAnalytics {
     readonly sourceGaps: {
       readonly total: number;
       readonly bySource: Readonly<Record<string, number>>;
+      readonly byTriage: Readonly<Record<string, number>>;
     };
     readonly sourceGapsByCause: Readonly<Record<string, number>>;
     readonly dataGaps: {
@@ -716,6 +717,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       sourceGaps: {
         total: gaps.length,
         bySource: countBy(gaps, (gap) => gap.source),
+        byTriage: countBy(gaps, (gap) => gap.triage),
       },
       sourceGapsByCause: countBy(gaps, (gap) => gap.cause),
       dataGaps: {

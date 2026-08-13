@@ -109,6 +109,10 @@
         "instrument-identity": 1,
         "web-gather": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "material": 8,
+        "diagnostic": 12
       }
     },
     "sourceGapsByCause": {

@@ -63,13 +63,14 @@ function validationGap(symbol: string, validation: FinancialTableValidationResul
   });
 }
 
-function gatedGap(symbol: string): SourceGap {
+export function gatedGap(symbol: string): SourceGap {
   return sourceGap({
     source: "sec-untagged-financials",
     message: `Untagged 6-K facts were not validated for ${symbol} because the capability is gated; they remain outside canonical financial-core completeness`,
     symbol,
     provider: "sec-edgar",
     capability: "extended-evidence",
+    cause: "suppressed-by-design",
     evidenceQualityImpact: "no-cap",
     triage: "material",
   });

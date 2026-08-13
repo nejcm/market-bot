@@ -20324,6 +20324,7 @@
           "gapText": [
             "instrument-identity: No canonical instrument identity derivable for AAPL: ticker quote snapshot missing or carries no identity"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": []
         },
         {
@@ -20347,6 +20348,7 @@
             "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
             "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN"
           ],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -20380,6 +20382,7 @@
           "coveredSourceIds": [],
           "gapIds": ["corporate-events:gap:1"],
           "gapText": ["finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -20389,6 +20392,7 @@
           "coveredSourceIds": [],
           "gapIds": ["macro-indicators:gap:1"],
           "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -20398,6 +20402,7 @@
           "coveredSourceIds": [],
           "gapIds": ["derivatives-volatility:gap:1"],
           "gapText": ["tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -20407,6 +20412,7 @@
           "coveredSourceIds": [],
           "gapIds": ["target-valuation:gap:1"],
           "gapText": ["valuation: Valuation Evidence unavailable for AAPL: missing marketCap"],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": []
         },
         {
@@ -20418,6 +20424,7 @@
           "gapText": [
             "valuation-peers: Valuation peer comps skipped for AAPL: target valuation unavailable"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": []
         },
         {
@@ -20429,6 +20436,7 @@
           "gapText": [
             "web-gather: search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped"
           ],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": ["latest evidence timestamp 2026-08-10T08:38:33.859Z"]
         }
       ],

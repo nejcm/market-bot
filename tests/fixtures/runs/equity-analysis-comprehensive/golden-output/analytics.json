@@ -209,6 +209,10 @@
         "fred-macro": 1,
         "valuation-peers": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 13,
+        "material": 3
       }
     },
     "sourceGapsByCause": {

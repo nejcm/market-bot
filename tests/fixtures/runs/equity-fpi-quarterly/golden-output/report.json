@@ -671,6 +671,7 @@
         "symbol": "FPIQ",
         "provider": "market-bot",
         "capability": "extended-evidence",
+        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap"
       },
       {

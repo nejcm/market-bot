@@ -299,6 +299,10 @@
         "valuation-peers": 1,
         "web-gather": 2,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 13,
+        "material": 5
       }
     },
     "sourceGapsByCause": {

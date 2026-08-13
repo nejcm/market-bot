@@ -6339,6 +6339,7 @@
           "coveredSourceIds": ["news-equity-1", "news-equity-2"],
           "gapIds": ["news:gap:1"],
           "gapText": ["marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T13:30:00.000Z"]
         },
         {
@@ -6386,6 +6387,7 @@
             "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
             "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {
@@ -6404,6 +6406,7 @@
           "coveredSourceIds": [],
           "gapIds": ["macro-indicators:gap:1"],
           "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -6454,6 +6457,7 @@
           "gapText": [
             "valuation-peers: Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {

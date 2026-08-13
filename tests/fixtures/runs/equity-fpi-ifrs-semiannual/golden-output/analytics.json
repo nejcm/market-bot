@@ -176,13 +176,16 @@
         "valuation-peers": 1,
         "valuation": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 12,
+        "material": 4
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
-      "provider-data-missing": 2,
-      "unsupported-coverage": 2,
-      "unknown": 1
+      "provider-data-missing": 3,
+      "unsupported-coverage": 2
     },
     "dataGaps": {
       "total": 18

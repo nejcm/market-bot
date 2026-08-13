@@ -158,6 +158,14 @@ describe("run analytics", () => {
           message: "missing MARKET_BOT_MARKETAUX_API_TOKEN",
           cause: "missing-credential",
           evidenceQualityImpact: "core-cap",
+          triage: "material",
+        }),
+        sourceGap({
+          source: "marketaux-news",
+          message: "optional provider diagnostic",
+          cause: "missing-credential",
+          evidenceQualityImpact: "no-cap",
+          triage: "diagnostic",
         }),
       ],
       verifiedMarketSnapshot: {
@@ -302,8 +310,15 @@ describe("run analytics", () => {
       repeatFallbackUsed: false,
     });
     expect(analytics.modelInputSanitization).toEqual(trace.modelInputSanitization);
-    expect(analytics.sourceFunnel.sourceGaps.bySource).toEqual({ "marketaux-news": 1 });
-    expect(analytics.sourceFunnel.sourceGapsByCause).toEqual({ "missing-credential": 1 });
+    expect(analytics.sourceFunnel.sourceGaps.bySource).toEqual({ "marketaux-news": 2 });
+    expect(analytics.sourceFunnel.sourceGaps.byTriage).toEqual({ material: 1, diagnostic: 1 });
+    expect(
+      Object.values(analytics.sourceFunnel.sourceGaps.byTriage).reduce(
+        (total, count) => total + count,
+        0,
+      ),
+    ).toBe(analytics.sourceFunnel.sourceGaps.total);
+    expect(analytics.sourceFunnel.sourceGapsByCause).toEqual({ "missing-credential": 2 });
     expect(analytics.providerEndpointAvailability?.marketauxNews).toEqual({
       status: "available",
       evidence: ["marketaux-news"],

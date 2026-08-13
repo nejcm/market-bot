@@ -22,6 +22,7 @@ const SOURCE_GAP_CAUSE_TABLE = {
   "malformed-response": true,
   "validation-failed": true,
   "provider-data-missing": true,
+  "suppressed-by-design": true,
 } satisfies Record<SourceGapCause, true>;
 
 const SOURCE_GAP_CAPABILITY_TABLE = {

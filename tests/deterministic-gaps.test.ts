@@ -5,6 +5,7 @@ import {
   deterministicSourceGapEntries,
   deterministicSourceGaps,
 } from "../src/research/deterministic-gaps";
+import { gatedGap } from "../src/research/financial-table-extraction-phase";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import {
   collectedSources,
@@ -14,6 +15,10 @@ import {
 } from "./support/fixtures";
 
 describe("phase 2.2 — deterministicSourceGaps for missing representative snapshots", () => {
+  test("tags the capability-gated untagged-financials gap as deliberately suppressed", () => {
+    expect(gatedGap("NBIS").cause).toBe("suppressed-by-design");
+  });
+
   test("keeps prompt-side source gap order while exposing structured impact entries", () => {
     const command: ResearchCommand = {
       jobType: "crypto",

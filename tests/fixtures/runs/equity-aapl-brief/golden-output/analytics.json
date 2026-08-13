@@ -156,6 +156,10 @@
         "valuation": 1,
         "financial-lens": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 5,
+        "material": 4
       }
     },
     "sourceGapsByCause": {

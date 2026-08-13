@@ -20,7 +20,7 @@ function baseAnalytics(): RunAnalytics {
     sourceFunnel: {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },
-      sourceGaps: { total: 0, bySource: {} },
+      sourceGaps: { total: 0, bySource: {}, byTriage: {} },
       sourceGapsByCause: {},
       dataGaps: { total: 0 },
     },
@@ -201,7 +201,7 @@ describe("run analytics console", () => {
       ...analytics,
       sourceFunnel: {
         ...analytics.sourceFunnel,
-        sourceGaps: { total: 5, bySource: {} },
+        sourceGaps: { total: 5, bySource: {}, byTriage: {} },
         sourceGapsByCause: {
           "missing-credential": 2,
           "fetch-failed": 1,
@@ -222,7 +222,7 @@ describe("run analytics console", () => {
       ...analytics,
       sourceFunnel: {
         ...analytics.sourceFunnel,
-        sourceGaps: { total: 8, bySource: {} },
+        sourceGaps: { total: 8, bySource: {}, byTriage: {} },
         sourceGapsByCause: { "stale-fallback": 1, "provider-data-missing": 7 },
       },
     });

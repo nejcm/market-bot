@@ -9,6 +9,7 @@ import {
   type MarketSnapshotPriceAsOf,
   type Source,
   type SourceGap,
+  type SourceGapCause,
 } from "../../domain/types";
 import {
   resolvePeerUniverseWithFallback,
@@ -96,6 +97,29 @@ export type PeerImpliedRangeSuppressedReason =
   | "peer percentile inputs are unavailable"
   | "one or more implied prices are not positive"
   | "current price is unavailable";
+
+const SUPPRESSION_CAUSE = {
+  // Never read: this reason collapses three supportability states, so it resolves
+  // Through SUPPORTABILITY_SUPPRESSION_CAUSE instead. Kept for satisfies exhaustiveness.
+  "peer supportability is not supported": "suppressed-by-design",
+  // Guard order makes this unreachable from collectValuationComps, but the exported derivation can emit it.
+  "fewer than 3 usable peers": "provider-data-missing",
+  "annualized revenue is not positive": "provider-data-missing",
+  "net debt is unavailable": "provider-data-missing",
+  "net debt uses mixed reporting periods": "validation-failed",
+  "shares outstanding is not positive": "provider-data-missing",
+  "quote currency is not USD": "unsupported-coverage",
+  "peer percentile inputs are unavailable": "provider-data-missing",
+  "one or more implied prices are not positive": "validation-failed",
+  "current price is unavailable": "provider-data-missing",
+} satisfies Record<PeerImpliedRangeSuppressedReason, SourceGapCause>;
+
+const SUPPORTABILITY_SUPPRESSION_CAUSE = {
+  "screening-only": "provider-data-missing",
+  supported: "validation-failed",
+  "not-supportable": "provider-data-missing",
+  "not-meaningful": "suppressed-by-design",
+} satisfies Record<ValuationSupportability, SourceGapCause>;
 
 export interface PeerImpliedRangeInputs {
   readonly peerP25EvToAnnualizedRevenue: number | null;
@@ -1167,7 +1191,9 @@ export function valuationCompsSkippedGap(symbol: string): SourceGap {
   );
 }
 
-function peerImpliedRangeSuppressionGaps(artifact: ValuationCompsArtifact): readonly SourceGap[] {
+export function peerImpliedRangeSuppressionGaps(
+  artifact: ValuationCompsArtifact,
+): readonly SourceGap[] {
   const range = artifact.impliedPriceRange;
   if (range?.status !== "suppressed") {
     return [];
@@ -1179,6 +1205,10 @@ function peerImpliedRangeSuppressionGaps(artifact: ValuationCompsArtifact): read
       symbol: artifact.target.symbol,
       provider: "market-bot",
       capability: "extended-evidence",
+      cause:
+        range.suppressedReason === "peer supportability is not supported"
+          ? SUPPORTABILITY_SUPPRESSION_CAUSE[artifact.summary.valuationSupportability]
+          : SUPPRESSION_CAUSE[range.suppressedReason],
       evidenceQualityImpact: "no-cap",
     }),
   ];

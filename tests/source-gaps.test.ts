@@ -7,6 +7,7 @@ import {
   isCoreEvidenceQualityGap,
   isExtendedEvidenceQualityGap,
   isRepeatFallbackGap,
+  isSourceGapCause,
   isUnmappedSecFilingGap,
   marketContextGap,
   sourceGap,
@@ -16,6 +17,10 @@ import {
 } from "../src/domain/source-gaps";
 
 describe("source gaps", () => {
+  test("recognizes suppressed-by-design causes", () => {
+    expect(isSourceGapCause("suppressed-by-design")).toBe(true);
+  });
+
   test("carries symbol when provided and omits it when absent", () => {
     const symbolGap = sourceGap({ source: "sec-edgar", message: "missing", symbol: "AAPL" });
     expect(symbolGap).toEqual({

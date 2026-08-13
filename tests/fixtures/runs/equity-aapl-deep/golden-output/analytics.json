@@ -162,6 +162,10 @@
         "tradier-options": 1,
         "valuation-peers": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 22,
+        "material": 3
       }
     },
     "sourceGapsByCause": {

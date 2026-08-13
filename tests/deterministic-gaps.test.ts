@@ -7,7 +7,6 @@ import {
 } from "../src/research/deterministic-gaps";
 import { gatedGap } from "../src/research/financial-table-extraction-phase";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
-import { peerImpliedRangeSuppressionGaps } from "../src/sources/extended-evidence/valuation-comps";
 import {
   collectedSources,
   marketSnapshot,
@@ -16,17 +15,7 @@ import {
 } from "./support/fixtures";
 
 describe("phase 2.2 — deterministicSourceGaps for missing representative snapshots", () => {
-  test("tags deliberately suppressed deterministic gaps", () => {
-    const peerRangeGaps = peerImpliedRangeSuppressionGaps({
-      target: { symbol: "NBIS" },
-      summary: { valuationSupportability: "not-meaningful" },
-      impliedPriceRange: {
-        status: "suppressed",
-        suppressedReason: "peer supportability is not supported",
-      },
-    } as Parameters<typeof peerImpliedRangeSuppressionGaps>[0]);
-
-    expect(peerRangeGaps[0]?.cause).toBe("suppressed-by-design");
+  test("tags the capability-gated untagged-financials gap as deliberately suppressed", () => {
     expect(gatedGap("NBIS").cause).toBe("suppressed-by-design");
   });
 

@@ -99,6 +99,8 @@ export type PeerImpliedRangeSuppressedReason =
   | "current price is unavailable";
 
 const SUPPRESSION_CAUSE = {
+  // Never read: this reason collapses three supportability states, so it resolves
+  // Through SUPPORTABILITY_SUPPRESSION_CAUSE instead. Kept for satisfies exhaustiveness.
   "peer supportability is not supported": "suppressed-by-design",
   // Guard order makes this unreachable from collectValuationComps, but the exported derivation can emit it.
   "fewer than 3 usable peers": "provider-data-missing",

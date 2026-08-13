@@ -236,6 +236,33 @@ export function commandLabel(command: CliCommand): string {
   throw new Error(`Unsupported command label for job type ${command.jobType}`);
 }
 
+// Always-printed run banner, independent of the progress level.
+export function commandBanner(command: CliCommand): string {
+  if (command.jobType === "history-search") {
+    return `Running history search for "${command.query}"`;
+  }
+  if (command.jobType === "history-thesis-delta") {
+    return `Running history thesis-delta for ${command.assetClass}:${command.symbol}`;
+  }
+  if (command.jobType === "equity" || command.jobType === "crypto") {
+    return `Running ${command.depth} ${command.jobType} run for ${command.symbol}`;
+  }
+  if (command.jobType === "research") {
+    return `Running ${command.depth} research run for ${command.subject}`;
+  }
+  if (command.jobType === "market-overview") {
+    const alias = command.legacyAlias ?? "market-overview";
+    return `Running ${command.depth} ${alias} run for ${command.assetClass} over ${String(
+      command.horizonTradingDays,
+    )} trading day(s)`;
+  }
+  if (command.jobType === "alpha-search") {
+    return `Running ${command.depth} alpha-search run for ${command.assetClass}`;
+  }
+
+  return `Running ${commandLabel(command)}`;
+}
+
 export function jobRequestArgv(value: unknown): readonly string[] {
   if (!isRecord(value)) {
     throw new Error("Job request must be an object");

@@ -3,6 +3,7 @@ import { isResearchJobType, runTypeFixedAssetClass } from "../domain/run-types";
 import { createInstrument } from "../domain/instrument";
 import { HISTORY_SECTIONS, type HistorySection } from "../history/sections";
 import {
+  commandBanner,
   commandLabel,
   isInstrumentCommand,
   isResearchCommand,
@@ -16,7 +17,7 @@ import {
   type ResearchSubjectCommand,
 } from "./job-registry";
 
-export { commandLabel, isInstrumentCommand, isResearchCommand };
+export { commandBanner, commandLabel, isInstrumentCommand, isResearchCommand };
 export type {
   AlphaSearchCommand,
   CachePruneCommand,

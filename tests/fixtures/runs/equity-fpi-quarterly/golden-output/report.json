@@ -671,7 +671,7 @@
         "symbol": "FPIQ",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "suppressed-by-design",
+        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap"
       },
       {

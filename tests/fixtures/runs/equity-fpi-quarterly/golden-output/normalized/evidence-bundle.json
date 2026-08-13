@@ -776,7 +776,7 @@
           "symbol": "FPIQ",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "suppressed-by-design",
+          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -4344,7 +4344,7 @@
         "symbol": "FPIQ",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "suppressed-by-design",
+        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap",
         "triage": "material"
       },
@@ -4554,7 +4554,7 @@
           "gapText": [
             "valuation: Peer-implied price reference range suppressed for FPIQ: peer supportability is not supported"
           ],
-          "gapCauses": ["suppressed-by-design"],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"],
           "supportable": true
         },

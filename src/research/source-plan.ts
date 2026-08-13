@@ -516,7 +516,10 @@ function freshnessNotes(entries: readonly SourceLedgerEntry[]): readonly string[
   return latest === undefined ? [] : [`latest evidence timestamp ${latest}`];
 }
 
-function summary(lanes: readonly EvidenceLaneCoverageV2[]): EvidenceLaneSummaryV2 {
+function summary(
+  lanes: readonly EvidenceLaneCoverageV2[],
+  fullyCausedGapLanes: ReadonlySet<EvidenceLane>,
+): EvidenceLaneSummaryV2 {
   const coveredLaneCount = lanes.filter((lane) => lane.status === "covered").length;
   const gapLaneCount = lanes.filter((lane) => lane.status === "gap").length;
   const plannedLaneCount = lanes.length;
@@ -538,6 +541,7 @@ function summary(lanes: readonly EvidenceLaneCoverageV2[]): EvidenceLaneSummaryV
     suppressedLaneCount: lanes.filter(
       (lane) =>
         lane.status !== "covered" &&
+        fullyCausedGapLanes.has(lane.lane) &&
         lane.gapCauses !== undefined &&
         lane.gapCauses.length > 0 &&
         lane.gapCauses.every((cause) => cause === "suppressed-by-design"),
@@ -707,6 +711,7 @@ export function assessSourcePlan(
   generatedAt: string,
 ): BuildSourcePlanResult {
   const ledger: SourceLedgerEntry[] = [];
+  const fullyCausedGapLanes = new Set<EvidenceLane>();
   const coverage = sourcePlan.lanes.map((planLane): EvidenceLaneCoverageV2 => {
     const definition = LANE_DEFINITIONS_BY_LANE.get(planLane.lane);
     const { evidenceClass } = planLane;
@@ -729,6 +734,9 @@ export function assessSourcePlan(
     const gapCauses = [
       ...new Set(matchedGaps.flatMap((gap) => (gap.cause === undefined ? [] : [gap.cause]))),
     ];
+    if (matchedGaps.length > 0 && matchedGaps.every((gap) => gap.cause !== undefined)) {
+      fullyCausedGapLanes.add(planLane.lane);
+    }
     const gapLines =
       syntheticNoProxyGap ??
       (syntheticQualityGaps.length > 0
@@ -763,7 +771,7 @@ export function assessSourcePlan(
       version: 2,
       generatedAt,
       lanes: coverage,
-      summary: summary(coverage),
+      summary: summary(coverage, fullyCausedGapLanes),
     },
     sourceLedger: {
       version: 2,

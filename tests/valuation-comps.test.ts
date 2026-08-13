@@ -1251,6 +1251,9 @@ describe("collectValuationComps", () => {
     expect(result.gaps.map((gap) => gap.message)).toContain(
       "Valuation peer comps not-meaningful for ASTS: Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. 3 usable peers passed the applicable gates",
     );
+    expect(
+      result.gaps.find((gap) => gap.message.startsWith("Peer-implied price reference range")),
+    ).toHaveProperty("cause", "suppressed-by-design");
   });
 
   test("labels comps screening-only when fewer than three peers are usable", async () => {
@@ -1294,19 +1297,23 @@ describe("collectValuationComps", () => {
     );
     expect(
       result.gaps.find((gap) => gap.message.startsWith("Peer-implied price reference range")),
-    ).toHaveProperty("cause", "suppressed-by-design");
+    ).toHaveProperty("cause", "provider-data-missing");
   });
 
-  test("classifies unavailable peer-range inputs as provider data missing", () => {
+  test.each([
+    ["net debt is unavailable", "provider-data-missing"],
+    ["net debt uses mixed reporting periods", "validation-failed"],
+    ["one or more implied prices are not positive", "validation-failed"],
+  ] as const)("classifies %s suppression as %s", (suppressedReason, cause) => {
     const gaps = peerImpliedRangeSuppressionGaps({
       target: { symbol: "NVDA" },
       impliedPriceRange: {
         status: "suppressed",
-        suppressedReason: "net debt is unavailable",
+        suppressedReason,
       },
     } as Parameters<typeof peerImpliedRangeSuppressionGaps>[0]);
 
-    expect(gaps[0]?.cause).toBe("provider-data-missing");
+    expect(gaps[0]?.cause).toBe(cause);
   });
 
   test("labels comps not-supportable when target SEC period is stale", async () => {
@@ -1331,6 +1338,9 @@ describe("collectValuationComps", () => {
     );
 
     expect(result.artifact.summary.valuationSupportability).toBe("not-supportable");
+    expect(
+      result.gaps.find((gap) => gap.message.startsWith("Peer-implied price reference range")),
+    ).toHaveProperty("cause", "provider-data-missing");
   });
 
   test("labels comps not-supportable when target SEC period is future-dated", async () => {

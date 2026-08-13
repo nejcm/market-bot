@@ -123,7 +123,7 @@ describe("source plan", () => {
     expect(assessEvidenceQuality(plan, generatedAt).label).toBe("medium");
   });
 
-  test("reports backed gap causes without counting unreachable or synthetic lanes as suppressed", () => {
+  test("reports backed gap causes without counting partial, unreachable, or synthetic lanes as suppressed", () => {
     const command = {
       jobType: "equity",
       assetClass: "equity",
@@ -158,6 +158,26 @@ describe("source plan", () => {
         ],
       }),
     );
+    const partiallyUncaused = plannedAndAssessed(
+      command,
+      collectedSources({
+        sourceGaps: [
+          sourceGap({
+            source: "sec-untagged-financials",
+            message: "source suppressed by capability gate",
+            capability: "extended-evidence",
+            cause: "suppressed-by-design",
+            evidenceQualityImpact: "no-cap",
+          }),
+          sourceGap({
+            source: "sec-edgar",
+            message: "unexplained filing gap",
+            capability: "extended-evidence",
+            evidenceQualityImpact: "no-cap",
+          }),
+        ],
+      }),
+    );
     const synthetic = plannedAndAssessed(command, collectedSources());
 
     expect(
@@ -168,6 +188,10 @@ describe("source plan", () => {
       unreachable.evidenceLanes.lanes.find((lane) => lane.lane === "derivatives-volatility"),
     ).toMatchObject({ status: "gap", gapCauses: ["missing-credential"] });
     expect(unreachable.evidenceLanes.summary.suppressedLaneCount).toBe(0);
+    expect(
+      partiallyUncaused.evidenceLanes.lanes.find((lane) => lane.lane === "regulatory-filings"),
+    ).toMatchObject({ status: "gap", gapCauses: ["suppressed-by-design"] });
+    expect(partiallyUncaused.evidenceLanes.summary.suppressedLaneCount).toBe(0);
     expect(
       synthetic.evidenceLanes.lanes.find((lane) => lane.lane === "market-data")?.gapCauses,
     ).toBeUndefined();

@@ -19,6 +19,7 @@ describe("phase 2.2 — deterministicSourceGaps for missing representative snaps
   test("tags deliberately suppressed deterministic gaps", () => {
     const peerRangeGaps = peerImpliedRangeSuppressionGaps({
       target: { symbol: "NBIS" },
+      summary: { valuationSupportability: "not-meaningful" },
       impliedPriceRange: {
         status: "suppressed",
         suppressedReason: "peer supportability is not supported",

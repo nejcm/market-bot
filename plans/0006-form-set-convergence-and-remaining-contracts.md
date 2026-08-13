@@ -72,8 +72,26 @@ A fourth restatement lives in `hasFinancialStatementFactShape`
 ([financial-statements-contract.ts:207-218](../src/sources/extended-evidence/financial-statements-contract.ts)),
 which spells out all 8 `form` literals and all 4 `canonicalForm` literals.
 
+**Amended 2026-08-14 during Phase 3 review — this inventory was incomplete.**
+Two further sites restate the same concept and were missed when this plan was
+written:
+
+- [fundamental-history-canonical.ts:73](../src/sources/extended-evidence/fundamental-history-canonical.ts)
+  — `fact.canonicalForm !== "10-K" && !== "20-F"`, on the same field of the same
+  `FinancialStatementFact` type. Left unconverged, Phase 4 would classify `40-F`
+  facts `annual` in `financial-statements.ts` while `annualPoint` returns
+  `undefined` for them, emitting an **empty fundamental history for exactly the
+  MJDS filers Phase 4 exists to fix**. Verified during review: the `!==` chain
+  still narrows to `"10-K" | "20-F"` after `40-F` is added, so the assignment to
+  `FundamentalHistoryPoint.form` does not error and `bun run check` stays green.
+- [capital-ownership.ts:270](../src/sources/extended-evidence/capital-ownership.ts)
+  — `form !== "10-K" && !== "10-K/A" && !== "20-F" && !== "20-F/A"` over the raw
+  companyfacts payload. Same concept (*annual report incl. amendment*), different
+  data shape, so it cannot reuse a typed predicate directly.
+
 **This is the actual "sets must agree" defect.** One domain concept — *annual
-report form* — written out four times in three files.
+report form* — written out six times in five files. The count being wrong in the
+first draft of this plan is itself the argument for naming it once.
 
 ### 3. Do not derive the accepted set from `SecFilingForm`
 
@@ -135,6 +153,7 @@ produced a contradictory read of project state between two sessions.
 | --- | --- | --- |
 | Ship the `40-F` change? | **Yes** | BNS-class filers lose every annual fact, silently. IFRS path already exists. |
 | Derive from `SecFilingForm`? | **No** | Three different domain sets. Assert subset only. |
+| Converge `evidence-request-tools.ts:213` (`FOREIGN_PRIVATE_ISSUER_ANNUAL_FORMS`)? | **No** | Confirmed a genuinely different set: reads the EDGAR *submissions* feed not companyfacts, uses *prefix* matching that absorbs `/A`, and deliberately excludes `10-K` because it answers "is this issuer an FPI", not "is this an annual report". Subset, not identity. |
 | How to stop the four-way restatement? | Name `ANNUAL_REPORT_FORMS` and `CANONICAL_SEC_FORMS` once | 3 → 1 call sites for a single concept; a real DRY win, unlike union-derivation. |
 | Interim/TTM for MJDS filers? | **Out of scope** | BNS files tagged `6-K` interims, which collides with the `untagged-6-k` gap path. Separate question, separate plan. |
 | Tighten `factLedger` on read? | Yes, narrowly | Drop uncited facts; let the existing `length === 0` gate reject the profile. One predicate, no new gate. |
@@ -219,13 +238,53 @@ Pure refactor. No form is added.
 4. Replace the 12 literals in `hasFinancialStatementFactShape`
    (`financial-statements-contract.ts:207-218`) with membership checks against the
    two arrays.
+5. *(Added during review)* Replace `fundamental-history-canonical.ts:73` with the
+   same predicate.
+6. *(Added during review)* Derive `ANNUAL_REPORT_FORMS_WITH_AMENDMENTS` from
+   `ANNUAL_REPORT_FORMS` and use it at `capital-ownership.ts:270`, which matches
+   raw payload form strings rather than typed canonical forms.
 
 Verification: `bun run check`. **Goldens must not move.** If any golden moves,
 this phase is wrong — stop and diff before continuing.
 
 ### Phase 4 — Admit `40-F` as an annual report
 
-Files: `src/sources/extended-evidence/financial-statements-contract.ts`
+Files: `src/sources/extended-evidence/financial-statements-contract.ts`,
+`src/run-artifacts.ts`, `tests/support/offline-financial-history-facts.ts`,
+`tests/financial-statements.test.ts`
+
+**Prerequisites surfaced by Phase 3's second review — do these in this phase or
+Phase 4 ships a worse defect than the one it fixes.**
+
+1. **`src/run-artifacts.ts:1142` — highest risk in the whole plan.**
+   `hasFundamentalHistoryPointShape` hand-lists
+   `value.form === "10-K" || === "20-F" || === "TTM"`. It is the read guard for
+   `FundamentalHistoryPoint`, whose interface now derives from
+   `AnnualReportForm`. Widening the interface without deriving this guard from
+   the same array splits writer from reader.
+
+   Failure mode after Phase 4: a mixed filer writes a `40-F` point; on re-read
+   the guard rejects it, `hasFundamentalHistorySeriesShape` (`:1184`) fails via
+   `value.annual.every(...)`, and `readFundamentalHistoryArtifact` returns
+   `undefined` (`:1210`). **The entire fundamental history artifact disappears**,
+   including the healthy `10-K`/`20-F` series — for mixed filers, not just
+   MJDS-only ones. Silent: `undefined` is a legal "absent artifact" result, no
+   throw, no gap note, and `tsc` cannot see it because the guard takes `unknown`.
+
+   Derive it: export `FUNDAMENTAL_HISTORY_POINT_FORMS = [...ANNUAL_REPORT_FORMS, "TTM"]`
+   (or re-export `ANNUAL_REPORT_FORMS`) and check membership.
+
+   This is the same class the Risk section already named as sharpest, at the
+   sibling of the guard it names. It did not exist before Phase 3 — Phase 3's
+   interface widening created it.
+
+2. **`tests/support/offline-financial-history-facts.ts:56, 305, 403, 423`** —
+   four hand-listed restatements in the offline roster helpers. `:423`
+   (`form: fact.canonicalForm as "10-K" | "20-F"`) is a narrowing cast that still
+   compiles after Phase 4 while being false for a `40-F` fact. These compute
+   *expected* values, so divergence surfaces as test failure rather than silence,
+   but they must be updated here or the suite fights the change for the wrong
+   reason.
 
 The only behaviour change in this plan, and after Phase 3 it is two array
 entries: `"40-F"` into `CANONICAL_SEC_FORMS` and into `ANNUAL_REPORT_FORMS`.
@@ -236,6 +295,17 @@ Confirm `untagged-financial-tables-contract.ts:19`
 (`Extract<SupportedSecForm, "6-K" | "6-K/A">`) is unaffected — `Extract` narrows,
 so widening the source union cannot change it. State this in the commit rather
 than assuming it.
+
+**Also required, surfaced during Phase 3 review:** widen the hand-listed `form`
+union on `FundamentalHistoryPoint`
+([fundamental-history.ts:30](../src/sources/extended-evidence/fundamental-history.ts)).
+It does not derive from `CanonicalSecForm`, so `tsc` will not flag it — a green
+check here means nothing.
+
+**Two assertions in `tests/financial-statements.test.ts` flip in this phase**, not
+one: the Phase 2 MJDS fixture, and the pre-existing
+`expect(canonicalizeSecForm("40-F")).toBeUndefined()` near line 122. Both are
+expected; neither is collateral damage.
 
 Tests: the Phase 2 fixture flips — `40-F` and `40-F/A` canonicalise to `40-F`,
 classify `annual`, and populate the annual series; existing
@@ -334,6 +404,16 @@ and is explicitly deferred.
 Phase 3 is the sharpest hidden risk despite being a pure refactor: it touches
 `hasFinancialStatementFactShape`, the artifact read guard. The golden-stability
 check is the gate — treat any golden movement in Phase 3 as a defect.
+
+**Confirmed during execution, and generalised:** deriving an *interface* from a
+form array does not derive the `unknown`-typed **read guard** that validates the
+persisted version of that interface. The two are separate code, `tsc` relates
+them not at all, and a green `bun run check` proves nothing about their
+agreement. There are two such guard pairs in this codebase —
+`FinancialStatementFact`/`hasFinancialStatementFactShape` and
+`FundamentalHistoryPoint`/`hasFundamentalHistoryPointShape` — and the second was
+missed until review. Any future change to a form set must check both halves of
+every guard pair.
 
 Phases 1, 6, 7, 8 are low risk.
 

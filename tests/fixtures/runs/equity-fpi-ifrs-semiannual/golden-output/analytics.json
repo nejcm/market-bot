@@ -97,6 +97,20 @@
         "emptyAfterSanitizeFieldCount": 0
       },
       {
+        "provider": "sec-edgar",
+        "ingress": "sec-tickers",
+        "profile": "short-metadata",
+        "fieldRole": "title",
+        "droppedItemCount": 0,
+        "inputChars": 27,
+        "outputChars": 27,
+        "removedInstructionSpanCount": 0,
+        "removedMarkupChromeCount": 0,
+        "truncatedFieldCount": 0,
+        "truncatedCharCount": 0,
+        "emptyAfterSanitizeFieldCount": 0
+      },
+      {
         "provider": "historical-artifact",
         "ingress": "historical-context",
         "profile": "legacy-history",
@@ -113,7 +127,7 @@
     ]
   },
   "sourceTextResearchOnly": {
-    "scannedCount": 10,
+    "scannedCount": 11,
     "flaggedCount": 0,
     "flaggedByKind": {},
     "flaggedByProvider": {}
@@ -132,16 +146,16 @@
       }
     },
     "reportSources": {
-      "total": 10,
+      "total": 11,
       "byKind": {
         "market-data": 8,
         "news": 1,
-        "extended-evidence": 1
+        "extended-evidence": 2
       },
       "byProvider": {
         "yahoo": 8,
         "yahoo-news": 1,
-        "sec-edgar": 1
+        "sec-edgar": 2
       }
     },
     "sourceGaps": {
@@ -324,10 +338,10 @@
           "capability": "regulatory-filings",
           "evidenceClass": "material",
           "coverage": "pass",
-          "freshness": "fail",
+          "freshness": "pass",
           "corroboration": "not-applicable",
-          "passed": false,
-          "reasons": ["regulatory-filings: freshness check failed"]
+          "passed": true,
+          "reasons": []
         },
         {
           "capability": "corporate-events",
@@ -386,17 +400,16 @@
       ],
       "limitingReasons": [
         "news: corroboration check failed",
-        "regulatory-filings: freshness check failed",
         "corporate-events: evidence missing or unusable",
         "macro-indicators: evidence missing or unusable"
       ]
     },
     "dataGapCount": 18,
     "extendedEvidence": {
-      "itemCount": 5,
+      "itemCount": 6,
       "gapCount": 14,
       "itemsByCategory": {
-        "sec-edgar": 1,
+        "sec-edgar": 2,
         "valuation": 1,
         "yahoo-fundamentals": 1,
         "financial-lens": 1,
@@ -429,7 +442,7 @@
       "acceptedRequestCount": 0,
       "rejectedRequestCount": 0,
       "sourceUnitsUsed": 0,
-      "executedTools": [],
+      "executedTools": ["sec_latest_filing"],
       "emittedGapCount": 1
     }
   },
@@ -487,7 +500,7 @@
     "gapLaneCount": 6,
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 2,
-    "sourceCount": 12,
+    "sourceCount": 13,
     "gapCount": 11,
     "coverageRatio": 0.45454545454545453
   },

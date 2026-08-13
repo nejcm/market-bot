@@ -17,6 +17,7 @@ import { classifyGap } from "../src/report/gap-triage";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
 import { collectedSources, deepEquityEvidenceBundle } from "./support/fixtures";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { executeEvidenceRequestTool } from "../src/sources/evidence-request-tools";
 
 const tmpDirs: string[] = [];
 
@@ -287,6 +288,63 @@ describe("Web Subject Profile reuse", () => {
       evidenceQualityImpact: "no-cap",
     });
     expect(classifyGap(reuse!.gap)).toBe("diagnostic");
+  });
+
+  test("reuses an FPI profile from the filing evidence collection path", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
+    const fetchedAt = "2026-05-20T00:00:00.000Z";
+    const filingEvidence = await executeEvidenceRequestTool("sec_latest_filing", {
+      command,
+      fetchedAt,
+      newsLimit: 0,
+      cryptoMoverLimit: 0,
+      request: {
+        json: async ({ adapter }) => {
+          const payload =
+            adapter === "sec-tickers"
+              ? { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } }
+              : {
+                  filings: {
+                    recent: {
+                      form: ["20-F", "6-K"],
+                      items: ["", ""],
+                      filingDate: ["2026-04-25", "2026-05-15"],
+                      reportDate: ["2025-12-31", "2026-05-15"],
+                      accessionNumber: ["0000320193-26-000020", "0000320193-26-000060"],
+                      primaryDocument: ["a20f.htm", "a6k.htm"],
+                    },
+                  },
+                };
+          return { rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload }, payload };
+        },
+        text: async ({ adapter }) => {
+          const payload =
+            "Apple furnished a current report covering an interim operating update and related corporate events.";
+          return { rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload }, payload };
+        },
+      },
+    });
+    const currentSecFilingDate = latestSecFilingDate({
+      instrument: { assetClass: "equity", symbol: "AAPL" },
+      items: filingEvidence.items,
+      gaps: filingEvidence.gaps,
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date(fetchedAt),
+      reuseDaysBySubjectKind,
+      ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
+    });
+
+    expect(filingEvidence.items.map((item) => item.metrics?.form)).toEqual(["20-F", "6-K"]);
+    expect(currentSecFilingDate).toBe("2026-04-25");
+    expect(reuse?.profile).toMatchObject({
+      subjectKind: "company",
+      secFilingBasisDate: "2026-04-25",
+    });
   });
 
   test("reads versioned low utilization from the exact reused-profile run without rewriting it", async () => {

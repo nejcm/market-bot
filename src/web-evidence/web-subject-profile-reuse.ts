@@ -11,6 +11,7 @@ import type {
 } from "../domain/types";
 import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
+import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements";
 import {
   buildWebSubjectProfileReuseEvidence,
   type WebSubjectProfileArtifact,
@@ -37,12 +38,27 @@ interface PriorWebEvidenceUtilization {
 }
 
 export function latestSecFilingDate(evidence: ExtendedEvidence | undefined): string | undefined {
+  // Reuse has two currentSecFilingDate gates: it must exist, and older profiles are refused.
+  // Annual 20-F/40-F filings give FPIs a stable year-round basis.
+  // Omit 6-K because its frequent, heterogeneous contents include earnings and press releases.
+  // AGM notices are also common, so 6-K would constantly invalidate fallback profiles.
+  // A material 6-K may therefore postdate a reusable profile.
+  // The existing freshness gap records that accepted risk.
+  // Financial Statements intentionally rejects 40-F; reuse needs only filing metadata, not facts.
+  // Collection canonicalizes 40-F/A first; a literal 40-F/A here remains unsupported unlike 20-F/A.
   const filingDates = (evidence?.items ?? [])
-    .filter(
-      (item) =>
+    .filter((item) => {
+      const form = item.metrics?.form;
+      const canonicalForm =
+        typeof form === "string" ? (canonicalizeSecForm(form)?.canonicalForm ?? form) : undefined;
+      return (
         item.category === "sec-edgar" &&
-        (item.metrics?.form === "10-K" || item.metrics?.form === "10-Q"),
-    )
+        (canonicalForm === "10-K" ||
+          canonicalForm === "10-Q" ||
+          canonicalForm === "20-F" ||
+          canonicalForm === "40-F")
+      );
+    })
     .map((item) =>
       typeof item.metrics?.filingDate === "string" ? item.metrics.filingDate : undefined,
     )

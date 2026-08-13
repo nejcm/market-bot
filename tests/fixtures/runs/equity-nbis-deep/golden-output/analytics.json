@@ -98,12 +98,12 @@
       },
       {
         "provider": "sec-edgar",
-        "ingress": "sec-filing-text",
-        "profile": "sec-filing",
-        "fieldRole": "prose",
+        "ingress": "sec-tickers",
+        "profile": "short-metadata",
+        "fieldRole": "title",
         "droppedItemCount": 0,
-        "inputChars": 4709,
-        "outputChars": 4709,
+        "inputChars": 51,
+        "outputChars": 51,
         "removedInstructionSpanCount": 0,
         "removedMarkupChromeCount": 0,
         "truncatedFieldCount": 0,
@@ -112,12 +112,12 @@
       },
       {
         "provider": "sec-edgar",
-        "ingress": "sec-tickers",
-        "profile": "short-metadata",
-        "fieldRole": "title",
+        "ingress": "sec-filing-text",
+        "profile": "sec-filing",
+        "fieldRole": "prose",
         "droppedItemCount": 0,
-        "inputChars": 34,
-        "outputChars": 34,
+        "inputChars": 4709,
+        "outputChars": 4709,
         "removedInstructionSpanCount": 0,
         "removedMarkupChromeCount": 0,
         "truncatedFieldCount": 0,
@@ -141,7 +141,7 @@
     ]
   },
   "sourceTextResearchOnly": {
-    "scannedCount": 20,
+    "scannedCount": 21,
     "flaggedCount": 0,
     "flaggedByKind": {},
     "flaggedByProvider": {}
@@ -161,16 +161,16 @@
       }
     },
     "reportSources": {
-      "total": 20,
+      "total": 21,
       "byKind": {
         "market-data": 8,
         "news": 8,
-        "extended-evidence": 4
+        "extended-evidence": 5
       },
       "byProvider": {
         "yahoo": 8,
         "yahoo-news": 8,
-        "sec-edgar": 4
+        "sec-edgar": 5
       }
     },
     "sourceGaps": {
@@ -423,10 +423,10 @@
     },
     "dataGapCount": 21,
     "extendedEvidence": {
-      "itemCount": 7,
+      "itemCount": 8,
       "gapCount": 14,
       "itemsByCategory": {
-        "sec-edgar": 3,
+        "sec-edgar": 4,
         "valuation": 1,
         "yahoo-fundamentals": 1,
         "financial-lens": 1,
@@ -517,7 +517,7 @@
     "gapLaneCount": 6,
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 2,
-    "sourceCount": 21,
+    "sourceCount": 22,
     "gapCount": 12,
     "coverageRatio": 0.45454545454545453
   },

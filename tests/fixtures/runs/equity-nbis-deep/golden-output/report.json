@@ -394,6 +394,35 @@
       ]
     },
     {
+      "id": "extended-sec-edgar-nbis-20f",
+      "title": "NBIS SEC 20-F",
+      "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926065681/nbis-20251231x20fa.htm",
+      "fetchedAt": "2026-07-22T16:16:13.510Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "NBIS",
+      "provider": "sec-edgar",
+      "rawRef": "raw-sec-submissions-2026-07-22T16:16:13.510Z",
+      "summary": "20-F filed 2026-05-22 for period 2025-12-31 (filing text unavailable).",
+      "identity": {
+        "displayName": "Nebius Group N.V.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0001513845"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "NBIS"
+          }
+        ]
+      }
+    },
+    {
       "id": "extended-sec-edgar-nbis-6k-0001104659-26-084452",
       "title": "NBIS SEC 6-K",
       "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926084452/tm2620683d1_6k.htm",
@@ -727,6 +756,38 @@
           "managementPosture": "insufficient-data",
           "riskPosture": "criteria-supported",
           "valuationPosture": "insufficient-data"
+        }
+      },
+      {
+        "category": "sec-edgar",
+        "title": "NBIS SEC 20-F",
+        "summary": "20-F filed 2026-05-22 for period 2025-12-31 (filing text unavailable).",
+        "sourceIds": ["extended-sec-edgar-nbis-20f"],
+        "observedAt": "2026-07-22T16:16:13.510Z",
+        "metrics": {
+          "form": "20-F",
+          "filingDate": "2026-05-22",
+          "reportDate": "2025-12-31",
+          "accessionNumber": "0001104659-26-065681",
+          "primaryDocument": "nbis-20251231x20fa.htm",
+          "cik": "0001513845"
+        },
+        "identity": {
+          "displayName": "Nebius Group N.V.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0001513845"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "NBIS"
+            }
+          ]
         }
       },
       {

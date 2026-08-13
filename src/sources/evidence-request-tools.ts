@@ -51,7 +51,7 @@ export interface EvidenceRequestToolOutput {
 }
 
 interface SecFiling {
-  readonly form: "10-K" | "10-Q" | "8-K" | "6-K";
+  readonly form: "10-K" | "10-Q" | "8-K" | "20-F" | "40-F" | "6-K";
   readonly filingDate: string;
   readonly reportDate?: string;
   readonly accessionNumber: string;
@@ -208,7 +208,12 @@ function secTextRequestInit(userAgent: string | undefined): RequestInit | undefi
   return userAgent === undefined ? undefined : { headers: { "user-agent": userAgent } };
 }
 
-const FOREIGN_PRIVATE_ISSUER_FORMS = ["20-F", "40-F", "6-K"] as const;
+const FOREIGN_PRIVATE_ISSUER_ANNUAL_FORMS = ["20-F", "40-F"] as const;
+const FOREIGN_PRIVATE_ISSUER_FORMS = [...FOREIGN_PRIVATE_ISSUER_ANNUAL_FORMS, "6-K"] as const;
+
+function matchesSecForm(form: string, base: string): boolean {
+  return form === base || form.startsWith(`${base}/`);
+}
 
 function detectForeignPrivateIssuerForms(payload: unknown): readonly string[] {
   if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
@@ -216,7 +221,7 @@ function detectForeignPrivateIssuerForms(payload: unknown): readonly string[] {
   }
   const forms = stringArrayValue(payload.filings.recent.form);
   return FOREIGN_PRIVATE_ISSUER_FORMS.filter((base) =>
-    forms.some((form) => form === base || form.startsWith(`${base}/`)),
+    forms.some((form) => matchesSecForm(form, base)),
   );
 }
 
@@ -247,7 +252,17 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
     Array.isArray(recent.items) && recent.items.length === forms.length ? recent.items : undefined;
 
   return forms.flatMap((f, index): SecFiling[] => {
-    if (f !== "10-K" && f !== "10-Q" && f !== "8-K" && f !== "6-K") {
+    const foreignPrivateIssuerAnnualForm =
+      typeof f === "string"
+        ? FOREIGN_PRIVATE_ISSUER_ANNUAL_FORMS.find((base) => matchesSecForm(f, base))
+        : undefined;
+    if (
+      f !== "10-K" &&
+      f !== "10-Q" &&
+      f !== "8-K" &&
+      f !== "6-K" &&
+      foreignPrivateIssuerAnnualForm === undefined
+    ) {
       return [];
     }
     const filingDate = filingDates[index];
@@ -274,7 +289,7 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
         : [];
     return [
       {
-        form: f,
+        form: foreignPrivateIssuerAnnualForm ?? f,
         filingDate,
         ...(typeof reportDate === "string" && reportDate.trim() !== "" ? { reportDate } : {}),
         accessionNumber,
@@ -633,6 +648,9 @@ function secFilingKey(filing: SecFiling): string {
   }
   if (filing.form === "6-K") {
     return `6k-${filing.accessionNumber}`;
+  }
+  if (filing.form === "20-F" || filing.form === "40-F") {
+    return filing.form.toLowerCase().replace("-", "");
   }
   return `8k-${filing.accessionNumber}`;
 }
@@ -1190,12 +1208,21 @@ export async function collectSecFilingEvidence(
   const tenK = selectLatestFilingByForm(submissionsPayload, "10-K");
   const tenQ = selectCurrentQuarterlyFiling(submissionsPayload, tenK);
   const fpiForms = detectForeignPrivateIssuerForms(submissionsPayload);
+  const fpiAnnual =
+    tenK === undefined && tenQ === undefined
+      ? [
+          selectLatestFilingByForm(submissionsPayload, "20-F"),
+          selectLatestFilingByForm(submissionsPayload, "40-F"),
+        ]
+          .filter((filing): filing is SecFiling => filing !== undefined)
+          .toSorted(byFilingRecency)[0]
+      : undefined;
   const sixKs =
     tenK === undefined && tenQ === undefined
       ? selectRecentEarningsSixKs(submissionsPayload, ctx.fetchedAt)
       : [];
 
-  if (tenK === undefined && tenQ === undefined && sixKs.length === 0) {
+  if (tenK === undefined && tenQ === undefined && fpiAnnual === undefined && sixKs.length === 0) {
     return emptyOutput(
       [
         sourceGap({
@@ -1221,7 +1248,10 @@ export async function collectSecFilingEvidence(
       ? [
           sourceGap({
             source: "sec-edgar",
-            message: `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); recent 6-K text is attempted, while annual-report section parsing remains unsupported`,
+            message:
+              sixKs.length > 0
+                ? `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); recent 6-K text is attempted, while annual-report section parsing remains unsupported`
+                : `${command.symbol} files as a foreign private issuer (${fpiForms.join(", ")}); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported`,
             provider: "sec-edgar",
             capability: "evidence-request",
             cause: "unsupported-coverage",
@@ -1232,6 +1262,20 @@ export async function collectSecFilingEvidence(
   const rawSnapshots: RawSourceSnapshot[] = [...sharedRawSnapshots];
   const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
   let droppedItemCount = 0;
+
+  if (fpiAnnual !== undefined) {
+    const metadataOnly = buildSecFilingMetadataOnlyItem(
+      command,
+      match,
+      fpiAnnual,
+      filingUrl(match.cik, fpiAnnual),
+      submissionsRawSnapshot?.fetchedAt ?? ctx.fetchedAt,
+      submissionsRawSnapshot?.id,
+    );
+    sources.push(metadataOnly.source);
+    items.push(metadataOnly.item);
+    sanitizationEntries.push(...metadataOnly.sanitizationEntries);
+  }
 
   const [newestPeriodicFilingDate] = [tenK?.filingDate, tenQ?.filingDate]
     .filter((date): date is string => date !== undefined)

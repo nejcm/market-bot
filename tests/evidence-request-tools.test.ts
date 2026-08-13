@@ -298,17 +298,23 @@ describe("SEC latest filing evidence tool", () => {
     expect(result.gaps[0]?.message).toContain("No SEC 10-K or 10-Q filing found");
   });
 
-  test("retains recent 6-K text without a provider earnings event", async () => {
+  test("retains a 20-F basis while ignoring a newer 6-K for reuse freshness", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
+        fetchedAt: "2026-05-20T00:00:00.000Z",
         request: requestExecutor({
           json: async ({ adapter }) =>
             adapter === "sec-tickers"
               ? jsonResult(adapter, secTickersPayload())
               : jsonResult(
                   adapter,
-                  secSubmissionsPayload(["20-F", "6-K"], ["a20f.htm", "a6k.htm"]),
+                  secSubmissionsPayload(
+                    ["20-F", "6-K"],
+                    ["a20f.htm", "a6k.htm"],
+                    ["", ""],
+                    ["2026-03-15", "2026-05-15"],
+                  ),
                 ),
           text: async ({ adapter }) =>
             textResult(
@@ -319,8 +325,15 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toHaveLength(1);
-    expect(result.sources[0]).toMatchObject({ title: "AAPL SEC 6-K", provider: "sec-edgar" });
+    expect(result.sources.map((source) => source.title)).toEqual(["AAPL SEC 20-F", "AAPL SEC 6-K"]);
+    expect(result.items.map((item) => item.metrics?.form)).toEqual(["20-F", "6-K"]);
+    expect(
+      latestSecFilingDate({
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: result.items,
+        gaps: result.gaps,
+      }),
+    ).toBe("2026-03-15");
     expect(result.gaps).toEqual([
       expect.objectContaining({
         message: expect.stringContaining("files as a foreign private issuer (20-F, 6-K)"),
@@ -330,7 +343,7 @@ describe("SEC latest filing evidence tool", () => {
     ]);
   });
 
-  test("retains recent 6-K text for an upcoming provider event", async () => {
+  test("retains a 40-F basis with recent 6-K text", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -341,7 +354,7 @@ describe("SEC latest filing evidence tool", () => {
               ? jsonResult(adapter, secTickersPayload())
               : jsonResult(
                   adapter,
-                  secSubmissionsPayload(["20-F", "6-K"], ["a20f.htm", "a6k.htm"]),
+                  secSubmissionsPayload(["40-F", "6-K"], ["a40f.htm", "a6k.htm"]),
                 ),
           text: async ({ adapter }) =>
             textResult(
@@ -352,14 +365,21 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toHaveLength(1);
-    expect(result.sources[0]).toMatchObject({
+    expect(result.sources).toHaveLength(2);
+    expect(result.sources[1]).toMatchObject({
       title: "AAPL SEC 6-K",
       provider: "sec-edgar",
       symbol: "AAPL",
     });
-    expect(result.sources[0]?.snippet).toContain("May 15, 2026");
-    expect(result.items[0]?.metrics).toMatchObject({ form: "6-K" });
+    expect(result.sources[1]?.snippet).toContain("May 15, 2026");
+    expect(result.items.map((item) => item.metrics?.form)).toEqual(["40-F", "6-K"]);
+    expect(
+      latestSecFilingDate({
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: result.items,
+        gaps: result.gaps,
+      }),
+    ).toBe("2026-05-01");
     expect(result.gaps).toEqual([
       expect.objectContaining({
         message: expect.stringContaining(
@@ -371,7 +391,7 @@ describe("SEC latest filing evidence tool", () => {
     ]);
   });
 
-  test("reports no eligible 6-K when every foreign private issuer filing is out of window", async () => {
+  test("retains the annual basis when every 6-K is out of window", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -392,17 +412,17 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toEqual([]);
+    expect(result.sources.map((source) => source.title)).toEqual(["AAPL SEC 20-F"]);
     expect(result.gaps).toEqual([
       expect.objectContaining({
-        message: expect.stringContaining("no eligible recent 6-K filing was available"),
+        message: expect.stringContaining("annual-report section parsing remains unsupported"),
         cause: "unsupported-coverage",
         evidenceQualityImpact: "core-cap",
       }),
     ]);
   });
 
-  test("identifies amended foreign private issuer forms", async () => {
+  test("canonicalizes an amended foreign private issuer annual basis", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -415,9 +435,37 @@ describe("SEC latest filing evidence tool", () => {
       }),
     );
 
-    expect(result.sources).toEqual([]);
+    expect(result.sources.map((source) => source.title)).toEqual(["AAPL SEC 20-F"]);
+    expect(result.items[0]?.metrics).toMatchObject({ form: "20-F", filingDate: "2026-05-01" });
+    expect(
+      latestSecFilingDate({
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: result.items,
+        gaps: result.gaps,
+      }),
+    ).toBe("2026-05-01");
     expect(result.gaps[0]?.message).toContain("files as a foreign private issuer (20-F)");
     expect(result.gaps[0]?.cause).toBe("unsupported-coverage");
+  });
+
+  test("defensively canonicalizes an amended domestic form in reuse evidence", () => {
+    // Collection admits 20-F/A but not 10-K/A; the original 10-K already supplies its basis.
+    expect(
+      latestSecFilingDate({
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "Amended annual filing",
+            summary: "Amended annual filing.",
+            sourceIds: ["sec-10ka"],
+            observedAt: fetchedAt,
+            metrics: { form: "10-K/A", filingDate: "2026-04-15" },
+          },
+        ],
+        gaps: [],
+      }),
+    ).toBe("2026-04-15");
   });
 
   test("normalizes HTML and entities to plain text", () => {

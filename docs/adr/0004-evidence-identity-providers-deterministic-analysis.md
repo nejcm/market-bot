@@ -136,12 +136,13 @@ without pretending the project has a global security master.
   Item 2.02 evidence prefers a substantive EX-99 earnings-release exhibit and persists the parsed
   item codes plus `earningsReleaseDocument` and `earningsReleaseExhibit` provenance metrics; a gap
   discloses when neither the exhibit nor primary document reports substantive results. For detected
-  foreign private issuers without a 10-K/10-Q basis, collection attempts up to two 6-Ks in the same
-  window without depending on an earnings-event credential; remaining unsupported coverage is
-  described as annual-report section parsing, not a form-specific annual-report claim.
-  The no-periodic-basis path is intentionally foreign-private-issuer/6-K only; a domestic filer without a 10-K or 10-Q receives no current-report packet.
-  Company-profile reuse freshness remains keyed only to 10-K/10-Q filings because current-report
-  evidence enriches current events without replacing the durable periodic profile basis.
+  foreign private issuers without a 10-K/10-Q basis, collection retains the latest 20-F/40-F
+  metadata and attempts up to two 6-Ks in the same window without depending on an earnings-event
+  credential; annual-report section parsing remains unsupported, and a domestic filer without a
+  10-K or 10-Q receives no current-report packet.
+  Company-profile reuse freshness is keyed to durable 10-K/10-Q and FPI 20-F/40-F filings.
+  Current-report 8-K/6-K evidence is excluded because it enriches current events without replacing
+  the durable profile basis and would invalidate fallback profiles too frequently.
 - Deterministic title dedupe rejects an incoming accepted-web candidate when normalized title tokens
   match an already-accepted source at a 0.8 maximum Jaccard/containment threshold with at least three
   tokens. Rejections are audited as `duplicate-headline`; the rule cannot empty coverage and emits
@@ -433,7 +434,9 @@ without pretending the project has a global security master.
   (business model, segment mix, growth profile) remains weakly grounded and must be disclosed.
   Two-digit SIC groups are coarse and can admit peers with different economics or reject
   conglomerates classified under a different group.
-- Company profile reuse can remain valid through material non-filing events until its TTL expires.
+- Company profile reuse can remain valid through material events disclosed only in excluded 8-K/6-K
+  current reports until its TTL expires; its freshness gap records the reused profile's age and
+  filing basis.
 - The sanitizer does not detect every Unicode homoglyph or confusable attack.
 - The post-synthesis unsupported-claim audit is warning-only; the separate Report Integrity Audit
   in ADR 0005 prunes structurally unsupported claims but does not establish semantic entailment.

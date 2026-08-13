@@ -83,7 +83,7 @@
     "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
     "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
     "valuation-peers: Peer Universe unavailable for FPIQ: No checked-in peer mapping or subject-registry representative match",
-    "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
+    "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported",
     "Synthetic FPI inputs exercise unsupported current filing forms.",
     "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
     "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
@@ -265,6 +265,35 @@
           "fetchedAt": "2026-06-15T13:30:00.000Z"
         }
       ]
+    },
+    {
+      "id": "extended-sec-edgar-fpiq-20f",
+      "title": "FPIQ SEC 20-F",
+      "url": "https://www.sec.gov/Archives/edgar/data/9000001/000000000026000001/fpiq-2025-20f.htm",
+      "fetchedAt": "2026-06-15T14:30:00.000Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "FPIQ",
+      "provider": "sec-edgar",
+      "rawRef": "raw-sec-submissions-2026-06-15T14:30:00.000Z",
+      "summary": "20-F filed 2026-03-15 for period 2025-12-31 (filing text unavailable).",
+      "identity": {
+        "displayName": "Fixture Quarterly FPI N.V.",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0009000001"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "FPIQ"
+          }
+        ]
+      }
     },
     {
       "id": "extended-sec-edgar-fpiq-fundamentals",
@@ -511,6 +540,38 @@
           "riskPosture": "criteria-supported",
           "valuationPosture": "criteria-not-supported"
         }
+      },
+      {
+        "category": "sec-edgar",
+        "title": "FPIQ SEC 20-F",
+        "summary": "20-F filed 2026-03-15 for period 2025-12-31 (filing text unavailable).",
+        "sourceIds": ["extended-sec-edgar-fpiq-20f"],
+        "observedAt": "2026-06-15T14:30:00.000Z",
+        "metrics": {
+          "form": "20-F",
+          "filingDate": "2026-03-15",
+          "reportDate": "2025-12-31",
+          "accessionNumber": "0000000000-26-000001",
+          "primaryDocument": "fpiq-2025-20f.htm",
+          "cik": "0009000001"
+        },
+        "identity": {
+          "displayName": "Fixture Quarterly FPI N.V.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0009000001"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "FPIQ"
+            }
+          ]
+        }
       }
     ],
     "gaps": [
@@ -622,7 +683,7 @@
       },
       {
         "source": "sec-edgar",
-        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
+        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported",
         "provider": "sec-edgar",
         "capability": "evidence-request",
         "cause": "unsupported-coverage",
@@ -986,7 +1047,7 @@
   },
   "reportIntegrity": "high",
   "researchQuality": "medium",
-  "researchQualityDriver": "news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings",
+  "researchQualityDriver": "news lacks corroboration; corporate event evidence missing; remediation: add a second current news source or rerun; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun",
   "predictionShortfall": {
     "emittedCount": 0,
     "targetCount": 5,

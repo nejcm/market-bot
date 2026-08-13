@@ -1322,21 +1322,68 @@ describe("runWebGatherLoop", () => {
     );
   });
 
-  test("emits a malformed gap and stops on invalid JSON", async () => {
+  test("accepts a valid deep-equity batch after one malformed response", async () => {
+    let modelCalls = 0;
+    const malformedBody = "x".repeat(10_000);
+    const retryPriorStages: (readonly WebGatherStageOutput[])[] = [];
+    const result = await runWebGatherLoop({
+      command,
+      config,
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async (_sources, _roundContext, priorStages) => {
+        modelCalls += 1;
+        retryPriorStages.push(priorStages);
+        return modelCalls === 1
+          ? stage(malformedBody)
+          : stage({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: { query: "AAPL business model", searchType: "background" },
+                  rationale: "find relevant urls",
+                },
+              ],
+            });
+      },
+    });
+
+    expect(modelCalls).toBe(2);
+    expect(result.audit?.rounds).toBeGreaterThanOrEqual(2);
+    expect(result.audit?.acceptedRequests).not.toEqual([]);
+    expect(result.audit?.emittedGaps).toEqual([]);
+    expect(retryPriorStages[1]?.[0]?.content).toContain(
+      "Parse failure: Web gather stage returned invalid JSON",
+    );
+    expect(retryPriorStages[1]?.[0]?.content).not.toContain(malformedBody);
+  });
+
+  test("emits one malformed gap after exactly one deep-equity retry", async () => {
+    let modelCalls = 0;
     const result = await runWebGatherLoop({
       command,
       config,
       collectedSources: collectedSources(),
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => stage("not-json"),
+      generateRound: async () => {
+        modelCalls += 1;
+        return stage("not-json");
+      },
     });
 
-    expect(result.audit?.rounds).toBe(1);
+    expect(modelCalls).toBe(2);
+    expect(result.audit?.rounds).toBe(2);
     expect(result.audit?.emittedGaps).toEqual([
       expect.objectContaining({
         source: "web-gather",
         message: "Web gather stage returned invalid JSON",
+        provider: "quick-test",
         capability: "web-gather",
       }),
     ]);
@@ -1344,8 +1391,78 @@ describe("runWebGatherLoop", () => {
       expect.objectContaining({
         source: "web-gather",
         message: "Web gather stage returned invalid JSON",
+        provider: "quick-test",
         capability: "web-gather",
       }),
+    );
+    expect(result.collectedSources.sourceGaps).not.toContainEqual(
+      expect.objectContaining({ provider: "exa" }),
+    );
+  });
+
+  test("limits a deep-equity parse failure to one retry with a larger round budget", async () => {
+    let modelCalls = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { ...config.webGatherOptions, maxRounds: 5 } },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => {
+        modelCalls += 1;
+        return stage("not-json");
+      },
+    });
+
+    expect(modelCalls).toBe(2);
+    expect(result.audit?.rounds).toBe(2);
+    expect(result.audit?.emittedGaps).toHaveLength(1);
+  });
+
+  test("disables the deep-equity parse-failure reprompt with a one-round budget", async () => {
+    let modelCalls = 0;
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { ...config.webGatherOptions, maxRounds: 1 } },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => {
+        modelCalls += 1;
+        return stage("not-json");
+      },
+    });
+
+    expect(modelCalls).toBe(1);
+    expect(result.audit?.rounds).toBe(1);
+    expect(result.audit?.emittedGaps).toHaveLength(1);
+  });
+
+  test("attributes malformed JSON from the generic loop to the model", async () => {
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "deep",
+      },
+      config,
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => stage("not-json"),
+    });
+
+    expect(result.audit?.emittedGaps).toEqual([
+      expect.objectContaining({
+        source: "web-gather",
+        message: "Web gather stage returned invalid JSON",
+        provider: "quick-test",
+        capability: "web-gather",
+      }),
+    ]);
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({ provider: "quick-test" }),
     );
   });
 

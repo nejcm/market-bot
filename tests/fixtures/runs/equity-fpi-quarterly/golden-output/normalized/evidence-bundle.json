@@ -380,7 +380,37 @@
         ]
       }
     ],
-    "extendedSources": [],
+    "extendedSources": [
+      {
+        "id": "extended-sec-edgar-fpiq-20f",
+        "title": "FPIQ SEC 20-F",
+        "url": "https://www.sec.gov/Archives/edgar/data/9000001/000000000026000001/fpiq-2025-20f.htm",
+        "fetchedAt": "2026-06-15T14:30:00.000Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "FPIQ",
+        "provider": "sec-edgar",
+        "rawRef": "raw-sec-submissions-2026-06-15T14:30:00.000Z",
+        "summary": "20-F filed 2026-03-15 for period 2025-12-31 (filing text unavailable).",
+        "identity": {
+          "displayName": "Fixture Quarterly FPI N.V.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0009000001"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "FPIQ"
+            }
+          ]
+        }
+      }
+    ],
     "extendedEvidence": {
       "instrument": {
         "symbol": "FPIQ",
@@ -615,6 +645,38 @@
             "riskPosture": "criteria-supported",
             "valuationPosture": "criteria-not-supported"
           }
+        },
+        {
+          "category": "sec-edgar",
+          "title": "FPIQ SEC 20-F",
+          "summary": "20-F filed 2026-03-15 for period 2025-12-31 (filing text unavailable).",
+          "sourceIds": ["extended-sec-edgar-fpiq-20f"],
+          "observedAt": "2026-06-15T14:30:00.000Z",
+          "metrics": {
+            "form": "20-F",
+            "filingDate": "2026-03-15",
+            "reportDate": "2025-12-31",
+            "accessionNumber": "0000000000-26-000001",
+            "primaryDocument": "fpiq-2025-20f.htm",
+            "cik": "0009000001"
+          },
+          "identity": {
+            "displayName": "Fixture Quarterly FPI N.V.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0009000001"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "FPIQ"
+              }
+            ]
+          }
         }
       ],
       "gaps": [
@@ -726,7 +788,7 @@
         },
         {
           "source": "sec-edgar",
-          "message": "FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
+          "message": "FPIQ files as a foreign private issuer (20-F, 6-K); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported",
           "provider": "sec-edgar",
           "capability": "evidence-request",
           "cause": "unsupported-coverage",
@@ -4295,7 +4357,7 @@
       },
       {
         "source": "sec-edgar",
-        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported",
+        "message": "FPIQ files as a foreign private issuer (20-F, 6-K); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported",
         "provider": "sec-edgar",
         "capability": "evidence-request",
         "cause": "unsupported-coverage",
@@ -4438,13 +4500,16 @@
           "lane": "regulatory-filings",
           "evidenceClass": "material",
           "status": "covered",
-          "coveredSourceIds": ["extended-sec-edgar-fpiq-fundamentals"],
+          "coveredSourceIds": [
+            "extended-sec-edgar-fpiq-fundamentals",
+            "extended-sec-edgar-fpiq-20f"
+          ],
           "gapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"],
           "gapText": [
             "sec-edgar: No SEC company facts found for FPIQ",
-            "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported"
+            "sec-edgar: FPIQ files as a foreign private issuer (20-F, 6-K); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported"
           ],
-          "freshnessNotes": []
+          "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {
           "lane": "corporate-events",
@@ -4517,7 +4582,7 @@
         "gapLaneCount": 6,
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 2,
-        "sourceCount": 12,
+        "sourceCount": 13,
         "gapCount": 11,
         "coverageRatio": 0.45454545454545453
       }
@@ -4611,6 +4676,15 @@
           "id": "extended-sec-edgar-fpiq-fundamentals",
           "kind": "market-data",
           "provider": "yahoo",
+          "lane": "regulatory-filings",
+          "posture": "covered",
+          "relatedGapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"]
+        },
+        {
+          "id": "extended-sec-edgar-fpiq-20f",
+          "kind": "extended-evidence",
+          "provider": "sec-edgar",
+          "fetchedAt": "2026-06-15T14:30:00.000Z",
           "lane": "regulatory-filings",
           "posture": "covered",
           "relatedGapIds": ["regulatory-filings:gap:1", "regulatory-filings:gap:2"]
@@ -4714,6 +4788,20 @@
           "droppedItemCount": 0,
           "inputChars": 8,
           "outputChars": 8,
+          "removedInstructionSpanCount": 0,
+          "removedMarkupChromeCount": 0,
+          "truncatedFieldCount": 0,
+          "truncatedCharCount": 0,
+          "emptyAfterSanitizeFieldCount": 0
+        },
+        {
+          "provider": "sec-edgar",
+          "ingress": "sec-tickers",
+          "profile": "short-metadata",
+          "fieldRole": "title",
+          "droppedItemCount": 0,
+          "inputChars": 26,
+          "outputChars": 26,
           "removedInstructionSpanCount": 0,
           "removedMarkupChromeCount": 0,
           "truncatedFieldCount": 0,

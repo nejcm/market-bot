@@ -554,6 +554,35 @@
     ],
     "extendedSources": [
       {
+        "id": "extended-sec-edgar-nbis-20f",
+        "title": "NBIS SEC 20-F",
+        "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926065681/nbis-20251231x20fa.htm",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "NBIS",
+        "provider": "sec-edgar",
+        "rawRef": "raw-sec-submissions-2026-07-22T16:16:13.510Z",
+        "summary": "20-F filed 2026-05-22 for period 2025-12-31 (filing text unavailable).",
+        "identity": {
+          "displayName": "Nebius Group N.V.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0001513845"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "NBIS"
+            }
+          ]
+        }
+      },
+      {
         "id": "extended-sec-edgar-nbis-6k-0001104659-26-084452",
         "title": "NBIS SEC 6-K",
         "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926084452/tm2620683d1_6k.htm",
@@ -868,6 +897,38 @@
             "managementPosture": "insufficient-data",
             "riskPosture": "criteria-supported",
             "valuationPosture": "insufficient-data"
+          }
+        },
+        {
+          "category": "sec-edgar",
+          "title": "NBIS SEC 20-F",
+          "summary": "20-F filed 2026-05-22 for period 2025-12-31 (filing text unavailable).",
+          "sourceIds": ["extended-sec-edgar-nbis-20f"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "form": "20-F",
+            "filingDate": "2026-05-22",
+            "reportDate": "2025-12-31",
+            "accessionNumber": "0001104659-26-065681",
+            "primaryDocument": "nbis-20251231x20fa.htm",
+            "cik": "0001513845"
+          },
+          "identity": {
+            "displayName": "Nebius Group N.V.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0001513845"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "NBIS"
+              }
+            ]
           }
         },
         {
@@ -9250,6 +9311,7 @@
           "status": "covered",
           "coveredSourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
+            "extended-sec-edgar-nbis-20f",
             "extended-sec-edgar-nbis-6k-0001104659-26-084452",
             "extended-sec-edgar-nbis-6k-0001104659-26-074352"
           ],
@@ -9336,7 +9398,7 @@
         "gapLaneCount": 6,
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 2,
-        "sourceCount": 21,
+        "sourceCount": 22,
         "gapCount": 12,
         "coverageRatio": 0.45454545454545453
       }
@@ -9502,6 +9564,19 @@
           ]
         },
         {
+          "id": "extended-sec-edgar-nbis-20f",
+          "kind": "extended-evidence",
+          "provider": "sec-edgar",
+          "fetchedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "regulatory-filings",
+          "posture": "covered",
+          "relatedGapIds": [
+            "regulatory-filings:gap:1",
+            "regulatory-filings:gap:2",
+            "regulatory-filings:gap:3"
+          ]
+        },
+        {
           "id": "extended-sec-edgar-nbis-6k-0001104659-26-084452",
           "kind": "extended-evidence",
           "provider": "sec-edgar",
@@ -9634,12 +9709,12 @@
         },
         {
           "provider": "sec-edgar",
-          "ingress": "sec-filing-text",
-          "profile": "sec-filing",
-          "fieldRole": "prose",
+          "ingress": "sec-tickers",
+          "profile": "short-metadata",
+          "fieldRole": "title",
           "droppedItemCount": 0,
-          "inputChars": 4709,
-          "outputChars": 4709,
+          "inputChars": 51,
+          "outputChars": 51,
           "removedInstructionSpanCount": 0,
           "removedMarkupChromeCount": 0,
           "truncatedFieldCount": 0,
@@ -9648,12 +9723,12 @@
         },
         {
           "provider": "sec-edgar",
-          "ingress": "sec-tickers",
-          "profile": "short-metadata",
-          "fieldRole": "title",
+          "ingress": "sec-filing-text",
+          "profile": "sec-filing",
+          "fieldRole": "prose",
           "droppedItemCount": 0,
-          "inputChars": 34,
-          "outputChars": 34,
+          "inputChars": 4709,
+          "outputChars": 4709,
           "removedInstructionSpanCount": 0,
           "removedMarkupChromeCount": 0,
           "truncatedFieldCount": 0,

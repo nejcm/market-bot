@@ -380,9 +380,7 @@ describe("web subject profile extra", () => {
     expect(markdown).not.toContain("- A gap");
   });
 
-  // The empty-profile path (web-subject-profile.ts:472-490) pairs EMPTY_ANSWER with open gaps.
-  // Markdown therefore renders an empty summary as a blank line, with or without sourceIds.
-  test("keeps the empty subject summary the empty-profile producer path emits", async () => {
+  test("keeps an empty subject summary without rendering a blank paragraph", async () => {
     const extra = await goldenExtra("equity-web-fallback-deep", "webSubjectProfile");
     const emptyProfile = {
       ...extra,
@@ -404,13 +402,28 @@ describe("web subject profile extra", () => {
       readWebSubjectProfileExtra({ ...emptyProfile, subjectSummary: { answer: "", sourceIds: 42 } })
         ?.subjectSummary,
     ).toEqual(emptySummary);
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "research",
+        extras: {
+          webSubjectProfile: {
+            ...emptyProfile,
+            subjectSummary: { answer: "", sourceIds: [] },
+            questions: { whatItDoes: { answer: "Sells devices.", sourceIds: [] } },
+          },
+        },
+      }),
+    );
+    expect(markdown).toContain("## Web Subject Profile\n\n- **What It Does:** Sells devices.");
   });
 
-  test("keeps the artifact leaf readers strict about blank text", () => {
-    // These two are re-exported to src/run-artifacts.ts, where a blank row must
-    // Still invalidate the artifact — only the extras path is lenient.
+  test("accepts only the exact empty-answer sentinel in artifact leaves", () => {
     expect(readWebSubjectProfileAnswer({ answer: " ", sourceIds: [] })).toBeUndefined();
-    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: [] })).toBeUndefined();
+    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: ["web-source"] })).toBeUndefined();
+    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: [] })).toEqual({
+      answer: "",
+      sourceIds: [],
+    });
     expect(readWebSubjectProfileAnswer({ answer: "Real." })).toBeUndefined();
     expect(readWebSubjectProfileFacts([{ claim: " ", sourceIds: [] }])).toBeUndefined();
     expect(readWebSubjectProfileFacts([{ claim: "Real.", sourceIds: [] }])).toEqual([

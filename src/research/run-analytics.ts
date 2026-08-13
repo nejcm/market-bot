@@ -517,9 +517,15 @@ function webSourceRoles(
   const reuse = collectedSources.webSubjectProfileReuse;
   const usage = computeWebSourceUsage(report, collectedSources);
   const fallback = webFallbackSummary(trace);
+  const gatherAttempted = trace.webGatherLoop !== undefined;
   const { currentRunIds, reusedProfileIds, profileUsedIds, reportCitedIds, currentRunUsedIds } =
     usage;
-  if (currentRunIds.size === 0 && reuse === undefined && fallback === undefined) {
+  if (
+    !gatherAttempted &&
+    currentRunIds.size === 0 &&
+    reuse === undefined &&
+    fallback === undefined
+  ) {
     return {};
   }
   const reusedProfileAgeDays =
@@ -534,9 +540,8 @@ function webSourceRoles(
   );
   const usageRatio = currentRunIds.size === 0 ? 0 : currentRunUsedIds.size / currentRunIds.size;
   return {
-    ...(currentRunIds.size === 0 && fallback === undefined
-      ? {}
-      : {
+    ...(gatherAttempted || currentRunIds.size > 0 || fallback !== undefined
+      ? {
           webSources: {
             accepted: currentRunIds.size,
             profileUsed: profileUsedIds.size,
@@ -552,7 +557,8 @@ function webSourceRoles(
               : {}),
             ...(fallback !== undefined ? { fallback } : {}),
           },
-        }),
+        }
+      : {}),
     ...(reuse !== undefined && reusedProfileIds.size > 0 && reusedProfileAgeDays !== undefined
       ? {
           reusedProfileWebSources: {

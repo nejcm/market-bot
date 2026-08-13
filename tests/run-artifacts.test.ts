@@ -117,6 +117,17 @@ async function writeDeepProfileBundle(runDir: string, symbol: string): Promise<v
   );
 }
 
+async function loadBriefWebSubjectProfile(value: unknown) {
+  const runDir = join(tempRunsDir(), "profile-reader");
+  await writeJson(
+    join(runDir, "report.json"),
+    researchReport({ runId: "profile-reader", extras: { depth: "brief" } }),
+  );
+  await writeJson(join(runDir, "normalized", "web-subject-profile.json"), value);
+  const { artifact } = await loadRunArtifact(runDir);
+  return artifact?.webSubjectProfile;
+}
+
 describe("loadRunArtifact", () => {
   test("reads deep-equity evidence only from the bundle without legacy fallback", async () => {
     const dataDir = tempRunsDir();
@@ -1338,6 +1349,59 @@ describe("loadRunArtifact", () => {
     await writeFile(join(badRun, "miss-autopsy.json"), "{not-json", "utf8");
     const malformed = await loadRunArtifact(badRun);
     expect(malformed.artifact?.missAutopsies).toEqual([]);
+  });
+
+  test("reads a degraded web profile without dropping its cited facts", async () => {
+    const value = webSubjectProfile("AAPL") as Record<string, unknown>;
+
+    const parsed = await loadBriefWebSubjectProfile({
+      ...value,
+      subjectSummary: { answer: "", sourceIds: [] },
+    });
+
+    expect(parsed?.subjectSummary).toEqual({ answer: "", sourceIds: [] });
+    expect(parsed?.factLedger).toEqual([
+      { claim: "AAPL sells products.", sourceIds: ["web-aapl-12345678"] },
+    ]);
+  });
+
+  test("keeps valid questions when one answer is empty", async () => {
+    const value = webSubjectProfile("AAPL") as Record<string, unknown>;
+    const questions = value.questions as Record<string, unknown>;
+
+    const parsed = await loadBriefWebSubjectProfile({
+      ...value,
+      questions: { ...questions, customers: { answer: "", sourceIds: [] } },
+    });
+
+    expect(parsed).toMatchObject({
+      questions: {
+        customers: { answer: "", sourceIds: [] },
+        whatItDoes: {
+          answer: "AAPL business profile.",
+          sourceIds: ["web-aapl-12345678"],
+        },
+      },
+    });
+  });
+
+  test("rejects a web profile without cited facts", async () => {
+    const value = webSubjectProfile("AAPL") as Record<string, unknown>;
+
+    const parsed = await loadBriefWebSubjectProfile({ ...value, factLedger: [] });
+
+    expect(parsed).toBeUndefined();
+  });
+
+  test("rejects a malformed web profile", async () => {
+    const value = webSubjectProfile("AAPL") as Record<string, unknown>;
+
+    const parsed = await loadBriefWebSubjectProfile({
+      ...value,
+      subjectSummary: { answer: 42, sourceIds: [] },
+    });
+
+    expect(parsed).toBeUndefined();
   });
 });
 

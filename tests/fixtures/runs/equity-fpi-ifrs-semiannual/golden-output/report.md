@@ -6,7 +6,7 @@ Generated: 2026-06-15T14:30:00.000Z
 Evidence Quality: medium
 Report Integrity: high
 Research Quality: medium
-Research Quality Driver: news lacks corroboration; regulatory filing evidence stale; remediation: add a second current news source or rerun; rerun with current regulatory filings
+Research Quality Driver: news lacks corroboration; corporate event evidence missing; remediation: add a second current news source or rerun; configure MARKET_BOT_FINNHUB_API_TOKEN or rerun
 Analysis Completeness: financial core `complete`
 
 ## What the Company Does
@@ -53,7 +53,7 @@ Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/boo
 ## Material Data Gaps
 
 - **Material:** sec-edgar: No SEC company facts found for IFRSSA
-- **Material:** sec-edgar: IFRSSA files as a foreign private issuer \(20-F, 6-K\); no eligible recent 6-K filing was available and annual-report section parsing remains unsupported
+- **Material:** sec-edgar: IFRSSA files as a foreign private issuer \(20-F, 6-K\); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
 - **Material:** valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported
 - **Material:** business-framework: Business Framework partial for IFRSSA: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources
@@ -135,6 +135,7 @@ No prior run artifacts matched this research scope.
 
 - [market-yahoo-equity-ifrssa] IFRSSA market snapshot
 - [verified-snapshot-IFRSSA] IFRSSA verified market snapshot \(OHLCV + indicators, 2026-05-01\)
+- [extended-sec-edgar-ifrssa-20f] IFRSSA SEC 20-F
 - [extended-sec-edgar-ifrssa-fundamentals] IFRSSA canonical financial statements
 - 7 uncited normalized source(s) omitted from markdown (yahoo-news/news:1, yahoo/market-data:6). Full source arrays remain in report.json and console files.
 

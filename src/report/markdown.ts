@@ -1151,10 +1151,11 @@ function renderWebSubjectProfile(report: ResearchReport): string {
   const usesCompanyLabels = questionKeys === webSubjectProfileQuestionKeys("company");
   const trimEquityReaderDuplicates =
     report.jobType === "equity" && report.assetClass === "equity" && usesCompanyLabels;
-  // An empty answer still renders here — the empty-profile producer path emits
-  // One — but is suppressed per question below.
+  // Empty answers are suppressed here and per question below.
   const summary =
-    !trimEquityReaderDuplicates && subjectSummary?.answer !== undefined
+    !trimEquityReaderDuplicates &&
+    subjectSummary?.answer !== undefined &&
+    subjectSummary.answer !== ""
       ? [
           `${markdownText(subjectSummary.answer)}${sourceRefs(
             citedSourceIds(report, subjectSummary),

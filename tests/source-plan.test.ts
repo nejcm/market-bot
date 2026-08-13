@@ -185,7 +185,10 @@ describe("source plan", () => {
 
     // The salvage keeps one gap (the rejected event); that must not read as a
     // Total lane gap once the surviving content flows through buildSourcePlan.
-    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.artifact?.sourceIds).toEqual([webSource.id]);
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({ source: "web-subject-profile" }),
+    );
     expect(result.artifact).toBeDefined();
     const plan = plannedAndAssessed(
       command,
@@ -201,10 +204,16 @@ describe("source plan", () => {
       }),
     );
 
-    expect(plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile")).toMatchObject({
+    const subjectProfileLane = plan.evidenceLanes.lanes.find(
+      (lane) => lane.lane === "subject-profile",
+    );
+    expect(subjectProfileLane).toMatchObject({
       status: "covered",
       coveredSourceIds: [webSource.id],
     });
+    expect(subjectProfileLane?.gapText).toContainEqual(
+      expect.stringContaining("web-subject-profile:"),
+    );
     const subjectProfileCheck = assessEvidenceQuality(plan, generatedAt).checks.find(
       (check) => check.capability === "subject-profile",
     );

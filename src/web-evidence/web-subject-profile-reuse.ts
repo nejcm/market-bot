@@ -11,6 +11,7 @@ import type {
 } from "../domain/types";
 import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
+import type { SecFilingForm } from "../sources/evidence-request-tools";
 import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements";
 import {
   buildWebSubjectProfileReuseEvidence,
@@ -31,6 +32,12 @@ export interface WebSubjectProfileReuse {
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
+const REUSE_BASIS_FORMS = [
+  "10-K",
+  "10-Q",
+  "20-F",
+  "40-F",
+] as const satisfies readonly SecFilingForm[];
 
 interface PriorWebEvidenceUtilization {
   readonly level: WebEvidenceUtilizationLevel;
@@ -48,15 +55,13 @@ export function latestSecFilingDate(evidence: ExtendedEvidence | undefined): str
   // Collection canonicalizes 40-F/A first; a literal 40-F/A here remains unsupported unlike 20-F/A.
   const filingDates = (evidence?.items ?? [])
     .filter((item) => {
-      const form = item.metrics?.form;
+      const rawForm = item.metrics?.form;
       const canonicalForm =
-        typeof form === "string" ? (canonicalizeSecForm(form)?.canonicalForm ?? form) : undefined;
+        typeof rawForm === "string"
+          ? (canonicalizeSecForm(rawForm)?.canonicalForm ?? rawForm)
+          : undefined;
       return (
-        item.category === "sec-edgar" &&
-        (canonicalForm === "10-K" ||
-          canonicalForm === "10-Q" ||
-          canonicalForm === "20-F" ||
-          canonicalForm === "40-F")
+        item.category === "sec-edgar" && REUSE_BASIS_FORMS.some((form) => form === canonicalForm)
       );
     })
     .map((item) =>

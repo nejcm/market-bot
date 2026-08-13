@@ -50,8 +50,10 @@ export interface EvidenceRequestToolOutput {
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
 }
 
+export type SecFilingForm = "10-K" | "10-Q" | "8-K" | "20-F" | "40-F" | "6-K";
+
 interface SecFiling {
-  readonly form: "10-K" | "10-Q" | "8-K" | "20-F" | "40-F" | "6-K";
+  readonly form: SecFilingForm;
   readonly filingDate: string;
   readonly reportDate?: string;
   readonly accessionNumber: string;

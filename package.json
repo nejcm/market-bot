@@ -35,9 +35,9 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check src tests scripts app/*.ts app/*.js app/client",
     "commitlint": "commitlint",
-    "knip": "knip --production",
+    "knip": "knip",
     "audit": "bun audit --audit-level=high",
-    "check": "bun run fmt && bun run lint && bun run fmt:check && bun run typecheck && bun run app:build && bun run test:coverage"
+    "check": "bun run fmt && bun run lint && bun run fmt:check && bun run typecheck && bun run knip && bun run app:build && bun run test:coverage"
   },
   "devDependencies": {
     "@ai-sdk/svelte": "4.0.208",

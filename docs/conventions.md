@@ -28,7 +28,31 @@ and fixture recording.
   run them, scrub output, and assert invariants.
 - Refresh fixture golden output with `bun run scripts/replay-fixture-run.ts <fixture-name>
 --write-golden` after intentional deterministic output changes.
+- Tests claiming to verify a producer/consumer contract must obtain producer-owned artifacts by
+  calling the writer, not by hand-building an object literal matching the reader's expectations;
+  otherwise the test proves only that the reader accepts what the test author believes the writer
+  emits. A focused unit test of a reader's own logic may construct its input.
+- `tests/web-subject-profile-reuse.test.ts`, test `reuses an FPI profile from the filing evidence
+collection path`, is the model: it calls `executeEvidenceRequestTool` with a raw SEC submissions
+  payload and asserts on what the tool actually returns.
+- Builders in `tests/support/fixtures.ts` remain correct for inputs the system does not produce
+  (commands, config, provider payloads); they are not a licence to synthesize an artifact the system
+  writes.
 - Do not loosen an assertion to make a flaky test pass — find the cause.
+
+### Implementation plan verification
+
+Every phase of an implementation plan states verification in two tiers:
+
+```text
+Verification:
+  focused (during edit): bun test tests/web-subject-profile-reuse.test.ts
+  reportable:            bun run check
+```
+
+The focused command is for the edit loop. Apply the [Final Quality Check](../AGENTS.md) rule when reporting a phase as passing; only the reportable command may be cited.
+
+- Review checklist: if anything under `tests/fixtures/*/golden-output/` moved, the commit body must state why. `bun run scripts/replay-fixture-run.ts <fixture> --write-golden` already prints a bucketed, escalation-aware diff before overwriting, and `git diff` is the durable record; no new tracking file is needed. The gap is that nobody reads it.
 
 ## Commits
 

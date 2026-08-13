@@ -12,7 +12,7 @@ bun run app:check
 bun run app:build
 bun run lint
 bun run fmt:check
-bun run check            # fmt + lint + fmt:check + typecheck + app build + test
+bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage
 ```
 
 ## Static equity fixture tests
@@ -36,12 +36,13 @@ Current checked-in fixtures:
 
 - `tests/fixtures/runs/equity-aapl-brief/`
 - `tests/fixtures/runs/equity-aapl-deep/`
-- `tests/fixtures/runs/equity-web-fallback-deep/`
+- `tests/fixtures/runs/equity-earnings-release-deep/`
 - `tests/fixtures/runs/equity-nbis-deep/`
 - `tests/fixtures/runs/equity-fpi-quarterly/`
 - `tests/fixtures/runs/equity-fpi-ifrs-semiannual/`
 - `tests/fixtures/runs/equity-analysis-comprehensive/`
 - `tests/fixtures/runs/equity-analysis-estimated-suppressed/`
+- `tests/fixtures/runs/equity-web-fallback-deep/`
 
 Each fixture contains:
 
@@ -78,6 +79,43 @@ Write mode runs the strict golden reader before replacing any files. A layout-in
 `--write-golden` and must be removed by hand. A layout-valid stale `.json` file under
 `golden-output/normalized/` is readable, appears in the pre-write diff, and is removed when the
 writer recreates the normalized file set.
+
+## Reviewing a suspicious change
+
+When a change looks locally correct but you doubt the tests would catch it being wrong, break it on
+purpose and run the suite. If the suite stays green, the tests cover the shape of the code, not the
+behaviour.
+
+The three cheap breakages worth trying are:
+
+- invert a comparison;
+- delete a guard body;
+- replace a boolean literal.
+
+For example, in `src/web-evidence/web-subject-profile-reuse.ts`, remove `"10-K"` from
+`REUSE_BASIS_FORMS` and run:
+
+```sh
+bun test tests/web-subject-profile-reuse.test.ts
+```
+
+It fails. Before that test was rewritten to drive the real producer, it did not: the test hand-built
+its own evidence items, so it passed with the reader's filter broken. Revert afterwards and confirm:
+
+```sh
+git diff src/
+```
+
+Ask the same question the other way for code that filters on a value another module produces: can
+the producer actually emit the value this code matches on? A filter on an unproducible value is dead
+code that every check in this repo will pass. The `SecFilingForm` export in
+`src/sources/evidence-request-tools.ts` is how this specific hazard is now caught by `tsc`.
+
+An automated mutation runner was considered and rejected. Its output is noisy by construction:
+equivalent mutants that change nothing observable read as failures, and a check that cries wolf gets
+suppressed. No mutation framework is added as a dependency either; [ADR 0002](./adr/0002-typescript-bun-orchestration.md)
+fixes this repo on Bun and oxc, which rules out the Node-based options. The manual version above is
+what actually found the real defects, and it takes minutes.
 
 ## Refreshing prompt baseline hashes
 

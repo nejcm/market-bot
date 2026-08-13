@@ -64,6 +64,7 @@ bun run check    # fmt + lint + fmt:check + typecheck + knip + app:build + test:
 Requirements:
 
 - All checks must pass before marking the task as complete
+- Only `bun run check` may be reported as passing. A focused `bun test <files>` run is an edit-loop convenience and is never the verification for a phase.
 - Never bypass Git hooks with --no-verify or skip CI checks
 - Include tests within the same commit as the code changes
 - Do not append `Co-authored-by` trailers to commit messages

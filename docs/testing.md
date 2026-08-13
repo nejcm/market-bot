@@ -12,7 +12,7 @@ bun run app:check
 bun run app:build
 bun run lint
 bun run fmt:check
-bun run check            # fmt + lint + fmt:check + typecheck + app build + test
+bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage
 ```
 
 ## Static equity fixture tests

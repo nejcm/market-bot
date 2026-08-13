@@ -58,7 +58,7 @@ ADRs document current architectural decisions and should be followed by default,
 After making code changes, run the quality check suite to ensure your changes meet project standards. Execute this command at natural completion points or when you've reached a stable state:
 
 ```sh
-bun run check    # fmt + lint + fmt:check + typecheck + test:coverage
+bun run check    # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage
 ```
 
 Requirements:

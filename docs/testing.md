@@ -15,6 +15,16 @@ bun run fmt:check
 bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage
 ```
 
+## Unused-code gate
+
+`bun run knip` is the unused-code gate. `knip --production` is deliberately not used: `knip.json`
+has only `scripts/**/*.ts` and `tests/**/*.ts` as entries, and production mode drops the test
+entries, leaving nothing to analyze. Those test entries already reach `src/` transitively, so adding
+`src/cli.ts` or other real entry points would make production mode find only a strict subset of the
+existing gate.
+
+The scripts-and-tests-only `entry` configuration is intentional, not an oversight.
+
 ## Static equity fixture tests
 
 The static equity fixture harness exercises the real equity pipeline while replacing only two

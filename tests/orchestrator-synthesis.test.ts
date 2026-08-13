@@ -527,6 +527,7 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(result.analytics.sourceFunnel.sourceGaps).toEqual({
       total: 1,
       bySource: { "sec-edgar": 1 },
+      byTriage: { material: 1 },
     });
     expect(result.analytics.evidenceQuality.extendedEvidence.gapCount).toBe(1);
     expect(result.analytics.evidenceQuality.marketContext.gapCount).toBe(1);

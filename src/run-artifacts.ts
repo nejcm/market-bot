@@ -1312,6 +1312,7 @@ function readWebSubjectProfileArtifact(value: unknown): WebSubjectProfileArtifac
     questions === undefined ||
     recentMaterialEvents === undefined ||
     factLedger === undefined ||
+    factLedger.length === 0 ||
     openGaps === undefined ||
     sourceIds === undefined
   ) {

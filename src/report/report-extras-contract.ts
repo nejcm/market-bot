@@ -324,14 +324,16 @@ export function readBusinessFrameworkExtra(
 // Web subject profile
 // ---------------------------------------------------------------------------
 
-// Artifact leaves, moved here unchanged from src/run-artifacts.ts: strict
-// ReadString, so a blank answer or claim still invalidates a normalized profile.
+// Artifact leaves stay strict except for the persisted empty-answer sentinel.
 export function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAnswer | undefined {
   if (!isRecord(value)) {
     return;
   }
-  const answer = readString(value, "answer");
   const sourceIds = readStringArray(value, "sourceIds");
+  if (value.answer === "" && sourceIds?.length === 0) {
+    return { answer: "", sourceIds };
+  }
+  const answer = readString(value, "answer");
   return answer === undefined || sourceIds === undefined ? undefined : { answer, sourceIds };
 }
 

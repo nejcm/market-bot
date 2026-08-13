@@ -417,11 +417,13 @@ describe("web subject profile extra", () => {
     expect(markdown).toContain("## Web Subject Profile\n\n- **What It Does:** Sells devices.");
   });
 
-  test("keeps the artifact leaf readers strict about blank text", () => {
-    // These two are re-exported to src/run-artifacts.ts, where a blank row must
-    // Still invalidate the artifact — only the extras path is lenient.
+  test("accepts only the exact empty-answer sentinel in artifact leaves", () => {
     expect(readWebSubjectProfileAnswer({ answer: " ", sourceIds: [] })).toBeUndefined();
-    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: [] })).toBeUndefined();
+    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: ["web-source"] })).toBeUndefined();
+    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: [] })).toEqual({
+      answer: "",
+      sourceIds: [],
+    });
     expect(readWebSubjectProfileAnswer({ answer: "Real." })).toBeUndefined();
     expect(readWebSubjectProfileFacts([{ claim: " ", sourceIds: [] }])).toBeUndefined();
     expect(readWebSubjectProfileFacts([{ claim: "Real.", sourceIds: [] }])).toEqual([

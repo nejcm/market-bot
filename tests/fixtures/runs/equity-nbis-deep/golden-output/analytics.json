@@ -193,13 +193,17 @@
         "business-framework": 1,
         "sec-untagged-financials": 1,
         "equity-analysis-completeness": 2
+      },
+      "byTriage": {
+        "diagnostic": 12,
+        "material": 7
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
       "provider-data-missing": 4,
       "unsupported-coverage": 2,
-      "unknown": 2
+      "suppressed-by-design": 2
     },
     "dataGaps": {
       "total": 21
@@ -519,6 +523,7 @@
     "materialGapLaneCount": 2,
     "sourceCount": 22,
     "gapCount": 12,
+    "suppressedLaneCount": 0,
     "coverageRatio": 0.45454545454545453
   },
   "calibrationAtGeneration": {

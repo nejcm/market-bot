@@ -6393,6 +6393,7 @@
           "coveredSourceIds": ["news-equity-1", "news-equity-2"],
           "gapIds": ["news:gap:1"],
           "gapText": ["marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T13:30:00.000Z"]
         },
         {
@@ -6440,6 +6441,7 @@
             "sec-edgar: Missing SEC company facts: grossProfit, operatingIncome, netIncome, dilutedEps, operatingCashFlow, capex, dilutedShares, currentAssets, currentLiabilities",
             "sec-edgar: Missing comparable SEC company facts for YoY deltas: revenue, cash, debt"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {
@@ -6458,6 +6460,7 @@
           "coveredSourceIds": [],
           "gapIds": ["macro-indicators:gap:1"],
           "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+          "gapCauses": ["missing-credential"],
           "freshnessNotes": []
         },
         {
@@ -6508,6 +6511,7 @@
           "gapText": [
             "valuation-peers: Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target"
           ],
+          "gapCauses": ["provider-data-missing"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {
@@ -6520,6 +6524,7 @@
             "web-gather: a model web query was rejected for drifting off-subject",
             "web-gather: a repeated model web request was skipped"
           ],
+          "gapCauses": ["validation-failed"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         }
       ],
@@ -6534,6 +6539,7 @@
         "materialGapLaneCount": 1,
         "sourceCount": 34,
         "gapCount": 18,
+        "suppressedLaneCount": 0,
         "coverageRatio": 0.8181818181818182
       }
     },

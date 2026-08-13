@@ -176,13 +176,17 @@
         "valuation-peers": 1,
         "valuation": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 12,
+        "material": 4
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
       "provider-data-missing": 2,
       "unsupported-coverage": 2,
-      "unknown": 1
+      "suppressed-by-design": 1
     },
     "dataGaps": {
       "total": 18
@@ -502,6 +506,7 @@
     "materialGapLaneCount": 2,
     "sourceCount": 13,
     "gapCount": 11,
+    "suppressedLaneCount": 0,
     "coverageRatio": 0.45454545454545453
   },
   "calibrationAtGeneration": {

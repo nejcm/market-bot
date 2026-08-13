@@ -40,6 +40,7 @@
         "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
         "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN"
       ],
+      "gapCauses": ["missing-credential"],
       "freshnessNotes": ["latest evidence timestamp 2026-06-15T13:30:00.000Z"]
     },
     {
@@ -58,6 +59,7 @@
       "coveredSourceIds": ["extended-sec-edgar-aapl-filings"],
       "gapIds": ["regulatory-filings:gap:1"],
       "gapText": ["sec-edgar: No SEC company facts found for AAPL"],
+      "gapCauses": ["provider-data-missing"],
       "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
     },
     {
@@ -67,6 +69,7 @@
       "coveredSourceIds": [],
       "gapIds": ["corporate-events:gap:1"],
       "gapText": ["finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set"],
+      "gapCauses": ["missing-credential"],
       "freshnessNotes": []
     },
     {
@@ -76,6 +79,7 @@
       "coveredSourceIds": [],
       "gapIds": ["macro-indicators:gap:1"],
       "gapText": ["fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
+      "gapCauses": ["missing-credential"],
       "freshnessNotes": []
     },
     {
@@ -85,6 +89,7 @@
       "coveredSourceIds": [],
       "gapIds": ["derivatives-volatility:gap:1"],
       "gapText": ["tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set"],
+      "gapCauses": ["missing-credential"],
       "freshnessNotes": []
     },
     {
@@ -96,6 +101,7 @@
       "gapText": [
         "valuation: Valuation Evidence unavailable for AAPL: missing revenue, cash, debt"
       ],
+      "gapCauses": ["provider-data-missing"],
       "freshnessNotes": []
     }
   ],
@@ -110,6 +116,7 @@
     "materialGapLaneCount": 1,
     "sourceCount": 10,
     "gapCount": 8,
+    "suppressedLaneCount": 0,
     "coverageRatio": 0.4444444444444444
   }
 }

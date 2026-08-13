@@ -162,6 +162,10 @@
         "tradier-options": 1,
         "valuation-peers": 1,
         "business-framework": 1
+      },
+      "byTriage": {
+        "diagnostic": 22,
+        "material": 3
       }
     },
     "sourceGapsByCause": {
@@ -489,6 +493,7 @@
     "materialGapLaneCount": 2,
     "sourceCount": 29,
     "gapCount": 20,
+    "suppressedLaneCount": 0,
     "coverageRatio": 0.5454545454545454
   },
   "calibrationAtGeneration": {

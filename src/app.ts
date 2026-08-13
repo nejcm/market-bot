@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { isResearchCommand, parseArgs, type ResearchCommand } from "./cli/args";
+import { commandBanner, isResearchCommand, parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
 import { renderAlphaSearchAnalyticsConsole } from "./alpha-search/run-analytics-console";
@@ -29,6 +29,7 @@ import {
 import { rebuildRunArtifactIndex, writeThroughRunArtifactIndex } from "./run-artifact-index";
 import { rebuildRunArtifactIndexIfStale } from "./run-artifact-index-repair";
 import { runDeepEquity } from "./deep-equity";
+import { progress } from "./progress";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -133,6 +134,9 @@ export async function runCli(
   dependencies: RunCliDependencies = {},
 ): Promise<string> {
   const command = parseArgs(argv);
+  // Banner is unconditional, and precedes config resolution so a misconfigured run
+  // Still says what it was trying to do. Stdout stays reserved for the run-dir path.
+  process.stderr.write(`${commandBanner(command)}\n`);
   const config = resolveConfig(process.env, {
     validateAlphaSearchOptions: command.jobType === "alpha-search",
   });
@@ -258,6 +262,7 @@ export async function runCli(
       command,
       config,
     });
+    progress("updating run artifact index");
     await updateRunArtifactIndex(
       config.dataDir,
       [result.artifacts.runDir],
@@ -271,6 +276,7 @@ export async function runCli(
   // Best-effort pre-run score pass: resolve predictions that became scorable
   // Since the last run so the orchestrator's calibration-context refresh sees
   // Them. Failures log to stderr; the post-run pass remains the safety net.
+  progress(`provider ${config.provider}; pre-run score pass`);
   const preRunScoreResult = await runScore(
     config.dataDir,
     now(),
@@ -322,6 +328,7 @@ export async function runCli(
           dependencies,
         });
 
+  progress("post-run score pass");
   const scoreResult = await runScore(
     config.dataDir,
     now(),
@@ -332,12 +339,14 @@ export async function runCli(
     );
   });
   if (scoreResult !== undefined) {
+    progress("building calibration summary");
     await writeCalibration(config.dataDir).catch((error: unknown) => {
       process.stderr.write(
         `Calibration build failed: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     });
   }
+  progress("updating run artifact index");
   await updateRunArtifactIndex(
     config.dataDir,
     [result.artifacts.runDir, ...(scoreResult?.touchedRunDirs ?? [])],
@@ -345,6 +354,7 @@ export async function runCli(
     config.indexOptions?.dbPath,
   );
 
+  progress(`run complete: ${result.artifacts.runDir}`);
   emitRunQualitySummary(() => renderRunAnalyticsConsole(result.analytics));
 
   return result.artifacts.runDir;

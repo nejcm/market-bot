@@ -1,6 +1,7 @@
 import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
+import { progress } from "../progress";
 import { readCodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
 import {
@@ -486,6 +487,7 @@ export async function runAlphaSearchWorkflow(input: {
     input.fetchImpl ?? fetch,
     input.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS,
   );
+  progress("alpha-search: social candidates");
   const apeWisdom = await collectApeWisdomCandidates({
     filter: alphaSearchOptions.apeWisdomFilter,
     pageLimit: pageLimit(input.command, input.config),
@@ -495,6 +497,7 @@ export async function runAlphaSearchWorkflow(input: {
     candidates: apeWisdom.candidates,
     candidateLimit: rankedCandidateLimit,
   });
+  progress("alpha-search: SEC discovery");
   const secDiscovery = await discoverSecAlphaSearchCandidates({
     formTypes: alphaSearchOptions.secFormTypes,
     candidateLimit: alphaSearchOptions.secDiscoveryLimit,
@@ -510,11 +513,13 @@ export async function runAlphaSearchWorkflow(input: {
     ...socialValidationCandidates,
     ...secDiscovery.candidates,
   ]);
+  progress("alpha-search: listed universe");
   const listedUniverse = await collectListedUniverse(request);
   const listed = filterListedUniverseCandidates({
     candidates: validationCandidates,
     entries: listedUniverse.entries,
   });
+  progress("alpha-search: market cross-check");
   const yahoo = await crossCheckAlphaSearchCandidatesWithYahoo({
     candidates: listed.eligibleCandidates,
     candidateLimit: listed.eligibleCandidates.length,
@@ -554,6 +559,7 @@ export async function runAlphaSearchWorkflow(input: {
   });
   const researchLeads = readAlphaSearchLeads(initialReport.extras);
   const reportRejectedCandidates = readAlphaSearchRejectedCandidates(initialReport.extras);
+  progress("alpha-search: lead fundamentals");
   const fundamentals = await collectAlphaSearchFundamentals({
     leads: researchLeads,
     request,
@@ -605,6 +611,7 @@ export async function runAlphaSearchWorkflow(input: {
     sourceGaps,
     fundamentalSourceGaps: fundamentals.sourceGaps,
   });
+  progress("alpha-search: writing run artifacts");
   const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
   await persistRunArtifactWrites(
     artifacts,

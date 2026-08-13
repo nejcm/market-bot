@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
-import { commandLabel, parseArgs } from "../src/cli/args";
+import { commandBanner, commandLabel, parseArgs } from "../src/cli/args";
 import {
   CONSOLE_JOB_TYPES,
   SEARCH_JOB_TYPE_OPTIONS,
@@ -122,6 +122,32 @@ describe("parseArgs", () => {
     expect(commandLabel({ jobType: "alpha-search", assetClass: "equity", depth: "deep" })).toBe(
       "alpha-search equity deep",
     );
+  });
+
+  test("banners each run type with its subject", () => {
+    expect(
+      commandBanner({ jobType: "equity", assetClass: "equity", symbol: "MSFT", depth: "deep" }),
+    ).toBe("Running deep equity run for MSFT");
+    expect(
+      commandBanner({ jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "brief" }),
+    ).toBe("Running brief crypto run for BTC");
+    expect(
+      commandBanner({
+        jobType: "research",
+        assetClass: "equity",
+        depth: "brief",
+        subject: "nuclear power",
+      }),
+    ).toBe("Running brief research run for nuclear power");
+    expect(
+      commandBanner(
+        legacyMarketOverviewCommand("weekly", { assetClass: "crypto", depth: "brief" }),
+      ),
+    ).toBe("Running brief weekly run for crypto over 15 trading day(s)");
+    expect(commandBanner({ jobType: "alpha-search", assetClass: "equity", depth: "deep" })).toBe(
+      "Running deep alpha-search run for equity",
+    );
+    expect(commandBanner({ jobType: "score" })).toBe("Running score");
   });
 
   test("parses score command", () => {

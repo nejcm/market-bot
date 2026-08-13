@@ -1,5 +1,6 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
+import { progress } from "../progress";
 import {
   isMarketUpdateJobType,
   type ExtendedEvidence,
@@ -402,6 +403,7 @@ export async function collectSources(
     requestRetryDelaysMs,
   );
 
+  progress("collecting sources");
   const registry = createSourceRegistry();
   const requiredMarketSnapshotSymbols = representativeSnapshotSymbols(resolvedSubject);
   const marketCtx =
@@ -568,6 +570,7 @@ export async function collectSources(
         })),
   );
 
+  progress("equity enrichment");
   const enrichmentResult = await collectEquityEnrichment({
     command,
     marketSnapshots: resolvedMarketResult.marketSnapshots,
@@ -610,7 +613,7 @@ export async function collectSources(
       : sanitizeInstrumentIdentityMetadata(rawIdentity, "instrument-identity");
   const resolvedInstrumentIdentity = sanitizedIdentity?.identity;
 
-  return {
+  const collected = {
     rawSnapshots: [
       ...resolvedMarketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
@@ -721,6 +724,12 @@ export async function collectSources(
       ...staleFallbackGaps,
     ],
   };
+  progress(
+    `sources collected: ${String(collected.rawSnapshots.length)} snapshot(s), ${String(
+      collected.newsSources.length,
+    )} news, ${String(collected.sourceGaps.length)} gap(s)`,
+  );
+  return collected;
 }
 
 type InstrumentIdentityResult = ReturnType<typeof deriveCanonicalInstrumentIdentity>;

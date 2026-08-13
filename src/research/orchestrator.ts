@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
+import { progress } from "../progress";
 import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
@@ -215,6 +216,7 @@ async function runModelStage(
       : {}),
   };
   const prompt = buildStagePrompt(stage, stageInput);
+  progress(`stage ${stage} → ${model}`);
   const startedAt = performance.now();
   const modelParams =
     stage === "final-synthesis"
@@ -236,6 +238,9 @@ async function runModelStage(
     ],
   });
   const endedAt = performance.now();
+  progress(
+    `stage ${stage} done in ${((endedAt - startedAt) / 1000).toFixed(1)}s (~${String(response.tokenEstimate)} tok)`,
+  );
 
   const steering = buildRecordedStageSteering(stage, stageInput);
 
@@ -554,6 +559,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   });
   let historicalContext = initialHistoricalContext.context;
   context = { ...context, historicalContext };
+  progress("evidence-request loop");
   const evidenceLoop = await runEvidenceRequestLoop({
     command,
     config: input.config,
@@ -590,6 +596,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       input.sourceFetchImpl ?? fetch,
       input.sourceRetryDelaysMs,
     );
+    progress("financial-table extraction");
     financialTableExtraction = await runFinancialTableExtractionPhase({
       symbol: command.symbol,
       generatedAt,
@@ -611,6 +618,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
       ],
     };
   }
+  progress("web-evidence phase");
   const webEvidence = await runWebEvidencePhase({
     command,
     config: input.config,
@@ -636,6 +644,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     analysisAsOf: generatedAt,
   });
   const { webGatherLoop, webSubjectProfile } = webEvidence;
+  progress("market-update phase");
   const marketUpdate = await runMarketUpdatePhase({
     command,
     config: input.config,
@@ -706,6 +715,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const playbookContext = playbookSelection.context;
   const playbookAudit: PlaybookSelectionAudit = playbookSelection.audit;
   const playbookSelectionOutput = playbookSelection.output;
+  progress(`analysis phase (${String(plannedStages.length)} planned stage(s))`);
   const reasoning = await runAnalysisPhase({
     command,
     collectedSources,
@@ -726,6 +736,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const allowedSubjects =
     command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
 
+  progress("final synthesis");
   const synthesis = await synthesizeReportUntilValid({
     runId,
     generatedAt,
@@ -773,6 +784,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     report: rederivePredictionShortfallReportAfterPruning(integrityAuditResult.report),
   };
   const integrityReport = reconcileEarningsForecastTelemetry(integrityAudit.report);
+  progress("forecast-disagreement phase");
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,
     generatedAt,
@@ -891,6 +903,7 @@ export async function persistResearchJob(
   const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
   const result = await runResearchJob(jobInput);
   const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
+  progress(`writing run artifacts to ${artifacts.runDir}`);
   await persistRunArtifactWrites(
     artifacts,
     buildResearchRunManifest(command, input.config, result),

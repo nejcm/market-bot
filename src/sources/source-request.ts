@@ -6,6 +6,7 @@ import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/types";
 import { fetchFailureSourceGap } from "../domain/source-gaps";
+import { progressDetail } from "../progress";
 import { withCache, type CacheOptions } from "./cache";
 import {
   classifyTransientFailure,
@@ -482,8 +483,9 @@ interface SourceRequestExecutorOptions {
 }
 
 function createSourceRequestExecutor(options: SourceRequestExecutorOptions): SourceRequestExecutor {
-  const json: FetchJsonRequestFn = (request: SourceRequest) =>
-    fetchJsonOrGap(
+  const json: FetchJsonRequestFn = (request: SourceRequest) => {
+    progressDetail(`fetch ${request.adapter} ${request.url}`);
+    return fetchJsonOrGap(
       request.url,
       request.adapter,
       options.fetchedAt,
@@ -492,8 +494,10 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
       options.retryDelaysMs,
       request.init,
     );
-  const text: FetchTextRequestFn = (request: SourceRequest) =>
-    fetchTextOrGap(
+  };
+  const text: FetchTextRequestFn = (request: SourceRequest) => {
+    progressDetail(`fetch ${request.adapter} ${request.url}`);
+    return fetchTextOrGap(
       request.url,
       request.adapter,
       options.fetchedAt,
@@ -503,6 +507,7 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
       options.retryDelaysMs,
       request.init,
     );
+  };
 
   if (options.cacheOptions === undefined) {
     return { json, text };

@@ -320,6 +320,7 @@ describe("Web Subject Profile reuse", () => {
     const currentSecFilingDate = latestSecFilingDate({
       instrument: { assetClass: "equity", symbol: "AAPL" },
       items: [
+        // The producer-backed filing collection test below covers this reader path.
         {
           category: "sec-edgar",
           title: "Foreign private issuer annual report",
@@ -888,38 +889,58 @@ describe("Web Subject Profile reuse", () => {
     ]);
   });
 
-  test("reads the current SEC filing date from extended evidence", () => {
+  test("reads the current SEC filing date from produced filing evidence", async () => {
+    const fetchedAt = "2026-05-20T00:00:00.000Z";
+    const filingEvidence = await executeEvidenceRequestTool("sec_latest_filing", {
+      command,
+      fetchedAt,
+      newsLimit: 0,
+      cryptoMoverLimit: 0,
+      request: {
+        json: async ({ adapter }) => {
+          const payload =
+            adapter === "sec-tickers"
+              ? { "0": { cik_str: 320_193, ticker: "AAPL", title: "Apple Inc." } }
+              : {
+                  filings: {
+                    recent: {
+                      form: ["10-K", "10-Q", "8-K"],
+                      items: ["", "", ""],
+                      filingDate: ["2026-04-01", "2026-05-10", "2026-05-15"],
+                      reportDate: ["2025-12-31", "2026-03-31", "2026-05-15"],
+                      accessionNumber: [
+                        "0000320193-26-000010",
+                        "0000320193-26-000020",
+                        "0000320193-26-000030",
+                      ],
+                      primaryDocument: ["a10-k.htm", "a10-q.htm", "a8-k.htm"],
+                    },
+                  },
+                };
+          return { rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload }, payload };
+        },
+        text: async ({ adapter }) => {
+          const payload = "";
+          return { rawSnapshot: { id: `raw-${adapter}`, adapter, fetchedAt, payload }, payload };
+        },
+      },
+    });
     const evidence: ExtendedEvidence = {
       instrument: { assetClass: "equity", symbol: "AAPL" },
-      items: [
-        {
-          category: "sec-edgar",
-          title: "Older filing",
-          summary: "Older filing.",
-          sourceIds: ["sec-old"],
-          observedAt: "2026-05-01T00:00:00.000Z",
-          metrics: { form: "10-K", filingDate: "2026-04-01" },
-        },
-        {
-          category: "sec-edgar",
-          title: "Latest filing",
-          summary: "Latest filing.",
-          sourceIds: ["sec-new"],
-          observedAt: "2026-05-10T00:00:00.000Z",
-          metrics: { form: "10-Q", filingDate: "2026-05-10" },
-        },
-        {
-          category: "sec-edgar",
-          title: "Current report",
-          summary: "Current report.",
-          sourceIds: ["sec-8k"],
-          observedAt: "2026-05-15T00:00:00.000Z",
-          metrics: { form: "8-K", filingDate: "2026-05-15" },
-        },
-      ],
-      gaps: [],
+      items: filingEvidence.items,
+      gaps: filingEvidence.gaps,
     };
 
+    expect(
+      filingEvidence.items.map((item) => [item.metrics?.form, item.metrics?.filingDate]),
+    ).toEqual([
+      ["10-K", "2026-04-01"],
+      ["10-Q", "2026-05-10"],
+      ["8-K", "2026-05-15"],
+    ]);
+    expect(
+      evidence.items.map((item) => latestSecFilingDate({ ...evidence, items: [item] })),
+    ).toEqual(["2026-04-01", "2026-05-10", undefined]);
     expect(latestSecFilingDate(evidence)).toBe("2026-05-10");
   });
 });

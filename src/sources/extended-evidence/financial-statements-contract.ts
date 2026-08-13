@@ -1,8 +1,15 @@
 import { isRecord } from "../../guards";
+import type { SecFilingForm } from "../evidence-request-tools";
 
 export type FinancialStatementTaxonomy = "us-gaap" | "ifrs-full";
 
-export const CANONICAL_SEC_FORMS = ["10-K", "10-Q", "20-F", "40-F", "6-K"] as const;
+export const CANONICAL_SEC_FORMS = [
+  "10-K",
+  "10-Q",
+  "20-F",
+  "40-F",
+  "6-K",
+] as const satisfies readonly SecFilingForm[];
 
 export type CanonicalSecForm = (typeof CANONICAL_SEC_FORMS)[number];
 

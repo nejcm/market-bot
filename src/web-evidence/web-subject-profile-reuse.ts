@@ -51,8 +51,8 @@ export function latestSecFilingDate(evidence: ExtendedEvidence | undefined): str
   // AGM notices are also common, so 6-K would constantly invalidate fallback profiles.
   // A material 6-K may therefore postdate a reusable profile.
   // The existing freshness gap records that accepted risk.
-  // Financial Statements intentionally rejects 40-F; reuse needs only filing metadata, not facts.
-  // Collection canonicalizes 40-F/A first; a literal 40-F/A here remains unsupported unlike 20-F/A.
+  // Financial Statements accepts 40-F as an annual report and derives financial facts from it.
+  // Canonicalization maps 40-F/A to 40-F while preserving its amendment marker.
   const filingDates = (evidence?.items ?? [])
     .filter((item) => {
       const rawForm = item.metrics?.form;

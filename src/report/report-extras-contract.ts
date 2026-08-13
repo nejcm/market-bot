@@ -343,15 +343,21 @@ export function readWebSubjectProfileFacts(
   if (!Array.isArray(value)) {
     return;
   }
+  let malformed = false;
   const facts = value.flatMap((item): readonly WebSubjectProfileFact[] => {
     if (!isRecord(item)) {
+      malformed = true;
       return [];
     }
     const claim = readString(item, "claim");
     const sourceIds = readStringArray(item, "sourceIds");
-    return claim === undefined || sourceIds === undefined ? [] : [{ claim, sourceIds }];
+    if (claim === undefined || sourceIds === undefined) {
+      malformed = true;
+      return [];
+    }
+    return sourceIds.length === 0 ? [] : [{ claim, sourceIds }];
   });
-  return facts.length === value.length ? facts : undefined;
+  return malformed ? undefined : facts;
 }
 
 // Extras leaves: every record survives, text verbatim and optional.

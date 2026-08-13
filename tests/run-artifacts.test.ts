@@ -1359,6 +1359,10 @@ describe("loadRunArtifact", () => {
     const parsed = await loadBriefWebSubjectProfile({
       ...value,
       subjectSummary: { answer: "", sourceIds: [] },
+      factLedger: [
+        ...(value.factLedger as readonly unknown[]),
+        { claim: "Uncited fact.", sourceIds: [] },
+      ],
     });
 
     expect(parsed?.subjectSummary).toEqual({ answer: "", sourceIds: [] });

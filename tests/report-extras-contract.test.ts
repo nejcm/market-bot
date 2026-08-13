@@ -425,14 +425,21 @@ describe("web subject profile extra", () => {
       sourceIds: [],
     });
     expect(readWebSubjectProfileAnswer({ answer: "Real." })).toBeUndefined();
-    expect(readWebSubjectProfileFacts([{ claim: " ", sourceIds: [] }])).toBeUndefined();
-    expect(readWebSubjectProfileFacts([{ claim: "Real.", sourceIds: [] }])).toEqual([
-      { claim: "Real.", sourceIds: [] },
-    ]);
     expect(readWebSubjectProfileAnswer({ answer: "Real.", sourceIds: [] })).toEqual({
       answer: "Real.",
       sourceIds: [],
     });
+  });
+
+  test("drops uncited facts but rejects malformed facts", () => {
+    expect(
+      readWebSubjectProfileFacts([
+        { claim: "Cited.", sourceIds: ["web-source"] },
+        { claim: "Uncited.", sourceIds: [] },
+      ]),
+    ).toEqual([{ claim: "Cited.", sourceIds: ["web-source"] }]);
+    expect(readWebSubjectProfileFacts([{ claim: "Uncited.", sourceIds: [] }])).toEqual([]);
+    expect(readWebSubjectProfileFacts([{ claim: " ", sourceIds: [] }])).toBeUndefined();
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { MarketContext, MarketRegimeSummary, MarketSnapshot } from "../src/domain/types";
 import { addMarketContextToRegime, summarizeMarketRegime } from "../src/research/regime";
+import { buildFredMacroMetrics } from "../src/sources/fred";
 
 function snapshot(
   symbol: string,
@@ -176,14 +177,21 @@ describe("addMarketContextToRegime", () => {
           summary: "Macro context",
           sourceIds: ["market-spy", "market-context-fred-macro"],
           observedAt: "2026-05-19T00:00:00.000Z",
-          metrics: {
-            DGS2: 3.9,
-            DGS10: 4.25,
-            DGS10Change: 0.1,
-            DGS10Date: "2026-05-18",
-            DGS10Prior: 4.15,
-            DGS10PriorDate: "2026-05-17",
-          },
+          metrics: buildFredMacroMetrics([
+            {
+              seriesId: "DGS2",
+              payload: { observations: [{ date: "2026-05-18", value: "3.9" }] },
+            },
+            {
+              seriesId: "DGS10",
+              payload: {
+                observations: [
+                  { date: "2026-05-18", value: "4.25" },
+                  { date: "2026-05-17", value: "4.15" },
+                ],
+              },
+            },
+          ]),
         },
       ],
     };

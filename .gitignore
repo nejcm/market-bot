@@ -12,5 +12,9 @@ app/dist/
 
 /research/
 reports/
-plans/
 TODO.md
+
+# Plan documents are tracked; the screenshots people drop beside them are not.
+plans/*.jpg
+plans/*.jpeg
+plans/*.png

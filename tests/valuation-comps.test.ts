@@ -5,6 +5,7 @@ import {
   collectValuationComps,
   derivePeerImpliedRange,
   MIXED_PERIOD_METRIC,
+  peerImpliedRangeSuppressionGaps,
   type ValuationCompsOptions,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
@@ -1293,7 +1294,19 @@ describe("collectValuationComps", () => {
     );
     expect(
       result.gaps.find((gap) => gap.message.startsWith("Peer-implied price reference range")),
-    ).not.toHaveProperty("cause");
+    ).toHaveProperty("cause", "suppressed-by-design");
+  });
+
+  test("classifies unavailable peer-range inputs as provider data missing", () => {
+    const gaps = peerImpliedRangeSuppressionGaps({
+      target: { symbol: "NVDA" },
+      impliedPriceRange: {
+        status: "suppressed",
+        suppressedReason: "net debt is unavailable",
+      },
+    } as Parameters<typeof peerImpliedRangeSuppressionGaps>[0]);
+
+    expect(gaps[0]?.cause).toBe("provider-data-missing");
   });
 
   test("labels comps not-supportable when target SEC period is stale", async () => {

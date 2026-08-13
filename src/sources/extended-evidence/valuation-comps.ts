@@ -9,6 +9,7 @@ import {
   type MarketSnapshotPriceAsOf,
   type Source,
   type SourceGap,
+  type SourceGapCause,
 } from "../../domain/types";
 import {
   resolvePeerUniverseWithFallback,
@@ -96,6 +97,19 @@ export type PeerImpliedRangeSuppressedReason =
   | "peer percentile inputs are unavailable"
   | "one or more implied prices are not positive"
   | "current price is unavailable";
+
+const SUPPRESSION_CAUSE = {
+  "peer supportability is not supported": "suppressed-by-design",
+  "fewer than 3 usable peers": "provider-data-missing",
+  "annualized revenue is not positive": "provider-data-missing",
+  "net debt is unavailable": "provider-data-missing",
+  "net debt uses mixed reporting periods": "provider-data-missing",
+  "shares outstanding is not positive": "provider-data-missing",
+  "quote currency is not USD": "unsupported-coverage",
+  "peer percentile inputs are unavailable": "provider-data-missing",
+  "one or more implied prices are not positive": "provider-data-missing",
+  "current price is unavailable": "provider-data-missing",
+} satisfies Record<PeerImpliedRangeSuppressedReason, SourceGapCause>;
 
 export interface PeerImpliedRangeInputs {
   readonly peerP25EvToAnnualizedRevenue: number | null;
@@ -1167,7 +1181,9 @@ export function valuationCompsSkippedGap(symbol: string): SourceGap {
   );
 }
 
-function peerImpliedRangeSuppressionGaps(artifact: ValuationCompsArtifact): readonly SourceGap[] {
+export function peerImpliedRangeSuppressionGaps(
+  artifact: ValuationCompsArtifact,
+): readonly SourceGap[] {
   const range = artifact.impliedPriceRange;
   if (range?.status !== "suppressed") {
     return [];
@@ -1179,6 +1195,7 @@ function peerImpliedRangeSuppressionGaps(artifact: ValuationCompsArtifact): read
       symbol: artifact.target.symbol,
       provider: "market-bot",
       capability: "extended-evidence",
+      cause: SUPPRESSION_CAUSE[range.suppressedReason],
       evidenceQualityImpact: "no-cap",
     }),
   ];

@@ -2191,6 +2191,62 @@ describe("run workspace view", () => {
     );
   });
 
+  test("annotates unavailable financial trend cells", () => {
+    const populatedHistory = snapshotFundamentalHistory();
+    const history = {
+      ...populatedHistory,
+      series: {
+        ...populatedHistory.series,
+        netIncome: { ...populatedHistory.series.netIncome, annual: [], notes: [] },
+        operatingMargin: { ...populatedHistory.series.operatingMargin, annual: [], notes: [] },
+        freeCashFlowProxy: {
+          ...populatedHistory.series.freeCashFlowProxy,
+          annual: [],
+          notes: [],
+        },
+      },
+    };
+    const report = financialTrendReport(history.sourceId);
+    const revenueUnavailableHistory = {
+      ...populatedHistory,
+      series: {
+        ...populatedHistory.series,
+        revenue: { ...populatedHistory.series.revenue, annual: [], notes: [] },
+      },
+    };
+    const zeroRevenueBase = snapshotFundamentalHistory({ revenue: [0, 120, 140] });
+    const zeroRevenueHistory = {
+      ...zeroRevenueBase,
+      series: {
+        ...zeroRevenueBase.series,
+        operatingMargin: {
+          ...zeroRevenueBase.series.operatingMargin,
+          annual: zeroRevenueBase.series.operatingMargin.annual.slice(1),
+        },
+      },
+    };
+
+    const unavailable = renderFinancialTrends(report, { fundamentalHistory: history });
+    const revenueUnavailable = renderFinancialTrends(report, {
+      fundamentalHistory: revenueUnavailableHistory,
+    });
+    const zeroRevenue = renderFinancialTrends(report, { fundamentalHistory: zeroRevenueHistory });
+    expect(unavailable).toContain("— (earnings-unavailable)");
+    expect(unavailable).toContain("— (numerator-unavailable)");
+    expect(unavailable).toContain("— (free-cash-flow-unavailable)");
+    expect(revenueUnavailable).toContain("— (revenue-unavailable)");
+    expect(zeroRevenue).toContain(
+      "FY ending 2022-09-30 (filed 2022-11-01) | 0 | 20 | — (revenue-unavailable)",
+    );
+    for (const markdown of [unavailable, revenueUnavailable, zeroRevenue]) {
+      const trendRows = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("FY ") || line.startsWith("TTM "));
+      expect(trendRows.length).toBeGreaterThan(0);
+      expect(trendRows.some((line) => line.split(" | ").includes("—"))).toBe(false);
+    }
+  });
+
   // Balance sheet is deliberately out of scope here. Markdown formats those cells with
   // `compactNumber`, the Console uses `scaleCurrency` (K tier, toFixed(0), currency prefix).
   // Unifying them needs a ladder/currency decision that would churn goldens.

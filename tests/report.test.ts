@@ -311,7 +311,9 @@ test("declares missing revenue history instead of leaving unexplained trend-tabl
     { fundamentalHistory: history },
   );
 
-  expect(markdown).toContain("FY ending 2024-09-30 (filed 2024-11-01) | — | 20 | — | —");
+  expect(markdown).toContain(
+    "FY ending 2024-09-30 (filed 2024-11-01) | — (revenue-unavailable) | 20 | — (revenue-unavailable) | — (free-cash-flow-unavailable)",
+  );
   expect(markdown).toContain(
     "**Material:** fundamental-history-revenue: SEC revenue history is unavailable",
   );

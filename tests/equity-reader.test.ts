@@ -224,10 +224,10 @@ describe("equity reader projection", () => {
     ]);
     expect(projection.defaultView.financialTrends?.rows.at(-1)).toEqual({
       period: "TTM (2025-12-31; filed 2026-02-01)",
-      revenue: "—",
+      revenue: "— (revenue-unavailable)",
       netIncome: "700,000",
-      operatingMargin: "—",
-      freeCashFlow: "—",
+      operatingMargin: "— (revenue-unavailable)",
+      freeCashFlow: "— (free-cash-flow-unavailable)",
     });
     expect(projection.defaultView.financialTrends?.reportingCurrency).toBe("EUR");
     expect(projection.defaultView.materialGaps).toEqual([

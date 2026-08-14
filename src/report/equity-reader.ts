@@ -21,12 +21,16 @@ import type {
   FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
-import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
+import type {
+  ValuationMetricSuppressionReason,
+  ValuationWorkbenchArtifact,
+} from "../sources/extended-evidence/valuation-workbench-contract";
 import { readGapTriage } from "./gap-triage";
 import {
   normalizePredictionShortfall,
   predictionShortfallMaterialGap,
 } from "./prediction-shortfall";
+import { metricCell } from "./valuation-workbench-markdown";
 
 interface TrendPeriod {
   readonly kind: "annual" | "ttm";
@@ -341,14 +345,52 @@ function formatTrendPercent(value: number | undefined): string {
   return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
 }
 
+function suppressedTrendMetric(reason: ValuationMetricSuppressionReason) {
+  return { status: "suppressed" as const, display: "—", reason };
+}
+
 function financialTrendRows(history: FundamentalHistoryArtifact): readonly FinancialTrendRow[] {
-  return trendPeriods(history).map((period) => ({
-    period: periodLabel(period),
-    revenue: formatTrendAmount(trendValue(history, "revenue", period)),
-    netIncome: formatTrendAmount(trendValue(history, "netIncome", period)),
-    operatingMargin: formatTrendPercent(trendValue(history, "operatingMargin", period)),
-    freeCashFlow: formatTrendAmount(trendValue(history, "freeCashFlowProxy", period)),
-  }));
+  return trendPeriods(history).map((period) => {
+    const revenue = trendValue(history, "revenue", period);
+    const netIncome = trendValue(history, "netIncome", period);
+    const operatingMargin = trendValue(history, "operatingMargin", period);
+    const freeCashFlow = trendValue(history, "freeCashFlowProxy", period);
+    const absences = {
+      ...(revenue === undefined ? { revenue: suppressedTrendMetric("revenue-unavailable") } : {}),
+      ...(netIncome === undefined
+        ? { netIncome: suppressedTrendMetric("earnings-unavailable") }
+        : {}),
+      ...(operatingMargin === undefined
+        ? {
+            operatingMargin: suppressedTrendMetric(
+              revenue === undefined || revenue === 0
+                ? "revenue-unavailable"
+                : "numerator-unavailable",
+            ),
+          }
+        : {}),
+      ...(freeCashFlow === undefined
+        ? { freeCashFlow: suppressedTrendMetric("free-cash-flow-unavailable") }
+        : {}),
+    };
+    return {
+      period: periodLabel(period),
+      revenue:
+        absences.revenue === undefined ? formatTrendAmount(revenue) : metricCell(absences.revenue),
+      netIncome:
+        absences.netIncome === undefined
+          ? formatTrendAmount(netIncome)
+          : metricCell(absences.netIncome),
+      operatingMargin:
+        absences.operatingMargin === undefined
+          ? formatTrendPercent(operatingMargin)
+          : metricCell(absences.operatingMargin),
+      freeCashFlow:
+        absences.freeCashFlow === undefined
+          ? formatTrendAmount(freeCashFlow)
+          : metricCell(absences.freeCashFlow),
+    };
+  });
 }
 
 function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {

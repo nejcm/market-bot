@@ -23,10 +23,10 @@ Amounts in USD. FCF is the reported operating-cash-flow less capex proxy. [exten
 
 Period | Revenue | Net income | Operating margin | FCF
 --- | ---: | ---: | ---: | ---:
-FY ending 2023-12-31 (filed 2024-03-15) | 1.0B | 550.0M | 70.0% | —
-FY ending 2024-12-31 (filed 2025-03-15) | 1.2B | 660.0M | 70.0% | —
-FY ending 2025-12-31 (filed 2026-03-15) | 1.5B | 825.0M | 70.0% | —
-TTM (2026-03-31; filed 2026-05-10) | 1.6B | 891.0M | 70.0% | —
+FY ending 2023-12-31 (filed 2024-03-15) | 1.0B | 550.0M | 70.0% | — (free-cash-flow-unavailable)
+FY ending 2024-12-31 (filed 2025-03-15) | 1.2B | 660.0M | 70.0% | — (free-cash-flow-unavailable)
+FY ending 2025-12-31 (filed 2026-03-15) | 1.5B | 825.0M | 70.0% | — (free-cash-flow-unavailable)
+TTM (2026-03-31; filed 2026-05-10) | 1.6B | 891.0M | 70.0% | — (free-cash-flow-unavailable)
 
 ## Valuation Context
 

@@ -23,4 +23,6 @@ pre-push:
     typecheck:
       run: bun run typecheck
     test:
+      env:
+        MARKET_BOT_PROGRESS: "off"
       run: bun run test:coverage

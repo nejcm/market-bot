@@ -147,27 +147,32 @@ function annualInputs(
   revenueFact: FinancialStatementFact,
 ): ValuationPeriodInputs {
   const { incomeStatement, balanceSheet, cashFlowStatement, perShare } = artifact.statements;
-  const { periodEnd, periodKey } = revenueFact;
+  const { periodEnd, periodKey, periodType } = revenueFact;
   const revenue = factInput("Revenue", revenueFact);
   const netIncomeFact = financialStatementFactForPeriod(
     financialStatementFacts(incomeStatement.netIncome),
     periodKey,
+    periodType,
   );
   const dilutedEpsFact = financialStatementFactForPeriod(
     financialStatementFacts(perShare.dilutedEps),
     periodKey,
+    periodType,
   );
   const dilutedSharesFact = financialStatementFactForPeriod(
     financialStatementFacts(perShare.dilutedShares),
     periodKey,
+    periodType,
   );
   const operatingCashFlowFact = financialStatementFactForPeriod(
     financialStatementFacts(cashFlowStatement.operatingCashFlow),
     periodKey,
+    periodType,
   );
   const capitalExpenditureFact = financialStatementFactForPeriod(
     financialStatementFacts(cashFlowStatement.capitalExpenditure),
     periodKey,
+    periodType,
   );
   const netIncome =
     netIncomeFact === undefined ? undefined : factInput("Net income", netIncomeFact);

@@ -11,6 +11,7 @@ import {
   compareFinancialStatementFacts,
   deriveFinancialStatementTtm,
   detectFinancialStatementCadence,
+  financialStatementPeriodKey,
   financialStatementPeriodMonths,
   incompleteFinancialStatementNotes,
 } from "./financial-statement-selection";
@@ -396,14 +397,7 @@ function periodType(
 }
 
 function periodKey(fact: ParsedFact): string {
-  if (fact.periodStart === undefined) {
-    return `instant|${fact.periodEnd}`;
-  }
-  const durationBucket = financialStatementPeriodMonths(fact);
-  // NOTE: ponytail: Month buckets can merge a same-end ~45d stub with ~22d; the fuller period wins.
-  return durationBucket === undefined
-    ? `${fact.periodStart}|${fact.periodEnd}`
-    : `duration:${String(durationBucket)}|${fact.periodEnd}`;
+  return financialStatementPeriodKey(fact);
 }
 
 function toSelectedFact(

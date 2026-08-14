@@ -1,5 +1,8 @@
 import { isRecord, readNumber, readString } from "../../src/guards";
-import { financialStatementPeriodMonths } from "../../src/sources/extended-evidence/financial-statement-selection";
+import {
+  financialStatementPeriodKey,
+  financialStatementPeriodMonths,
+} from "../../src/sources/extended-evidence/financial-statement-selection";
 import {
   CANONICAL_SEC_FORMS,
   isAnnualReportForm,
@@ -384,13 +387,7 @@ function compareCanonicalFacts(left: CanonicalFact, right: CanonicalFact): numbe
 }
 
 function canonicalPeriodKey(fact: CanonicalFact): string {
-  if (fact.periodStart === undefined) {
-    return `instant|${fact.periodEnd}`;
-  }
-  const durationBucket = financialStatementPeriodMonths(fact);
-  return durationBucket === undefined
-    ? `${fact.periodStart}|${fact.periodEnd}`
-    : `duration:${String(durationBucket)}|${fact.periodEnd}`;
+  return financialStatementPeriodKey(fact);
 }
 
 export function canonicalEligiblePoints(

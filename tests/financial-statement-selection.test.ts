@@ -563,8 +563,22 @@ describe("financial statement selection", () => {
     ]);
 
     expect(
-      financialStatementFactForPeriod([...values.annual, ...values.interim], target)?.value,
+      financialStatementFactForPeriod([...values.annual, ...values.interim], target, "annual")
+        ?.value,
     ).toBe(11);
+  });
+
+  test("ignores an interim fact that shares a period key with the annual candidate", () => {
+    const target = "duration:12|2024-12-31";
+    const values = series("revenue", [
+      fact({ periodKey: target, value: 10 }),
+      fact({ periodKey: target, value: 99, periodType: "interim", filedAt: "2025-06-01" }),
+    ]);
+
+    expect(
+      financialStatementFactForPeriod([...values.annual, ...values.interim], target, "annual")
+        ?.value,
+    ).toBe(10);
   });
 
   test("selects the latest exact common period with compatible units and currency", () => {

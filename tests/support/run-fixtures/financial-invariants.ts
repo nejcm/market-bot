@@ -26,6 +26,7 @@ import {
   detectFinancialStatementCadence,
   financialStatementFacts,
   financialStatementFactsAreCompatible,
+  financialStatementPeriodKey,
   financialStatementPeriodMonths,
   financialStatementSeries,
   financialStatementSeriesByKey,
@@ -162,14 +163,7 @@ function assertPeriodStructure(series: FinancialStatementSeries): void {
     const periodKeys = new Set<string>();
     for (let index = 0; index < facts.length; index += 1) {
       const fact = facts[index]!;
-      const durationBucket = financialStatementPeriodMonths(fact);
-      let expectedPeriodKey = `instant|${fact.periodEnd}`;
-      if (fact.periodStart !== undefined) {
-        expectedPeriodKey =
-          durationBucket === undefined
-            ? `${fact.periodStart}|${fact.periodEnd}`
-            : `duration:${String(durationBucket)}|${fact.periodEnd}`;
-      }
+      const expectedPeriodKey = financialStatementPeriodKey(fact);
       invariant(
         fact.periodKey === expectedPeriodKey,
         "A2",

@@ -16,6 +16,8 @@ const DAYS_PER_MONTH = 30.4368;
 const ALIGNMENT_MIN_DAYS = 350;
 const ALIGNMENT_MAX_DAYS = 380;
 const FY_BOUNDARY_TOLERANCE_DAYS = 10;
+// Two facts in one duration bucket can differ by at most twice this; 7 covers 52/53-week years.
+const PERIOD_DRIFT_TOLERANCE_DAYS = 7;
 // Each limit applies per shape (duration and instant): up to 20 annual and 24 interim keys.
 const MAX_ANNUAL_PERIODS_PER_SHAPE = 10;
 const MAX_INTERIM_PERIODS_PER_SHAPE = 12;
@@ -36,6 +38,26 @@ export function financialStatementPeriodMonths(
   }
   const days = daysBetween(fact.periodStart, fact.periodEnd);
   return days !== undefined && days > 0 ? Math.round(days / DAYS_PER_MONTH) : undefined;
+}
+
+// Same-end periods share one identity only when their spans differ by filing drift
+// (one-day boundaries, 52/53-week years), never when the spans are genuinely different.
+// Ponytail: off-canonical spans (a ~350-day stub) never bucket, so one-day drift there
+// Still yields two periods. Needs pairwise clustering to fix, and false merges across
+// Concepts are worse than a missed dedup; revisit if real filings show the stub case.
+export function financialStatementPeriodKey(
+  fact: Pick<FinancialStatementFact, "periodStart" | "periodEnd">,
+): string {
+  if (fact.periodStart === undefined) {
+    return `instant|${fact.periodEnd}`;
+  }
+  const months = financialStatementPeriodMonths(fact);
+  const days = daysBetween(fact.periodStart, fact.periodEnd);
+  return months === undefined ||
+    days === undefined ||
+    Math.abs(days - months * DAYS_PER_MONTH) > PERIOD_DRIFT_TOLERANCE_DAYS
+    ? `${fact.periodStart}|${fact.periodEnd}`
+    : `duration:${String(months)}|${fact.periodEnd}`;
 }
 
 function financialStatementDurationDays(fact: FinancialStatementSelectionFact): number {
@@ -103,8 +125,11 @@ export function financialStatementFacts(
 export function financialStatementFactForPeriod(
   facts: readonly FinancialStatementFact[],
   periodKey: string,
+  periodType: FinancialStatementFact["periodType"],
 ): FinancialStatementFact | undefined {
-  return latestFinancialStatementFact(facts.filter((fact) => fact.periodKey === periodKey));
+  return latestFinancialStatementFact(
+    facts.filter((fact) => fact.periodKey === periodKey && fact.periodType === periodType),
+  );
 }
 
 export function financialStatementFactsAreCompatible(
@@ -152,24 +177,20 @@ export function financialStatementTtmsAreCompatible(
 
 function latestCommonFinancialStatementFactsBy(
   series: readonly (FinancialStatementSeries | undefined)[],
-  candidateKey: (fact: FinancialStatementFact) => string,
-  selectForCandidate: (
-    facts: readonly FinancialStatementFact[],
-    candidate: string,
-  ) => FinancialStatementFact | undefined,
+  matches: (fact: FinancialStatementFact, candidate: FinancialStatementFact) => boolean,
 ): readonly FinancialStatementFact[] | undefined {
   if (series.length === 0 || series.some((item) => item === undefined)) {
     return undefined;
   }
   const available = series as readonly FinancialStatementSeries[];
-  // Candidate keys come only from series[0]; argument order is semantically load-bearing.
+  // Candidates come only from series[0]; argument order is semantically load-bearing.
   // The first series defines the periods the remaining series may match.
-  const candidates = [
-    ...new Set(financialStatementFacts(available[0]!).map((fact) => candidateKey(fact))),
-  ];
+  const candidates = financialStatementFacts(available[0]!);
   const common = candidates.flatMap((candidate): readonly FinancialStatementFact[][] => {
     const facts = available.map((item) =>
-      selectForCandidate(financialStatementFacts(item), candidate),
+      latestFinancialStatementFact(
+        financialStatementFacts(item).filter((fact) => matches(fact, candidate)),
+      ),
     );
     if (
       facts.some((fact) => fact === undefined) ||
@@ -185,10 +206,12 @@ function latestCommonFinancialStatementFactsBy(
 export function latestCommonFinancialStatementFacts(
   series: readonly (FinancialStatementSeries | undefined)[],
 ): readonly FinancialStatementFact[] | undefined {
+  // PeriodType is part of period identity: an interim 12-month fact can share a
+  // Duration bucket and period end with the annual fact from the same filer.
   return latestCommonFinancialStatementFactsBy(
     series,
-    (fact) => fact.periodKey,
-    financialStatementFactForPeriod,
+    (fact, candidate) =>
+      fact.periodKey === candidate.periodKey && fact.periodType === candidate.periodType,
   );
 }
 
@@ -197,9 +220,7 @@ export function latestCommonFinancialStatementPeriodEndFacts(
 ): readonly FinancialStatementFact[] | undefined {
   return latestCommonFinancialStatementFactsBy(
     series,
-    (fact) => fact.periodEnd,
-    (facts, periodEnd) =>
-      latestFinancialStatementFact(facts.filter((fact) => fact.periodEnd === periodEnd)),
+    (fact, candidate) => fact.periodEnd === candidate.periodEnd,
   );
 }
 

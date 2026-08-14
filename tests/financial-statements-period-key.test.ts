@@ -93,6 +93,42 @@ describe("financial statement period keys", () => {
     expect(duplicateNotes(artifact)).toHaveLength(1);
   });
 
+  test("keeps same-end periods whose spans differ by more than filing drift", () => {
+    const artifact = derive(
+      payload({
+        Revenue: {
+          CAD: [
+            fact({
+              value: 100,
+              form: "40-F",
+              fiscalYear: 2024,
+              fiscalPeriod: "FY",
+              filedAt: "2025-02-01",
+              periodStart: "2024-03-16",
+              periodEnd: "2024-12-31",
+              accessionNumber: "long",
+            }),
+            fact({
+              value: 80,
+              form: "40-F",
+              fiscalYear: 2024,
+              fiscalPeriod: "FY",
+              filedAt: "2025-02-01",
+              periodStart: "2024-02-16",
+              periodEnd: "2024-12-31",
+              accessionNumber: "longer",
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(
+      artifact.statements.incomeStatement.revenue.annual.map(({ periodKey }) => periodKey),
+    ).toEqual(["2024-02-16|2024-12-31", "2024-03-16|2024-12-31"]);
+    expect(duplicateNotes(artifact)).toEqual([]);
+  });
+
   test("does not merge annual and interim facts ending on the same day", () => {
     const artifact = derive(
       payload({

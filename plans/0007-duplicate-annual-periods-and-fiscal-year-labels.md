@@ -139,8 +139,17 @@ Tests: the Phase 1 fixture flips — one row survives, one `duplicate-superseded
 note is emitted. The two must-not-merge cases above each get a test.
 
 Verification: `bun run check`. **Goldens may legitimately move here** — inspect
-each, do not refresh blind. Re-run the BNS probe and confirm 97 annual rows drop
-to 91 with 6 new notes.
+each, do not refresh blind. Re-run the BNS probe and confirm duplicate period
+ends drop from 6 to 0.
+
+**Corrected 2026-08-14 during implementation.** This phase originally predicted
+the BNS annual row count would fall 97 → 91. It does not: it stays at 97, and
+that is correct. The series carries a history cap, so each collapsed duplicate
+frees a slot that an older *real* period fills — after the fix, BNS gains
+`2015-11-01→2016-10-31` (8936M), a genuine year that the phantom duplicates were
+crowding out. The fix therefore buys an extra year of history rather than
+shortening the series. **The gate is "zero duplicate period ends", not a row
+count.** A falling row count would actually indicate over-merge.
 
 ### Phase 3 — Derive `fiscalYear` from the period
 
@@ -178,6 +187,7 @@ move.
   row and emit `duplicate-superseded`.
 - An annual and an interim fact ending the same day still produce two rows.
 - A YTD and a discrete quarter ending the same day still produce two rows.
-- The BNS payload yields 91 annual rows, not 97.
+- The BNS payload yields **zero** duplicate period ends (was 6). The row count
+  stays at the history cap and must not fall — a falling count means over-merge.
 - No BNS annual row has a `fiscalYear` more than one year from its `periodEnd`.
 - `bun run check` passes.

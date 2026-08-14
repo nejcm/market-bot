@@ -12,6 +12,9 @@ export type ValuationMetricKey = (typeof VALUATION_METRIC_KEYS)[number];
 
 export type ValuationObservationBasis = "annual" | "ttm";
 
+export type ValuationPriceSelectionRule =
+  "first verified close within 7 calendar days on or after publicAt";
+
 export type ValuationMetricSuppressionReason =
   | "price-history-unavailable"
   | "quote-currency-unavailable"
@@ -142,7 +145,7 @@ export interface ValuationWorkbenchArtifact {
   readonly reportingCurrency: string | null;
   readonly quoteCurrency: string | null;
   readonly historicalMultiples: {
-    readonly priceSelectionRule: "first verified close within 7 calendar days on or after publicAt";
+    readonly priceSelectionRule: ValuationPriceSelectionRule;
     readonly observations: readonly HistoricalValuationObservation[];
     readonly trailingBasis: TrailingValuationBasis;
     readonly suppressionReasons: readonly string[];
@@ -168,6 +171,18 @@ const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mi
 const READABLE_METRIC_SUPPRESSION_REASONS = new Set<string>([
   ...METRIC_SUPPRESSION_REASONS,
   ...RETIRED_METRIC_SUPPRESSION_REASONS,
+]);
+
+const PRICE_SELECTION_RULES = new Set<ValuationPriceSelectionRule>([
+  "first verified close within 7 calendar days on or after publicAt",
+]);
+// Retained only so pre-0008 artifacts remain readable; live code must not emit this retired rule.
+const RETIRED_PRICE_SELECTION_RULES = new Set([
+  "first verified close on or after publicAt",
+] as const);
+const READABLE_PRICE_SELECTION_RULES = new Set<string>([
+  ...PRICE_SELECTION_RULES,
+  ...RETIRED_PRICE_SELECTION_RULES,
 ]);
 
 const NOT_MEANINGFUL_REASONS = new Set<ValuationMetricNotMeaningfulReason>([
@@ -327,8 +342,9 @@ export function readValuationWorkbenchArtifact(
     (value.reportingCurrency !== null && readString(value, "reportingCurrency") === undefined) ||
     (value.quoteCurrency !== null && readString(value, "quoteCurrency") === undefined) ||
     !isRecord(value.historicalMultiples) ||
-    value.historicalMultiples.priceSelectionRule !==
-      "first verified close within 7 calendar days on or after publicAt" ||
+    !READABLE_PRICE_SELECTION_RULES.has(
+      readString(value.historicalMultiples, "priceSelectionRule") ?? "",
+    ) ||
     !Array.isArray(value.historicalMultiples.observations) ||
     !value.historicalMultiples.observations.every(hasObservationShape) ||
     !hasTrailingBasisShape(value.historicalMultiples.trailingBasis) ||

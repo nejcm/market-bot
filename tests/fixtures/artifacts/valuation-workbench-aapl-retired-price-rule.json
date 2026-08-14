@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-15T14:30:00.000Z",
+  "analysisAsOf": "2026-06-15T14:30:00.000Z",
+  "symbol": "AAPL",
+  "reportingCurrency": null,
+  "quoteCurrency": "USD",
+  "historicalMultiples": {
+    "priceSelectionRule": "first verified close on or after publicAt",
+    "observations": [],
+    "trailingBasis": {
+      "status": "suppressed",
+      "reason": "canonical-ttm-unavailable",
+      "detail": "Canonical reconciled TTM is unavailable; retained quarter-only periods are not combined into an unreconciled TTM.",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    "suppressionReasons": ["no annual or reconciled TTM valuation basis available"]
+  },
+  "peerComparison": {
+    "status": "suppressed",
+    "reason": "peer-data-unavailable",
+    "detail": "Peer comparison data is unavailable for this run.",
+    "sourceIds": []
+  },
+  "sourceIds": []
+}

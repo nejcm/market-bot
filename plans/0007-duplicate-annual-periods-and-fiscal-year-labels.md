@@ -234,14 +234,32 @@ while fixing 85% of the bug.
   (was 38 of 97).
 - ✅ `bun run check` passes, exit 0, 2813 tests.
 
+## Follow-up defect, fixed after the plan closed — `c1a1005`
+
+Phase 2 introduced a period-identity collision that both review passes missed.
+`financialStatementFacts` pools `[...annual, ...interim]`, and
+`financialStatementFactForPeriod` matched on `periodKey` alone. Once the key
+became `duration:<months>|<periodEnd>`, an annual fact and an interim fact
+sharing an end date and month bucket collided, so a cross-series lookup could
+return a fact of the wrong shape.
+
+Review checked that annual and interim never *merge* in `selectRestatements` —
+true, it partitions by `periodType` — but did not check this separate consumer,
+which does not partition. **The lesson generalises: partitioning at the dedup
+site does not protect consumers that look facts up by the same key.**
+
+The same commit narrowed bucketing with a 7-day drift tolerance, which closed
+the over-merge ceiling recorded below rather than merely bounding it.
+
 ## Known ceilings, accepted
 
-- **Month buckets can merge a same-end ~45d stub with a ~22d period.** Reachable,
-  not merely unlikely — it was executed through `selectRestatements`. Bounded by
-  the comparator fix: the fuller period wins, which is the correct outcome. There
-  is no observation channel for it, because `mixed-periods` is computed after
-  dedup, so an over-merge is indistinguishable from a restatement in the output.
-  Marked with a `ponytail:` comment.
+- ~~**Month buckets can merge a same-end ~45d stub with a ~22d period.**~~
+  **Closed by `c1a1005`.** A span deviating more than seven days from its month
+  bucket now falls back to an exact start-and-end key, so the 22d/45d pair no
+  longer merges, while one-day filing drift (2.2d for BNS) and 52/53-week years
+  (1.2d, 5.8d) still do. A consequence: a predecessor/successor pair now yields
+  two rows rather than merging to one, which preserves both real periods instead
+  of dropping one.
 - **`fiscalYear` uses the calendar year of `periodEnd`.** Correct for calendar-year
   and Oct-31 filers; a Jan-31 retailer's period ending 2018-01-31 yields 2018 where
   convention says FY2017. Pinned by a test so the ceiling is recorded rather than

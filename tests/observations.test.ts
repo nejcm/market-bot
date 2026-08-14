@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createObservationRepository } from "../src/scoring/observations";
 import type { ResearchReport } from "../src/domain/types";
-import { fetchYahooSplitAdjustedCloseWindow } from "../src/sources/yahoo";
+import { fetchYahooCloseWindow, fetchYahooSplitAdjustedCloseWindow } from "../src/sources/yahoo";
 import type { FetchLike } from "../src/sources/types";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
@@ -138,6 +138,27 @@ describe("ObservationRepository point routing", () => {
 });
 
 describe("ObservationRepository window routing", () => {
+  test("fetchYahooCloseWindow parses a chart payload with no meta key", async () => {
+    const cassette = (await Bun.file(
+      join(import.meta.dir, "fixtures", "runs", "equity-aapl-brief", "data-cassette.json"),
+    ).json()) as {
+      readonly entries: Readonly<Record<string, { readonly body: string }>>;
+    };
+    const body = Object.entries(cassette.entries).find(([key]) =>
+      key.includes("/v8/finance/chart/AAPL?"),
+    )?.[1].body;
+    expect(body).toBeDefined();
+
+    const result = await fetchYahooCloseWindow(
+      "AAPL",
+      new Date("2025-05-11T00:00:00.000Z"),
+      new Date("2026-06-14T00:00:00.000Z"),
+      async () => new Response(body, { headers: { "content-type": "application/json" } }),
+    );
+
+    expect(result).toHaveLength(90);
+  });
+
   test("reconstructs dividend-exclusive split-adjusted equity closes from one Yahoo response", async () => {
     const splitTimestamp = Date.parse("2026-05-20T00:00:00.000Z") / 1000;
     const requestedUrls: string[] = [];

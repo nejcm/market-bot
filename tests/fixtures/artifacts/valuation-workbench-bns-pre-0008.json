@@ -1,0 +1,961 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-14T06:04:01.473Z",
+  "analysisAsOf": "2026-08-14T06:04:01.473Z",
+  "symbol": "BNS",
+  "reportingCurrency": "CAD",
+  "quoteCurrency": "USD",
+  "historicalMultiples": {
+    "priceSelectionRule": "first verified close within 7 calendar days on or after publicAt",
+    "observations": [
+      {
+        "basis": "annual",
+        "periodEnd": "2016-10-31",
+        "publicAt": "2018-11-27",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 26350000000,
+            "label": "Revenue",
+            "periodEnd": "2016-10-31",
+            "publicAt": "2018-11-27",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 7368000000,
+            "label": "Net income",
+            "periodEnd": "2016-10-31",
+            "publicAt": "2018-11-27",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 5.77,
+            "label": "Diluted EPS",
+            "periodEnd": "2016-10-31",
+            "publicAt": "2018-11-27",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1226000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2016-10-31",
+            "publicAt": "2018-11-27",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "cash-unavailable",
+            "detail": "As-reported cash is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2017-10-31",
+        "publicAt": "2019-11-26",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 27155000000,
+            "label": "Revenue",
+            "periodEnd": "2017-10-31",
+            "publicAt": "2019-11-26",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 8243000000,
+            "label": "Net income",
+            "periodEnd": "2017-10-31",
+            "publicAt": "2019-11-26",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 6.49,
+            "label": "Diluted EPS",
+            "periodEnd": "2017-10-31",
+            "publicAt": "2019-11-26",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1223000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2017-10-31",
+            "publicAt": "2019-11-26",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 6855000000,
+            "label": "Cash",
+            "periodEnd": "2016-10-31",
+            "publicAt": "2019-11-26",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2018-10-31",
+        "publicAt": "2020-12-01",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 28775000000,
+            "label": "Revenue",
+            "periodEnd": "2018-10-31",
+            "publicAt": "2020-12-01",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 8724000000,
+            "label": "Net income",
+            "periodEnd": "2018-10-31",
+            "publicAt": "2020-12-01",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 6.82,
+            "label": "Diluted EPS",
+            "periodEnd": "2018-10-31",
+            "publicAt": "2020-12-01",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1229000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2018-10-31",
+            "publicAt": "2020-12-01",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 7825000000,
+            "label": "Cash",
+            "periodEnd": "2017-10-31",
+            "publicAt": "2020-12-01",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2019-10-31",
+        "publicAt": "2021-11-30",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 31034000000,
+            "label": "Revenue",
+            "periodEnd": "2019-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 8798000000,
+            "label": "Net income",
+            "periodEnd": "2019-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 6.68,
+            "label": "Diluted EPS",
+            "periodEnd": "2019-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1251000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2019-10-31",
+            "publicAt": "2021-11-30",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 10904000000,
+            "label": "Cash",
+            "periodEnd": "2019-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2020-10-31",
+        "publicAt": "2021-11-30",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 31336000000,
+            "label": "Revenue",
+            "periodEnd": "2020-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 6853000000,
+            "label": "Net income",
+            "periodEnd": "2020-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 5.3,
+            "label": "Diluted EPS",
+            "periodEnd": "2020-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1243000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2020-10-31",
+            "publicAt": "2021-11-30",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 10904000000,
+            "label": "Cash",
+            "periodEnd": "2019-10-31",
+            "publicAt": "2021-11-30",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2021-10-31",
+        "publicAt": "2022-11-29",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 31252000000,
+            "label": "Revenue",
+            "periodEnd": "2021-10-31",
+            "publicAt": "2022-11-29",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 9955000000,
+            "label": "Net income",
+            "periodEnd": "2021-10-31",
+            "publicAt": "2022-11-29",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 7.7,
+            "label": "Diluted EPS",
+            "periodEnd": "2021-10-31",
+            "publicAt": "2022-11-29",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1225000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2021-10-31",
+            "publicAt": "2022-11-29",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 11123000000,
+            "label": "Cash",
+            "periodEnd": "2020-10-31",
+            "publicAt": "2022-11-29",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2022-10-31",
+        "publicAt": "2023-11-28",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 31416000000,
+            "label": "Revenue",
+            "periodEnd": "2022-10-31",
+            "publicAt": "2023-11-28",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 10174000000,
+            "label": "Net income",
+            "periodEnd": "2022-10-31",
+            "publicAt": "2023-11-28",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 8.02,
+            "label": "Diluted EPS",
+            "periodEnd": "2022-10-31",
+            "publicAt": "2023-11-28",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1208000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2022-10-31",
+            "publicAt": "2023-11-28",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 9693000000,
+            "label": "Cash",
+            "periodEnd": "2021-10-31",
+            "publicAt": "2023-11-28",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2023-10-31",
+        "publicAt": "2024-12-03",
+        "price": null,
+        "inputs": {
+          "revenue": {
+            "value": 32214000000,
+            "label": "Revenue",
+            "periodEnd": "2023-10-31",
+            "publicAt": "2024-12-03",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 7450000000,
+            "label": "Net income",
+            "periodEnd": "2023-10-31",
+            "publicAt": "2024-12-03",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 5.72,
+            "label": "Diluted EPS",
+            "periodEnd": "2023-10-31",
+            "publicAt": "2024-12-03",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1204000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2023-10-31",
+            "publicAt": "2024-12-03",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 12635000000,
+            "label": "Cash",
+            "periodEnd": "2023-07-31",
+            "publicAt": "2024-08-27",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "price-history-unavailable",
+            "detail": "No verified close is available within 7 calendar days on or after the public filing date.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2024-10-31",
+        "publicAt": "2025-12-02",
+        "price": {
+          "close": 70.55000305175781,
+          "sessionDate": "2025-12-02",
+          "currency": "USD",
+          "sourceId": "verified-snapshot-BNS"
+        },
+        "inputs": {
+          "revenue": {
+            "value": 33670000000,
+            "label": "Revenue",
+            "periodEnd": "2024-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 7892000000,
+            "label": "Net income",
+            "periodEnd": "2024-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 5.87,
+            "label": "Diluted EPS",
+            "periodEnd": "2024-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1232000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2024-10-31",
+            "publicAt": "2025-12-02",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 9406000000,
+            "label": "Cash",
+            "periodEnd": "2024-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+      },
+      {
+        "basis": "annual",
+        "periodEnd": "2025-10-31",
+        "publicAt": "2025-12-02",
+        "price": {
+          "close": 70.55000305175781,
+          "sessionDate": "2025-12-02",
+          "currency": "USD",
+          "sourceId": "verified-snapshot-BNS"
+        },
+        "inputs": {
+          "revenue": {
+            "value": 37741000000,
+            "label": "Revenue",
+            "periodEnd": "2025-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "netIncome": {
+            "value": 7758000000,
+            "label": "Net income",
+            "periodEnd": "2025-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedEps": {
+            "value": 5.67,
+            "label": "Diluted EPS",
+            "periodEnd": "2025-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "dilutedShares": {
+            "value": 1248000000,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2025-10-31",
+            "publicAt": "2025-12-02",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "cash": {
+            "value": 10256000000,
+            "label": "Cash",
+            "periodEnd": "2025-10-31",
+            "publicAt": "2025-12-02",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+      },
+      {
+        "basis": "ttm",
+        "periodEnd": "2026-01-31",
+        "publicAt": "2026-02-24",
+        "price": {
+          "close": 75.37999725341797,
+          "sessionDate": "2026-02-24",
+          "currency": "USD",
+          "sourceId": "verified-snapshot-BNS"
+        },
+        "inputs": {
+          "revenue": {
+            "value": 38015000000,
+            "label": "Revenue",
+            "periodEnd": "2026-01-31",
+            "publicAt": "2026-02-24",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+            "derivation": "FY + latest-YTD - prior-YTD"
+          },
+          "netIncome": {
+            "value": 9064000000,
+            "label": "Net income",
+            "periodEnd": "2026-01-31",
+            "publicAt": "2026-02-24",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+            "derivation": "FY + latest-YTD - prior-YTD"
+          },
+          "dilutedEps": {
+            "value": 6.74,
+            "label": "Diluted EPS",
+            "periodEnd": "2026-01-31",
+            "publicAt": "2026-02-24",
+            "currency": "CAD",
+            "unit": "CAD/shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+            "derivation": "FY + latest-YTD - prior-YTD"
+          },
+          "dilutedShares": {
+            "value": 1344807121.661721,
+            "label": "Diluted weighted-average shares",
+            "periodEnd": "2026-01-31",
+            "publicAt": "2026-02-24",
+            "currency": null,
+            "unit": "shares",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+            "derivation": "net income / diluted EPS"
+          },
+          "cash": {
+            "value": 8732000000,
+            "label": "Cash",
+            "periodEnd": "2026-01-31",
+            "publicAt": "2026-02-24",
+            "currency": "CAD",
+            "unit": "CAD",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          }
+        },
+        "metrics": {
+          "priceToEarnings": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          },
+          "priceToSales": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          },
+          "enterpriseValueToRevenue": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "debt-unavailable",
+            "detail": "As-reported debt is unavailable.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+          },
+          "priceToFreeCashFlow": {
+            "status": "suppressed",
+            "display": "—",
+            "reason": "quote-reporting-currency-mismatch",
+            "detail": "Quote currency USD does not match reporting currency CAD.",
+            "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+          }
+        },
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+      }
+    ],
+    "trailingBasis": {
+      "status": "available",
+      "periodEnd": "2026-01-31",
+      "publicAt": "2026-02-24",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+    },
+    "suppressionReasons": []
+  },
+  "peerComparison": {
+    "status": "suppressed",
+    "reason": "peer-data-unavailable",
+    "detail": "Peer comparison data is unavailable for this run.",
+    "sourceIds": []
+  },
+  "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+}

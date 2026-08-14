@@ -75,6 +75,19 @@ allowance ledgers for live-run invariants.
 Golden regeneration is not a repair for an invariant failure. If an intended change affects a
 golden, the golden diff and the independently computed invariants must both be reviewed.
 
+Amendment (decision date: 2026-08-14): artifact readers currently validate nested collections
+all-or-nothing. One retired enum value or validated string literal can therefore make an entire
+artifact return `undefined`, indistinguishable from an artifact that was never produced. Goldens
+self-heal to the current schema when regenerated and cannot detect this failure class; frozen
+historical artifacts kept outside golden regeneration are the counterpart protection.
+
+When an enum member or validated string literal is retired, readers keep the historical value in a
+read-only compatibility set while the live typed union excludes it so new code cannot emit it.
+Per-observation degradation and typed parse errors in place of `undefined` were considered and are
+deliberately deferred. `input-currency-mismatch` in
+`src/sources/extended-evidence/reverse-dcf.ts` is the direct analogue; it needs no compatibility
+escape hatch while it remains a live emitted reason.
+
 ## Consequences
 
 - Unrelated output changes may update reviewed goldens without changing correctness invariants.

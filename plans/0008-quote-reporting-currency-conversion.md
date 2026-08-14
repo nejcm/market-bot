@@ -1,8 +1,8 @@
 # Plan 0008 — Valuation multiples for issuers quoted in a foreign currency
 
-**Status: Complete** — as of 2026-08-14. All five phases shipped; every
+**Status: Complete** — implemented 2026-08-14, `02c405d`..`a0f2299`. Every
 "Objective check" bullet verified, including a re-run of `equity BNS --deep`
-against the final renderer.
+against the final renderer. Deferred items carried into plan 0009.
 
 ## Problem
 

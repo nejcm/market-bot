@@ -1,6 +1,14 @@
 # Plan 0007 — Duplicate annual periods, and what `fiscalYear` actually means
 
-**Status: Decided, not started** — as of 2026-08-14.
+**Status: Complete** — implemented 2026-08-14, `91227a8`..`dbc2bb2`.
+
+Verified against the real Bank of Nova Scotia payload: duplicate period ends
+6 → 0, mislabelled fiscal years 38 → 0. The BNS annual series went from
+`2019, 2019, 2020, 2021, 2021, 2022, 2023, 2024, 2025, 2025` to a clean monotonic
+`2016…2025`, one row per fiscal year.
+
+Three defects were caught by independent review or by my own verification, none
+of which `bun run check` surfaced. All are recorded in the phases below.
 
 ## Problem
 
@@ -181,13 +189,63 @@ Phase 3 changes a persisted field's meaning. Nothing outside the app's two label
 lines consumes it, so the change is contained, but goldens carrying `fy` will
 move.
 
-## Objective check
+## What review caught that `bun run check` did not
 
-- Two annual facts for the same period with starts one day apart collapse to one
-  row and emit `duplicate-superseded`.
-- An annual and an interim fact ending the same day still produce two rows.
-- A YTD and a discrete quarter ending the same day still produce two rows.
-- The BNS payload yields **zero** duplicate period ends (was 6). The row count
+1. **The first fix worked only for Bank of Nova Scotia.** The initial key was
+   `round(durationDays / 4)`, which splits at `d ≡ 1 (mod 4)` — so **365 and 366
+   days do not merge**, the most common annual pair there is. 14.5% of realistic
+   one-day-drift pairs still duplicated, every one leap-year-spanning. BNS escaped
+   only because its FY2018 is non-leap. Fixed by reusing
+   `financialStatementPeriodMonths`, which already existed in the same file.
+2. **The winner became decidable by input array order.** Collapsing the duration
+   tiebreak removed the only separator between two genuinely different same-end
+   spans. For a predecessor/successor pair in one filing — same accession, same
+   `filedAt` — every comparator field returned 0 and the survivor was whichever
+   fact SEC emitted first: reversing the array changed published annual revenue by
+   6%. Fixed by demoting the duration tiebreak below `filedAt` rather than
+   deleting it.
+3. **A golden lock was neutered instead of a cause being fixed.** Phase 3's first
+   attempt stripped `fy` from both sides of `expect(projection).toEqual(golden)`,
+   which removed `fy` from the golden entirely. Root cause: MSFT's compact golden
+   omitted its `legacy` block, so the loader's `legacy ?? clone(canonical)`
+   inherited the newly period-derived canonical values while the legacy producer
+   still emits filing-frame `fy`. Fixed by regenerating the golden with an
+   explicit legacy block and restoring the strict assertion.
+
+Defect 1 is the instructive one: it passed 2801 tests, moved 18 goldens with no
+value changes, and was verified correct on the payload that motivated the plan —
+while fixing 85% of the bug.
+
+## Objective check — verified 2026-08-14
+
+- ✅ Two annual facts for the same period with starts one day apart collapse to
+  one row and emit `duplicate-superseded` — including the leap-spanning
+  366d/365d pair, which the first implementation missed.
+- ✅ An annual and an interim fact ending the same day still produce two rows.
+  Structurally guaranteed: `selectRestatements` runs per `periodType`, and
+  `periodType` uses the same months function gated to [10,14], so cross-shape
+  merges are impossible by construction.
+- ✅ A YTD and a discrete quarter ending the same day still produce two rows.
+- ✅ Two same-end facts from the SAME filing produce the same winner regardless
+  of input array order (the fuller period wins).
+- ✅ The BNS payload yields **zero** duplicate period ends (was 6). The row count
   stays at the history cap and must not fall — a falling count means over-merge.
-- No BNS annual row has a `fiscalYear` more than one year from its `periodEnd`.
-- `bun run check` passes.
+- ✅ No BNS annual row has a `fiscalYear` more than one year from its `periodEnd`
+  (was 38 of 97).
+- ✅ `bun run check` passes, exit 0, 2813 tests.
+
+## Known ceilings, accepted
+
+- **Month buckets can merge a same-end ~45d stub with a ~22d period.** Reachable,
+  not merely unlikely — it was executed through `selectRestatements`. Bounded by
+  the comparator fix: the fuller period wins, which is the correct outcome. There
+  is no observation channel for it, because `mixed-periods` is computed after
+  dedup, so an over-merge is indistinguishable from a restatement in the output.
+  Marked with a `ponytail:` comment.
+- **`fiscalYear` uses the calendar year of `periodEnd`.** Correct for calendar-year
+  and Oct-31 filers; a Jan-31 retailer's period ending 2018-01-31 yields 2018 where
+  convention says FY2017. Pinned by a test so the ceiling is recorded rather than
+  merely commented.
+- **The legacy fundamental-history producer still emits filing-frame `fy`** and
+  hard-codes `form: "10-K"` (wrong for `20-F` filers already). Out of scope here;
+  reachable only when canonical financial statements are absent.

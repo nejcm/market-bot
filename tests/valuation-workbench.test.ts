@@ -9,7 +9,10 @@ import type {
   FinancialStatementTtm,
   FinancialStatementsArtifact,
 } from "../src/sources/extended-evidence/financial-statements-contract";
-import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
+import {
+  buildValuationWorkbench,
+  collectValuationWorkbench,
+} from "../src/sources/extended-evidence/valuation-workbench";
 import {
   readValuationWorkbenchArtifact,
   type ValuationWorkbenchArtifact,
@@ -252,6 +255,176 @@ describe("valuation workbench", () => {
     });
   });
 
+  test("converts quote-currency prices into the reporting currency for multiples", async () => {
+    const urls: string[] = [];
+    const result = await collectValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: { ...statements(), reportingCurrency: "CAD" },
+      priceHistory: [
+        { date: "2024-02-15", close: 20 },
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+      fetchImpl: async (input) => {
+        urls.push(String(input));
+        return Response.json({
+          chart: {
+            result: [
+              {
+                meta: { symbol: "USDCAD=X" },
+                timestamp: [
+                  Date.parse("2024-02-15T00:00:00.000Z") / 1000,
+                  Date.parse("2025-02-17T00:00:00.000Z") / 1000,
+                  Date.parse("2025-05-01T00:00:00.000Z") / 1000,
+                ],
+                indicators: { quote: [{ close: [1.35, 1.4, 1.42] }] },
+              },
+            ],
+            error: null,
+          },
+        });
+      },
+    });
+    const { artifact } = result;
+    const observation = artifact.historicalMultiples.observations.find(
+      (item) => item.periodEnd === "2024-12-31",
+    );
+
+    expect(urls).toHaveLength(1);
+    expect({
+      reportingCurrency: artifact.reportingCurrency,
+      quoteCurrency: artifact.quoteCurrency,
+    }).toEqual({ reportingCurrency: "CAD", quoteCurrency: "USD" });
+    expect(observation?.price).toMatchObject({
+      close: 24,
+      currency: "USD",
+      sessionDate: "2025-02-18",
+    });
+    expect(observation?.fxConversion).toEqual({
+      rate: 1.4,
+      rateDate: "2025-02-17",
+      pair: "USDCAD=X",
+      sourceId: "market-yahoo-fx-usdcad",
+    });
+    expect(observation?.metrics).toMatchObject({
+      priceToEarnings: { status: "populated", display: "28.00x" },
+      priceToSales: { status: "populated", display: "2.80x" },
+      enterpriseValueToRevenue: { status: "populated", display: "2.84x" },
+      priceToFreeCashFlow: { status: "populated", display: "28.00x" },
+    });
+    expect(observation?.metrics.priceToEarnings.sourceIds).toContain("market-yahoo-fx-usdcad");
+    expect(renderValuationWorkbenchMarkdown(artifact)).toContain(
+      "24.00 USD (2025-02-18; converted at USD/CAD 1.4000 on 2025-02-17)",
+    );
+    expect(result.sources).toEqual([
+      expect.objectContaining({ id: "market-yahoo-fx-usdcad", provider: "yahoo" }),
+    ]);
+    expect(result.sourceGaps).toEqual([]);
+    expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
+  });
+
+  test("reports a distinct reason and SourceGap when no FX rate is available", async () => {
+    const result = await collectValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: { ...statements(), reportingCurrency: "CAD" },
+      priceHistory: [{ date: "2025-02-18", close: 24 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+      fetchImpl: async () =>
+        Response.json({
+          chart: {
+            result: null,
+            error: { code: "Not Found", description: "No data found" },
+          },
+        }),
+    });
+    const observation = result.artifact.historicalMultiples.observations.find(
+      (item) => item.periodEnd === "2024-12-31",
+    );
+
+    expect(observation?.fxConversion).toBeUndefined();
+    expect(observation?.metrics).toMatchObject({
+      priceToEarnings: { status: "suppressed", reason: "fx-rate-unavailable" },
+      priceToSales: { status: "suppressed", reason: "fx-rate-unavailable" },
+      enterpriseValueToRevenue: { status: "suppressed", reason: "fx-rate-unavailable" },
+      priceToFreeCashFlow: { status: "suppressed", reason: "fx-rate-unavailable" },
+    });
+    expect(observation?.metrics.priceToEarnings).not.toMatchObject({
+      reason: "quote-reporting-currency-mismatch",
+    });
+    expect(renderValuationWorkbenchMarkdown(result.artifact)).toContain("— (fx-rate-unavailable)");
+    expect(result.sources).toEqual([]);
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        source: "market-yahoo-fx-usdcad",
+        message: "Yahoo FX close unavailable for USDCAD=X on or before 2025-02-18",
+      }),
+    ]);
+  });
+
+  test("leaves same-currency workbench output byte-identical", async () => {
+    const input = {
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2025-02-18", close: 24 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    } as const;
+    let fetched = false;
+
+    const result = await collectValuationWorkbench({
+      ...input,
+      fetchImpl: async () => {
+        fetched = true;
+        return Response.json({});
+      },
+    });
+
+    expect(fetched).toBe(false);
+    expect(JSON.stringify(result.artifact)).toBe(JSON.stringify(buildValuationWorkbench(input)));
+    expect({ sources: result.sources, sourceGaps: result.sourceGaps }).toEqual({
+      sources: [],
+      sourceGaps: [],
+    });
+  });
+
+  test("reads the retired currency-mismatch reason from pre-0008 artifacts", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [],
+      quoteCurrency: "USD",
+    });
+    const [first, ...rest] = artifact.historicalMultiples.observations;
+    const legacyArtifact = {
+      ...artifact,
+      historicalMultiples: {
+        ...artifact.historicalMultiples,
+        observations: [
+          {
+            ...first!,
+            metrics: {
+              ...first!.metrics,
+              priceToEarnings: {
+                ...first!.metrics.priceToEarnings,
+                reason: "quote-reporting-currency-mismatch",
+              },
+            },
+          },
+          ...rest,
+        ],
+      },
+    };
+
+    expect(readValuationWorkbenchArtifact(legacyArtifact)).not.toBeUndefined();
+  });
+
   test("does not derive free cash flow across mismatched periods or units", () => {
     const input = statements();
     const latestCapex = input.statements.cashFlowStatement.capitalExpenditure.annual[1]!;
@@ -425,6 +598,7 @@ describe("valuation workbench", () => {
     expect(markdown).toContain("## Valuation Workbench");
     expect(markdown).toContain("first verified close within 7 calendar days on or after publicAt");
     expect(markdown).toContain("TTM | 2025-03-31 | 2025-05-01 | 26.00 USD (2025-05-01)");
+    expect(markdown).not.toContain("converted at");
     expect(markdown).toContain("Reporting currency: USD. Quote currency: USD.");
     expect(markdown).toContain("Peer comparison data is unavailable for this run.");
     expect(violatesResearchOnly(markdown)).toBeNull();

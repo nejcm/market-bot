@@ -1,6 +1,8 @@
 # Plan 0008 — Valuation multiples for issuers quoted in a foreign currency
 
-**Status: Decided, not started** — as of 2026-08-14.
+**Status: Complete** — as of 2026-08-14. All five phases shipped; every
+"Objective check" bullet verified, including a re-run of `equity BNS --deep`
+against the final renderer.
 
 ## Problem
 
@@ -41,8 +43,10 @@ Done before writing this plan, not assumed.
 - **`fetchYahooCloseWindow(symbol, from, to)`
   ([yahoo.ts:700](../src/sources/yahoo.ts)) is generic over `symbol`.** Yahoo
   exposes FX pairs as `<BASE><QUOTE>=X` (e.g. `USDCAD=X`) on the same chart
-  endpoint, so a daily FX series arrives through the identical fetch, parse, and
-  cache path already used for equity closes. No new provider, no new credential,
+  endpoint, so a daily FX series arrives through the identical fetch and parse
+  path already used for equity closes. `fetchYahooJsonWithResilience` supplies
+  retry and circuit-breaking on this path; only the close cache and
+  collector-level rate limiting are absent. No new provider, no new credential,
   no new parser.
 - **FRED is the weaker fit** despite already being configured. `fetchFredObservation`
   / `readFredObservationValue` ([fred.ts:58,125](../src/sources/fred.ts)) read only

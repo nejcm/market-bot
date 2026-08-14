@@ -66,7 +66,7 @@ import {
   collectValuationComps,
   valuationCompsSkippedGap,
 } from "./extended-evidence/valuation-comps";
-import { buildValuationWorkbench } from "./extended-evidence/valuation-workbench";
+import { collectValuationWorkbench } from "./extended-evidence/valuation-workbench";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
@@ -586,6 +586,7 @@ export async function collectSources(
     peerUniverse: peerUniverseSeam,
     secTargetPacket,
     tradierPacket,
+    fetchImpl: requestFetchImpl,
   });
   const analystExpectationsResult =
     isEquityTicker && command.depth === "deep"
@@ -634,6 +635,7 @@ export async function collectSources(
     extendedSources: [
       ...deepExtendedResult.sources,
       ...(enrichmentResult.valuationCompsResult?.sources ?? []),
+      ...enrichmentResult.valuationWorkbenchSources,
       ...enrichmentResult.earningsExtraSources,
     ],
     ...(enrichmentResult.businessFrameworkResult.extendedEvidence !== undefined
@@ -711,6 +713,7 @@ export async function collectSources(
       ...enrichmentResult.valuationResult.sourceGaps,
       ...(enrichmentResult.valuationCompsResult?.gaps ?? []),
       ...enrichmentResult.valuationCompsSkippedGaps,
+      ...enrichmentResult.valuationWorkbenchSourceGaps,
       ...enrichmentResult.financialLensResult.sourceGaps,
       ...enrichmentResult.businessFrameworkResult.sourceGaps,
       ...enrichmentResult.packetFailureGaps,
@@ -753,6 +756,7 @@ interface EquityEnrichmentInput {
   readonly peerUniverse: PeerUniverseSeam | undefined;
   readonly secTargetPacket: SecTargetPacket | undefined;
   readonly tradierPacket: TradierPacket | undefined;
+  readonly fetchImpl: FetchLike;
 }
 
 interface EquityEnrichmentResult {
@@ -761,6 +765,8 @@ interface EquityEnrichmentResult {
   readonly valuationCompsResult: ValuationCompsResult | undefined;
   readonly valuationCompsSkippedGaps: readonly SourceGap[];
   readonly valuationWorkbench: ValuationWorkbenchArtifact | undefined;
+  readonly valuationWorkbenchSources: readonly Source[];
+  readonly valuationWorkbenchSourceGaps: readonly SourceGap[];
   readonly reverseDcf: ReverseDcfArtifact | undefined;
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
@@ -956,7 +962,7 @@ async function collectEquityEnrichment(
     input.verifiedMarketSnapshot,
     input.fetchedAt,
   );
-  const valuationWorkbench = buildValuationWorkbench({
+  const valuationWorkbenchResult = await collectValuationWorkbench({
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
     ...(financialStatements !== undefined ? { financialStatements } : {}),
@@ -970,7 +976,9 @@ async function collectEquityEnrichment(
     ...(identityResult?.identity?.quoteCurrency !== undefined
       ? { quoteCurrency: identityResult.identity.quoteCurrency }
       : {}),
+    fetchImpl: input.fetchImpl,
   });
+  const valuationWorkbench = valuationWorkbenchResult.artifact;
   const reverseDcf = buildReverseDcf({
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
@@ -983,6 +991,8 @@ async function collectEquityEnrichment(
     valuationCompsResult,
     valuationCompsSkippedGaps,
     valuationWorkbench,
+    valuationWorkbenchSources: valuationWorkbenchResult.sources,
+    valuationWorkbenchSourceGaps: valuationWorkbenchResult.sourceGaps,
     reverseDcf,
     fundamentalHistory,
     financialStatements,
@@ -1009,6 +1019,8 @@ function noEquityEnrichment(
     valuationCompsResult: undefined,
     valuationCompsSkippedGaps: [],
     valuationWorkbench: undefined,
+    valuationWorkbenchSources: [],
+    valuationWorkbenchSourceGaps: [],
     reverseDcf: undefined,
     fundamentalHistory: undefined,
     financialStatements: undefined,

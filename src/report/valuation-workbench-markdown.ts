@@ -23,11 +23,19 @@ function metricCell(metric: ValuationMetricResult): string {
   return `${metric.display} (${metric.reason})`;
 }
 
+function fxNote(observation: HistoricalValuationObservation): string {
+  if (observation.fxConversion === undefined) {
+    return "";
+  }
+  const pair = observation.fxConversion.pair.replace(/^([A-Z]{3})([A-Z]{3})=X$/u, "$1/$2");
+  return `; converted at ${pair} ${observation.fxConversion.rate.toFixed(4)} on ${observation.fxConversion.rateDate}`;
+}
+
 function historicalRow(observation: HistoricalValuationObservation): string {
   const price =
     observation.price === null
       ? "—"
-      : `${observation.price.close.toFixed(2)} ${observation.price.currency} (${observation.price.sessionDate})`;
+      : `${observation.price.close.toFixed(2)} ${observation.price.currency} (${observation.price.sessionDate}${fxNote(observation)})`;
   return [
     observation.basis.toUpperCase(),
     observation.periodEnd,

@@ -16,7 +16,7 @@ export type ValuationMetricSuppressionReason =
   | "price-history-unavailable"
   | "quote-currency-unavailable"
   | "reporting-currency-unavailable"
-  | "quote-reporting-currency-mismatch"
+  | "fx-rate-unavailable"
   | "earnings-unavailable"
   | "revenue-unavailable"
   | "free-cash-flow-unavailable"
@@ -45,6 +45,13 @@ export interface ValuationPriceInput {
   readonly close: number;
   readonly sessionDate: string;
   readonly currency: string;
+  readonly sourceId: string;
+}
+
+export interface ValuationFxConversion {
+  readonly rate: number;
+  readonly rateDate: string;
+  readonly pair: string;
   readonly sourceId: string;
 }
 
@@ -87,6 +94,7 @@ export interface HistoricalValuationObservation {
   readonly periodEnd: string;
   readonly publicAt: string;
   readonly price: ValuationPriceInput | null;
+  readonly fxConversion?: ValuationFxConversion;
   readonly inputs: {
     readonly revenue?: ValuationFundamentalInput;
     readonly netIncome?: ValuationFundamentalInput;
@@ -147,7 +155,7 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "price-history-unavailable",
   "quote-currency-unavailable",
   "reporting-currency-unavailable",
-  "quote-reporting-currency-mismatch",
+  "fx-rate-unavailable",
   "earnings-unavailable",
   "revenue-unavailable",
   "free-cash-flow-unavailable",
@@ -155,6 +163,11 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "numerator-unavailable",
   "cash-unavailable",
   "debt-unavailable",
+]);
+const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);
+const READABLE_METRIC_SUPPRESSION_REASONS = new Set<string>([
+  ...METRIC_SUPPRESSION_REASONS,
+  ...RETIRED_METRIC_SUPPRESSION_REASONS,
 ]);
 
 const NOT_MEANINGFUL_REASONS = new Set<ValuationMetricNotMeaningfulReason>([
@@ -187,6 +200,16 @@ function hasPriceInputShape(value: unknown): boolean {
   );
 }
 
+function hasFxConversionShape(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    readNumber(value, "rate") !== undefined &&
+    readString(value, "rateDate") !== undefined &&
+    readString(value, "pair") !== undefined &&
+    readString(value, "sourceId") !== undefined
+  );
+}
+
 function hasMetricResultShape(value: unknown): boolean {
   if (!isRecord(value)) {
     return false;
@@ -213,9 +236,11 @@ function hasMetricResultShape(value: unknown): boolean {
     );
   }
   if (value.status === "suppressed") {
+    const reason = readString(value, "reason");
     return (
       value.display === "—" &&
-      METRIC_SUPPRESSION_REASONS.has(value.reason as ValuationMetricSuppressionReason) &&
+      reason !== undefined &&
+      READABLE_METRIC_SUPPRESSION_REASONS.has(reason) &&
       readString(value, "detail") !== undefined
     );
   }
@@ -242,6 +267,7 @@ function hasObservationShape(value: unknown): boolean {
     readString(value, "periodEnd") === undefined ||
     readString(value, "publicAt") === undefined ||
     (value.price !== null && !hasPriceInputShape(value.price)) ||
+    (value.fxConversion !== undefined && !hasFxConversionShape(value.fxConversion)) ||
     !isRecord(value.inputs) ||
     metrics === undefined ||
     readStringArray(value, "sourceIds") === undefined

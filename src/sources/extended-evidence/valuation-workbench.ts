@@ -1,4 +1,6 @@
-import type { OhlcvBar } from "../../domain/types";
+import type { OhlcvBar, Source, SourceGap } from "../../domain/types";
+import type { FetchLike } from "../types";
+import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
@@ -463,8 +465,8 @@ function ratioMetric(input: {
   }
   if (input.price.currency !== input.reportingCurrency) {
     return suppression(
-      "quote-reporting-currency-mismatch",
-      `Quote currency ${input.price.currency} does not match reporting currency ${input.reportingCurrency}.`,
+      "fx-rate-unavailable",
+      `No FX close is available to convert ${input.price.currency} into ${input.reportingCurrency} on or before ${input.price.sessionDate}.`,
       [...input.sourceIds, input.price.sourceId],
     );
   }
@@ -530,6 +532,7 @@ function metricResults(
   price: ValuationPriceInput | null,
   reportingCurrency: string | undefined,
   quoteCurrency: string | undefined,
+  additionalSourceIds: readonly string[] = [],
 ): Readonly<Record<ValuationMetricKey, ValuationMetricResult>> {
   const shares = inputs.dilutedShares?.value;
   const marketCap = price === null || shares === undefined ? undefined : price.close * shares;
@@ -542,6 +545,7 @@ function metricResults(
       ? (input.sourceIds as readonly string[])
       : [],
   );
+  const metricSourceIds = [...commonSourceIds, ...additionalSourceIds];
   const priceToEarningsNumerator = price?.close;
   const priceToEarningsDenominator = inputs.dilutedEps;
   const sharesUnavailable =
@@ -549,7 +553,7 @@ function metricResults(
       ? suppression(
           "diluted-shares-unavailable",
           "As-reported diluted weighted-average shares are unavailable.",
-          commonSourceIds,
+          metricSourceIds,
         )
       : undefined;
   const enterpriseValueToRevenue = enterpriseValueToRevenueMetric({
@@ -561,7 +565,7 @@ function metricResults(
     price,
     reportingCurrency,
     quoteCurrency,
-    sourceIds: commonSourceIds,
+    sourceIds: metricSourceIds,
   });
   return {
     priceToEarnings: ratioMetric({
@@ -573,7 +577,7 @@ function metricResults(
       quoteCurrency,
       missingDenominatorReason: "earnings-unavailable",
       missingDenominatorDetail: "As-reported diluted EPS is unavailable.",
-      sourceIds: commonSourceIds,
+      sourceIds: metricSourceIds,
     }),
     priceToSales:
       sharesUnavailable ??
@@ -586,7 +590,7 @@ function metricResults(
         quoteCurrency,
         missingDenominatorReason: "revenue-unavailable",
         missingDenominatorDetail: "As-reported revenue is unavailable.",
-        sourceIds: commonSourceIds,
+        sourceIds: metricSourceIds,
       }),
     enterpriseValueToRevenue,
     priceToFreeCashFlow:
@@ -600,7 +604,7 @@ function metricResults(
         quoteCurrency,
         missingDenominatorReason: "free-cash-flow-unavailable",
         missingDenominatorDetail: "As-reported free cash flow is unavailable.",
-        sourceIds: commonSourceIds,
+        sourceIds: metricSourceIds,
       }),
   };
 }
@@ -645,9 +649,28 @@ function enterpriseValueToRevenueMetric(input: {
 function observation(
   input: BuildValuationWorkbenchInput,
   periodInputs: ValuationPeriodInputs,
+  fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>>,
 ): HistoricalValuationObservation {
   const publicAt = periodPublicAt(periodInputs);
   const price = selectedPrice(input, publicAt);
+  const reportingCurrency = input.financialStatements?.reportingCurrency;
+  const fxCandidate = price === null ? undefined : fxClosesByPriceDate[price.sessionDate];
+  const fxClose =
+    price !== null &&
+    reportingCurrency !== undefined &&
+    price.currency !== reportingCurrency &&
+    fxCandidate !== undefined &&
+    fxCandidate.date <= price.sessionDate
+      ? fxCandidate
+      : undefined;
+  const metricPrice =
+    price !== null && fxClose !== undefined && reportingCurrency !== undefined
+      ? {
+          ...price,
+          close: price.close * fxClose.quoteCurrencyPerBaseCurrency,
+          currency: reportingCurrency,
+        }
+      : price;
   const inputs = {
     ...(periodInputs.revenue !== undefined ? { revenue: periodInputs.revenue } : {}),
     ...(periodInputs.netIncome !== undefined ? { netIncome: periodInputs.netIncome } : {}),
@@ -662,18 +685,30 @@ function observation(
   const sourceIds = unique([
     ...Object.values(inputs).flatMap((value) => value.sourceIds),
     ...(price === null ? [] : [price.sourceId]),
+    ...(fxClose === undefined ? [] : [fxClose.sourceId]),
   ]);
   return {
     basis: periodInputs.basis,
     periodEnd: periodInputs.periodEnd,
     publicAt,
     price,
+    ...(fxClose !== undefined
+      ? {
+          fxConversion: {
+            rate: fxClose.quoteCurrencyPerBaseCurrency,
+            rateDate: fxClose.date,
+            pair: fxClose.pair,
+            sourceId: fxClose.sourceId,
+          },
+        }
+      : {}),
     inputs,
     metrics: metricResults(
       periodInputs,
-      price,
-      input.financialStatements?.reportingCurrency,
+      metricPrice,
+      reportingCurrency,
       input.quoteCurrency,
+      fxClose === undefined ? [] : [fxClose.sourceId],
     ),
     sourceIds,
   };
@@ -708,6 +743,7 @@ function trailingBasis(
 
 export function buildValuationWorkbench(
   input: BuildValuationWorkbenchInput,
+  fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>> = {},
 ): ValuationWorkbenchArtifact {
   const artifact = input.financialStatements;
   const ttm = artifact === undefined ? undefined : ttmInputs(artifact);
@@ -721,7 +757,9 @@ export function buildValuationWorkbench(
           ...historicalTtmInputs(artifact),
           ...(ttm === undefined ? [] : [ttm]),
         ]);
-  const observations = periodInputs.map((period) => observation(input, period));
+  const observations = periodInputs.map((period) =>
+    observation(input, period, fxClosesByPriceDate),
+  );
   const suppressionReasons = [
     ...(artifact === undefined ? ["canonical financial statements unavailable"] : []),
     ...(observations.length === 0 ? ["no annual or reconciled TTM valuation basis available"] : []),
@@ -755,5 +793,52 @@ export function buildValuationWorkbench(
           }
         : { status: "available", valuationComps: input.valuationComps },
     sourceIds,
+  };
+}
+
+export async function collectValuationWorkbench(
+  input: BuildValuationWorkbenchInput & { readonly fetchImpl?: FetchLike },
+): Promise<{
+  readonly artifact: ValuationWorkbenchArtifact;
+  readonly sources: readonly Source[];
+  readonly sourceGaps: readonly SourceGap[];
+}> {
+  const { fetchImpl, ...buildInput } = input;
+  const initialArtifact = buildValuationWorkbench(buildInput);
+  const { reportingCurrency, quoteCurrency } = initialArtifact;
+  if (reportingCurrency === null || quoteCurrency === null || reportingCurrency === quoteCurrency) {
+    return { artifact: initialArtifact, sources: [], sourceGaps: [] };
+  }
+  const priceDates = initialArtifact.historicalMultiples.observations.flatMap(({ price }) =>
+    price === null ? [] : [price.sessionDate],
+  );
+  if (priceDates.length === 0) {
+    return { artifact: initialArtifact, sources: [], sourceGaps: [] };
+  }
+
+  // The equity's quote currency is the FX base leg: USD price × (CAD/USD) = CAD.
+  const fxResult = await fetchYahooFxClosesOnOrBefore(
+    quoteCurrency,
+    reportingCurrency,
+    priceDates,
+    fetchImpl,
+  );
+  const [firstClose] = Object.values(fxResult.closesByRequestedDate);
+  return {
+    artifact: buildValuationWorkbench(buildInput, fxResult.closesByRequestedDate),
+    sources:
+      firstClose === undefined
+        ? []
+        : [
+            {
+              id: firstClose.sourceId,
+              title: `Yahoo Finance ${firstClose.pair} historical FX closes`,
+              url: `https://finance.yahoo.com/quote/${encodeURIComponent(firstClose.pair)}/history`,
+              fetchedAt: input.generatedAt,
+              kind: "extended-evidence",
+              provider: "yahoo",
+            },
+          ],
+    sourceGaps: fxResult.sourceGaps,
   };
 }

@@ -5,15 +5,20 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
+import { renderMarkdownReport } from "../src/report/markdown";
 import { summarizeMarketRegime } from "../src/research/regime";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { collectSources, researchNewsRelevanceTargets } from "../src/sources/collector";
+import { collectValuationComps } from "../src/sources/extended-evidence/valuation-comps";
+import { addValuationEvidence as produceValuationEvidence } from "../src/sources/extended-evidence/valuation";
+import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import {
   createCollectContext,
   resetSourceResilienceForTests,
   setSourceHostMinDelayMsForTests,
 } from "../src/sources/source-request";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
+import { researchReport } from "./support/fixtures";
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
@@ -121,6 +126,98 @@ function collectorSecPayload(revenue = 100): unknown {
           units: { shares: [collectorSecFact(9), collectorSecFact(10, { fy: 2025 })] },
         },
       },
+    },
+  };
+}
+
+function collectorBankSecPayload(): unknown {
+  const flow = (annual: number, priorYtd: number, latestYtd: number, unit = "USD") => ({
+    units: {
+      [unit]: [
+        collectorSecFact(annual, {
+          form: "10-K",
+          fp: "FY",
+          fy: 2025,
+          filed: "2026-02-15",
+          start: "2025-01-01",
+          end: "2025-12-31",
+        }),
+        collectorSecFact(priorYtd, {
+          fy: 2025,
+          filed: "2025-08-01",
+          start: "2025-01-01",
+          end: "2025-06-30",
+        }),
+        collectorSecFact(latestYtd, {
+          filed: "2026-08-01",
+          start: "2026-01-01",
+          end: "2026-06-30",
+        }),
+      ],
+    },
+  });
+  return {
+    facts: {
+      "us-gaap": {
+        Revenues: flow(410_000_000_000, 200_000_000_000, 210_000_000_000),
+        GrossProfit: flow(180_000_000_000, 85_000_000_000, 90_000_000_000),
+        OperatingIncomeLoss: flow(60_000_000_000, 28_000_000_000, 30_000_000_000),
+        NetIncomeLoss: flow(40_000_000_000, 20_000_000_000, 22_000_000_000),
+        EarningsPerShareDiluted: flow(4, 2, 2.2, "USD/shares"),
+        CashAndCashEquivalentsAtCarryingValue: collectorSecFactUnits(60_000_000_000),
+        AssetsCurrent: collectorSecFactUnits(500_000_000_000),
+        LiabilitiesCurrent: collectorSecFactUnits(450_000_000_000),
+        LongTermDebt: collectorSecFactUnits(100_000_000_000),
+        NetCashProvidedByUsedInOperatingActivities: flow(
+          140_000_000_000,
+          65_000_000_000,
+          70_000_000_000,
+        ),
+        PaymentsToAcquirePropertyPlantAndEquipment: flow(
+          30_000_000_000,
+          17_000_000_000,
+          14_000_000_000,
+        ),
+        WeightedAverageNumberOfDilutedSharesOutstanding: flow(
+          10_000_000_000,
+          10_000_000_000,
+          10_000_000_000,
+          "shares",
+        ),
+      },
+    },
+  };
+}
+
+function collectorPriceHistory(): readonly { readonly date: string; readonly close: number }[] {
+  const start = Date.parse("2025-12-01T00:00:00.000Z");
+  return Array.from({ length: 250 }, (_, index) => ({
+    date: new Date(start + index * 86_400_000).toISOString().slice(0, 10),
+    close: 100,
+  }));
+}
+
+function collectorChartPayload(
+  prices: readonly { readonly date: string; readonly close: number }[],
+): unknown {
+  return {
+    chart: {
+      result: [
+        {
+          timestamp: prices.map(({ date }) => Date.parse(`${date}T00:00:00.000Z`) / 1000),
+          indicators: {
+            quote: [
+              {
+                open: prices.map(() => 99),
+                high: prices.map(() => 101),
+                low: prices.map(() => 98),
+                close: prices.map(({ close }) => close),
+                volume: prices.map(() => 1_000_000),
+              },
+            ],
+          },
+        },
+      ],
     },
   };
 }
@@ -649,6 +746,224 @@ describe("collectSources", () => {
         evidenceQualityImpact: "extended-evidence-cap",
       }),
     );
+  });
+
+  test("emits no enterprise value anywhere for a depository issuer", async () => {
+    const prices = collectorPriceHistory();
+    const peerSymbols = ["RY", "TD", "CM", "BMO"];
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "BNS",
+      depth: "deep",
+    } as const;
+    const sourceOptions = {
+      equityMoverLimit: 2,
+      cryptoMoverLimit: 2,
+      newsLimit: 2,
+      sourceTimeoutMs: 1000,
+      cacheDir: tempCacheDir(),
+    };
+    const now = new Date("2026-08-15T00:00:00.000Z");
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        const symbols = new URL(url).searchParams.get("symbols")?.split(",") ?? [];
+        return jsonResponse({
+          quoteResponse: {
+            result: symbols.map((symbol) => ({
+              ...collectorQuote(symbol, symbol === "BNS" ? 1_000_000_000_000 : 500_000_000_000),
+              currency: "USD",
+              exchange: "NYQ",
+              fullExchangeName: "NYSE",
+              quoteType: "EQUITY",
+              sharesOutstanding: 10_000_000_000,
+            })),
+          },
+        });
+      }
+      if (url.includes("finance/search")) {
+        return jsonResponse({ news: [] });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse(
+          Object.fromEntries(
+            ["BNS", ...peerSymbols].map((symbol, index) => [
+              String(index),
+              { cik_str: index + 1, ticker: symbol, title: symbol },
+            ]),
+          ),
+        );
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorBankSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({
+          sic: "6022",
+          sicDescription: "State Commercial Banks",
+          filings: { recent: { form: [], filingDate: [] } },
+        });
+      }
+      if (url.includes("/v8/finance/chart")) {
+        return jsonResponse(collectorChartPayload(prices));
+      }
+      return jsonResponse({});
+    };
+
+    const result = await collectSources(command, sourceOptions, { now, fetchImpl });
+
+    const { financialStatements: statements, extendedEvidence } = result;
+    if (statements === undefined || extendedEvidence === undefined) {
+      throw new Error("complete depository inputs did not produce canonical evidence");
+    }
+    const nonDepositoryEvidence = {
+      ...extendedEvidence,
+      items: extendedEvidence.items
+        .filter(({ category }) => category !== "valuation")
+        .map((item) => {
+          if (item.category !== "sec-edgar" || item.metrics === undefined) {
+            return item;
+          }
+          const { sic: _sic, ...metrics } = item.metrics;
+          return { ...item, metrics };
+        }),
+    };
+    const numericValuationEvidence = produceValuationEvidence(
+      command,
+      result.marketSnapshots,
+      nonDepositoryEvidence,
+    ).extendedEvidence;
+    if (numericValuationEvidence === undefined) {
+      throw new Error("complete peer inputs did not produce numeric valuation evidence");
+    }
+    const { context: peerContext } = createCollectContext(
+      command,
+      { ...sourceOptions, cacheDir: tempCacheDir() },
+      now,
+      fetchImpl,
+      [],
+    );
+    const valuationComps = await collectValuationComps(
+      peerContext,
+      command,
+      result.marketSnapshots,
+      numericValuationEvidence,
+      {
+        peerUniverseMappings: {
+          BNS: {
+            targetSymbol: "BNS",
+            provenance: "ticker-mapping",
+            peers: peerSymbols.map((symbol) => ({
+              symbol,
+              role: "core" as const,
+              rationale: "depository peer",
+              sourceIds: [`peer-universe-${symbol}`],
+            })),
+            sources: peerSymbols.map((symbol) => ({
+              sourceId: `peer-universe-${symbol}`,
+              title: `${symbol} peer mapping`,
+            })),
+          },
+        },
+      },
+    );
+    let evOperandCoercions = 0;
+    const guardedNumber = (value: number): number =>
+      ({
+        valueOf: () => {
+          evOperandCoercions += 1;
+          return value;
+        },
+      }) as unknown as number;
+    const guardSeries = (series: typeof statements.statements.balanceSheet.cash) => ({
+      ...series,
+      annual: series.annual.map((fact) => ({ ...fact, value: guardedNumber(fact.value) })),
+      interim: series.interim.map((fact) => ({ ...fact, value: guardedNumber(fact.value) })),
+    });
+    const guardedStatements = {
+      ...statements,
+      statements: {
+        ...statements.statements,
+        balanceSheet: {
+          ...statements.statements.balanceSheet,
+          cash: guardSeries(statements.statements.balanceSheet.cash),
+          debt: guardSeries(statements.statements.balanceSheet.debt),
+        },
+      },
+    };
+    const valuationWorkbench = buildValuationWorkbench({
+      generatedAt: "2026-08-15T00:00:00.000Z",
+      symbol: "BNS",
+      financialStatements: guardedStatements,
+      priceHistory: prices,
+      priceSourceId: "verified-snapshot-BNS",
+      quoteCurrency: "USD",
+      extendedEvidence,
+      valuationComps: valuationComps.artifact,
+    });
+    const report = researchReport({
+      jobType: "equity",
+      symbol: "BNS",
+      generatedAt: "2026-08-15T00:00:00.000Z",
+      summary: "Complete in-memory depository issuer report.",
+      extendedEvidence,
+      sources: result.extendedSources,
+    });
+    const markdown = renderMarkdownReport(report, result.marketSnapshots[0], {
+      ...result,
+      valuationWorkbench,
+    });
+    const evMetrics = valuationWorkbench.historicalMultiples.observations.map(
+      ({ metrics }) => metrics.enterpriseValueToRevenue,
+    );
+    const financialLensEvMetrics =
+      result.financialLenses?.lenses
+        .flatMap(({ metrics }) => metrics)
+        .filter(({ key }) => key === "enterpriseValue" || key === "evToAnnualizedRevenue") ?? [];
+    const businessFrameworkEvMetrics =
+      result.businessFramework?.sections
+        .flatMap(({ metrics }) => metrics)
+        .filter(({ key }) => key === "evToAnnualizedRevenue") ?? [];
+
+    expect(evOperandCoercions).toBe(0);
+    expect(valuationComps.gaps).toEqual([]);
+    expect(valuationComps.artifact.excludedPeers).toEqual([]);
+    expect(valuationComps.artifact.summary.usablePeerCount).toBe(4);
+    expect(result.financialStatements?.statements.incomeStatement.revenue.ttm?.value).toBe(
+      420_000_000_000,
+    );
+    expect(
+      (result.financialStatements?.statements.cashFlowStatement.operatingCashFlow.ttm?.value ?? 0) -
+        (result.financialStatements?.statements.cashFlowStatement.capitalExpenditure.ttm?.value ??
+          0),
+    ).toBe(118_000_000_000);
+    expect(evMetrics).toEqual(
+      evMetrics.map(() => expect.objectContaining({ status: "not-applicable" })),
+    );
+    expect(valuationWorkbench.peerComparison).toMatchObject({
+      status: "suppressed",
+      reason: "enterprise-value-not-applicable",
+    });
+    expect(result.valuationComps).toBeUndefined();
+    expect(result.reverseDcf).toMatchObject({
+      status: "suppressed",
+      reason: "enterprise-value-not-applicable",
+    });
+    expect(result.sourceGaps.filter((gap) => gap.source === "valuation-peers")).toEqual([]);
+    const valuationItem = result.extendedEvidence?.items.find(
+      (item) => item.category === "valuation",
+    );
+    expect(valuationItem?.metrics?.enterpriseValue).toBeUndefined();
+    expect(valuationItem?.metrics?.evToAnnualizedRevenue).toBeUndefined();
+    expect(valuationItem?.summary).toContain("enterprise value not applicable");
+    expect(financialLensEvMetrics).toEqual([]);
+    expect(businessFrameworkEvMetrics).toEqual([]);
+    expect(markdown).toContain(
+      "not applicable (deposit-funded issuer; enterprise value is not defined)",
+    );
+    expect(markdown).not.toContain("2.48x");
+    expect(markdown).not.toContain("$1040.0B");
   });
 
   test("resolves model-proposed peers for an unmapped deep-equity ticker and writes the cache", async () => {

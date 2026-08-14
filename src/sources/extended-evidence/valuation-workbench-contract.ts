@@ -132,7 +132,7 @@ export type PeerValuationComparison =
     }
   | {
       readonly status: "suppressed";
-      readonly reason: "peer-data-unavailable";
+      readonly reason: "peer-data-unavailable" | "enterprise-value-not-applicable";
       readonly detail: string;
       readonly sourceIds: readonly string[];
     };
@@ -310,7 +310,8 @@ function hasPeerComparisonShape(value: unknown): boolean {
   }
   if (value.status === "suppressed") {
     return (
-      value.reason === "peer-data-unavailable" &&
+      (value.reason === "peer-data-unavailable" ||
+        value.reason === "enterprise-value-not-applicable") &&
       readString(value, "detail") !== undefined &&
       readStringArray(value, "sourceIds") !== undefined
     );

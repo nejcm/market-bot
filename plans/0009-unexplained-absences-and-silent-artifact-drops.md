@@ -1,6 +1,7 @@
 # Plan 0009 — Unexplained absences in the report and silent drops in artifact reads
 
-**Status: Decided, not started** — as of 2026-08-14.
+**Status: Phase 1 committed (e30166b), Phase 2 built, Phases 3-6 not started** — as of
+2026-08-15.
 
 ## Problem
 
@@ -24,8 +25,8 @@ internally inconsistent about how it explains missing numbers.
 
 **EV/revenue never computes for a bank.** In the same run, all 10 valuation rows
 carry `— (debt-unavailable)`. Banks do not tag borrowings the way the debt input
-expects, so the metric is structurally impossible for the entire sector rather
-than merely missing for one issuer.
+expects, so the metric reads as merely missing for one issuer when it is in fact
+undefined for the entire sector.
 
 **Artifact reads fail silently and completely.** The extended-evidence readers
 validate all-or-nothing: one unrecognized value anywhere in an artifact makes the
@@ -78,7 +79,7 @@ Verified against the working tree, not assumed.
 | --- | --- | --- |
 | One plan or several | One plan, independent phases | The items share no code. Phases may ship in any order and in separate commits; grouping them only stops them being forgotten. |
 | Annotate absent Trends columns | Yes, reuse the valuation table's existing absence vocabulary | The neighbouring table already solved this, and one report should explain absence one way. |
-| Bank debt concepts | Map `Deposits` and `Borrowings` onto the debt input | Without it EV/revenue is impossible for every bank, not merely missing for one. |
+| Bank debt concepts | Do not map them; declare EV multiples inapplicable for depository issuers | No defensible operating/financing split exists for a deposit-funded issuer, so any mapping produces a confident wrong number. Reasoning in Phase 2. |
 | Version gates | Accept an explicit set of readable versions per reader | Same shape as the two compatibility sets already shipped, and the rule [ADR 0007](../docs/adr/0007-golden-invariance-live-correctness-invariants.md) prescribes. |
 | Reader failure mode | **Open — decide in Phase 4 before building** | Per-observation degradation and a typed parse error are materially different contracts. This is the one genuinely undecided item here. |
 | Marked ceilings in code | Watch list, no action | They are deliberate simplifications with stated triggers, not debt. Acting without the trigger is speculative. |
@@ -110,21 +111,65 @@ apart.
 Verification: `bun run check`, then re-run `equity BNS --deep` and confirm no
 bare `—` remains in the Trends table.
 
-### Phase 2 — Compute EV/revenue for banks
+### Phase 2 — Declare EV/revenue inapplicable for depository issuers
 
-Files: `src/sources/extended-evidence/` (industry concept mapping)
+Files: `src/sources/extended-evidence/` (issuer industry classification)
 
 `debt-unavailable` blocks EV/revenue on 10 of 10 BNS rows because banks do not
-tag borrowings the way the debt input expects. Map the concepts a bank actually
-files — `Deposits`, `Borrowings`, subordinated debentures — onto that input.
+tag borrowings the way the debt input expects.
 
-Deposits are a bank's operating liability, not leverage in the industrial sense.
-Decide explicitly whether they belong in enterprise value and record the reasoning
-here before implementing. Getting it wrong produces an EV wrong by an order of
-magnitude that still renders as a plausible multiple.
+**Decision: do not compute EV/revenue, or any EV-based multiple, for banks and
+other depository institutions. Render it as inapplicable-to-industry with a
+stated rationale.** The mapping this plan originally proposed is not built.
 
-Verification: `bun run check`, then re-run `equity BNS --deep`. A computed
-EV/revenue must reconcile by hand against the filed balance sheet.
+Enterprise value assumes a clean operating/financing split, and a depository
+issuer has none: deposits and borrowings are the raw material the business
+transforms, not a capital structure layered on top of operations, and there is no
+defensible line between the two. Including deposits yields an EV dominated by the
+deposit base; excluding them yields something that is not enterprise value in any
+conventional sense. Both render as a plausible multiple — the exact failure mode
+the Risk section below names. "Revenue" for a bank is itself ambiguous (gross
+interest income against net interest income plus fees), so the denominator
+compounds the numerator's problem. This is a research bot whose absences carry
+honest reasons; the correct output is a stated reason, not a confident wrong
+number. Banks are valued on P/B, P/TBV and P/E, and those stay computed.
+
+The decision binds every surface that can express an enterprise value, not only the
+historical multiples table: the Valuation Evidence item withholds `enterpriseValue`
+and `evToAnnualizedRevenue` (which is what the peer comps and the reverse DCF read
+it from), the EV-based peer comparison and reference range are declared
+inapplicable rather than fetched, and the reverse DCF — which solves against
+enterprise value — is suppressed with the same stated reason. P/FCF joins them,
+because a depository issuer files no capex line for the proxy to subtract; only
+P/E, P/S and P/B remain computed.
+
+One issuer-level classifier, reading SIC from the `sec-edgar` item only and
+requiring a well-formed four-digit code, is the single definition of "depository
+issuer". The same classification suppresses the
+Financial Trends columns that are inapplicable at issuer level — operating margin
+and capex-based free cash flow — which Phase 1 deliberately left to this phase.
+That verdict is decided once per issuer, never per empty cell.
+
+Verification: `bun run check`, then re-run `equity BNS --deep`. No EV multiple may
+render a number, and every non-EV multiple must be unchanged.
+
+**Deferred: the inapplicability does not cite the SEC item that established the
+SIC.** The classifier returns the code without its provenance, so the stated reason
+carries statement and history source ids rather than the submissions source the
+classification came from. Correct in principle for a sourced-research tool, but
+threading provenance touches all five call sites, so it is deliberately not done
+here.
+
+**Open gap: no run fixture covers a depository issuer.** No golden fixture
+exercises a bank path, so the behaviour above is covered by unit tests and by
+execution against real on-disk BNS run data, not end to end. Recording one is a
+live-network and live-model operation
+(`bun run scripts/record-fixture-run.ts equity-depository-deep equity BNS --deep`);
+record it with `MARKET_BOT_WEB_GATHER_DISABLE=1`, with the Polygon/Massive keys
+unset — they leak into the cassette and the recorder's secret scan rejects the
+result — and with `MARKET_BOT_FORECAST_DISAGREEMENT_MODELS` unset, so `meta.json`
+matches the nine existing fixtures rather than arming a challenger invariant the
+replay cannot satisfy.
 
 ### Phase 3 — Version-gate compatibility across the six readers
 
@@ -214,11 +259,12 @@ sooner is speculative.
 
 ## Risk
 
-**Phase 2 is the dangerous one.** A wrong debt mapping produces a confident number
+**Phase 2 is the dangerous one.** A debt mapping produces a confident number
 rather than a visible failure — an EV that omits or double-counts a bank's deposit
 base is wrong by an order of magnitude while still rendering as a plausible
-multiple. It needs a hand reconciliation against the filed balance sheet, not a
-passing test.
+multiple. That risk is what the phase's decision avoids by refusing to compute the
+metric at all; what remains is proving by execution that no EV multiple renders a
+number for a depository issuer, not merely that a test passes.
 
 **Phase 4 is the one that pays down principal.** Phase 3 and both shipped fixes are
 instance patches on the same root cause. Deferring it again is defensible; doing so
@@ -230,8 +276,10 @@ Phases 1, 5, and 6 are low risk.
 
 - No bare `—` remains in the Financial Trends table; every absence carries a
   reason, and inapplicable-to-industry reads differently from not-computable.
-- A bank produces a computed EV/revenue that reconciles by hand against its filed
-  balance sheet.
+- A depository issuer renders its EV multiples as inapplicable with a stated
+  rationale, and no EV multiple is computed for one.
+- A run fixture exercises a depository issuer end to end. **Still open** — see the
+  gap noted in Phase 2.
 - All six extended-evidence readers accept their historical versions; a sweep of
   every evidence bundle reports 0 dropped nodes.
 - Each version-compatibility entry has a frozen fixture that fails when the entry

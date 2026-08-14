@@ -67,6 +67,7 @@ import {
   valuationCompsSkippedGap,
 } from "./extended-evidence/valuation-comps";
 import { collectValuationWorkbench } from "./extended-evidence/valuation-workbench";
+import { depositoryIssuerSic } from "./extended-evidence/industry-classification";
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import { buildReverseDcf, type ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
@@ -900,8 +901,14 @@ async function collectEquityEnrichment(
     input.command.depth === "deep"
       ? peerUniverseFallbackFor(input.peerUniverse, input.identityContext, input.now)
       : undefined;
+  // Peer comps screen and rank on EV/revenue alone, so for a depository issuer there is nothing
+  // Left to compare on; the workbench states the inapplicability rather than fetching peers whose
+  // Only published multiple could not be used.
+  const depositoryIssuer =
+    depositoryIssuerSic(valuationResult.extendedEvidence ?? input.extendedEvidence) !== undefined;
   const valuationCompsResult =
     input.command.depth === "deep" &&
+    !depositoryIssuer &&
     valuationResult.extendedEvidence?.items.some((item) => item.category === "valuation") === true
       ? await collectValuationComps(
           input.identityContext,
@@ -916,8 +923,10 @@ async function collectEquityEnrichment(
           },
         )
       : undefined;
+  // The skipped gap reads "target valuation unavailable", which is untrue for a depository issuer:
+  // The workbench's peer comparison already states why the comparison does not apply.
   const valuationCompsSkippedGaps =
-    input.command.depth === "deep" && valuationCompsResult === undefined
+    input.command.depth === "deep" && valuationCompsResult === undefined && !depositoryIssuer
       ? [valuationCompsSkippedGap(input.command.symbol)]
       : [];
   const evidenceWithComps =
@@ -976,6 +985,9 @@ async function collectEquityEnrichment(
     ...(identityResult?.identity?.quoteCurrency !== undefined
       ? { quoteCurrency: identityResult.identity.quoteCurrency }
       : {}),
+    ...(businessFrameworkResult.extendedEvidence !== undefined
+      ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
+      : {}),
     fetchImpl: input.fetchImpl,
   });
   const valuationWorkbench = valuationWorkbenchResult.artifact;
@@ -983,6 +995,9 @@ async function collectEquityEnrichment(
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
     valuationWorkbench,
+    ...(businessFrameworkResult.extendedEvidence !== undefined
+      ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
+      : {}),
   });
 
   return {

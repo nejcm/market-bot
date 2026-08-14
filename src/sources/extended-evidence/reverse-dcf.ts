@@ -1,4 +1,6 @@
 import { isRecord, readNumber, readString, readStringArray } from "../../guards";
+import type { ExtendedEvidence } from "../../domain/types";
+import { depositoryIssuerSic } from "./industry-classification";
 import type { ValuationWorkbenchArtifact } from "./valuation-workbench-contract";
 
 export const REVERSE_DCF_DISCOUNT_RATES_PCT = [8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
@@ -14,6 +16,7 @@ const SUPPRESSION_REASONS = new Set<ReverseDcfSuppressionReason>([
   "reconciled-ttm-fcf-unavailable",
   "starting-fcf-not-positive",
   "enterprise-value-unavailable",
+  "enterprise-value-not-applicable",
   "enterprise-value-not-positive",
   "input-date-unavailable",
   "input-currency-unavailable",
@@ -56,6 +59,7 @@ export type ReverseDcfSuppressionReason =
   | "reconciled-ttm-fcf-unavailable"
   | "starting-fcf-not-positive"
   | "enterprise-value-unavailable"
+  | "enterprise-value-not-applicable"
   | "enterprise-value-not-positive"
   | "input-date-unavailable"
   | "input-currency-unavailable"
@@ -94,6 +98,8 @@ export interface BuildReverseDcfInput {
   readonly generatedAt: string;
   readonly symbol: string;
   readonly valuationWorkbench?: ValuationWorkbenchArtifact;
+  // Carried only to classify the issuer's industry; see depositoryIssuerSic.
+  readonly extendedEvidence?: ExtendedEvidence;
 }
 
 function unique(values: readonly string[]): readonly string[] {
@@ -198,6 +204,18 @@ function gridCell(input: {
 
 export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact {
   const workbench = input.valuationWorkbench;
+  // Checked before any input is read: the whole grid solves against enterprise value, so for a
+  // Depository issuer it is inapplicable rather than merely missing an input. Deciding it here
+  // Also keeps the stated reason honest when peers happen to be absent for some other cause.
+  const depositorySic = depositoryIssuerSic(input.extendedEvidence);
+  if (depositorySic !== undefined) {
+    return suppressed(
+      input,
+      "enterprise-value-not-applicable",
+      `A reverse DCF solves against enterprise value, which is not applicable to a depository issuer (SIC ${depositorySic}).`,
+      workbench?.sourceIds ?? [],
+    );
+  }
   const trailing = workbench?.historicalMultiples.observations
     .filter((observation) => observation.basis === "ttm")
     .toSorted((left, right) => right.publicAt.localeCompare(left.publicAt))

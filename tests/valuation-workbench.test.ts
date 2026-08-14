@@ -393,6 +393,90 @@ describe("valuation workbench", () => {
     });
   });
 
+  test("declares EV/revenue inapplicable for a depository issuer while leaving other multiples computed", () => {
+    const input = {
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [
+        { date: "2024-02-15", close: 20 },
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    };
+    const industrial = buildValuationWorkbench(input);
+    const depository = buildValuationWorkbench({
+      ...input,
+      extendedEvidence: {
+        items: [
+          {
+            category: "sec-edgar",
+            title: "TEST fundamentals",
+            summary: "",
+            sourceIds: [SOURCE_ID],
+            observedAt: "2025-06-01T00:00:00.000Z",
+            metrics: { sic: "6022", sicDescription: "State Commercial Banks" },
+          },
+        ],
+        gaps: [],
+      },
+    });
+
+    // Every EV input is present here — the industrial run computes a real multiple — so the
+    // Depository verdict must override a computable number, not merely a missing one.
+    expect(
+      industrial.historicalMultiples.observations[0]?.metrics.enterpriseValueToRevenue,
+    ).toMatchObject({ status: "populated", value: 2.05 });
+    expect(
+      depository.historicalMultiples.observations.map(
+        (item) => item.metrics.enterpriseValueToRevenue,
+      ),
+    ).toEqual(
+      depository.historicalMultiples.observations.map(() => ({
+        status: "not-applicable",
+        display: "not applicable",
+        rule: expect.stringContaining("Enterprise value is not computed for depository issuers"),
+        inputs: { sic: "6022" },
+        rationale: "deposit-funded issuer; enterprise value is not defined",
+        sourceIds: expect.any(Array),
+      })),
+    );
+    // No EV cell renders a number, on any rendered row.
+    const evCells = renderValuationWorkbenchMarkdown(depository)
+      .split("\n")
+      .filter((line) => line.startsWith("ANNUAL |") || line.startsWith("TTM |"))
+      .map((line) => line.split(" | ")[6]);
+    expect(evCells.length).toBeGreaterThan(0);
+    expect(evCells).toEqual(
+      evCells.map(() => "not applicable (deposit-funded issuer; enterprise value is not defined)"),
+    );
+    // P/FCF follows the same capex verdict Financial Trends gives, so it must NOT stay computed.
+    expect(
+      industrial.historicalMultiples.observations[0]?.metrics.priceToFreeCashFlow,
+    ).toMatchObject({ status: "populated" });
+    expect(
+      depository.historicalMultiples.observations.map(
+        (item) => item.metrics.priceToFreeCashFlow.status,
+      ),
+    ).toEqual(depository.historicalMultiples.observations.map(() => "not-applicable"));
+    expect(
+      depository.historicalMultiples.observations[0]?.metrics.priceToFreeCashFlow,
+    ).toMatchObject({ rationale: "depository issuer; capex-based free cash flow is not defined" });
+    // Only the price-based multiples are untouched.
+    for (const key of ["priceToEarnings", "priceToSales"] as const) {
+      expect(depository.historicalMultiples.observations.map((item) => item.metrics[key])).toEqual(
+        industrial.historicalMultiples.observations.map((item) => item.metrics[key]),
+      );
+    }
+    // The EV-based peer comparison is inapplicable, not "unavailable".
+    expect(depository.peerComparison).toMatchObject({
+      status: "suppressed",
+      reason: "enterprise-value-not-applicable",
+    });
+  });
+
   test("reads the retired currency-mismatch reason from pre-0008 artifacts", () => {
     const artifact = buildValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",

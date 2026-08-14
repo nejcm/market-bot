@@ -29,7 +29,8 @@ not-assessed equity completeness status; amended 2026-07-31: persisted Source Ga
 2026-08-01: recipe-phased deep-equity provider dispatch; amended 2026-08-02: runtime financial-
 statement parity retirement; amended 2026-08-03: interchangeable-alias offline detection; amended
 2026-08-03: parsed-artifact authority for Research Console snapshot rendering; amended 2026-08-10:
-current-report selection and Evidence Quality / Equity Analysis Completeness boundary)
+current-report selection and Evidence Quality / Equity Analysis Completeness boundary; amended
+2026-08-15: depository-issuer valuation applicability)
 
 ## Context
 
@@ -362,6 +363,12 @@ without pretending the project has a global security master.
 - Valuation evidence preserves quote, cash, and debt dates. It discloses the market-cap and
   balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
   quote with cash/debt more than 92 days apart.
+- For a depository issuer, enterprise value and every EV-derived surface are inapplicable, not
+  unavailable: deposits and borrowings fund operations, so no defensible operating/financing split
+  exists. The issuer is classified once from a well-formed four-digit SIC on its own `sec-edgar`
+  item (major group 60, 6120, or 6712). EV is never computed; peer acquisition and comparison,
+  EV/revenue, reverse DCF, and capex-based P/FCF are suppressed with the industry rationale, while
+  P/E, P/S, and P/B remain available when their inputs are present.
 - The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a
   human-audited comparability judgment, so it runs the `curated-no-sic` gate profile: the three
   SIC checks (missing peer SIC, unavailable target SIC, group mismatch) are skipped and only the

@@ -1,5 +1,6 @@
-import type { OhlcvBar, Source, SourceGap } from "../../domain/types";
+import type { ExtendedEvidence, OhlcvBar, Source, SourceGap } from "../../domain/types";
 import type { FetchLike } from "../types";
+import { depositoryIssuerSic } from "./industry-classification";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
 import type {
   FinancialStatementFact,
@@ -27,6 +28,7 @@ import type {
   ValuationObservationBasis,
   ValuationPriceInput,
   ValuationWorkbenchArtifact,
+  PeerValuationComparison,
 } from "./valuation-workbench-contract";
 
 const DAY_MS = 86_400_000;
@@ -54,6 +56,8 @@ export interface BuildValuationWorkbenchInput {
   readonly priceHistory: readonly Pick<OhlcvBar, "date" | "close">[];
   readonly priceSourceId?: string;
   readonly quoteCurrency?: string;
+  // Carried only to classify the issuer's industry; see depositoryIssuerSic.
+  readonly extendedEvidence?: ExtendedEvidence;
 }
 
 function unique(values: readonly string[]): readonly string[] {
@@ -532,12 +536,16 @@ function metricResults(
   price: ValuationPriceInput | null,
   reportingCurrency: string | undefined,
   quoteCurrency: string | undefined,
+  depositorySic: string | undefined,
   additionalSourceIds: readonly string[] = [],
 ): Readonly<Record<ValuationMetricKey, ValuationMetricResult>> {
   const shares = inputs.dilutedShares?.value;
   const marketCap = price === null || shares === undefined ? undefined : price.close * shares;
   const enterpriseValue =
-    marketCap === undefined || inputs.cash === undefined || inputs.debt === undefined
+    depositorySic !== undefined ||
+    marketCap === undefined ||
+    inputs.cash === undefined ||
+    inputs.debt === undefined
       ? undefined
       : marketCap + inputs.debt.value - inputs.cash.value;
   const commonSourceIds = Object.values(inputs).flatMap((input) =>
@@ -557,6 +565,7 @@ function metricResults(
         )
       : undefined;
   const enterpriseValueToRevenue = enterpriseValueToRevenueMetric({
+    depositorySic,
     cash: inputs.cash,
     debt: inputs.debt,
     dilutedShares: inputs.dilutedShares,
@@ -593,7 +602,16 @@ function metricResults(
         sourceIds: metricSourceIds,
       }),
     enterpriseValueToRevenue,
+    // A depository issuer files no capex line for the proxy to subtract, so P/FCF is inapplicable
+    // For exactly the reason Financial Trends gives for the FCF column. Rendering 20.00x here
+    // While the trend column calls the same proxy undefined would contradict the same report.
     priceToFreeCashFlow:
+      depositoryMetric(
+        depositorySic,
+        DEPOSITORY_FREE_CASH_FLOW_RULE,
+        DEPOSITORY_FREE_CASH_FLOW_RATIONALE,
+        metricSourceIds,
+      ) ??
       sharesUnavailable ??
       ratioMetric({
         numerator: marketCap,
@@ -609,7 +627,45 @@ function metricResults(
   };
 }
 
+// Enterprise value assumes a clean operating/financing split, and a depository issuer has none:
+// Deposits and borrowings are the raw material the business transforms, not a capital structure
+// Layered on top of operations, and there is no defensible line between the two.
+// Including deposits yields an EV dominated by the deposit base; excluding them yields something
+// That is not enterprise value in any conventional sense — and both render as a plausible
+// Multiple, which is a confident wrong number rather than a visible failure.
+// "Revenue" is ambiguous here too (gross interest income against net interest income plus fees),
+// So the denominator compounds the numerator's problem.
+// Depository issuers are valued on P/B, P/TBV and P/E, all of which stay computed; only the
+// EV-based multiple is declared inapplicable.
+const DEPOSITORY_ENTERPRISE_VALUE_RULE =
+  "Enterprise value is not computed for depository issuers: deposits and borrowings fund operations rather than sitting on top of them, so no defensible operating/financing split exists.";
+const DEPOSITORY_ENTERPRISE_VALUE_RATIONALE =
+  "deposit-funded issuer; enterprise value is not defined";
+const DEPOSITORY_FREE_CASH_FLOW_RULE =
+  "Capex-based free cash flow is not computed for depository issuers: they file no capital-expenditure line for the operating-cash-flow-less-capex proxy to subtract.";
+const DEPOSITORY_FREE_CASH_FLOW_RATIONALE =
+  "depository issuer; capex-based free cash flow is not defined";
+
+function depositoryMetric(
+  depositorySic: string | undefined,
+  rule: string,
+  rationale: string,
+  sourceIds: readonly string[],
+): ValuationMetricResult | undefined {
+  return depositorySic === undefined
+    ? undefined
+    : {
+        status: "not-applicable",
+        display: "not applicable",
+        rule,
+        inputs: { sic: depositorySic },
+        rationale,
+        sourceIds: unique(sourceIds),
+      };
+}
+
 function enterpriseValueToRevenueMetric(input: {
+  readonly depositorySic: string | undefined;
   readonly cash: ValuationFundamentalInput | undefined;
   readonly debt: ValuationFundamentalInput | undefined;
   readonly dilutedShares: ValuationFundamentalInput | undefined;
@@ -620,6 +676,15 @@ function enterpriseValueToRevenueMetric(input: {
   readonly quoteCurrency: string | undefined;
   readonly sourceIds: readonly string[];
 }): ValuationMetricResult {
+  const depository = depositoryMetric(
+    input.depositorySic,
+    DEPOSITORY_ENTERPRISE_VALUE_RULE,
+    DEPOSITORY_ENTERPRISE_VALUE_RATIONALE,
+    input.sourceIds,
+  );
+  if (depository !== undefined) {
+    return depository;
+  }
   if (input.cash === undefined) {
     return suppression("cash-unavailable", "As-reported cash is unavailable.", input.sourceIds);
   }
@@ -650,6 +715,9 @@ function observation(
   input: BuildValuationWorkbenchInput,
   periodInputs: ValuationPeriodInputs,
   fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>>,
+  // Classified once per issuer by the caller, never per period: a per-period decision would let
+  // One row print a multiple and the next declare the metric inapplicable for the same issuer.
+  depositorySic: string | undefined,
 ): HistoricalValuationObservation {
   const publicAt = periodPublicAt(periodInputs);
   const price = selectedPrice(input, publicAt);
@@ -708,6 +776,7 @@ function observation(
       metricPrice,
       reportingCurrency,
       input.quoteCurrency,
+      depositorySic,
       fxClose === undefined ? [] : [fxClose.sourceId],
     ),
     sourceIds,
@@ -741,6 +810,32 @@ function trailingBasis(
   };
 }
 
+// The peer table's only multiple is EV/revenue and the reference range is derived from peer EV
+// Multiples, so the whole comparison is EV-based and inapplicable for a depository issuer.
+// Saying "unavailable" here would restate the decision as a missing input.
+function peerComparison(
+  valuationComps: ValuationCompsArtifact | undefined,
+  depositorySic: string | undefined,
+): PeerValuationComparison {
+  if (depositorySic !== undefined) {
+    return {
+      status: "suppressed",
+      reason: "enterprise-value-not-applicable",
+      detail: `Peer comparison is EV-based and not applicable to a depository issuer (SIC ${depositorySic}); deposits and borrowings fund operations rather than sitting on top of them.`,
+      sourceIds: [],
+    };
+  }
+  if (valuationComps === undefined) {
+    return {
+      status: "suppressed",
+      reason: "peer-data-unavailable",
+      detail: "Peer comparison data is unavailable for this run.",
+      sourceIds: [],
+    };
+  }
+  return { status: "available", valuationComps };
+}
+
 export function buildValuationWorkbench(
   input: BuildValuationWorkbenchInput,
   fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>> = {},
@@ -757,8 +852,9 @@ export function buildValuationWorkbench(
           ...historicalTtmInputs(artifact),
           ...(ttm === undefined ? [] : [ttm]),
         ]);
+  const depositorySic = depositoryIssuerSic(input.extendedEvidence);
   const observations = periodInputs.map((period) =>
-    observation(input, period, fxClosesByPriceDate),
+    observation(input, period, fxClosesByPriceDate, depositorySic),
   );
   const suppressionReasons = [
     ...(artifact === undefined ? ["canonical financial statements unavailable"] : []),
@@ -783,15 +879,7 @@ export function buildValuationWorkbench(
       trailingBasis: trailingBasis(artifact, ttm),
       suppressionReasons,
     },
-    peerComparison:
-      input.valuationComps === undefined
-        ? {
-            status: "suppressed",
-            reason: "peer-data-unavailable",
-            detail: "Peer comparison data is unavailable for this run.",
-            sourceIds: [],
-          }
-        : { status: "available", valuationComps: input.valuationComps },
+    peerComparison: peerComparison(input.valuationComps, depositorySic),
     sourceIds,
   };
 }

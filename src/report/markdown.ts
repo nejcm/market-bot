@@ -339,7 +339,7 @@ function renderProjectedFinancialTrends(
   return [
     "## Financial Trends",
     "",
-    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
     "",
     "Period | Revenue | Net income | Operating margin | FCF",
     "--- | ---: | ---: | ---: | ---:",

@@ -19,7 +19,7 @@ Observed price: 198.5 USD; price as of fetch time 2026-06-15T14:30:00.000Z. [mar
 
 ## Financial Trends
 
-Amounts in USD. FCF is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-fpiq-fundamentals]
+Amounts in USD. FCF, where applicable, is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-fpiq-fundamentals]
 
 Period | Revenue | Net income | Operating margin | FCF
 --- | ---: | ---: | ---: | ---:

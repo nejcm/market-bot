@@ -20,6 +20,7 @@ import type {
   FundamentalHistoryPoint,
   FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
+import { depositoryIssuerSic } from "../sources/extended-evidence/industry-classification";
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type {
   ValuationMetricSuppressionReason,
@@ -349,46 +350,63 @@ function suppressedTrendMetric(reason: ValuationMetricSuppressionReason) {
   return { status: "suppressed" as const, display: "—", reason };
 }
 
-function financialTrendRows(history: FundamentalHistoryArtifact): readonly FinancialTrendRow[] {
+// Whole-column verdicts for a depository issuer, decided once from the issuer's SIC rather than
+// Per empty cell: a bank with capex tagged in one year and untagged in the next would otherwise
+// Print a real number in one row and "inapplicable" in the next row of the same column.
+// A depository issuer reports no operating income in the industrial sense, and its cash flow
+// Statement carries no capex line that a free-cash-flow proxy can subtract.
+function notApplicableTrendMetric(rationale: string) {
+  return { status: "not-applicable" as const, display: "not applicable", rationale };
+}
+
+const DEPOSITORY_OPERATING_MARGIN_RATIONALE =
+  "depository issuer; no operating income in the industrial sense";
+const DEPOSITORY_FREE_CASH_FLOW_RATIONALE =
+  "depository issuer; capex-based free cash flow is not defined";
+
+function financialTrendRows(
+  history: FundamentalHistoryArtifact,
+  depositoryIssuer: boolean,
+): readonly FinancialTrendRow[] {
+  // Both whole-column cells are resolved here, outside the per-period map, so a depository issuer
+  // Renders the same verdict on every row whatever any single period happens to have tagged.
+  const inapplicableOperatingMargin = depositoryIssuer
+    ? metricCell(notApplicableTrendMetric(DEPOSITORY_OPERATING_MARGIN_RATIONALE))
+    : undefined;
+  const inapplicableFreeCashFlow = depositoryIssuer
+    ? metricCell(notApplicableTrendMetric(DEPOSITORY_FREE_CASH_FLOW_RATIONALE))
+    : undefined;
   return trendPeriods(history).map((period) => {
     const revenue = trendValue(history, "revenue", period);
     const netIncome = trendValue(history, "netIncome", period);
     const operatingMargin = trendValue(history, "operatingMargin", period);
     const freeCashFlow = trendValue(history, "freeCashFlowProxy", period);
-    const absences = {
-      ...(revenue === undefined ? { revenue: suppressedTrendMetric("revenue-unavailable") } : {}),
-      ...(netIncome === undefined
-        ? { netIncome: suppressedTrendMetric("earnings-unavailable") }
-        : {}),
-      ...(operatingMargin === undefined
-        ? {
-            operatingMargin: suppressedTrendMetric(
-              revenue === undefined || revenue === 0
-                ? "revenue-unavailable"
-                : "numerator-unavailable",
-            ),
-          }
-        : {}),
-      ...(freeCashFlow === undefined
-        ? { freeCashFlow: suppressedTrendMetric("free-cash-flow-unavailable") }
-        : {}),
-    };
     return {
       period: periodLabel(period),
       revenue:
-        absences.revenue === undefined ? formatTrendAmount(revenue) : metricCell(absences.revenue),
+        revenue === undefined
+          ? metricCell(suppressedTrendMetric("revenue-unavailable"))
+          : formatTrendAmount(revenue),
       netIncome:
-        absences.netIncome === undefined
-          ? formatTrendAmount(netIncome)
-          : metricCell(absences.netIncome),
+        netIncome === undefined
+          ? metricCell(suppressedTrendMetric("earnings-unavailable"))
+          : formatTrendAmount(netIncome),
       operatingMargin:
-        absences.operatingMargin === undefined
-          ? formatTrendPercent(operatingMargin)
-          : metricCell(absences.operatingMargin),
+        inapplicableOperatingMargin ??
+        (operatingMargin === undefined
+          ? metricCell(
+              suppressedTrendMetric(
+                revenue === undefined || revenue === 0
+                  ? "revenue-unavailable"
+                  : "numerator-unavailable",
+              ),
+            )
+          : formatTrendPercent(operatingMargin)),
       freeCashFlow:
-        absences.freeCashFlow === undefined
-          ? formatTrendAmount(freeCashFlow)
-          : metricCell(absences.freeCashFlow),
+        inapplicableFreeCashFlow ??
+        (freeCashFlow === undefined
+          ? metricCell(suppressedTrendMetric("free-cash-flow-unavailable"))
+          : formatTrendAmount(freeCashFlow)),
     };
   });
 }
@@ -407,11 +425,12 @@ function stringArrayValue(value: unknown): readonly string[] {
 
 function financialTrends(
   history: FundamentalHistoryArtifact | undefined,
+  depositoryIssuer: boolean,
 ): EquityReaderFinancialTrends | undefined {
   if (history === undefined) {
     return undefined;
   }
-  const rows = financialTrendRows(history);
+  const rows = financialTrendRows(history, depositoryIssuer);
   if (rows.length === 0) {
     return undefined;
   }
@@ -799,7 +818,10 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   const record = reportRecord(input.report);
   const generatedAt = typeof record?.generatedAt === "string" ? record.generatedAt : undefined;
   const gaps = projectedGaps(input.report, input.fundamentalHistory, input.sourceGaps ?? []);
-  const projectedFinancialTrends = financialTrends(input.fundamentalHistory);
+  const projectedFinancialTrends = financialTrends(
+    input.fundamentalHistory,
+    depositoryIssuerSic(record?.extendedEvidence) !== undefined,
+  );
   const projectedFinancialPosition = financialPosition(input.financialStatements, generatedAt);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
   const completeness = completenessProjection(input.report);

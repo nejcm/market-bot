@@ -2,7 +2,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.capex.annual",
-    "canonicalSha256": "b7662bd4ed45afbeb050b04add7d251d56923ce56b1c7a46e1fe1b170c209c03",
+    "canonicalSha256": "79c64f8401c295e74d8cdf878182cad40740f402d68c10ebbfae08efbe75cf9e",
     "legacySha256": "f27cd8adcc6532af389fbc490b27e7de857c190e9f6579fdb177b55fa7c33b7b",
     "kind": "selection-policy",
     "justification": "MARA canonical capex.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
@@ -10,7 +10,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.dilutedEps.annual",
-    "canonicalSha256": "881871cfff9cf99ce9bbd433282b91f7bd28e4b5fe3c23164297d4c26a3543cd",
+    "canonicalSha256": "bf4bdd929e59ac0633a10669f0569859a2472243ed0628d2f455ddeeacde1aa7",
     "legacySha256": "e28b84c72b9065704cf2f8ffc2345f50da7507f6f719bb3a13d4dbf0caa34b10",
     "kind": "history-property-not-rederivable",
     "justification": "MARA canonical dilutedEps.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -18,7 +18,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.freeCashFlowProxy.annual",
-    "canonicalSha256": "6af58a55d40abf4a58c9ba25303a0f562b94f1d197519a02424003ff50bb5220",
+    "canonicalSha256": "5676f017fc0ccf3530ecd5b4de2fc4ace37df8023f2f468c9a4018cecdc1fdd1",
     "legacySha256": "da2b9c762c12fdfb1d3a371f6d619e3a47fb3a0e1ffa4884deefe2e41755e85e",
     "kind": "history-property-not-rederivable",
     "justification": "MARA canonical freeCashFlowProxy.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -26,7 +26,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.grossMargin.annual",
-    "canonicalSha256": "6113e0d69fa8546193fb244fc0c0036dac5d0ae5f7807eac674faecd23a477af",
+    "canonicalSha256": "364b31f2a545f0a651150f1779e6a46c82b5d1ecdee2025e50e71058d58b69e4",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "selection-policy",
     "justification": "MARA canonical grossMargin.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
@@ -42,7 +42,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.grossProfit.annual",
-    "canonicalSha256": "d4e5219a187372f6f16805a7350afc71d656661cd588ea120541b00acc30a138",
+    "canonicalSha256": "48f1978f7ddc4caaa9dcb7612c8a57f0dcb5baa374967ddaeb38c4769f598834",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "history-property-not-rederivable",
     "justification": "MARA canonical grossProfit.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -50,7 +50,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.netIncome.annual",
-    "canonicalSha256": "37b3cd7abbe9da0468a2a80f943c168645f17f7070ce81c4beac6559cf36fa7c",
+    "canonicalSha256": "a4145d1cff0862c41513544689265cc507f549408c5b6f15d2e24a888376a5ac",
     "legacySha256": "669db3814463a9e5aeb5507b117df3af16c766186a3e08791a1397268d0fe8f1",
     "kind": "history-property-not-rederivable",
     "justification": "MARA canonical netIncome.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -58,7 +58,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.netMargin.annual",
-    "canonicalSha256": "2bbe9e8f6dabab4fe3e911832ae0b841c71266cc4284bcc5d604f9bc7cde6cab",
+    "canonicalSha256": "e700148c5d95c6650ec1360f0993e617fbcf35a6fc1dce1bf8210152de53ffb2",
     "legacySha256": "ea05da9ec07df26da5564453416aa13b7895994cdc8f0288a3d28108b799d7da",
     "kind": "selection-policy",
     "justification": "MARA canonical netMargin.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
@@ -66,7 +66,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.operatingCashFlow.annual",
-    "canonicalSha256": "c4756527f0cef2ac83cb95513dff4ca745ecfd87164535d7c5ebf20bd89bb678",
+    "canonicalSha256": "9b551f821e0b9ce031d430cf2f9e18947d71082c2668dca22a35c6bb09b9181a",
     "legacySha256": "712a0c9b9a262f7ffa352118544539352b9c461ba0d3c9c66bf2107e45284b94",
     "kind": "history-property-not-rederivable",
     "justification": "MARA canonical operatingCashFlow.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -74,7 +74,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.operatingIncome.annual",
-    "canonicalSha256": "950c89350cddf97a74a956e252c9d0100f121abcafea8cff09640d59c0fb08a5",
+    "canonicalSha256": "4aceadbedd9467baeadec53c2930232fd90d4504a4688cef91286b1713719a30",
     "legacySha256": "bcc75681421bf9dc33a544c1326f23b5170f4db89dd1e725da3c0209adfeaf50",
     "kind": "history-property-not-rederivable",
     "justification": "MARA canonical operatingIncome.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -82,7 +82,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.operatingMargin.annual",
-    "canonicalSha256": "b90a806a978bad295c1cda773143359305ddfa240d30f022722f7596ec1f378f",
+    "canonicalSha256": "9bb67c7e61c34f3a3803ac50bd9256f09e93ca72b64c46a258da631bfe639038",
     "legacySha256": "4cfe9e9044831ef5d6afb937a5d053b317940458fdd35ac635588c3e440c3f50",
     "kind": "selection-policy",
     "justification": "MARA canonical operatingMargin.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
@@ -90,7 +90,7 @@
   {
     "fixture": "mara",
     "path": "fundamentalHistory.revenue.annual",
-    "canonicalSha256": "ea83d13865be06f900ced1ee94a14b34e444ad0afe3bd8b76106336ca0cbcee9",
+    "canonicalSha256": "a618831d4ad27a651a5b7d09bfb4300f9cda66e7ace34f6739e7ced3fcc7a4e8",
     "legacySha256": "880091b45ac683d794b4ef3f3c4a5921e17c3f94679a5daf3971fcfae204f7b7",
     "kind": "selection-policy",
     "justification": "MARA canonical revenue.annual follows shared exact-period concept selection and the independently capped duration roster; the legacy field uses its independent concept and annual-history selection."
@@ -162,7 +162,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.capex.annual",
-    "canonicalSha256": "b3ff7ed2c3e0085359d05d29952a3bc291845bdcd378dd3da6885190a7180633",
+    "canonicalSha256": "7b9d2298cc708918e17cedec366314ae31a5d00d7cab658fc405bbe77310900e",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical capex.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -186,7 +186,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.dilutedEps.annual",
-    "canonicalSha256": "ee4e9de73a9d18d7dbcd0aa3808e9b569e1d0f8e708832d039a6862d57c41768",
+    "canonicalSha256": "05fa3d26ffb01c85eb4171ee753daebd2dc766ef47863df32868cd9581ce174a",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "history-property-not-rederivable",
     "justification": "nbis canonical dilutedEps.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -194,7 +194,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.freeCashFlowProxy.annual",
-    "canonicalSha256": "1e3bcdab568c070085cea20f2bff8fad7033a6491f9a69a3960c602954fe32b4",
+    "canonicalSha256": "f2f2da63ccccfb93a244f18f9815e3baa2e89c1cd286b73089ee887a931e5f2d",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "history-property-not-rederivable",
     "justification": "nbis canonical freeCashFlowProxy.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -210,7 +210,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.netIncome.annual",
-    "canonicalSha256": "b73c09b49cf6d6c06839f718e02155d2f4412956c383062a128d7551298b80e9",
+    "canonicalSha256": "ee96f9970fe99485aeb3b72f704a230cc564ebeeb05001c9bf0ab22921338e48",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "history-property-not-rederivable",
     "justification": "nbis canonical netIncome.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -218,7 +218,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.netMargin.annual",
-    "canonicalSha256": "9b315e553864b9b2ccb718280d2869eb8717f4ad800a292aff7fab08986478c3",
+    "canonicalSha256": "fd6109cd39094be1372f92f472796b89c16da5d3d09251076e1dc1d777f67e02",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical netMargin.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -242,7 +242,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingCashFlow.annual",
-    "canonicalSha256": "2f5ebe34a1507671e30fb2ae797e405a11b000ac7cfe13588240eef30e747c53",
+    "canonicalSha256": "4a96d6836a708833769945e42b0f66498c7fd974ddd28b5b02c77759203630e5",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical operatingCashFlow.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -266,7 +266,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingIncome.annual",
-    "canonicalSha256": "62898aa7e8229e4f9f90cfe020b5d6f03c2df21ae8c8197e7bf77a42bd895854",
+    "canonicalSha256": "32a8f5148c2b4c08196f6a21aa2e22b6fb447627667f3aa7cfa886fd1e766758",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "history-property-not-rederivable",
     "justification": "nbis canonical operatingIncome.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms. B9 cannot re-derive this annual difference because both projected cagr and marginChange are null, leaving no summary span or sign property."
@@ -274,7 +274,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.operatingMargin.annual",
-    "canonicalSha256": "4f8f90888543c7387fe36e45f8cb3dd27dfa12b33b6e6910eadafbdc642c1a8c",
+    "canonicalSha256": "e6e83f69c2afd7ce4cf0aa4e2435a2cc73e034474e90587e60606a47398cb2a0",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical operatingMargin.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -298,7 +298,7 @@
   {
     "fixture": "nbis",
     "path": "fundamentalHistory.revenue.annual",
-    "canonicalSha256": "38e866abfe5dc9521b4e1f51840a34d9911e7ae1be024e5c76f054be39e46160",
+    "canonicalSha256": "75174f19ea02632620c33aada00f433babd59c856ee41f36c034d471fafbd304",
     "legacySha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical revenue.annual comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."

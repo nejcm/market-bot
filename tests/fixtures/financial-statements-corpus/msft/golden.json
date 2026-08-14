@@ -3900,6 +3900,1545 @@
           {
             "value": 96571000000,
             "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 110360000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 125843000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 143015000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 168088000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 198270000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 211915000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 245122000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 281724000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 331839000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 14.57372115117812,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "grossProfit": {
+        "concept": "GrossProfit",
+        "annual": [
+          {
+            "value": 62310000000,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 72007000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 82933000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 96937000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 115856000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 135620000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 146052000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 171008000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 193893000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 225465000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 14.245433766525206,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "operatingIncome": {
+        "concept": "OperatingIncomeLoss",
+        "annual": [
+          {
+            "value": 29025000000,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 35058000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 42959000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 52959000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 69916000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 83383000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 88523000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 109433000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 128528000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 155237000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 17.298321184944186,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "netIncome": {
+        "concept": "NetIncomeLoss",
+        "annual": [
+          {
+            "value": 25489000000,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 16571000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 39240000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 44281000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 61271000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 72738000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 72361000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 88136000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 101832000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 133749000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 16.90013321094346,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "dilutedEps": {
+        "concept": "EarningsPerShareDiluted",
+        "annual": [
+          {
+            "value": 3.25,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 2.13,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 5.06,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 5.76,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 8.05,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 9.65,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 9.68,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 11.8,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 13.64,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD/shares"
+          },
+          {
+            "value": 17.95,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD/shares"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 17.398303332313382,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "operatingCashFlow": {
+        "concept": "NetCashProvidedByUsedInOperatingActivities",
+        "annual": [
+          {
+            "value": 39507000000,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 43884000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 52185000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 60675000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 76740000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 89035000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 87582000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 118548000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 136162000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 182935000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 18.97721067336009,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "capex": {
+        "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+        "annual": [
+          {
+            "value": 8129000000,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 11632000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 13925000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 15441000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 20622000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 23886000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 28107000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 44477000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 64551000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 115948000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 41.25503935747625,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "freeCashFlowProxy": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 31378000000,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 32252000000,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 38260000000,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 45234000000,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 56118000000,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 65149000000,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 59475000000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 74071000000,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 71611000000,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 66987000000,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": {
+          "percent": 3.6047001906352794,
+          "years": 4.999418194761015,
+          "periodStart": "2021-06-30",
+          "periodEnd": "2026-06-30"
+        },
+        "marginChange": null
+      },
+      "grossMargin": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 0.6452247569146017,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.652473722363175,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.6590195720063889,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.6778100199279796,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 0.689258007710247,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 0.684016744842891,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.6892008588349102,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.6976444382797138,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.6882374238616519,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.6794409337058032,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": null,
+        "marginChange": {
+          "percentagePoints": 3.421617679120148,
+          "years": 8.999500331971225,
+          "periodStart": "2017-06-30",
+          "periodEnd": "2026-06-30"
+        }
+      },
+      "operatingMargin": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 0.3005560675565128,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3176694454512505,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3413698020549415,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.37030381428521486,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 0.415948788729713,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 0.4205527815604983,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.417728806361041,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.44644299573273716,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.4562195624085985,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.4678081840892722,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": null,
+        "marginChange": {
+          "percentagePoints": 16.72521165327594,
+          "years": 8.999500331971225,
+          "periodStart": "2017-06-30",
+          "periodEnd": "2026-06-30"
+        }
+      },
+      "netMargin": {
+        "concept": null,
+        "annual": [
+          {
+            "value": 0.26394052044609667,
+            "form": "10-K",
+            "fy": 2017,
+            "fp": "FY",
+            "periodStart": "2016-07-01",
+            "periodEnd": "2017-06-30",
+            "periodMonths": 12,
+            "filedAt": "2019-08-01",
+            "currency": "USD"
+          },
+          {
+            "value": 0.1501540413193186,
+            "form": "10-K",
+            "fy": 2018,
+            "fp": "FY",
+            "periodStart": "2017-07-01",
+            "periodEnd": "2018-06-30",
+            "periodMonths": 12,
+            "filedAt": "2020-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3118171054409065,
+            "form": "10-K",
+            "fy": 2019,
+            "fp": "FY",
+            "periodStart": "2018-07-01",
+            "periodEnd": "2019-06-30",
+            "periodMonths": 12,
+            "filedAt": "2021-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3096248645247002,
+            "form": "10-K",
+            "fy": 2020,
+            "fp": "FY",
+            "periodStart": "2019-07-01",
+            "periodEnd": "2020-06-30",
+            "periodMonths": 12,
+            "filedAt": "2022-07-28",
+            "currency": "USD"
+          },
+          {
+            "value": 0.36451739564989766,
+            "form": "10-K",
+            "fy": 2021,
+            "fp": "FY",
+            "periodStart": "2020-07-01",
+            "periodEnd": "2021-06-30",
+            "periodMonths": 12,
+            "filedAt": "2023-07-27",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3668633681343622,
+            "form": "10-K",
+            "fy": 2022,
+            "fp": "FY",
+            "periodStart": "2021-07-01",
+            "periodEnd": "2022-06-30",
+            "periodMonths": 12,
+            "filedAt": "2024-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3414623787839464,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-07-01",
+            "periodEnd": "2023-06-30",
+            "periodMonths": 12,
+            "filedAt": "2025-07-30",
+            "currency": "USD"
+          },
+          {
+            "value": 0.35955972944084985,
+            "form": "10-K",
+            "fy": 2024,
+            "fp": "FY",
+            "periodStart": "2023-07-01",
+            "periodEnd": "2024-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.3614601524896707,
+            "form": "10-K",
+            "fy": 2025,
+            "fp": "FY",
+            "periodStart": "2024-07-01",
+            "periodEnd": "2025-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          },
+          {
+            "value": 0.4030538905915218,
+            "form": "10-K",
+            "fy": 2026,
+            "fp": "FY",
+            "periodStart": "2025-07-01",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12,
+            "filedAt": "2026-07-29",
+            "currency": "USD"
+          }
+        ],
+        "ttm": null,
+        "cagr": null,
+        "marginChange": {
+          "percentagePoints": 13.911337014542513,
+          "years": 8.999500331971225,
+          "periodStart": "2017-06-30",
+          "periodEnd": "2026-06-30"
+        }
+      }
+    },
+    "financialLens": {
+      "Quality": {
+        "posture": "criteria-supported",
+        "metrics": {
+          "grossMargin": {
+            "key": "grossMargin",
+            "label": "Gross margin",
+            "value": 0.6794409337058032,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "operatingMargin": {
+            "key": "operatingMargin",
+            "label": "Operating margin",
+            "value": 0.4678081840892722,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "netMargin": {
+            "key": "netMargin",
+            "label": "Net margin",
+            "value": 0.4030538905915218,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "freeCashFlowProxy": {
+            "key": "freeCashFlowProxy",
+            "label": "FCF proxy",
+            "value": 66987000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "cashConversion": {
+            "key": "cashConversion",
+            "label": "Cash conversion",
+            "value": 1.367748543914347,
+            "unit": "ratio",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "roe": {
+            "key": "roe",
+            "label": "ROE",
+            "value": 0.30233483352811,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "roa": {
+            "key": "roa",
+            "label": "ROA",
+            "value": 0.17636238488559763,
+            "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          }
+        }
+      },
+      "Growth": {
+        "posture": "criteria-supported",
+        "metrics": {
+          "revenueDeltaPercent": {
+            "key": "revenueDeltaPercent",
+            "label": "Revenue YoY",
+            "value": 17.78868679984666,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "grossProfitDeltaPercent": {
+            "key": "grossProfitDeltaPercent",
+            "label": "Gross profit YoY",
+            "value": 16.283207748603612,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "operatingIncomeDeltaPercent": {
+            "key": "operatingIncomeDeltaPercent",
+            "label": "Operating income YoY",
+            "value": 20.780685920577618,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "netIncomeDeltaPercent": {
+            "key": "netIncomeDeltaPercent",
+            "label": "Net income (attrib.) YoY",
+            "value": 31.34279990572708,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "dilutedEpsDeltaPercent": {
+            "key": "dilutedEpsDeltaPercent",
+            "label": "Diluted EPS YoY",
+            "value": 31.5982404692082,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
+          "operatingCashFlowDeltaPercent": {
+            "key": "operatingCashFlowDeltaPercent",
+            "label": "Operating cash flow YoY",
+            "value": 34.35099366930568,
+            "unit": "whole-percent",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          }
+        }
+      },
+      "Financial Strength": {
+        "posture": "criteria-mixed",
+        "metrics": {
+          "cash": {
+            "key": "cash",
+            "label": "Cash",
+            "value": 20935000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30"
+          },
+          "debt": {
+            "key": "debt",
+            "label": "Debt",
+            "value": 40294000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30"
+          },
+          "netDebt": {
+            "key": "netDebt",
+            "label": "Net debt",
+            "value": 19359000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30"
+          },
+          "currentRatio": {
+            "key": "currentRatio",
+            "label": "Current ratio",
+            "value": 1.2303272619576484,
+            "unit": "ratio",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30"
+          },
+          "debtToEquity": {
+            "key": "debtToEquity",
+            "label": "Debt/equity",
+            "value": 0.09108314665666034,
+            "unit": "ratio",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "periodEnd": "2026-06-30"
+          }
+        }
+      },
+      "Value": {
+        "posture": "insufficient-data",
+        "metrics": {}
+      },
+      "Momentum": {
+        "posture": "insufficient-data",
+        "metrics": {}
+      }
+    }
+  },
+  "legacy": {
+    "fundamentalHistory": {
+      "revenue": {
+        "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "annual": [
+          {
+            "value": 96571000000,
+            "form": "10-K",
             "fy": 2019,
             "fp": "FY",
             "periodStart": "2016-07-01",

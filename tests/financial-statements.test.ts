@@ -9,7 +9,7 @@ import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuat
 interface FactInput {
   readonly value: number;
   readonly form: string;
-  readonly fiscalYear: number;
+  readonly fiscalYear?: number;
   readonly fiscalPeriod: string;
   readonly filedAt: string;
   readonly periodEnd: string;
@@ -21,7 +21,7 @@ function fact(input: FactInput): Record<string, unknown> {
   return {
     val: input.value,
     form: input.form,
-    fy: input.fiscalYear,
+    ...(input.fiscalYear !== undefined ? { fy: input.fiscalYear } : {}),
     fp: input.fiscalPeriod,
     filed: input.filedAt,
     end: input.periodEnd,
@@ -449,10 +449,11 @@ describe("canonical financial statements", () => {
     // Bucket-equivalent durations are the same period, so filing recency selects the winner.
     expect(
       artifact.statements.incomeStatement.revenue.annual.map(
-        ({ value, periodStart, periodEnd, accessionNumber }) => ({
+        ({ value, periodStart, periodEnd, fiscalYear, accessionNumber }) => ({
           value,
           periodStart,
           periodEnd,
+          fiscalYear,
           accessionNumber,
         }),
       ),
@@ -461,6 +462,7 @@ describe("canonical financial statements", () => {
         value: 38_892_000_000,
         periodStart: "2017-11-02",
         periodEnd: "2018-10-31",
+        fiscalYear: 2018,
         accessionNumber: "0000947263-20-000001",
       },
     ]);
@@ -475,6 +477,58 @@ describe("canonical financial statements", () => {
         periodKey: "duration:12|2018-10-31",
         message: "1 duplicate/restated fact(s) superseded by 0000947263-20-000001 filed 2020-01-03",
       },
+    ]);
+  });
+
+  test("derives fiscal year when the companyfacts filing frame is omitted", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              fact({
+                value: 100,
+                form: "10-K",
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodStart: "2025-01-01",
+                periodEnd: "2025-12-31",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(artifact.statements.incomeStatement.revenue.annual).toEqual([
+      expect.objectContaining({ periodEnd: "2025-12-31", fiscalYear: 2025 }),
+    ]);
+  });
+
+  test("pins the calendar-year label for a January 31 year end", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              fact({
+                value: 100,
+                form: "10-K",
+                fiscalYear: 2018,
+                fiscalPeriod: "FY",
+                filedAt: "2018-03-01",
+                periodStart: "2017-02-01",
+                periodEnd: "2018-01-31",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    // A Jan-31 retailer conventionally calls this FY2017; current behavior uses 2018.
+    expect(artifact.statements.incomeStatement.revenue.annual).toEqual([
+      expect.objectContaining({ periodEnd: "2018-01-31", fiscalYear: 2018 }),
     ]);
   });
 

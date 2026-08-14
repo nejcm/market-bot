@@ -313,19 +313,6 @@ function parseCanonicalForm(value: string): CanonicalFact["canonicalForm"] | und
   return CANONICAL_SEC_FORMS.find((form) => form === canonical);
 }
 
-function readFiscalYear(value: Readonly<Record<string, unknown>>): number | undefined {
-  const numeric = readNumber(value, "fy");
-  if (numeric !== undefined) {
-    return numeric;
-  }
-  const text = readString(value, "fy");
-  if (text === undefined) {
-    return undefined;
-  }
-  const parsed = Number.parseInt(text, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function parseCanonicalFact(
   value: unknown,
   concept: string,
@@ -339,7 +326,8 @@ function parseCanonicalFact(
   const canonicalForm = formValue === undefined ? undefined : parseCanonicalForm(formValue);
   const filedAt = readString(value, "filed");
   const periodEnd = readString(value, "end");
-  const fiscalYear = readFiscalYear(value);
+  const fiscalYear =
+    periodEnd === undefined ? undefined : Number.parseInt(periodEnd.slice(0, 4), 10);
   const fiscalPeriod = readString(value, "fp");
   if (
     factValue === undefined ||
@@ -348,6 +336,7 @@ function parseCanonicalFact(
     filedAt === undefined ||
     periodEnd === undefined ||
     fiscalYear === undefined ||
+    !Number.isFinite(fiscalYear) ||
     fiscalPeriod === undefined
   ) {
     return undefined;

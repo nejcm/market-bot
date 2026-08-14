@@ -101,19 +101,6 @@ export function canonicalizeSecForm(value: string):
   return { form: value as SupportedSecForm, canonicalForm, amendment };
 }
 
-function readFiscalYear(value: Record<string, unknown>): number | undefined {
-  const numeric = readNumber(value, "fy");
-  if (numeric !== undefined) {
-    return numeric;
-  }
-  const text = readString(value, "fy");
-  if (text === undefined) {
-    return undefined;
-  }
-  const parsed = Number.parseInt(text, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function parseFact(
   value: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -129,16 +116,20 @@ function parseFact(
   const accessionNumber = readString(value, "accn");
   const filedAt = readString(value, "filed");
   const periodEnd = readString(value, "end");
-  const fiscalYear = readFiscalYear(value);
   const fiscalPeriod = readString(value, "fp");
   if (
     numericValue === undefined ||
     form === undefined ||
     filedAt === undefined ||
     periodEnd === undefined ||
-    fiscalYear === undefined ||
     fiscalPeriod === undefined
   ) {
+    return undefined;
+  }
+  // NOTE — ponytail: Calendar-year labels fit calendar filers and BNS-style Oct-31 years.
+  // Jan-31 retailers may call 2018-01-31 FY2017 while this yields 2018; this still beats the arbitrary filing frame.
+  const fiscalYear = Number.parseInt(periodEnd.slice(0, 4), 10);
+  if (!Number.isFinite(fiscalYear)) {
     return undefined;
   }
   const periodStart = readString(value, "start");

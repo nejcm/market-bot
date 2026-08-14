@@ -40,13 +40,33 @@ function sameValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function withoutFiscalYear(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => withoutFiscalYear(item));
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "fy")
+      .map(([key, nested]) => [key, withoutFiscalYear(nested)]),
+  );
+}
+
 function compareField(
   differences: OfflineCorpusDifference[],
   path: string,
   canonical: unknown,
   legacy: unknown,
+  ignoreFiscalYear = false,
 ): void {
-  if (!sameValue(canonical, legacy)) {
+  if (
+    !sameValue(
+      ignoreFiscalYear ? withoutFiscalYear(canonical) : canonical,
+      ignoreFiscalYear ? withoutFiscalYear(legacy) : legacy,
+    )
+  ) {
     differences.push({ path, canonical: canonical ?? null, legacy: legacy ?? null });
   }
 }
@@ -71,6 +91,8 @@ export function compareConsumers(
         `fundamentalHistory.${key}.${field}`,
         current?.[field],
         previous?.[field],
+        // NOTE — ponytail: Only canonical-vs-legacy parity ignores fy: canonical is period-derived while legacy remains filing-framed. Golden locking stays strict.
+        field === "annual" || field === "ttm",
       );
     }
   }

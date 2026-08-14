@@ -2470,7 +2470,7 @@
             "annual": [
               {
                 "value": 1251700000,
-                "periodKey": "2016-01-01|2016-12-31",
+                "periodKey": "duration:12|2016-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2491,7 +2491,7 @@
               },
               {
                 "value": 1632900000,
-                "periodKey": "2017-01-01|2017-12-31",
+                "periodKey": "duration:12|2017-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2512,7 +2512,7 @@
               },
               {
                 "value": 1837600000,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2533,7 +2533,7 @@
               },
               {
                 "value": 2224400000,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -2554,7 +2554,7 @@
               },
               {
                 "value": 2955600000,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2575,7 +2575,7 @@
               },
               {
                 "value": 4794200000,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2596,7 +2596,7 @@
               },
               {
                 "value": 13500000,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2617,7 +2617,7 @@
               },
               {
                 "value": 9800000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2638,7 +2638,7 @@
               },
               {
                 "value": 91500000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2659,7 +2659,7 @@
               },
               {
                 "value": 529800000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2695,7 +2695,7 @@
             "annual": [
               {
                 "value": 211800000,
-                "periodKey": "2016-01-01|2016-12-31",
+                "periodKey": "duration:12|2016-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2716,7 +2716,7 @@
               },
               {
                 "value": 226300000,
-                "periodKey": "2017-01-01|2017-12-31",
+                "periodKey": "duration:12|2017-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2737,7 +2737,7 @@
               },
               {
                 "value": 300300000,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2758,7 +2758,7 @@
               },
               {
                 "value": 313300000,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -2779,7 +2779,7 @@
               },
               {
                 "value": 220000000,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2800,7 +2800,7 @@
               },
               {
                 "value": -178700000,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2821,7 +2821,7 @@
               },
               {
                 "value": -158000000,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2842,7 +2842,7 @@
               },
               {
                 "value": -285700000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2863,7 +2863,7 @@
               },
               {
                 "value": -399600000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2884,7 +2884,7 @@
               },
               {
                 "value": -611700000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2913,7 +2913,7 @@
             "annual": [
               {
                 "value": -197200000,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2934,7 +2934,7 @@
               },
               {
                 "value": 745600000,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2955,7 +2955,7 @@
               },
               {
                 "value": 241300000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2976,7 +2976,7 @@
               },
               {
                 "value": -641400000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -2997,7 +2997,7 @@
               },
               {
                 "value": 82500000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4346,7 +4346,7 @@
             "annual": [
               {
                 "value": 412700000,
-                "periodKey": "2017-01-01|2017-12-31",
+                "periodKey": "duration:12|2017-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4367,7 +4367,7 @@
               },
               {
                 "value": 406100000,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4388,7 +4388,7 @@
               },
               {
                 "value": 562800000,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -4409,7 +4409,7 @@
               },
               {
                 "value": 441300000,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4430,7 +4430,7 @@
               },
               {
                 "value": 125100000,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4451,7 +4451,7 @@
               },
               {
                 "value": 697000000,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4472,7 +4472,7 @@
               },
               {
                 "value": 829800000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4493,7 +4493,7 @@
               },
               {
                 "value": 245600000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4514,7 +4514,7 @@
               },
               {
                 "value": 384800000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4543,7 +4543,7 @@
             "annual": [
               {
                 "value": 158700000,
-                "periodKey": "2016-01-01|2016-12-31",
+                "periodKey": "duration:12|2016-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4564,7 +4564,7 @@
               },
               {
                 "value": 215100000,
-                "periodKey": "2017-01-01|2017-12-31",
+                "periodKey": "duration:12|2017-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4585,7 +4585,7 @@
               },
               {
                 "value": 407700000,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4606,7 +4606,7 @@
               },
               {
                 "value": 260500000,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -4627,7 +4627,7 @@
               },
               {
                 "value": 332300000,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4648,7 +4648,7 @@
               },
               {
                 "value": 600600000,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4669,7 +4669,7 @@
               },
               {
                 "value": 14600000,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4690,7 +4690,7 @@
               },
               {
                 "value": 82900000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4711,7 +4711,7 @@
               },
               {
                 "value": 807500000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4732,7 +4732,7 @@
               },
               {
                 "value": 4066000000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4768,7 +4768,7 @@
             "annual": [
               {
                 "value": 145200000,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4789,7 +4789,7 @@
               },
               {
                 "value": 18000000,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -4810,7 +4810,7 @@
               },
               {
                 "value": 137600000,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4831,7 +4831,7 @@
               },
               {
                 "value": 93800000,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4862,7 +4862,7 @@
             "annual": [
               {
                 "value": 0.34,
-                "periodKey": "2016-01-01|2016-12-31",
+                "periodKey": "duration:12|2016-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4883,7 +4883,7 @@
               },
               {
                 "value": 0.46,
-                "periodKey": "2017-01-01|2017-12-31",
+                "periodKey": "duration:12|2017-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4904,7 +4904,7 @@
               },
               {
                 "value": 2.04,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4925,7 +4925,7 @@
               },
               {
                 "value": 0.48,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -4946,7 +4946,7 @@
               },
               {
                 "value": 0.98,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4967,7 +4967,7 @@
               },
               {
                 "value": -0.54,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -4988,7 +4988,7 @@
               },
               {
                 "value": 1.59,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5009,7 +5009,7 @@
               },
               {
                 "value": 0.65,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5030,7 +5030,7 @@
               },
               {
                 "value": -2.28,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5051,7 +5051,7 @@
               },
               {
                 "value": 0.33,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5080,7 +5080,7 @@
             "annual": [
               {
                 "value": 326136949,
-                "periodKey": "2016-01-01|2016-12-31",
+                "periodKey": "duration:12|2016-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5101,7 +5101,7 @@
               },
               {
                 "value": 331243961,
-                "periodKey": "2017-01-01|2017-12-31",
+                "periodKey": "duration:12|2017-12-31",
                 "periodType": "annual",
                 "form": "20-F/A",
                 "canonicalForm": "20-F",
@@ -5122,7 +5122,7 @@
               },
               {
                 "value": 335162062,
-                "periodKey": "2018-01-01|2018-12-31",
+                "periodKey": "duration:12|2018-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5143,7 +5143,7 @@
               },
               {
                 "value": 335428137,
-                "periodKey": "2019-01-01|2019-12-31",
+                "periodKey": "duration:12|2019-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5164,7 +5164,7 @@
               },
               {
                 "value": 353382841,
-                "periodKey": "2020-01-01|2020-12-31",
+                "periodKey": "duration:12|2020-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5185,7 +5185,7 @@
               },
               {
                 "value": 362386669,
-                "periodKey": "2021-01-01|2021-12-31",
+                "periodKey": "duration:12|2021-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5206,7 +5206,7 @@
               },
               {
                 "value": 368020254,
-                "periodKey": "2022-01-01|2022-12-31",
+                "periodKey": "duration:12|2022-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5227,7 +5227,7 @@
               },
               {
                 "value": 370839686,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5248,7 +5248,7 @@
               },
               {
                 "value": 281005226,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5269,7 +5269,7 @@
               },
               {
                 "value": 247679946,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -5297,19 +5297,19 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "revenue",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "revenue",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "revenue",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
@@ -5320,19 +5320,19 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "operatingIncome",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "operatingIncome",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "operatingIncome",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
@@ -5343,19 +5343,19 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "netIncome",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "netIncome",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "netIncome",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
@@ -5510,19 +5510,19 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "operatingCashFlow",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "operatingCashFlow",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "operatingCashFlow",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
@@ -5533,19 +5533,19 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "capitalExpenditure",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "capitalExpenditure",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "capitalExpenditure",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
@@ -5561,19 +5561,19 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedEps",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedEps",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedEps",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
@@ -5584,122 +5584,122 @@
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2010-01-01|2010-12-31",
+          "periodKey": "duration:12|2010-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001047469-13-004131 filed 2013-04-09"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2011-01-01|2011-12-31",
+          "periodKey": "duration:12|2011-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001047469-14-003438 filed 2014-04-04"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2012-01-01|2012-12-31",
+          "periodKey": "duration:12|2012-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001047469-15-004230 filed 2015-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2013-01-01|2013-12-31",
+          "periodKey": "duration:12|2013-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001047469-16-011404 filed 2016-03-22"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2014-01-01|2014-12-31",
+          "periodKey": "duration:12|2014-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001513845-17-000004 filed 2017-03-22"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2015-01-01|2015-12-31",
+          "periodKey": "duration:12|2015-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001513845-18-000013 filed 2018-03-27"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2016-01-01|2016-12-31",
+          "periodKey": "duration:12|2016-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001513845-19-000009 filed 2019-04-19"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2017-01-01|2017-12-31",
+          "periodKey": "duration:12|2017-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001558370-20-003563 filed 2020-04-02"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2018-01-01|2018-12-31",
+          "periodKey": "duration:12|2018-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001513845-21-000014 filed 2021-04-01"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2019-01-01|2019-12-31",
+          "periodKey": "duration:12|2019-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001558370-22-005654 filed 2022-04-20"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2020-01-01|2020-12-31",
+          "periodKey": "duration:12|2020-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001558370-23-006319 filed 2023-04-20"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2021-01-01|2021-12-31",
+          "periodKey": "duration:12|2021-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001558370-24-005891 filed 2024-04-26"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2022-01-01|2022-12-31",
+          "periodKey": "duration:12|2022-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001558370-25-005991 filed 2025-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "message": "2 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "duplicate-superseded",
           "seriesKey": "dilutedShares",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2016-01-01|2016-12-31",
-          "message": "incomeStatement annual period 2016-01-01|2016-12-31 is missing netIncome"
+          "periodKey": "annual|duration:12|2016-12-31",
+          "message": "incomeStatement annual period duration:12|2016-12-31 is missing netIncome"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2016-01-01|2016-12-31",
-          "message": "cashFlowStatement annual period 2016-01-01|2016-12-31 is missing operatingCashFlow"
+          "periodKey": "annual|duration:12|2016-12-31",
+          "message": "cashFlowStatement annual period duration:12|2016-12-31 is missing operatingCashFlow"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2017-01-01|2017-12-31",
-          "message": "incomeStatement annual period 2017-01-01|2017-12-31 is missing netIncome"
+          "periodKey": "annual|duration:12|2017-12-31",
+          "message": "incomeStatement annual period duration:12|2017-12-31 is missing netIncome"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2018-01-01|2018-12-31",
-          "message": "incomeStatement annual period 2018-01-01|2018-12-31 is missing netIncome"
+          "periodKey": "annual|duration:12|2018-12-31",
+          "message": "incomeStatement annual period duration:12|2018-12-31 is missing netIncome"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2019-01-01|2019-12-31",
-          "message": "incomeStatement annual period 2019-01-01|2019-12-31 is missing netIncome"
+          "periodKey": "annual|duration:12|2019-12-31",
+          "message": "incomeStatement annual period duration:12|2019-12-31 is missing netIncome"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2020-01-01|2020-12-31",
-          "message": "incomeStatement annual period 2020-01-01|2020-12-31 is missing netIncome"
+          "periodKey": "annual|duration:12|2020-12-31",
+          "message": "incomeStatement annual period duration:12|2020-12-31 is missing netIncome"
         }
       ],
       "omissionNotes": [
@@ -5775,38 +5775,38 @@
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2009-01-01|2009-12-31",
-          "message": "Older annual duration canonical period 2009-01-01|2009-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2009-12-31",
+          "message": "Older annual duration canonical period duration:12|2009-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2010-01-01|2010-12-31",
-          "message": "Older annual duration canonical period 2010-01-01|2010-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2010-12-31",
+          "message": "Older annual duration canonical period duration:12|2010-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2011-01-01|2011-12-31",
-          "message": "Older annual duration canonical period 2011-01-01|2011-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2011-12-31",
+          "message": "Older annual duration canonical period duration:12|2011-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2012-01-01|2012-12-31",
-          "message": "Older annual duration canonical period 2012-01-01|2012-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2012-12-31",
+          "message": "Older annual duration canonical period duration:12|2012-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2013-01-01|2013-12-31",
-          "message": "Older annual duration canonical period 2013-01-01|2013-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2013-12-31",
+          "message": "Older annual duration canonical period duration:12|2013-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2014-01-01|2014-12-31",
-          "message": "Older annual duration canonical period 2014-01-01|2014-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2014-12-31",
+          "message": "Older annual duration canonical period duration:12|2014-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",
-          "periodKey": "annual|2015-01-01|2015-12-31",
-          "message": "Older annual duration canonical period 2015-01-01|2015-12-31 omitted by the 10-period annual duration cap"
+          "periodKey": "annual|duration:12|2015-12-31",
+          "message": "Older annual duration canonical period duration:12|2015-12-31 omitted by the 10-period annual duration cap"
         },
         {
           "code": "history-cap",

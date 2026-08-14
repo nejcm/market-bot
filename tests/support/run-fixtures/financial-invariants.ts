@@ -162,10 +162,14 @@ function assertPeriodStructure(series: FinancialStatementSeries): void {
     const periodKeys = new Set<string>();
     for (let index = 0; index < facts.length; index += 1) {
       const fact = facts[index]!;
-      const expectedPeriodKey =
-        fact.periodStart === undefined
-          ? `instant|${fact.periodEnd}`
-          : `${fact.periodStart}|${fact.periodEnd}`;
+      const durationBucket = financialStatementPeriodMonths(fact);
+      let expectedPeriodKey = `instant|${fact.periodEnd}`;
+      if (fact.periodStart !== undefined) {
+        expectedPeriodKey =
+          durationBucket === undefined
+            ? `${fact.periodStart}|${fact.periodEnd}`
+            : `duration:${String(durationBucket)}|${fact.periodEnd}`;
+      }
       invariant(
         fact.periodKey === expectedPeriodKey,
         "A2",
@@ -188,7 +192,8 @@ function assertPeriodStructure(series: FinancialStatementSeries): void {
       invariant(
         prior === undefined ||
           prior.periodEnd < fact.periodEnd ||
-          (prior.periodEnd === fact.periodEnd && prior.periodKey < fact.periodKey),
+          (prior.periodEnd === fact.periodEnd &&
+            (prior.periodStart ?? "") < (fact.periodStart ?? "")),
         "A3",
         `${series.key} ${periodType} is not strictly increasing by period identity`,
       );

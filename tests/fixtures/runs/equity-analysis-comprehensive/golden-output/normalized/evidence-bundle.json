@@ -1528,7 +1528,7 @@
             "annual": [
               {
                 "value": 383000000000,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1549,7 +1549,7 @@
               },
               {
                 "value": 391000000000,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1570,7 +1570,7 @@
               },
               {
                 "value": 405000000000,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1593,7 +1593,7 @@
             "interim": [
               {
                 "value": 189000000000,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -1614,7 +1614,7 @@
               },
               {
                 "value": 210000000000,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -1647,7 +1647,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 405000000000,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -1668,7 +1668,7 @@
                 },
                 "latestYearToDate": {
                   "value": 210000000000,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -1689,7 +1689,7 @@
                 },
                 "priorYearToDate": {
                   "value": 189000000000,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -1718,7 +1718,7 @@
             "annual": [
               {
                 "value": 170000000000,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1739,7 +1739,7 @@
               },
               {
                 "value": 180000000000,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1760,7 +1760,7 @@
               },
               {
                 "value": 190000000000,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1783,7 +1783,7 @@
             "interim": [
               {
                 "value": 88000000000,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -1804,7 +1804,7 @@
               },
               {
                 "value": 100000000000,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -1837,7 +1837,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 190000000000,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -1858,7 +1858,7 @@
                 },
                 "latestYearToDate": {
                   "value": 100000000000,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -1879,7 +1879,7 @@
                 },
                 "priorYearToDate": {
                   "value": 88000000000,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -1908,7 +1908,7 @@
             "annual": [
               {
                 "value": 115000000000,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1929,7 +1929,7 @@
               },
               {
                 "value": 123000000000,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1950,7 +1950,7 @@
               },
               {
                 "value": 130000000000,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -1973,7 +1973,7 @@
             "interim": [
               {
                 "value": 60000000000,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -1994,7 +1994,7 @@
               },
               {
                 "value": 70000000000,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2027,7 +2027,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 130000000000,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -2048,7 +2048,7 @@
                 },
                 "latestYearToDate": {
                   "value": 70000000000,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2069,7 +2069,7 @@
                 },
                 "priorYearToDate": {
                   "value": 60000000000,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2098,7 +2098,7 @@
             "annual": [
               {
                 "value": 97000000000,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2119,7 +2119,7 @@
               },
               {
                 "value": 102000000000,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2140,7 +2140,7 @@
               },
               {
                 "value": 108000000000,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2163,7 +2163,7 @@
             "interim": [
               {
                 "value": 50000000000,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2184,7 +2184,7 @@
               },
               {
                 "value": 58000000000,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2217,7 +2217,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 108000000000,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -2238,7 +2238,7 @@
                 },
                 "latestYearToDate": {
                   "value": 58000000000,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2259,7 +2259,7 @@
                 },
                 "priorYearToDate": {
                   "value": 50000000000,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2383,7 +2383,7 @@
             "annual": [
               {
                 "value": 110000000000,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2404,7 +2404,7 @@
               },
               {
                 "value": 118000000000,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2425,7 +2425,7 @@
               },
               {
                 "value": 125000000000,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2448,7 +2448,7 @@
             "interim": [
               {
                 "value": 58000000000,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2469,7 +2469,7 @@
               },
               {
                 "value": 65000000000,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2502,7 +2502,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 125000000000,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -2523,7 +2523,7 @@
                 },
                 "latestYearToDate": {
                   "value": 65000000000,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2544,7 +2544,7 @@
                 },
                 "priorYearToDate": {
                   "value": 58000000000,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2573,7 +2573,7 @@
             "annual": [
               {
                 "value": 11000000000,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2594,7 +2594,7 @@
               },
               {
                 "value": 12000000000,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2615,7 +2615,7 @@
               },
               {
                 "value": 13000000000,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2638,7 +2638,7 @@
             "interim": [
               {
                 "value": 6000000000,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2659,7 +2659,7 @@
               },
               {
                 "value": 7000000000,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2692,7 +2692,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 13000000000,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -2713,7 +2713,7 @@
                 },
                 "latestYearToDate": {
                   "value": 7000000000,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2734,7 +2734,7 @@
                 },
                 "priorYearToDate": {
                   "value": 6000000000,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2779,7 +2779,7 @@
             "annual": [
               {
                 "value": 6.13,
-                "periodKey": "2022-10-01|2023-09-30",
+                "periodKey": "duration:12|2023-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2800,7 +2800,7 @@
               },
               {
                 "value": 6.5,
-                "periodKey": "2023-10-01|2024-09-30",
+                "periodKey": "duration:12|2024-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2821,7 +2821,7 @@
               },
               {
                 "value": 7,
-                "periodKey": "2024-10-01|2025-09-30",
+                "periodKey": "duration:12|2025-09-30",
                 "periodType": "annual",
                 "form": "10-K",
                 "canonicalForm": "10-K",
@@ -2844,7 +2844,7 @@
             "interim": [
               {
                 "value": 3.2,
-                "periodKey": "2024-10-01|2025-03-31",
+                "periodKey": "duration:6|2025-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2865,7 +2865,7 @@
               },
               {
                 "value": 3.8,
-                "periodKey": "2025-10-01|2026-03-31",
+                "periodKey": "duration:6|2026-03-31",
                 "periodType": "interim",
                 "form": "10-Q",
                 "canonicalForm": "10-Q",
@@ -2898,7 +2898,7 @@
               "components": {
                 "fiscalYear": {
                   "value": 7,
-                  "periodKey": "2024-10-01|2025-09-30",
+                  "periodKey": "duration:12|2025-09-30",
                   "periodType": "annual",
                   "form": "10-K",
                   "canonicalForm": "10-K",
@@ -2919,7 +2919,7 @@
                 },
                 "latestYearToDate": {
                   "value": 3.8,
-                  "periodKey": "2025-10-01|2026-03-31",
+                  "periodKey": "duration:6|2026-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2940,7 +2940,7 @@
                 },
                 "priorYearToDate": {
                   "value": 3.2,
-                  "periodKey": "2024-10-01|2025-03-31",
+                  "periodKey": "duration:6|2025-03-31",
                   "periodType": "interim",
                   "form": "10-Q",
                   "canonicalForm": "10-Q",
@@ -2974,28 +2974,28 @@
       "validationNotes": [
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2022-10-01|2023-09-30",
-          "message": "balanceSheet annual period 2022-10-01|2023-09-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+          "periodKey": "annual|duration:12|2023-09-30",
+          "message": "balanceSheet annual period duration:12|2023-09-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2023-10-01|2024-09-30",
-          "message": "balanceSheet annual period 2023-10-01|2024-09-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+          "periodKey": "annual|duration:12|2024-09-30",
+          "message": "balanceSheet annual period duration:12|2024-09-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "annual|2024-10-01|2025-09-30",
-          "message": "balanceSheet annual period 2024-10-01|2025-09-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+          "periodKey": "annual|duration:12|2025-09-30",
+          "message": "balanceSheet annual period duration:12|2025-09-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "interim|2024-10-01|2025-03-31",
-          "message": "balanceSheet interim period 2024-10-01|2025-03-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+          "periodKey": "interim|duration:6|2025-03-31",
+          "message": "balanceSheet interim period duration:6|2025-03-31 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "interim|2025-10-01|2026-03-31",
-          "message": "balanceSheet interim period 2025-10-01|2026-03-31 is missing totalAssets, totalLiabilities, stockholdersEquity"
+          "periodKey": "interim|duration:6|2026-03-31",
+          "message": "balanceSheet interim period duration:6|2026-03-31 is missing totalAssets, totalLiabilities, stockholdersEquity"
         }
       ],
       "omissionNotes": [

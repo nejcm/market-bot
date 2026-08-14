@@ -471,6 +471,49 @@ describe("financial statement selection", () => {
     expect(selected?.value).toBe(2);
   });
 
+  test("treats bucket-equivalent durations as ties before filing precedence", () => {
+    const selected = latestFinancialStatementFact([
+      fact({ value: 1, filedAt: "2025-02-01", periodStart: "2024-01-01" }),
+      fact({ value: 2, filedAt: "2025-03-01", periodStart: "2024-01-02" }),
+    ]);
+
+    expect(selected?.value).toBe(2);
+  });
+
+  test("prefers the fuller bucket-equivalent period within the same filing", () => {
+    const fuller = fact({
+      value: 1000,
+      periodStart: "2024-01-01",
+      filedAt: "2025-02-01",
+      accessionNumber: "same-filing",
+    });
+    const shorter = fact({
+      value: 940,
+      periodStart: "2024-01-15",
+      filedAt: "2025-02-01",
+      accessionNumber: "same-filing",
+    });
+
+    expect(latestFinancialStatementFact([fuller, shorter])).toBe(fuller);
+  });
+
+  test("prefers the fuller bucket-equivalent period regardless of input order", () => {
+    const fuller = fact({
+      value: 1000,
+      periodStart: "2024-01-01",
+      filedAt: "2025-02-01",
+      accessionNumber: "same-filing",
+    });
+    const shorter = fact({
+      value: 940,
+      periodStart: "2024-01-15",
+      filedAt: "2025-02-01",
+      accessionNumber: "same-filing",
+    });
+
+    expect(latestFinancialStatementFact([shorter, fuller])).toBe(fuller);
+  });
+
   test("prefers the longer annual duration when annual and interim facts share an end", () => {
     const annual = fact({ value: 12 });
     const interim = fact({

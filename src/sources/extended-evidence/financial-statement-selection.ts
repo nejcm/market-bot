@@ -69,10 +69,20 @@ export function compareFinancialStatementFacts(
   left: FinancialStatementSelectionFact,
   right: FinancialStatementSelectionFact,
 ): number {
+  const leftDurationBucket = financialStatementPeriodMonths(left);
+  const rightDurationBucket = financialStatementPeriodMonths(right);
+  const durationOrder =
+    financialStatementDurationDays(right) - financialStatementDurationDays(left);
+  // Bucket-equivalent duration drift is filing noise until filing recency is also tied.
+  const bucketDurationOrder =
+    leftDurationBucket !== undefined && leftDurationBucket === rightDurationBucket
+      ? 0
+      : durationOrder;
   return (
     right.periodEnd.localeCompare(left.periodEnd) ||
-    financialStatementDurationDays(right) - financialStatementDurationDays(left) ||
+    bucketDurationOrder ||
     right.filedAt.localeCompare(left.filedAt) ||
+    durationOrder ||
     Number(right.amendment) - Number(left.amendment) ||
     (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
   );
@@ -430,7 +440,9 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
       const periodKeys = [...periodFacts.entries()]
         .toSorted(
           (left, right) =>
-            left[1].periodEnd.localeCompare(right[1].periodEnd) || left[0].localeCompare(right[0]),
+            left[1].periodEnd.localeCompare(right[1].periodEnd) ||
+            (left[1].periodStart ?? "").localeCompare(right[1].periodStart ?? "") ||
+            left[0].localeCompare(right[0]),
         )
         .map(([key]) => key);
       const omitted = periodKeys.slice(0, -limits[period]);

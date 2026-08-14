@@ -10,7 +10,7 @@
       "selectedConcept": "Revenue",
       "selectedFact": {
         "concept": "Revenue",
-        "periodKey": "2025-01-01|2025-12-31",
+        "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
@@ -23,7 +23,7 @@
       "annual": [
         {
           "concept": "Revenue",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
@@ -35,7 +35,7 @@
         },
         {
           "concept": "Revenue",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
@@ -47,7 +47,7 @@
         },
         {
           "concept": "Revenue",
-          "periodKey": "2025-01-01|2025-12-31",
+          "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
@@ -61,7 +61,7 @@
       "interim": [
         {
           "concept": "Revenue",
-          "periodKey": "2025-01-01|2025-06-30",
+          "periodKey": "duration:6|2025-06-30",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-06-30",
           "form": "6-K",
@@ -78,7 +78,7 @@
       "selectedConcept": "GrossProfit",
       "selectedFact": {
         "concept": "GrossProfit",
-        "periodKey": "2025-01-01|2025-12-31",
+        "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
@@ -91,7 +91,7 @@
       "annual": [
         {
           "concept": "GrossProfit",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
@@ -103,7 +103,7 @@
         },
         {
           "concept": "GrossProfit",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
@@ -115,7 +115,7 @@
         },
         {
           "concept": "GrossProfit",
-          "periodKey": "2025-01-01|2025-12-31",
+          "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
@@ -129,7 +129,7 @@
       "interim": [
         {
           "concept": "GrossProfit",
-          "periodKey": "2025-01-01|2025-06-30",
+          "periodKey": "duration:6|2025-06-30",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-06-30",
           "form": "6-K",
@@ -146,7 +146,7 @@
       "selectedConcept": "ProfitLossFromOperatingActivities",
       "selectedFact": {
         "concept": "ProfitLossFromOperatingActivities",
-        "periodKey": "2025-01-01|2025-12-31",
+        "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
@@ -159,7 +159,7 @@
       "annual": [
         {
           "concept": "ProfitLossFromOperatingActivities",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
@@ -171,7 +171,7 @@
         },
         {
           "concept": "ProfitLossFromOperatingActivities",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
@@ -183,7 +183,7 @@
         },
         {
           "concept": "ProfitLossFromOperatingActivities",
-          "periodKey": "2025-01-01|2025-12-31",
+          "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
@@ -197,7 +197,7 @@
       "interim": [
         {
           "concept": "ProfitLossFromOperatingActivities",
-          "periodKey": "2025-01-01|2025-06-30",
+          "periodKey": "duration:6|2025-06-30",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-06-30",
           "form": "6-K",
@@ -214,7 +214,7 @@
       "selectedConcept": "ProfitLoss",
       "selectedFact": {
         "concept": "ProfitLoss",
-        "periodKey": "2025-01-01|2025-12-31",
+        "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
@@ -227,7 +227,7 @@
       "annual": [
         {
           "concept": "ProfitLoss",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
@@ -239,7 +239,7 @@
         },
         {
           "concept": "ProfitLoss",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
@@ -251,7 +251,7 @@
         },
         {
           "concept": "ProfitLoss",
-          "periodKey": "2025-01-01|2025-12-31",
+          "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
@@ -265,7 +265,7 @@
       "interim": [
         {
           "concept": "ProfitLoss",
-          "periodKey": "2025-01-01|2025-06-30",
+          "periodKey": "duration:6|2025-06-30",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-06-30",
           "form": "6-K",
@@ -551,7 +551,7 @@
       "selectedConcept": "CashFlowsFromUsedInOperatingActivities",
       "selectedFact": {
         "concept": "CashFlowsFromUsedInOperatingActivities",
-        "periodKey": "2025-01-01|2025-12-31",
+        "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
@@ -564,7 +564,7 @@
       "annual": [
         {
           "concept": "CashFlowsFromUsedInOperatingActivities",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
@@ -576,7 +576,7 @@
         },
         {
           "concept": "CashFlowsFromUsedInOperatingActivities",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
@@ -588,7 +588,7 @@
         },
         {
           "concept": "CashFlowsFromUsedInOperatingActivities",
-          "periodKey": "2025-01-01|2025-12-31",
+          "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
@@ -602,7 +602,7 @@
       "interim": [
         {
           "concept": "CashFlowsFromUsedInOperatingActivities",
-          "periodKey": "2025-01-01|2025-06-30",
+          "periodKey": "duration:6|2025-06-30",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-06-30",
           "form": "6-K",
@@ -640,7 +640,7 @@
       "selectedConcept": "DilutedEarningsLossPerShare",
       "selectedFact": {
         "concept": "DilutedEarningsLossPerShare",
-        "periodKey": "2025-01-01|2025-12-31",
+        "periodKey": "duration:12|2025-12-31",
         "periodStart": "2025-01-01",
         "periodEnd": "2025-12-31",
         "form": "20-F",
@@ -653,7 +653,7 @@
       "annual": [
         {
           "concept": "DilutedEarningsLossPerShare",
-          "periodKey": "2023-01-01|2023-12-31",
+          "periodKey": "duration:12|2023-12-31",
           "periodStart": "2023-01-01",
           "periodEnd": "2023-12-31",
           "form": "20-F",
@@ -665,7 +665,7 @@
         },
         {
           "concept": "DilutedEarningsLossPerShare",
-          "periodKey": "2024-01-01|2024-12-31",
+          "periodKey": "duration:12|2024-12-31",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
           "form": "20-F",
@@ -677,7 +677,7 @@
         },
         {
           "concept": "DilutedEarningsLossPerShare",
-          "periodKey": "2025-01-01|2025-12-31",
+          "periodKey": "duration:12|2025-12-31",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",
           "form": "20-F",
@@ -691,7 +691,7 @@
       "interim": [
         {
           "concept": "DilutedEarningsLossPerShare",
-          "periodKey": "2025-01-01|2025-06-30",
+          "periodKey": "duration:6|2025-06-30",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-06-30",
           "form": "6-K",

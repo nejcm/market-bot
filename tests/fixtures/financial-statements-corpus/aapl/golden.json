@@ -10,7 +10,7 @@
       "selectedConcept": "Revenues",
       "selectedFact": {
         "concept": "Revenues",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -23,7 +23,7 @@
       "annual": [
         {
           "concept": "Revenues",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -35,7 +35,7 @@
         },
         {
           "concept": "Revenues",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -47,7 +47,7 @@
         },
         {
           "concept": "Revenues",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -61,7 +61,7 @@
       "interim": [
         {
           "concept": "Revenues",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -73,7 +73,7 @@
         },
         {
           "concept": "Revenues",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -93,7 +93,7 @@
         "components": {
           "fiscalYear": {
             "concept": "Revenues",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -105,7 +105,7 @@
           },
           "latestYearToDate": {
             "concept": "Revenues",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -117,7 +117,7 @@
           },
           "priorYearToDate": {
             "concept": "Revenues",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",
@@ -134,7 +134,7 @@
       "selectedConcept": "GrossProfit",
       "selectedFact": {
         "concept": "GrossProfit",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -147,7 +147,7 @@
       "annual": [
         {
           "concept": "GrossProfit",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -159,7 +159,7 @@
         },
         {
           "concept": "GrossProfit",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -171,7 +171,7 @@
         },
         {
           "concept": "GrossProfit",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -185,7 +185,7 @@
       "interim": [
         {
           "concept": "GrossProfit",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -197,7 +197,7 @@
         },
         {
           "concept": "GrossProfit",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -217,7 +217,7 @@
         "components": {
           "fiscalYear": {
             "concept": "GrossProfit",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -229,7 +229,7 @@
           },
           "latestYearToDate": {
             "concept": "GrossProfit",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -241,7 +241,7 @@
           },
           "priorYearToDate": {
             "concept": "GrossProfit",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",
@@ -258,7 +258,7 @@
       "selectedConcept": "OperatingIncomeLoss",
       "selectedFact": {
         "concept": "OperatingIncomeLoss",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -271,7 +271,7 @@
       "annual": [
         {
           "concept": "OperatingIncomeLoss",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -283,7 +283,7 @@
         },
         {
           "concept": "OperatingIncomeLoss",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -295,7 +295,7 @@
         },
         {
           "concept": "OperatingIncomeLoss",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -309,7 +309,7 @@
       "interim": [
         {
           "concept": "OperatingIncomeLoss",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -321,7 +321,7 @@
         },
         {
           "concept": "OperatingIncomeLoss",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -341,7 +341,7 @@
         "components": {
           "fiscalYear": {
             "concept": "OperatingIncomeLoss",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -353,7 +353,7 @@
           },
           "latestYearToDate": {
             "concept": "OperatingIncomeLoss",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -365,7 +365,7 @@
           },
           "priorYearToDate": {
             "concept": "OperatingIncomeLoss",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",
@@ -382,7 +382,7 @@
       "selectedConcept": "NetIncomeLoss",
       "selectedFact": {
         "concept": "NetIncomeLoss",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -395,7 +395,7 @@
       "annual": [
         {
           "concept": "NetIncomeLoss",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -407,7 +407,7 @@
         },
         {
           "concept": "NetIncomeLoss",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -419,7 +419,7 @@
         },
         {
           "concept": "NetIncomeLoss",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -433,7 +433,7 @@
       "interim": [
         {
           "concept": "NetIncomeLoss",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -445,7 +445,7 @@
         },
         {
           "concept": "NetIncomeLoss",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -465,7 +465,7 @@
         "components": {
           "fiscalYear": {
             "concept": "NetIncomeLoss",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -477,7 +477,7 @@
           },
           "latestYearToDate": {
             "concept": "NetIncomeLoss",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -489,7 +489,7 @@
           },
           "priorYearToDate": {
             "concept": "NetIncomeLoss",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",
@@ -599,7 +599,7 @@
       "selectedConcept": "NetCashProvidedByUsedInOperatingActivities",
       "selectedFact": {
         "concept": "NetCashProvidedByUsedInOperatingActivities",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -612,7 +612,7 @@
       "annual": [
         {
           "concept": "NetCashProvidedByUsedInOperatingActivities",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -624,7 +624,7 @@
         },
         {
           "concept": "NetCashProvidedByUsedInOperatingActivities",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -636,7 +636,7 @@
         },
         {
           "concept": "NetCashProvidedByUsedInOperatingActivities",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -650,7 +650,7 @@
       "interim": [
         {
           "concept": "NetCashProvidedByUsedInOperatingActivities",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -662,7 +662,7 @@
         },
         {
           "concept": "NetCashProvidedByUsedInOperatingActivities",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -682,7 +682,7 @@
         "components": {
           "fiscalYear": {
             "concept": "NetCashProvidedByUsedInOperatingActivities",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -694,7 +694,7 @@
           },
           "latestYearToDate": {
             "concept": "NetCashProvidedByUsedInOperatingActivities",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -706,7 +706,7 @@
           },
           "priorYearToDate": {
             "concept": "NetCashProvidedByUsedInOperatingActivities",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",
@@ -723,7 +723,7 @@
       "selectedConcept": "PaymentsToAcquirePropertyPlantAndEquipment",
       "selectedFact": {
         "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -736,7 +736,7 @@
       "annual": [
         {
           "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -748,7 +748,7 @@
         },
         {
           "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -760,7 +760,7 @@
         },
         {
           "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -774,7 +774,7 @@
       "interim": [
         {
           "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -786,7 +786,7 @@
         },
         {
           "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -806,7 +806,7 @@
         "components": {
           "fiscalYear": {
             "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -818,7 +818,7 @@
           },
           "latestYearToDate": {
             "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -830,7 +830,7 @@
           },
           "priorYearToDate": {
             "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",
@@ -861,7 +861,7 @@
       "selectedConcept": "EarningsPerShareDiluted",
       "selectedFact": {
         "concept": "EarningsPerShareDiluted",
-        "periodKey": "2025-10-01|2026-03-31",
+        "periodKey": "duration:6|2026-03-31",
         "periodStart": "2025-10-01",
         "periodEnd": "2026-03-31",
         "form": "10-Q",
@@ -874,7 +874,7 @@
       "annual": [
         {
           "concept": "EarningsPerShareDiluted",
-          "periodKey": "2022-10-01|2023-09-30",
+          "periodKey": "duration:12|2023-09-30",
           "periodStart": "2022-10-01",
           "periodEnd": "2023-09-30",
           "form": "10-K",
@@ -886,7 +886,7 @@
         },
         {
           "concept": "EarningsPerShareDiluted",
-          "periodKey": "2023-10-01|2024-09-30",
+          "periodKey": "duration:12|2024-09-30",
           "periodStart": "2023-10-01",
           "periodEnd": "2024-09-30",
           "form": "10-K",
@@ -898,7 +898,7 @@
         },
         {
           "concept": "EarningsPerShareDiluted",
-          "periodKey": "2024-10-01|2025-09-30",
+          "periodKey": "duration:12|2025-09-30",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-09-30",
           "form": "10-K",
@@ -912,7 +912,7 @@
       "interim": [
         {
           "concept": "EarningsPerShareDiluted",
-          "periodKey": "2024-10-01|2025-03-31",
+          "periodKey": "duration:6|2025-03-31",
           "periodStart": "2024-10-01",
           "periodEnd": "2025-03-31",
           "form": "10-Q",
@@ -924,7 +924,7 @@
         },
         {
           "concept": "EarningsPerShareDiluted",
-          "periodKey": "2025-10-01|2026-03-31",
+          "periodKey": "duration:6|2026-03-31",
           "periodStart": "2025-10-01",
           "periodEnd": "2026-03-31",
           "form": "10-Q",
@@ -944,7 +944,7 @@
         "components": {
           "fiscalYear": {
             "concept": "EarningsPerShareDiluted",
-            "periodKey": "2024-10-01|2025-09-30",
+            "periodKey": "duration:12|2025-09-30",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-09-30",
             "form": "10-K",
@@ -956,7 +956,7 @@
           },
           "latestYearToDate": {
             "concept": "EarningsPerShareDiluted",
-            "periodKey": "2025-10-01|2026-03-31",
+            "periodKey": "duration:6|2026-03-31",
             "periodStart": "2025-10-01",
             "periodEnd": "2026-03-31",
             "form": "10-Q",
@@ -968,7 +968,7 @@
           },
           "priorYearToDate": {
             "concept": "EarningsPerShareDiluted",
-            "periodKey": "2024-10-01|2025-03-31",
+            "periodKey": "duration:6|2025-03-31",
             "periodStart": "2024-10-01",
             "periodEnd": "2025-03-31",
             "form": "10-Q",

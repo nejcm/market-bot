@@ -377,17 +377,31 @@ function canonicalDurationDays(fact: CanonicalFact): number {
 }
 
 function compareCanonicalFacts(left: CanonicalFact, right: CanonicalFact): number {
+  const leftDurationBucket = financialStatementPeriodMonths(left);
+  const rightDurationBucket = financialStatementPeriodMonths(right);
+  const durationOrder = canonicalDurationDays(right) - canonicalDurationDays(left);
+  const bucketDurationOrder =
+    leftDurationBucket !== undefined && leftDurationBucket === rightDurationBucket
+      ? 0
+      : durationOrder;
   return (
     right.periodEnd.localeCompare(left.periodEnd) ||
-    canonicalDurationDays(right) - canonicalDurationDays(left) ||
+    bucketDurationOrder ||
     right.filedAt.localeCompare(left.filedAt) ||
+    durationOrder ||
     Number(right.amendment) - Number(left.amendment) ||
     (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
   );
 }
 
 function canonicalPeriodKey(fact: CanonicalFact): string {
-  return `${fact.periodStart ?? "instant"}|${fact.periodEnd}`;
+  if (fact.periodStart === undefined) {
+    return `instant|${fact.periodEnd}`;
+  }
+  const durationBucket = financialStatementPeriodMonths(fact);
+  return durationBucket === undefined
+    ? `${fact.periodStart}|${fact.periodEnd}`
+    : `duration:${String(durationBucket)}|${fact.periodEnd}`;
 }
 
 export function canonicalEligiblePoints(
@@ -420,7 +434,9 @@ export function canonicalEligiblePoints(
     .map(([key, matches]) => [key, matches.toSorted(compareCanonicalFacts)[0]!] as const)
     .toSorted(
       (left, right) =>
-        left[1].periodEnd.localeCompare(right[1].periodEnd) || left[0].localeCompare(right[0]),
+        left[1].periodEnd.localeCompare(right[1].periodEnd) ||
+        left[1].periodStart!.localeCompare(right[1].periodStart!) ||
+        left[0].localeCompare(right[0]),
     )
     .map(([key, fact]) => ({
       periodKey: key,
@@ -551,6 +567,7 @@ export function canonicalUnion(
   return [...union.values()].toSorted(
     (left, right) =>
       left.point.periodEnd.localeCompare(right.point.periodEnd) ||
+      (left.point.periodStart ?? "").localeCompare(right.point.periodStart ?? "") ||
       left.periodKey.localeCompare(right.periodKey),
   );
 }

@@ -820,7 +820,7 @@
             "annual": [
               {
                 "value": 1000000000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -841,7 +841,7 @@
               },
               {
                 "value": 1200000000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -862,7 +862,7 @@
               },
               {
                 "value": 1500000000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -885,7 +885,7 @@
             "interim": [
               {
                 "value": 650000000,
-                "periodKey": "2025-01-01|2025-06-30",
+                "periodKey": "duration:6|2025-06-30",
                 "periodType": "interim",
                 "form": "6-K",
                 "canonicalForm": "6-K",
@@ -913,7 +913,7 @@
             "annual": [
               {
                 "value": 850000000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -934,7 +934,7 @@
               },
               {
                 "value": 1020000000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -955,7 +955,7 @@
               },
               {
                 "value": 1275000000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -978,7 +978,7 @@
             "interim": [
               {
                 "value": 552500000,
-                "periodKey": "2025-01-01|2025-06-30",
+                "periodKey": "duration:6|2025-06-30",
                 "periodType": "interim",
                 "form": "6-K",
                 "canonicalForm": "6-K",
@@ -1006,7 +1006,7 @@
             "annual": [
               {
                 "value": 700000000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1027,7 +1027,7 @@
               },
               {
                 "value": 840000000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1048,7 +1048,7 @@
               },
               {
                 "value": 1049999999.9999999,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1071,7 +1071,7 @@
             "interim": [
               {
                 "value": 455000000,
-                "periodKey": "2025-01-01|2025-06-30",
+                "periodKey": "duration:6|2025-06-30",
                 "periodType": "interim",
                 "form": "6-K",
                 "canonicalForm": "6-K",
@@ -1099,7 +1099,7 @@
             "annual": [
               {
                 "value": 550000000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1120,7 +1120,7 @@
               },
               {
                 "value": 660000000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1141,7 +1141,7 @@
               },
               {
                 "value": 825000000.0000001,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1164,7 +1164,7 @@
             "interim": [
               {
                 "value": 357500000,
-                "periodKey": "2025-01-01|2025-06-30",
+                "periodKey": "duration:6|2025-06-30",
                 "periodType": "interim",
                 "form": "6-K",
                 "canonicalForm": "6-K",
@@ -1550,7 +1550,7 @@
             "annual": [
               {
                 "value": 600000000,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1571,7 +1571,7 @@
               },
               {
                 "value": 720000000,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1592,7 +1592,7 @@
               },
               {
                 "value": 900000000,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1615,7 +1615,7 @@
             "interim": [
               {
                 "value": 390000000,
-                "periodKey": "2025-01-01|2025-06-30",
+                "periodKey": "duration:6|2025-06-30",
                 "periodType": "interim",
                 "form": "6-K",
                 "canonicalForm": "6-K",
@@ -1666,7 +1666,7 @@
             "annual": [
               {
                 "value": 10,
-                "periodKey": "2023-01-01|2023-12-31",
+                "periodKey": "duration:12|2023-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1687,7 +1687,7 @@
               },
               {
                 "value": 12,
-                "periodKey": "2024-01-01|2024-12-31",
+                "periodKey": "duration:12|2024-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1708,7 +1708,7 @@
               },
               {
                 "value": 15,
-                "periodKey": "2025-01-01|2025-12-31",
+                "periodKey": "duration:12|2025-12-31",
                 "periodType": "annual",
                 "form": "20-F",
                 "canonicalForm": "20-F",
@@ -1731,7 +1731,7 @@
             "interim": [
               {
                 "value": 6.5,
-                "periodKey": "2025-01-01|2025-06-30",
+                "periodKey": "duration:6|2025-06-30",
                 "periodType": "interim",
                 "form": "6-K",
                 "canonicalForm": "6-K",
@@ -1794,8 +1794,8 @@
         },
         {
           "code": "incomplete-statement",
-          "periodKey": "interim|2025-01-01|2025-06-30",
-          "message": "balanceSheet interim period 2025-01-01|2025-06-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
+          "periodKey": "interim|duration:6|2025-06-30",
+          "message": "balanceSheet interim period duration:6|2025-06-30 is missing cash, totalAssets, totalLiabilities, stockholdersEquity"
         }
       ],
       "omissionNotes": [

@@ -405,7 +405,14 @@ function periodType(
 }
 
 function periodKey(fact: ParsedFact): string {
-  return `${fact.periodStart ?? "instant"}|${fact.periodEnd}`;
+  if (fact.periodStart === undefined) {
+    return `instant|${fact.periodEnd}`;
+  }
+  const durationBucket = financialStatementPeriodMonths(fact);
+  // NOTE: ponytail: Month buckets can merge a same-end ~45d stub with ~22d; the fuller period wins.
+  return durationBucket === undefined
+    ? `${fact.periodStart}|${fact.periodEnd}`
+    : `duration:${String(durationBucket)}|${fact.periodEnd}`;
 }
 
 function toSelectedFact(

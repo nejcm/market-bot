@@ -414,7 +414,7 @@ describe("canonical financial statements", () => {
     );
   });
 
-  test("pins one-day annual period-start drift in the current deduplication", () => {
+  test("collapses one-day annual period-start drift and keeps the later filing", () => {
     const artifact = derive(
       payload({
         "ifrs-full": {
@@ -446,7 +446,7 @@ describe("canonical financial statements", () => {
       }),
     );
 
-    // Phase 2 should keep the later filing, emit one duplicate-superseded note, and fail this pre-fix expectation.
+    // Bucket-equivalent durations are the same period, so filing recency selects the winner.
     expect(
       artifact.statements.incomeStatement.revenue.annual.map(
         ({ value, periodStart, periodEnd, accessionNumber }) => ({
@@ -459,12 +459,6 @@ describe("canonical financial statements", () => {
     ).toEqual([
       {
         value: 38_892_000_000,
-        periodStart: "2017-11-01",
-        periodEnd: "2018-10-31",
-        accessionNumber: "0000947263-19-000001",
-      },
-      {
-        value: 38_892_000_000,
         periodStart: "2017-11-02",
         periodEnd: "2018-10-31",
         accessionNumber: "0000947263-20-000001",
@@ -474,7 +468,14 @@ describe("canonical financial statements", () => {
       artifact.validationNotes.filter(
         ({ code, seriesKey }) => code === "duplicate-superseded" && seriesKey === "revenue",
       ),
-    ).toEqual([]);
+    ).toEqual([
+      {
+        code: "duplicate-superseded",
+        seriesKey: "revenue",
+        periodKey: "duration:12|2018-10-31",
+        message: "1 duplicate/restated fact(s) superseded by 0000947263-20-000001 filed 2020-01-03",
+      },
+    ]);
   });
 
   test("keeps sub-annual 10-K flows out of annual consumers while preserving instants", () => {
@@ -560,8 +561,8 @@ describe("canonical financial statements", () => {
       ),
       workbenchPeriodEnds: workbench.historicalMultiples.observations.map((item) => item.periodEnd),
     }).toEqual({
-      revenueAnnualPeriods: ["2023-01-01|2023-12-31"],
-      cashFlowAnnualPeriods: ["2023-01-01|2023-12-31"],
+      revenueAnnualPeriods: ["duration:12|2023-12-31"],
+      cashFlowAnnualPeriods: ["duration:12|2023-12-31"],
       balanceSheetAnnualPeriods: ["instant|2023-12-31"],
       workbenchPeriodEnds: ["2023-12-31"],
     });
@@ -768,7 +769,7 @@ describe("canonical financial statements", () => {
     expect(artifact.validationNotes).toContainEqual(
       expect.objectContaining({
         code: "incomplete-statement",
-        periodKey: "annual|2025-01-01|2025-12-31",
+        periodKey: "annual|duration:12|2025-12-31",
         message: expect.stringContaining("operatingIncome, netIncome"),
       }),
     );

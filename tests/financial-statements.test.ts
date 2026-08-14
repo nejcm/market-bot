@@ -414,6 +414,69 @@ describe("canonical financial statements", () => {
     );
   });
 
+  test("pins one-day annual period-start drift in the current deduplication", () => {
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: {
+            CAD: [
+              fact({
+                value: 38_892_000_000,
+                form: "40-F",
+                fiscalYear: 2019,
+                fiscalPeriod: "FY",
+                filedAt: "2019-01-04",
+                periodStart: "2017-11-01",
+                periodEnd: "2018-10-31",
+                accessionNumber: "0000947263-19-000001",
+              }),
+              fact({
+                value: 38_892_000_000,
+                form: "40-F",
+                fiscalYear: 2020,
+                fiscalPeriod: "FY",
+                filedAt: "2020-01-03",
+                periodStart: "2017-11-02",
+                periodEnd: "2018-10-31",
+                accessionNumber: "0000947263-20-000001",
+              }),
+            ],
+          },
+        },
+      }),
+    );
+
+    // Phase 2 should keep the later filing, emit one duplicate-superseded note, and fail this pre-fix expectation.
+    expect(
+      artifact.statements.incomeStatement.revenue.annual.map(
+        ({ value, periodStart, periodEnd, accessionNumber }) => ({
+          value,
+          periodStart,
+          periodEnd,
+          accessionNumber,
+        }),
+      ),
+    ).toEqual([
+      {
+        value: 38_892_000_000,
+        periodStart: "2017-11-01",
+        periodEnd: "2018-10-31",
+        accessionNumber: "0000947263-19-000001",
+      },
+      {
+        value: 38_892_000_000,
+        periodStart: "2017-11-02",
+        periodEnd: "2018-10-31",
+        accessionNumber: "0000947263-20-000001",
+      },
+    ]);
+    expect(
+      artifact.validationNotes.filter(
+        ({ code, seriesKey }) => code === "duplicate-superseded" && seriesKey === "revenue",
+      ),
+    ).toEqual([]);
+  });
+
   test("keeps sub-annual 10-K flows out of annual consumers while preserving instants", () => {
     const flowFacts = (values: readonly [number, number, number, number]) => [
       fact({

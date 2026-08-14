@@ -1,3 +1,5 @@
+no_tty: true
+
 pre-commit:
   parallel: false
   commands:

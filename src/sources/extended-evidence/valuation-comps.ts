@@ -50,7 +50,7 @@ const MIN_MEANINGFUL_ANNUALIZED_REVENUE_TO_MARKET_CAP = 0.02;
 export const REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT =
   "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.";
 
-export type ValuationSupportability =
+type ValuationSupportability =
   | "screening-only"
   | "supported"
   | "not-supportable"
@@ -84,7 +84,7 @@ export interface ValuationCompsRow {
   readonly usable: boolean;
 }
 
-export type PeerImpliedRangePosition = "below-range" | "within-range" | "above-range";
+type PeerImpliedRangePosition = "below-range" | "within-range" | "above-range";
 
 export type PeerImpliedRangeSuppressedReason =
   | "peer supportability is not supported"
@@ -121,7 +121,7 @@ const SUPPORTABILITY_SUPPRESSION_CAUSE = {
   "not-meaningful": "suppressed-by-design",
 } satisfies Record<ValuationSupportability, SourceGapCause>;
 
-export interface PeerImpliedRangeInputs {
+interface PeerImpliedRangeInputs {
   readonly peerP25EvToAnnualizedRevenue: number | null;
   readonly peerMedianEvToAnnualizedRevenue: number | null;
   readonly peerP75EvToAnnualizedRevenue: number | null;
@@ -133,7 +133,7 @@ export interface PeerImpliedRangeInputs {
   readonly quoteObservedAt: string | null;
 }
 
-export interface PeerImpliedRangeDerivedInputs extends PeerImpliedRangeInputs {
+interface PeerImpliedRangeDerivedInputs extends PeerImpliedRangeInputs {
   readonly peerP25EvToAnnualizedRevenue: number;
   readonly peerMedianEvToAnnualizedRevenue: number;
   readonly peerP75EvToAnnualizedRevenue: number;
@@ -164,7 +164,7 @@ export type PeerImpliedRange =
       readonly suppressedReason: PeerImpliedRangeSuppressedReason;
     });
 
-export interface ExcludedValuationPeer {
+interface ExcludedValuationPeer {
   readonly symbol: string;
   readonly role: PeerUniversePeer["role"];
   readonly reason: string;
@@ -215,7 +215,7 @@ export interface ValuationCompsOptions {
   readonly secTickerPayload?: unknown;
 }
 
-export interface PeerPacket {
+interface PeerPacket {
   readonly peer: PeerUniversePeer;
   readonly provenance: PeerUniverse["provenance"];
   readonly quote: MarketSnapshot | undefined;
@@ -582,7 +582,7 @@ const SIZE_GATE_LABEL = `${SIZE_GATE_MIN_RATIO}x-${SIZE_GATE_MAX_RATIO}x`;
 // Which comparability gates apply to a candidate. The checked-in ticker-mapping
 // Tier skips the SIC-group gate; the revenue-exempt profile instead keeps SIC
 // And market-cap checks while skipping only the revenue-size band.
-export type ValuationGateProfile = "curated-no-sic" | "full" | "revenue-exempt";
+type ValuationGateProfile = "curated-no-sic" | "full" | "revenue-exempt";
 
 function revenueMultipleMeaningful(
   target: Pick<ValuationCompsRow, "annualizedRevenue" | "evToAnnualizedRevenue" | "marketCap">,

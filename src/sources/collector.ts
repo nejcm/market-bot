@@ -343,7 +343,7 @@ function promoteRequiredMarketSnapshots(
   return { marketSnapshots, promotedSnapshots };
 }
 
-export interface PeerUniverseSeam {
+interface PeerUniverseSeam {
   readonly provider: ModelProvider;
   readonly model: string;
   readonly cachePath: string;

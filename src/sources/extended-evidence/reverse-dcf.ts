@@ -31,7 +31,7 @@ const SUPPRESSION_REASONS = new Set<ReverseDcfSuppressionReason>([
   "input-currency-mismatch",
 ]);
 
-export interface ReverseDcfStartingFcfAssumption {
+interface ReverseDcfStartingFcfAssumption {
   readonly value: number;
   readonly currency: string;
   readonly periodEnd: string;
@@ -39,14 +39,14 @@ export interface ReverseDcfStartingFcfAssumption {
   readonly sourceIds: readonly string[];
 }
 
-export interface ReverseDcfEnterpriseValueAssumption {
+interface ReverseDcfEnterpriseValueAssumption {
   readonly value: number;
   readonly currency: string;
   readonly observedAt: string;
   readonly sourceIds: readonly string[];
 }
 
-export type ReverseDcfGridCell =
+type ReverseDcfGridCell =
   | {
       readonly status: "solved";
       readonly terminalGrowthRatePct: number;
@@ -58,12 +58,12 @@ export type ReverseDcfGridCell =
       readonly reason: "outside-solver-bounds";
     };
 
-export interface ReverseDcfGridRow {
+interface ReverseDcfGridRow {
   readonly discountRatePct: number;
   readonly cells: readonly ReverseDcfGridCell[];
 }
 
-export type ReverseDcfSuppressionReason =
+type ReverseDcfSuppressionReason =
   | "reconciled-ttm-fcf-unavailable"
   | "starting-fcf-not-positive"
   | "enterprise-value-unavailable"

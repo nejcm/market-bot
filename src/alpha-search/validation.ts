@@ -4,33 +4,33 @@ import type { Observation, ObservationRepository } from "../scoring/observations
 import type { AlphaSearchDiscoverySource } from "./candidates";
 import { readAlphaSearchLeads, type AlphaSearchLead } from "./report-extras";
 
-export const ALPHA_VALIDATION_BENCHMARK_SYMBOL = "IWM";
-export const ALPHA_VALIDATION_HORIZONS = [5, 20] as const;
+const ALPHA_VALIDATION_BENCHMARK_SYMBOL = "IWM";
+const ALPHA_VALIDATION_HORIZONS = [5, 20] as const;
 
-export type AlphaValidationOutcome = "outperformed" | "did-not-outperform";
-export type AlphaValidationUnresolvedReason = "horizon-not-elapsed" | "observation-unavailable";
-export type AlphaValidationSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
-export type AlphaSourcePromotionStatus =
+type AlphaValidationOutcome = "outperformed" | "did-not-outperform";
+type AlphaValidationUnresolvedReason = "horizon-not-elapsed" | "observation-unavailable";
+type AlphaValidationSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
+type AlphaSourcePromotionStatus =
   | "blocked-prerequisite"
   | "insufficient-sample"
   | "promising"
   | "mixed"
   | "weak";
 
-export interface AlphaSourcePromotionThresholds {
+interface AlphaSourcePromotionThresholds {
   readonly minimumResolvedCount: number;
   readonly promisingHitRate: number;
   readonly weakHitRate: number;
 }
 
-export interface AlphaSourcePromotionPrerequisites {
+interface AlphaSourcePromotionPrerequisites {
   readonly status: "met" | "blocked";
   readonly providerHealthStatus?: "pass" | "warn" | "fail" | "unavailable";
   readonly blockingIssueCount?: number;
   readonly unmetRequiredCoverage: readonly string[];
 }
 
-export interface AlphaSourcePromotionCriterion {
+interface AlphaSourcePromotionCriterion {
   readonly status: AlphaSourcePromotionStatus;
   readonly reason: string;
   readonly resolvedCount: number;
@@ -38,7 +38,7 @@ export interface AlphaSourcePromotionCriterion {
   readonly averageExcessReturn?: number;
 }
 
-export interface AlphaSourcePromotionCriteria {
+interface AlphaSourcePromotionCriteria {
   readonly thresholds: AlphaSourcePromotionThresholds;
   readonly prerequisites: AlphaSourcePromotionPrerequisites;
   readonly bySourceGroup: Partial<
@@ -48,7 +48,7 @@ export interface AlphaSourcePromotionCriteria {
   >;
 }
 
-export interface AlphaValidationLeadSnapshot {
+interface AlphaValidationLeadSnapshot {
   readonly symbol: string;
   readonly name?: string;
   readonly discoverySources: readonly AlphaSearchDiscoverySource[];
@@ -57,7 +57,7 @@ export interface AlphaValidationLeadSnapshot {
   readonly sourceIds: readonly string[];
 }
 
-export interface AlphaValidationResolvedHorizon {
+interface AlphaValidationResolvedHorizon {
   readonly status: "resolved";
   readonly horizonTradingDays: number;
   readonly benchmarkSymbol: string;
@@ -75,7 +75,7 @@ export interface AlphaValidationResolvedHorizon {
   readonly outcome: AlphaValidationOutcome;
 }
 
-export interface AlphaValidationUnresolvedHorizon {
+interface AlphaValidationUnresolvedHorizon {
   readonly status: "unresolved";
   readonly horizonTradingDays: number;
   readonly benchmarkSymbol: string;
@@ -87,7 +87,7 @@ export type AlphaValidationHorizon =
   | AlphaValidationResolvedHorizon
   | AlphaValidationUnresolvedHorizon;
 
-export interface AlphaValidationLeadResult extends AlphaValidationLeadSnapshot {
+interface AlphaValidationLeadResult extends AlphaValidationLeadSnapshot {
   readonly sourceGroup: AlphaValidationSourceGroup;
   readonly horizons: readonly AlphaValidationHorizon[];
 }

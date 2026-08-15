@@ -6,7 +6,7 @@ import { isRecord, readString } from "../guards";
 import { parseSections } from "./markdown-sections";
 import type { StageLabel } from "./prompt-loader";
 
-export type PlaybookJobType = Exclude<JobType, "alpha-search"> | "research";
+type PlaybookJobType = Exclude<JobType, "alpha-search"> | "research";
 
 export type PlaybookStage = Exclude<
   StageLabel,

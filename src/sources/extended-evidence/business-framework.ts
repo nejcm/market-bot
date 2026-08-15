@@ -12,7 +12,7 @@ import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
-export const BUSINESS_FRAMEWORK_SECTION_NAMES = [
+const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
   "Phase",
   "Moat",
@@ -23,7 +23,7 @@ export const BUSINESS_FRAMEWORK_SECTION_NAMES = [
 ] as const;
 export type BusinessFrameworkSectionName = (typeof BUSINESS_FRAMEWORK_SECTION_NAMES)[number];
 
-export const BUSINESS_FRAMEWORK_PHASES = [
+const BUSINESS_FRAMEWORK_PHASES = [
   "startup",
   "hyper-growth",
   "operating-leverage",
@@ -32,7 +32,7 @@ export const BUSINESS_FRAMEWORK_PHASES = [
 ] as const;
 export type BusinessLifecyclePhase = (typeof BUSINESS_FRAMEWORK_PHASES)[number];
 
-export const BUSINESS_FRAMEWORK_POSTURES = [
+const BUSINESS_FRAMEWORK_POSTURES = [
   "criteria-supported",
   "criteria-mixed",
   "criteria-not-supported",
@@ -107,7 +107,7 @@ interface PhaseClassificationInput {
 
 const SECTION_ORDER = BUSINESS_FRAMEWORK_SECTION_NAMES;
 
-export const BUSINESS_FRAMEWORK_GAP_CODES = [
+const BUSINESS_FRAMEWORK_GAP_CODES = [
   "business-description",
   "geographic-mix",
   "segment-mix",

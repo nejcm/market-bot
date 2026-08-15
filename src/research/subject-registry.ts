@@ -3,9 +3,9 @@ import type { AssetClass } from "../domain/types";
 
 const SUBJECT_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
-export type ResearchSubjectAssetClass = Extract<AssetClass, "equity">;
+type ResearchSubjectAssetClass = Extract<AssetClass, "equity">;
 
-export type ResearchSubjectInstrumentType = "listed-etf" | "listed-stock";
+type ResearchSubjectInstrumentType = "listed-etf" | "listed-stock";
 
 export interface ResearchSubjectSource {
   readonly sourceId: string;
@@ -20,7 +20,7 @@ export interface ResearchSubjectInstrument {
   readonly sourceIds: readonly string[];
 }
 
-export interface ResearchSubjectPredictionProxy {
+interface ResearchSubjectPredictionProxy {
   readonly symbol: string;
   readonly instrumentType: Extract<ResearchSubjectInstrumentType, "listed-etf">;
   readonly sourceIds: readonly string[];

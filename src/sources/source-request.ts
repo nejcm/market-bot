@@ -47,7 +47,7 @@ const CIRCUIT_OPEN_MS = 60_000;
 // Supplies its own `maxResponseBytes` (see `SourceRequest.maxResponseBytes`). Do not relax this
 // Default for a specific adapter's needs — pass a scoped `maxResponseBytes` on that adapter's
 // Request instead (see `SEC_FILING_TEXT_MAX_RESPONSE_BYTES` for the one adapter that needs it).
-export const DEFAULT_MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
+const DEFAULT_MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
 // Scoped ceiling for the `sec-filing-text` adapter only. MSFT's FY2026 10-K decompresses to
 // 8.6M bytes; 16M gives ~2x headroom while bounding the transient memory a single filing fetch
 // Can hold (chunk copy + decode), since `collectSecFilingEvidence` fans out 10-K/10-Q/8-K/6-K

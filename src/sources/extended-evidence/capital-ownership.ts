@@ -15,7 +15,7 @@ import {
   withArtifactReadDiagnostics,
 } from "./utils";
 
-export interface CapitalOwnershipPeriodFact {
+interface CapitalOwnershipPeriodFact {
   readonly value: number;
   readonly periodStart?: string;
   readonly periodEnd: string;
@@ -27,7 +27,7 @@ export interface CapitalOwnershipPeriodFact {
   readonly sourceIds: readonly string[];
 }
 
-export interface CapitalOwnershipFact {
+interface CapitalOwnershipFact {
   readonly value: number;
   readonly periodEnd: string;
   readonly filedAt: string;

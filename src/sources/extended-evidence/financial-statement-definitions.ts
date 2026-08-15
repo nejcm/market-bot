@@ -15,7 +15,7 @@ export interface FinancialStatementSeriesDefinition {
 }
 
 const DAY_MS = 86_400_000;
-export const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
+const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
 
 export function isRevenueConceptInRecencyBucket(
   periodEnd: string,

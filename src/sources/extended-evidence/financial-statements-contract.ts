@@ -43,7 +43,7 @@ export function isAnnualReportForm(form: CanonicalSecForm): form is AnnualReport
   return ANNUAL_REPORT_FORMS.some((annualForm) => annualForm === form);
 }
 
-export type FinancialStatementExtractionMethod = "sec-companyfacts";
+type FinancialStatementExtractionMethod = "sec-companyfacts";
 
 // SEC companyfacts `val` values are already expressed in the base unit named by the units map.
 export const SEC_COMPANYFACTS_UNIT_SCALE = 1;

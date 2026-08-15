@@ -68,12 +68,4 @@ export async function runDeepEquity(
   };
 }
 
-export type {
-  DeepEquityEvidenceBundleV1,
-  DeepEquityRunDependencies,
-  DeepEquityRunInput,
-  DeepEquityRunResult,
-} from "./types";
-export type { SecTargetPacket } from "../sources/sec-target-packet";
-export type { TradierPacket } from "../sources/tradier-packet";
-export type { PeerPacket } from "../sources/extended-evidence/valuation-comps";
+export type { DeepEquityRunDependencies, DeepEquityRunInput, DeepEquityRunResult } from "./types";

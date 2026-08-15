@@ -13,7 +13,7 @@ interface TrendPeriod {
   readonly filedAt: string;
 }
 
-export interface FinancialTrendRow {
+interface FinancialTrendRow {
   readonly period: string;
   readonly revenue: string;
   readonly netIncome: string;

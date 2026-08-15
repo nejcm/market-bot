@@ -8,11 +8,8 @@ import {
 export const MAX_PEERS = 8;
 export const MIN_PROPOSED_PEERS = 3;
 
-export type PeerRole = "core" | "secondary";
-export type PeerUniverseProvenance =
-  | "ticker-mapping"
-  | "subject-registry"
-  | "model-proposed-validated";
+type PeerRole = "core" | "secondary";
+type PeerUniverseProvenance = "ticker-mapping" | "subject-registry" | "model-proposed-validated";
 
 export interface PeerUniversePeer {
   readonly symbol: string;
@@ -68,7 +65,7 @@ export interface PeerUniverseFallbackContext {
   readonly propose: (symbol: string) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }>;
 }
 
-export const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse({
+const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse({
   AAPL: tickerUniverse("AAPL", [
     peer("MSFT", "Microsoft", "core", "large-cap platform ecosystem and services peer", [
       "nasdaq-msft",

@@ -20,7 +20,7 @@ const SENTENCE_INITIAL_TRADE_ACTION_PATTERN =
 export const READER_DIRECTED_ADVICE_PATTERN =
   /\b(?:investors|traders|readers|you)\s+(?:should|could|may want to|might want to|need to|must)\b|\b(?:should|must|need to)\s+(?:buy|sell|hold|open|trim|add|exit|enter|reduce|increase|rebalance)\b/iu;
 
-export const VALUATION_CERTAINTY_PATTERN =
+const VALUATION_CERTAINTY_PATTERN =
   /(?:\b(?:implied fair value|fair value|intrinsic value|margin of safety|undervalued|overvalued|target prices?|price targets?|percentage gap|valuation gap|(?<!peer-)implied prices?(?!\s+(?:are|were)\s+not positive)|peer-implied price(?! reference range\b)|peer-implied prices(?!\s+(?:are|were)\s+not positive))\b|%\s+gap\b)/iu;
 
 const SANCTIONED_DISCLAIMERS = [

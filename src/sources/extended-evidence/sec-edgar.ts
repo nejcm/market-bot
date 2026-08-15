@@ -292,7 +292,7 @@ function summarizeSecFilings(payload: unknown): string | undefined {
 
 // SIC arrives as a string in current SEC submissions payloads, but tolerate a
 // Numeric encoding; provenance is always the submissions endpoint itself.
-export function extractSecSic(payload: unknown): SecSicClassification | undefined {
+function extractSecSic(payload: unknown): SecSicClassification | undefined {
   if (!isRecord(payload)) {
     return undefined;
   }

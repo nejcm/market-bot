@@ -35,7 +35,7 @@ export interface ModelResponse {
   readonly costPricing?: CostPricing;
 }
 
-export type WebSearchCapabilityReason = "provider-unsupported" | "probe-failed" | "supported";
+type WebSearchCapabilityReason = "provider-unsupported" | "probe-failed" | "supported";
 
 export interface WebSearchCapability {
   readonly supported: boolean;

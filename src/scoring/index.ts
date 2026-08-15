@@ -589,7 +589,7 @@ export async function buildAndWriteAlphaLeadCohorts(
   return true;
 }
 
-export async function buildAndWriteAlphaCandidateWatchlist(
+async function buildAndWriteAlphaCandidateWatchlist(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<boolean> {
@@ -622,7 +622,7 @@ export async function buildAndWriteAlphaCandidateWatchlist(
   return true;
 }
 
-export async function buildAndWriteAlphaFeatureAttribution(
+async function buildAndWriteAlphaFeatureAttribution(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<boolean> {
@@ -655,7 +655,7 @@ export async function buildAndWriteAlphaFeatureAttribution(
   return true;
 }
 
-export async function buildAndWriteAlphaValidationSummary(
+async function buildAndWriteAlphaValidationSummary(
   dataDir: string,
   now: Date = new Date(),
   prerequisiteOverride?: AlphaValidationPrerequisiteInput,

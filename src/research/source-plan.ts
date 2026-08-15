@@ -75,7 +75,7 @@ export type LaneCoverageStatus = "covered" | "gap" | "not-covered";
 // V2 shape use the strict `*V2` types below, which `buildSourcePlan` emits.
 // ---------------------------------------------------------------------------
 
-export interface SourcePlanLane {
+interface SourcePlanLane {
   readonly lane: EvidenceLane;
   readonly evidenceClass?: EvidenceClass;
   readonly requirement?: "required" | "optional";
@@ -84,7 +84,7 @@ export interface SourcePlanLane {
   readonly providerPath?: string;
 }
 
-export interface SourcePlanRun {
+interface SourcePlanRun {
   readonly jobType: ResearchCommand["jobType"];
   readonly assetClass: AssetClass;
   readonly symbol?: string;
@@ -99,7 +99,7 @@ export interface SourcePlanArtifact {
   readonly lanes: readonly SourcePlanLane[];
 }
 
-export interface EvidenceLaneCoverage {
+interface EvidenceLaneCoverage {
   readonly lane: EvidenceLane;
   readonly evidenceClass?: EvidenceClass;
   readonly required?: boolean;
@@ -117,7 +117,7 @@ export interface EvidenceLanesArtifact {
   readonly summary: EvidenceLaneSummary;
 }
 
-export interface SourceLedgerEntry {
+interface SourceLedgerEntry {
   readonly id: string;
   readonly kind: Source["kind"];
   readonly provider?: string;
@@ -134,7 +134,7 @@ export interface SourceLedgerArtifact {
   readonly sources: readonly SourceLedgerEntry[];
 }
 
-export interface EvidenceLaneSummary {
+interface EvidenceLaneSummary {
   readonly plannedLaneCount: number;
   readonly coreLaneCount?: number;
   readonly materialLaneCount?: number;
@@ -160,7 +160,7 @@ export interface EvidenceLaneSummary {
 // Persisted shape above, so it serializes through the disk boundary unchanged.
 // ---------------------------------------------------------------------------
 
-export interface SourcePlanLaneV2 {
+interface SourcePlanLaneV2 {
   readonly lane: EvidenceLane;
   readonly evidenceClass: EvidenceClass;
   readonly appliesToRun: boolean;
@@ -205,14 +205,14 @@ export interface EvidenceLaneSummaryV2 {
   readonly coverageRatio: number;
 }
 
-export interface EvidenceLanesArtifactV2 {
+interface EvidenceLanesArtifactV2 {
   readonly version: 2;
   readonly generatedAt: string;
   readonly lanes: readonly EvidenceLaneCoverageV2[];
   readonly summary: EvidenceLaneSummaryV2;
 }
 
-export interface SourceLedgerArtifactV2 {
+interface SourceLedgerArtifactV2 {
   readonly version: 2;
   readonly generatedAt: string;
   readonly sources: readonly SourceLedgerEntry[];

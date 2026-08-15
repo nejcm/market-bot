@@ -12,7 +12,7 @@ import {
 import { isUsListing } from "./instrument-capability";
 import type { CollectContext, RawSourceSnapshot } from "./types";
 
-export interface SecFilingPacket {
+interface SecFilingPacket {
   readonly form: "10-K" | "10-Q" | "8-K" | "6-K";
   readonly filingDate: string;
   readonly reportDate?: string;

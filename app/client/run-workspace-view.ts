@@ -86,7 +86,7 @@ export {
   completenessReasonCodeLabel,
 } from "./run-workspace-completeness";
 
-export interface RunWorkspaceTextItem {
+interface RunWorkspaceTextItem {
   readonly text: string;
   readonly sourceIds: readonly string[];
 }
@@ -99,7 +99,7 @@ export interface RunWorkspaceCaseSection {
   readonly items: readonly RunWorkspaceTextItem[];
 }
 
-export interface RunWorkspaceReportView {
+interface RunWorkspaceReportView {
   readonly summary: string;
   readonly financialLensGroups: readonly RunWorkspaceFinancialLensGroup[];
   readonly findings: readonly RunWorkspaceTextItem[];
@@ -115,7 +115,7 @@ export interface RunWorkspaceFinancialLensGroup {
   readonly tiles: readonly FinancialLensStatTile[];
 }
 
-export interface RunWorkspaceForecastsView {
+interface RunWorkspaceForecastsView {
   readonly items: readonly ScoredForecast[];
   readonly groups: readonly ForecastGroup[];
   readonly stats: ForecastRollup;
@@ -124,7 +124,7 @@ export interface RunWorkspaceForecastsView {
   readonly visible: boolean;
 }
 
-export interface RunWorkspaceEvidenceView {
+interface RunWorkspaceEvidenceView {
   readonly historicalContext?: HistoricalContextAuditView;
   readonly webSubjectProfile?: WebSubjectProfileView;
   readonly businessFramework?: BusinessFrameworkView;
@@ -141,16 +141,16 @@ export interface RunWorkspaceGapsView {
   readonly visible: boolean;
 }
 
-export interface RunWorkspaceSourcesView {
+interface RunWorkspaceSourcesView {
   readonly items: readonly SourceView[];
 }
 
-export interface RunWorkspaceSnapshotView {
+interface RunWorkspaceSnapshotView {
   readonly value: SnapshotView;
   readonly tradingViewUrl: string;
 }
 
-export interface RunWorkspaceEquityHeaderFinancial {
+interface RunWorkspaceEquityHeaderFinancial {
   readonly key:
     | "marketCap"
     | "trailingPE"
@@ -177,7 +177,7 @@ export interface RunWorkspaceEquityHeaderView {
   readonly financials: readonly RunWorkspaceEquityHeaderFinancial[];
 }
 
-export interface RunWorkspaceSparklineBar {
+interface RunWorkspaceSparklineBar {
   readonly x: number;
   readonly y: number;
   readonly width: number;
@@ -189,7 +189,7 @@ export interface RunWorkspaceSparklineGeometry {
   readonly baseline: number;
 }
 
-export interface RunWorkspaceFundamentalHistoryCard {
+interface RunWorkspaceFundamentalHistoryCard {
   readonly key:
     | "revenue"
     | "freeCashFlowProxy"
@@ -216,7 +216,7 @@ export interface RunWorkspaceFundamentalHistoryView {
   readonly cards: readonly RunWorkspaceFundamentalHistoryCard[];
 }
 
-export interface RunWorkspaceFinancialTrendRow {
+interface RunWorkspaceFinancialTrendRow {
   readonly period: string;
   readonly revenue: string;
   readonly netIncome: string;
@@ -224,14 +224,14 @@ export interface RunWorkspaceFinancialTrendRow {
   readonly freeCashFlow: string;
 }
 
-export interface RunWorkspaceFinancialTrendView {
+interface RunWorkspaceFinancialTrendView {
   readonly columns: readonly ["Period", "Revenue", "Net income", "Operating margin", "FCF"];
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly RunWorkspaceFinancialTrendRow[];
 }
 
-export interface RunWorkspaceBalanceSheetHistoryRow {
+interface RunWorkspaceBalanceSheetHistoryRow {
   readonly period: string;
   readonly cash: string;
   readonly debt: string;
@@ -244,25 +244,25 @@ export interface RunWorkspaceBalanceSheetHistoryView {
   readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
 }
 
-export interface RunWorkspaceFinancialPositionMetric {
+interface RunWorkspaceFinancialPositionMetric {
   readonly label: "Cash" | "Debt" | "Diluted shares";
   readonly value: string;
   readonly dateBasis: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface RunWorkspaceFinancialPositionView {
+interface RunWorkspaceFinancialPositionView {
   readonly reportingCurrency?: string;
   readonly metrics: readonly RunWorkspaceFinancialPositionMetric[];
 }
 
-export interface RunWorkspaceEarningsConsensusItem {
+interface RunWorkspaceEarningsConsensusItem {
   readonly label: string;
   readonly value: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface RunWorkspaceEarningsConsensusView {
+interface RunWorkspaceEarningsConsensusView {
   readonly items: readonly RunWorkspaceEarningsConsensusItem[];
 }
 
@@ -305,16 +305,16 @@ export type RunWorkspacePeerImpliedRangeView =
       readonly message: string;
     };
 
-export type RunWorkspaceEquitySnapshotState = "available" | "partial" | "unavailable";
+type RunWorkspaceEquitySnapshotState = "available" | "partial" | "unavailable";
 
-export interface RunWorkspaceEquitySnapshotCard {
+interface RunWorkspaceEquitySnapshotCard {
   readonly key: string;
   readonly label: string;
   readonly state: RunWorkspaceEquitySnapshotState;
   readonly sourceIds: readonly string[];
 }
 
-export interface RunWorkspaceEquitySnapshotPricePerformance extends RunWorkspaceEquitySnapshotCard {
+interface RunWorkspaceEquitySnapshotPricePerformance extends RunWorkspaceEquitySnapshotCard {
   readonly key: "pricePerformance";
   readonly price?: string;
   readonly change24h?: string;
@@ -324,14 +324,14 @@ export interface RunWorkspaceEquitySnapshotPricePerformance extends RunWorkspace
   readonly priceAsOf?: MarketSnapshotPriceAsOf;
 }
 
-export interface RunWorkspaceEquitySnapshotReferenceRange extends RunWorkspaceEquitySnapshotCard {
+interface RunWorkspaceEquitySnapshotReferenceRange extends RunWorkspaceEquitySnapshotCard {
   readonly key: "peerReferenceRange";
   readonly display: string;
   readonly positionLabel?: string;
   readonly disclosure: string;
 }
 
-export interface RunWorkspaceEquitySnapshotMetric {
+interface RunWorkspaceEquitySnapshotMetric {
   readonly key:
     | "ttmRevenue"
     | "ttmFreeCashFlowProxy"
@@ -356,7 +356,7 @@ export interface RunWorkspaceEquitySnapshotKeyMetrics extends RunWorkspaceEquity
   readonly foldedYahooMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
 }
 
-export interface RunWorkspaceEquitySnapshotMiniChart extends RunWorkspaceEquitySnapshotCard {
+interface RunWorkspaceEquitySnapshotMiniChart extends RunWorkspaceEquitySnapshotCard {
   readonly key: "revenue" | "freeCashFlowProxy" | "operatingMargin" | "dilutedEps";
   readonly value?: string;
   readonly period?: string;
@@ -370,14 +370,14 @@ export interface RunWorkspaceEquitySnapshotMiniCharts {
   readonly charts: readonly RunWorkspaceEquitySnapshotMiniChart[];
 }
 
-export interface RunWorkspaceEquitySnapshotLensPosture {
+interface RunWorkspaceEquitySnapshotLensPosture {
   readonly lens: FinancialLensName;
   readonly posture: FinancialLensPosture;
   readonly postureLabel: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface RunWorkspaceEquitySnapshotDriverCard extends RunWorkspaceEquitySnapshotCard {
+interface RunWorkspaceEquitySnapshotDriverCard extends RunWorkspaceEquitySnapshotCard {
   readonly key: "bullCaseDrivers" | "bearCaseDrivers";
   readonly items: readonly RunWorkspaceTextItem[];
 }
@@ -402,13 +402,13 @@ export interface RunWorkspaceEquitySnapshotView {
   readonly financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers;
 }
 
-export interface RunWorkspaceValuationMetricCell {
+interface RunWorkspaceValuationMetricCell {
   readonly display: string;
   readonly status: ValuationMetricResult["status"];
   readonly detail?: string;
 }
 
-export interface RunWorkspaceHistoricalValuationRow {
+interface RunWorkspaceHistoricalValuationRow {
   readonly basis: string;
   readonly periodEnd: string;
   readonly publicAt: string;
@@ -419,7 +419,7 @@ export interface RunWorkspaceHistoricalValuationRow {
   readonly priceToFreeCashFlow: RunWorkspaceValuationMetricCell;
 }
 
-export interface RunWorkspaceValuationPeerRow {
+interface RunWorkspaceValuationPeerRow {
   readonly symbol: string;
   readonly role: string;
   readonly status: string;
@@ -834,9 +834,7 @@ function historyTrendLabel(
   return undefined;
 }
 
-export function fundamentalHistoryView(
-  detail: RunDetail,
-): RunWorkspaceFundamentalHistoryView | undefined {
+function fundamentalHistoryView(detail: RunDetail): RunWorkspaceFundamentalHistoryView | undefined {
   const artifact = detail.fundamentalHistory;
   if (artifact === undefined) {
     return undefined;

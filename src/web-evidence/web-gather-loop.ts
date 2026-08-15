@@ -768,7 +768,7 @@ function webGatherSearchUnavailableGap(
   });
 }
 
-export function webGatherSubjectForRun(
+function webGatherSubjectForRun(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): WebGatherSubject | undefined {

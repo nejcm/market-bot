@@ -27,13 +27,23 @@ does **not** drop user-configured `entry` patterns: with `-p`, knip still resolv
 nothing. Dropping the test entries entirely also reports nothing, which confirms no `src/` export is
 kept alive by tests alone.
 
-Known blind spot: `ignoreExportsUsedInFile: true` hides exports whose only consumer is their own
-file. Turning it off surfaces 354 such exports today (110 values, 244 types; 275 in `src/`, 79 in
-`app/`). This was measured with Knip's JSON reporter after setting `ignoreExportsUsedInFile: false`
-in a temporary copy of `knip.json` and running
+`ignoreExportsUsedInFile` is **off**, so the same-file-only axis is measured too: an `export`
+whose only consumer is its own declaring file is reported. That flag used to be on and hid 354
+such exports (110 values, 244 types; 275 in `src/`, 79 in `app/`, across 106 files). The backlog
+was cleared by dropping the redundant modifiers, and the flag was turned off permanently so the
+axis cannot silently refill. Appending an exported `type` that only its own file references now
+makes `bun run knip` report it and exit 1.
+
+Keeping it off costs one recurring habit: export a symbol when something else imports it, not by
+reflex. That is cheaper than re-running a 354-item census later.
+
+Knip has one known limitation here. It does not resolve namespace-member access inside Svelte
+markup, so `import * as X` plus `<X.Thing />` in a template reports `Thing` as unused. Use named
+imports in `.svelte` files rather than suppressing the finding.
+
+To take a census with a different setting, copy `knip.json`, edit the flag in the copy, and run
 `bun run knip -- --config <copy> --reporter json --no-exit-code`; count the `exports` and `types`
-arrays by full `file` path rather than the terminal reporter's abbreviated rows. That backlog needs
-its own pass — it is not a defect in the gate's wiring.
+arrays by full `file` path rather than the terminal reporter's abbreviated rows.
 
 ## Static equity fixture tests
 

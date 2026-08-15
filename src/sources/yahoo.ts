@@ -951,5 +951,3 @@ export async function fetchYahooSplitAdjustedCloseWindow(
   );
   return fetched.ok ? splitAdjustedObservationsFromYahooChart(symbol, fetched.payload) : [];
 }
-
-export { yahooCredentialFetch, createYahooResilientFetch } from "./yahoo-resilience";

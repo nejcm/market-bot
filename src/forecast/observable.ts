@@ -16,23 +16,12 @@ import type {
 
 export type {
   ObservableBaseExpression,
-  ObservableConditional,
-  ObservableDirection,
-  ObservableEarningsDirection,
-  ObservableEarningsMove,
   ObservableExpression,
   ObservableForecast,
   ObservableForecastIssue,
   ObservableForecastPolicy,
   ObservableForecastReadResult,
   ObservableForecastResolution,
-  ObservableForecastResolved,
-  ObservableForecastUnresolved,
-  ObservableIv,
-  ObservableMacro,
-  ObservableRange,
-  ObservableRelative,
-  ObservableVolatility,
   Observation,
   ObservationStrategy,
   PointObservationRequest,
@@ -790,7 +779,7 @@ export function renderClaimForMeasurableAs(
   }
 }
 
-export function subjectForExpression(expression: ObservableExpression): string {
+function subjectForExpression(expression: ObservableExpression): string {
   return shapeForExpression(expression).subject(expression);
 }
 

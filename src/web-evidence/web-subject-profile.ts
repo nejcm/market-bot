@@ -19,18 +19,7 @@ import {
   type WebSubjectProfileThemeQuestionKey,
 } from "./contract";
 
-export {
-  LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS,
-  WEB_SUBJECT_PROFILE_QUESTION_KEYS,
-  type WebSubjectProfileAnswer,
-  type WebSubjectProfileArtifact,
-  type WebSubjectProfileCompanyQuestionKey,
-  type WebSubjectProfileCryptoQuestionKey,
-  type WebSubjectProfileFact,
-  type WebSubjectProfileLegacyCompanyQuestionKey,
-  type WebSubjectProfileQuestionKey,
-  type WebSubjectProfileThemeQuestionKey,
-} from "./contract";
+export { type WebSubjectProfileArtifact } from "./contract";
 
 export interface WebSubjectProfileResult {
   readonly extendedEvidence?: ExtendedEvidence;

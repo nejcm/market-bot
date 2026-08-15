@@ -77,7 +77,6 @@ export {
   forecastDisagreements,
   forecastGroups,
   forecastRollup,
-  missAutopsies,
   predictionScores,
   predictionTargetHealth,
   predictions,
@@ -86,16 +85,6 @@ export {
   sources,
   stringArray,
   textItems,
-} from "../report-artifact-view";
-export type {
-  ExtendedEvidenceItemView,
-  ForecastRollup,
-  ForecastDisagreementView,
-  ForecastGroup,
-  MissAutopsyView,
-  PredictionScoreView,
-  PredictionTargetHealth,
-  ScoredForecast,
 } from "../report-artifact-view";
 
 const RUN_PATH_PREFIX = "/runs/";
@@ -180,12 +169,12 @@ export interface FinancialLensStatTile extends ValuationMetricTile {
   readonly caption?: string;
 }
 
-export interface BusinessFrameworkMetricTile extends ValuationMetricTile {
+interface BusinessFrameworkMetricTile extends ValuationMetricTile {
   readonly key: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface BusinessFrameworkSectionView {
+interface BusinessFrameworkSectionView {
   readonly name: BusinessFrameworkSectionName;
   readonly posture: BusinessFrameworkPosture;
   readonly summary: string;
@@ -202,14 +191,14 @@ export interface BusinessFrameworkView {
   readonly gaps: readonly string[];
 }
 
-export interface WebSubjectProfileQuestionView {
+interface WebSubjectProfileQuestionView {
   readonly key: string;
   readonly label: string;
   readonly answer: string;
   readonly sourceIds: readonly string[];
 }
 
-export interface WebSubjectProfileFactView {
+interface WebSubjectProfileFactView {
   readonly claim: string;
   readonly sourceIds: readonly string[];
 }
@@ -326,7 +315,7 @@ export function calibrationSampleWarning(headline: CalibrationHeadline): Calibra
   };
 }
 
-export function formatUsdCompact(value: number): string {
+function formatUsdCompact(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1_000_000_000) {
     return `$${(value / 1_000_000_000).toFixed(1)}B`;
@@ -340,7 +329,7 @@ export function formatUsdCompact(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
-export function formatMultiple(value: number): string {
+function formatMultiple(value: number): string {
   return `${value.toFixed(1)}x`;
 }
 
@@ -1057,7 +1046,7 @@ export interface SnapshotClose {
   readonly close: number;
 }
 
-export interface SnapshotOhlcv {
+interface SnapshotOhlcv {
   readonly date: string;
   readonly close: number;
 }

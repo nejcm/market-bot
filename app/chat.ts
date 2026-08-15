@@ -29,7 +29,7 @@ type RunChatSearchCapabilityReason =
   | "disabled-by-server-policy"
   | "active";
 
-export interface RunChatSearchCapability {
+interface RunChatSearchCapability {
   readonly configured: boolean;
   readonly supported: boolean;
   readonly effective: boolean;
@@ -45,7 +45,7 @@ export interface ReadyChatDeps {
 }
 
 // The route is matched but returns 503 with this reason (e.g. disabled, or no provider configured).
-export interface UnavailableChatDeps {
+interface UnavailableChatDeps {
   readonly status: "unavailable";
   readonly reason: string;
 }
@@ -172,9 +172,7 @@ When you do consult the web:
 - Make clear when a claim comes from a live web lookup rather than the run's artifacts.
 - Web findings are ephemeral context for this conversation only — they are not persisted research Sources and do not affect scored predictions or evidence quality.`.trimStart();
 
-export async function runChatSearchCapability(
-  deps: ChatEndpointDeps,
-): Promise<RunChatSearchCapability> {
+async function runChatSearchCapability(deps: ChatEndpointDeps): Promise<RunChatSearchCapability> {
   if (deps.status === "unavailable") {
     return {
       configured: false,

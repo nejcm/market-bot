@@ -27,7 +27,7 @@ import type { ScoreOutcome } from "../scoring/types";
 const MAX_MOVER_DIFF = 8;
 const MAX_RESOLVED_SINCE = 8;
 
-export interface MarketUpdateDeltaResolvedPrediction {
+interface MarketUpdateDeltaResolvedPrediction {
   readonly runId: string;
   readonly predictionId: string;
   readonly claim: string;

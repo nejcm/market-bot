@@ -2,7 +2,7 @@ import type { EvidenceLane } from "../research/source-plan";
 
 export type DeepEquityAcquisitionPhase = "target" | "parallel-provider" | "dependent" | "derive";
 
-export type DeepEquityAcquisitionExecutor =
+type DeepEquityAcquisitionExecutor =
   | "yahoo-target"
   | "supplemental-market"
   | "news"

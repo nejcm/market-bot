@@ -29,7 +29,7 @@ export interface ResolvedResearchSubject {
   readonly closestMatch?: ResearchSubjectSummary;
 }
 
-export function cleanResearchSubjectKey(value: string | undefined): string | undefined {
+function cleanResearchSubjectKey(value: string | undefined): string | undefined {
   const normalized = value?.trim().toLowerCase();
   return normalized === "" ? undefined : normalized;
 }

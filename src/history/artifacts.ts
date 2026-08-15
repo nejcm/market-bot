@@ -31,9 +31,9 @@ import type { MissAutopsyEntry, PredictionScore } from "../scoring/types";
 import { isRecord, readStringVerbatim } from "../guards";
 import { predictionShortfallMaterialGaps } from "../report/prediction-shortfall";
 
-export { HISTORY_SECTIONS, type HistorySection } from "./sections";
+export { type HistorySection } from "./sections";
 
-export type ThesisScope = "instrument" | "market-update";
+type ThesisScope = "instrument" | "market-update";
 
 export interface HistorySearchFilters {
   readonly query: string;
@@ -64,7 +64,7 @@ export interface HistorySearchEntry {
   readonly predictionId?: string;
 }
 
-export interface HistoryIndex {
+interface HistoryIndex {
   readonly version: 1 | 2 | 3;
   readonly generatedAt: string;
   readonly sourceRunCount: number;
@@ -81,7 +81,7 @@ interface HistorySourceSidecar {
   readonly modifiedAt: number;
 }
 
-export interface ResearchThesisState {
+interface ResearchThesisState {
   readonly summary: string;
   readonly keyFindings: readonly KeyFinding[];
   readonly bullCase: readonly KeyFinding[];
@@ -146,7 +146,7 @@ export interface ThesisDeltaInput {
   readonly now?: Date;
 }
 
-export interface ThesisDeltaSection {
+interface ThesisDeltaSection {
   readonly added: readonly string[];
   readonly removed: readonly string[];
   readonly changed: readonly string[];
@@ -237,9 +237,7 @@ function recordArray(value: unknown): readonly Record<string, unknown>[] {
     : [];
 }
 
-export function reportInstrumentKeys(
-  report: ResearchReport,
-): readonly { key: string; symbol: string }[] {
+function reportInstrumentKeys(report: ResearchReport): readonly { key: string; symbol: string }[] {
   const symbols = new Set<string>();
   if (report.symbol !== undefined) {
     symbols.add(report.symbol.toUpperCase());

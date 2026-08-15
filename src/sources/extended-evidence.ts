@@ -50,7 +50,7 @@ async function collectProviderEvidence(
   return providerResultToExtendedEvidence(ctx, assetClass, await provider(ctx));
 }
 
-export function createProviderExtendedEvidenceAdapter(
+function createProviderExtendedEvidenceAdapter(
   name: string,
   assetClass: AssetClass,
   provider: ProviderCollector,

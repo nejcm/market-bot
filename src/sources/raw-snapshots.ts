@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { RawSourceSnapshot } from "./types";
 
-export const RAW_SNAPSHOT_COMPACTION_THRESHOLD_BYTES = 1024 * 1024;
+const RAW_SNAPSHOT_COMPACTION_THRESHOLD_BYTES = 1024 * 1024;
 
 interface CompactRawPayloadSummary {
   readonly compacted: true;

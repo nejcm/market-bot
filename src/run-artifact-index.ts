@@ -53,7 +53,7 @@ export interface RebuildRunArtifactIndexResult {
   readonly searchEntryCount: number;
 }
 
-export type RunArtifactIndexStatusState =
+type RunArtifactIndexStatusState =
   | "available"
   | "disabled"
   | "missing"
@@ -80,7 +80,7 @@ export function configuredRunArtifactIndexPath(
   return env.MARKET_BOT_INDEX_DB_PATH?.trim() || defaultRunArtifactIndexPath(dataDir);
 }
 
-export function isRunArtifactIndexDisabled(
+function isRunArtifactIndexDisabled(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
   const value = env.MARKET_BOT_INDEX_DISABLE;

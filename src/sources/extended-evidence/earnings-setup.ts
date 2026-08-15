@@ -9,7 +9,7 @@ import { encodeQuery, readArray } from "./utils";
 // Finnhub earnings-calendar event parsing
 // ---------------------------------------------------------------------------
 
-export type EarningsEventTiming = "bmo" | "amc" | "unknown";
+type EarningsEventTiming = "bmo" | "amc" | "unknown";
 
 export interface EarningsEvent {
   readonly symbol: string;

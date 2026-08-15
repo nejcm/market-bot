@@ -182,7 +182,7 @@ function hasValidOptionalAlphaSearchLeadFields(value: Record<string, unknown>): 
   );
 }
 
-export function isAlphaSearchLead(value: unknown): value is AlphaSearchLead {
+function isAlphaSearchLead(value: unknown): value is AlphaSearchLead {
   if (!isRecord(value)) {
     return false;
   }

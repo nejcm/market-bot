@@ -7,9 +7,9 @@ import { numberAt } from "../guards";
 import { hasNonUsSuffix, isInternationalIdentity } from "../sources/instrument-capability";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";
 
-export type ValidationStatus = "pass" | "warn" | "fail";
+type ValidationStatus = "pass" | "warn" | "fail";
 export type ValidationIssueClassification = "blocking" | "expected" | "informational";
-export type CoverageKey =
+type CoverageKey =
   | "market-overview-equity-short"
   | "market-overview-equity-medium"
   | "market-overview-crypto-short"
@@ -19,14 +19,14 @@ export type CoverageKey =
   | "deep-equity-ticker"
   | "international-equity-ticker";
 
-export interface ValidationCoverageItem {
+interface ValidationCoverageItem {
   readonly key: CoverageKey;
   readonly label: string;
   readonly met: boolean;
   readonly runIds: readonly string[];
 }
 
-export interface ValidationRouteClassification {
+interface ValidationRouteClassification {
   readonly route: string;
   readonly provider: string;
   readonly classification: ValidationIssueClassification;

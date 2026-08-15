@@ -53,7 +53,7 @@ import { isRecord, readString, readStringArray, readStringVerbatim } from "../gu
 
 // The model may attach a narrative `text` to a section; everything else is the
 // Deterministic artifact section verbatim.
-export type BusinessFrameworkExtraSection = BusinessFrameworkSection & {
+type BusinessFrameworkExtraSection = BusinessFrameworkSection & {
   readonly text?: string;
 };
 
@@ -92,7 +92,7 @@ export type BusinessFrameworkExtraGap =
   | string
   | { readonly code?: BusinessFrameworkGapCode; readonly text: string };
 
-export interface BusinessFrameworkSectionValue {
+interface BusinessFrameworkSectionValue {
   // Optional, and not narrowed to BusinessFrameworkSectionName: the old walk
   // Rendered any string name and cited a nameless row's sources anyway. The
   // Equity trim still matches on the lowercased text.

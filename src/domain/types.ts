@@ -21,13 +21,11 @@ export function isInstrumentJobType(jobType: JobType | undefined): jobType is In
   return jobType === "equity" || jobType === "crypto";
 }
 
-export function isLegacyMarketUpdateJobType(
-  jobType: JobType,
-): jobType is LegacyMarketUpdateJobType {
+function isLegacyMarketUpdateJobType(jobType: JobType): jobType is LegacyMarketUpdateJobType {
   return jobType === "daily" || jobType === "weekly";
 }
 
-export function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): number {
+function legacyMarketUpdateHorizon(jobType: LegacyMarketUpdateJobType): number {
   return jobType === "daily" ? 5 : 15;
 }
 
@@ -331,7 +329,7 @@ export interface ModelInputSanitizationAggregate {
   readonly entries: readonly ModelInputSanitizationAggregateEntry[];
 }
 
-export interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
+interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly sanitizer?: WebGatherSanitizerAudit;
   readonly freshness?: {
     readonly searchType: WebSearchType;
@@ -371,7 +369,7 @@ export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherA
   readonly acceptancePolicy?: WebGatherAcceptancePolicy;
 };
 
-export interface DomainPlaybookSelectionAudit {
+interface DomainPlaybookSelectionAudit {
   readonly selected: readonly {
     readonly stage: string;
     readonly playbookIds: readonly string[];
@@ -384,7 +382,7 @@ export interface DomainPlaybookSelectionAudit {
   }[];
 }
 
-export type PostSynthesisAuditWarningCode =
+type PostSynthesisAuditWarningCode =
   | "unsupported-numeric-claim"
   | "weak-evidence-posture-missing"
   | "fresh-web-unused"
@@ -402,7 +400,7 @@ export interface RelocatedGapClaim {
   readonly text: string;
 }
 
-export interface RelocatedGapClaims {
+interface RelocatedGapClaims {
   readonly count: number;
   readonly items: readonly RelocatedGapClaim[];
 }
@@ -558,9 +556,9 @@ export interface ExtendedEvidence {
   readonly gaps: readonly SourceGap[];
 }
 
-export type MarketContextCategory = "fred-macro";
+type MarketContextCategory = "fred-macro";
 
-export interface MarketContextItem {
+interface MarketContextItem {
   readonly category: MarketContextCategory;
   readonly title: string;
   readonly summary: string;
@@ -631,7 +629,7 @@ export type PredictionKind =
   | "earnings-move"
   | "conditional";
 
-export const EARNINGS_EVENT_DATE_STATUSES = [
+const EARNINGS_EVENT_DATE_STATUSES = [
   "provider-estimated",
   "issuer-confirmed",
   "exchange-confirmed",

@@ -111,16 +111,16 @@ export interface EquityReaderAnalystEstimateDistribution {
 }
 
 export type EquityReaderFinancialCoreStatus = "complete" | "partial" | "blocked";
-export type EquityReaderCoverageLevel = "comprehensive" | "substantial" | "limited";
+type EquityReaderCoverageLevel = "comprehensive" | "substantial" | "limited";
 
-export type EquityReaderCompletenessDimensionKey =
+type EquityReaderCompletenessDimensionKey =
   | "primaryFinancials"
   | "valuation"
   | "expectations"
   | "capitalOwnership"
   | "operatingKpis";
 
-export interface EquityReaderCompletenessDimension {
+interface EquityReaderCompletenessDimension {
   readonly key: EquityReaderCompletenessDimensionKey;
   readonly label: string;
   readonly status: EquityAnalysisDimensionStatus;

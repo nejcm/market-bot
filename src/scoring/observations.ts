@@ -12,7 +12,7 @@ import {
   type WindowFetchOptions,
 } from "./close-cache";
 
-export type { FetchCloseFn, FetchWindowFn, Observation };
+export type { FetchCloseFn, Observation };
 
 export interface ObservationRepository {
   point(

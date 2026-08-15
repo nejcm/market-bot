@@ -24,7 +24,7 @@ import type { EvidenceRequestToolOutput } from "./evidence-request-tools";
 const TRADIER_TARGET_DTES = [7, 30, 60, 90] as const;
 const MAX_EXPIRATION_DAYS_AFTER_EVENT = 7;
 
-export interface TradierChainPacket {
+interface TradierChainPacket {
   readonly expiration: string;
   readonly result: FetchJsonResult | SourceGap;
 }

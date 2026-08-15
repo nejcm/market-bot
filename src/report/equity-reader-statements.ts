@@ -14,7 +14,7 @@ export interface LabeledPeriod {
   readonly filedAt: string;
 }
 
-export interface EquityReaderStatementValue {
+interface EquityReaderStatementValue {
   readonly value: number;
   readonly filedAt: string;
   readonly unit: string;
@@ -22,7 +22,7 @@ export interface EquityReaderStatementValue {
   readonly sourceIds: readonly string[];
 }
 
-export interface EquityReaderBalanceSheetRow {
+interface EquityReaderBalanceSheetRow {
   readonly period: string;
   readonly cash?: EquityReaderStatementValue;
   readonly debt?: EquityReaderStatementValue;
@@ -35,7 +35,7 @@ export interface EquityReaderBalanceSheetHistory {
   readonly rows: readonly EquityReaderBalanceSheetRow[];
 }
 
-export interface EquityReaderFinancialPositionValue extends EquityReaderStatementValue {
+interface EquityReaderFinancialPositionValue extends EquityReaderStatementValue {
   readonly periodEnd: string;
 }
 

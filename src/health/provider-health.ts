@@ -34,8 +34,6 @@ import {
   type ValidationIssueClassification,
 } from "./validation";
 
-export type { ValidationCoverageItem, ValidationRouteClassification } from "./validation";
-
 const SOURCE_GAPS_FILE = RUN_ARTIFACT_FILES.sourceGaps;
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
 const ANALYTICS_FILE = RUN_ARTIFACT_FILES.analytics;
@@ -44,7 +42,7 @@ const SAMPLE_MESSAGE_LIMIT = 3;
 
 type IssueClass = "missingCredential" | "fetchFailed" | "yahooAuth" | "other";
 
-export interface SourceHealth {
+interface SourceHealth {
   readonly kind: Source["kind"];
   readonly assetClass?: AssetClass;
   readonly symbol?: string;
@@ -661,7 +659,7 @@ function tableRow(cells: readonly string[]): string {
   return `| ${cells.map((cell) => markdownTableCell(cell)).join(" | ")} |`;
 }
 
-export function renderProviderHealthMarkdown(summary: ProviderHealthSummary): string {
+function renderProviderHealthMarkdown(summary: ProviderHealthSummary): string {
   const lines = [
     "# Provider Health",
     "",

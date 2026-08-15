@@ -272,7 +272,7 @@ export interface MarketContextAdapter {
   readonly collect: (ctx: CollectContext) => Promise<MarketContextCollectionResult>;
 }
 
-export interface ObservationProviderAdapter {
+interface ObservationProviderAdapter {
   readonly name: string;
 }
 

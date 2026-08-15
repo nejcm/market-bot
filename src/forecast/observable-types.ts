@@ -1,26 +1,26 @@
 import type { Prediction } from "../domain/types";
 
-export interface ObservableDirection {
+interface ObservableDirection {
   readonly kind: "direction";
   readonly subject: string;
   readonly horizonTradingDays: number;
 }
 
-export interface ObservableRelative {
+interface ObservableRelative {
   readonly kind: "relative";
   readonly subjectA: string;
   readonly subjectB: string;
   readonly horizonTradingDays: number;
 }
 
-export interface ObservableVolatility {
+interface ObservableVolatility {
   readonly kind: "volatility";
   readonly subject: string;
   readonly horizonTradingDays: number;
   readonly threshold: number;
 }
 
-export interface ObservableRange {
+interface ObservableRange {
   readonly kind: "range";
   readonly subject: string;
   readonly horizonTradingDays: number;
@@ -28,27 +28,27 @@ export interface ObservableRange {
   readonly hi: number;
 }
 
-export interface ObservableMacro {
+interface ObservableMacro {
   readonly kind: "macro";
   readonly seriesId: string;
   readonly horizonTradingDays: number;
 }
 
-export interface ObservableIv {
+interface ObservableIv {
   readonly kind: "iv";
   readonly subject: string;
   readonly horizonTradingDays: number;
   readonly threshold: number;
 }
 
-export interface ObservableEarningsDirection {
+interface ObservableEarningsDirection {
   readonly kind: "earnings-direction";
   readonly subject: string;
   readonly eventDate: string;
   readonly horizonTradingDays: number;
 }
 
-export interface ObservableEarningsMove {
+interface ObservableEarningsMove {
   readonly kind: "earnings-move";
   readonly subject: string;
   readonly eventDate: string;
@@ -66,7 +66,7 @@ export type ObservableBaseExpression =
   | ObservableEarningsDirection
   | ObservableEarningsMove;
 
-export interface ObservableConditional {
+interface ObservableConditional {
   readonly kind: "conditional";
   readonly antecedent: ObservableBaseExpression;
   readonly consequent: ObservableBaseExpression;
@@ -135,7 +135,7 @@ export interface ObservableForecastResolved {
   readonly evidence: Record<string, unknown>;
 }
 
-export interface ObservableForecastVoided {
+interface ObservableForecastVoided {
   readonly status: "voided";
   readonly evidence: Record<string, unknown>;
 }

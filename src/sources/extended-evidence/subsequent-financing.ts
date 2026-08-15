@@ -13,20 +13,20 @@ import {
   withArtifactReadDiagnostics,
 } from "./utils";
 
-export type SubsequentFinancingInstrument =
+type SubsequentFinancingInstrument =
   | "common-equity"
   | "preferred-equity"
   | "convertible-debt"
   | "debt"
   | "credit-facility";
 
-export interface SubsequentFinancingAmount {
+interface SubsequentFinancingAmount {
   readonly amount: number;
   readonly currency: string;
   readonly basis: "gross" | "net" | "cost";
 }
 
-export interface SubsequentFinancingEvent {
+interface SubsequentFinancingEvent {
   readonly disclosureDate: string;
   readonly eventDate: string;
   readonly instrument: SubsequentFinancingInstrument;

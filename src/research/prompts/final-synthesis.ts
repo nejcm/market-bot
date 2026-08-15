@@ -48,7 +48,7 @@ const MATERIAL_CONDITIONAL_VOID_RATE = 0.5;
 
 const NEAR_BASE_RATE_PROBABILITY_RULE = `probability outside the inclusive ${NEAR_BASE_RATE_LOWER_BOUND}-${NEAR_BASE_RATE_UPPER_BOUND} near-base-rate band. A probability inside that band signals an uninformative claim: either commit to the probability the cited evidence actually supports, or choose a different observable claim with more resolving power. Never inflate a probability beyond the evidence just to leave the band`;
 
-export function finalReportShape(
+function finalReportShape(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   depthProfile: DepthProfile,
@@ -272,7 +272,7 @@ function describeOccupiedBroadIndexSlots(predictions: readonly Prediction[]): st
     : "";
 }
 
-export function buildPredictionRepairInstruction(
+function buildPredictionRepairInstruction(
   context: ResearchContext,
   excludedKinds: readonly PredictionKind[] = [],
 ): string {
@@ -454,7 +454,7 @@ function completionOptionsIv(
 // Enough context to author sourced forecasts without replaying the full evidence payload. Web
 // Sources stay under `webSources` so the completion instruction's fresh-web steering reference
 // Still resolves; `allowedSourceIds` remains the citation authority.
-export function buildCompletionEvidencePayload(
+function buildCompletionEvidencePayload(
   report: ResearchReport,
   command: ResearchCommand,
   collectedSources: CollectedSources,
@@ -482,7 +482,7 @@ export function buildCompletionEvidencePayload(
 // Narrative-only projection of the first-attempt report so the completion pass can see what has
 // Already been written without the raw evidence or prior-stage transcript. Predictions and sources
 // Are omitted: existingPredictions and the compact source index already carry them.
-export function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
+function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
   return {
     summary: report.summary,
     keyFindings: report.keyFindings,
@@ -497,7 +497,7 @@ export function buildCompletionReportDraft(report: ResearchReport): Record<strin
 
 // The critique stage output from the prior-stage transcript, projected to stage + content only.
 // The completion pass keeps just this stage instead of the full analysis transcript.
-export function completionCritiqueStage(
+function completionCritiqueStage(
   priorStages: readonly unknown[],
 ): { readonly stage: string; readonly content: string } | undefined {
   for (const entry of priorStages) {
@@ -514,7 +514,7 @@ export function completionCritiqueStage(
   return undefined;
 }
 
-export function buildPredictionCompletionInstruction(
+function buildPredictionCompletionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
@@ -548,7 +548,7 @@ export function buildPredictionCompletionInstruction(
   return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${buildPolarityGuidance(excludedKinds)}${buildCompletionKindGrammar(command, collectedSources)}${conditionalActivationGuidance}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
-export function buildPrimaryPredictionInstruction(
+function buildPrimaryPredictionInstruction(
   command: ResearchCommand,
   collectedSources: CollectedSources,
   context: ResearchContext,
@@ -640,7 +640,7 @@ export function buildStageSteeringSegment(
   return steering.length > 0 ? steering : undefined;
 }
 
-export function postSynthesisAuditGuidance(): Record<string, string> {
+function postSynthesisAuditGuidance(): Record<string, string> {
   return {
     status: "warning-only telemetry; do not retry or omit supported findings solely for this audit",
     unsupportedNumericClaims:
@@ -656,7 +656,7 @@ export function postSynthesisAuditGuidance(): Record<string, string> {
 // Recommendation-shaped subjects ("promising stocks", rankings) draw reader-directed advice even
 // Though the base prompt forbids it, so the retry must name the exact violation and the neutral
 // Phrasing that replaces it.
-export function buildReportLanguageRepairInstruction(
+function buildReportLanguageRepairInstruction(
   reportValidationErrors: readonly string[],
 ): string | undefined {
   const languageErrors = reportValidationErrors.filter((error) =>

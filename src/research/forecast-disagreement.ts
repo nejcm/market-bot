@@ -6,10 +6,10 @@ import type { LoadedPrompt } from "./prompt-loader";
 import type { StageOutput } from "./final-synthesis";
 
 export type ForecastDisagreementBand = "low" | "medium" | "high";
-export type ForecastDisagreementParticipantRole = "primary" | "challenger";
-export type ForecastDisagreementParticipantStatus = "ok" | "error";
+type ForecastDisagreementParticipantRole = "primary" | "challenger";
+type ForecastDisagreementParticipantStatus = "ok" | "error";
 
-export interface ForecastDisagreementParticipantPrediction {
+interface ForecastDisagreementParticipantPrediction {
   readonly predictionId: string;
   readonly probability: number;
 }
@@ -25,7 +25,7 @@ export interface ForecastDisagreementParticipant {
   readonly costEstimateUsd?: number;
 }
 
-export interface ForecastDisagreementPredictionSummary {
+interface ForecastDisagreementPredictionSummary {
   readonly predictionId: string;
   readonly meanProbability: number;
   readonly probabilityVariance: number;
@@ -82,7 +82,7 @@ function variance(values: readonly number[], mean: number): number {
   return values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
 }
 
-export function buildForecastDisagreementExtra(input: {
+function buildForecastDisagreementExtra(input: {
   readonly generatedAt: string;
   readonly predictions: readonly Prediction[];
   readonly participants: readonly ForecastDisagreementParticipant[];

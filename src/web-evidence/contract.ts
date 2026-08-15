@@ -46,7 +46,7 @@ export const WEB_SUBJECT_PROFILE_QUESTION_KEYS = {
   theme: THEME_QUESTION_KEYS,
 } as const satisfies Readonly<Record<SubjectKind, readonly string[]>>;
 
-export type WebSubjectProfileLegacyCompanyQuestionKey =
+type WebSubjectProfileLegacyCompanyQuestionKey =
   (typeof LEGACY_WEB_SUBJECT_PROFILE_QUESTION_KEYS.company)[number];
 export type WebSubjectProfileCompanyQuestionKey =
   (typeof WEB_SUBJECT_PROFILE_QUESTION_KEYS.company)[number];

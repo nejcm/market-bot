@@ -7,7 +7,7 @@ import {
   withArtifactReadDiagnostics,
 } from "./utils";
 
-export const VALUATION_METRIC_KEYS = [
+const VALUATION_METRIC_KEYS = [
   "priceToEarnings",
   "priceToSales",
   "enterpriseValueToRevenue",
@@ -34,7 +34,7 @@ export type ValuationMetricSuppressionReason =
   | "cash-unavailable"
   | "debt-unavailable";
 
-export type ValuationMetricNotMeaningfulReason =
+type ValuationMetricNotMeaningfulReason =
   | "negative-denominator"
   | "zero-denominator"
   | "non-finite-denominator";
@@ -57,7 +57,7 @@ export interface ValuationPriceInput {
   readonly sourceId: string;
 }
 
-export interface ValuationFxConversion {
+interface ValuationFxConversion {
   readonly rate: number;
   readonly rateDate: string;
   readonly pair: string;

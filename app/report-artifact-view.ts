@@ -16,12 +16,11 @@ export {
   predictions,
   scenarios,
   sources,
-  type PredictionView,
   type ScenarioView,
   type SourceView,
 } from "../src/run-artifact-projection";
 
-export type PredictionScoreStatus =
+type PredictionScoreStatus =
   | "pending"
   | "pending-condition"
   | "active-pending"
@@ -41,7 +40,7 @@ export interface PredictionScoreView {
   readonly pendingReason?: string;
 }
 
-export type ForecastDisagreementBand = "low" | "medium" | "high";
+type ForecastDisagreementBand = "low" | "medium" | "high";
 
 export interface ForecastDisagreementView {
   readonly predictionId: string;
@@ -53,7 +52,7 @@ export interface ForecastDisagreementView {
   readonly missingParticipantCount: number;
 }
 
-export interface MissAutopsyView {
+interface MissAutopsyView {
   readonly predictionId: string;
   readonly cause: string;
   readonly forecastError: string;
@@ -242,7 +241,7 @@ export function forecastDisagreements(
   });
 }
 
-export function missAutopsies(
+function missAutopsies(
   missAutopsy: Record<string, unknown> | undefined,
 ): readonly MissAutopsyView[] {
   const value = missAutopsy?.autopsies;

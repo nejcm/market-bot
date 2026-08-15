@@ -18,15 +18,17 @@ function secItem(sic: string) {
 
 describe("depository issuer classification", () => {
   test("classifies every depository form the same way", () => {
-    // Major group 60 in full, plus the two deposit-funded forms numbered outside it.
-    for (const sic of ["6021", "6022", "6029", "6035", "6036", "6099", "6120", "6712"]) {
+    // Major group 60 in full, plus the one deposit-funded form numbered outside it.
+    for (const sic of ["6021", "6022", "6029", "6035", "6036", "6099", "6120"]) {
       expect(depositoryIssuerSic(evidence([secItem(sic)]))).toBe(sic);
     }
   });
 
   test("leaves nondepository issuers out, including SIC 6199", () => {
     // MARA files as 6199: it funds itself in the capital markets, so enterprise value holds.
-    for (const sic of ["6199", "6111", "6200", "6798", "3571", "7372"]) {
+    // 6712 is excluded too: no EDGAR registrant is assigned it, and the bank holding companies it
+    // Was meant to catch (JPMorgan, Bank of America, Citigroup) report sic 6021 instead.
+    for (const sic of ["6199", "6111", "6200", "6712", "6798", "3571", "7372"]) {
       expect(depositoryIssuerSic(evidence([secItem(sic)]))).toBeUndefined();
     }
   });

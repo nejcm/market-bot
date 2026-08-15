@@ -366,7 +366,7 @@ without pretending the project has a global security master.
 - For a depository issuer, enterprise value and every EV-derived surface are inapplicable, not
   unavailable: deposits and borrowings fund operations, so no defensible operating/financing split
   exists. The issuer is classified once from a well-formed four-digit SIC on its own `sec-edgar`
-  item (major group 60, 6120, or 6712). EV is never computed; peer acquisition and comparison,
+  item (major group 60, or 6120). EV is never computed; peer acquisition and comparison,
   EV/revenue, reverse DCF, and capex-based P/FCF are suppressed with the industry rationale, while
   P/E, P/S, and P/B remain available when their inputs are present.
 - The SIC-group gate is tier-scoped, not absolute. The checked-in `ticker-mapping` tier is a

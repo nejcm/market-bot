@@ -14,13 +14,21 @@ const SEC_SIC_METRIC_KEY = "sic" satisfies SecMetricKey;
 // Rather than an enumeration of 6021/6022/6029 (commercial banks), 6035/6036 (savings
 // Institutions) and 6099: a thrift and a commercial bank then classify identically, and a 60xx
 // Code nobody listed here still classifies correctly.
-// Two deposit-funded forms SEC numbers outside group 60 join them: 6120 savings & loan
-// Associations, and 6712 offices of bank holding companies, whose consolidated statements are a
-// Bank's.
+// One deposit-funded form SEC numbers outside group 60 joins them: 6120 savings & loan
+// Associations. It is absent from the published EDGAR SIC list but is still assigned to live
+// Registrants — CIK 0000230208 Farmers & Mechanics Bank and CIK 0001026218 NB Capital Trust III
+// Both report `"sic": "6120"` on data.sec.gov/submissions.
+// 6712 "offices of bank holding companies" is deliberately NOT here. It was once added on economic
+// Reasoning alone, but no EDGAR registrant carries it: browse-edgar company search by SIC returns
+// "No matching companies" for 6712 while returning filers for 6021, 6022, 6120 and 6199. The
+// Parent entities it was meant to catch are classified as banks outright and already match the 60
+// Prefix — JPMorgan Chase (CIK 0000019617), Bank of America (0000070858), Wells Fargo
+// (0000072971), Citigroup (0000831001), U.S. Bancorp (0000036104) and PNC (0000713676) all report
+// `"sic": "6021"`.
 // The rest of major group 61 stays out. Nondepository credit institutions fund themselves in the
 // Capital markets, so the operating/financing split holds and enterprise value stays well defined
 // For them — 6199 in particular is the code MARA files under, and its EV/revenue is meaningful.
-const DEPOSITORY_SIC_CODES_OUTSIDE_MAJOR_GROUP_60 = new Set(["6120", "6712"]);
+const DEPOSITORY_SIC_CODES_OUTSIDE_MAJOR_GROUP_60 = new Set(["6120"]);
 
 // A prefix rule is only safe on a well-formed code: "60", "60x" and "60000" all start with "60"
 // Without being depository SIC codes, and treating malformed upstream data as a bank would

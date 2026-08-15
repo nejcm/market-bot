@@ -39,6 +39,8 @@ export interface SubsequentFinancingBridgeArtifact {
   readonly sourceIds: readonly string[];
 }
 
+const READABLE_SUBSEQUENT_FINANCING_VERSIONS = new Set<unknown>([1]);
+
 function artifactString(value: Readonly<Record<string, unknown>>, key: string): string | undefined {
   return typeof value[key] === "string" ? value[key] : undefined;
 }
@@ -62,7 +64,7 @@ export function readSubsequentFinancingBridgeArtifact(
 ): SubsequentFinancingBridgeArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    !READABLE_SUBSEQUENT_FINANCING_VERSIONS.has(value.version) ||
     artifactString(value, "generatedAt") === undefined ||
     artifactString(value, "symbol") === undefined ||
     artifactString(value, "statementPeriodEnd") === undefined ||

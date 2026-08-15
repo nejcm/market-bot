@@ -190,6 +190,8 @@ export interface FinancialStatementsArtifact {
   readonly structuredFinancialGaps: readonly StructuredFinancialGap[];
 }
 
+const READABLE_FINANCIAL_STATEMENT_VERSIONS = new Set<unknown>([1]);
+
 const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = [
   "revenue",
   "grossProfit",
@@ -330,7 +332,7 @@ export function readFinancialStatementsArtifact(
 ): FinancialStatementsArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    !READABLE_FINANCIAL_STATEMENT_VERSIONS.has(value.version) ||
     stringField(value, "generatedAt") === undefined ||
     stringField(value, "analysisAsOf") === undefined ||
     stringField(value, "symbol") === undefined ||

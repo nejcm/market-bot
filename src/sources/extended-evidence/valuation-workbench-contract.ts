@@ -154,6 +154,8 @@ export interface ValuationWorkbenchArtifact {
   readonly sourceIds: readonly string[];
 }
 
+const READABLE_VALUATION_WORKBENCH_VERSIONS = new Set<unknown>([1]);
+
 const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "price-history-unavailable",
   "quote-currency-unavailable",
@@ -336,7 +338,7 @@ export function readValuationWorkbenchArtifact(
 ): ValuationWorkbenchArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    !READABLE_VALUATION_WORKBENCH_VERSIONS.has(value.version) ||
     readString(value, "generatedAt") === undefined ||
     readString(value, "analysisAsOf") === undefined ||
     readString(value, "symbol") === undefined ||

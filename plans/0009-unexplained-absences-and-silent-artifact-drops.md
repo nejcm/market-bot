@@ -48,9 +48,11 @@ Verified against the working tree, not assumed.
   [subsequent-financing.ts:65](../src/sources/extended-evidence/subsequent-financing.ts),
   [untagged-financial-table-validation.ts:188](../src/sources/extended-evidence/untagged-financial-table-validation.ts),
   and [valuation-workbench-contract.ts:338](../src/sources/extended-evidence/valuation-workbench-contract.ts).
-  A sweep of all 54 evidence bundles currently reports 212 nodes and 0 drops, so
-  nothing is lost today — but the first schema bump silently drops every older
-  artifact, exactly as the three prior instances did.
+  A sweep of all 54 evidence bundles reports 167 nodes across these six readers
+  and 0 drops. The earlier 212 figure also counted 45 `fundamentalHistory` nodes
+  handled by a different reader. Nothing is lost today — but the first schema
+  bump silently drops every older artifact, exactly as the three prior instances
+  did.
 - **The fix pattern already exists in two places in the repo.**
   [run-artifacts.ts:909](../src/run-artifacts.ts) accepts `version !== 1 && version !== 2`.
   [valuation-workbench-contract.ts](../src/sources/extended-evidence/valuation-workbench-contract.ts)
@@ -184,6 +186,12 @@ Add one frozen fixture per reader under `tests/fixtures/artifacts/`, copied
 faithfully from real on-disk data and never hand-shaped, asserting it still
 parses. Prove each guards by removing its compatibility entry in a scratch copy
 outside the repo and watching the test fail.
+
+No `SubsequentFinancingBridgeArtifact` exists in the corpus: there are no matching
+normalized files or occurrences, and all 54 evidence bundles contain zero nodes.
+That reader therefore has no frozen fixture. Its version guard is exercised by a
+production-derived round-trip test instead; unlike frozen bytes, that test will
+self-heal on a schema bump and is not historical compatibility coverage.
 
 Verification: `bun run check`, plus a sweep of all six readers over every
 `data/runs/*/normalized/evidence-bundle.json` reporting node count and drops.

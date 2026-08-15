@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-15T14:30:00.000Z",
+  "symbol": "AAPL",
+  "status": "suppressed",
+  "reason": "reconciled-ttm-fcf-unavailable",
+  "detail": "A reconciled TTM free-cash-flow input is unavailable.",
+  "sourceIds": []
+}

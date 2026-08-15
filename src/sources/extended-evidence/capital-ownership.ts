@@ -51,6 +51,8 @@ export interface CapitalOwnershipArtifact {
   readonly omissions: readonly { readonly code: string; readonly message: string }[];
 }
 
+const READABLE_CAPITAL_OWNERSHIP_VERSIONS = new Set<unknown>([1]);
+
 interface ConceptDefinition {
   readonly taxonomy: FinancialStatementTaxonomy;
   readonly concept: string;
@@ -184,7 +186,7 @@ function readPeriodFacts(value: unknown): readonly CapitalOwnershipPeriodFact[] 
 export function readCapitalOwnershipArtifact(value: unknown): CapitalOwnershipArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    !READABLE_CAPITAL_OWNERSHIP_VERSIONS.has(value.version) ||
     readString(value.generatedAt) === undefined ||
     readString(value.symbol) === undefined
   ) {

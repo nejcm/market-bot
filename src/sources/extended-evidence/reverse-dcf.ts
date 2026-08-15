@@ -94,6 +94,8 @@ export type ReverseDcfArtifact =
       readonly detail: string;
     });
 
+const READABLE_REVERSE_DCF_VERSIONS = new Set<unknown>([1]);
+
 export interface BuildReverseDcfInput {
   readonly generatedAt: string;
   readonly symbol: string;
@@ -419,7 +421,7 @@ function hasComputedShape(value: Record<string, unknown>): boolean {
 export function readReverseDcfArtifact(value: unknown): ReverseDcfArtifact | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    !READABLE_REVERSE_DCF_VERSIONS.has(value.version) ||
     readString(value, "generatedAt") === undefined ||
     readString(value, "symbol") === undefined ||
     readStringArray(value, "sourceIds") === undefined

@@ -6,51 +6,31 @@ import type {
   MarketSnapshotPriceAsOf,
   SourceGap,
 } from "../domain/types";
-import type {
-  FinancialStatementFact,
-  FinancialStatementsArtifact,
-} from "../sources/extended-evidence/financial-statements-contract";
-import {
-  financialStatementFacts,
-  financialStatementSeriesByKey,
-  latestFinancialStatementFact,
-} from "../sources/extended-evidence/financial-statement-selection";
-import type {
-  FundamentalHistoryArtifact,
-  FundamentalHistoryPoint,
-  FundamentalHistorySeries,
-} from "../sources/extended-evidence/fundamental-history";
+import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
+import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";
 import { depositoryIssuerSic } from "../sources/extended-evidence/industry-classification";
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
-import type {
-  ValuationMetricSuppressionReason,
-  ValuationWorkbenchArtifact,
-} from "../sources/extended-evidence/valuation-workbench-contract";
+import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
+import {
+  balanceSheetHistory,
+  financialPosition,
+  type EquityReaderBalanceSheetHistory,
+  type EquityReaderFinancialPosition,
+} from "./equity-reader-statements";
+import {
+  financialTrendGaps,
+  financialTrends,
+  type EquityReaderFinancialTrends,
+} from "./equity-reader-trends";
 import { readGapTriage } from "./gap-triage";
 import {
   normalizePredictionShortfall,
   predictionShortfallMaterialGap,
 } from "./prediction-shortfall";
-import { metricCell } from "./valuation-workbench-markdown";
 
-interface TrendPeriod {
-  readonly kind: "annual" | "ttm";
-  readonly periodEnd: string;
-  readonly filedAt: string;
-}
-
-interface LabeledPeriod {
-  readonly kind: "annual" | "interim" | "ttm";
-  readonly periodEnd: string;
-  readonly filedAt: string;
-}
-
-export interface FinancialTrendRow {
-  readonly period: string;
-  readonly revenue: string;
-  readonly netIncome: string;
-  readonly operatingMargin: string;
-  readonly freeCashFlow: string;
+export interface EquityReaderMarketMultiple {
+  readonly key: "trailingPE" | "forwardPE" | "priceToBook";
+  readonly value: number;
 }
 
 export type EquityReaderCompanyDescription =
@@ -64,49 +44,6 @@ export type EquityReaderCompanyDescription =
       readonly text: "No cited plain-language company description is available.";
       readonly sourceIds: readonly [];
     };
-
-export interface EquityReaderFinancialTrends {
-  readonly reportingCurrency?: string;
-  readonly sourceIds: readonly string[];
-  readonly rows: readonly FinancialTrendRow[];
-}
-
-export interface EquityReaderStatementValue {
-  readonly value: number;
-  readonly filedAt: string;
-  readonly unit: string;
-  readonly unitScale: number;
-  readonly sourceIds: readonly string[];
-}
-
-export interface EquityReaderBalanceSheetRow {
-  readonly period: string;
-  readonly cash?: EquityReaderStatementValue;
-  readonly debt?: EquityReaderStatementValue;
-  readonly dilutedShares?: EquityReaderStatementValue;
-}
-
-export interface EquityReaderBalanceSheetHistory {
-  readonly reportingCurrency?: string;
-  readonly sourceIds: readonly string[];
-  readonly rows: readonly EquityReaderBalanceSheetRow[];
-}
-
-export interface EquityReaderFinancialPositionValue extends EquityReaderStatementValue {
-  readonly periodEnd: string;
-}
-
-export interface EquityReaderFinancialPosition {
-  readonly reportingCurrency?: string;
-  readonly cash?: EquityReaderFinancialPositionValue;
-  readonly debt?: EquityReaderFinancialPositionValue;
-  readonly dilutedShares?: EquityReaderFinancialPositionValue;
-}
-
-export interface EquityReaderMarketMultiple {
-  readonly key: "trailingPE" | "forwardPE" | "priceToBook";
-  readonly value: number;
-}
 
 export type EquityReaderValuationContext =
   | {
@@ -243,332 +180,9 @@ interface CompanyDescriptionReport {
 }
 
 const NO_COMPANY_DESCRIPTION = "No cited plain-language company description is available.";
-const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
-function periodLabel(period: LabeledPeriod): string {
-  if (period.kind === "ttm") {
-    return `TTM (${period.periodEnd}; filed ${period.filedAt})`;
-  }
-  return `${period.kind === "annual" ? "FY" : "Interim"} ending ${period.periodEnd} (filed ${period.filedAt})`;
-}
-
-function trendPeriods(history: FundamentalHistoryArtifact): readonly TrendPeriod[] {
-  const annual = new Map<string, TrendPeriod>();
-  for (const key of TREND_SERIES_KEYS) {
-    const series = history.series[key];
-    for (const point of series.annual) {
-      const existing = annual.get(point.periodEnd);
-      if (existing === undefined || point.filedAt > existing.filedAt) {
-        annual.set(point.periodEnd, {
-          kind: "annual",
-          periodEnd: point.periodEnd,
-          filedAt: point.filedAt,
-        });
-      }
-    }
-  }
-
-  const annualRows = [...annual.values()]
-    .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd))
-    .slice(-5);
-  let ttm: TrendPeriod | undefined = undefined;
-  for (const key of TREND_SERIES_KEYS) {
-    const series = history.series[key];
-    const point = series.ttm;
-    if (
-      point !== undefined &&
-      (ttm === undefined ||
-        point.periodEnd > ttm.periodEnd ||
-        (point.periodEnd === ttm.periodEnd && point.filedAt > ttm.filedAt))
-    ) {
-      ttm = {
-        kind: "ttm",
-        periodEnd: point.periodEnd,
-        filedAt: point.filedAt,
-      };
-    }
-  }
-  return ttm === undefined ? annualRows : [...annualRows, ttm];
-}
-
-function financialTrendGaps(history: FundamentalHistoryArtifact): readonly string[] {
-  const missingRevenuePeriods = trendPeriods(history).filter(
-    (period) => historyPoint(history.series.revenue, period.periodEnd, period.kind) === undefined,
-  ).length;
-  if (missingRevenuePeriods === 0) {
-    return [];
-  }
-  return [
-    `fundamental-history-revenue: SEC revenue history is unavailable for ${String(missingRevenuePeriods)} rendered period(s); affected revenue and derived operating-margin values are shown as unavailable`,
-  ];
-}
-
-function historyPoint(
-  series: FundamentalHistorySeries,
-  periodEnd: string,
-  kind: TrendPeriod["kind"],
-): FundamentalHistoryPoint | undefined {
-  if (kind === "ttm") {
-    return series.ttm?.periodEnd === periodEnd ? series.ttm : undefined;
-  }
-  return series.annual.find((point) => point.periodEnd === periodEnd);
-}
-
-// Reader/report compact ladder (T/B/M, 1 dp). Distinct from value-format.ts:scaleCurrency
-// (K tier, toFixed(0), currency prefix).
-export function compactNumber(value: number): string {
-  const absolute = Math.abs(value);
-  const units = [
-    [1_000_000_000_000, "T"],
-    [1_000_000_000, "B"],
-    [1_000_000, "M"],
-  ] as const;
-  for (const [scale, suffix] of units) {
-    if (absolute >= scale) {
-      return `${(value / scale).toFixed(1)}${suffix}`;
-    }
-  }
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
-}
-
-function trendValue(
-  history: FundamentalHistoryArtifact,
-  key: keyof FundamentalHistoryArtifact["series"],
-  period: TrendPeriod,
-): number | undefined {
-  return historyPoint(history.series[key], period.periodEnd, period.kind)?.value;
-}
-
-function formatTrendAmount(value: number | undefined): string {
-  return value === undefined ? "—" : compactNumber(value);
-}
-
-function formatTrendPercent(value: number | undefined): string {
-  return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
-}
-
-function suppressedTrendMetric(reason: ValuationMetricSuppressionReason) {
-  return { status: "suppressed" as const, display: "—", reason };
-}
-
-// Whole-column verdicts for a depository issuer, decided once from the issuer's SIC rather than
-// Per empty cell: a bank with capex tagged in one year and untagged in the next would otherwise
-// Print a real number in one row and "inapplicable" in the next row of the same column.
-// A depository issuer reports no operating income in the industrial sense, and its cash flow
-// Statement carries no capex line that a free-cash-flow proxy can subtract.
-function notApplicableTrendMetric(rationale: string) {
-  return { status: "not-applicable" as const, display: "not applicable", rationale };
-}
-
-const DEPOSITORY_OPERATING_MARGIN_RATIONALE =
-  "depository issuer; no operating income in the industrial sense";
-const DEPOSITORY_FREE_CASH_FLOW_RATIONALE =
-  "depository issuer; capex-based free cash flow is not defined";
-
-function financialTrendRows(
-  history: FundamentalHistoryArtifact,
-  depositoryIssuer: boolean,
-): readonly FinancialTrendRow[] {
-  // Both whole-column cells are resolved here, outside the per-period map, so a depository issuer
-  // Renders the same verdict on every row whatever any single period happens to have tagged.
-  const inapplicableOperatingMargin = depositoryIssuer
-    ? metricCell(notApplicableTrendMetric(DEPOSITORY_OPERATING_MARGIN_RATIONALE))
-    : undefined;
-  const inapplicableFreeCashFlow = depositoryIssuer
-    ? metricCell(notApplicableTrendMetric(DEPOSITORY_FREE_CASH_FLOW_RATIONALE))
-    : undefined;
-  return trendPeriods(history).map((period) => {
-    const revenue = trendValue(history, "revenue", period);
-    const netIncome = trendValue(history, "netIncome", period);
-    const operatingMargin = trendValue(history, "operatingMargin", period);
-    const freeCashFlow = trendValue(history, "freeCashFlowProxy", period);
-    return {
-      period: periodLabel(period),
-      revenue:
-        revenue === undefined
-          ? metricCell(suppressedTrendMetric("revenue-unavailable"))
-          : formatTrendAmount(revenue),
-      netIncome:
-        netIncome === undefined
-          ? metricCell(suppressedTrendMetric("earnings-unavailable"))
-          : formatTrendAmount(netIncome),
-      operatingMargin:
-        inapplicableOperatingMargin ??
-        (operatingMargin === undefined
-          ? metricCell(
-              suppressedTrendMetric(
-                revenue === undefined || revenue === 0
-                  ? "revenue-unavailable"
-                  : "numerator-unavailable",
-              ),
-            )
-          : formatTrendPercent(operatingMargin)),
-      freeCashFlow:
-        inapplicableFreeCashFlow ??
-        (freeCashFlow === undefined
-          ? metricCell(suppressedTrendMetric("free-cash-flow-unavailable"))
-          : formatTrendAmount(freeCashFlow)),
-    };
-  });
-}
-
-function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {
-  return history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
-}
-
-function uniqueSourceIds(sourceIds: readonly string[]): readonly string[] {
-  return [...new Set(sourceIds)];
-}
 
 function stringArrayValue(value: unknown): readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
-}
-
-function financialTrends(
-  history: FundamentalHistoryArtifact | undefined,
-  depositoryIssuer: boolean,
-): EquityReaderFinancialTrends | undefined {
-  if (history === undefined) {
-    return undefined;
-  }
-  const rows = financialTrendRows(history, depositoryIssuer);
-  if (rows.length === 0) {
-    return undefined;
-  }
-  const reportingCurrency = financialTrendCurrency(history);
-  return {
-    ...(reportingCurrency === undefined ? {} : { reportingCurrency }),
-    sourceIds: [history.sourceId],
-    rows,
-  };
-}
-
-function observableStatementFact(fact: FinancialStatementFact, cutoff: string): boolean {
-  return fact.periodEnd <= cutoff && fact.filedAt <= cutoff;
-}
-
-function statementValue(fact: FinancialStatementFact): EquityReaderStatementValue {
-  return {
-    value: fact.value,
-    filedAt: fact.filedAt,
-    unit: fact.unit,
-    unitScale: fact.unitScale,
-    sourceIds: fact.sourceIds,
-  };
-}
-
-function latestPositionValue(
-  artifact: FinancialStatementsArtifact,
-  key: "cash" | "debt" | "dilutedShares",
-  cutoff: string,
-): EquityReaderFinancialPositionValue | undefined {
-  const series = financialStatementSeriesByKey(artifact, key);
-  if (series === undefined) {
-    return undefined;
-  }
-  const fact = latestFinancialStatementFact(
-    financialStatementFacts(series).filter((candidate) =>
-      observableStatementFact(candidate, cutoff),
-    ),
-  );
-  return fact === undefined ? undefined : { ...statementValue(fact), periodEnd: fact.periodEnd };
-}
-
-function financialPosition(
-  artifact: FinancialStatementsArtifact | undefined,
-  reportGeneratedAt: string | undefined,
-): EquityReaderFinancialPosition | undefined {
-  if (artifact === undefined) {
-    return undefined;
-  }
-  const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
-  const cash = latestPositionValue(artifact, "cash", cutoff);
-  const debt = latestPositionValue(artifact, "debt", cutoff);
-  const dilutedShares = latestPositionValue(artifact, "dilutedShares", cutoff);
-  if (cash === undefined && debt === undefined && dilutedShares === undefined) {
-    return undefined;
-  }
-  return {
-    ...(artifact.reportingCurrency === undefined
-      ? {}
-      : { reportingCurrency: artifact.reportingCurrency }),
-    ...(cash === undefined ? {} : { cash }),
-    ...(debt === undefined ? {} : { debt }),
-    ...(dilutedShares === undefined ? {} : { dilutedShares }),
-  };
-}
-
-function balanceSheetHistory(
-  artifact: FinancialStatementsArtifact | undefined,
-  reportGeneratedAt: string | undefined,
-): EquityReaderBalanceSheetHistory | undefined {
-  if (artifact === undefined) {
-    return undefined;
-  }
-  const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
-  const cash = financialStatementSeriesByKey(artifact, "cash");
-  const debt = financialStatementSeriesByKey(artifact, "debt");
-  const dilutedShares = financialStatementSeriesByKey(artifact, "dilutedShares");
-  if (cash === undefined || debt === undefined || dilutedShares === undefined) {
-    return undefined;
-  }
-  const series = [cash, debt, dilutedShares];
-  const facts = series
-    .flatMap((item) => financialStatementFacts(item))
-    .filter((fact) => observableStatementFact(fact, cutoff));
-  const periods = [...new Set(facts.map((fact) => fact.periodEnd))].toSorted().slice(-5);
-  const rows = periods.flatMap((periodEnd): readonly EquityReaderBalanceSheetRow[] => {
-    const cashFact = latestFinancialStatementFact(
-      financialStatementFacts(cash).filter(
-        (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
-      ),
-    );
-    const debtFact = latestFinancialStatementFact(
-      financialStatementFacts(debt).filter(
-        (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
-      ),
-    );
-    const dilutedSharesFact = latestFinancialStatementFact(
-      financialStatementFacts(dilutedShares).filter(
-        (fact) => observableStatementFact(fact, cutoff) && fact.periodEnd === periodEnd,
-      ),
-    );
-    const filingFact = latestFinancialStatementFact(
-      [cashFact, debtFact, dilutedSharesFact].filter(
-        (fact): fact is FinancialStatementFact => fact !== undefined,
-      ),
-    );
-    if (filingFact === undefined) {
-      return [];
-    }
-    const { filedAt, periodType: kind } = filingFact;
-    return [
-      {
-        period: periodLabel({ kind, periodEnd, filedAt }),
-        ...(cashFact === undefined ? {} : { cash: statementValue(cashFact) }),
-        ...(debtFact === undefined ? {} : { debt: statementValue(debtFact) }),
-        ...(dilutedSharesFact === undefined
-          ? {}
-          : { dilutedShares: statementValue(dilutedSharesFact) }),
-      },
-    ];
-  });
-  if (rows.length === 0) {
-    return undefined;
-  }
-  return {
-    ...(artifact.reportingCurrency === undefined
-      ? {}
-      : { reportingCurrency: artifact.reportingCurrency }),
-    sourceIds: uniqueSourceIds([
-      artifact.sourceId,
-      ...rows.flatMap((row) => [
-        ...(row.cash?.sourceIds ?? []),
-        ...(row.debt?.sourceIds ?? []),
-        ...(row.dilutedShares?.sourceIds ?? []),
-      ]),
-    ]),
-    rows,
-  };
 }
 
 function valuationSourceIds(workbench: ValuationWorkbenchArtifact | undefined): readonly string[] {

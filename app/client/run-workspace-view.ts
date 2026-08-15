@@ -20,17 +20,19 @@ import type {
   FundamentalHistorySeriesKey,
 } from "../../src/sources/extended-evidence/fundamental-history";
 import {
-  compactNumber,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
   type EquityReaderAppendixCompleteness,
-  type EquityReaderBalanceSheetHistory,
   type EquityReaderConsensusItem,
   type EquityReaderFinancialCoreStatus,
-  type EquityReaderFinancialPosition,
   type EquityReaderProjection,
   type EquityReaderValuationContext,
 } from "../../src/report/equity-reader";
+import type {
+  EquityReaderBalanceSheetHistory,
+  EquityReaderFinancialPosition,
+} from "../../src/report/equity-reader-statements";
+import { compactNumber } from "../../src/report/equity-reader-trends";
 import type {
   PeerImpliedRange,
   ValuationCompsRow,

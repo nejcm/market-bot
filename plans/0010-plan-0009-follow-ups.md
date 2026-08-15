@@ -75,16 +75,62 @@ because it reads as coverage. If recording fails again, say why and stop.
 
 Verification: `bun run check`, plus `--check-golden` on all fixtures.
 
-### Phase 2 — Record the currency-converted run fixture
+### Phase 2 — Pin the currency-converted valuation path — done, no recording spent
 
-All existing run fixtures are USD/USD, so the converted valuation path is
-exercised only by unit tests and manual runs, never end to end. Record one
-foreign-private-issuer run whose quote currency differs from its reporting
-currency.
+**The premise went stale when Phase 1 landed.** Phase 1 recorded
+`equity-depository-deep` for BNS, which reports in **CAD** and quotes in
+**USD**, so a second foreign-private-issuer recording was not spent. Verified
+against the recorded golden rather than assumed:
 
-Same constraints and cautions as Phase 1.
+- `derived.valuationWorkbench` records `reportingCurrency: "CAD"`,
+  `quoteCurrency: "USD"`.
+- Three of its eleven observations carry an `fxConversion` — pair `USDCAD=X`,
+  source `market-yahoo-fx-usdcad`, rates `1.4000` and `1.3694`.
+- The conversion reaches real numbers.
+  [valuation-workbench.ts](../src/sources/extended-evidence/valuation-workbench.ts)
+  multiplies the close into the reporting currency before any metric sees it:
+  `70.55 USD × 1.4 = 98.77 CAD`, giving `P/E 16.83x`. Unconverted, that same
+  close either yields `12.02x` or suppresses as `fx-rate-unavailable`, because
+  `ratioMetric` rejects a price whose currency is not the reporting currency.
+  Both were confirmed by mutation.
+- Rendering is covered too: the workbench table prints
+  `converted at USD/CAD 1.4000 on 2025-12-02` on each converted row.
 
-Verification: `bun run check`.
+**The depository confound was checked and does not apply.** BNS suppresses
+EV/revenue, P/FCF, peer comparison and reverse DCF, but the converted close
+feeds **P/E and P/S**, which stay populated — and those are the multiples a bank
+is valued on. The converted path is exercised through the metrics that matter,
+not something incidental.
+
+Pinned by `assertCurrencyConvertedValuation` in
+[assertions.ts](../tests/support/run-fixtures/assertions.ts), wired into the
+`equity-depository-deep` case. It asserts the currency pair, that the FX source
+is cited in the report, that the rate is usable and not `1`, the exact converted
+P/E and P/S numerators, and that the rendered converted-row count matches the
+observation count — every collection it walks is asserted non-empty first, so it
+cannot pass vacuously on missing data.
+
+Those derived checks recompute `close × rate` from the artifact they are
+checking, so review correctly found they cannot catch an **internally
+consistent** producer bug. Confirmed by mutation: reading the Yahoo rate as its
+reciprocal in
+[yahoo-fx.ts](../src/sources/yahoo-fx.ts) moves the recorded rate to `0.7143`
+and the P/E numerator to `50.39` **together**, and the derived checks passed the
+whole way through — accepting a `8.58x` P/E for a Canadian bank. Golden replay
+caught it only because the golden was not refreshed; a `--write-golden` would
+have blessed it, which is exactly the failure ADR 0007's live-correctness
+invariants exist to catch.
+
+So the assertion also pins the three recorded rows to hard-coded **magnitudes**
+— rate, raw close, converted P/E and P/S numerators — compared with an explicit
+epsilon rather than exact equality. That oracle is independent of the artifact:
+a Canadian bank trades near CAD 100, not CAD 50, and USD/CAD is ~1.4, never
+~0.71. The tolerances survive a re-recording at neighbouring closes and rates
+but cannot absorb an inverted or dropped conversion.
+
+Verification: `bun run check`, plus `--check-golden` on all ten fixtures, plus
+three producer mutations — drop the multiply, drop the FX close selection,
+invert the rate at its parse site — each failing this assertion specifically.
 
 ### Phase 3 — Verify or drop SIC 6712
 
@@ -155,8 +201,8 @@ bun run src/cli.ts index rebuild
 
 ## Non-goals
 
-- **Do not hand-shape any fixture.** Phases 1 and 2 either record real data or
-  report failure.
+- **Do not hand-shape any fixture.** Phase 1 either records real data or reports
+  failure. Phase 2 spent no recording at all — see its entry.
 - **Do not regenerate `tests/fixtures/artifacts/`.** Frozen by design
   ([ADR 0007](../docs/adr/0007-golden-invariance-live-correctness-invariants.md)).
   Adding a new frozen artifact is fine; regenerating an existing one is not.
@@ -178,9 +224,10 @@ it is security-adjacent and newly recorded:
 
 ## Risk
 
-**Phases 1 and 2 spend live provider and model calls.** They are the only items
-here with a real cost, and both have failed before for environmental reasons
-rather than logic. Confirm with the user before recording.
+**Phase 1 spends live provider and model calls.** It was the only item here with
+a real cost, and it failed three times before for environmental reasons rather
+than logic. Phase 2 turned out to need no recording of its own. Confirm with the
+user before any further recording.
 
 **Phase 4 is the one that can break things silently.** A pure refactor that
 changes behaviour will not announce itself; the fixture goldens are the guard.

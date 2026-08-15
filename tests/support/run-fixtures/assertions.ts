@@ -209,6 +209,128 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
   }
 }
 
+// BNS reports in CAD and quotes in USD, so its workbench is the only recorded run where a close
+// Must cross currencies before it can meet a reporting-currency denominator. Strip the conversion
+// And every multiple below suppresses as fx-rate-unavailable instead of quietly shifting, so
+// Pinning the converted numerators pins the whole path: FX close selection, the multiply, the
+// Source attribution, and the rendered rate. The depository suppressions leave P/E and P/S — the
+// Multiples a bank is actually valued on — as the converted metrics that matter here.
+// The derived checks below recompute close × rate from the artifact they are checking, so an
+// Internally consistent producer bug survives them: read the rate as its reciprocal while still
+// Labelling the pair USDCAD=X and the recorded rate, the recorded numerators and any expectation
+// Derived from them all move together. Golden replay would not catch that either — it detects
+// Drift, and a refreshed golden would simply bless the bug. So the recorded magnitudes are pinned
+// Here as an independent oracle, per ADR 0007. These are the real BNS values as filed and quoted:
+// A Canadian bank trades near CAD 100, not near CAD 50, and USD/CAD is ~1.4, never ~0.71.
+// Tolerances are loose enough to survive a re-recording at neighbouring closes and rates, and
+// Tight enough that an inverted rate or a dropped conversion cannot fit inside them.
+const CONVERTED_ROW = /converted at USD\/CAD /gu;
+const PINNED_CONVERSIONS = [
+  { periodEnd: "2024-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 121_684_643_191 },
+  { periodEnd: "2025-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 123_264_963_232 },
+  { periodEnd: "2026-01-31", rate: 1.3694, close: 75.38, pe: 103.22, ps: 138_816_182_634 },
+] as const;
+const RATE_TOLERANCE = 0.05;
+const CLOSE_TOLERANCE = 2;
+const MARKET_CAP_TOLERANCE = 5e9;
+
+function expectNear(
+  actual: number | undefined,
+  expected: number,
+  tolerance: number,
+  label: string,
+): void {
+  expect(actual, `${label} must be a recorded number`).toBeNumber();
+  expect(
+    Math.abs((actual ?? Number.NaN) - expected),
+    `${label} must be within ${tolerance} of ${expected}, got ${actual}`,
+  ).toBeLessThanOrEqual(tolerance);
+}
+
+export function assertCurrencyConvertedValuation(result: RunFixtureResult): void {
+  const workbench = result.deepEquityEvidenceBundle?.derived.valuationWorkbench;
+  expect(workbench?.reportingCurrency, "fixture issuer must report in CAD").toBe("CAD");
+  expect(workbench?.quoteCurrency, "fixture issuer must quote in USD").toBe("USD");
+
+  const observations = workbench?.historicalMultiples.observations ?? [];
+  expect(observations.length, "fixture must carry workbench observations").toBeGreaterThan(0);
+  const converted = observations.flatMap((observation) =>
+    observation.fxConversion === undefined
+      ? []
+      : [{ observation, fx: observation.fxConversion, price: observation.price }],
+  );
+  expect(
+    converted.length,
+    "fixture must carry currency-converted workbench observations",
+  ).toBeGreaterThan(0);
+
+  for (const { observation, fx, price } of converted) {
+    const label = `${observation.basis} ${observation.periodEnd}`;
+    expect(price, `${label} converted observation must carry a quoted close`).not.toBeNull();
+    expect(price?.currency, `${label} close must be quoted in USD`).toBe("USD");
+    expect(fx.pair, `${label} FX pair`).toBe("USDCAD=X");
+    expect(fx.sourceId, `${label} FX source`).toBe("market-yahoo-fx-usdcad");
+    expect(
+      result.report.sources.some((source) => source.id === fx.sourceId),
+      `${label} FX source must be cited in the report`,
+    ).toBe(true);
+    expect(
+      fx.rateDate.localeCompare(price?.sessionDate ?? ""),
+      `${label} FX rate date`,
+    ).toBeLessThanOrEqual(0);
+    expect(Number.isFinite(fx.rate) && fx.rate > 0, `${label} FX rate must be usable`).toBe(true);
+    expect(fx.rate, `${label} FX rate must actually move the close`).not.toBe(1);
+
+    // The exact converted numerators: close × rate for P/E, and that again × diluted shares for
+    // P/S. An unconverted close would suppress both, and a wrong rate would miss both numbers.
+    const convertedClose = (price?.close ?? 0) * fx.rate;
+    const dilutedShares = observation.inputs.dilutedShares?.value;
+    expect(dilutedShares, `${label} diluted shares`).toBeGreaterThan(0);
+    expect(observation.metrics.priceToEarnings, `${label} P/E`).toMatchObject({
+      status: "populated",
+      numerator: convertedClose,
+    });
+    expect(observation.metrics.priceToSales, `${label} P/S`).toMatchObject({
+      status: "populated",
+      numerator: convertedClose * (dilutedShares ?? 0),
+    });
+  }
+
+  for (const pinned of PINNED_CONVERSIONS) {
+    const match = converted.find(({ observation }) => observation.periodEnd === pinned.periodEnd);
+    expect(match, `pinned ${pinned.periodEnd} must be a converted observation`).toBeDefined();
+    const priceToEarnings = match?.observation.metrics.priceToEarnings;
+    const priceToSales = match?.observation.metrics.priceToSales;
+    expectNear(match?.fx.rate, pinned.rate, RATE_TOLERANCE, `pinned ${pinned.periodEnd} USD/CAD`);
+    expectNear(
+      match?.price?.close,
+      pinned.close,
+      CLOSE_TOLERANCE,
+      `pinned ${pinned.periodEnd} quoted close`,
+    );
+    expectNear(
+      priceToEarnings?.status === "populated" ? priceToEarnings.numerator : undefined,
+      pinned.pe,
+      CLOSE_TOLERANCE,
+      `pinned ${pinned.periodEnd} converted close`,
+    );
+    expectNear(
+      priceToSales?.status === "populated" ? priceToSales.numerator : undefined,
+      pinned.ps,
+      MARKET_CAP_TOLERANCE,
+      `pinned ${pinned.periodEnd} converted market cap`,
+    );
+  }
+
+  expect(
+    result.markdown.match(CONVERTED_ROW)?.length,
+    "every converted observation must render its rate",
+  ).toBe(converted.length);
+  expect(result.markdown, "workbench header must name both currencies").toContain(
+    "Reporting currency: CAD. Quote currency: USD.",
+  );
+}
+
 export function assertComprehensiveAnalysisPath(
   result: RunFixtureResult,
   modelRequests: readonly ModelRequest[],

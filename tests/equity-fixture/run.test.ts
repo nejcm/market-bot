@@ -3,6 +3,7 @@ import { parseArgs } from "../../src/cli/args";
 import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
+  assertCurrencyConvertedValuation,
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
@@ -95,6 +96,7 @@ describe("static equity run fixtures", () => {
       }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);
+        assertCurrencyConvertedValuation(result);
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);

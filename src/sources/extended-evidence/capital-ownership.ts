@@ -8,6 +8,7 @@ import {
 } from "./financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import {
+  type ArtifactObservationDrop,
   readArtifactObservations,
   readArtifactReadDiagnostics,
   type ReadArtifact,
@@ -179,9 +180,17 @@ function readPeriodFact(value: unknown): CapitalOwnershipPeriodFact | undefined 
   };
 }
 
-function readPeriodFacts(value: unknown, reason: string) {
+function readPeriodFacts(
+  value: unknown,
+  reason: string,
+):
+  | {
+      readonly observations: readonly CapitalOwnershipPeriodFact[];
+      readonly drops: readonly ArtifactObservationDrop[];
+    }
+  | undefined {
   if (!Array.isArray(value)) {
-    return;
+    return undefined;
   }
   return readArtifactObservations<CapitalOwnershipPeriodFact>(value, reason, readPeriodFact);
 }

@@ -1,7 +1,9 @@
 # Plan 0009 — Unexplained absences in the report and silent drops in artifact reads
 
-**Status: Phase 1 committed (e30166b), Phase 2 built, Phases 3-6 not started** — as of
-2026-08-15.
+**Status: All six phases committed** (`e30166b`, `dc38e32`, `e67c7ae`, `bd4652a`,
+`6338d3d`, `d716310`) — as of 2026-08-15. Remaining follow-ups, including the two
+unrecorded run fixtures this plan's objective check requires, moved to
+[plan 0010](./0010-plan-0009-follow-ups.md). Safe to delete once those close.
 
 ## Problem
 

@@ -38,10 +38,14 @@ function isDepositorySic(sic: string | undefined): boolean {
 }
 
 // The issuer's SIC when it is a depository institution, otherwise undefined.
-// Single definition of "is a depository issuer" — nothing else may decide this independently.
-// Takes `unknown` because the two callers hand it evidence of different provenance: the collector
-// Passes a typed ExtendedEvidence, the report layer passes the extendedEvidence field of a report
-// JSON read back from disk.
+// The single predicate for "is a depository issuer" — nothing else may decide this independently.
+// Five call sites evaluate it (collector's peer gate, valuation, valuation-workbench, reverse-dcf,
+// Equity-reader). They agree because canonicalization replaces the sec-edgar item in place and
+// Later stages only append, so every site sees the same issuer SIC; keep that true when reordering
+// The evidence chain.
+// Takes `unknown` because callers hand it evidence of different provenance: the collector passes a
+// Typed ExtendedEvidence, the report layer passes the extendedEvidence field of a report JSON read
+// Back from disk.
 export function depositoryIssuerSic(extendedEvidence: unknown): string | undefined {
   const items =
     isRecord(extendedEvidence) && Array.isArray(extendedEvidence.items)

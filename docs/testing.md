@@ -17,13 +17,23 @@ bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build
 
 ## Unused-code gate
 
-`bun run knip` is the unused-code gate. `knip --production` is deliberately not used: `knip.json`
-has only `scripts/**/*.ts` and `tests/**/*.ts` as entries, and production mode drops the test
-entries, leaving nothing to analyze. Those test entries already reach `src/` transitively, so adding
-`src/cli.ts` or other real entry points would make production mode find only a strict subset of the
-existing gate.
+`bun run knip` is the unused-code gate. It reports nothing today because the repo is clean on the
+axis it measures, not because it cannot fail: appending an export with no consumer anywhere (a
+`const` or a `type`) to a `src/` file makes `bun run knip` report it and exit 1.
 
-The scripts-and-tests-only `entry` configuration is intentional, not an oversight.
+`knip --production` adds nothing here, but not for the reason previously recorded. Production mode
+does **not** drop user-configured `entry` patterns: with `-p`, knip still resolves
+`tests/**/*.ts` as entry files, so every test still counts as a consumer and the run reports
+nothing. Dropping the test entries entirely also reports nothing, which confirms no `src/` export is
+kept alive by tests alone.
+
+Known blind spot: `ignoreExportsUsedInFile: true` hides exports whose only consumer is their own
+file. Turning it off surfaces 354 such exports today (110 values, 244 types; 275 in `src/`, 79 in
+`app/`). This was measured with Knip's JSON reporter after setting `ignoreExportsUsedInFile: false`
+in a temporary copy of `knip.json` and running
+`bun run knip -- --config <copy> --reporter json --no-exit-code`; count the `exports` and `types`
+arrays by full `file` path rather than the terminal reporter's abbreviated rows. That backlog needs
+its own pass — it is not a defect in the gate's wiring.
 
 ## Static equity fixture tests
 

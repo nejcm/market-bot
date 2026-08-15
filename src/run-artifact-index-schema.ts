@@ -1,6 +1,6 @@
 import { Database, type Statement } from "bun:sqlite";
 
-export const INDEX_SCHEMA_VERSION = 9;
+export const INDEX_SCHEMA_VERSION = 10;
 const BUSY_TIMEOUT_MS = 1000;
 
 export function openRunArtifactIndexDatabase(path: string, readonly: boolean): Database {
@@ -97,6 +97,7 @@ function schemaSql(): string {
       outcome TEXT,
       observed_at TEXT,
       scoring_version INTEGER,
+      miss_autopsy_cause TEXT,
       PRIMARY KEY (run_id, prediction_id),
       FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
     );

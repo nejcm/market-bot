@@ -270,7 +270,7 @@ function isJobType(value: unknown): value is JobType {
   );
 }
 
-function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
+export function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
   return typeof value === "string" && MISS_AUTOPSY_CAUSES.has(value);
 }
 

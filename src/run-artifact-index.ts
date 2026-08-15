@@ -20,6 +20,7 @@ import {
   resetRunArtifactIndexSchema as resetSchema,
 } from "./run-artifact-index-schema";
 import { indexIsFresh } from "./run-artifact-index-freshness";
+import { isMissAutopsyCause } from "./run-artifacts";
 import { indexRowsForRun } from "./run-artifact-index-rows";
 import { runSearchResultFromIndexRow, runSummaryFromIndexRow } from "./run-artifact-projection";
 import { parseStringArrayJson } from "./guards";
@@ -159,8 +160,9 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
   `);
   const insertScore = db.prepare(`
     INSERT INTO scores (
-      prediction_id, run_id, resolved, status, outcome, observed_at, scoring_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      prediction_id, run_id, resolved, status, outcome, observed_at, scoring_version,
+      miss_autopsy_cause
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const indexed of indexedRuns) {
     for (const row of indexed.predictions) {
@@ -185,6 +187,7 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
         row.outcome,
         row.observed_at,
         row.scoring_version,
+        row.miss_autopsy_cause,
       );
     }
   }
@@ -725,6 +728,7 @@ interface ResolvedPairQueryRow {
   readonly outcome: string;
   readonly observed_at: string | null;
   readonly scoring_version: number | null;
+  readonly miss_autopsy_cause: string | null;
   readonly job_type: string;
   readonly asset_class: string;
   readonly market_regime_label: string | null;
@@ -748,6 +752,7 @@ export async function loadResolvedPairsFromIndex(
           p.id, p.run_id, p.kind, p.subject, p.claim, p.probability, p.horizon_trading_days,
           p.measurable_as, p.source_ids_json,
           s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
+          s.miss_autopsy_cause,
           r.job_type, r.asset_class, r.market_regime_label,
           r.horizon_trading_days AS run_horizon_trading_days
         FROM predictions p
@@ -789,6 +794,9 @@ export async function loadResolvedPairsFromIndex(
         ...(horizonBucket !== undefined ? { marketUpdateHorizonBucket: horizonBucket } : {}),
         ...(isMarketRegimeLabel(row.market_regime_label)
           ? { marketRegimeLabel: row.market_regime_label }
+          : {}),
+        ...(isMissAutopsyCause(row.miss_autopsy_cause)
+          ? { missAutopsyCause: row.miss_autopsy_cause }
           : {}),
       };
     });

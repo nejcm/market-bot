@@ -266,6 +266,9 @@ Verification: `bun run check`.
 - [scoring/index.ts:743](../src/scoring/index.ts) — miss autopsies are not hydrated
   into the index, so even a warm index re-reads every run directory from disk.
   Store the autopsy cause in the index row.
+- Existing schema-v9 indexes require a manual `bun run src/cli.ts index rebuild` before that
+  hydration improvement applies. Unsupported schemas continue to warn and fall back to disk; they
+  are not auto-migrated or auto-rebuilt ([ADR 0002](../docs/adr/0002-typescript-bun-orchestration.md)).
 
 Verification: `bun run check`.
 

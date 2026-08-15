@@ -150,33 +150,33 @@ async function formatJson(path: string, value: JsonValue): Promise<string> {
 export async function writeGoldenOutput(
   runDir: string,
   fixtureName: string,
+  validate: (path: string, content: string) => void,
 ): Promise<readonly string[]> {
   const directory = goldenOutputDirectory(fixtureName);
   const normalizedDirectory = join(directory, "normalized");
   const golden = await scrubbedRunArtifacts(runDir);
   const normalizedNames = Object.keys(golden.normalized).toSorted();
-  await rm(directory, { recursive: true, force: true });
-  await mkdir(normalizedDirectory, { recursive: true });
-
-  const paths = [
-    join(directory, "analytics.json"),
-    join(directory, "report.json"),
-    join(directory, "report.md"),
-    ...normalizedNames.map((name) => join(normalizedDirectory, name)),
-  ].toSorted();
-  await Promise.all([
-    formatJson(join(directory, "report.json"), golden.report).then((value) =>
-      writeFile(join(directory, "report.json"), value, "utf8"),
+  const pending = await Promise.all([
+    formatJson(join(directory, "report.json"), golden.report).then(
+      (content) => [join(directory, "report.json"), content] as const,
     ),
-    formatJson(join(directory, "analytics.json"), golden.analytics).then((value) =>
-      writeFile(join(directory, "analytics.json"), value, "utf8"),
+    formatJson(join(directory, "analytics.json"), golden.analytics).then(
+      (content) => [join(directory, "analytics.json"), content] as const,
     ),
-    writeFile(join(directory, "report.md"), golden.markdown, "utf8"),
+    Promise.resolve([join(directory, "report.md"), golden.markdown] as const),
     ...normalizedNames.map((name) =>
-      formatJson(join(normalizedDirectory, name), golden.normalized[name]!).then((value) =>
-        writeFile(join(normalizedDirectory, name), value, "utf8"),
+      formatJson(join(normalizedDirectory, name), golden.normalized[name]!).then(
+        (content) => [join(normalizedDirectory, name), content] as const,
       ),
     ),
   ]);
-  return paths;
+  // Code-unit order, matching the plain `.toSorted()` the test expects.
+  const files = pending.toSorted(([left], [right]) => Number(left > right) - Number(left < right));
+  for (const [path, content] of files) {
+    validate(path, content);
+  }
+  await rm(directory, { recursive: true, force: true });
+  await mkdir(normalizedDirectory, { recursive: true });
+  await Promise.all(files.map(([path, content]) => writeFile(path, content, "utf8")));
+  return files.map(([path]) => path);
 }

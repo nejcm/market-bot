@@ -35,7 +35,7 @@ export async function indexIsFresh(
   const version = db.query("PRAGMA user_version").get() as { readonly user_version: number } | null;
   if (version?.user_version !== INDEX_SCHEMA_VERSION) {
     warn(
-      `unsupported schema version ${String(version?.user_version ?? "unknown")}, falling back to disk scan`,
+      `unsupported schema version ${String(version?.user_version ?? "unknown")}, falling back to disk scan; run bun run src/cli.ts index rebuild`,
     );
     return false;
   }

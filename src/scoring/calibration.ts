@@ -11,7 +11,7 @@ import type {
   ConditionalCalibrationSummary,
   CalibrationMetric,
   CalibrationSummary,
-  MissAutopsyEntry,
+  MissAutopsyCause,
   PredictionScore,
 } from "./types";
 
@@ -22,7 +22,7 @@ export interface ResolvedPair {
   readonly jobType: JobType;
   readonly marketUpdateHorizonBucket?: string;
   readonly runId: string;
-  readonly missAutopsy?: MissAutopsyEntry;
+  readonly missAutopsyCause?: MissAutopsyCause;
   /** Market Regime label in effect at forecast time; undefined when absent/unparseable. */
   readonly marketRegimeLabel?: MarketRegimeLabel;
 }
@@ -147,11 +147,11 @@ function horizonBucket({ prediction }: ResolvedPair): string {
 
 function countMissAutopsies(pairs: readonly ResolvedPair[]): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const { missAutopsy } of pairs) {
-    if (missAutopsy === undefined) {
+  for (const { missAutopsyCause } of pairs) {
+    if (missAutopsyCause === undefined) {
       continue;
     }
-    counts[missAutopsy.cause] = (counts[missAutopsy.cause] ?? 0) + 1;
+    counts[missAutopsyCause] = (counts[missAutopsyCause] ?? 0) + 1;
   }
   return Object.fromEntries(
     Object.entries(counts).toSorted(
@@ -207,7 +207,8 @@ export function buildCalibrationSummary(
     generatedAt: now.toISOString(),
     resolvedCount: currentPairs.length,
     hitRate: currentPairs.length === 0 ? 0 : hitCount / currentPairs.length,
-    missAutopsyCount: currentPairs.filter(({ missAutopsy }) => missAutopsy !== undefined).length,
+    missAutopsyCount: currentPairs.filter(({ missAutopsyCause }) => missAutopsyCause !== undefined)
+      .length,
     brierScore: overallBrier,
     bins: buildBins(currentPairs),
     byKind: groupMetrics(currentPairs, ({ prediction }) => prediction.kind),

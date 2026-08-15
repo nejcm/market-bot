@@ -18,7 +18,7 @@ export type ValuationMetricKey = (typeof VALUATION_METRIC_KEYS)[number];
 
 export type ValuationObservationBasis = "annual" | "ttm";
 
-export type ValuationPriceSelectionRule =
+type ValuationPriceSelectionRule =
   "first verified close within 7 calendar days on or after publicAt";
 
 export type ValuationMetricSuppressionReason =

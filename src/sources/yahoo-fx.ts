@@ -2,7 +2,7 @@ import { DAY_MS } from "../config/shared";
 import type { SourceGap } from "../domain/types";
 import { sourceGap } from "../domain/source-gaps";
 import type { FetchLike } from "./types";
-import { fetchYahooCloseWindow } from "./yahoo";
+import { fetchYahooCloseWindow, type YahooCloseWindowResult } from "./yahoo";
 
 // Ponytail: seven days covers normal FX market closures; widen if observed gaps exceed it.
 const FX_LOOKBACK_CALENDAR_DAYS = 7;
@@ -46,6 +46,15 @@ function unavailableFxClose(
     cause,
     evidenceQualityImpact: "no-cap",
   });
+}
+
+function fxAbsenceSummary(fetched: YahooCloseWindowResult): string {
+  if (fetched.ok) {
+    return "Yahoo FX close unavailable";
+  }
+  return fetched.cause === "fetch-failed"
+    ? "Yahoo FX close fetch failed"
+    : "Yahoo FX close response malformed";
 }
 
 export async function fetchYahooFxClosesOnOrBefore(
@@ -94,8 +103,13 @@ export async function fetchYahooFxClosesOnOrBefore(
   const times = validRequests.map(({ date }) => date.getTime());
   const from = new Date(Math.min(...times) - FX_LOOKBACK_CALENDAR_DAYS * DAY_MS);
   const to = new Date(Math.max(...times));
-  const fetchedObservations = await fetchYahooCloseWindow(pair, from, to, fetchImpl);
-  const observations = fetchedObservations
+  // NOTE — ponytail: One uncached fetch serves a whole table. Retry and backoff are present via
+  // The direct Yahoo resilience helper, but collector-level circuit-breaking and rate limiting are
+  // Not: this path never goes through the collector request seam that provides them. Routing it
+  // Through that seam, plus a close cache, is the upgrade — do it once many foreign-issuer runs
+  // Are in flight, or Yahoo rate-limits this pair.
+  const fetched = await fetchYahooCloseWindow(pair, from, to, fetchImpl);
+  const observations = (fetched.ok ? fetched.observations : [])
     .filter((observation) => Number.isFinite(observation.value) && observation.value > 0)
     .toSorted((left, right) => left.date.localeCompare(right.date));
   const resolutions = validRequests.map(({ requestedDate }) => ({
@@ -121,14 +135,12 @@ export async function fetchYahooFxClosesOnOrBefore(
           ],
     ),
   );
-  // The fetchYahooCloseWindow contract returns [] for both an empty series and a failed request.
-  // Both are reported as provider-data-missing because fetch-failed cannot be distinguished here.
   const missingGaps = resolutions.flatMap(({ requestedDate, close }) =>
     close === undefined
       ? [
           unavailableFxClose(
-            `Yahoo FX close unavailable for ${pair} on or before ${requestedDate}`,
-            "provider-data-missing",
+            `${fxAbsenceSummary(fetched)} for ${pair} on or before ${requestedDate}`,
+            fetched.ok ? "provider-data-missing" : fetched.cause,
             sourceId,
           ),
         ]

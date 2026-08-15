@@ -26,6 +26,8 @@ const SUPPRESSION_REASONS = new Set<ReverseDcfSuppressionReason>([
   "enterprise-value-not-positive",
   "input-date-unavailable",
   "input-currency-unavailable",
+  // NOTE — ponytail: input-currency-mismatch needs no version-compatibility entry while it is
+  // Still a live emitted reason. Add one when FX conversion is extended here and it is retired.
   "input-currency-mismatch",
 ]);
 

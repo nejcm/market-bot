@@ -27,6 +27,7 @@ import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { fetchMassiveCloseWindow, fetchMassiveQuoteFallback } from "./massive-fallback";
 import {
   fetchYahooJsonWithResilience,
+  fetchYahooResponseWithResilience,
   YAHOO_QUOTE_URL,
   yahooCredentialFetch,
 } from "./yahoo-resilience";
@@ -697,23 +698,103 @@ export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): r
   return bars;
 }
 
+/**
+ * `ok: false` means no provider returned usable data and says why; `ok: true` with an empty
+ * series means a provider answered and genuinely had no closes. Callers that state an absence
+ * reason need the difference — HTTP success alone does not prove the payload was usable.
+ */
+export type YahooCloseWindowResult =
+  | { readonly ok: true; readonly observations: readonly Observation[] }
+  | { readonly ok: false; readonly cause: "fetch-failed" | "malformed-response" };
+
+// Yahoo states "there is genuinely no series here" in the response body, and pairs it with a
+// Non-2xx status: an unknown symbol is 404 Not Found, an out-of-range window is 400 Bad Request.
+// Matched as (code, description-prefix) pairs — the code alone is broader than the condition.
+const YAHOO_NO_SERIES_ERRORS: readonly (readonly [string, string])[] = [
+  ["Not Found", "No data found"],
+  ["Bad Request", "Data doesn't exist for startDate"],
+];
+
+// The error object sits under chart.error on a chart payload, and at the top level on the bare
+// Error body Yahoo returns with a non-2xx status.
+function yahooErrorRecord(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+  return isRecord(payload.chart) ? payload.chart.error : payload;
+}
+
+function isYahooNoSeriesError(payload: unknown): boolean {
+  const error = yahooErrorRecord(payload);
+  if (!isRecord(error)) {
+    return false;
+  }
+  const code = readString(error, "code");
+  const description = readString(error, "description");
+  return YAHOO_NO_SERIES_ERRORS.some(
+    ([errorCode, descriptionPrefix]) =>
+      code === errorCode && description?.startsWith(descriptionPrefix) === true,
+  );
+}
+
+type YahooChartWindowFetch =
+  | { readonly kind: "payload"; readonly payload: unknown }
+  | { readonly kind: "no-series" }
+  | { readonly kind: "failed"; readonly cause: "fetch-failed" | "malformed-response" };
+
+async function fetchYahooChartWindowPayload(
+  url: string,
+  fetchImpl: FetchLike,
+): Promise<YahooChartWindowFetch> {
+  const response = await fetchYahooResponseWithResilience(url, fetchImpl, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
+  }).catch(() => {});
+  if (response === undefined) {
+    return { kind: "failed", cause: "fetch-failed" };
+  }
+
+  // Read the body before judging the status. Yahoo reports its one honest no-data condition with a
+  // Non-2xx status, so classifying on status first makes the genuine empty series unreachable.
+  const payload = await response.json().catch(() => {});
+  if (isYahooNoSeriesError(payload)) {
+    return { kind: "no-series" };
+  }
+  if (!response.ok) {
+    return { kind: "failed", cause: "fetch-failed" };
+  }
+  return payload === undefined
+    ? { kind: "failed", cause: "malformed-response" }
+    : { kind: "payload", payload };
+}
+
+// A parseable chart is a genuine empty series only when it carries no rows at all. A chart with
+// Timestamps whose closes are absent or null is a malformed payload, not an empty one.
+function yahooChartHasNoRows(payload: unknown): boolean {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return false;
+  }
+  const closes = chart.quote.close;
+  return chart.timestamps.length === 0 && Array.isArray(closes) && closes.length === 0;
+}
+
 export async function fetchYahooCloseWindow(
   symbol: string,
   from: Date,
   to: Date,
   fetchImpl: FetchLike = fetch,
   massiveApiKey?: string,
-): Promise<readonly Observation[]> {
-  const url = yahooChartWindowUrl(symbol, from, to);
-  const fetched = await fetchYahooJsonWithResilience(url, fetchImpl, {
-    signal: AbortSignal.timeout(10_000),
-    headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
-  });
+): Promise<YahooCloseWindowResult> {
+  const fetched = await fetchYahooChartWindowPayload(
+    yahooChartWindowUrl(symbol, from, to),
+    fetchImpl,
+  );
 
-  if (fetched.ok) {
+  if (fetched.kind === "payload") {
     const observations = observationsFromYahooChartPayload(symbol, fetched.payload);
     if (observations.length > 0) {
-      return observations;
+      return { ok: true, observations };
     }
   }
 
@@ -724,7 +805,18 @@ export async function fetchYahooCloseWindow(
     massiveApiKey,
     fetchImpl,
   );
-  return massiveObservations ?? [];
+  if (massiveObservations !== undefined) {
+    return { ok: true, observations: massiveObservations };
+  }
+  if (fetched.kind === "no-series") {
+    return { ok: true, observations: [] };
+  }
+  if (fetched.kind === "failed") {
+    return { ok: false, cause: fetched.cause };
+  }
+  return yahooChartHasNoRows(fetched.payload)
+    ? { ok: true, observations: [] }
+    : { ok: false, cause: "malformed-response" };
 }
 
 interface YahooSplitEvent {

@@ -226,18 +226,34 @@ Files: `src/sources/yahoo-fx.ts`, `tests/fixtures/runs/`
 - **No fixture exercises the converted path end to end.** All nine run fixtures
   are USD/USD. Add one foreign-private-issuer run fixture whose quote currency
   differs from its reporting currency.
-- **A failed fetch is reported as `provider-data-missing`.** `fetchYahooCloseWindow`
-  returns `[]` for both an empty series and a failed request, so the FX layer
-  cannot distinguish them and the `fetch-failed` cause is never emitted. Fixing it
-  means changing that function's return contract — check its other callers first.
-- **No close cache or collector rate limiting on the FX path.** Retry and
-  circuit-breaking are present via `fetchYahooJsonWithResilience`; caching and
-  collector-level rate limiting are not. One fetch serves a whole table, so this
-  only matters once many foreign-issuer runs are in flight.
+- **A failed fetch is reported as `provider-data-missing`.** **Built.**
+  `fetchYahooCloseWindow` now returns
+  `{ ok: true, observations } | { ok: false, cause }`, the discriminated union
+  `fetchYahooJsonWithResilience` already returns one file over, widened only by a
+  cause drawn from the existing `SourceGapCause` vocabulary. HTTP success is no
+  longer treated as payload success: only an explicitly recognized Yahoo no-series
+  condition counts as a genuinely empty series, so the FX layer emits
+  `provider-data-missing` solely when a provider truly answered with nothing,
+  `fetch-failed` when the request failed, and `malformed-response` when a 200 carried
+  an unusable payload. A stated reason has to be accurate, not merely present — the
+  same standard Phase 1 set. `scoring/observations.ts` maps every `ok: false` to
+  `[]`, exactly the behaviour it had before, so no scoring semantics moved.
+  Separately, a Massive fallback that threw escaped as a rejection instead of a
+  failed fallback; it is now caught in `fetchMassiveCloseWindow`, where every caller
+  benefits.
+- **No close cache or collector rate limiting on the FX path.** **Not built** —
+  moved to the Watch list. Correcting this plan's earlier text: retry and backoff
+  are present on the direct Yahoo helper, but collector-level circuit-breaking is
+  *not*, because this path never goes through the collector request seam that
+  provides it. What remains true is that one fetch serves a whole table, so the cost
+  only matters once many foreign-issuer runs are in flight. That trigger has not
+  fired. Building it now would be speculative by the same standard this plan applies
+  everywhere else.
 - **`reverse-dcf.ts` carries `input-currency-mismatch`**, the direct analogue of a
-  reason already retired elsewhere. It needs no compatibility entry while it is
-  still a live emitted reason — but it will the moment FX conversion is extended
-  there.
+  reason already retired elsewhere. **No action**, by this plan's own reasoning: it
+  needs no compatibility entry while it is still a live emitted reason. Recorded on
+  the Watch list so the trigger — extending FX conversion into `reverse-dcf.ts` —
+  is not lost with this plan.
 
 Verification: `bun run check`.
 
@@ -256,11 +272,14 @@ Verification: `bun run check`.
 ## Watch list — deliberate ceilings, no action
 
 Marked simplifications with stated triggers. Act when the trigger fires; acting
-sooner is speculative.
+sooner is speculative. Every row is anchored by a `NOTE — ponytail:` comment at
+that location, so the trigger survives this plan being deleted.
 
 | Location | Ceiling | Trigger |
 | --- | --- | --- |
 | [yahoo-fx.ts:7](../src/sources/yahoo-fx.ts) | 7-day FX lookback | An observed gap longer than 7 days |
+| [yahoo-fx.ts:106](../src/sources/yahoo-fx.ts) | One uncached fetch serves a whole table; retry and backoff are present, collector-level circuit-breaking and rate limiting are not, since this path bypasses the collector request seam | Many foreign-issuer runs in flight, or an observed Yahoo rate-limit response on the FX pair |
+| [reverse-dcf.ts:29](../src/sources/extended-evidence/reverse-dcf.ts) | `input-currency-mismatch` has no version-compatibility entry while it is still a live emitted reason | FX conversion is extended into `reverse-dcf.ts` and the reason is retired |
 | [financial-statement-selection.ts:45](../src/sources/extended-evidence/financial-statement-selection.ts) | Off-canonical ~350-day stub spans never bucket | A filer whose stub period matters to a published number |
 | [financial-statements.ts:130](../src/sources/extended-evidence/financial-statements.ts) | Calendar-year fiscal labels | A Jan-31 filer (most retailers) — `2018-01-31` yields FY2018 where the filer says FY2017 |
 | [offline-financial-corpus-compare.ts:94](../tests/support/offline-financial-corpus-compare.ts) | Parity comparison ignores `fy` | Golden locking stops covering the difference |

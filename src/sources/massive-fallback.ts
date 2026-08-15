@@ -226,15 +226,17 @@ export async function fetchMassiveCloseWindow(
     return undefined;
   }
 
+  // A fallback that throws must read as "fallback unavailable". Escaping as a rejection would
+  // Bypass callers that model provider failure as a returned result.
   const response = await fetchImpl(buildMassiveAggregatesUrl(symbol, ymd(from), ymd(to), apiKey), {
     signal: AbortSignal.timeout(10_000),
     headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
-  });
-  if (!response.ok) {
+  }).catch(() => {});
+  if (response === undefined || !response.ok) {
     return undefined;
   }
 
-  const payload = (await response.json()) as unknown;
+  const payload = await response.json().catch(() => {});
   if (!isRecord(payload) || !Array.isArray(payload.results)) {
     return undefined;
   }

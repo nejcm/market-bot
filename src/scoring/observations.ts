@@ -99,7 +99,8 @@ function routeWindowFetch(report: ResearchReport, massiveApiKey?: string): Fetch
       if (options?.scoringPolicyVersion === 3) {
         return fetchYahooSplitAdjustedCloseWindow(subject, from, to);
       }
-      return fetchYahooCloseWindow(subject, from, to, fetch, massiveApiKey);
+      const fetched = await fetchYahooCloseWindow(subject, from, to, fetch, massiveApiKey);
+      return fetched.ok ? fetched.observations : [];
     }
 
     const id = coinGeckoId(report, subject);

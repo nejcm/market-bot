@@ -341,7 +341,7 @@ describe("valuation workbench", () => {
         Response.json({
           chart: {
             result: null,
-            error: { code: "Not Found", description: "No data found" },
+            error: { code: "Not Found", description: "No data found, symbol may be delisted" },
           },
         }),
     });

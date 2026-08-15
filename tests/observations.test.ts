@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createObservationRepository } from "../src/scoring/observations";
 import type { ResearchReport } from "../src/domain/types";
-import { fetchYahooCloseWindow, fetchYahooSplitAdjustedCloseWindow } from "../src/sources/yahoo";
+import {
+  fetchYahooCloseWindow,
+  fetchYahooSplitAdjustedCloseWindow,
+  type YahooCloseWindowResult,
+} from "../src/sources/yahoo";
 import type { FetchLike } from "../src/sources/types";
 import { researchReport } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
@@ -46,6 +50,13 @@ function yahooChartPayload(closes: readonly unknown[], events?: Record<string, u
 function fetchPayload(payload: unknown): FetchLike {
   return async () => Response.json(payload);
 }
+
+const yahooFailsAndMassiveThrows: FetchLike = async (input) => {
+  if (String(input).includes("massive")) {
+    throw new Error("massive network down");
+  }
+  return new Response("nope", { status: 404 });
+};
 
 describe("ObservationRepository point routing", () => {
   test("routes FRED point requests to FRED observations", async () => {
@@ -156,7 +167,129 @@ describe("ObservationRepository window routing", () => {
       async () => new Response(body, { headers: { "content-type": "application/json" } }),
     );
 
-    expect(result).toHaveLength(90);
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.observations : []).toHaveLength(90);
+  });
+
+  describe("fetchYahooCloseWindow states an accurate reason for every empty result", () => {
+    const from = new Date("2025-05-11T00:00:00.000Z");
+    const to = new Date("2026-06-14T00:00:00.000Z");
+    const emptyChart = {
+      chart: {
+        result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }],
+        error: null,
+      },
+    };
+
+    const scenarios: readonly (readonly [string, FetchLike, YahooCloseWindowResult])[] = [
+      [
+        "network throw",
+        async () => {
+          throw new Error("socket refused");
+        },
+        { ok: false, cause: "fetch-failed" },
+      ],
+      [
+        "non-200 with an unrecognized body",
+        async () => new Response("nope", { status: 404 }),
+        { ok: false, cause: "fetch-failed" },
+      ],
+      // The two status+body pairs live Yahoo actually returns for "no data", captured from real
+      // Calls: an unknown symbol and a window outside the instrument's history.
+      [
+        "404 carrying Yahoo's unknown-symbol body",
+        async () =>
+          Response.json(
+            { code: "Not Found", description: "No data found, symbol may be delisted" },
+            { status: 404 },
+          ),
+        { ok: true, observations: [] },
+      ],
+      [
+        "400 carrying Yahoo's out-of-range-window body",
+        async () =>
+          Response.json(
+            {
+              code: "Bad Request",
+              description: "Data doesn't exist for startDate = 0, endDate = 1",
+            },
+            { status: 400 },
+          ),
+        { ok: true, observations: [] },
+      ],
+      [
+        "400 with an unrecognized description under a recognized code",
+        async () =>
+          Response.json({ code: "Bad Request", description: "Invalid api key" }, { status: 400 }),
+        { ok: false, cause: "fetch-failed" },
+      ],
+      [
+        "200 with invalid JSON",
+        async () => new Response("<html>not json", { status: 200 }),
+        { ok: false, cause: "malformed-response" },
+      ],
+      [
+        "200 with a valid-JSON but malformed chart shape",
+        async () => Response.json({ chart: { result: [{ nope: true }], error: null } }),
+        { ok: false, cause: "malformed-response" },
+      ],
+      [
+        "200 with a generic chart.error",
+        async () =>
+          Response.json({ chart: { result: null, error: { code: "Internal Server Error" } } }),
+        { ok: false, cause: "malformed-response" },
+      ],
+      [
+        "200 with a recognized no-series error",
+        async () =>
+          Response.json({
+            chart: {
+              result: null,
+              error: { code: "Not Found", description: "No data found, symbol may be delisted" },
+            },
+          }),
+        { ok: true, observations: [] },
+      ],
+      [
+        "200 with a structurally valid but empty series",
+        async () => Response.json(emptyChart),
+        { ok: true, observations: [] },
+      ],
+      [
+        "200 with a timestamp whose close is null",
+        async () =>
+          Response.json({
+            chart: {
+              result: [{ timestamp: [1_735_862_400], indicators: { quote: [{ close: [null] }] } }],
+              error: null,
+            },
+          }),
+        { ok: false, cause: "malformed-response" },
+      ],
+      [
+        "200 with a timestamp and no closes at all",
+        async () =>
+          Response.json({
+            chart: {
+              result: [{ timestamp: [1_735_862_400], indicators: { quote: [{ close: [] }] } }],
+              error: null,
+            },
+          }),
+        { ok: false, cause: "malformed-response" },
+      ],
+    ];
+
+    for (const [name, fetchImpl, expected] of scenarios) {
+      test(name, async () => {
+        expect(await fetchYahooCloseWindow("AAPL", from, to, fetchImpl)).toEqual(expected);
+      });
+    }
+
+    test("a Massive fallback that throws is a failed fallback, not a rejection", async () => {
+      expect(
+        await fetchYahooCloseWindow("AAPL", from, to, yahooFailsAndMassiveThrows, "test-key"),
+      ).toEqual({ ok: false, cause: "fetch-failed" });
+    });
   });
 
   test("reconstructs dividend-exclusive split-adjusted equity closes from one Yahoo response", async () => {

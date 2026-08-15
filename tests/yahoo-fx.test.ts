@@ -116,4 +116,64 @@ describe("Yahoo FX closes", () => {
       },
     ]);
   });
+
+  test("emits provider-data-missing for Yahoo's real 404 no-data body", async () => {
+    const result = await fetchYahooFxClosesOnOrBefore("USD", "CAD", ["2025-01-06"], async () =>
+      Response.json(
+        { code: "Not Found", description: "No data found, symbol may be delisted" },
+        { status: 404 },
+      ),
+    );
+
+    expect(result.closesByRequestedDate).toEqual({});
+    expect(result.sourceGaps).toEqual([
+      {
+        source: "market-yahoo-fx-usdcad",
+        message: "Yahoo FX close unavailable for USDCAD=X on or before 2025-01-06",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      },
+    ]);
+  });
+
+  test("emits malformed-response when Yahoo answers 200 with an unusable payload", async () => {
+    const result = await fetchYahooFxClosesOnOrBefore("USD", "CAD", ["2025-01-06"], async () =>
+      Response.json({ chart: { result: null, error: { code: "Internal Server Error" } } }),
+    );
+
+    expect(result.closesByRequestedDate).toEqual({});
+    expect(result.sourceGaps).toEqual([
+      {
+        source: "market-yahoo-fx-usdcad",
+        message: "Yahoo FX close response malformed for USDCAD=X on or before 2025-01-06",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "malformed-response",
+        evidenceQualityImpact: "no-cap",
+      },
+    ]);
+  });
+
+  test("emits fetch-failed, not provider-data-missing, when the request fails", async () => {
+    const result = await fetchYahooFxClosesOnOrBefore(
+      "USD",
+      "CAD",
+      ["2025-01-06"],
+      async () => new Response("nope", { status: 404 }),
+    );
+
+    expect(result.closesByRequestedDate).toEqual({});
+    expect(result.sourceGaps).toEqual([
+      {
+        source: "market-yahoo-fx-usdcad",
+        message: "Yahoo FX close fetch failed for USDCAD=X on or before 2025-01-06",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "fetch-failed",
+        evidenceQualityImpact: "no-cap",
+      },
+    ]);
+  });
 });

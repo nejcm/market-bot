@@ -1,5 +1,12 @@
 import { isRecord } from "../../guards";
 import type { SecFilingForm } from "../evidence-request-tools";
+import {
+  type ArtifactObservationDrop,
+  readArtifactObservations,
+  readArtifactReadDiagnostics,
+  type ReadArtifact,
+  withArtifactReadDiagnostics,
+} from "./utils";
 
 export type FinancialStatementTaxonomy = "us-gaap" | "ifrs-full";
 
@@ -275,42 +282,102 @@ function hasFinancialStatementTtmShape(value: unknown): boolean {
   );
 }
 
-function hasFinancialStatementSeriesShape(
+function readFinancialStatementSeries(
   value: unknown,
   key: FinancialStatementSeriesKey,
-): boolean {
-  return (
-    isRecord(value) &&
-    value.key === key &&
-    stringField(value, "label") !== undefined &&
-    (value.statement === "incomeStatement" ||
-      value.statement === "balanceSheet" ||
-      value.statement === "cashFlowStatement" ||
-      value.statement === "perShare") &&
-    Array.isArray(value.annual) &&
-    value.annual.every(hasFinancialStatementFactShape) &&
-    Array.isArray(value.interim) &&
-    value.interim.every(hasFinancialStatementFactShape) &&
-    (value.ttm === undefined || hasFinancialStatementTtmShape(value.ttm))
+):
+  | {
+      readonly series: FinancialStatementSeries;
+      readonly drops: readonly ArtifactObservationDrop[];
+    }
+  | undefined {
+  if (
+    !isRecord(value) ||
+    value.key !== key ||
+    stringField(value, "label") === undefined ||
+    (value.statement !== "incomeStatement" &&
+      value.statement !== "balanceSheet" &&
+      value.statement !== "cashFlowStatement" &&
+      value.statement !== "perShare") ||
+    !Array.isArray(value.annual) ||
+    !Array.isArray(value.interim)
+  ) {
+    return undefined;
+  }
+  const readFact = (fact: unknown): FinancialStatementFact | undefined =>
+    hasFinancialStatementFactShape(fact) ? (fact as FinancialStatementFact) : undefined;
+  const annual = readArtifactObservations<FinancialStatementFact>(
+    value.annual,
+    `financialStatements.${key}.annual.invalid`,
+    readFact,
   );
+  const interim = readArtifactObservations<FinancialStatementFact>(
+    value.interim,
+    `financialStatements.${key}.interim.invalid`,
+    readFact,
+  );
+  const ttm =
+    value.ttm === undefined
+      ? undefined
+      : readArtifactObservations<FinancialStatementTtm>(
+          [value.ttm],
+          `financialStatements.${key}.ttm.invalid`,
+          (candidate) =>
+            hasFinancialStatementTtmShape(candidate)
+              ? (candidate as FinancialStatementTtm)
+              : undefined,
+        );
+  const { ttm: _ttm, ...rest } = value;
+  return {
+    series: {
+      ...rest,
+      key,
+      label: value.label as string,
+      statement: value.statement,
+      annual: annual.observations,
+      interim: interim.observations,
+      ...(ttm?.observations[0] !== undefined ? { ttm: ttm.observations[0] } : {}),
+    },
+    drops: [...annual.drops, ...interim.drops, ...(ttm?.drops ?? [])],
+  };
 }
 
-function hasFinancialStatementEquityStackShape(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.totalAssets) &&
-    value.totalAssets.every(hasFinancialStatementFactShape) &&
-    Array.isArray(value.totalLiabilities) &&
-    value.totalLiabilities.every(hasFinancialStatementFactShape) &&
-    Array.isArray(value.stockholdersEquity) &&
-    value.stockholdersEquity.every(hasFinancialStatementFactShape) &&
-    Array.isArray(value.minorityInterest) &&
-    value.minorityInterest.every(hasFinancialStatementFactShape) &&
-    Array.isArray(value.stockholdersEquityIncludingNoncontrollingInterest) &&
-    value.stockholdersEquityIncludingNoncontrollingInterest.every(hasFinancialStatementFactShape) &&
-    Array.isArray(value.temporaryEquity) &&
-    value.temporaryEquity.every(hasFinancialStatementFactShape)
-  );
+function readFinancialStatementEquityStack(value: unknown):
+  | {
+      readonly equityStack: FinancialStatementEquityStack;
+      readonly drops: readonly ArtifactObservationDrop[];
+    }
+  | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const keys = [
+    "totalAssets",
+    "totalLiabilities",
+    "stockholdersEquity",
+    "minorityInterest",
+    "stockholdersEquityIncludingNoncontrollingInterest",
+    "temporaryEquity",
+  ] as const;
+  const facts: Partial<Record<(typeof keys)[number], readonly FinancialStatementFact[]>> = {};
+  const drops: ArtifactObservationDrop[] = [];
+  for (const key of keys) {
+    if (!Array.isArray(value[key])) {
+      return undefined;
+    }
+    const read = readArtifactObservations<FinancialStatementFact>(
+      value[key],
+      `financialStatements.equityStack.${key}.invalid`,
+      (fact) =>
+        hasFinancialStatementFactShape(fact) ? (fact as FinancialStatementFact) : undefined,
+    );
+    facts[key] = read.observations;
+    drops.push(...read.drops);
+  }
+  return {
+    equityStack: { ...value, ...facts } as unknown as FinancialStatementEquityStack,
+    drops,
+  };
 }
 
 function financialStatementSeriesRecord(value: unknown): Record<string, unknown> | undefined {
@@ -329,7 +396,7 @@ function financialStatementSeriesRecord(value: unknown): Record<string, unknown>
 
 export function readFinancialStatementsArtifact(
   value: unknown,
-): FinancialStatementsArtifact | undefined {
+): ReadArtifact<FinancialStatementsArtifact> | undefined {
   if (
     !isRecord(value) ||
     !READABLE_FINANCIAL_STATEMENT_VERSIONS.has(value.version) ||
@@ -348,13 +415,20 @@ export function readFinancialStatementsArtifact(
       value.interimCadence !== "annual-only" &&
       value.interimCadence !== "unknown") ||
     value.extractionMethod !== "sec-companyfacts" ||
-    (value.equityStack !== undefined &&
-      !hasFinancialStatementEquityStackShape(value.equityStack)) ||
     !isRecord(value.statements) ||
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
     !Array.isArray(value.structuredFinancialGaps)
   ) {
+    return undefined;
+  }
+
+  const previous = readArtifactReadDiagnostics(value);
+  const equityStack =
+    value.equityStack === undefined
+      ? undefined
+      : readFinancialStatementEquityStack(value.equityStack);
+  if (previous === undefined || (value.equityStack !== undefined && equityStack === undefined)) {
     return undefined;
   }
 
@@ -371,12 +445,36 @@ export function readFinancialStatementsArtifact(
     return undefined;
   }
   const allSeries = { ...income, ...balance, ...cashFlow, ...perShare };
-  if (
-    !FINANCIAL_STATEMENT_SERIES_KEYS.every((key) =>
-      hasFinancialStatementSeriesShape(allSeries[key], key),
-    )
-  ) {
-    return undefined;
+  const series: Partial<Record<FinancialStatementSeriesKey, FinancialStatementSeries>> = {};
+  const drops: ArtifactObservationDrop[] = [...(equityStack?.drops ?? [])];
+  for (const key of FINANCIAL_STATEMENT_SERIES_KEYS) {
+    const read = readFinancialStatementSeries(allSeries[key], key);
+    if (read === undefined) {
+      return undefined;
+    }
+    series[key] = read.series;
+    drops.push(...read.drops);
   }
-  return value as unknown as FinancialStatementsArtifact;
+  const statement = (record: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.keys(record).map((key) => [
+        key,
+        series[key as FinancialStatementSeriesKey] ?? record[key],
+      ]),
+    );
+  return withArtifactReadDiagnostics(
+    {
+      ...value,
+      ...(equityStack === undefined ? {} : { equityStack: equityStack.equityStack }),
+      statements: {
+        ...value.statements,
+        incomeStatement: statement(income),
+        balanceSheet: statement(balance),
+        cashFlowStatement: statement(cashFlow),
+        perShare: statement(perShare),
+      },
+    } as unknown as FinancialStatementsArtifact,
+    previous,
+    drops,
+  );
 }

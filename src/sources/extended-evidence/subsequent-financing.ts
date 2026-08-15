@@ -6,6 +6,12 @@ import type {
   FinancialStatementFact,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
+import {
+  readArtifactObservations,
+  readArtifactReadDiagnostics,
+  type ReadArtifact,
+  withArtifactReadDiagnostics,
+} from "./utils";
 
 export type SubsequentFinancingInstrument =
   | "common-equity"
@@ -61,7 +67,7 @@ function artifactStringArray(
 
 export function readSubsequentFinancingBridgeArtifact(
   value: unknown,
-): SubsequentFinancingBridgeArtifact | undefined {
+): ReadArtifact<SubsequentFinancingBridgeArtifact> | undefined {
   if (
     !isRecord(value) ||
     !READABLE_SUBSEQUENT_FINANCING_VERSIONS.has(value.version) ||
@@ -69,37 +75,48 @@ export function readSubsequentFinancingBridgeArtifact(
     artifactString(value, "symbol") === undefined ||
     artifactString(value, "statementPeriodEnd") === undefined ||
     !Array.isArray(value.events) ||
-    value.events.length === 0 ||
     artifactStringArray(value, "sourceIds") === undefined
   ) {
     return undefined;
   }
-  for (const event of value.events) {
-    if (
-      !isRecord(event) ||
-      artifactString(event, "disclosureDate") === undefined ||
-      artifactString(event, "eventDate") === undefined ||
-      (event.instrument !== "common-equity" &&
-        event.instrument !== "preferred-equity" &&
-        event.instrument !== "convertible-debt" &&
-        event.instrument !== "debt" &&
-        event.instrument !== "credit-facility") ||
-      !isRecord(event.proceeds) ||
-      artifactNumber(event.proceeds, "amount") === undefined ||
-      artifactString(event.proceeds, "currency") === undefined ||
-      (event.proceeds.basis !== "gross" && event.proceeds.basis !== "net") ||
-      (event.costs !== null &&
-        (!isRecord(event.costs) ||
-          artifactNumber(event.costs, "amount") === undefined ||
-          artifactString(event.costs, "currency") === undefined ||
-          event.costs.basis !== "cost")) ||
-      artifactStringArray(event, "sourceIds") === undefined ||
-      event.reconciled !== false
-    ) {
-      return undefined;
-    }
+  const previous = readArtifactReadDiagnostics(value);
+  if (
+    previous === undefined ||
+    (value.events.length === 0 && previous.droppedObservationCount === 0)
+  ) {
+    return undefined;
   }
-  return value as unknown as SubsequentFinancingBridgeArtifact;
+  const events = readArtifactObservations<SubsequentFinancingEvent>(
+    value.events,
+    "subsequentFinancing.events.invalid",
+    (event) =>
+      isRecord(event) &&
+      artifactString(event, "disclosureDate") !== undefined &&
+      artifactString(event, "eventDate") !== undefined &&
+      (event.instrument === "common-equity" ||
+        event.instrument === "preferred-equity" ||
+        event.instrument === "convertible-debt" ||
+        event.instrument === "debt" ||
+        event.instrument === "credit-facility") &&
+      isRecord(event.proceeds) &&
+      artifactNumber(event.proceeds, "amount") !== undefined &&
+      artifactString(event.proceeds, "currency") !== undefined &&
+      (event.proceeds.basis === "gross" || event.proceeds.basis === "net") &&
+      (event.costs === null ||
+        (isRecord(event.costs) &&
+          artifactNumber(event.costs, "amount") !== undefined &&
+          artifactString(event.costs, "currency") !== undefined &&
+          event.costs.basis === "cost")) &&
+      artifactStringArray(event, "sourceIds") !== undefined &&
+      event.reconciled === false
+        ? (event as unknown as SubsequentFinancingEvent)
+        : undefined,
+  );
+  return withArtifactReadDiagnostics(
+    { ...value, events: events.observations } as unknown as SubsequentFinancingBridgeArtifact,
+    previous,
+    events.drops,
+  );
 }
 
 interface FinancingConcept {

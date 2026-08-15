@@ -87,7 +87,7 @@ function statements(payload: unknown) {
 }
 
 describe("capital ownership artifact", () => {
-  test("returns undefined without throwing for malformed artifacts", () => {
+  test("drops malformed observations without throwing", () => {
     const artifact = {
       version: 1,
       generatedAt: GENERATED_AT,
@@ -99,31 +99,39 @@ describe("capital ownership artifact", () => {
       omissions: [],
     };
     const malformedArtifacts = [
-      {
-        ...artifact,
-        dilutedShares: [
-          {
-            value: "not-numeric",
-            periodStart: "2025-01-01",
-            periodEnd: "2025-12-31",
-            filedAt: "2026-02-15",
-            form: "10-K",
-            taxonomy: "us-gaap",
-            concept: "WeightedAverageNumberOfDilutedSharesOutstanding",
-            unit: "shares",
-            sourceIds: [SOURCE_ID],
-          },
-        ],
-      },
-      { ...artifact, omissions: ["garbage"] },
-    ];
+      [
+        {
+          ...artifact,
+          dilutedShares: [
+            {
+              value: "not-numeric",
+              periodStart: "2025-01-01",
+              periodEnd: "2025-12-31",
+              filedAt: "2026-02-15",
+              form: "10-K",
+              taxonomy: "us-gaap",
+              concept: "WeightedAverageNumberOfDilutedSharesOutstanding",
+              unit: "shares",
+              sourceIds: [SOURCE_ID],
+            },
+          ],
+        },
+        "capitalOwnership.dilutedShares.invalid",
+      ],
+      [{ ...artifact, omissions: ["garbage"] }, "capitalOwnership.omissions.invalid"],
+    ] as const;
 
-    for (const malformed of malformedArtifacts) {
+    for (const [malformed, reason] of malformedArtifacts) {
       let result: ReturnType<typeof readCapitalOwnershipArtifact> | "not-called" = "not-called";
       expect(() => {
         result = readCapitalOwnershipArtifact(malformed);
       }).not.toThrow();
-      expect(result).toBeUndefined();
+      expect(result).toMatchObject({
+        readDiagnostics: {
+          droppedObservationCount: 1,
+          drops: [{ reason, count: 1 }],
+        },
+      });
     }
   });
 

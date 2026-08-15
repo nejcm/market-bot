@@ -752,9 +752,15 @@ export function reverseDcfView(detail: RunDetail): RunWorkspaceReverseDcfView | 
     terminalGrowthRatesPct: artifact.assumptions.terminalGrowthRatesPct,
     rows: artifact.grid.rows.map((row) => ({
       discountRatePct: row.discountRatePct,
-      cells: row.cells.map((cell) =>
-        cell.status === "solved" ? `${cell.solvedFiveYearFcfGrowthPct.toFixed(2)}%` : "not solved",
-      ),
+      cells: artifact.assumptions.terminalGrowthRatesPct.map((rate) => {
+        const cell = row.cells.find((candidate) => candidate.terminalGrowthRatePct === rate);
+        if (cell === undefined) {
+          return "— (unavailable)";
+        }
+        return cell.status === "solved"
+          ? `${cell.solvedFiveYearFcfGrowthPct.toFixed(2)}%`
+          : "not solved";
+      }),
     })),
   };
 }

@@ -323,7 +323,10 @@ describe("valuation workbench", () => {
       expect.objectContaining({ id: "market-yahoo-fx-usdcad", provider: "yahoo" }),
     ]);
     expect(result.sourceGaps).toEqual([]);
-    expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
+    expect(readValuationWorkbenchArtifact(artifact)).toEqual({
+      ...artifact,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
   });
 
   test("reports a distinct reason and SourceGap when no FX rate is available", async () => {
@@ -686,7 +689,10 @@ describe("valuation workbench", () => {
     expect(markdown).toContain("Reporting currency: USD. Quote currency: USD.");
     expect(markdown).toContain("Peer comparison data is unavailable for this run.");
     expect(violatesResearchOnly(markdown)).toBeNull();
-    expect(readValuationWorkbenchArtifact(artifact)).toEqual(artifact);
+    expect(readValuationWorkbenchArtifact(artifact)).toEqual({
+      ...artifact,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
   });
 
   test("omits a suppressed trailing-basis disclosure from markdown", () => {
@@ -754,7 +760,7 @@ describe("valuation workbench", () => {
     expect(markdown).not.toContain("quote time 2026-05-19T14:31:00.000Z");
   });
 
-  test("rejects an unproved not-applicable metric on read", () => {
+  test("drops an unreadable observation, records it, and preserves the record on re-read", () => {
     const artifact = buildValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",
       symbol: "TEST",
@@ -788,6 +794,50 @@ describe("valuation workbench", () => {
       },
     } as ValuationWorkbenchArtifact;
 
-    expect(readValuationWorkbenchArtifact(malformed)).toBeUndefined();
+    const read = readValuationWorkbenchArtifact(malformed);
+
+    expect(read?.historicalMultiples.observations).toEqual(rest);
+    expect(read?.readDiagnostics).toEqual({
+      droppedObservationCount: 1,
+      drops: [
+        {
+          reason: "valuationWorkbench.historicalMultiples.observations.invalid",
+          count: 1,
+        },
+      ],
+    });
+    expect(readValuationWorkbenchArtifact(structuredClone(read))).toEqual(read);
+  });
+
+  test("returns an artifact and records every observation when none are readable", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2024-02-15", close: 20 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const read = readValuationWorkbenchArtifact({
+      ...artifact,
+      historicalMultiples: {
+        ...artifact.historicalMultiples,
+        observations: artifact.historicalMultiples.observations.map((observation) => ({
+          ...observation,
+          basis: "retired",
+        })),
+      },
+    });
+
+    expect(read?.historicalMultiples.observations).toEqual([]);
+    expect(read?.readDiagnostics).toEqual({
+      droppedObservationCount: artifact.historicalMultiples.observations.length,
+      drops: [
+        {
+          reason: "valuationWorkbench.historicalMultiples.observations.invalid",
+          count: artifact.historicalMultiples.observations.length,
+        },
+      ],
+    });
   });
 });

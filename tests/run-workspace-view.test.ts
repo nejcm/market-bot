@@ -1588,6 +1588,35 @@ describe("run workspace view", () => {
     ]);
   });
 
+  test("keeps a missing reverse DCF cell aligned in the Console grid", () => {
+    const artifact = reverseDcfArtifact();
+    if (artifact.status !== "computed") {
+      throw new Error("expected computed reverse DCF fixture");
+    }
+    const row = artifact.grid.rows[0]!;
+    const view = reverseDcfView({
+      summary: summary(),
+      reverseDcf: {
+        ...artifact,
+        grid: {
+          ...artifact.grid,
+          rows: [
+            { ...row, cells: row.cells.filter((cell) => cell.terminalGrowthRatePct !== 2) },
+            ...artifact.grid.rows.slice(1),
+          ],
+        },
+      },
+    });
+
+    expect(view?.status === "computed" ? view.rows[0]?.cells : undefined).toEqual([
+      expect.any(String),
+      expect.any(String),
+      "— (unavailable)",
+      expect.any(String),
+      expect.any(String),
+    ]);
+  });
+
   test("keeps every populated reverse DCF view string inside the research-only boundary", () => {
     const view = reverseDcfView({
       summary: summary(),

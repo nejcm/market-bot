@@ -1,5 +1,11 @@
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import { isRecord, readNumber, readString, readStringArray } from "../../guards";
+import {
+  readArtifactObservations,
+  readArtifactReadDiagnostics,
+  type ReadArtifact,
+  withArtifactReadDiagnostics,
+} from "./utils";
 
 export const VALUATION_METRIC_KEYS = [
   "priceToEarnings",
@@ -335,7 +341,7 @@ function hasPeerComparisonShape(value: unknown): boolean {
 
 export function readValuationWorkbenchArtifact(
   value: unknown,
-): ValuationWorkbenchArtifact | undefined {
+): ReadArtifact<ValuationWorkbenchArtifact> | undefined {
   if (
     !isRecord(value) ||
     !READABLE_VALUATION_WORKBENCH_VERSIONS.has(value.version) ||
@@ -349,7 +355,6 @@ export function readValuationWorkbenchArtifact(
       readString(value.historicalMultiples, "priceSelectionRule") ?? "",
     ) ||
     !Array.isArray(value.historicalMultiples.observations) ||
-    !value.historicalMultiples.observations.every(hasObservationShape) ||
     !hasTrailingBasisShape(value.historicalMultiples.trailingBasis) ||
     readStringArray(value.historicalMultiples, "suppressionReasons") === undefined ||
     !hasPeerComparisonShape(value.peerComparison) ||
@@ -357,5 +362,27 @@ export function readValuationWorkbenchArtifact(
   ) {
     return undefined;
   }
-  return value as unknown as ValuationWorkbenchArtifact;
+  const previous = readArtifactReadDiagnostics(value);
+  if (previous === undefined) {
+    return undefined;
+  }
+  const observations = readArtifactObservations<HistoricalValuationObservation>(
+    value.historicalMultiples.observations,
+    "valuationWorkbench.historicalMultiples.observations.invalid",
+    (observation) =>
+      hasObservationShape(observation)
+        ? (observation as HistoricalValuationObservation)
+        : undefined,
+  );
+  return withArtifactReadDiagnostics(
+    {
+      ...value,
+      historicalMultiples: {
+        ...value.historicalMultiples,
+        observations: observations.observations,
+      },
+    } as unknown as ValuationWorkbenchArtifact,
+    previous,
+    observations.drops,
+  );
 }

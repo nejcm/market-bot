@@ -87,6 +87,7 @@ import {
   readReverseDcfArtifact,
   type ReverseDcfArtifact,
 } from "./sources/extended-evidence/reverse-dcf";
+import type { ReadArtifact } from "./sources/extended-evidence/utils";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistorySeriesKey,
@@ -163,12 +164,12 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
-  readonly financialStatements?: FinancialStatementsArtifact;
-  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
-  readonly capitalOwnership?: CapitalOwnershipArtifact;
+  readonly financialStatements?: ReadArtifact<FinancialStatementsArtifact>;
+  readonly subsequentFinancing?: ReadArtifact<SubsequentFinancingBridgeArtifact>;
+  readonly capitalOwnership?: ReadArtifact<CapitalOwnershipArtifact>;
   readonly peerImpliedRange?: PeerImpliedRange;
-  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
-  readonly reverseDcf?: ReverseDcfArtifact;
+  readonly valuationWorkbench?: ReadArtifact<ValuationWorkbenchArtifact>;
+  readonly reverseDcf?: ReadArtifact<ReverseDcfArtifact>;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
@@ -1639,11 +1640,29 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     webSubjectProfileFile,
     readWebSubjectProfileArtifact,
   );
+  const observationDrops = [
+    financialStatements,
+    subsequentFinancing,
+    capitalOwnership,
+    valuationWorkbench,
+    reverseDcf,
+  ].flatMap((artifact) => artifact?.readDiagnostics?.drops ?? []);
+  const droppedObservationCount = observationDrops.reduce((sum, drop) => sum + drop.count, 0);
+  const readableReport =
+    droppedObservationCount === 0
+      ? report
+      : {
+          ...report,
+          dataGaps: [
+            ...report.dataGaps,
+            `Artifact observations unavailable: ${String(droppedObservationCount)} ${droppedObservationCount === 1 ? "observation" : "observations"} dropped (${observationDrops.map((drop) => `${drop.reason}: ${String(drop.count)}`).join(", ")}).`,
+          ],
+        };
 
   return {
     artifact: {
       runDirName,
-      report,
+      report: readableReport,
       scores: parsedScores ?? [],
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: deepEquity

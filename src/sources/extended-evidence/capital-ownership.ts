@@ -7,6 +7,12 @@ import {
   type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
+import {
+  readArtifactObservations,
+  readArtifactReadDiagnostics,
+  type ReadArtifact,
+  withArtifactReadDiagnostics,
+} from "./utils";
 
 export interface CapitalOwnershipPeriodFact {
   readonly value: number;
@@ -173,17 +179,16 @@ function readPeriodFact(value: unknown): CapitalOwnershipPeriodFact | undefined 
   };
 }
 
-function readPeriodFacts(value: unknown): readonly CapitalOwnershipPeriodFact[] | undefined {
+function readPeriodFacts(value: unknown, reason: string) {
   if (!Array.isArray(value)) {
-    return undefined;
+    return;
   }
-  const facts = value.map((item) => readPeriodFact(item));
-  return facts.every((fact) => fact !== undefined)
-    ? (facts as readonly CapitalOwnershipPeriodFact[])
-    : undefined;
+  return readArtifactObservations<CapitalOwnershipPeriodFact>(value, reason, readPeriodFact);
 }
 
-export function readCapitalOwnershipArtifact(value: unknown): CapitalOwnershipArtifact | undefined {
+export function readCapitalOwnershipArtifact(
+  value: unknown,
+): ReadArtifact<CapitalOwnershipArtifact> | undefined {
   if (
     !isRecord(value) ||
     !READABLE_CAPITAL_OWNERSHIP_VERSIONS.has(value.version) ||
@@ -192,11 +197,22 @@ export function readCapitalOwnershipArtifact(value: unknown): CapitalOwnershipAr
   ) {
     return undefined;
   }
-  const dilutedShares = readPeriodFacts(value.dilutedShares);
-  const stockBasedCompensation = readPeriodFacts(value.stockBasedCompensation);
-  const buybacks = readPeriodFacts(value.buybacks);
-  const dividendsPaid = readPeriodFacts(value.dividendsPaid);
+  const previous = readArtifactReadDiagnostics(value);
+  const dilutedShares = readPeriodFacts(
+    value.dilutedShares,
+    "capitalOwnership.dilutedShares.invalid",
+  );
+  const stockBasedCompensation = readPeriodFacts(
+    value.stockBasedCompensation,
+    "capitalOwnership.stockBasedCompensation.invalid",
+  );
+  const buybacks = readPeriodFacts(value.buybacks, "capitalOwnership.buybacks.invalid");
+  const dividendsPaid = readPeriodFacts(
+    value.dividendsPaid,
+    "capitalOwnership.dividendsPaid.invalid",
+  );
   if (
+    previous === undefined ||
     dilutedShares === undefined ||
     stockBasedCompensation === undefined ||
     buybacks === undefined ||
@@ -205,40 +221,50 @@ export function readCapitalOwnershipArtifact(value: unknown): CapitalOwnershipAr
   ) {
     return undefined;
   }
-  const omissions = value.omissions.flatMap((omission) =>
-    isRecord(omission) &&
-    readString(omission.code) !== undefined &&
-    readString(omission.message) !== undefined
-      ? [{ code: omission.code as string, message: omission.message as string }]
-      : [],
+  const omissions = readArtifactObservations<CapitalOwnershipArtifact["omissions"][number]>(
+    value.omissions,
+    "capitalOwnership.omissions.invalid",
+    (omission) =>
+      isRecord(omission) &&
+      readString(omission.code) !== undefined &&
+      readString(omission.message) !== undefined
+        ? { code: omission.code as string, message: omission.message as string }
+        : undefined,
   );
-  if (omissions.length !== value.omissions.length) {
-    return undefined;
-  }
-  return {
-    version: 1,
-    generatedAt: value.generatedAt as string,
-    symbol: value.symbol as string,
-    dilutedShares,
-    stockBasedCompensation,
-    buybacks,
-    dividendsPaid,
-    ...(isRecord(value.debtPrincipal)
-      ? {
-          debtPrincipal: value.debtPrincipal as NonNullable<
-            CapitalOwnershipArtifact["debtPrincipal"]
-          >,
-        }
-      : {}),
-    ...(isRecord(value.subsequentFinancing)
-      ? {
-          subsequentFinancing: value.subsequentFinancing as NonNullable<
-            CapitalOwnershipArtifact["subsequentFinancing"]
-          >,
-        }
-      : {}),
-    omissions,
-  };
+  return withArtifactReadDiagnostics<CapitalOwnershipArtifact>(
+    {
+      version: 1,
+      generatedAt: value.generatedAt as string,
+      symbol: value.symbol as string,
+      dilutedShares: dilutedShares.observations,
+      stockBasedCompensation: stockBasedCompensation.observations,
+      buybacks: buybacks.observations,
+      dividendsPaid: dividendsPaid.observations,
+      ...(isRecord(value.debtPrincipal)
+        ? {
+            debtPrincipal: value.debtPrincipal as NonNullable<
+              CapitalOwnershipArtifact["debtPrincipal"]
+            >,
+          }
+        : {}),
+      ...(isRecord(value.subsequentFinancing)
+        ? {
+            subsequentFinancing: value.subsequentFinancing as NonNullable<
+              CapitalOwnershipArtifact["subsequentFinancing"]
+            >,
+          }
+        : {}),
+      omissions: omissions.observations,
+    },
+    previous,
+    [
+      ...dilutedShares.drops,
+      ...stockBasedCompensation.drops,
+      ...buybacks.drops,
+      ...dividendsPaid.drops,
+      ...omissions.drops,
+    ],
+  );
 }
 
 function conceptUnitFacts(

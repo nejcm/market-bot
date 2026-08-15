@@ -16,6 +16,7 @@ import {
   deepEquityEvidenceBundle,
   marketSnapshot,
   researchReport,
+  valuationWorkbench,
   verifiedMarketSnapshot,
 } from "./support/fixtures";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
@@ -23,6 +24,7 @@ import { deriveFinancialStatements } from "../src/sources/extended-evidence/fina
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { predictionTargetHealth } from "../app/report-artifact-view";
+import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -104,8 +106,49 @@ describe("research console app artifacts", () => {
     const canonical = await readRunDetail(dataDir, "canonical");
     const historical = await readRunDetail(dataDir, "historical");
 
-    expect(canonical?.financialStatements).toEqual(artifact);
+    expect(canonical?.financialStatements).toEqual({
+      ...artifact,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
     expect(historical?.financialStatements).toBeUndefined();
+  });
+
+  test("shows artifact observation drops through the existing Console gap surface", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "partial-artifact");
+    mkdirSync(join(runDir, "normalized"), { recursive: true });
+    const workbench = valuationWorkbench();
+    const [unreadable, ...readable] = workbench.historicalMultiples.observations;
+    writeJson(
+      join(runDir, "report.json"),
+      researchReport({
+        runId: "partial-artifact",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        extras: { depth: "brief" },
+      }),
+    );
+    writeJson(join(runDir, "normalized", "valuation-workbench.json"), {
+      ...workbench,
+      historicalMultiples: {
+        ...workbench.historicalMultiples,
+        observations: [{ ...unreadable, basis: "retired" }, ...readable],
+      },
+    });
+
+    const detail = await readRunDetail(dataDir, "partial-artifact");
+
+    expect(detail?.report?.dataGaps).toContain(
+      "Artifact observations unavailable: 1 observation dropped (valuationWorkbench.historicalMultiples.observations.invalid: 1).",
+    );
+    expect(
+      detail === undefined
+        ? undefined
+        : buildRunWorkspaceView(detail).equityPresentation?.defaultView.materialGaps,
+    ).toContain(
+      "Artifact observations unavailable: 1 observation dropped (valuationWorkbench.historicalMultiples.observations.invalid: 1).",
+    );
   });
 
   test("normalizes legacy prediction shortfalls on the Console read path", async () => {

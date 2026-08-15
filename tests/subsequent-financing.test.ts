@@ -135,6 +135,9 @@ describe("subsequent financing bridge", () => {
   test("keeps filed balances unchanged and marks current strength partial", () => {
     const payload = companyFacts();
     const bridge = deriveSubsequentFinancingBridge(payload, statements(payload));
+    if (bridge === undefined) {
+      throw new Error("expected subsequent financing bridge fixture");
+    }
     expect(bridge).toMatchObject({
       version: 1,
       statementPeriodEnd: "2025-03-31",
@@ -150,7 +153,22 @@ describe("subsequent financing bridge", () => {
         },
       ],
     });
-    expect(readSubsequentFinancingBridgeArtifact(bridge)).toEqual(bridge);
+    expect(readSubsequentFinancingBridgeArtifact(bridge)).toEqual({
+      ...bridge,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
+    expect(
+      readSubsequentFinancingBridgeArtifact({
+        ...bridge,
+        events: [...bridge.events, { ...bridge.events[0], instrument: "retired" }],
+      }),
+    ).toMatchObject({
+      events: bridge.events,
+      readDiagnostics: {
+        droppedObservationCount: 1,
+        drops: [{ reason: "subsequentFinancing.events.invalid", count: 1 }],
+      },
+    });
 
     const baseline = addFinancialLensEvidence(
       command,

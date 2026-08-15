@@ -2,6 +2,12 @@ import { isRecord, readNumber, readString, readStringArray } from "../../guards"
 import type { ExtendedEvidence } from "../../domain/types";
 import { depositoryIssuerSic } from "./industry-classification";
 import type { ValuationWorkbenchArtifact } from "./valuation-workbench-contract";
+import {
+  type ArtifactObservationDrop,
+  readArtifactReadDiagnostics,
+  type ReadArtifact,
+  withArtifactReadDiagnostics,
+} from "./utils";
 
 export const REVERSE_DCF_DISCOUNT_RATES_PCT = [8, 9, 10, 11, 12, 13, 14, 15, 16] as const;
 export const REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT = [0, 1, 2, 3, 4] as const;
@@ -363,15 +369,19 @@ function hasComputedShape(value: Record<string, unknown>): boolean {
   }
   const { startingFcf, enterpriseValue } = value.assumptions;
   return (
-    hasExactKeys(value, [
-      "assumptions",
-      "generatedAt",
-      "grid",
-      "sourceIds",
-      "status",
-      "symbol",
-      "version",
-    ]) &&
+    hasExactKeys(
+      value,
+      [
+        "assumptions",
+        "generatedAt",
+        "grid",
+        ...(value.readDiagnostics === undefined ? [] : ["readDiagnostics"]),
+        "sourceIds",
+        "status",
+        "symbol",
+        "version",
+      ].toSorted(),
+    ) &&
     hasExactKeys(value.assumptions, [
       "discountRatesPct",
       "enterpriseValue",
@@ -399,26 +409,13 @@ function hasComputedShape(value: Record<string, unknown>): boolean {
       REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT.length &&
     value.assumptions.terminalGrowthRatesPct.every(
       (rate, index) => rate === REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT[index],
-    ) &&
-    value.grid.rows.length === REVERSE_DCF_DISCOUNT_RATES_PCT.length &&
-    value.grid.rows.every(
-      (row, rowIndex) =>
-        isRecord(row) &&
-        hasExactKeys(row, ["cells", "discountRatePct"]) &&
-        row.discountRatePct === REVERSE_DCF_DISCOUNT_RATES_PCT[rowIndex] &&
-        Array.isArray(row.cells) &&
-        row.cells.length === REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT.length &&
-        row.cells.every(
-          (cell, cellIndex) =>
-            hasGridCellShape(cell) &&
-            isRecord(cell) &&
-            cell.terminalGrowthRatePct === REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT[cellIndex],
-        ),
     )
   );
 }
 
-export function readReverseDcfArtifact(value: unknown): ReverseDcfArtifact | undefined {
+export function readReverseDcfArtifact(
+  value: unknown,
+): ReadArtifact<ReverseDcfArtifact> | undefined {
   if (
     !isRecord(value) ||
     !READABLE_REVERSE_DCF_VERSIONS.has(value.version) ||
@@ -428,24 +425,101 @@ export function readReverseDcfArtifact(value: unknown): ReverseDcfArtifact | und
   ) {
     return undefined;
   }
+  const previous = readArtifactReadDiagnostics(value);
+  if (previous === undefined) {
+    return undefined;
+  }
   if (value.status === "computed" && hasComputedShape(value)) {
-    return value as unknown as ReverseDcfArtifact;
+    const grid = value.grid as { readonly rows: readonly unknown[] } & Record<string, unknown>;
+    const claimedRowDrops =
+      previous.drops.find((drop) => drop.reason === "reverseDcf.grid.rows.invalid")?.count ?? 0;
+    if (grid.rows.length + claimedRowDrops < REVERSE_DCF_DISCOUNT_RATES_PCT.length) {
+      return undefined;
+    }
+    const rows: ReverseDcfGridRow[] = [];
+    const seenDiscountRates = new Set<number>();
+    let rawCellCount = 0;
+    for (const row of grid.rows) {
+      if (
+        !isRecord(row) ||
+        !hasExactKeys(row, ["cells", "discountRatePct"]) ||
+        !REVERSE_DCF_DISCOUNT_RATES_PCT.some((rate) => row.discountRatePct === rate) ||
+        !Array.isArray(row.cells) ||
+        seenDiscountRates.has(row.discountRatePct as number)
+      ) {
+        continue;
+      }
+      seenDiscountRates.add(row.discountRatePct as number);
+      rawCellCount += row.cells.length;
+      const seenTerminalGrowthRates = new Set<number>();
+      const readableCells = row.cells.flatMap((cell) => {
+        if (
+          !hasGridCellShape(cell) ||
+          !isRecord(cell) ||
+          !REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT.some(
+            (rate) => cell.terminalGrowthRatePct === rate,
+          ) ||
+          seenTerminalGrowthRates.has(cell.terminalGrowthRatePct as number)
+        ) {
+          return [];
+        }
+        seenTerminalGrowthRates.add(cell.terminalGrowthRatePct as number);
+        return [cell as unknown as ReverseDcfGridCell];
+      });
+      rows.push({ discountRatePct: row.discountRatePct as number, cells: readableCells });
+    }
+    const claimedCellDrops =
+      previous.drops.find((drop) => drop.reason === "reverseDcf.grid.cells.invalid")?.count ?? 0;
+    if (
+      rawCellCount + claimedCellDrops <
+      rows.length * REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT.length
+    ) {
+      return undefined;
+    }
+    // NOTE — ponytail: Re-read tolerance trusts within-grid claims in local run data; only provenance could distinguish forged truncation from a genuine partial read.
+    const retainedRowDrops = REVERSE_DCF_DISCOUNT_RATES_PCT.length - rows.length;
+    const retainedCellDrops =
+      rows.length * REVERSE_DCF_TERMINAL_GROWTH_RATES_PCT.length -
+      rows.reduce((sum, row) => sum + row.cells.length, 0);
+    const retainedDrops: ArtifactObservationDrop[] = [
+      ...(retainedRowDrops > 0
+        ? [{ reason: "reverseDcf.grid.rows.invalid", count: retainedRowDrops }]
+        : []),
+      ...(retainedCellDrops > 0
+        ? [{ reason: "reverseDcf.grid.cells.invalid", count: retainedCellDrops }]
+        : []),
+    ];
+    return withArtifactReadDiagnostics(
+      {
+        ...value,
+        grid: { ...grid, rows },
+      } as unknown as ReverseDcfArtifact,
+      {
+        droppedObservationCount: 0,
+        drops: [],
+      },
+      retainedDrops,
+    );
   }
   if (
     value.status === "suppressed" &&
-    hasExactKeys(value, [
-      "detail",
-      "generatedAt",
-      "reason",
-      "sourceIds",
-      "status",
-      "symbol",
-      "version",
-    ]) &&
+    hasExactKeys(
+      value,
+      [
+        "detail",
+        "generatedAt",
+        ...(value.readDiagnostics === undefined ? [] : ["readDiagnostics"]),
+        "reason",
+        "sourceIds",
+        "status",
+        "symbol",
+        "version",
+      ].toSorted(),
+    ) &&
     SUPPRESSION_REASONS.has(value.reason as ReverseDcfSuppressionReason) &&
     readString(value, "detail") !== undefined
   ) {
-    return value as unknown as ReverseDcfArtifact;
+    return withArtifactReadDiagnostics(value as unknown as ReverseDcfArtifact, previous, []);
   }
   return undefined;
 }

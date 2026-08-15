@@ -200,12 +200,135 @@ describe("reverse DCF input sensitivity", () => {
 
   test("reads current artifacts and rejects unrelated computed fields", () => {
     const artifact = reverseDcfArtifact();
-    expect(readReverseDcfArtifact(artifact)).toEqual(artifact);
+    expect(readReverseDcfArtifact(artifact)).toEqual({
+      ...artifact,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
     expect(
       readReverseDcfArtifact({
         ...artifact,
         unrelatedOutput: 1,
       }),
     ).toBeUndefined();
+  });
+
+  test("drops only an unreadable grid cell and records it", () => {
+    const artifact = reverseDcfArtifact();
+    if (artifact.status !== "computed") {
+      throw new Error("expected computed reverse DCF fixture");
+    }
+    const firstRow = artifact.grid.rows[0]!;
+    const malformed = {
+      ...artifact,
+      grid: {
+        ...artifact.grid,
+        rows: [
+          {
+            ...firstRow,
+            cells: [{ ...firstRow.cells[0], status: "retired" }, ...firstRow.cells.slice(1)],
+          },
+          ...artifact.grid.rows.slice(1),
+        ],
+      },
+    };
+
+    const read = readReverseDcfArtifact(malformed);
+
+    expect(read).toMatchObject({
+      status: "computed",
+      readDiagnostics: {
+        droppedObservationCount: 1,
+        drops: [{ reason: "reverseDcf.grid.cells.invalid", count: 1 }],
+      },
+    });
+    expect(read?.status === "computed" && read.grid.rows[0]?.cells).toHaveLength(4);
+  });
+
+  test("keeps a dropped middle cell aligned with its declared terminal-growth column", () => {
+    const artifact = reverseDcfArtifact();
+    if (artifact.status !== "computed") {
+      throw new Error("expected computed reverse DCF fixture");
+    }
+    const row = artifact.grid.rows[0]!;
+    const read = readReverseDcfArtifact({
+      ...artifact,
+      grid: {
+        ...artifact.grid,
+        rows: [
+          {
+            ...row,
+            cells: row.cells.map((cell) =>
+              cell.terminalGrowthRatePct === 2 ? { ...cell, status: "retired" } : cell,
+            ),
+          },
+          ...artifact.grid.rows.slice(1),
+        ],
+      },
+    });
+    if (read?.status !== "computed") {
+      throw new Error("expected readable reverse DCF artifact");
+    }
+
+    const renderedRow = renderReverseDcfMarkdown(read)
+      .split("\n")
+      .find((line) => line.startsWith(`| ${String(row.discountRatePct)}% |`));
+    const display = (rate: number): string => {
+      const cell = row.cells.find((candidate) => candidate.terminalGrowthRatePct === rate)!;
+      return cell.status === "solved"
+        ? `${cell.solvedFiveYearFcfGrowthPct.toFixed(2)}%`
+        : "not solved";
+    };
+    expect(renderedRow).toBe(
+      `| ${String(row.discountRatePct)}% | ${display(0)} | ${display(1)} | — (unavailable) | ${display(3)} | ${display(4)} |`,
+    );
+  });
+
+  test("bounds carried diagnostics to missing declared grid slots", () => {
+    const artifact = reverseDcfArtifact();
+    if (artifact.status !== "computed") {
+      throw new Error("expected computed reverse DCF fixture");
+    }
+    const readRows = (claim: number) =>
+      readReverseDcfArtifact({
+        ...artifact,
+        grid: { ...artifact.grid, rows: artifact.grid.rows.slice(0, 3) },
+        readDiagnostics: {
+          droppedObservationCount: claim,
+          drops: claim === 0 ? [] : [{ reason: "reverseDcf.grid.rows.invalid", count: claim }],
+        },
+      });
+    const retainedRowDrops = {
+      droppedObservationCount: 6,
+      drops: [{ reason: "reverseDcf.grid.rows.invalid", count: 6 }],
+    };
+
+    expect(
+      [0, 5, 6, 7, 20].map((claim) => {
+        const read = readRows(claim);
+        return [claim, read === undefined ? "rejected" : "accepted", read?.readDiagnostics];
+      }),
+    ).toEqual([
+      [0, "rejected", undefined],
+      [5, "rejected", undefined],
+      [6, "accepted", retainedRowDrops],
+      [7, "accepted", retainedRowDrops],
+      [20, "accepted", retainedRowDrops],
+    ]);
+
+    const readCells = readReverseDcfArtifact({
+      ...artifact,
+      grid: {
+        ...artifact.grid,
+        rows: artifact.grid.rows.map((row) => ({ ...row, cells: row.cells.slice(0, 4) })),
+      },
+      readDiagnostics: {
+        droppedObservationCount: 450,
+        drops: [{ reason: "reverseDcf.grid.cells.invalid", count: 450 }],
+      },
+    });
+    expect(readCells?.readDiagnostics).toEqual({
+      droppedObservationCount: 9,
+      drops: [{ reason: "reverseDcf.grid.cells.invalid", count: 9 }],
+    });
   });
 });

@@ -1,0 +1,30 @@
+{
+  "now": "2026-08-15T05:02:29.864Z",
+  "argv": ["equity", "BNS", "--deep"],
+  "quickModel": "gpt-5.6-luna",
+  "synthesisModel": "gpt-5.6-sol",
+  "challengerModels": [],
+  "secUserAgent": "market-bot fixture replay contact@example.invalid",
+  "webGatherDisabled": true,
+  "evidenceRequestOptions": {
+    "maxRounds": 2,
+    "maxToolCalls": 2,
+    "sourceBudget": 8
+  },
+  "webGatherOptions": {
+    "maxRounds": 2,
+    "maxToolCalls": 4,
+    "sourceBudget": 8,
+    "themeOverrides": {
+      "maxRounds": 2,
+      "maxToolCalls": 6,
+      "sourceBudget": 12
+    }
+  },
+  "codeVersion": {
+    "branch": "feat/0009-absences-and-artifact-drops",
+    "commit": "5330ce125b1ed5f28879c3fbf340e2766ec2e402",
+    "commitShort": "5330ce125b1e",
+    "dirty": true
+  }
+}

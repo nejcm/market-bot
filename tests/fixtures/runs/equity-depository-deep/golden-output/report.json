@@ -1,0 +1,1361 @@
+{
+  "runId": "<runId>",
+  "jobType": "equity",
+  "assetClass": "equity",
+  "symbol": "BNS",
+  "generatedAt": "<generatedAt>",
+  "summary": "The supplied evidence supports a cautious, evidence-limited BNS thesis. Reported profitability improved sharply and the verified price trend is positive, but the financial period is stale, earnings quality is unreconciled, recent participation was below average, and the available valuation and business evidence is incomplete.",
+  "keyFindings": [
+    {
+      "text": "Observed fact: Quarterly revenue increased 2.9% year over year, while reported net income increased 131.5% and diluted EPS increased 162.1%.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+    },
+    {
+      "text": "Stale evidence: The latest supplied financial period ended 2026-01-31, leaving more recent earnings, asset quality, capital, and provisioning conditions unverified.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+    },
+    {
+      "text": "Observed fact: The verified close of 91.54 was above the 50-day average of 86.71 and 200-day average of 76.49, with RSI14 at 66.28 and a positive MACD histogram.",
+      "sourceIds": ["verified-snapshot-BNS"]
+    },
+    {
+      "text": "Observed fact: BNS gained 0.98% in the latest quote snapshot while SPY, QQQ, and DIA declined, providing a one-session observation of relative strength rather than evidence of persistent outperformance.",
+      "sourceIds": [
+        "market-yahoo-equity-bns",
+        "market-yahoo-equity-spy",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-dia"
+      ]
+    },
+    {
+      "text": "Observed fact: Quote volume was 906,163 against reported average volume of 2,212,150, so the latest advance lacked above-average participation.",
+      "sourceIds": ["market-yahoo-equity-bns"]
+    },
+    {
+      "text": "Observed fact: The supplied fundamentals show a 3.57% dividend yield and a reported payout ratio of approximately 64.8%, consistent with the framework's capital-return phase.",
+      "sourceIds": ["market-yahoo-equity-bns", "extended-sec-edgar-bns-fundamentals"]
+    },
+    {
+      "text": "Observed fact: Disclosed valuation metrics include trailing P/E of 17.60x, forward P/E of 13.76x, and price-to-book of 1.81x; no peer comparison or complete balance-sheet valuation analysis is supplied.",
+      "sourceIds": ["market-yahoo-equity-bns"]
+    },
+    {
+      "text": "Observed fact: SPY, QQQ, IWM, and DIA remained above their respective 50-day averages, while three of the four declined in the latest session; VIX at 14.25 was below VIX3M at 18.46.",
+      "sourceIds": [
+        "market-yahoo-equity-spy",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m"
+      ]
+    }
+  ],
+  "bullCase": [
+    {
+      "text": "Model inference: Confirmation that the reported earnings improvement is recurring, combined with continued positive price momentum, would strengthen the constructive thesis.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+    },
+    {
+      "text": "Model inference: Continued Canadian consumer-spending improvement and stable bond-market conditions could support the operating environment for a rate-sensitive bank.",
+      "sourceIds": ["news-equity-7", "news-equity-8"]
+    }
+  ],
+  "bearCase": [
+    {
+      "text": "Model inference: Newer financial disclosure could show that the large net-income and EPS increases were non-recurring or do not reflect current credit and provisioning conditions.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+    },
+    {
+      "text": "Model inference: An extended technical position combined with below-average volume leaves the recent advance vulnerable to consolidation or reversal.",
+      "sourceIds": ["verified-snapshot-BNS", "market-yahoo-equity-bns"]
+    }
+  ],
+  "risks": [
+    {
+      "text": "Stale evidence: Current earnings, asset quality, capital ratios, and loan-loss provisioning cannot be established from the supplied financial period.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+    },
+    {
+      "text": "Missing required source: No normalized earnings reconciliation explains the divergence between modest revenue growth and much larger net-income and EPS growth.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+    },
+    {
+      "text": "Model inference: RSI14 of 66.28 and a close above the supplied upper Bollinger value indicate an extended position, but do not independently establish whether continuation or reversal follows.",
+      "sourceIds": ["verified-snapshot-BNS"]
+    },
+    {
+      "text": "Missing required source: Segment, geographic, customer-concentration, capital, credit-quality, and disclosed risk-factor evidence is insufficient for a complete downside-resilience assessment.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals", "extended-sec-edgar-bns-40f"]
+    }
+  ],
+  "catalysts": [
+    {
+      "text": "Issuer claim: A news headline identifies an upcoming earnings-estimate question, but the supplied evidence provides neither estimate values nor confirmed guidance.",
+      "sourceIds": ["news-equity-1"]
+    },
+    {
+      "text": "Model inference: Additional evidence of Canadian consumer-spending recovery could affect expectations for domestic banking activity.",
+      "sourceIds": ["news-equity-7"]
+    },
+    {
+      "text": "Model inference: Changes in Canadian government-bond conditions could influence sentiment toward rate-sensitive financial institutions.",
+      "sourceIds": ["news-equity-8"]
+    },
+    {
+      "text": "Issuer claim: Scotiabank announced an AI-powered employee knowledge initiative, although the supplied headline does not quantify financial effects.",
+      "sourceIds": ["news-equity-3"]
+    },
+    {
+      "text": "Missing required source: July 2026 6-K excerpts identify attached news releases but do not disclose their substantive contents.",
+      "sourceIds": [
+        "extended-sec-edgar-bns-6k-0001279569-26-000699",
+        "extended-sec-edgar-bns-6k-0001279569-26-000688"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "Operating confirmation",
+      "description": "Newer disclosure confirms recurring profitability improvement while the established positive price trend persists.",
+      "sourceIds": ["extended-sec-edgar-bns-fundamentals", "verified-snapshot-BNS"]
+    },
+    {
+      "name": "Momentum consolidation",
+      "description": "Absent material new information, the extended technical position and below-average participation produce a bounded consolidation around the recent trading area.",
+      "sourceIds": ["verified-snapshot-BNS", "market-yahoo-equity-bns"]
+    },
+    {
+      "name": "Fundamental or momentum disconfirmation",
+      "description": "Newer results fail to confirm the stale earnings signal, or weakening market conditions reverse the recent advance.",
+      "sourceIds": [
+        "extended-sec-edgar-bns-fundamentals",
+        "verified-snapshot-BNS",
+        "market-yahoo-equity-spy",
+        "market-yahoo-equity-^vix"
+      ]
+    }
+  ],
+  "evidenceQuality": "medium",
+  "equityAnalysisCompleteness": {
+    "version": 1,
+    "financialCoreStatus": "partial",
+    "coverageLevel": "limited",
+    "asOf": "2026-08-15T05:02:29.864Z",
+    "dimensions": {
+      "primaryFinancials": {
+        "status": "partial",
+        "reasonCodes": [
+          "latest-due-interim-missing",
+          "quarterly-periods-insufficient",
+          "ttm-unreconciled",
+          "per-share-evidence-missing",
+          "untagged-interim-evidence"
+        ],
+        "asOf": "2026-08-15T05:02:29.864Z",
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals", "extended-sec-edgar-bns-filings"]
+      },
+      "valuation": {
+        "status": "partial",
+        "reasonCodes": ["valuation-evidence-missing"],
+        "asOf": "2026-08-15T05:02:29.864Z",
+        "sourceIds": []
+      },
+      "expectations": {
+        "status": "not-assessed",
+        "reasonCodes": ["expectations-provider-credential-missing"],
+        "asOf": "2026-08-15T05:02:29.864Z",
+        "sourceIds": []
+      },
+      "capitalOwnership": {
+        "status": "partial",
+        "reasonCodes": ["sbc-history-missing", "ownership-provider-credential-missing"],
+        "asOf": "2026-08-15T05:02:29.864Z",
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals", "market-yahoo-equity-bns"]
+      },
+      "operatingKpis": {
+        "status": "not-assessed",
+        "reasonCodes": ["operating-kpi-registry-unconfigured"],
+        "asOf": "2026-08-15T05:02:29.864Z",
+        "sourceIds": []
+      }
+    }
+  },
+  "dataGaps": [
+    "sec-edgar: No SEC company facts found for BNS",
+    "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
+    "finnhub-eps-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+    "finnhub-revenue-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+    "finnhub-ebitda-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint",
+    "finnhub-analyst-range: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint",
+    "finnhub-institutional-ownership: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub institutional ownership endpoint",
+    "finnhub-insider-transactions: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub insider transactions endpoint",
+    "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
+    "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+    "sec-edgar: BNS files as a foreign private issuer (40-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
+    "Current quarterly financial statements, reconciled trailing-twelve-month results, per-share disclosures, asset-quality metrics, capital ratios, and provisioning data are missing.",
+    "The reported net-income and EPS increases lack a normalized or recurring-earnings reconciliation.",
+    "Business description, geographic and segment mix, customer concentration, pricing-power evidence, and company-specific operating KPIs are missing.",
+    "Management track record, capital-allocation commentary, detailed risk factors, recession sensitivity, and dividend-sustainability evidence are missing.",
+    "The substantive contents of the July 2026 6-K news-release exhibits are absent.",
+    "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
+    "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
+    "valuation: Valuation Evidence unavailable for BNS: missing debt",
+    "financial-lens: Financial Lens Evidence partial for BNS: missing valuation evidence",
+    "business-framework: Business Framework partial for BNS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+    "sec-untagged-financials: Untagged 6-K facts were not validated for BNS because the capability is gated; they remain outside canonical financial-core completeness",
+    "equity-analysis-completeness: latest-due-interim-missing: BNS reporting surface is not current (interim cadence quarterly; latest reported period end 2026-01-31; expected due period end 2026-04-30)",
+    "equity-analysis-completeness: quarterly-periods-insufficient: BNS reporting surface is not current (interim cadence quarterly; latest reported period end 2026-01-31; expected due period end 2026-04-30)",
+    "equity-analysis-completeness: ttm-unreconciled: BNS reporting surface is not current (interim cadence quarterly; latest reported period end 2026-01-31; expected due period end 2026-04-30)",
+    "equity-analysis-completeness: per-share-evidence-missing: BNS reporting surface is not current (interim cadence quarterly; latest reported period end 2026-01-31; expected due period end 2026-04-30)",
+    "equity-analysis-completeness: untagged-interim-evidence: BNS reporting surface is not current (interim cadence quarterly; latest reported period end 2026-01-31; expected due period end 2026-04-30)"
+  ],
+  "predictions": [
+    {
+      "id": "pred-1",
+      "claim": "BNS closes outside 85-97 over 5 trading days",
+      "kind": "range",
+      "subject": "BNS",
+      "measurableAs": "close(BNS, +5) outside [85, 97]",
+      "horizonTradingDays": 5,
+      "probability": 0.22,
+      "sourceIds": ["market-yahoo-equity-bns", "verified-snapshot-BNS"],
+      "scoringPolicyVersion": 3
+    }
+  ],
+  "sources": [
+    {
+      "id": "market-yahoo-equity-bns",
+      "title": "BNS market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "BNS"
+          }
+        ],
+        "displayName": "Bank Nova Scotia Halifax Pfd 3",
+        "exchange": "NYSE"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-spy",
+      "title": "SPY market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "SPY",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "SPY"
+          }
+        ],
+        "displayName": "State Street SPDR S&P 500 ETF T",
+        "exchange": "NYSEArca"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-qqq",
+      "title": "QQQ market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "QQQ",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "QQQ"
+          }
+        ],
+        "displayName": "Invesco QQQ Trust, Series 1",
+        "exchange": "NasdaqGM"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-iwm",
+      "title": "IWM market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "IWM",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "IWM"
+          }
+        ],
+        "displayName": "iShares Russell 2000 Index Fund",
+        "exchange": "NYSEArca"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-dia",
+      "title": "DIA market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "DIA",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "DIA"
+          }
+        ],
+        "displayName": "State Street SPDR Dow Jones Ind",
+        "exchange": "NYSEArca"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-^vix",
+      "title": "^VIX market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "^VIX",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "^VIX"
+          }
+        ],
+        "displayName": "CBOE Volatility Index",
+        "exchange": "Cboe Indices"
+      }
+    },
+    {
+      "id": "market-yahoo-equity-^vix3m",
+      "title": "^VIX3M market snapshot",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "^VIX3M",
+      "provider": "yahoo",
+      "identity": {
+        "quoteCurrency": "USD",
+        "aliases": [
+          {
+            "provider": "yahoo",
+            "idKind": "symbol",
+            "value": "^VIX3M"
+          }
+        ],
+        "displayName": "CBOE S&P 500 3-Month Volatility",
+        "exchange": "Chicago Options"
+      }
+    },
+    {
+      "id": "verified-snapshot-BNS",
+      "title": "BNS verified market snapshot (OHLCV + indicators, 2026-08-14)",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "market-data",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "yahoo"
+    },
+    {
+      "id": "news-equity-1",
+      "fetchedAt": "2026-08-14T16:10:01.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Will Bank of Nova Scotia (BNS) Beat Estimates Again in Its Next Earnings Report?",
+      "url": "https://finance.yahoo.com/markets/stocks/articles/bank-nova-scotia-bns-beat-161001355.html",
+      "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/bank-nova-scotia-bns-beat-161001355.html",
+      "publisher": "Zacks",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "Zacks",
+          "fetchedAt": "2026-08-14T16:10:01.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-2",
+      "fetchedAt": "2026-08-12T18:13:00.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Scotia Global Asset Management announces securityholder approval for fund mergers and other changes",
+      "url": "https://finance.yahoo.com/markets/stocks/articles/scotia-global-asset-management-announces-181300663.html",
+      "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/scotia-global-asset-management-announces-181300663.html",
+      "publisher": "CNW Group",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "CNW Group",
+          "fetchedAt": "2026-08-12T18:13:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-3",
+      "fetchedAt": "2026-07-31T12:00:00.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Scotiabank Equips Employees with AI-Powered Knowledge Agents Through Scotia Intelligence",
+      "url": "https://finance.yahoo.com/technology/ai/articles/scotiabank-equips-employees-ai-powered-120000781.html",
+      "canonicalUrl": "https://finance.yahoo.com/technology/ai/articles/scotiabank-equips-employees-ai-powered-120000781.html",
+      "publisher": "CNW Group",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "CNW Group",
+          "fetchedAt": "2026-07-31T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-4",
+      "fetchedAt": "2026-08-14T13:42:00.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Canada Manufacturing Sales Rise for Fifth Straight Month in June",
+      "url": "https://finance.yahoo.com/m/e9957a45-90dc-3eca-8928-320ee9a71ecf/canada-manufacturing-sales.html",
+      "canonicalUrl": "https://finance.yahoo.com/m/e9957a45-90dc-3eca-8928-320ee9a71ecf/canada-manufacturing-sales.html",
+      "publisher": "The Wall Street Journal",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "The Wall Street Journal",
+          "fetchedAt": "2026-08-14T13:42:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-5",
+      "fetchedAt": "2026-08-14T09:04:09.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Alithya Group Q1 Earnings Call Highlights",
+      "url": "https://finance.yahoo.com/m/437b78e2-4c6b-3021-a05d-c05dfb2be52d/alithya-group-q1-earnings.html",
+      "canonicalUrl": "https://finance.yahoo.com/m/437b78e2-4c6b-3021-a05d-c05dfb2be52d/alithya-group-q1-earnings.html",
+      "publisher": "MarketBeat",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "MarketBeat",
+          "fetchedAt": "2026-08-14T09:04:09.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-6",
+      "fetchedAt": "2026-08-13T11:15:00.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Alithya Reports First Quarter Fiscal 2027 Results",
+      "url": "https://finance.yahoo.com/markets/stocks/articles/alithya-reports-first-quarter-fiscal-111500477.html",
+      "canonicalUrl": "https://finance.yahoo.com/markets/stocks/articles/alithya-reports-first-quarter-fiscal-111500477.html",
+      "publisher": "TMX Newsfile",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "TMX Newsfile",
+          "fetchedAt": "2026-08-13T11:15:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-7",
+      "fetchedAt": "2026-08-05T13:48:10.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Canadian Auto Sales Jump Points to Q3 Consumer Spending Recovery, Scotiabank Says",
+      "url": "https://finance.yahoo.com/economy/articles/canadian-auto-sales-jump-points-134810998.html",
+      "canonicalUrl": "https://finance.yahoo.com/economy/articles/canadian-auto-sales-jump-points-134810998.html",
+      "publisher": "MT Newswires",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "MT Newswires",
+          "fetchedAt": "2026-08-05T13:48:10.000Z"
+        }
+      ]
+    },
+    {
+      "id": "news-equity-8",
+      "fetchedAt": "2026-08-04T12:03:24.000Z",
+      "kind": "news",
+      "assetClass": "equity",
+      "provider": "yahoo-news",
+      "title": "Canadian Government Bonds Rally After Long Weekend as Post-GDP Sell-Off Eases, Scotiabank Says",
+      "url": "https://finance.yahoo.com/economy/articles/canadian-government-bonds-rally-long-120324172.html",
+      "canonicalUrl": "https://finance.yahoo.com/economy/articles/canadian-government-bonds-rally-long-120324172.html",
+      "publisher": "MT Newswires",
+      "providerAliases": [
+        {
+          "provider": "yahoo-news",
+          "publisher": "MT Newswires",
+          "fetchedAt": "2026-08-04T12:03:24.000Z"
+        }
+      ]
+    },
+    {
+      "id": "market-yahoo-fx-usdcad",
+      "title": "Yahoo Finance USDCAD=X historical FX closes",
+      "url": "https://finance.yahoo.com/quote/USDCAD%3DX/history",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "extended-evidence",
+      "provider": "yahoo"
+    },
+    {
+      "id": "extended-sec-edgar-bns-40f",
+      "title": "BNS SEC 40-F",
+      "url": "https://www.sec.gov/Archives/edgar/data/9631/000119312525304643/d936350d40f.htm",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "sec-edgar",
+      "rawRef": "raw-sec-submissions-2026-08-15T05:02:29.864Z",
+      "summary": "40-F filed 2025-12-02 for period 2025-10-31 (filing text unavailable).",
+      "identity": {
+        "displayName": "BANK OF NOVA SCOTIA",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000009631"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "BNS"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-bns-6k-0001279569-26-000699",
+      "title": "BNS SEC 6-K",
+      "url": "https://www.sec.gov/Archives/edgar/data/9631/000127956926000699/scotiabank6k.htm",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "sec-edgar",
+      "rawRef": "raw-sec-filing-text-2026-08-15T05:02:29.864Z",
+      "summary": "6-K filed 2026-07-24 for event date 2026-07-24 (material current report).",
+      "snippet": "6-K 1 scotiabank6k.htm FORM 6-K UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 Form 6-K Report of Foreign Private Issuer Pursuant to Rule 13a-16 or 15d-16 of the Securities Exchange Act of 1934 For the month of: July, 2026 Commission File Number: 002-09048 THE BANK OF NOVA SCOTIA (Name of registrant) 40 Temperance Street, Toronto, Ontario, M5H 0B4 Attention: Secretary's Department (Tel.: (416) 866-3672) (Address of Principal Executive Offices) Indicate by check mark whether the registrant files or will file annual reports under cover of Form 20-F or Form 40-F: Form 20-F Form 40-F X SIGNATURES Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned, thereunto duly authorized. THE BANK OF NOVA SCOTIA Date: July 24, 2026 By: /s/ Meigan Terry Name: Meigan Terry Title: Executive Vice President & Chief Global Corporate and Public Affairs Officer EXHIBIT INDEX Exhibit Description of Exhibit 99.1 News Release dated July 24, 2026",
+      "identity": {
+        "displayName": "BANK OF NOVA SCOTIA",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000009631"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "BNS"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-bns-6k-0001279569-26-000688",
+      "title": "BNS SEC 6-K",
+      "url": "https://www.sec.gov/Archives/edgar/data/9631/000127956926000688/scotiabank6k.htm",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "sec-edgar",
+      "rawRef": "raw-sec-filing-text-2026-08-15T05:02:29.864Z",
+      "summary": "6-K filed 2026-07-22 for event date 2026-07-22 (material current report).",
+      "snippet": "6-K 1 scotiabank6k.htm FORM 6-K UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 Form 6-K Report of Foreign Private Issuer Pursuant to Rule 13a-16 or 15d-16 of the Securities Exchange Act of 1934 For the month of: July, 2026 Commission File Number: 002-09048 THE BANK OF NOVA SCOTIA (Name of registrant) 40 Temperance Street, Toronto, Ontario, M5H 0B4 Attention: Secretary's Department (Tel.: (416) 866-3672) (Address of Principal Executive Offices) Indicate by check mark whether the registrant files or will file annual reports under cover of Form 20-F or Form 40-F: Form 20-F Form 40-F X SIGNATURES Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned, thereunto duly authorized. THE BANK OF NOVA SCOTIA Date: July 22, 2026 By: /s/ Meigan Terry Name: Meigan Terry Title: Executive Vice President & Chief Global Corporate and Public Affairs Officer EXHIBIT INDEX Exhibit Description of Exhibit 99.1 News Release dated July 22, 2026",
+      "identity": {
+        "displayName": "BANK OF NOVA SCOTIA",
+        "providerIds": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "cik",
+            "value": "0000009631"
+          }
+        ],
+        "aliases": [
+          {
+            "provider": "sec-edgar",
+            "idKind": "ticker",
+            "value": "BNS"
+          }
+        ]
+      }
+    },
+    {
+      "id": "extended-sec-edgar-bns-fundamentals",
+      "title": "BNS canonical financial statements",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "sec-edgar",
+      "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000009631.json"
+    },
+    {
+      "id": "extended-sec-edgar-bns-filings",
+      "title": "BNS structured financial filing evidence",
+      "fetchedAt": "2026-08-15T05:02:29.864Z",
+      "kind": "extended-evidence",
+      "assetClass": "equity",
+      "symbol": "BNS",
+      "provider": "sec-edgar"
+    }
+  ],
+  "extendedEvidence": {
+    "instrument": {
+      "symbol": "BNS",
+      "assetClass": "equity"
+    },
+    "items": [
+      {
+        "category": "sec-edgar",
+        "title": "BNS canonical financial statements",
+        "summary": "Canonical SEC financial statement inputs.",
+        "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "sic": "6022",
+          "sicDescription": "State Commercial Banks",
+          "revenue": 9646000000,
+          "revenuePeriodEnd": "2026-01-31",
+          "revenuePeriodMonths": 3,
+          "revenuePrior": 9372000000,
+          "revenueDeltaPercent": 2.923602219376867,
+          "netIncome": 2299000000,
+          "netIncomePeriodEnd": "2026-01-31",
+          "netIncomePeriodMonths": 3,
+          "netIncomePrior": 993000000,
+          "netIncomeDeltaPercent": 131.52064451158108,
+          "dilutedEps": 1.73,
+          "dilutedEpsPeriodEnd": "2026-01-31",
+          "dilutedEpsPeriodMonths": 3,
+          "dilutedEpsPrior": 0.66,
+          "dilutedEpsDeltaPercent": 162.1212121212121,
+          "operatingCashFlow": 12875000000,
+          "operatingCashFlowPeriodEnd": "2026-01-31",
+          "operatingCashFlowPeriodMonths": 3,
+          "operatingCashFlowPrior": 4734000000,
+          "operatingCashFlowDeltaPercent": 171.96873679763414,
+          "dividendsPaid": 1490000000,
+          "dividendsPaidPeriodEnd": "2026-01-31",
+          "dividendsPaidPeriodMonths": 3,
+          "dividendsPaidPrior": 1442000000,
+          "dividendsPaidDeltaPercent": 3.3287101248266295,
+          "cash": 8732000000,
+          "cashPeriodEnd": "2026-01-31",
+          "stockholdersEquity": 89022000000,
+          "stockholdersEquityPeriodEnd": "2026-01-31",
+          "assets": 1475979000000,
+          "assetsPeriodEnd": "2026-01-31",
+          "netMarginSelectedValue": 0.23833713456354966,
+          "netMarginSelectedPeriodEnd": "2026-01-31",
+          "netMarginSelectedPeriodMonths": 3,
+          "cashConversionSelectedValue": 5.600260983036103,
+          "cashConversionSelectedPeriodEnd": "2026-01-31",
+          "cashConversionSelectedPeriodMonths": 3,
+          "payoutRatioSelectedValue": 0.6481078729882558,
+          "payoutRatioSelectedPeriodEnd": "2026-01-31",
+          "payoutRatioSelectedPeriodMonths": 3,
+          "roeSelectedValue": 0.10330030778908585,
+          "roeSelectedPeriodEnd": "2026-01-31",
+          "roeSelectedPeriodMonths": 3,
+          "roaSelectedValue": 0.006230440948008068,
+          "roaSelectedPeriodEnd": "2026-01-31",
+          "roaSelectedPeriodMonths": 3,
+          "financialLensSelectionVersion": 1
+        }
+      },
+      {
+        "category": "yahoo-fundamentals",
+        "title": "BNS Yahoo Fundamentals Evidence",
+        "summary": "Yahoo Fundamentals: trailing PE 17.60x, forward PE 13.76x, price/book 1.81x, dividend yield 3.57%, EPS TTM 5.20, forward EPS 6.65, annual dividend rate 4.400.",
+        "sourceIds": ["market-yahoo-equity-bns"],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "trailingPE": 17.603848,
+          "forwardPE": 13.759627,
+          "priceToBook": 1.8057052,
+          "bookValue": 50.694878,
+          "dividendYield": 3.57,
+          "epsTrailingTwelveMonths": 5.2,
+          "epsForward": 6.6527967,
+          "sharesOutstanding": 1219093484,
+          "trailingAnnualDividendRate": 4.4
+        },
+        "identity": {
+          "exchange": "NYSE",
+          "quoteCurrency": "USD",
+          "displayName": "Bank Nova Scotia Halifax Pfd 3",
+          "aliases": [
+            {
+              "provider": "yahoo",
+              "idKind": "symbol",
+              "value": "BNS"
+            }
+          ]
+        }
+      },
+      {
+        "category": "financial-lens",
+        "title": "BNS Financial Lens Evidence",
+        "summary": "Financial Lens Evidence: Quality criteria-supported (Net margin 23.8%, Cash conversion 5.60x, ROE 10.3%, ROA 0.6%); Growth criteria-supported (Revenue YoY 2.9%, Net income (attrib.) YoY 131.5%, Diluted EPS YoY 162.1%, Operating cash flow YoY 172.0%); Financial Strength criteria-supported (Cash $8.7B, Payout ratio 64.8%, Dividend yield 3.6%); Value insufficient-data (PE 17.60x, Forward PE 13.76x, Price/book 1.81x, PCF 2.17x); Momentum criteria-supported (Latest close $92, SMA50 86.71, SMA200 76.49, RSI14 66.28).",
+        "sourceIds": [
+          "extended-sec-edgar-bns-fundamentals",
+          "market-yahoo-equity-bns",
+          "verified-snapshot-BNS"
+        ],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "qualityPosture": "criteria-supported",
+          "netMargin": 0.23833713456354966,
+          "netMarginPeriodEnd": "2026-01-31",
+          "cashConversion": 5.600260983036103,
+          "cashConversionPeriodEnd": "2026-01-31",
+          "roe": 0.10330030778908585,
+          "roePeriodEnd": "2026-01-31",
+          "roa": 0.006230440948008068,
+          "roaPeriodEnd": "2026-01-31",
+          "growthPosture": "criteria-supported",
+          "revenueDeltaPercent": 2.923602219376867,
+          "revenueDeltaPercentPeriodEnd": "2026-01-31",
+          "netIncomeDeltaPercent": 131.52064451158108,
+          "netIncomeDeltaPercentPeriodEnd": "2026-01-31",
+          "dilutedEpsDeltaPercent": 162.1212121212121,
+          "dilutedEpsDeltaPercentPeriodEnd": "2026-01-31",
+          "operatingCashFlowDeltaPercent": 171.96873679763414,
+          "operatingCashFlowDeltaPercentPeriodEnd": "2026-01-31",
+          "financialStrengthPosture": "criteria-supported",
+          "cash": 8732000000,
+          "cashPeriodEnd": "2026-01-31",
+          "payoutRatio": 0.6481078729882558,
+          "payoutRatioPeriodEnd": "2026-01-31",
+          "dividendYield": 3.57,
+          "dividendYieldPeriodEnd": "2026-08-15T05:02:29.864Z",
+          "valuePosture": "insufficient-data",
+          "peRatio": 17.603848,
+          "peRatioPeriodEnd": "2026-08-15T05:02:29.864Z",
+          "forwardPe": 13.759627,
+          "forwardPePeriodEnd": "2026-08-15T05:02:29.864Z",
+          "priceToBook": 1.8057052,
+          "priceToBookPeriodEnd": "2026-08-15T05:02:29.864Z",
+          "pcfRatio": 2.166909186485437,
+          "pcfRatioPeriodEnd": "2026-01-31",
+          "momentumPosture": "criteria-supported",
+          "latestClose": 91.54000091552734,
+          "latestClosePeriodEnd": "2026-08-15T05:02:29.864Z",
+          "sma50": 86.71099960327149,
+          "sma50PeriodEnd": "2026-08-15T05:02:29.864Z",
+          "sma200": 76.49139976501465,
+          "sma200PeriodEnd": "2026-08-15T05:02:29.864Z",
+          "rsi14": 66.28072661880364,
+          "rsi14PeriodEnd": "2026-08-15T05:02:29.864Z",
+          "macdHistogram": 0.23433599415176576,
+          "macdHistogramPeriodEnd": "2026-08-15T05:02:29.864Z",
+          "interimCadence": "quarterly",
+          "latestReportedPeriodEnd": "2026-01-31",
+          "expectedDuePeriodEnd": "2026-04-30"
+        }
+      },
+      {
+        "category": "business-framework",
+        "title": "BNS Business Framework Evidence",
+        "summary": "Business Framework: Business insufficient-data (Revenue $9.6B); Phase classification (Phase capital-return, Revenue YoY 2.9%, Dividend yield 3.6%); Moat insufficient-data; Growth criteria-supported (Revenue YoY 2.9%, Net income YoY 131.5%); Management insufficient-data; Risk criteria-supported; Valuation insufficient-data (Trailing PE 17.60x, Forward PE 13.76x).",
+        "sourceIds": [
+          "extended-sec-edgar-bns-fundamentals",
+          "market-yahoo-equity-bns",
+          "verified-snapshot-BNS"
+        ],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "phase": "capital-return",
+          "businessPosture": "insufficient-data",
+          "phasePosture": "criteria-supported",
+          "moatPosture": "insufficient-data",
+          "growthPosture": "criteria-supported",
+          "managementPosture": "insufficient-data",
+          "riskPosture": "criteria-supported",
+          "valuationPosture": "insufficient-data"
+        }
+      },
+      {
+        "category": "sec-edgar",
+        "title": "BNS SEC 40-F",
+        "summary": "40-F filed 2025-12-02 for period 2025-10-31 (filing text unavailable).",
+        "sourceIds": ["extended-sec-edgar-bns-40f"],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "form": "40-F",
+          "filingDate": "2025-12-02",
+          "reportDate": "2025-10-31",
+          "accessionNumber": "0001193125-25-304643",
+          "primaryDocument": "d936350d40f.htm",
+          "cik": "0000009631"
+        },
+        "identity": {
+          "displayName": "BANK OF NOVA SCOTIA",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000009631"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "BNS"
+            }
+          ]
+        }
+      },
+      {
+        "category": "sec-edgar",
+        "title": "BNS SEC 6-K",
+        "summary": "6-K filed 2026-07-24 for event date 2026-07-24 (material current report). Filing excerpt: 6-K 1 scotiabank6k.htm FORM 6-K UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 Form 6-K Report of Foreign Private Issuer Pursuant to Rule 13a-16 or 15d-16 of the Securities Exchange Act of 1934 For the month of: July, 2026 Commission File Number: 002-09048 THE BANK OF NOVA SCOTIA (Name of registrant) 40 Temperance Street, Toronto, Ontario, M5H 0B4 Attention: Secretary's Department (Tel.: (416) 866-3672) (Address of Principal Executive Offices) Indicate by check mark whether the registrant files or will file annual reports under cover of Form 20-F or Form 40-F: Form 20-F Form 40-F X SIGNATURES Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned, thereunto duly authorized. THE BANK OF NOVA SCOTIA Date: July 24, 2026 By: /s/ Meigan Terry Name: Meigan Terry Title: Executive Vice President & Chief Global Corporate and Public Affairs Officer EXHIBIT INDEX Exhibit Description of Exhibit 99.1 News Release dated July 24, 2026",
+        "sourceIds": ["extended-sec-edgar-bns-6k-0001279569-26-000699"],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "form": "6-K",
+          "filingDate": "2026-07-24",
+          "reportDate": "2026-07-24",
+          "accessionNumber": "0001279569-26-000699",
+          "primaryDocument": "scotiabank6k.htm",
+          "cik": "0000009631"
+        },
+        "identity": {
+          "displayName": "BANK OF NOVA SCOTIA",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000009631"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "BNS"
+            }
+          ]
+        }
+      },
+      {
+        "category": "sec-edgar",
+        "title": "BNS SEC 6-K",
+        "summary": "6-K filed 2026-07-22 for event date 2026-07-22 (material current report). Filing excerpt: 6-K 1 scotiabank6k.htm FORM 6-K UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 Form 6-K Report of Foreign Private Issuer Pursuant to Rule 13a-16 or 15d-16 of the Securities Exchange Act of 1934 For the month of: July, 2026 Commission File Number: 002-09048 THE BANK OF NOVA SCOTIA (Name of registrant) 40 Temperance Street, Toronto, Ontario, M5H 0B4 Attention: Secretary's Department (Tel.: (416) 866-3672) (Address of Principal Executive Offices) Indicate by check mark whether the registrant files or will file annual reports under cover of Form 20-F or Form 40-F: Form 20-F Form 40-F X SIGNATURES Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned, thereunto duly authorized. THE BANK OF NOVA SCOTIA Date: July 22, 2026 By: /s/ Meigan Terry Name: Meigan Terry Title: Executive Vice President & Chief Global Corporate and Public Affairs Officer EXHIBIT INDEX Exhibit Description of Exhibit 99.1 News Release dated July 22, 2026",
+        "sourceIds": ["extended-sec-edgar-bns-6k-0001279569-26-000688"],
+        "observedAt": "2026-08-15T05:02:29.864Z",
+        "metrics": {
+          "form": "6-K",
+          "filingDate": "2026-07-22",
+          "reportDate": "2026-07-22",
+          "accessionNumber": "0001279569-26-000688",
+          "primaryDocument": "scotiabank6k.htm",
+          "cik": "0000009631"
+        },
+        "identity": {
+          "displayName": "BANK OF NOVA SCOTIA",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0000009631"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "BNS"
+            }
+          ]
+        }
+      }
+    ],
+    "gaps": [
+      {
+        "source": "sec-edgar",
+        "message": "No SEC company facts found for BNS",
+        "symbol": "BNS",
+        "provider": "sec-edgar",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-events",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-eps-estimate",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-revenue-estimate",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-ebitda-estimate",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EBITDA estimate endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-analyst-range",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub external analyst range endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-institutional-ownership",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub institutional ownership endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "finnhub-insider-transactions",
+        "message": "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub insider transactions endpoint",
+        "provider": "finnhub",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "fred-macro",
+        "message": "MARKET_BOT_FRED_API_KEY is not set",
+        "provider": "fred",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "tradier-options",
+        "message": "MARKET_BOT_TRADIER_API_TOKEN is not set",
+        "provider": "tradier",
+        "capability": "extended-evidence",
+        "cause": "missing-credential",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "valuation",
+        "message": "Valuation Evidence unavailable for BNS: missing debt",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "financial-lens",
+        "message": "Financial Lens Evidence partial for BNS: missing valuation evidence",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "business-framework",
+        "message": "Business Framework partial for BNS: business-description: Business description is not available from current normalized sources; geographic-mix: Geographic revenue mix is not available from current normalized sources; segment-mix: Segment mix is not available from current normalized sources; customer-concentration: Customer concentration is not available from current normalized sources; purchase-recurrence: Purchase recurrence is not available from current normalized sources; pricing-power: Pricing power evidence is not available from current normalized sources; company-kpis: Company-specific KPI evidence is not available from current normalized sources; analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability; management-track-record: Management track record is not available from current normalized sources; capital-allocation: Capital allocation commentary is not available from current normalized sources; risk-factors: Disclosed risk-factor evidence is not available from current normalized sources; cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "BNS files as a foreign private issuer (40-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
+        "provider": "sec-edgar",
+        "capability": "evidence-request",
+        "cause": "unsupported-coverage",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      }
+    ]
+  },
+  "notFinancialAdvice": true,
+  "extras": {
+    "historicalContext": {
+      "summary": "No prior run artifacts matched this research scope.",
+      "sourceIds": [],
+      "gaps": ["No prior ticker runs found for BNS", "No prior equity market-update runs found"]
+    },
+    "spotlights": {
+      "items": [
+        {
+          "symbol": "BNS",
+          "rationale": "Observed fact: BNS combines sharply improved reported profitability, capital-return characteristics, and positive price momentum, with material uncertainty from stale disclosures and incomplete business evidence.",
+          "sourceIds": [
+            "extended-sec-edgar-bns-fundamentals",
+            "market-yahoo-equity-bns",
+            "verified-snapshot-BNS"
+          ]
+        }
+      ]
+    },
+    "businessFramework": {
+      "version": 2,
+      "phase": "capital-return",
+      "sourceIds": [
+        "extended-sec-edgar-bns-fundamentals",
+        "market-yahoo-equity-bns",
+        "verified-snapshot-BNS"
+      ],
+      "gaps": [
+        {
+          "code": "business-description",
+          "text": "Business description is not available from current normalized sources"
+        },
+        {
+          "code": "geographic-mix",
+          "text": "Geographic revenue mix is not available from current normalized sources"
+        },
+        {
+          "code": "segment-mix",
+          "text": "Segment mix is not available from current normalized sources"
+        },
+        {
+          "code": "customer-concentration",
+          "text": "Customer concentration is not available from current normalized sources"
+        },
+        {
+          "code": "purchase-recurrence",
+          "text": "Purchase recurrence is not available from current normalized sources"
+        },
+        {
+          "code": "pricing-power",
+          "text": "Pricing power evidence is not available from current normalized sources"
+        },
+        {
+          "code": "company-kpis",
+          "text": "Company-specific KPI evidence is not available from current normalized sources"
+        },
+        {
+          "code": "analyst-consensus",
+          "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+        },
+        {
+          "code": "management-track-record",
+          "text": "Management track record is not available from current normalized sources"
+        },
+        {
+          "code": "capital-allocation",
+          "text": "Capital allocation commentary is not available from current normalized sources"
+        },
+        {
+          "code": "risk-factors",
+          "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+        },
+        {
+          "code": "cyclicality",
+          "text": "Recession cyclicality evidence is not available from current normalized sources"
+        }
+      ],
+      "sections": [
+        {
+          "name": "Business",
+          "posture": "insufficient-data",
+          "summary": "Business insufficient-data (Revenue $9.6B)",
+          "metrics": [
+            {
+              "key": "revenue",
+              "label": "Revenue",
+              "value": 9646000000,
+              "unit": "currency",
+              "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+              "currency": "USD"
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+          "gaps": [
+            {
+              "code": "business-description",
+              "text": "Business description is not available from current normalized sources"
+            },
+            {
+              "code": "geographic-mix",
+              "text": "Geographic revenue mix is not available from current normalized sources"
+            },
+            {
+              "code": "segment-mix",
+              "text": "Segment mix is not available from current normalized sources"
+            },
+            {
+              "code": "customer-concentration",
+              "text": "Customer concentration is not available from current normalized sources"
+            },
+            {
+              "code": "purchase-recurrence",
+              "text": "Purchase recurrence is not available from current normalized sources"
+            }
+          ],
+          "text": "Missing required source: The evidence identifies a state-commercial-bank classification and quarterly revenue of approximately 9.65 billion, but does not provide a sufficient business, segment, geographic, or customer-mix description."
+        },
+        {
+          "name": "Phase",
+          "posture": "criteria-supported",
+          "summary": "Phase classification (Phase capital-return, Revenue YoY 2.9%, Dividend yield 3.6%)",
+          "metrics": [
+            {
+              "key": "phase",
+              "label": "Phase",
+              "value": "capital-return",
+              "unit": "text",
+              "sourceIds": ["extended-sec-edgar-bns-fundamentals", "market-yahoo-equity-bns"]
+            },
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 2.923602219376867,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+            },
+            {
+              "key": "dividendYield",
+              "label": "Dividend yield",
+              "value": 3.57,
+              "unit": "whole-percent",
+              "sourceIds": ["market-yahoo-equity-bns"]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-bns-fundamentals", "market-yahoo-equity-bns"],
+          "gaps": [],
+          "text": "Derived calculation: Modest revenue growth, a 3.57% dividend yield, and a reported 64.8% payout ratio support the deterministic capital-return phase classification."
+        },
+        {
+          "name": "Moat",
+          "posture": "insufficient-data",
+          "summary": "Moat insufficient-data",
+          "metrics": [],
+          "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+          "gaps": [
+            {
+              "code": "segment-mix",
+              "text": "Segment mix is not available from current normalized sources"
+            },
+            {
+              "code": "customer-concentration",
+              "text": "Customer concentration is not available from current normalized sources"
+            },
+            {
+              "code": "purchase-recurrence",
+              "text": "Purchase recurrence is not available from current normalized sources"
+            },
+            {
+              "code": "pricing-power",
+              "text": "Pricing power evidence is not available from current normalized sources"
+            }
+          ],
+          "text": "Missing required source: Pricing power, customer retention, market-share durability, funding advantages, and switching-cost evidence are not supplied."
+        },
+        {
+          "name": "Growth",
+          "posture": "criteria-supported",
+          "summary": "Growth criteria-supported (Revenue YoY 2.9%, Net income YoY 131.5%)",
+          "metrics": [
+            {
+              "key": "revenueDeltaPercent",
+              "label": "Revenue YoY",
+              "value": 2.923602219376867,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+            },
+            {
+              "key": "netIncomeDeltaPercent",
+              "label": "Net income YoY",
+              "value": 131.52064451158108,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-bns-fundamentals"]
+            }
+          ],
+          "sourceIds": ["extended-sec-edgar-bns-fundamentals"],
+          "gaps": [
+            {
+              "code": "company-kpis",
+              "text": "Company-specific KPI evidence is not available from current normalized sources"
+            },
+            {
+              "code": "analyst-consensus",
+              "text": "Analyst consensus is not available from a provider-neutral authoritative capability"
+            }
+          ],
+          "text": "Observed fact: Quarterly revenue increased 2.9%, net income increased 131.5%, and diluted EPS increased 162.1% year over year; recurring growth cannot be established without reconciliation and newer results."
+        },
+        {
+          "name": "Management",
+          "posture": "insufficient-data",
+          "summary": "Management insufficient-data",
+          "metrics": [],
+          "sourceIds": ["news-equity-3", "extended-sec-edgar-bns-40f"],
+          "gaps": [
+            {
+              "code": "management-track-record",
+              "text": "Management track record is not available from current normalized sources"
+            },
+            {
+              "code": "capital-allocation",
+              "text": "Capital allocation commentary is not available from current normalized sources"
+            }
+          ],
+          "text": "Missing required source: Management track record, strategic execution, capital-allocation rationale, and quantified effects from recent initiatives are not supplied."
+        },
+        {
+          "name": "Risk",
+          "posture": "criteria-supported",
+          "summary": "Risk criteria-supported",
+          "metrics": [],
+          "sourceIds": ["extended-sec-edgar-bns-fundamentals", "extended-sec-edgar-bns-40f"],
+          "gaps": [
+            {
+              "code": "risk-factors",
+              "text": "Disclosed risk-factor evidence is not available from current normalized sources"
+            },
+            {
+              "code": "cyclicality",
+              "text": "Recession cyclicality evidence is not available from current normalized sources"
+            }
+          ],
+          "text": "Stale evidence: The available period does not establish current credit quality, provisioning, capital adequacy, geographic concentration, or recession sensitivity."
+        },
+        {
+          "name": "Valuation",
+          "posture": "insufficient-data",
+          "summary": "Valuation insufficient-data (Trailing PE 17.60x, Forward PE 13.76x)",
+          "metrics": [
+            {
+              "key": "trailingPE",
+              "label": "Trailing PE",
+              "value": 17.603848,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-bns"]
+            },
+            {
+              "key": "forwardPE",
+              "label": "Forward PE",
+              "value": 13.759627,
+              "unit": "ratio",
+              "sourceIds": ["market-yahoo-equity-bns"]
+            }
+          ],
+          "sourceIds": ["market-yahoo-equity-bns"],
+          "gaps": [],
+          "text": "Observed fact: BNS is quoted at 17.60x trailing earnings, 13.76x forward earnings, and 1.81x book value; incomplete debt and peer evidence prevents a resolved comparative conclusion."
+        }
+      ]
+    },
+    "earningsForecasts": {
+      "eventDateStatus": "not-present",
+      "policy": "confirmed-only",
+      "grammarEligible": false,
+      "eligiblePredictionCount": 0,
+      "suppressedPredictionCount": 0,
+      "suppressionReason": "earnings-setup-not-present"
+    },
+    "depth": "deep",
+    "depthProfile": {
+      "depth": "deep",
+      "analystStyle": "fuller analyst-style",
+      "minimumKeyFindings": 6,
+      "minimumScenarios": 3,
+      "targetPredictions": 5,
+      "defaultPredictionHorizon": 5,
+      "predictionSubjects": ["BNS"],
+      "focus": [
+        "thesis",
+        "evidence",
+        "catalysts",
+        "bull case",
+        "bear case",
+        "scenarios",
+        "data gaps"
+      ],
+      "targetKindMix": {
+        "favored": ["relative", "range"],
+        "minNonDirection": 2
+      }
+    },
+    "marketRegime": {
+      "assetClass": "equity",
+      "label": "mixed",
+      "proxyCount": 6,
+      "drivers": [
+        "equity breadth proxies negative: 3/4",
+        "trend positive: 4/4 proxies above 50-day average",
+        "VIX term structure contango: VIX 14.25 vs VIX3M 18.46"
+      ],
+      "sourceIds": [
+        "market-yahoo-equity-spy",
+        "market-yahoo-equity-qqq",
+        "market-yahoo-equity-iwm",
+        "market-yahoo-equity-dia",
+        "market-yahoo-equity-^vix",
+        "market-yahoo-equity-^vix3m"
+      ]
+    }
+  },
+  "reportIntegrity": "high",
+  "researchQuality": "medium",
+  "researchQualityDriver": "corporate event evidence missing; macro indicator evidence missing; remediation: configure MARKET_BOT_FINNHUB_API_TOKEN or rerun; configure MARKET_BOT_FRED_API_KEY or rerun",
+  "predictionShortfall": {
+    "emittedCount": 1,
+    "targetCount": 5,
+    "missingCount": 4
+  }
+}

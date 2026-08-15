@@ -63,6 +63,15 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-analysis-comprehensive/`
 - `tests/fixtures/runs/equity-analysis-estimated-suppressed/`
 - `tests/fixtures/runs/equity-web-fallback-deep/`
+- `tests/fixtures/runs/equity-depository-deep/`
+
+Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
+rebuilds from `meta.json`, so a live-only setting cannot leak into the golden. Supported live source
+providers are recorded by name, use real credentials only while recording, and replay with fixture
+tokens. Other data-provider keys must still be neutralised on the command line, and
+`MARKET_BOT_FORECAST_DISAGREEMENT_MODELS` must be blank because it otherwise arms a replay
+invariant the fixture cannot satisfy. Legacy Yahoo cassette entries keep exact `crumb` matching;
+new entries pin the rotating value and replay falls back to that pinned key.
 
 Each fixture contains:
 

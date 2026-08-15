@@ -1,6 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { resolveConfig, resolveResearchConsoleConfig } from "../src/config";
+import {
+  configuredFixtureProviders,
+  createFixtureConfig,
+  createLiveFixtureConfig,
+  type FixtureMeta,
+} from "./support/run-fixtures";
+
+const CONFIGURED_PROVIDERS = ["exa", "finnhub", "firecrawl", "tradier"] as const;
+const FIXTURE_META: FixtureMeta = {
+  now: "2026-08-15T00:00:00.000Z",
+  argv: ["equity", "BNS", "--deep"],
+  configuredProviders: CONFIGURED_PROVIDERS,
+};
 
 describe("resolveConfig", () => {
   test("uses OpenAI defaults", () => {
@@ -551,6 +564,40 @@ describe("resolveConfig", () => {
 
   test("rejects unknown provider", () => {
     expect(() => resolveConfig({ MARKET_BOT_PROVIDER: "unknown" })).toThrow("Unsupported provider");
+  });
+});
+
+describe("fixture provider config", () => {
+  test("records supported providers and overlays live credentials only while recording", () => {
+    const liveConfig = resolveConfig({
+      MARKET_BOT_EXA_API_KEY: "recording-exa-token",
+      MARKET_BOT_FINNHUB_API_TOKEN: "recording-finnhub-token",
+      MARKET_BOT_FIRECRAWL_API_KEY: "recording-firecrawl-token",
+      MARKET_BOT_TRADIER_API_TOKEN: "recording-tradier-token",
+      MARKET_BOT_FRED_API_KEY: "ambient-fred-token",
+      MARKET_BOT_MARKETAUX_API_TOKEN: "ambient-marketaux-token",
+    });
+
+    expect(configuredFixtureProviders(liveConfig.sourceOptions)).toEqual(CONFIGURED_PROVIDERS);
+    expect(createFixtureConfig(FIXTURE_META, "fixture-runs").sourceOptions).toMatchObject({
+      exaApiKey: "fixture-token",
+      finnhubApiToken: "fixture-token",
+      firecrawlApiKey: "fixture-token",
+      tradierApiToken: "fixture-token",
+    });
+    const recordingSourceOptions = createLiveFixtureConfig(
+      FIXTURE_META,
+      "fixture-runs",
+      liveConfig,
+    ).sourceOptions;
+    expect(recordingSourceOptions).toMatchObject({
+      exaApiKey: "recording-exa-token",
+      finnhubApiToken: "recording-finnhub-token",
+      firecrawlApiKey: "recording-firecrawl-token",
+      tradierApiToken: "recording-tradier-token",
+    });
+    expect(recordingSourceOptions.fredApiKey).toBeUndefined();
+    expect(recordingSourceOptions.marketauxApiToken).toBeUndefined();
   });
 });
 

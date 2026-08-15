@@ -40,6 +40,17 @@ export interface FixtureMeta {
   };
 }
 
+export function configuredFixtureProviders(
+  sourceOptions: AppConfig["sourceOptions"],
+): NonNullable<FixtureMeta["configuredProviders"]> {
+  return [
+    ...(sourceOptions.exaApiKey !== undefined ? (["exa"] as const) : []),
+    ...(sourceOptions.finnhubApiToken !== undefined ? (["finnhub"] as const) : []),
+    ...(sourceOptions.firecrawlApiKey !== undefined ? (["firecrawl"] as const) : []),
+    ...(sourceOptions.tradierApiToken !== undefined ? (["tradier"] as const) : []),
+  ];
+}
+
 export interface LoadedFixture {
   readonly name: string;
   readonly dir: string;
@@ -163,9 +174,15 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
   };
 }
 
-function createLiveFixtureConfig(meta: FixtureMeta, dataDir: string): AppConfig {
+// Exported for the recorder: a run recorded under any other config cannot be replayed, because
+// Replay always rebuilds the config from meta.json and these fixed knobs.
+export function createLiveFixtureConfig(
+  meta: FixtureMeta,
+  dataDir: string,
+  liveConfig: AppConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false }),
+): AppConfig {
   const baseFixtureConfig = createFixtureConfig(meta, dataDir);
-  const liveConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+  const configuredProviders = new Set(meta.configuredProviders);
   return {
     ...baseFixtureConfig,
     provider: liveConfig.provider,
@@ -192,6 +209,24 @@ function createLiveFixtureConfig(meta: FixtureMeta, dataDir: string): AppConfig 
     ...(liveConfig.codexSynthesisReasoningEffort !== undefined
       ? { codexSynthesisReasoningEffort: liveConfig.codexSynthesisReasoningEffort }
       : {}),
+    sourceOptions: {
+      ...baseFixtureConfig.sourceOptions,
+      ...(configuredProviders.has("exa") && liveConfig.sourceOptions.exaApiKey !== undefined
+        ? { exaApiKey: liveConfig.sourceOptions.exaApiKey }
+        : {}),
+      ...(configuredProviders.has("finnhub") &&
+      liveConfig.sourceOptions.finnhubApiToken !== undefined
+        ? { finnhubApiToken: liveConfig.sourceOptions.finnhubApiToken }
+        : {}),
+      ...(configuredProviders.has("firecrawl") &&
+      liveConfig.sourceOptions.firecrawlApiKey !== undefined
+        ? { firecrawlApiKey: liveConfig.sourceOptions.firecrawlApiKey }
+        : {}),
+      ...(configuredProviders.has("tradier") &&
+      liveConfig.sourceOptions.tradierApiToken !== undefined
+        ? { tradierApiToken: liveConfig.sourceOptions.tradierApiToken }
+        : {}),
+    },
   };
 }
 

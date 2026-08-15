@@ -1,10 +1,23 @@
 # Plan 0010 — Follow-ups left by plan 0009
 
-**Status: Decided, not started** — as of 2026-08-15.
+**Status: All six phases complete** (`5330ce1`, `5770941`, `cf0bddf`, `761a319`,
+`fd791e0`, plus the Phase 6 index rebuild, which changes no tracked file) — as of
+2026-08-15. `bun run check` passes at 2876 tests, 98.03% line coverage, and all
+ten run fixtures replay `--check-golden` byte-identical.
 
 Plan 0009 is fully implemented: six phases, seven commits, on branch
-`feat/0009-absences-and-artifact-drops`. `bun run check` passes at 2872 tests,
-98.00% line coverage. This plan carries what 0009 deliberately did not do.
+`feat/0009-absences-and-artifact-drops`. This plan carried what 0009 deliberately
+did not do. Both are now safe to delete; their ceilings live in
+`NOTE — ponytail:` source comments that survive the files.
+
+Two things this plan did not close, both recorded rather than silently dropped:
+
+- Converted **enterprise value** is still not exercised end to end. Phase 2 is
+  satisfied by BNS, whose depository status suppresses EV, so no fixture pairs a
+  foreign reporting currency with a non-depository issuer. Unit tests cover it.
+  Closing it needs a live recording of a non-depository foreign filer.
+- **21 files remain over the 800-line limit**, worst `run-artifacts.ts` at 1816.
+  Phase 4 named two and split only those.
 
 Detail on any item below lives in
 [plan 0009](./0009-unexplained-absences-and-silent-artifact-drops.md) and in the

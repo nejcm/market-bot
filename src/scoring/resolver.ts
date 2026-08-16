@@ -21,18 +21,18 @@ export type { Observation };
 const PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS = 5;
 const UTC_DAY_MS = 86_400_000;
 
-export interface ResolveOutcomeResolved {
+interface ResolveOutcomeResolved {
   readonly status: "resolved";
   readonly outcome: ScoreOutcome;
   readonly evidence: Record<string, unknown>;
 }
 
-export interface ResolveOutcomeVoided {
+interface ResolveOutcomeVoided {
   readonly status: "voided";
   readonly evidence: Record<string, unknown>;
 }
 
-export interface ResolveOutcomeUnresolved {
+interface ResolveOutcomeUnresolved {
   readonly status: "unresolved";
   readonly reason: "horizon-not-elapsed" | "observation-unavailable";
   readonly scoreStatus?: "pending-condition" | "active-pending";

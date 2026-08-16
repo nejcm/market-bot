@@ -45,20 +45,20 @@ export interface ResearchSubjectCommand {
   readonly depth: Depth;
 }
 
-export interface ScoreCommand {
+interface ScoreCommand {
   readonly jobType: "score";
   readonly force?: true;
 }
 
-export interface CalibrationCommand {
+interface CalibrationCommand {
   readonly jobType: "calibration";
 }
 
-export interface CachePruneCommand {
+interface CachePruneCommand {
   readonly jobType: "cache-prune";
 }
 
-export interface ProviderHealthCommand {
+interface ProviderHealthCommand {
   readonly jobType: "provider-health";
 }
 

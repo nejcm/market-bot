@@ -7,6 +7,7 @@ import type {
 } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
+import { depositoryIssuerSic } from "./industry-classification";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -155,8 +156,14 @@ export function addValuationEvidence(
   const annualizationFactor =
     revenuePeriodMonths !== undefined && revenuePeriodMonths > 0 ? 12 / revenuePeriodMonths : 1;
   const annualizedRevenue = revenue * annualizationFactor;
-  const enterpriseValue = marketCap + debt - cash;
-  const evToAnnualizedRevenue = ratio(enterpriseValue, annualizedRevenue);
+  // This item is the source the peer comps and the reverse DCF read enterprise value from, so
+  // Withholding it here is what stops an EV escaping into the prose, the peer table, the peer
+  // Reference range and the DCF grid. See industry-classification.ts for why EV has no defensible
+  // Definition for a deposit-funded issuer.
+  const depositorySic = depositoryIssuerSic(extendedEvidence);
+  const enterpriseValue = depositorySic === undefined ? marketCap + debt - cash : undefined;
+  const evToAnnualizedRevenue =
+    enterpriseValue === undefined ? undefined : ratio(enterpriseValue, annualizedRevenue);
   const marketCapToAnnualizedRevenue = ratio(marketCap, annualizedRevenue);
   const debtToMarketCap = ratio(debt, marketCap);
   const netDebt = debt - cash;
@@ -165,14 +172,18 @@ export function addValuationEvidence(
     revenuePeriodMonths !== undefined
       ? `${revenuePeriodMonths}-month revenue ${formatUsd(revenue)}, `
       : "";
+  const enterpriseValueText =
+    enterpriseValue === undefined
+      ? `enterprise value not applicable (depository issuer, SIC ${depositorySic ?? "unknown"}: deposits and borrowings fund operations rather than sitting on top of them)`
+      : `enterprise value ${formatUsd(enterpriseValue)}`;
+  const evToRevenueText =
+    enterpriseValue === undefined
+      ? "EV/annualized revenue not applicable"
+      : `EV/annualized revenue ${fixed(evToAnnualizedRevenue)}`;
   const item: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary:
-      `Valuation Evidence: market cap ${formatUsd(marketCap)}, enterprise value ${formatUsd(enterpriseValue)}, ` +
-      `${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, EV/annualized revenue ${fixed(evToAnnualizedRevenue)}, ` +
-      `market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, ` +
-      `net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -180,7 +191,7 @@ export function addValuationEvidence(
       cash,
       debt,
       netDebt,
-      enterpriseValue,
+      ...(enterpriseValue === undefined ? {} : { enterpriseValue }),
       latestPeriodRevenue: revenue,
       annualizedRevenue,
       quoteObservedAt,

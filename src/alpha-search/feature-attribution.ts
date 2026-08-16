@@ -5,7 +5,7 @@ import type {
   AlphaValidationMetrics,
 } from "./validation";
 
-export type AlphaFeatureName =
+type AlphaFeatureName =
   | "sourceGroup"
   | "price"
   | "volume"
@@ -20,12 +20,12 @@ export type AlphaFeatureName =
   | "operatingCashFlow"
   | "debtToMarketCap";
 
-export interface AlphaFeatureAttributionBucket {
+interface AlphaFeatureAttributionBucket {
   readonly label: string;
   readonly horizons: Readonly<Record<string, AlphaValidationMetrics>>;
 }
 
-export interface AlphaFeatureAttributionFeature {
+interface AlphaFeatureAttributionFeature {
   readonly buckets: Readonly<Record<string, AlphaFeatureAttributionBucket>>;
 }
 

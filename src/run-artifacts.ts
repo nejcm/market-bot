@@ -87,6 +87,7 @@ import {
   readReverseDcfArtifact,
   type ReverseDcfArtifact,
 } from "./sources/extended-evidence/reverse-dcf";
+import type { ReadArtifact } from "./sources/extended-evidence/utils";
 import type {
   FundamentalHistoryArtifact,
   FundamentalHistorySeriesKey,
@@ -126,7 +127,7 @@ import {
 
 // Per-file load outcome. "absent" = the file is missing (ENOENT); "malformed" =
 // Present but unreadable or wrong shape.
-export type ArtifactFileStatus = "ok" | "malformed" | "absent";
+type ArtifactFileStatus = "ok" | "malformed" | "absent";
 
 // The Market Regime label in effect at forecast time, persisted on the report as
 // `extras.marketRegime.label`. Read leniently: older artifacts and reports with
@@ -139,7 +140,7 @@ export function readReportMarketRegimeLabel(report: ResearchReport): MarketRegim
   return isMarketRegimeLabel(regime.label) ? regime.label : undefined;
 }
 
-export interface RunArtifactStatus {
+interface RunArtifactStatus {
   readonly report: ArtifactFileStatus;
   readonly score: ArtifactFileStatus;
   readonly evidenceBundle?: ArtifactFileStatus;
@@ -163,12 +164,12 @@ export interface RunArtifact {
   readonly evidenceLanes?: EvidenceLanesArtifact;
   readonly sourceLedger?: SourceLedgerArtifact;
   readonly financialLenses?: FinancialLensArtifact;
-  readonly financialStatements?: FinancialStatementsArtifact;
-  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
-  readonly capitalOwnership?: CapitalOwnershipArtifact;
+  readonly financialStatements?: ReadArtifact<FinancialStatementsArtifact>;
+  readonly subsequentFinancing?: ReadArtifact<SubsequentFinancingBridgeArtifact>;
+  readonly capitalOwnership?: ReadArtifact<CapitalOwnershipArtifact>;
   readonly peerImpliedRange?: PeerImpliedRange;
-  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
-  readonly reverseDcf?: ReverseDcfArtifact;
+  readonly valuationWorkbench?: ReadArtifact<ValuationWorkbenchArtifact>;
+  readonly reverseDcf?: ReadArtifact<ReverseDcfArtifact>;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;
@@ -178,7 +179,7 @@ export interface RunArtifact {
 
 // Status for every scanned directory, including those without a loadable report.
 // Callers fold these into their own audit counts.
-export interface RunScanEntry {
+interface RunScanEntry {
   readonly runDirName: string;
   readonly status: RunArtifactStatus;
 }
@@ -211,7 +212,7 @@ export type LoadedDeepEquityEvidenceBundle =
   | { readonly status: "ok"; readonly value: DeepEquityEvidenceBundleV1 }
   | { readonly status: "absent" | "malformed" };
 
-export interface ThemeCatalystItem {
+interface ThemeCatalystItem {
   readonly label: string;
   readonly sourceIds: readonly string[];
   readonly date?: string;
@@ -269,7 +270,7 @@ function isJobType(value: unknown): value is JobType {
   );
 }
 
-function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
+export function isMissAutopsyCause(value: unknown): value is MissAutopsyCause {
   return typeof value === "string" && MISS_AUTOPSY_CAUSES.has(value);
 }
 
@@ -1075,7 +1076,7 @@ function hasPeerImpliedRangeInputsShape(value: unknown): boolean {
 
 // Reads only the optional range block from valuation-comps.json. The console
 // Does not consume the broader comps artifact.
-export function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefined {
+function readPeerImpliedRange(value: unknown): PeerImpliedRange | undefined {
   if (!isRecord(value) || !isRecord(value.impliedPriceRange)) {
     return undefined;
   }
@@ -1191,9 +1192,7 @@ function hasFundamentalHistorySeriesShape(
   );
 }
 
-export function readFundamentalHistoryArtifact(
-  value: unknown,
-): FundamentalHistoryArtifact | undefined {
+function readFundamentalHistoryArtifact(value: unknown): FundamentalHistoryArtifact | undefined {
   if (
     !isRecord(value) ||
     value.version !== 1 ||
@@ -1639,11 +1638,29 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     webSubjectProfileFile,
     readWebSubjectProfileArtifact,
   );
+  const observationDrops = [
+    financialStatements,
+    subsequentFinancing,
+    capitalOwnership,
+    valuationWorkbench,
+    reverseDcf,
+  ].flatMap((artifact) => artifact?.readDiagnostics?.drops ?? []);
+  const droppedObservationCount = observationDrops.reduce((sum, drop) => sum + drop.count, 0);
+  const readableReport =
+    droppedObservationCount === 0
+      ? report
+      : {
+          ...report,
+          dataGaps: [
+            ...report.dataGaps,
+            `Artifact observations unavailable: ${String(droppedObservationCount)} ${droppedObservationCount === 1 ? "observation" : "observations"} dropped (${observationDrops.map((drop) => `${drop.reason}: ${String(drop.count)}`).join(", ")}).`,
+          ],
+        };
 
   return {
     artifact: {
       runDirName,
-      report,
+      report: readableReport,
       scores: parsedScores ?? [],
       missAutopsies: readMissAutopsies(missAutopsyFile.value),
       marketSnapshots: deepEquity
@@ -1675,7 +1692,7 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
 
 // Scans every run directory under dataDir in one pass. A missing dataDir yields
 // An empty scan.
-export async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArtifactScan> {
+async function scanRunArtifactsFromDisk(dataDir: string): Promise<RunArtifactScan> {
   const dirEntries = await readdir(dataDir, { withFileTypes: true }).catch((error: unknown) => {
     if (isRecord(error) && error.code === "ENOENT") {
       return [] as Dirent[];

@@ -20,7 +20,7 @@ export const REPORT_SEARCH_SECTIONS = [
   "openQuestions",
 ] as const;
 
-export type ReportSearchSection = (typeof REPORT_SEARCH_SECTIONS)[number];
+type ReportSearchSection = (typeof REPORT_SEARCH_SECTIONS)[number];
 export type ReportSearchScope = "console" | "history";
 
 export interface ReportSearchEntry {
@@ -42,7 +42,7 @@ export interface ReportSearchEntry {
 
 // Sections a raw-record candidate can carry. `openQuestions` is layered on later by
 // `buildReportSearchEntries` (it needs scores), so it is never a candidate section.
-export type ReportSearchCandidateSection = Exclude<ReportSearchSection, "openQuestions">;
+type ReportSearchCandidateSection = Exclude<ReportSearchSection, "openQuestions">;
 
 export interface ReportSearchCandidate {
   readonly section: ReportSearchCandidateSection;

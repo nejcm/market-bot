@@ -1,6 +1,6 @@
 // Ticker Regime Context combines broad equity breadth proxies with volatility gauges.
-export const EQUITY_BREADTH_PROXY_SYMBOLS = ["SPY", "QQQ", "IWM", "DIA"] as const;
-export const EQUITY_VOLATILITY_SYMBOLS = ["^VIX", "^VIX3M"] as const;
+const EQUITY_BREADTH_PROXY_SYMBOLS = ["SPY", "QQQ", "IWM", "DIA"] as const;
+const EQUITY_VOLATILITY_SYMBOLS = ["^VIX", "^VIX3M"] as const;
 export const EQUITY_REGIME_SYMBOLS = [
   ...EQUITY_BREADTH_PROXY_SYMBOLS,
   ...EQUITY_VOLATILITY_SYMBOLS,

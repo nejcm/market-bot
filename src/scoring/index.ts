@@ -589,7 +589,7 @@ export async function buildAndWriteAlphaLeadCohorts(
   return true;
 }
 
-export async function buildAndWriteAlphaCandidateWatchlist(
+async function buildAndWriteAlphaCandidateWatchlist(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<boolean> {
@@ -622,7 +622,7 @@ export async function buildAndWriteAlphaCandidateWatchlist(
   return true;
 }
 
-export async function buildAndWriteAlphaFeatureAttribution(
+async function buildAndWriteAlphaFeatureAttribution(
   dataDir: string,
   now: Date = new Date(),
 ): Promise<boolean> {
@@ -655,7 +655,7 @@ export async function buildAndWriteAlphaFeatureAttribution(
   return true;
 }
 
-export async function buildAndWriteAlphaValidationSummary(
+async function buildAndWriteAlphaValidationSummary(
   dataDir: string,
   now: Date = new Date(),
   prerequisiteOverride?: AlphaValidationPrerequisiteInput,
@@ -716,40 +716,10 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
         jobType: report.jobType,
         ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
         runId: report.runId,
-        ...(missAutopsy !== undefined ? { missAutopsy } : {}),
+        ...(missAutopsy !== undefined ? { missAutopsyCause: missAutopsy.cause } : {}),
         ...(marketRegimeLabel !== undefined ? { marketRegimeLabel } : {}),
       },
     ];
-  });
-}
-
-async function loadMissAutopsiesByPrediction(
-  dataDir: string,
-): Promise<ReadonlyMap<string, MissAutopsyEntry>> {
-  const runDirs = await listRunDirs(dataDir);
-  const loaded = await Promise.all(runDirs.map((runDir) => loadRunArtifact(runDir)));
-  return new Map(
-    loaded.flatMap(({ artifact }) =>
-      artifact === undefined
-        ? []
-        : artifact.missAutopsies.map(
-            (autopsy) => [`${artifact.report.runId}:${autopsy.predictionId}`, autopsy] as const,
-          ),
-    ),
-  );
-}
-
-// Even on a warm index this re-reads every run directory from disk to recover
-// Miss autopsies, which the index does not yet hydrate. TODO: store the autopsy
-// Cause in the index row so loadResolvedPairsFromIndex can join it without a scan.
-async function withMissAutopsiesFromDisk(
-  dataDir: string,
-  pairs: readonly ResolvedPair[],
-): Promise<readonly ResolvedPair[]> {
-  const autopsies = await loadMissAutopsiesByPrediction(dataDir);
-  return pairs.map((pair) => {
-    const missAutopsy = autopsies.get(`${pair.runId}:${pair.prediction.id}`);
-    return missAutopsy === undefined ? pair : { ...pair, missAutopsy };
   });
 }
 
@@ -799,10 +769,7 @@ export async function buildAndWriteCalibration(
     indexPairs === undefined || indexConditionalCounts === undefined
       ? await loadCalibrationInputsFromDisk(dataDir)
       : undefined;
-  const pairs =
-    indexPairs === undefined
-      ? (diskInputs?.pairs ?? [])
-      : await withMissAutopsiesFromDisk(dataDir, indexPairs);
+  const pairs = indexPairs ?? diskInputs?.pairs ?? [];
   const conditionalCounts =
     indexConditionalCounts ?? diskInputs?.conditionalCounts ?? ZERO_CONDITIONAL_COUNTS;
 

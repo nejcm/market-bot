@@ -17,13 +17,33 @@ bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build
 
 ## Unused-code gate
 
-`bun run knip` is the unused-code gate. `knip --production` is deliberately not used: `knip.json`
-has only `scripts/**/*.ts` and `tests/**/*.ts` as entries, and production mode drops the test
-entries, leaving nothing to analyze. Those test entries already reach `src/` transitively, so adding
-`src/cli.ts` or other real entry points would make production mode find only a strict subset of the
-existing gate.
+`bun run knip` is the unused-code gate. It reports nothing today because the repo is clean on the
+axis it measures, not because it cannot fail: appending an export with no consumer anywhere (a
+`const` or a `type`) to a `src/` file makes `bun run knip` report it and exit 1.
 
-The scripts-and-tests-only `entry` configuration is intentional, not an oversight.
+`knip --production` adds nothing here, but not for the reason previously recorded. Production mode
+does **not** drop user-configured `entry` patterns: with `-p`, knip still resolves
+`tests/**/*.ts` as entry files, so every test still counts as a consumer and the run reports
+nothing. Dropping the test entries entirely also reports nothing, which confirms no `src/` export is
+kept alive by tests alone.
+
+`ignoreExportsUsedInFile` is **off**, so the same-file-only axis is measured too: an `export`
+whose only consumer is its own declaring file is reported. That flag used to be on and hid 354
+such exports (110 values, 244 types; 275 in `src/`, 79 in `app/`, across 106 files). The backlog
+was cleared by dropping the redundant modifiers, and the flag was turned off permanently so the
+axis cannot silently refill. Appending an exported `type` that only its own file references now
+makes `bun run knip` report it and exit 1.
+
+Keeping it off costs one recurring habit: export a symbol when something else imports it, not by
+reflex. That is cheaper than re-running a 354-item census later.
+
+Knip has one known limitation here. It does not resolve namespace-member access inside Svelte
+markup, so `import * as X` plus `<X.Thing />` in a template reports `Thing` as unused. Use named
+imports in `.svelte` files rather than suppressing the finding.
+
+To take a census with a different setting, copy `knip.json`, edit the flag in the copy, and run
+`bun run knip -- --config <copy> --reporter json --no-exit-code`; count the `exports` and `types`
+arrays by full `file` path rather than the terminal reporter's abbreviated rows.
 
 ## Static equity fixture tests
 
@@ -53,6 +73,15 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-analysis-comprehensive/`
 - `tests/fixtures/runs/equity-analysis-estimated-suppressed/`
 - `tests/fixtures/runs/equity-web-fallback-deep/`
+- `tests/fixtures/runs/equity-depository-deep/`
+
+Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
+rebuilds from `meta.json`, so a live-only setting cannot leak into the golden. Supported live source
+providers are recorded by name, use real credentials only while recording, and replay with fixture
+tokens. Other data-provider keys must still be neutralised on the command line, and
+`MARKET_BOT_FORECAST_DISAGREEMENT_MODELS` must be blank because it otherwise arms a replay
+invariant the fixture cannot satisfy. Legacy Yahoo cassette entries keep exact `crumb` matching;
+new entries pin the rotating value and replay falls back to that pinned key.
 
 Each fixture contains:
 

@@ -112,6 +112,7 @@ const VALIDATION_FIELDS = new Set<FinancialTableSemanticField>([
   "financingCashFlow",
   "foreignExchangeEffect",
 ]);
+const READABLE_FINANCIAL_TABLE_MAPPING_VERSIONS = new Set<unknown>([1]);
 
 export interface ValidateFinancialTableMappingInput {
   readonly packet: FinancialTablePacket;
@@ -185,7 +186,7 @@ export function parseFinancialTableMappingOutput(
   if (
     !isRecord(parsed) ||
     !exactKeys(parsed, ["version", "mappings"]) ||
-    parsed.version !== 1 ||
+    !READABLE_FINANCIAL_TABLE_MAPPING_VERSIONS.has(parsed.version) ||
     !Array.isArray(parsed.mappings)
   ) {
     return {

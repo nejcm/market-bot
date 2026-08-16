@@ -12,7 +12,7 @@ export interface JobRunResult {
   readonly stderr: string;
 }
 
-export type JobOutputStream = (stream: "stdout" | "stderr", chunk: string) => void;
+type JobOutputStream = (stream: "stdout" | "stderr", chunk: string) => void;
 
 export type JobRunner = (
   argv: readonly string[],
@@ -227,7 +227,7 @@ async function streamText(
   return output;
 }
 
-export async function runCliJob(
+async function runCliJob(
   argv: readonly string[],
   onOutput?: JobOutputStream,
 ): Promise<JobRunResult> {

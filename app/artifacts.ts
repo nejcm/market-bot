@@ -260,10 +260,14 @@ export async function readRunDetail(
     ]);
   const artifact = await loadRunArtifact(runDir);
   const availableFiles = indexedSummary?.availableFiles ?? (await listArtifactFiles(runDir));
+  let detailReport = report;
+  if (artifact.artifact?.report !== undefined) {
+    detailReport = { ...artifact.artifact.report };
+  }
 
   return {
     summary: indexedSummary ?? runSummaryFromReport(runId, report, availableFiles),
-    ...(report !== undefined ? { report } : {}),
+    ...(detailReport !== undefined ? { report: detailReport } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
     ...(analytics !== undefined ? { analytics } : {}),
     ...(trace !== undefined ? { trace } : {}),

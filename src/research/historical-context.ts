@@ -32,8 +32,8 @@ import {
 // History for the command's own instrument ("same-symbol") or a selected market-update spotlight
 // ("spotlight-symbol"), and market-update history matching the command's horizon bucket
 // ("same-horizon") or another horizon bucket for the same asset ("cross-horizon").
-export type HistoricalRecencyReason = "recent" | `anchor-${number}m`;
-export type HistoricalRelevanceReason =
+type HistoricalRecencyReason = "recent" | `anchor-${number}m`;
+type HistoricalRelevanceReason =
   | "same-symbol"
   | "spotlight-symbol"
   | "same-subject"
@@ -42,8 +42,8 @@ export type HistoricalRelevanceReason =
 // Correction reasons answer "why was this run kept despite recency eviction": it
 // Carries a resolved miss the prior-thesis error-correction blocks draw from, and
 // Would otherwise be crowded out of the recent window by same-day reruns.
-export type HistoricalCorrectionReason = "miss-correction";
-export type HistoricalSelectionReason =
+type HistoricalCorrectionReason = "miss-correction";
+type HistoricalSelectionReason =
   | HistoricalRecencyReason
   | HistoricalRelevanceReason
   | HistoricalCorrectionReason;
@@ -63,7 +63,7 @@ export interface HistoricalPredictionSummary {
   readonly scoreEvidence?: Record<string, number | string>;
 }
 
-export interface HistoricalNumericSnapshot {
+interface HistoricalNumericSnapshot {
   readonly symbol: string;
   readonly price: number;
   readonly changePercent24h: number;
@@ -113,7 +113,7 @@ export interface HistoricalResearchContext {
   readonly artifactDeltas: readonly HistoricalArtifactDelta[];
 }
 
-export interface HistoricalArtifactDelta {
+interface HistoricalArtifactDelta {
   readonly symbol: string;
   readonly fromRunId: string;
   readonly toRunId: string;

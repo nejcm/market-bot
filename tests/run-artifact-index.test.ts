@@ -363,6 +363,9 @@ describe("run artifact index", () => {
     expect(pairs).toHaveLength(1);
     expect(pairs?.[0]?.prediction.id).toBe("p-cal");
     expect(pairs?.[0]?.score.outcome).toBe("hit");
+    // The index row itself carries the autopsy cause, so a warm index never
+    // Re-reads run directories to recover it.
+    expect(pairs?.[0]?.missAutopsyCause).toBe("insufficient_evidence");
     await expect(loadConditionalCalibrationCountsFromIndex(dataDir)).resolves.toEqual({
       activatedCount: 0,
       voidedCount: 1,
@@ -429,6 +432,49 @@ describe("run artifact index", () => {
     ) as Record<string, unknown>;
     expect(persisted.resolvedCount).toBe(0);
     expect(persisted).not.toHaveProperty("brierSkillScore");
+  });
+
+  test("falls back to disk for calibration when the index is still schema v9", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-v9");
+    writeJson(join(dataDir, "run-v9", "score.json"), {
+      runId: "run-v9",
+      scores: [
+        predictionScore("hit", {
+          predictionId: "p1",
+          runId: "run-v9",
+          scoringVersion: 3,
+        }),
+      ],
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const oldIndex = new Database(dbPath);
+    oldIndex.exec("ALTER TABLE scores DROP COLUMN miss_autopsy_cause; PRAGMA user_version = 9");
+    oldIndex.close();
+
+    await expect(rebuildRunArtifactIndexIfStale(dataDir, { dbPath })).resolves.toEqual({
+      rebuilt: false,
+    });
+    const stderr = captureStderr();
+    const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+
+    expect(summary?.resolvedCount).toBe(1);
+    expect(summary?.hitRate).toBe(1);
+    expect(summary?.brierScore).toBeCloseTo(0.1225, 4);
+    expect(stderr.join("")).toContain(
+      "unsupported schema version 9, falling back to disk scan; run bun run src/cli.ts index rebuild",
+    );
+    const unchangedIndex = new Database(dbPath, { readonly: true });
+    expect(
+      unchangedIndex.query("PRAGMA user_version").get() as { readonly user_version: number },
+    ).toEqual({ user_version: 9 });
+    expect(
+      unchangedIndex
+        .query<{ readonly name: string }, []>("PRAGMA table_info(scores)")
+        .all()
+        .map(({ name }) => name),
+    ).not.toContain("miss_autopsy_cause");
+    unchangedIndex.close();
   });
 
   test("carries the forecast-time market regime label through the index", async () => {

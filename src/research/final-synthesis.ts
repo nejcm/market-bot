@@ -691,7 +691,7 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
 
 const MAX_ACCUMULATED_REPORT_VALIDATION_ERRORS = 12;
 
-export function accumulateReportValidationErrors(values: readonly string[]): readonly string[] {
+function accumulateReportValidationErrors(values: readonly string[]): readonly string[] {
   const seen = new Set<string>();
   const newestFirst: string[] = [];
   for (let index = values.length - 1; index >= 0; index -= 1) {

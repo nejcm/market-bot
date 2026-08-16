@@ -20,18 +20,10 @@ import {
 export { commandBanner, commandLabel, isInstrumentCommand, isResearchCommand };
 export type {
   AlphaSearchCommand,
-  CachePruneCommand,
-  CalibrationCommand,
   CliCommand,
-  HistoryRebuildCommand,
-  HistorySearchCommand,
-  HistoryThesisDeltaCommand,
-  IndexRebuildCommand,
   MarketOverviewCommand,
   InstrumentCommand,
-  ProviderHealthCommand,
   ResearchCommand,
-  ScoreCommand,
 } from "./job-registry";
 
 function parseAsset(value: string | undefined): AssetClass {

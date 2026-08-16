@@ -125,7 +125,7 @@ function normalizeGapText(value: string): string {
   return value.replaceAll(/\s+/gu, " ").trim().toLowerCase();
 }
 
-export function sourceGapReportTextKey(gap: SourceGap): string {
+function sourceGapReportTextKey(gap: SourceGap): string {
   return normalizeGapText(sourceGapReportText(gap));
 }
 

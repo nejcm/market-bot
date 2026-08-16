@@ -19,13 +19,13 @@ Observed price: 198.5 USD; price as of fetch time 2026-06-15T14:30:00.000Z. [mar
 
 ## Financial Trends
 
-Amounts in USD. FCF is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-ifrssa-fundamentals]
+Amounts in USD. FCF, where applicable, is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-ifrssa-fundamentals]
 
 Period | Revenue | Net income | Operating margin | FCF
 --- | ---: | ---: | ---: | ---:
-FY ending 2023-12-31 (filed 2024-03-15) | 1.0B | 550.0M | 70.0% | —
-FY ending 2024-12-31 (filed 2025-03-15) | 1.2B | 660.0M | 70.0% | —
-FY ending 2025-12-31 (filed 2026-03-15) | 1.5B | 825.0M | 70.0% | —
+FY ending 2023-12-31 (filed 2024-03-15) | 1.0B | 550.0M | 70.0% | — (free-cash-flow-unavailable)
+FY ending 2024-12-31 (filed 2025-03-15) | 1.2B | 660.0M | 70.0% | — (free-cash-flow-unavailable)
+FY ending 2025-12-31 (filed 2026-03-15) | 1.5B | 825.0M | 70.0% | — (free-cash-flow-unavailable)
 
 ## Valuation Context
 

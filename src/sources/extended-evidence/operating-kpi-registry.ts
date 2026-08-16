@@ -1,6 +1,6 @@
 import type { AssetClass, ExtendedEvidenceItem } from "../../domain/types";
 
-export interface OperatingKpiDefinition {
+interface OperatingKpiDefinition {
   readonly key: string;
   readonly label: string;
   readonly unit: string;

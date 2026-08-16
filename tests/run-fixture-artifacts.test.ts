@@ -48,7 +48,16 @@ test("writes and reads an exact, byte-stable split golden output", async () => {
     ]);
 
     const scrubbed = await scrubbedRunArtifacts(runDir);
-    const firstFiles = await writeGoldenOutput(runDir, fixtureName);
+    await expect(
+      writeGoldenOutput(runDir, fixtureName, (_path, content) => {
+        if (content.includes("A deliberately long report summary")) {
+          throw new Error("rejected golden output");
+        }
+      }),
+    ).rejects.toThrow("rejected golden output");
+    await expect(readdir(outputDirectory)).rejects.toThrow();
+
+    const firstFiles = await writeGoldenOutput(runDir, fixtureName, () => {});
     const expectedFiles = [
       join(outputDirectory, "analytics.json"),
       join(outputDirectory, "report.json"),
@@ -92,7 +101,7 @@ test("writes and reads an exact, byte-stable split golden output", async () => {
 
     const firstContents = await Promise.all(firstFiles.map((path) => readFile(path, "utf8")));
     await writeFile(join(outputDirectory, "normalized", "stale.json"), "{}", "utf8");
-    const secondFiles = await writeGoldenOutput(runDir, fixtureName);
+    const secondFiles = await writeGoldenOutput(runDir, fixtureName, () => {});
     const secondContents = await Promise.all(secondFiles.map((path) => readFile(path, "utf8")));
 
     expect(secondFiles).toEqual(firstFiles);

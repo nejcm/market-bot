@@ -1,7 +1,13 @@
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import { isRecord, readNumber, readString, readStringArray } from "../../guards";
+import {
+  readArtifactObservations,
+  readArtifactReadDiagnostics,
+  type ReadArtifact,
+  withArtifactReadDiagnostics,
+} from "./utils";
 
-export const VALUATION_METRIC_KEYS = [
+const VALUATION_METRIC_KEYS = [
   "priceToEarnings",
   "priceToSales",
   "enterpriseValueToRevenue",
@@ -12,7 +18,7 @@ export type ValuationMetricKey = (typeof VALUATION_METRIC_KEYS)[number];
 
 export type ValuationObservationBasis = "annual" | "ttm";
 
-export type ValuationPriceSelectionRule =
+type ValuationPriceSelectionRule =
   "first verified close within 7 calendar days on or after publicAt";
 
 export type ValuationMetricSuppressionReason =
@@ -28,7 +34,7 @@ export type ValuationMetricSuppressionReason =
   | "cash-unavailable"
   | "debt-unavailable";
 
-export type ValuationMetricNotMeaningfulReason =
+type ValuationMetricNotMeaningfulReason =
   | "negative-denominator"
   | "zero-denominator"
   | "non-finite-denominator";
@@ -51,7 +57,7 @@ export interface ValuationPriceInput {
   readonly sourceId: string;
 }
 
-export interface ValuationFxConversion {
+interface ValuationFxConversion {
   readonly rate: number;
   readonly rateDate: string;
   readonly pair: string;
@@ -132,7 +138,7 @@ export type PeerValuationComparison =
     }
   | {
       readonly status: "suppressed";
-      readonly reason: "peer-data-unavailable";
+      readonly reason: "peer-data-unavailable" | "enterprise-value-not-applicable";
       readonly detail: string;
       readonly sourceIds: readonly string[];
     };
@@ -153,6 +159,8 @@ export interface ValuationWorkbenchArtifact {
   readonly peerComparison: PeerValuationComparison;
   readonly sourceIds: readonly string[];
 }
+
+const READABLE_VALUATION_WORKBENCH_VERSIONS = new Set<unknown>([1]);
 
 const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "price-history-unavailable",
@@ -310,7 +318,8 @@ function hasPeerComparisonShape(value: unknown): boolean {
   }
   if (value.status === "suppressed") {
     return (
-      value.reason === "peer-data-unavailable" &&
+      (value.reason === "peer-data-unavailable" ||
+        value.reason === "enterprise-value-not-applicable") &&
       readString(value, "detail") !== undefined &&
       readStringArray(value, "sourceIds") !== undefined
     );
@@ -332,10 +341,10 @@ function hasPeerComparisonShape(value: unknown): boolean {
 
 export function readValuationWorkbenchArtifact(
   value: unknown,
-): ValuationWorkbenchArtifact | undefined {
+): ReadArtifact<ValuationWorkbenchArtifact> | undefined {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    !READABLE_VALUATION_WORKBENCH_VERSIONS.has(value.version) ||
     readString(value, "generatedAt") === undefined ||
     readString(value, "analysisAsOf") === undefined ||
     readString(value, "symbol") === undefined ||
@@ -346,7 +355,6 @@ export function readValuationWorkbenchArtifact(
       readString(value.historicalMultiples, "priceSelectionRule") ?? "",
     ) ||
     !Array.isArray(value.historicalMultiples.observations) ||
-    !value.historicalMultiples.observations.every(hasObservationShape) ||
     !hasTrailingBasisShape(value.historicalMultiples.trailingBasis) ||
     readStringArray(value.historicalMultiples, "suppressionReasons") === undefined ||
     !hasPeerComparisonShape(value.peerComparison) ||
@@ -354,5 +362,27 @@ export function readValuationWorkbenchArtifact(
   ) {
     return undefined;
   }
-  return value as unknown as ValuationWorkbenchArtifact;
+  const previous = readArtifactReadDiagnostics(value);
+  if (previous === undefined) {
+    return undefined;
+  }
+  const observations = readArtifactObservations<HistoricalValuationObservation>(
+    value.historicalMultiples.observations,
+    "valuationWorkbench.historicalMultiples.observations.invalid",
+    (observation) =>
+      hasObservationShape(observation)
+        ? (observation as HistoricalValuationObservation)
+        : undefined,
+  );
+  return withArtifactReadDiagnostics(
+    {
+      ...value,
+      historicalMultiples: {
+        ...value.historicalMultiples,
+        observations: observations.observations,
+      },
+    } as unknown as ValuationWorkbenchArtifact,
+    previous,
+    observations.drops,
+  );
 }

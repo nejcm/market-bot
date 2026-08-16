@@ -7,7 +7,7 @@ import {
   reviewFixtureGolden,
 } from "../tests/support/run-fixtures/golden-diff";
 import { runFixture } from "../tests/support/run-fixtures";
-import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
+import { assertNoSecretsInText, knownSecretValues } from "./fixture-secret-scan";
 
 const { fixtureName, mode } = parseGoldenReplayArgs(process.argv.slice(2));
 const result = await runFixture(fixtureName, {
@@ -28,8 +28,10 @@ try {
     process.stdout.write(`${formatGoldenDiff(review.diff)}\n`);
   }
   if (mode === "write") {
-    const goldenFiles = await writeGoldenOutput(result.artifacts.runDir, fixtureName);
-    await assertNoSecretsInFiles(goldenFiles, knownSecretValues(process.env));
+    const secrets = knownSecretValues(process.env);
+    await writeGoldenOutput(result.artifacts.runDir, fixtureName, (path, content) => {
+      assertNoSecretsInText(path, content, secrets);
+    });
     process.stdout.write(`${goldenOutputDirectory(fixtureName)}\n`);
   } else if (mode === "live") {
     process.stdout.write(`${result.artifacts.runDir}\n`);

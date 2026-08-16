@@ -14,8 +14,12 @@ import {
 import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
 import { createRecordingProvider } from "../tests/support/run-fixtures/llm-cassette";
 import { writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
-import type { FixtureMeta } from "../tests/support/run-fixtures";
-import { assertNoSecretsInFiles, knownSecretValues } from "./fixture-secret-scan";
+import {
+  configuredFixtureProviders,
+  createLiveFixtureConfig,
+  type FixtureMeta,
+} from "../tests/support/run-fixtures";
+import { assertNoSecretsInText, knownSecretValues } from "./fixture-secret-scan";
 
 function usage(): never {
   throw new Error(
@@ -67,16 +71,45 @@ async function main(): Promise<void> {
   const rawResearchCommand = researchCommand(argv);
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
   const command = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
+  // NOTE — ponytail: The temp tree holds the whole run unscrubbed and unscanned — report.json,
+  // Normalized/, trace.json, news-seen.json, peer-universe-learned.json, and cached response
+  // Payloads under cache/ — until the finally below removes it, which a SIGKILL defeats. Low risk:
+  // Tmpdir() is user-scoped, no commit path reaches it, cache keys are SHA-256 digests of URLs
+  // Already stripped of credential query params, and no golden or cassette derives from here
+  // Without passing the secret scan. Scrub or scan this tree mid-run if that window ever matters.
   const tempRoot = await mkdtemp(join(tmpdir(), `market-bot-record-${fixtureName}-`));
   let runError: unknown = undefined;
   try {
     const now = new Date();
-    const resolvedConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+    const liveConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+    const configuredProviders = configuredFixtureProviders(liveConfig.sourceOptions);
+    // The run must execute under exactly the config replay rebuilds from meta.json, or the golden
+    // It records can never be reproduced: replay pins history options, provider availability and
+    // Evidence budgets, and any live-only value here shows up later as unexplainable golden drift.
+    const meta: FixtureMeta & { readonly codeVersion: unknown } = {
+      now: now.toISOString(),
+      argv,
+      quickModel: liveConfig.quickModel,
+      synthesisModel: liveConfig.synthesisModel,
+      challengerModels: liveConfig.forecastDisagreementOptions?.challengerModels ?? [],
+      configuredProviders,
+      ...(liveConfig.sourceOptions.secUserAgent !== undefined
+        ? { secUserAgent: "market-bot fixture replay contact@example.invalid" }
+        : {}),
+      webGatherDisabled: liveConfig.webGatherDisabled,
+      evidenceRequestOptions: liveConfig.evidenceRequestOptions,
+      webGatherOptions: liveConfig.webGatherOptions,
+      codeVersion: readCodeVersion(),
+    };
+    const replayConfig = createLiveFixtureConfig(meta, join(tempRoot, "runs"), liveConfig);
     const config = {
-      ...resolvedConfig,
-      dataDir: join(tempRoot, "runs"),
+      ...replayConfig,
       sourceOptions: {
-        ...resolvedConfig.sourceOptions,
+        ...replayConfig.sourceOptions,
+        // The one value replay cannot carry: SEC rejects the scrubbed placeholder user agent.
+        ...(liveConfig.sourceOptions.secUserAgent !== undefined
+          ? { secUserAgent: liveConfig.sourceOptions.secUserAgent }
+          : {}),
         cacheDir: join(tempRoot, "cache"),
         newsSeenPath: join(tempRoot, "news-seen.json"),
         peerUniverseLearnedPath: join(tempRoot, "peer-universe-learned.json"),
@@ -101,46 +134,30 @@ async function main(): Promise<void> {
       provider: providerRecorder.provider,
       collectedSources,
       now,
+      // Replay pins the end clock to `now`; recording wall-clock duration instead would bake a
+      // Number into the golden that no replay can reproduce.
+      endClock: () => now,
       sourceFetchImpl: fetchRecorder.fetch,
     });
 
     const fixtureDir = join(import.meta.dir, "..", "tests", "fixtures", "runs", fixtureName);
+    const secrets = knownSecretValues(process.env);
+    const pending: readonly (readonly [string, string])[] = [
+      ["data-cassette.json", `${JSON.stringify(fetchRecorder.cassette(), null, 2)}\n`],
+      ["llm-cassette.json", `${JSON.stringify(providerRecorder.cassette(), null, 2)}\n`],
+      ["meta.json", `${JSON.stringify(meta, null, 2)}\n`],
+    ];
+    // Scan before writing: a secret-bearing cassette must never reach disk.
+    for (const [name, content] of pending) {
+      assertNoSecretsInText(name, content, secrets);
+    }
     await mkdir(fixtureDir, { recursive: true });
-    const meta: FixtureMeta & { readonly codeVersion: unknown } = {
-      now: now.toISOString(),
-      argv,
-      quickModel: config.quickModel,
-      synthesisModel: config.synthesisModel,
-      challengerModels: config.forecastDisagreementOptions?.challengerModels ?? [],
-      ...(config.sourceOptions.secUserAgent !== undefined
-        ? { secUserAgent: "market-bot fixture replay contact@example.invalid" }
-        : {}),
-      webGatherDisabled: config.webGatherDisabled,
-      evidenceRequestOptions: config.evidenceRequestOptions,
-      webGatherOptions: config.webGatherOptions,
-      codeVersion: readCodeVersion(),
-    };
-    await writeFile(
-      join(fixtureDir, "data-cassette.json"),
-      `${JSON.stringify(fetchRecorder.cassette(), null, 2)}\n`,
-      "utf8",
+    await Promise.all(
+      pending.map(([name, content]) => writeFile(join(fixtureDir, name), content, "utf8")),
     );
-    await writeFile(
-      join(fixtureDir, "llm-cassette.json"),
-      `${JSON.stringify(providerRecorder.cassette(), null, 2)}\n`,
-      "utf8",
-    );
-    await writeFile(join(fixtureDir, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`, "utf8");
-    const goldenFiles = await writeGoldenOutput(result.artifacts.runDir, fixtureName);
-    await assertNoSecretsInFiles(
-      [
-        join(fixtureDir, "data-cassette.json"),
-        join(fixtureDir, "llm-cassette.json"),
-        join(fixtureDir, "meta.json"),
-        ...goldenFiles,
-      ],
-      knownSecretValues(process.env),
-    );
+    await writeGoldenOutput(result.artifacts.runDir, fixtureName, (path, content) => {
+      assertNoSecretsInText(path, content, secrets);
+    });
     process.stdout.write(`${fixtureDir}\n`);
   } catch (error) {
     runError = error;

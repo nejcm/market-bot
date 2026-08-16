@@ -35,7 +35,7 @@ import {
 } from "./json-tool-loop-support";
 import type { EvidenceRequestContext, ResearchContext } from "./research-context-types";
 
-export interface EvidenceRequestStageOutput {
+interface EvidenceRequestStageOutput {
   readonly stage: "evidence-request";
   readonly content: string;
   readonly tokenEstimate: number;

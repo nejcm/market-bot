@@ -17,7 +17,7 @@ const SUPPORTED_STOCK_NAME_RE =
 const UNSUPPORTED_STOCK_NAME_RE =
   /\b(?:etf|exchange traded fund|etn|fund|unit|units|warrant|warrants|right|rights|preferred|preference|note|notes|debenture|bond)\b/iu;
 
-export type ListedUniverseSource = "nasdaq-listed" | "nasdaq-other-listed" | "cboe-listed";
+type ListedUniverseSource = "nasdaq-listed" | "nasdaq-other-listed" | "cboe-listed";
 
 export interface ListedUniverseEntry {
   readonly symbol: string;

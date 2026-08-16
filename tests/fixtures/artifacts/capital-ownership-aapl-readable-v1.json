@@ -1,0 +1,500 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-24T07:17:22.417Z",
+  "symbol": "AAPL",
+  "dilutedShares": [
+    {
+      "value": 15004697000,
+      "periodStart": "2024-09-29",
+      "periodEnd": "2025-09-27",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 15408095000,
+      "periodStart": "2023-10-01",
+      "periodEnd": "2024-09-28",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 15812547000,
+      "periodStart": "2022-09-25",
+      "periodEnd": "2023-09-30",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 16325819000,
+      "periodStart": "2021-09-26",
+      "periodEnd": "2022-09-24",
+      "filedAt": "2024-11-01",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 16864919000,
+      "periodStart": "2020-09-27",
+      "periodEnd": "2021-09-25",
+      "filedAt": "2023-11-03",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 17528214000,
+      "periodStart": "2019-09-29",
+      "periodEnd": "2020-09-26",
+      "filedAt": "2022-10-28",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 18595651000,
+      "periodStart": "2018-09-30",
+      "periodEnd": "2019-09-28",
+      "filedAt": "2021-10-29",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 20000435000,
+      "periodStart": "2017-10-01",
+      "periodEnd": "2018-09-29",
+      "filedAt": "2020-10-30",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 5251692000,
+      "periodStart": "2016-09-25",
+      "periodEnd": "2017-09-30",
+      "filedAt": "2019-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 5500281000,
+      "periodStart": "2015-09-27",
+      "periodEnd": "2016-09-24",
+      "filedAt": "2018-11-05",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+      "unit": "shares",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    }
+  ],
+  "stockBasedCompensation": [
+    {
+      "value": 12863000000,
+      "periodStart": "2024-09-29",
+      "periodEnd": "2025-09-27",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 11688000000,
+      "periodStart": "2023-10-01",
+      "periodEnd": "2024-09-28",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 10833000000,
+      "periodStart": "2022-09-25",
+      "periodEnd": "2023-09-30",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 9038000000,
+      "periodStart": "2021-09-26",
+      "periodEnd": "2022-09-24",
+      "filedAt": "2024-11-01",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 7906000000,
+      "periodStart": "2020-09-27",
+      "periodEnd": "2021-09-25",
+      "filedAt": "2023-11-03",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 6829000000,
+      "periodStart": "2019-09-29",
+      "periodEnd": "2020-09-26",
+      "filedAt": "2022-10-28",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 6068000000,
+      "periodStart": "2018-09-30",
+      "periodEnd": "2019-09-28",
+      "filedAt": "2021-10-29",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 5340000000,
+      "periodStart": "2017-10-01",
+      "periodEnd": "2018-09-29",
+      "filedAt": "2020-10-30",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 4840000000,
+      "periodStart": "2016-09-25",
+      "periodEnd": "2017-09-30",
+      "filedAt": "2019-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 4210000000,
+      "periodStart": "2015-09-27",
+      "periodEnd": "2016-09-24",
+      "filedAt": "2018-11-05",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "ShareBasedCompensation",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    }
+  ],
+  "buybacks": [
+    {
+      "value": 90711000000,
+      "periodStart": "2024-09-29",
+      "periodEnd": "2025-09-27",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 94949000000,
+      "periodStart": "2023-10-01",
+      "periodEnd": "2024-09-28",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 77550000000,
+      "periodStart": "2022-09-25",
+      "periodEnd": "2023-09-30",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 89402000000,
+      "periodStart": "2021-09-26",
+      "periodEnd": "2022-09-24",
+      "filedAt": "2024-11-01",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 85971000000,
+      "periodStart": "2020-09-27",
+      "periodEnd": "2021-09-25",
+      "filedAt": "2023-11-03",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 72358000000,
+      "periodStart": "2019-09-29",
+      "periodEnd": "2020-09-26",
+      "filedAt": "2022-10-28",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 66897000000,
+      "periodStart": "2018-09-30",
+      "periodEnd": "2019-09-28",
+      "filedAt": "2021-10-29",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 72738000000,
+      "periodStart": "2017-10-01",
+      "periodEnd": "2018-09-29",
+      "filedAt": "2020-10-30",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 32900000000,
+      "periodStart": "2016-09-25",
+      "periodEnd": "2017-09-30",
+      "filedAt": "2019-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 29722000000,
+      "periodStart": "2015-09-27",
+      "periodEnd": "2016-09-24",
+      "filedAt": "2018-11-05",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsForRepurchaseOfCommonStock",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    }
+  ],
+  "dividendsPaid": [
+    {
+      "value": 15421000000,
+      "periodStart": "2024-09-29",
+      "periodEnd": "2025-09-27",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 15234000000,
+      "periodStart": "2023-10-01",
+      "periodEnd": "2024-09-28",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 15025000000,
+      "periodStart": "2022-09-25",
+      "periodEnd": "2023-09-30",
+      "filedAt": "2025-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 14841000000,
+      "periodStart": "2021-09-26",
+      "periodEnd": "2022-09-24",
+      "filedAt": "2024-11-01",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 14467000000,
+      "periodStart": "2020-09-27",
+      "periodEnd": "2021-09-25",
+      "filedAt": "2023-11-03",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 14081000000,
+      "periodStart": "2019-09-29",
+      "periodEnd": "2020-09-26",
+      "filedAt": "2022-10-28",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 14119000000,
+      "periodStart": "2018-09-30",
+      "periodEnd": "2019-09-28",
+      "filedAt": "2021-10-29",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 13712000000,
+      "periodStart": "2017-10-01",
+      "periodEnd": "2018-09-29",
+      "filedAt": "2020-10-30",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 12769000000,
+      "periodStart": "2016-09-25",
+      "periodEnd": "2017-09-30",
+      "filedAt": "2019-10-31",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    {
+      "value": 12150000000,
+      "periodStart": "2015-09-27",
+      "periodEnd": "2016-09-24",
+      "filedAt": "2018-11-05",
+      "form": "10-K",
+      "taxonomy": "us-gaap",
+      "concept": "PaymentsOfDividends",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    }
+  ],
+  "debtPrincipal": {
+    "current": {
+      "value": 8310000000,
+      "periodEnd": "2026-03-28",
+      "filedAt": "2026-05-01",
+      "taxonomy": "us-gaap",
+      "concept": "LongTermDebtCurrent",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    "noncurrent": {
+      "value": 74404000000,
+      "periodEnd": "2026-03-28",
+      "filedAt": "2026-05-01",
+      "taxonomy": "us-gaap",
+      "concept": "LongTermDebtNoncurrent",
+      "unit": "USD",
+      "sourceIds": ["extended-sec-edgar-aapl-fundamentals"]
+    },
+    "maturities": [
+      {
+        "bucket": "next-twelve-months",
+        "value": 12393000000
+      },
+      {
+        "bucket": "year-two",
+        "value": 10078000000
+      },
+      {
+        "bucket": "year-three",
+        "value": 9300000000
+      },
+      {
+        "bucket": "year-four",
+        "value": 5235000000
+      },
+      {
+        "bucket": "year-five",
+        "value": 4972000000
+      },
+      {
+        "bucket": "after-year-five",
+        "value": 49303000000
+      }
+    ]
+  },
+  "omissions": []
+}

@@ -224,15 +224,65 @@ describe("equity reader projection", () => {
     ]);
     expect(projection.defaultView.financialTrends?.rows.at(-1)).toEqual({
       period: "TTM (2025-12-31; filed 2026-02-01)",
-      revenue: "—",
+      revenue: "— (revenue-unavailable)",
       netIncome: "700,000",
-      operatingMargin: "—",
-      freeCashFlow: "—",
+      operatingMargin: "— (revenue-unavailable)",
+      freeCashFlow: "— (free-cash-flow-unavailable)",
     });
     expect(projection.defaultView.financialTrends?.reportingCurrency).toBe("EUR");
     expect(projection.defaultView.materialGaps).toEqual([
       "fundamental-history-revenue: SEC revenue history is unavailable for 1 rendered period(s); affected revenue and derived operating-margin values are shown as unavailable",
     ]);
+  });
+
+  test("suppresses the whole inapplicable trend column for a depository issuer, tagged periods included", () => {
+    const history = annualAndTtmHistory();
+    // Capex is tagged for the first three years and untagged after: a per-cell decision would
+    // Print a number in one row and "not applicable" in the next row of the same column.
+    const partialFreeCashFlow = {
+      ...history,
+      series: {
+        ...history.series,
+        freeCashFlowProxy: {
+          ...history.series.freeCashFlowProxy,
+          annual: history.series.freeCashFlowProxy.annual.slice(0, 3),
+        },
+      },
+    } as FundamentalHistoryArtifact;
+    const report = {
+      generatedAt: "2026-02-02T00:00:00.000Z",
+      extendedEvidence: {
+        items: [{ category: "sec-edgar", metrics: { sic: "6022", operatingMargin: 0.2 } }],
+      },
+    };
+
+    const industrial = projectEquityReader({
+      report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+      fundamentalHistory: partialFreeCashFlow,
+    });
+    const depository = projectEquityReader({ report, fundamentalHistory: partialFreeCashFlow });
+
+    // The industrial projection proves the same input yields real numbers in both columns.
+    const industrialRows = industrial.defaultView.financialTrends?.rows ?? [];
+    expect(industrialRows.filter((row) => row.operatingMargin === "20.0%").length).toBe(5);
+    expect(industrialRows.filter((row) => /^[\d,.]/u.test(row.freeCashFlow)).length).toBe(2);
+
+    const rows = depository.defaultView.financialTrends?.rows ?? [];
+    expect(rows.length).toBe(6);
+    expect(rows.map((row) => row.operatingMargin)).toEqual(
+      rows.map(
+        () => "not applicable (depository issuer; no operating income in the industrial sense)",
+      ),
+    );
+    expect(rows.map((row) => row.freeCashFlow)).toEqual(
+      rows.map(
+        () => "not applicable (depository issuer; capex-based free cash flow is not defined)",
+      ),
+    );
+    // Revenue and net income stay computed for a bank.
+    expect(rows.map((row) => row.netIncome)).toEqual(
+      industrial.defaultView.financialTrends?.rows.map((row) => row.netIncome) ?? [],
+    );
   });
 
   test("selects amended values and filing dates jointly before the analysis cutoff", () => {

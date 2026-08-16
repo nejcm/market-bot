@@ -5,7 +5,7 @@ import type { AssetClass, JobType } from "./types";
 // A single source of truth even if operational job types are modelled
 // Elsewhere. Pure leaf module: no imports from cli/config/research/sources.
 export type ResearchJobType = JobType;
-export type RunTypeAssetArg = "none" | "required" | { readonly fixed: AssetClass };
+type RunTypeAssetArg = "none" | "required" | { readonly fixed: AssetClass };
 
 export interface RunTypeMeta {
   // CLI asset argument mode.

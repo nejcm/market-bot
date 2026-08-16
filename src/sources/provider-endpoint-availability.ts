@@ -55,7 +55,7 @@ const ENDPOINTS: Readonly<Record<string, EndpointDefinition>> = {
   marketauxNews: { adapters: ["marketaux-news"], gapSources: ["marketaux-news"] },
 };
 
-export function availableEndpoint(evidence: readonly string[]): ProviderEndpointAvailability {
+function availableEndpoint(evidence: readonly string[]): ProviderEndpointAvailability {
   return { status: "available", evidence };
 }
 

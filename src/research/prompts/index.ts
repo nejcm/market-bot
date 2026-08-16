@@ -46,4 +46,3 @@ export { buildStageSteeringSegment } from "./final-synthesis";
 export { buildPlaybookSelectionPrompt } from "./playbook-selection";
 export { buildSpotlightSelectionPrompt } from "./spotlight-selection";
 export { buildWebSourceSynthesisInputs } from "./web-source-synthesis-inputs";
-export { buildPredictionCoverage, type PredictionCoverage } from "./prediction-coverage";

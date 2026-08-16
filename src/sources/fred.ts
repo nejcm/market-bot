@@ -55,7 +55,7 @@ function latestNumber(values: readonly unknown[], keys: readonly string[]): numb
   return undefined;
 }
 
-export function readFredObservationValue(payload: unknown): number | undefined {
+function readFredObservationValue(payload: unknown): number | undefined {
   return latestNumber(readArray(payload, "observations"), ["value"]);
 }
 

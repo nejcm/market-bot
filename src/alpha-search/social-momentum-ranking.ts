@@ -5,7 +5,7 @@ const RANK_IMPROVEMENT_WEIGHT = 25;
 const CURRENT_MENTIONS_WEIGHT = 20;
 const UPVOTES_PER_MENTION_WEIGHT = 15;
 
-export const UPVOTE_RATIO_SHRINKAGE_K = 5;
+const UPVOTE_RATIO_SHRINKAGE_K = 5;
 
 export type SocialScoringVersion = 1 | 2;
 

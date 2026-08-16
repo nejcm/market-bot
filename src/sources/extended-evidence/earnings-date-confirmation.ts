@@ -2,7 +2,7 @@ import type { InstrumentIdentity, Source } from "../../domain/types";
 import { isRecord, readString, stringArrayValue } from "../../guards";
 import type { CollectedSources, EarningsSetupCollected, RawSourceSnapshot } from "../types";
 
-export type EarningsDateConfirmationSourceType =
+type EarningsDateConfirmationSourceType =
   | "issuer-ir-event"
   | "issuer-press-release"
   | "sec-8-k"

@@ -10,7 +10,7 @@ import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
 import type { HistoricalResearchContext } from "./historical-context";
 
-export interface SpotlightAlphaAnnotation {
+interface SpotlightAlphaAnnotation {
   readonly seenCount: number;
   readonly lastSeenAt: string;
   readonly sourceGroup?: string;
@@ -58,14 +58,14 @@ export interface SpotlightCandidate {
   readonly alpha?: SpotlightAlphaAnnotation;
 }
 
-export interface SelectedSpotlight {
+interface SelectedSpotlight {
   readonly symbol: string;
   readonly rationale: string;
   readonly sourceIds: readonly string[];
   readonly candidate: SpotlightCandidate;
 }
 
-export type SpotlightSelectionRejectionReason =
+type SpotlightSelectionRejectionReason =
   | "malformed-json"
   | "malformed-selection"
   | "unknown-symbol"
@@ -73,7 +73,7 @@ export type SpotlightSelectionRejectionReason =
   | "cap-overflow"
   | "unknown-source-id";
 
-export interface SpotlightSelectionRejection {
+interface SpotlightSelectionRejection {
   readonly reason: SpotlightSelectionRejectionReason;
   readonly symbol?: string;
   readonly message: string;

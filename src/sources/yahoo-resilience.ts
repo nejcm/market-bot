@@ -1,8 +1,8 @@
 import type { FetchLike } from "./types";
 import { DEFAULT_RETRY_DELAYS_MS, isYahooAuthStatus, withTransientRetries } from "./retry-utils";
 
-export const YAHOO_AUTH_MAX_RETRIES = 3;
-export const YAHOO_CACHE_FALLBACK_DAYS = 2;
+const YAHOO_AUTH_MAX_RETRIES = 3;
+const YAHOO_CACHE_FALLBACK_DAYS = 2;
 
 export const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 
@@ -40,7 +40,7 @@ export function isYahooFinanceUrl(url: string): boolean {
   }
 }
 
-export function urlNeedsCrumb(url: string): boolean {
+function urlNeedsCrumb(url: string): boolean {
   return url.startsWith(YAHOO_QUOTE_URL);
 }
 
@@ -50,7 +50,7 @@ function quoteUrlWithCrumb(url: string, crumb: string): string {
   return parsed.toString();
 }
 
-export function invalidateYahooCredentials(): void {
+function invalidateYahooCredentials(): void {
   yahooCredentialsPromise = null;
 }
 

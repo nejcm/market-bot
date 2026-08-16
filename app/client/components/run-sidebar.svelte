@@ -10,7 +10,7 @@
   } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import * as Sheet from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent, SheetTrigger } from "$lib/components/ui/sheet";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { formatDateMinute, runCountsLabel, runLabel, type SidebarView } from "../view-model";
   import type { View } from "./console-types";
@@ -237,20 +237,20 @@
     ? 'hidden'
     : ''}"
 >
-  <Sheet.Sheet bind:open={mobileOpen}>
-    <Sheet.SheetTrigger>
+  <Sheet bind:open={mobileOpen}>
+    <SheetTrigger>
       {#snippet child({ props })}
         <Button variant="outline" size="sm" {...props}>
           <Menu class="size-4" />
           Menu
         </Button>
       {/snippet}
-    </Sheet.SheetTrigger>
-    <Sheet.SheetContent
+    </SheetTrigger>
+    <SheetContent
       side="left"
       class="w-81.5 border-sidebar-border bg-sidebar p-0"
     >
       {@render content()}
-    </Sheet.SheetContent>
-  </Sheet.Sheet>
+    </SheetContent>
+  </Sheet>
 </div>

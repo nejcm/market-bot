@@ -14,7 +14,18 @@ export function knownSecretValues(env: Record<string, string | undefined>): read
     env.MARKET_BOT_MASSIVE_API_KEY,
     env.MARKET_BOT_POLYGON_API_KEY,
     env.MARKET_BOT_EXA_API_KEY,
+    env.MARKET_BOT_FIRECRAWL_API_KEY,
   ].filter((value): value is string => value !== undefined && value.length >= 8);
+}
+
+export function assertNoSecretsInText(
+  label: string,
+  content: string,
+  secrets: readonly string[],
+): void {
+  if (secrets.some((secret) => content.includes(secret))) {
+    throw new Error(`Secret-like value leaked into ${label}`);
+  }
 }
 
 export async function assertNoSecretsInFiles(
@@ -26,11 +37,7 @@ export async function assertNoSecretsInFiles(
   }
   await Promise.all(
     files.map(async (file) => {
-      const content = await readFile(file, "utf8");
-      const leaked = secrets.find((secret) => content.includes(secret));
-      if (leaked !== undefined) {
-        throw new Error(`Secret-like value leaked into ${file}`);
-      }
+      assertNoSecretsInText(file, await readFile(file, "utf8"), secrets);
     }),
   );
 }

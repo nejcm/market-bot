@@ -14,7 +14,7 @@ function isEarningsPrediction(prediction: Prediction): boolean {
   return prediction.kind === "earnings-direction" || prediction.kind === "earnings-move";
 }
 
-export function earningsEventDateStatus(
+function earningsEventDateStatus(
   setup: EarningsSetupCollected | undefined,
 ): EarningsEventDateStatus | undefined {
   const status = setup?.event.eventDateStatus ?? setup?.event.dateStatus;

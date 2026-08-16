@@ -30,19 +30,19 @@ export interface SourceOptions {
   readonly peerUniverseTtlDays?: number;
 }
 
-export interface EvidenceRequestOptions {
+interface EvidenceRequestOptions {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
 }
 
-export interface WebGatherBudget {
+interface WebGatherBudget {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
 }
 
-export interface WebGatherOptions extends WebGatherBudget {
+interface WebGatherOptions extends WebGatherBudget {
   /**
    * Additive budget applied to thematic (`subjectKind === "theme"`) runs only, so
    * landscape/category angles do not cannibalize candidate-list gathering. When
@@ -75,7 +75,7 @@ export interface MarketSpotlightOptions {
   readonly candidateLimit: number;
 }
 
-export interface ForecastDisagreementOptions {
+interface ForecastDisagreementOptions {
   readonly challengerModels: readonly string[];
 }
 
@@ -90,7 +90,7 @@ export interface HistoryOptions {
   readonly missCorrectionLimit: number;
 }
 
-export interface RunArtifactIndexOptions {
+interface RunArtifactIndexOptions {
   readonly dbPath?: string;
   readonly disabled: boolean;
 }
@@ -324,7 +324,7 @@ function deriveNewsSeenPath(dataDir: string): string {
   return join(dataRoot, "news-seen.json");
 }
 
-export function derivePeerUniverseLearnedPath(dataDir: string): string {
+function derivePeerUniverseLearnedPath(dataDir: string): string {
   const dataRoot = basename(dataDir) === "runs" ? dirname(dataDir) : dataDir;
   return join(dataRoot, "peer-universe-learned.json");
 }
@@ -365,7 +365,7 @@ function defaultAlphaSearchOptions(): AlphaSearchOptions {
   };
 }
 
-export function defaultMarketSpotlightOptions(): MarketSpotlightOptions {
+function defaultMarketSpotlightOptions(): MarketSpotlightOptions {
   return {
     briefLimit: DEFAULT_MARKET_SPOTLIGHT_BRIEF_LIMIT,
     deepLimit: DEFAULT_MARKET_SPOTLIGHT_DEEP_LIMIT,
@@ -373,7 +373,7 @@ export function defaultMarketSpotlightOptions(): MarketSpotlightOptions {
   };
 }
 
-export function defaultHistoryOptions(): HistoryOptions {
+function defaultHistoryOptions(): HistoryOptions {
   return {
     tickerRecentLimit: DEFAULT_HISTORY_TICKER_RECENT_LIMIT,
     marketRecentLimit: DEFAULT_HISTORY_MARKET_RECENT_LIMIT,

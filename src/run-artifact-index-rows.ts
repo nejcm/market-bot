@@ -14,7 +14,7 @@ import { readDepth } from "./run-artifact-projection";
 import { predictionShortfallGapCount } from "./report/prediction-shortfall";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
-import type { PredictionScore } from "./scoring/types";
+import type { MissAutopsyEntry, PredictionScore } from "./scoring/types";
 import type {
   ArtifactFileRow,
   PredictionRow,
@@ -166,7 +166,14 @@ function predictionRowsFor(
   });
 }
 
-function scoreRowsFor(runId: string, scores: readonly PredictionScore[]): readonly ScoreRow[] {
+function scoreRowsFor(
+  runId: string,
+  scores: readonly PredictionScore[],
+  missAutopsies: readonly MissAutopsyEntry[],
+): readonly ScoreRow[] {
+  const causeByPrediction = new Map(
+    missAutopsies.map((autopsy) => [autopsy.predictionId, autopsy.cause]),
+  );
   return scores.map((score) => ({
     prediction_id: score.predictionId,
     run_id: runId,
@@ -175,6 +182,7 @@ function scoreRowsFor(runId: string, scores: readonly PredictionScore[]): readon
     outcome: score.outcome ?? null,
     observed_at: score.observedAt ?? null,
     scoring_version: score.scoringVersion ?? null,
+    miss_autopsy_cause: causeByPrediction.get(score.predictionId) ?? null,
   }));
 }
 
@@ -197,6 +205,9 @@ export async function indexRowsForRun(dataDir: string, runDirName: string): Prom
       loaded.artifact === undefined
         ? []
         : predictionRowsFor(runId, loaded.artifact.report.predictions),
-    scores: loaded.artifact === undefined ? [] : scoreRowsFor(runId, loaded.artifact.scores),
+    scores:
+      loaded.artifact === undefined
+        ? []
+        : scoreRowsFor(runId, loaded.artifact.scores, loaded.artifact.missAutopsies),
   };
 }

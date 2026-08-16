@@ -19,7 +19,7 @@ Apple designs, manufactures, and sells smartphones, personal computers, tablets,
 
 ## Financial Trends
 
-Amounts in USD. FCF is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-aapl-fundamentals]
+Amounts in USD. FCF, where applicable, is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-aapl-fundamentals]
 
 Period | Revenue | Net income | Operating margin | FCF
 --- | ---: | ---: | ---: | ---:

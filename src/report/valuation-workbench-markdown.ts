@@ -1,6 +1,6 @@
 import type {
   HistoricalValuationObservation,
-  ValuationMetricResult,
+  ValuationMetricSuppressionReason,
   ValuationWorkbenchArtifact,
 } from "../sources/extended-evidence/valuation-workbench-contract";
 import type {
@@ -13,7 +13,17 @@ function cell(value: string): string {
   return value.replaceAll("|", String.raw`\|`).replaceAll("\n", " ");
 }
 
-function metricCell(metric: ValuationMetricResult): string {
+export function metricCell(
+  metric:
+    | { readonly status: "populated"; readonly display: string }
+    | { readonly status: "not-meaningful"; readonly display: string }
+    | {
+        readonly status: "suppressed";
+        readonly display: string;
+        readonly reason: ValuationMetricSuppressionReason;
+      }
+    | { readonly status: "not-applicable"; readonly display: string; readonly rationale: string },
+): string {
   if (metric.status === "populated" || metric.status === "not-meaningful") {
     return metric.display;
   }

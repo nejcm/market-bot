@@ -3,6 +3,8 @@ import { parseArgs } from "../../src/cli/args";
 import type { ModelRequest } from "../../src/model/types";
 import {
   assertComprehensiveAnalysisPath,
+  assertCurrencyConvertedValuation,
+  assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
   assertNbisUnsupportedInputs,
@@ -29,6 +31,7 @@ const FIXTURES = [
   "equity-analysis-comprehensive",
   "equity-analysis-estimated-suppressed",
   "equity-web-fallback-deep",
+  "equity-depository-deep",
 ] as const;
 
 const EXPECTED_COMPLETENESS_GRADES = {
@@ -41,6 +44,7 @@ const EXPECTED_COMPLETENESS_GRADES = {
   "equity-analysis-comprehensive": ["complete", "substantial"],
   "equity-analysis-estimated-suppressed": ["complete", "limited"],
   "equity-web-fallback-deep": ["complete", "substantial"],
+  "equity-depository-deep": ["partial", "limited"],
 } as const;
 
 const CAPTURE_EARNINGS_FIXTURES = new Set<string>([
@@ -89,6 +93,10 @@ describe("static equity run fixtures", () => {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
         await assertNbisUnsupportedInputs();
+      }
+      if (name === "equity-depository-deep") {
+        assertDepositoryEnterpriseValueAbsent(result);
+        assertCurrencyConvertedValuation(result);
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);

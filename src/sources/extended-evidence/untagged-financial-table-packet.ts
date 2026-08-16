@@ -7,7 +7,7 @@ import type {
   FinancialTableSourceLocator,
 } from "./untagged-financial-tables-contract";
 
-export const FINANCIAL_TABLE_PACKET_LIMITS: FinancialTablePacketLimits = {
+const FINANCIAL_TABLE_PACKET_LIMITS: FinancialTablePacketLimits = {
   maxDocumentBytes: 5 * 1024 * 1024,
   maxTables: 12,
   maxRowsPerTable: 180,
@@ -321,7 +321,7 @@ function inheritAdjacentTableUnits(tables: readonly FinancialTable[]): readonly 
   });
 }
 
-export async function sha256Hex(value: string): Promise<string> {
+async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");

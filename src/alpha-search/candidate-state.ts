@@ -5,7 +5,7 @@ import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candida
 import { readAlphaSearchLeads } from "./report-extras";
 import { isSocialScoringVersion, type SocialScoringVersion } from "./social-momentum-ranking";
 
-export type AlphaCandidateSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
+type AlphaCandidateSourceGroup = "apewisdom-only" | "sec-only" | "apewisdom+sec";
 
 export interface AlphaCandidateFundamentals {
   readonly secCik: string;
@@ -36,7 +36,7 @@ export interface AlphaCandidateProfile {
   readonly fundamentals?: AlphaCandidateFundamentals;
 }
 
-export interface AlphaCandidateDelta {
+interface AlphaCandidateDelta {
   readonly fromRunId: string;
   readonly toRunId: string;
   readonly priceChange?: number;
@@ -48,7 +48,7 @@ export interface AlphaCandidateDelta {
   readonly newSecFilings: readonly AlphaSearchSecFiling[];
 }
 
-export interface AlphaCandidateWatchlistItem {
+interface AlphaCandidateWatchlistItem {
   readonly symbol: string;
   readonly name?: string;
   readonly firstSeenAt: string;

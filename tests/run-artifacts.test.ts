@@ -11,6 +11,7 @@ import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { readDeepEquityEvidenceBundle } from "../src/deep-equity/artifact-schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { renderMarkdownReport } from "../src/report/markdown";
 import {
   marketSnapshot,
   deepEquityEvidenceBundle,
@@ -463,8 +464,14 @@ describe("loadRunArtifact", () => {
 
     const { artifact } = await loadRunArtifact(runDir);
 
-    expect(artifact?.financialStatements).toEqual(financialStatements);
-    expect(artifact?.capitalOwnership).toEqual(capitalOwnership);
+    expect(artifact?.financialStatements).toEqual({
+      ...financialStatements,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
+    expect(artifact?.capitalOwnership).toEqual({
+      ...capitalOwnership,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
     expect(artifact?.report.equityAnalysisCompleteness).toEqual(equityAnalysisCompleteness);
   });
 
@@ -540,7 +547,47 @@ describe("loadRunArtifact", () => {
 
     const { artifact } = await loadRunArtifact(runDir);
 
-    expect(artifact?.valuationWorkbench).toEqual(workbench);
+    expect(artifact?.valuationWorkbench).toEqual({
+      ...workbench,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
+  });
+
+  test("exposes valuation observation drops to a run-artifact caller", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "valuation-workbench-partial");
+    const workbench = valuationWorkbench();
+    const [unreadable, ...readable] = workbench.historicalMultiples.observations;
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({ runId: "valuation-workbench-partial" }),
+    );
+    await writeJson(join(runDir, "normalized", "valuation-workbench.json"), {
+      ...workbench,
+      historicalMultiples: {
+        ...workbench.historicalMultiples,
+        observations: [{ ...unreadable, basis: "retired" }, ...readable],
+      },
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.valuationWorkbench?.historicalMultiples.observations).toEqual(readable);
+    expect(artifact?.valuationWorkbench?.readDiagnostics).toEqual({
+      droppedObservationCount: 1,
+      drops: [
+        {
+          reason: "valuationWorkbench.historicalMultiples.observations.invalid",
+          count: 1,
+        },
+      ],
+    });
+    expect(artifact?.report.dataGaps).toContain(
+      "Artifact observations unavailable: 1 observation dropped (valuationWorkbench.historicalMultiples.observations.invalid: 1).",
+    );
+    expect(renderMarkdownReport(artifact!.report)).toContain(
+      String.raw`- **Material:** Artifact observations unavailable: 1 observation dropped \(valuationWorkbench.historicalMultiples.observations.invalid: 1\).`,
+    );
   });
 
   test("round-trips a validated reverse-DCF sidecar", async () => {
@@ -552,7 +599,36 @@ describe("loadRunArtifact", () => {
 
     const { artifact } = await loadRunArtifact(runDir);
 
-    expect(artifact?.reverseDcf).toEqual(sensitivity);
+    expect(artifact?.reverseDcf).toEqual({
+      ...sensitivity,
+      readDiagnostics: { droppedObservationCount: 0, drops: [] },
+    });
+  });
+
+  test("re-renders bounded reverse-DCF drop claims as a loaded-run material gap", async () => {
+    const runDir = join(tempRunsDir(), "reverse-dcf-overclaim");
+    const sensitivity = reverseDcfArtifact();
+    if (sensitivity.status !== "computed") {
+      throw new Error("expected computed reverse DCF fixture");
+    }
+    await writeJson(
+      join(runDir, "report.json"),
+      researchReport({ runId: "reverse-dcf-overclaim" }),
+    );
+    await writeJson(join(runDir, "normalized", "reverse-dcf.json"), {
+      ...sensitivity,
+      grid: { ...sensitivity.grid, rows: sensitivity.grid.rows.slice(0, 3) },
+      readDiagnostics: {
+        droppedObservationCount: 20,
+        drops: [{ reason: "reverseDcf.grid.rows.invalid", count: 20 }],
+      },
+    });
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(renderMarkdownReport(artifact!.report)).toContain(
+      String.raw`- **Material:** Artifact observations unavailable: 6 observations dropped \(reverseDcf.grid.rows.invalid: 6\).`,
+    );
   });
 
   test("round-trips a validated 40-F fundamental-history sidecar", async () => {

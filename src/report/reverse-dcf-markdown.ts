@@ -22,12 +22,16 @@ function renderComputed(
   const separator = assumptions.terminalGrowthRatesPct.map(() => "---:").join(" | ");
   const rows = artifact.grid.rows
     .map((row) => {
-      const cells = row.cells
-        .map((cell) =>
-          cell.status === "solved"
+      const cells = assumptions.terminalGrowthRatesPct
+        .map((rate) => row.cells.find((cell) => cell.terminalGrowthRatePct === rate))
+        .map((cell) => {
+          if (cell === undefined) {
+            return "— (unavailable)";
+          }
+          return cell.status === "solved"
             ? `${cell.solvedFiveYearFcfGrowthPct.toFixed(2)}%`
-            : "not solved",
-        )
+            : "not solved";
+        })
         .join(" | ");
       return `| ${row.discountRatePct.toFixed(0)}% | ${cells} |`;
     })

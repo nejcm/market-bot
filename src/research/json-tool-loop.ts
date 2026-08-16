@@ -2,7 +2,7 @@ import type { JsonToolLoopAudit, SourceGap } from "../domain/types";
 import type { CostPricing } from "../model/pricing";
 import { isRecord } from "../guards";
 
-export interface JsonToolLoopOptions {
+interface JsonToolLoopOptions {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
@@ -29,13 +29,13 @@ export interface JsonToolLoopAccepted<TRequest, TTool extends string, TAudit> {
   readonly tool: TTool;
 }
 
-export interface JsonToolLoopValidationResult<TRequest, TTool extends string, TAudit> {
+interface JsonToolLoopValidationResult<TRequest, TTool extends string, TAudit> {
   readonly requests: readonly JsonToolLoopAccepted<TRequest, TTool, TAudit>[];
   readonly rejected: readonly TAudit[];
   readonly gaps: readonly SourceGap[];
 }
 
-export interface JsonToolLoopExecutionResult<TState> {
+interface JsonToolLoopExecutionResult<TState> {
   readonly state: TState;
   readonly gaps: readonly SourceGap[];
 }

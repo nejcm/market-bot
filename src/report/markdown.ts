@@ -34,17 +34,16 @@ import { predictionShortfallMaterialGaps } from "./prediction-shortfall";
 import type { CollectedSources } from "../sources/types";
 import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";
 import {
-  compactNumber,
   projectEquityReader,
   type EquityReaderAnalystEstimateDistribution,
   type EquityReaderAppendixCompleteness,
-  type EquityReaderBalanceSheetHistory,
   type EquityReaderCompanyDescription,
   type EquityReaderConsensusItem,
-  type EquityReaderFinancialTrends,
   type EquityReaderMarketMultiple,
   type EquityReaderValuationContext,
 } from "./equity-reader";
+import type { EquityReaderBalanceSheetHistory } from "./equity-reader-statements";
+import { compactNumber, type EquityReaderFinancialTrends } from "./equity-reader-trends";
 
 const RESEARCH_ONLY_ALPHA_SEARCH_NOTE =
   "Research-only note: This alpha-search report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes.";
@@ -339,7 +338,7 @@ function renderProjectedFinancialTrends(
   return [
     "## Financial Trends",
     "",
-    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
     "",
     "Period | Revenue | Net income | Operating margin | FCF",
     "--- | ---: | ---: | ---: | ---:",

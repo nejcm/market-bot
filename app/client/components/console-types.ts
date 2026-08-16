@@ -1,4 +1,4 @@
-export const VIEWS = [
+const VIEWS = [
   "dashboard",
   "run",
   "instrument",

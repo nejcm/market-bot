@@ -6,6 +6,6 @@
     "config": ["app/vite.config.ts"],
     "entry": ["app/index.html"]
   },
-  "ignoreExportsUsedInFile": true,
+  "ignoreExportsUsedInFile": false,
   "ignoreDependencies": ["bun-types", "shadcn-svelte", "tw-animate-css"]
 }

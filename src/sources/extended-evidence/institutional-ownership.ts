@@ -7,7 +7,7 @@ import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "
 import { collectedItem, evidenceSource, type CollectedItem, type ProviderResult } from "./common";
 import { encodeQuery, readArray } from "./utils";
 
-export interface InstitutionalHolderMetrics {
+interface InstitutionalHolderMetrics {
   readonly provider: "finnhub";
   readonly holderCount: number;
   readonly reportedShares?: number;
@@ -16,7 +16,7 @@ export interface InstitutionalHolderMetrics {
   readonly observedAt: string;
 }
 
-export interface InsiderTransactionMetrics {
+interface InsiderTransactionMetrics {
   readonly provider: "finnhub";
   readonly transactionCount: number;
   readonly purchaseCount: number;

@@ -25,7 +25,7 @@ interface FilingCandidate {
   readonly form: "6-K" | "6-K/A";
 }
 
-export interface UntaggedFinancialExhibit {
+interface UntaggedFinancialExhibit {
   readonly filing: FilingCandidate;
   readonly packet: FinancialTablePacket;
   readonly source: Source;

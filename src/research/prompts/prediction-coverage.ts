@@ -23,13 +23,13 @@ export function isVixAllowedSubject(predictionSubjects: readonly string[]): bool
   return predictionSubjects.includes("^VIX");
 }
 
-export interface PredictionCoverage {
+interface PredictionCoverage {
   readonly coveredKinds: readonly PredictionKind[];
   readonly uncoveredSupportedKinds: readonly PredictionKind[];
   readonly coveredExactHorizons: readonly number[];
 }
 
-export function buildPredictionCoverage(
+function buildPredictionCoverage(
   predictions: readonly Prediction[],
   supportedKinds: readonly PredictionKind[],
 ): PredictionCoverage {

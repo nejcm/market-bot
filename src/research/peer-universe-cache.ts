@@ -12,9 +12,9 @@ import {
 } from "./peer-universe";
 
 const CACHE_VERSION = 1;
-export const DEFAULT_PEER_UNIVERSE_TTL_DAYS = 90;
+const DEFAULT_PEER_UNIVERSE_TTL_DAYS = 90;
 
-export interface PeerUniverseLearnedEntry {
+interface PeerUniverseLearnedEntry {
   readonly targetSymbol: string;
   readonly provenance: "model-proposed-validated";
   readonly peers: readonly PeerUniversePeer[];

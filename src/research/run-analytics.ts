@@ -46,7 +46,7 @@ import {
   type ProviderEndpointAvailability,
 } from "../sources/provider-endpoint-availability";
 
-export interface RunAnalyticsStage {
+interface RunAnalyticsStage {
   readonly stage: string;
   readonly content: string;
   readonly tokenEstimate: number;
@@ -285,14 +285,14 @@ function isNearBaseRateProbability(probability: number): boolean {
   return Math.abs(probability - 0.5) <= NEAR_BASE_RATE_BAND + Number.EPSILON;
 }
 
-export interface RunAnalyticsCalibrationSlice {
+interface RunAnalyticsCalibrationSlice {
   readonly key: string;
   readonly brierScore: number;
   readonly brierSkillScore: number;
   readonly count: number;
 }
 
-export interface RunAnalyticsCalibrationGuidanceAssessment {
+interface RunAnalyticsCalibrationGuidanceAssessment {
   readonly dimension: CalibrationGuidanceDimension;
   readonly key: string;
   readonly brierScore?: number;

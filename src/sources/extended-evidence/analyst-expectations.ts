@@ -18,7 +18,7 @@ export interface AnalystEstimateConsensus {
   readonly count?: number;
 }
 
-export interface AnalystEstimateSeries {
+interface AnalystEstimateSeries {
   readonly provider: "finnhub";
   readonly consensus: readonly AnalystEstimateConsensus[];
   readonly sourceIds: readonly string[];

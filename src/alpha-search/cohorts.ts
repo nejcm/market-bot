@@ -7,7 +7,7 @@ import type {
   AlphaValidationMetrics,
 } from "./validation";
 
-export interface AlphaRejectedCandidateCohort {
+interface AlphaRejectedCandidateCohort {
   readonly reason: string;
   readonly rejectedCount: number;
   readonly uniqueSymbolCount: number;
@@ -16,7 +16,7 @@ export interface AlphaRejectedCandidateCohort {
   readonly validation: Readonly<Record<string, AlphaValidationMetrics>>;
 }
 
-export interface AlphaStaleLeadCohort {
+interface AlphaStaleLeadCohort {
   readonly ageBucket: string;
   readonly unbriefedLeadCount: number;
   readonly validation: Readonly<Record<string, AlphaValidationMetrics>>;

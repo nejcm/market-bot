@@ -75,18 +75,31 @@ allowance ledgers for live-run invariants.
 Golden regeneration is not a repair for an invariant failure. If an intended change affects a
 golden, the golden diff and the independently computed invariants must both be reviewed.
 
-Amendment (decision date: 2026-08-14): artifact readers currently validate nested collections
-all-or-nothing. One retired enum value or validated string literal can therefore make an entire
-artifact return `undefined`, indistinguishable from an artifact that was never produced. Goldens
-self-heal to the current schema when regenerated and cannot detect this failure class; frozen
-historical artifacts kept outside golden regeneration are the counterpart protection.
+Amendment (decision date: 2026-08-15): artifact readers apply per-observation degradation with
+recorded drops. One retired enum value or validated string literal must not make an entire artifact
+return `undefined`, indistinguishable from an artifact that was never produced. A reader keeps the
+nested observations it can validate, drops only unreadable observations, and records both the drop
+count and reasons on the returned artifact. Recording the loss was chosen over pure per-observation
+degradation because a partial artifact must not silently under-report. It was chosen over a typed
+parse error because that would require every caller to adopt a new error contract.
 
-When an enum member or validated string literal is retired, readers keep the historical value in a
-read-only compatibility set while the live typed union excludes it so new code cannot emit it.
-Per-observation degradation and typed parse errors in place of `undefined` were considered and are
-deliberately deferred. `input-currency-mismatch` in
-`src/sources/extended-evidence/reverse-dcf.ts` is the direct analogue; it needs no compatibility
-escape hatch while it remains a live emitted reason.
+The schema-version gate remains a whole-artifact precondition. Degradation begins only after the
+version is known and applies to nested collections; it does not widen accepted versions or malformed
+observations. This composes with the explicit readable-version sets added in Phase 3 rather than
+replacing them. When an enum member or validated string literal is retired, readers still keep the
+historical value in a read-only compatibility set while the live typed union excludes it so new code
+cannot emit it. `input-currency-mismatch` in `src/sources/extended-evidence/reverse-dcf.ts` remains
+the direct analogue and needs no compatibility escape hatch while it remains a live emitted reason.
+
+Six unchecked return-path casts remain: one `FinancialStatementEquityStack` cast in
+`financial-statements-contract.ts` and five top-level artifact casts in
+`financial-statements-contract.ts`, `reverse-dcf.ts` (computed and suppressed),
+`subsequent-financing.ts`, and `valuation-workbench-contract.ts`. If a readable-version set gains a
+second entry, those five artifact casts can return a v2 payload typed as version 1;
+`src/research/extended-evidence-projections.ts` then propagates `artifact.version`. Phase 3 made this
+path reachable. Per-observation degradation does not make the casts safe: before adding another
+readable version, each affected reader must discriminate a versioned return type or migrate the
+payload to its declared live version.
 
 ## Consequences
 

@@ -4,7 +4,7 @@ import type {
   SupportedSecForm,
 } from "./financial-statements-contract";
 
-export type FinancialTableUnsupportedReason =
+type FinancialTableUnsupportedReason =
   | "document-too-large"
   | "image-only"
   | "html-of-image"
@@ -68,7 +68,7 @@ export interface FinancialTablePacket {
   readonly unsupportedReason?: FinancialTableUnsupportedReason;
 }
 
-export type FinancialTableValidationField =
+type FinancialTableValidationField =
   | "cashBeginning"
   | "cashEnding"
   | "netCashChange"
@@ -94,7 +94,7 @@ export interface FinancialTableMappingOutput {
   readonly mappings: readonly FinancialTableCellMapping[];
 }
 
-export type FinancialTableValidationCode =
+type FinancialTableValidationCode =
   | "unsupported-source-layout"
   | "invalid-model-output"
   | "missing-cell-reference"
@@ -126,7 +126,7 @@ export interface FinancialTableValidationIssue {
   readonly periodEnd?: string;
 }
 
-export interface FinancialTableCellTrace {
+interface FinancialTableCellTrace {
   readonly sourceUrl: string;
   readonly accessionNumber: string;
   readonly documentName: string;

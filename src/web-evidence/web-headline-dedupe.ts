@@ -1,8 +1,8 @@
 import type { Source, WebGatherDuplicateResultAudit } from "../domain/types";
 
-export const WEB_GATHER_DUPLICATE_HEADLINE_REASON = "duplicate-headline";
+const WEB_GATHER_DUPLICATE_HEADLINE_REASON = "duplicate-headline";
 // A candidate headline is a near-duplicate when token-set Jaccard or containment reaches this value. Deterministic string logic only; the threshold errs toward keeping so different angles on the same entity survive.
-export const DUPLICATE_HEADLINE_SIMILARITY_THRESHOLD = 0.8;
+const DUPLICATE_HEADLINE_SIMILARITY_THRESHOLD = 0.8;
 // Titles with fewer significant tokens (hostname fallbacks, terse fragments) carry too little signal to dedupe safely, so they are always kept.
 const MIN_COMPARABLE_TOKENS = 3;
 

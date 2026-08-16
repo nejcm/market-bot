@@ -26,17 +26,17 @@ import {
 // Citation field exists) and missing evidence-posture labels stay advisory
 // Telemetry and are never pruned.
 
-export interface ReportIntegrityPrunedItem {
+interface ReportIntegrityPrunedItem {
   readonly location: string;
   readonly text: string;
   readonly sourceIds: readonly string[];
 }
 
-export type ReportIntegrityAdvisoryCode =
+type ReportIntegrityAdvisoryCode =
   | "uncited-numeric-summary-sentence"
   | "weak-evidence-posture-missing";
 
-export interface ReportIntegrityAdvisory {
+interface ReportIntegrityAdvisory {
   readonly code: ReportIntegrityAdvisoryCode;
   readonly location: string;
 }

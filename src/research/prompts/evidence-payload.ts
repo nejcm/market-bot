@@ -315,9 +315,7 @@ export function compactHistoricalContext(
   };
 }
 
-export function compactSpotlightSelection(
-  selection: SpotlightSelectionResult,
-): Record<string, unknown> {
+function compactSpotlightSelection(selection: SpotlightSelectionResult): Record<string, unknown> {
   return {
     ...(selection.rationale !== undefined ? { rationale: selection.rationale } : {}),
     selected: selection.selected.map((item) => ({

@@ -7,6 +7,7 @@ import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidenc
 import type { PeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../src/sources/extended-evidence/reverse-dcf";
+import type { ReadArtifact } from "../src/sources/extended-evidence/utils";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 
 export interface RunSummary {
@@ -37,11 +38,11 @@ export interface RunDetail {
   readonly sourceGaps?: readonly SourceGap[];
   readonly verifiedMarketSnapshot?: VerifiedMarketSnapshot;
   readonly financialLenses?: FinancialLensArtifact;
-  readonly financialStatements?: FinancialStatementsArtifact;
-  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
+  readonly financialStatements?: ReadArtifact<FinancialStatementsArtifact>;
+  readonly subsequentFinancing?: ReadArtifact<SubsequentFinancingBridgeArtifact>;
   readonly peerImpliedRange?: PeerImpliedRange;
-  readonly valuationWorkbench?: ValuationWorkbenchArtifact;
-  readonly reverseDcf?: ReverseDcfArtifact;
+  readonly valuationWorkbench?: ReadArtifact<ValuationWorkbenchArtifact>;
+  readonly reverseDcf?: ReadArtifact<ReverseDcfArtifact>;
   readonly fundamentalHistory?: FundamentalHistoryArtifact;
   readonly businessFramework?: BusinessFrameworkArtifact;
   readonly webSubjectProfile?: WebSubjectProfileArtifact;

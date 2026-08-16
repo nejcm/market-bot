@@ -53,7 +53,7 @@ export function scaleCurrency(value: number): string {
   return value.toFixed(0);
 }
 
-export function formatCurrency(value: number, currency = "USD"): string {
+function formatCurrency(value: number, currency = "USD"): string {
   // GBp is Yahoo's pence pseudo-code (not ISO 4217 GBP): render with a p suffix, no K/M/B scaling.
   if (currency === "GBp") {
     return `${value.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}p`;

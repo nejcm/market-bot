@@ -51,9 +51,7 @@ export function canonicalFinancialLensDerivedMetric(
   };
 }
 
-export function hasCanonicalFinancialLensSelection(
-  item: ExtendedEvidenceItem | undefined,
-): boolean {
+function hasCanonicalFinancialLensSelection(item: ExtendedEvidenceItem | undefined): boolean {
   return (
     item?.metrics?.[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] ===
     CANONICAL_FINANCIAL_LENS_SELECTION_VERSION
@@ -91,9 +89,7 @@ const INSTANT_SERIES = [
   ["assets", "totalAssets"],
 ] as const satisfies readonly (readonly [string, FinancialStatementSeriesKey])[];
 
-export type CanonicalFactMetricKey =
-  | (typeof FLOW_SERIES)[number][0]
-  | (typeof INSTANT_SERIES)[number][0];
+type CanonicalFactMetricKey = (typeof FLOW_SERIES)[number][0] | (typeof INSTANT_SERIES)[number][0];
 
 export type SecFactMetricKey = CanonicalFactMetricKey | SecMetricDefinitionKey | SecDebtMetricKey;
 

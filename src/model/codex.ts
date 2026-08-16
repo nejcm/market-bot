@@ -16,13 +16,13 @@ import type {
 
 const MIN_CODEX_VERSION = [0, 125, 0] as const;
 
-export interface SpawnResult {
+interface SpawnResult {
   readonly stdout: string;
   readonly stderr: string;
   readonly exitCode: number;
 }
 
-export interface SpawnOptions {
+interface SpawnOptions {
   readonly cwd?: string;
   readonly env?: Record<string, string | undefined>;
   readonly timeoutMs?: number;

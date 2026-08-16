@@ -104,7 +104,7 @@ function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
   ];
 }
 
-export function isNumericOrTechnicalClaim(text: string): boolean {
+function isNumericOrTechnicalClaim(text: string): boolean {
   return NUMERIC_CLAIM_PATTERN.test(text) || TECHNICAL_INDICATOR_PATTERN.test(text);
 }
 

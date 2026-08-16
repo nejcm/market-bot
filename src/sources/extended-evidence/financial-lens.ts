@@ -46,7 +46,7 @@ export interface FinancialLensMetric {
   readonly periodMonths?: number;
 }
 
-export interface FinancialLens {
+interface FinancialLens {
   readonly name: FinancialLensName;
   readonly posture: FinancialLensPosture;
   readonly metrics: readonly FinancialLensMetric[];

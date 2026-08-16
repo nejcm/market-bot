@@ -1,50 +1,28 @@
-import type { OhlcvBar, Source, SourceGap } from "../../domain/types";
+import type { ExtendedEvidence, OhlcvBar, Source, SourceGap } from "../../domain/types";
 import type { FetchLike } from "../types";
+import { depositoryIssuerSic } from "./industry-classification";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";
-import type {
-  FinancialStatementFact,
-  FinancialStatementSeries,
-  FinancialStatementTtm,
-  FinancialStatementsArtifact,
-} from "./financial-statements-contract";
-import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
+import type { FinancialStatementsArtifact } from "./financial-statements-contract";
 import {
-  deriveFinancialStatementTtm,
-  financialStatementFactForPeriod,
-  financialStatementFacts,
-  financialStatementTtmsAreCompatible,
-  financialStatementTtmsSharePeriod,
-  latestFinancialStatementFact,
-} from "./financial-statement-selection";
+  periodPublicAt,
+  unique,
+  valuationPeriodInputs,
+  type ValuationPeriodInputs,
+} from "./valuation-workbench-inputs";
+import { metricResults } from "./valuation-workbench-metrics";
 import type { ValuationCompsArtifact } from "./valuation-comps";
 import type {
   HistoricalValuationObservation,
   TrailingValuationBasis,
-  ValuationFundamentalInput,
-  ValuationMetricKey,
-  ValuationMetricResult,
-  ValuationMetricSuppressionReason,
-  ValuationObservationBasis,
   ValuationPriceInput,
   ValuationWorkbenchArtifact,
+  PeerValuationComparison,
 } from "./valuation-workbench-contract";
 
 const DAY_MS = 86_400_000;
 const MAX_PRICE_ALIGNMENT_DAYS = 7;
 const PRICE_SELECTION_RULE =
   "first verified close within 7 calendar days on or after publicAt" as const;
-
-interface ValuationPeriodInputs {
-  readonly basis: ValuationObservationBasis;
-  readonly periodEnd: string;
-  readonly revenue?: ValuationFundamentalInput;
-  readonly netIncome?: ValuationFundamentalInput;
-  readonly dilutedEps?: ValuationFundamentalInput;
-  readonly dilutedShares?: ValuationFundamentalInput;
-  readonly freeCashFlow?: ValuationFundamentalInput;
-  readonly cash?: ValuationFundamentalInput;
-  readonly debt?: ValuationFundamentalInput;
-}
 
 export interface BuildValuationWorkbenchInput {
   readonly generatedAt: string;
@@ -54,342 +32,8 @@ export interface BuildValuationWorkbenchInput {
   readonly priceHistory: readonly Pick<OhlcvBar, "date" | "close">[];
   readonly priceSourceId?: string;
   readonly quoteCurrency?: string;
-}
-
-function unique(values: readonly string[]): readonly string[] {
-  return [...new Set(values)];
-}
-
-function latest(values: readonly string[]): string {
-  return values.toSorted().at(-1) ?? "";
-}
-
-function factInput(label: string, fact: FinancialStatementFact): ValuationFundamentalInput {
-  return {
-    value: fact.value,
-    label,
-    periodEnd: fact.periodEnd,
-    publicAt: fact.filedAt,
-    currency: fact.currency,
-    unit: fact.unit,
-    sourceIds: fact.sourceIds,
-  };
-}
-
-function ttmInput(label: string, ttm: FinancialStatementTtm): ValuationFundamentalInput {
-  return {
-    value: ttm.value,
-    label,
-    periodEnd: ttm.periodEnd,
-    publicAt: latest(Object.values(ttm.components).map((fact) => fact.filedAt)),
-    currency: ttm.currency,
-    unit: ttm.unit,
-    sourceIds: ttm.sourceIds,
-    derivation: ttm.formula,
-  };
-}
-
-function fcfInput(
-  operatingCashFlow: ValuationFundamentalInput | undefined,
-  capitalExpenditure: ValuationFundamentalInput | undefined,
-): ValuationFundamentalInput | undefined {
-  if (operatingCashFlow === undefined || capitalExpenditure === undefined) {
-    return undefined;
-  }
-  if (
-    operatingCashFlow.periodEnd !== capitalExpenditure.periodEnd ||
-    operatingCashFlow.currency !== capitalExpenditure.currency ||
-    operatingCashFlow.unit !== capitalExpenditure.unit
-  ) {
-    return undefined;
-  }
-  return {
-    value: operatingCashFlow.value - capitalExpenditure.value,
-    label: "Free cash flow proxy",
-    periodEnd: operatingCashFlow.periodEnd,
-    publicAt: latest([operatingCashFlow.publicAt, capitalExpenditure.publicAt]),
-    currency: operatingCashFlow.currency,
-    unit: operatingCashFlow.unit,
-    sourceIds: unique([...operatingCashFlow.sourceIds, ...capitalExpenditure.sourceIds]),
-    derivation: "operating cash flow - capital expenditure",
-  };
-}
-
-function deriveShares(
-  netIncome: ValuationFundamentalInput | undefined,
-  dilutedEps: ValuationFundamentalInput | undefined,
-): ValuationFundamentalInput | undefined {
-  if (
-    netIncome === undefined ||
-    dilutedEps === undefined ||
-    dilutedEps.value === 0 ||
-    netIncome.periodEnd !== dilutedEps.periodEnd ||
-    netIncome.currency === null ||
-    netIncome.currency !== dilutedEps.currency ||
-    netIncome.unit !== netIncome.currency ||
-    dilutedEps.unit !== `${netIncome.currency}/shares` ||
-    !Number.isFinite(netIncome.value / dilutedEps.value)
-  ) {
-    return undefined;
-  }
-  return {
-    value: netIncome.value / dilutedEps.value,
-    label: "Diluted weighted-average shares",
-    periodEnd: netIncome.periodEnd,
-    publicAt: latest([netIncome.publicAt, dilutedEps.publicAt]),
-    currency: null,
-    unit: "shares",
-    sourceIds: unique([...netIncome.sourceIds, ...dilutedEps.sourceIds]),
-    derivation: "net income / diluted EPS",
-  };
-}
-
-function annualInputs(
-  artifact: FinancialStatementsArtifact,
-  revenueFact: FinancialStatementFact,
-): ValuationPeriodInputs {
-  const { incomeStatement, balanceSheet, cashFlowStatement, perShare } = artifact.statements;
-  const { periodEnd, periodKey, periodType } = revenueFact;
-  const revenue = factInput("Revenue", revenueFact);
-  const netIncomeFact = financialStatementFactForPeriod(
-    financialStatementFacts(incomeStatement.netIncome),
-    periodKey,
-    periodType,
-  );
-  const dilutedEpsFact = financialStatementFactForPeriod(
-    financialStatementFacts(perShare.dilutedEps),
-    periodKey,
-    periodType,
-  );
-  const dilutedSharesFact = financialStatementFactForPeriod(
-    financialStatementFacts(perShare.dilutedShares),
-    periodKey,
-    periodType,
-  );
-  const operatingCashFlowFact = financialStatementFactForPeriod(
-    financialStatementFacts(cashFlowStatement.operatingCashFlow),
-    periodKey,
-    periodType,
-  );
-  const capitalExpenditureFact = financialStatementFactForPeriod(
-    financialStatementFacts(cashFlowStatement.capitalExpenditure),
-    periodKey,
-    periodType,
-  );
-  const netIncome =
-    netIncomeFact === undefined ? undefined : factInput("Net income", netIncomeFact);
-  const dilutedEps =
-    dilutedEpsFact === undefined ? undefined : factInput("Diluted EPS", dilutedEpsFact);
-  const directShares =
-    dilutedSharesFact === undefined
-      ? undefined
-      : factInput("Diluted weighted-average shares", dilutedSharesFact);
-  const operatingCashFlow =
-    operatingCashFlowFact === undefined
-      ? undefined
-      : factInput("Operating cash flow", operatingCashFlowFact);
-  const capitalExpenditure =
-    capitalExpenditureFact === undefined
-      ? undefined
-      : factInput("Capital expenditure", capitalExpenditureFact);
-  const publicAt = latest(
-    [revenue, netIncome, dilutedEps, directShares, operatingCashFlow, capitalExpenditure].flatMap(
-      (input) => (input === undefined ? [] : [input.publicAt]),
-    ),
-  );
-  const cashFact = latestFinancialStatementFact(
-    financialStatementFacts(balanceSheet.cash).filter(
-      (fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt,
-    ),
-  );
-  const debtFact = latestFinancialStatementFact(
-    financialStatementFacts(balanceSheet.debt).filter(
-      (fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt,
-    ),
-  );
-  const dilutedShares = directShares ?? deriveShares(netIncome, dilutedEps);
-  const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
-  return {
-    basis: "annual",
-    periodEnd,
-    revenue,
-    ...(netIncome !== undefined ? { netIncome } : {}),
-    ...(dilutedEps !== undefined ? { dilutedEps } : {}),
-    ...(dilutedShares !== undefined ? { dilutedShares } : {}),
-    ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
-    ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...(debtFact !== undefined ? { debt: factInput("Debt", debtFact) } : {}),
-  };
-}
-
-interface ValuationTtmInputs {
-  readonly revenue: FinancialStatementTtm;
-  readonly netIncome?: FinancialStatementTtm;
-  readonly dilutedEps?: FinancialStatementTtm;
-  readonly operatingCashFlow?: FinancialStatementTtm;
-  readonly capitalExpenditure?: FinancialStatementTtm;
-}
-
-function periodInputsFromTtm(
-  artifact: FinancialStatementsArtifact,
-  values: ValuationTtmInputs,
-): ValuationPeriodInputs {
-  const { balanceSheet } = artifact.statements;
-  const revenue = ttmInput("Revenue", values.revenue);
-  const compatibleNetIncome =
-    values.netIncome !== undefined &&
-    financialStatementTtmsAreCompatible([values.revenue, values.netIncome])
-      ? values.netIncome
-      : undefined;
-  const compatibleDilutedEps =
-    values.dilutedEps !== undefined &&
-    financialStatementTtmsSharePeriod([values.revenue, values.dilutedEps]) &&
-    values.dilutedEps.currency === values.revenue.currency &&
-    values.dilutedEps.unit === `${values.revenue.currency}/shares`
-      ? values.dilutedEps
-      : undefined;
-  const compatibleOperatingCashFlow =
-    values.operatingCashFlow !== undefined &&
-    financialStatementTtmsAreCompatible([values.revenue, values.operatingCashFlow])
-      ? values.operatingCashFlow
-      : undefined;
-  const compatibleCapitalExpenditure =
-    values.capitalExpenditure !== undefined &&
-    financialStatementTtmsAreCompatible([values.revenue, values.capitalExpenditure])
-      ? values.capitalExpenditure
-      : undefined;
-  const netIncome =
-    compatibleNetIncome === undefined ? undefined : ttmInput("Net income", compatibleNetIncome);
-  const dilutedEps =
-    compatibleDilutedEps === undefined ? undefined : ttmInput("Diluted EPS", compatibleDilutedEps);
-  const operatingCashFlow =
-    compatibleOperatingCashFlow === undefined
-      ? undefined
-      : ttmInput("Operating cash flow", compatibleOperatingCashFlow);
-  const capitalExpenditure =
-    compatibleCapitalExpenditure === undefined
-      ? undefined
-      : ttmInput("Capital expenditure", compatibleCapitalExpenditure);
-  const dilutedShares = deriveShares(netIncome, dilutedEps);
-  const freeCashFlow = fcfInput(operatingCashFlow, capitalExpenditure);
-  const publicAt = latest(
-    [revenue, netIncome, dilutedEps, dilutedShares, freeCashFlow].flatMap((input) =>
-      input === undefined ? [] : [input.publicAt],
-    ),
-  );
-  const cashFact = latestFinancialStatementFact(
-    financialStatementFacts(balanceSheet.cash).filter(
-      (fact) => fact.periodEnd <= revenue.periodEnd && fact.filedAt <= publicAt,
-    ),
-  );
-  const debtFact = latestFinancialStatementFact(
-    financialStatementFacts(balanceSheet.debt).filter(
-      (fact) => fact.periodEnd <= revenue.periodEnd && fact.filedAt <= publicAt,
-    ),
-  );
-  return {
-    basis: "ttm",
-    periodEnd: revenue.periodEnd,
-    revenue,
-    ...(netIncome !== undefined ? { netIncome } : {}),
-    ...(dilutedEps !== undefined ? { dilutedEps } : {}),
-    ...(dilutedShares !== undefined ? { dilutedShares } : {}),
-    ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
-    ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...(debtFact !== undefined ? { debt: factInput("Debt", debtFact) } : {}),
-  };
-}
-
-function ttmInputs(artifact: FinancialStatementsArtifact): ValuationPeriodInputs | undefined {
-  const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
-  const revenue = incomeStatement.revenue.ttm;
-  if (revenue === undefined) {
-    return undefined;
-  }
-  return periodInputsFromTtm(artifact, {
-    revenue,
-    ...(incomeStatement.netIncome.ttm !== undefined
-      ? { netIncome: incomeStatement.netIncome.ttm }
-      : {}),
-    ...(perShare.dilutedEps.ttm !== undefined ? { dilutedEps: perShare.dilutedEps.ttm } : {}),
-    ...(cashFlowStatement.operatingCashFlow.ttm !== undefined
-      ? { operatingCashFlow: cashFlowStatement.operatingCashFlow.ttm }
-      : {}),
-    ...(cashFlowStatement.capitalExpenditure.ttm !== undefined
-      ? { capitalExpenditure: cashFlowStatement.capitalExpenditure.ttm }
-      : {}),
-  });
-}
-
-function derivedTtmAt(
-  artifact: FinancialStatementsArtifact,
-  series: FinancialStatementSeries,
-  cutoff: string,
-): FinancialStatementTtm | undefined {
-  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
-    (candidate) => candidate.key === series.key,
-  );
-  if (definition === undefined || artifact.reportingCurrency === undefined) {
-    return undefined;
-  }
-  return deriveFinancialStatementTtm(
-    definition,
-    series.annual.filter((fact) => fact.filedAt <= cutoff),
-    series.interim.filter((fact) => fact.filedAt <= cutoff),
-    artifact.reportingCurrency,
-  ).ttm;
-}
-
-function historicalTtmInputs(
-  artifact: FinancialStatementsArtifact,
-): readonly ValuationPeriodInputs[] {
-  const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
-  const cutoffs = [
-    ...new Set(incomeStatement.revenue.interim.map((fact) => fact.filedAt)),
-  ].toSorted();
-  return cutoffs.flatMap((cutoff) => {
-    const revenue = derivedTtmAt(artifact, incomeStatement.revenue, cutoff);
-    if (revenue === undefined) {
-      return [];
-    }
-    const netIncome = derivedTtmAt(artifact, incomeStatement.netIncome, cutoff);
-    const dilutedEps = derivedTtmAt(artifact, perShare.dilutedEps, cutoff);
-    const operatingCashFlow = derivedTtmAt(artifact, cashFlowStatement.operatingCashFlow, cutoff);
-    const capitalExpenditure = derivedTtmAt(artifact, cashFlowStatement.capitalExpenditure, cutoff);
-    return [
-      periodInputsFromTtm(artifact, {
-        revenue,
-        ...(netIncome !== undefined ? { netIncome } : {}),
-        ...(dilutedEps !== undefined ? { dilutedEps } : {}),
-        ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
-        ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
-      }),
-    ];
-  });
-}
-
-function uniquePeriodInputs(
-  values: readonly ValuationPeriodInputs[],
-): readonly ValuationPeriodInputs[] {
-  const byKey = new Map<string, ValuationPeriodInputs>();
-  for (const value of values) {
-    byKey.set(`${value.basis}|${value.periodEnd}|${periodPublicAt(value)}`, value);
-  }
-  return [...byKey.values()].toSorted(
-    (left, right) =>
-      left.periodEnd.localeCompare(right.periodEnd) ||
-      periodPublicAt(left).localeCompare(periodPublicAt(right)),
-  );
-}
-
-function periodPublicAt(inputs: ValuationPeriodInputs): string {
-  return latest(
-    Object.values(inputs).flatMap((input) =>
-      typeof input === "object" && input !== null && "publicAt" in input
-        ? [input.publicAt as string]
-        : [],
-    ),
-  );
+  // Carried only to classify the issuer's industry; see depositoryIssuerSic.
+  readonly extendedEvidence?: ExtendedEvidence;
 }
 
 function selectedPrice(
@@ -423,233 +67,13 @@ function selectedPrice(
       };
 }
 
-function suppression(
-  reason: ValuationMetricSuppressionReason,
-  detail: string,
-  sourceIds: readonly string[],
-): ValuationMetricResult {
-  return { status: "suppressed", display: "—", reason, detail, sourceIds: unique(sourceIds) };
-}
-
-function ratioMetric(input: {
-  readonly numerator: number | undefined;
-  readonly denominator: ValuationFundamentalInput | undefined;
-  readonly formula: string;
-  readonly price: ValuationPriceInput | null;
-  readonly reportingCurrency: string | undefined;
-  readonly quoteCurrency: string | undefined;
-  readonly missingDenominatorReason: ValuationMetricSuppressionReason;
-  readonly missingDenominatorDetail: string;
-  readonly sourceIds: readonly string[];
-}): ValuationMetricResult {
-  if (input.reportingCurrency === undefined) {
-    return suppression(
-      "reporting-currency-unavailable",
-      "Canonical reporting currency is unavailable.",
-      input.sourceIds,
-    );
-  }
-  if (input.quoteCurrency === undefined) {
-    return suppression(
-      "quote-currency-unavailable",
-      "Quote currency is unavailable.",
-      input.sourceIds,
-    );
-  }
-  if (input.price === null) {
-    return suppression(
-      "price-history-unavailable",
-      "No verified close is available within 7 calendar days on or after the public filing date.",
-      input.sourceIds,
-    );
-  }
-  if (input.price.currency !== input.reportingCurrency) {
-    return suppression(
-      "fx-rate-unavailable",
-      `No FX close is available to convert ${input.price.currency} into ${input.reportingCurrency} on or before ${input.price.sessionDate}.`,
-      [...input.sourceIds, input.price.sourceId],
-    );
-  }
-  if (input.denominator === undefined || input.numerator === undefined) {
-    return suppression(
-      input.denominator === undefined ? input.missingDenominatorReason : "numerator-unavailable",
-      input.denominator === undefined
-        ? input.missingDenominatorDetail
-        : "The required as-reported numerator is unavailable.",
-      [...input.sourceIds, input.price.sourceId],
-    );
-  }
-  const denominator = input.denominator.value;
-  const metricSourceIds = unique([
-    ...input.sourceIds,
-    ...input.denominator.sourceIds,
-    input.price.sourceId,
-  ]);
-  if (!Number.isFinite(denominator)) {
-    return {
-      status: "not-meaningful",
-      display: "N/M",
-      reason: "non-finite-denominator",
-      denominator,
-      formula: input.formula,
-      sourceIds: metricSourceIds,
-    };
-  }
-  if (denominator < 0) {
-    return {
-      status: "not-meaningful",
-      display: "N/M",
-      reason: "negative-denominator",
-      denominator,
-      formula: input.formula,
-      sourceIds: metricSourceIds,
-    };
-  }
-  if (denominator === 0) {
-    return {
-      status: "not-meaningful",
-      display: "N/M",
-      reason: "zero-denominator",
-      denominator,
-      formula: input.formula,
-      sourceIds: metricSourceIds,
-    };
-  }
-  const value = input.numerator / denominator;
-  return {
-    status: "populated",
-    value,
-    display: `${value.toFixed(2)}x`,
-    numerator: input.numerator,
-    denominator,
-    formula: input.formula,
-    sourceIds: metricSourceIds,
-  };
-}
-
-function metricResults(
-  inputs: ValuationPeriodInputs,
-  price: ValuationPriceInput | null,
-  reportingCurrency: string | undefined,
-  quoteCurrency: string | undefined,
-  additionalSourceIds: readonly string[] = [],
-): Readonly<Record<ValuationMetricKey, ValuationMetricResult>> {
-  const shares = inputs.dilutedShares?.value;
-  const marketCap = price === null || shares === undefined ? undefined : price.close * shares;
-  const enterpriseValue =
-    marketCap === undefined || inputs.cash === undefined || inputs.debt === undefined
-      ? undefined
-      : marketCap + inputs.debt.value - inputs.cash.value;
-  const commonSourceIds = Object.values(inputs).flatMap((input) =>
-    typeof input === "object" && input !== null && "sourceIds" in input
-      ? (input.sourceIds as readonly string[])
-      : [],
-  );
-  const metricSourceIds = [...commonSourceIds, ...additionalSourceIds];
-  const priceToEarningsNumerator = price?.close;
-  const priceToEarningsDenominator = inputs.dilutedEps;
-  const sharesUnavailable =
-    inputs.dilutedShares === undefined
-      ? suppression(
-          "diluted-shares-unavailable",
-          "As-reported diluted weighted-average shares are unavailable.",
-          metricSourceIds,
-        )
-      : undefined;
-  const enterpriseValueToRevenue = enterpriseValueToRevenueMetric({
-    cash: inputs.cash,
-    debt: inputs.debt,
-    dilutedShares: inputs.dilutedShares,
-    enterpriseValue,
-    revenue: inputs.revenue,
-    price,
-    reportingCurrency,
-    quoteCurrency,
-    sourceIds: metricSourceIds,
-  });
-  return {
-    priceToEarnings: ratioMetric({
-      numerator: priceToEarningsNumerator,
-      denominator: priceToEarningsDenominator,
-      formula: "close / diluted EPS",
-      price,
-      reportingCurrency,
-      quoteCurrency,
-      missingDenominatorReason: "earnings-unavailable",
-      missingDenominatorDetail: "As-reported diluted EPS is unavailable.",
-      sourceIds: metricSourceIds,
-    }),
-    priceToSales:
-      sharesUnavailable ??
-      ratioMetric({
-        numerator: marketCap,
-        denominator: inputs.revenue,
-        formula: "(close × diluted shares) / revenue",
-        price,
-        reportingCurrency,
-        quoteCurrency,
-        missingDenominatorReason: "revenue-unavailable",
-        missingDenominatorDetail: "As-reported revenue is unavailable.",
-        sourceIds: metricSourceIds,
-      }),
-    enterpriseValueToRevenue,
-    priceToFreeCashFlow:
-      sharesUnavailable ??
-      ratioMetric({
-        numerator: marketCap,
-        denominator: inputs.freeCashFlow,
-        formula: "(close × diluted shares) / free cash flow",
-        price,
-        reportingCurrency,
-        quoteCurrency,
-        missingDenominatorReason: "free-cash-flow-unavailable",
-        missingDenominatorDetail: "As-reported free cash flow is unavailable.",
-        sourceIds: metricSourceIds,
-      }),
-  };
-}
-
-function enterpriseValueToRevenueMetric(input: {
-  readonly cash: ValuationFundamentalInput | undefined;
-  readonly debt: ValuationFundamentalInput | undefined;
-  readonly dilutedShares: ValuationFundamentalInput | undefined;
-  readonly enterpriseValue: number | undefined;
-  readonly revenue: ValuationFundamentalInput | undefined;
-  readonly price: ValuationPriceInput | null;
-  readonly reportingCurrency: string | undefined;
-  readonly quoteCurrency: string | undefined;
-  readonly sourceIds: readonly string[];
-}): ValuationMetricResult {
-  if (input.cash === undefined) {
-    return suppression("cash-unavailable", "As-reported cash is unavailable.", input.sourceIds);
-  }
-  if (input.debt === undefined) {
-    return suppression("debt-unavailable", "As-reported debt is unavailable.", input.sourceIds);
-  }
-  if (input.dilutedShares === undefined) {
-    return suppression(
-      "diluted-shares-unavailable",
-      "As-reported diluted weighted-average shares are unavailable.",
-      input.sourceIds,
-    );
-  }
-  return ratioMetric({
-    numerator: input.enterpriseValue,
-    denominator: input.revenue,
-    formula: "((close × diluted shares) + debt - cash) / revenue",
-    price: input.price,
-    reportingCurrency: input.reportingCurrency,
-    quoteCurrency: input.quoteCurrency,
-    missingDenominatorReason: "revenue-unavailable",
-    missingDenominatorDetail: "As-reported revenue is unavailable.",
-    sourceIds: input.sourceIds,
-  });
-}
-
 function observation(
   input: BuildValuationWorkbenchInput,
   periodInputs: ValuationPeriodInputs,
   fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>>,
+  // Classified once per issuer by the caller, never per period: a per-period decision would let
+  // One row print a multiple and the next declare the metric inapplicable for the same issuer.
+  depositorySic: string | undefined,
 ): HistoricalValuationObservation {
   const publicAt = periodPublicAt(periodInputs);
   const price = selectedPrice(input, publicAt);
@@ -708,6 +132,7 @@ function observation(
       metricPrice,
       reportingCurrency,
       input.quoteCurrency,
+      depositorySic,
       fxClose === undefined ? [] : [fxClose.sourceId],
     ),
     sourceIds,
@@ -741,24 +166,43 @@ function trailingBasis(
   };
 }
 
+// The peer table's only multiple is EV/revenue and the reference range is derived from peer EV
+// Multiples, so the whole comparison is EV-based and inapplicable for a depository issuer.
+// Saying "unavailable" here would restate the decision as a missing input.
+function peerComparison(
+  valuationComps: ValuationCompsArtifact | undefined,
+  depositorySic: string | undefined,
+): PeerValuationComparison {
+  if (depositorySic !== undefined) {
+    return {
+      status: "suppressed",
+      reason: "enterprise-value-not-applicable",
+      detail: `Peer comparison is EV-based and not applicable to a depository issuer (SIC ${depositorySic}); deposits and borrowings fund operations rather than sitting on top of them.`,
+      sourceIds: [],
+    };
+  }
+  if (valuationComps === undefined) {
+    return {
+      status: "suppressed",
+      reason: "peer-data-unavailable",
+      detail: "Peer comparison data is unavailable for this run.",
+      sourceIds: [],
+    };
+  }
+  return { status: "available", valuationComps };
+}
+
 export function buildValuationWorkbench(
   input: BuildValuationWorkbenchInput,
   fxClosesByPriceDate: Readonly<Record<string, YahooFxClose>> = {},
 ): ValuationWorkbenchArtifact {
   const artifact = input.financialStatements;
-  const ttm = artifact === undefined ? undefined : ttmInputs(artifact);
-  const periodInputs =
-    artifact === undefined
-      ? []
-      : uniquePeriodInputs([
-          ...artifact.statements.incomeStatement.revenue.annual.map((fact) =>
-            annualInputs(artifact, fact),
-          ),
-          ...historicalTtmInputs(artifact),
-          ...(ttm === undefined ? [] : [ttm]),
-        ]);
+  const inputsForArtifact = artifact === undefined ? undefined : valuationPeriodInputs(artifact);
+  const ttm = inputsForArtifact?.ttm;
+  const periodInputs = inputsForArtifact?.periods ?? [];
+  const depositorySic = depositoryIssuerSic(input.extendedEvidence);
   const observations = periodInputs.map((period) =>
-    observation(input, period, fxClosesByPriceDate),
+    observation(input, period, fxClosesByPriceDate, depositorySic),
   );
   const suppressionReasons = [
     ...(artifact === undefined ? ["canonical financial statements unavailable"] : []),
@@ -783,15 +227,7 @@ export function buildValuationWorkbench(
       trailingBasis: trailingBasis(artifact, ttm),
       suppressionReasons,
     },
-    peerComparison:
-      input.valuationComps === undefined
-        ? {
-            status: "suppressed",
-            reason: "peer-data-unavailable",
-            detail: "Peer comparison data is unavailable for this run.",
-            sourceIds: [],
-          }
-        : { status: "available", valuationComps: input.valuationComps },
+    peerComparison: peerComparison(input.valuationComps, depositorySic),
     sourceIds,
   };
 }

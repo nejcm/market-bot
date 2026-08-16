@@ -21,7 +21,7 @@ interface AnalysisStageInput {
   readonly priorStages?: readonly StageOutput[];
 }
 
-export function coveragePanelStages(command: ResearchCommand): readonly AnalysisStage[] {
+function coveragePanelStages(command: ResearchCommand): readonly AnalysisStage[] {
   if (command.depth !== "deep") {
     return [];
   }

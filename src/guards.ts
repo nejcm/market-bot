@@ -11,7 +11,7 @@ function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-export function recordAt(
+function recordAt(
   value: Record<string, unknown> | undefined,
   key: string,
 ): Record<string, unknown> {

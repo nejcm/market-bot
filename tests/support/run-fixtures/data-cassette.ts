@@ -59,6 +59,37 @@ export async function dataCassetteKey(
   ].join(" ");
 }
 
+// Yahoo mints a fresh crumb per credential fetch, so an authed quote URL recorded with one crumb
+// Can never be requested again: replay reads the cassette's single getcrumb entry, builds a URL
+// That matches nothing, dead-ends at 401 and degrades in ways the recorded golden never saw.
+// Both record and replay therefore pin the crumb to one placeholder. Pinning rather than deleting
+// Keeps the un-authed 401 and its authed 200 in separate entries — they differ only by this
+// Parameter, since headers are not part of the key — so replay still walks the credential path
+// Instead of being handed the authed response on the first, un-authed call.
+// The canonicalRequestUrl helper already drops credential parameters proper (api_key, api_token,
+// Token, access_token); the crumb is the only rotating value that survives it.
+// Replay looks the exact key up first and falls back to the pinned one, which needs no flag and
+// Cannot misfire in either direction: a legacy cassette stores real crumbs, so it can only be hit
+// Exactly — the fallback key is absent from it, leaving its recorded dead-ends intact — while a
+// Pinned cassette stores the placeholder, which no live crumb can equal, so its authed entries are
+// Only ever reached through the fallback.
+const CRUMB_PLACEHOLDER = "fixture-crumb";
+
+function pinnedCrumb(key: string): string {
+  const separator = key.lastIndexOf(" ");
+  const url = key.slice(separator + 1);
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has("crumb")) {
+      return key;
+    }
+    parsed.searchParams.set("crumb", CRUMB_PLACEHOLDER);
+    return `${key.slice(0, separator + 1)}${canonicalRequestUrl(parsed.toString())}`;
+  } catch {
+    return key;
+  }
+}
+
 function replayHeaders(headers: Readonly<Record<string, string>>): Headers {
   const result = new Headers();
   for (const [key, value] of Object.entries(headers)) {
@@ -94,7 +125,8 @@ async function replayBody(entry: DataCassetteEntry, fixtureDir?: string): Promis
 
 export function makeReplayFetch(cassette: DataCassette, fixtureDir?: string): FetchLike {
   return async (input, init) => {
-    const key = await dataCassetteKey(input, init);
+    const exactKey = await dataCassetteKey(input, init);
+    const key = cassette.entries[exactKey] === undefined ? pinnedCrumb(exactKey) : exactKey;
     const entry = cassette.entries[key];
     if (entry === undefined) {
       throw new Error(`Fixture data cassette miss: ${key}`);
@@ -111,7 +143,7 @@ export function createRecordingFetch(baseFetch: FetchLike = fetch): DataCassette
   return {
     cassette: () => ({ entries }),
     fetch: async (input, init) => {
-      const key = await dataCassetteKey(input, init);
+      const key = pinnedCrumb(await dataCassetteKey(input, init));
       const response = await baseFetch(input, init);
       const body = await response.clone().text();
       entries[key] = {

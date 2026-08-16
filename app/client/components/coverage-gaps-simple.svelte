@@ -1,12 +1,12 @@
 <script lang="ts">
   import { COMPLETENESS_STATUS_CLASSES } from "../run-workspace-completeness";
-  import type { RunWorkspaceEquityPresentationView } from "../run-workspace-view";
+  import type { RunWorkspaceEquityPresentationView, RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly materialGaps: readonly string[];
     readonly financialCoreStatus: RunWorkspaceEquityPresentationView["defaultView"]["financialCoreStatus"];
-    readonly sectionKey: string;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly sectionKey: RunWorkspaceSectionKey;
+    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
   }
 
   let { materialGaps, financialCoreStatus, sectionKey, bindSection }: Props = $props();

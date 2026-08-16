@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { BusinessFrameworkView } from "../view-model";
+  import type { RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly framework: BusinessFrameworkView;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
   }
 
   let { framework, citeChips, bindSection }: Props = $props();

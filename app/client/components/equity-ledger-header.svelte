@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { RunSummary } from "../../types";
   import type { ReportDetail } from "../app-settings";
-  import type { RunWorkspaceEquityPresentationView } from "../run-workspace-view";
+  import type { RunWorkspaceEquityPresentationView, RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly summary: RunSummary;
@@ -14,7 +14,7 @@
        row alone. */
     readonly showMetrics?: boolean;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
 

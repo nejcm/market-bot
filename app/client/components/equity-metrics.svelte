@@ -4,6 +4,7 @@
     RunWorkspaceEquitySnapshotFinancialLensDrivers,
     RunWorkspaceEquitySnapshotKeyMetrics,
     RunWorkspaceEquitySnapshotMiniCharts,
+    RunWorkspaceSectionKey,
   } from "../run-workspace-view";
   import SparklineBars from "./sparkline-bars.svelte";
 
@@ -11,9 +12,9 @@
     readonly keyDatedMetrics: RunWorkspaceEquitySnapshotKeyMetrics;
     readonly miniCharts: RunWorkspaceEquitySnapshotMiniCharts;
     readonly financialLensDrivers: RunWorkspaceEquitySnapshotFinancialLensDrivers;
-    readonly sectionKey: string;
+    readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
   }
 
   let {

@@ -5,7 +5,7 @@
   import type { RunDetail } from "../../types";
   import type { ReportDetail } from "../app-settings";
   import { formatDate, jsonBlock, runLabel } from "../view-model";
-  import { buildRunWorkspaceView } from "../run-workspace-view";
+  import { buildRunWorkspaceView, type RunWorkspaceSectionKey } from "../run-workspace-view";
   import { DATA_SEGMENTS, TABS, type DataSegment, type Tab } from "./console-types";
   import RunChat from "./run-chat.svelte";
   import ObservableForecasts from "./observable-forecasts.svelte";
@@ -80,7 +80,7 @@
 
   let dataSegment = $state<DataSegment>("analytics");
   let cite = $state<CitePopover | null>(null);
-  const sectionEls: Partial<Record<string, HTMLElement>> = {};
+  const sectionEls: Partial<Record<RunWorkspaceSectionKey, HTMLElement>> = {};
 
   const workspace = $derived(detail === null ? undefined : buildRunWorkspaceView(detail));
   const equityPresentation = $derived(workspace?.equityPresentation);
@@ -90,8 +90,6 @@
   const reportSummary = $derived(
     equityPresentation?.defaultView.researchSummary ?? workspace?.report.summary ?? "",
   );
-  const reportSummarySectionKey = $derived("summary");
-  const reportFindingsSectionKey = $derived(equityPresentation === undefined ? "findings" : "advancedFindings");
   const reportMarkdown = $derived(workspace?.report.markdown);
   const findingItems = $derived(workspace?.report.findings ?? []);
   const scenarioItems = $derived(workspace?.report.scenarios ?? []);
@@ -138,7 +136,7 @@
      valuation reasoning, then diagnostics. The long tail — reverse DCF, lens
      stats, the history tables, the evidence appendix — stays reachable by
      scrolling the report. */
-  const LEDGER_NAV_KEYS: ReadonlySet<string> = new Set([
+  const LEDGER_NAV_KEYS: ReadonlySet<RunWorkspaceSectionKey> = new Set<RunWorkspaceSectionKey>([
     "equityOverview",
     "researchSummary",
     "summary",
@@ -186,14 +184,14 @@
   /* Every section already registers itself for the nav, so the same hook names
      it in the DOM: `[data-section="valuationWorkbench"]` finds it in devtools,
      screenshots and browser automation. */
-  function bindSection(key: string): (el: HTMLElement) => void {
+  function bindSection(key: RunWorkspaceSectionKey): (el: HTMLElement) => void {
     return (el) => {
       sectionEls[key] = el;
       el.dataset.section = key;
     };
   }
 
-  function scrollToSection(key: string): void {
+  function scrollToSection(key: RunWorkspaceSectionKey): void {
     sectionEls[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -499,7 +497,7 @@
         {#snippet reportBody()}
           {#if reportSummary !== "" && equityPresentation === undefined}
             <div
-              {@attach bindSection(reportSummarySectionKey)}
+              {@attach bindSection("summary")}
               class="scroll-mt-5 font-serif text-[16.5px] leading-[1.65] text-[#2a2d30]"
             >
               {reportSummary}
@@ -507,7 +505,7 @@
           {/if}
 
           {#if equityPresentation === undefined && findingItems.length > 0}
-            <section {@attach bindSection(reportFindingsSectionKey)} class="mt-8.5 scroll-mt-5">
+            <section {@attach bindSection("findings")} class="mt-8.5 scroll-mt-5">
               {@render sectionHeading("Key findings")}
               {#each findingItems as item, index}
                 <div class="flex gap-3.5 border-b border-[#f0ede7] py-3.5">
@@ -526,7 +524,7 @@
           {/if}
 
           {#if equityPresentation === undefined && caseSections.length > 0}
-            <CaseCards items={caseSections} sectionKey="advancedCases" {citeChips} {bindSection} />
+            <CaseCards items={caseSections} sectionKey="cases" {citeChips} {bindSection} />
           {/if}
 
           {#if snapshot !== undefined && equityPresentation === undefined}

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { RunWorkspaceReverseDcfView } from "../run-workspace-view";
+  import type { RunWorkspaceReverseDcfView, RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly reverseDcf: RunWorkspaceReverseDcfView;
-    readonly sectionKey: string;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly sectionKey: RunWorkspaceSectionKey;
+    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
   }
 
   let { reverseDcf, sectionKey, bindSection }: Props = $props();

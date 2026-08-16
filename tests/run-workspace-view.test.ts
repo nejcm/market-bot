@@ -9,6 +9,7 @@ import {
   peerImpliedRangeView,
   valuationWorkbenchView,
   reverseDcfView,
+  type RunWorkspaceSectionKey,
   type RunWorkspaceView,
 } from "../app/client/run-workspace-view";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
@@ -607,12 +608,6 @@ describe("run workspace view", () => {
     ]);
   });
 
-  test("does not restore the removed advanced table-of-contents catch-all", () => {
-    const entries = buildRunWorkspaceView(tableOfContentsFixture()).tableOfContents;
-
-    expect(entries.some((entry) => entry.key === "advanced")).toBeFalse();
-  });
-
   test("keeps the populated non-equity table of contents unchanged", () => {
     const detail = tableOfContentsFixture({
       jobType: "crypto",
@@ -749,7 +744,7 @@ describe("run workspace view", () => {
         readFileSync(new URL(`../app/client/components/${file}`, import.meta.url), "utf8"),
       ),
     ].join("\n");
-    const renderedMarkerByKey: Readonly<Record<string, string>> = {
+    const renderedMarkerByKey: Readonly<Record<RunWorkspaceSectionKey, string>> = {
       equityOverview: "Valuation context",
       researchSummary: "Research summary",
       summary: "Company summary",

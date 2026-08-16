@@ -170,8 +170,36 @@ interface RunWorkspaceSnapshotView {
   readonly tradingViewUrl: string;
 }
 
+export type RunWorkspaceSectionKey =
+  | "summary"
+  | "findings"
+  | "cases"
+  | "snapshot"
+  | "forecasts"
+  | "scenarios"
+  | "valuationWorkbench"
+  | "reverseDcf"
+  | "peerImpliedRange"
+  | "financialLensStats"
+  | "fundamentalHistory"
+  | "extendedEvidence"
+  | "webSubjectProfile"
+  | "businessFramework"
+  | "history"
+  | "gaps"
+  | "equityOverview"
+  | "researchSummary"
+  | "financialTrends"
+  | "financialPosition"
+  | "earningsConsensus"
+  | "equityMetrics"
+  | "balanceSheetHistory"
+  | "analystEstimateDistributions"
+  | "equityCompleteness"
+  | "rawMarkdown";
+
 export interface RunWorkspaceTableOfContentsEntry {
-  readonly key: string;
+  readonly key: RunWorkspaceSectionKey;
   readonly label: string;
   readonly advancedOnly: boolean;
 }
@@ -385,7 +413,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const gapsVisible = splitGaps.shortfalls.length > 0 || triagedGaps.length > 0;
 
   const tableOfContents = (
-    equityPresentation === undefined
+    (equityPresentation === undefined
       ? [
           { key: "summary", label: "Summary", visible: summary !== "", advancedOnly: false },
           {
@@ -608,7 +636,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             visible: detail.markdown !== undefined,
             advancedOnly: true,
           },
-        ]
+        ]) satisfies readonly (RunWorkspaceTableOfContentsEntry & { readonly visible: boolean })[]
   )
     .filter((entry) => entry.visible)
     .map(({ key, label, advancedOnly }) => ({ key, label, advancedOnly }));

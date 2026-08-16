@@ -125,6 +125,22 @@ export function latestNumber(
   return undefined;
 }
 
+export function readNumberMetric(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+  key: string,
+): number | undefined {
+  const value = metrics?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+export function readStringMetric(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+  key: string,
+): string | undefined {
+  const value = metrics?.[key];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
 export function readArray(value: unknown, key: string): readonly unknown[] {
   return isRecord(value) && Array.isArray(value[key]) ? value[key] : [];
 }

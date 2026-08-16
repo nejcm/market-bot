@@ -8,6 +8,7 @@ import type {
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
 import { depositoryIssuerSic } from "./industry-classification";
+import { readNumberMetric, readStringMetric } from "./utils";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -15,22 +16,6 @@ interface ValuationEvidenceResult {
 }
 
 const REQUIRED_SEC_METRICS = ["revenue", "cash", "debt"] as const;
-
-function readMetric(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-  key: string,
-): number | undefined {
-  const value = metrics?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readStringMetric(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-  key: string,
-): string | undefined {
-  const value = metrics?.[key];
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
-}
 
 function tickerSnapshot(
   command: InstrumentCommand,
@@ -95,7 +80,7 @@ function formatUsd(value: number): string {
 function hasRequiredSecMetrics(
   metrics: Readonly<Record<string, number | string>> | undefined,
 ): boolean {
-  return REQUIRED_SEC_METRICS.every((metric) => readMetric(metrics, metric) !== undefined);
+  return REQUIRED_SEC_METRICS.every((metric) => readNumberMetric(metrics, metric) !== undefined);
 }
 
 export function addValuationEvidence(
@@ -114,12 +99,14 @@ export function addValuationEvidence(
   const secItems = extendedEvidence?.items.filter((item) => item.category === "sec-edgar") ?? [];
   const secItem = secItems.find((item) => hasRequiredSecMetrics(item.metrics)) ?? secItems[0];
   const marketCap = snapshot?.marketCap;
-  const revenue = readMetric(secItem?.metrics, "revenue");
-  const cash = readMetric(secItem?.metrics, "cash");
-  const debt = readMetric(secItem?.metrics, "debt");
+  const revenue = readNumberMetric(secItem?.metrics, "revenue");
+  const cash = readNumberMetric(secItem?.metrics, "cash");
+  const debt = readNumberMetric(secItem?.metrics, "debt");
   const missing = [
     ...(marketCap === undefined ? ["marketCap"] : []),
-    ...REQUIRED_SEC_METRICS.filter((metric) => readMetric(secItem?.metrics, metric) === undefined),
+    ...REQUIRED_SEC_METRICS.filter(
+      (metric) => readNumberMetric(secItem?.metrics, metric) === undefined,
+    ),
   ];
 
   if (
@@ -146,7 +133,7 @@ export function addValuationEvidence(
   // X4: SEC fundamentals report the latest filed fact regardless of duration, so the
   // Value can be a full-year 10-K, a year-to-date 10-Q, or a single quarter. Without
   // A known period we treat it as already annual rather than risk ~4x inflation.
-  const revenuePeriodMonths = readMetric(secItem.metrics, "revenuePeriodMonths");
+  const revenuePeriodMonths = readNumberMetric(secItem.metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(secItem.metrics, "revenuePeriodEnd");
   const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(secItem.metrics, "debtPeriodEnd");

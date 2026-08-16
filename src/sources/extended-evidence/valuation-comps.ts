@@ -31,8 +31,18 @@ import {
   yahooQuoteSourceRequest,
 } from "../yahoo";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
+import { readStringMetric } from "./utils";
 
-export * from "./valuation-comps-contract";
+export {
+  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
+  MIXED_PERIOD_METRIC,
+  REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+  type PeerImpliedRange,
+  type PeerImpliedRangeSuppressedReason,
+  type ValuationCompsArtifact,
+  type ValuationCompsOptions,
+  type ValuationCompsRow,
+} from "./valuation-comps-contract";
 export { derivePeerImpliedRange } from "./valuation-comps-range";
 export {
   peerImpliedRangeSuppressionGaps,
@@ -226,22 +236,6 @@ function emptyResult(
 
 function valuationEvidenceItem(evidence: ExtendedEvidence): ExtendedEvidenceItem | undefined {
   return evidence.items.find((item) => item.category === "valuation");
-}
-
-export function readNumberMetric(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-  key: string,
-): number | undefined {
-  const value = metrics?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-export function readStringMetric(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-  key: string,
-): string | undefined {
-  const value = metrics?.[key];
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
 interface BalanceSheetPeriodDivergence {

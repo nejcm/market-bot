@@ -6,7 +6,7 @@ import { withUntrustedModelInputRule } from "../src/model/trust-guard";
 import { isRecord } from "../src/guards";
 import { readRunDetail } from "./artifacts";
 import { buildRunChatContext } from "./chat-context";
-import { isSameOriginPost } from "./server";
+import { isSameOriginPost } from "./same-origin";
 
 const SYSTEM_PROMPT_PATH = join(import.meta.dir, "../prompts/console-run-chat.md");
 

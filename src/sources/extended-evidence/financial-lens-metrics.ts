@@ -13,6 +13,7 @@ import {
   type SecMetricKey,
 } from "./financial-lens-canonical";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
+import { readNumberMetric } from "./utils";
 import { formatPeRatio, type LensValueUnit } from "./value-format";
 
 export type FinancialLensName = "Quality" | "Growth" | "Financial Strength" | "Value" | "Momentum";
@@ -72,15 +73,8 @@ const SEC_KEYS: readonly SecFactMetricKey[] = [
   "currentLiabilities",
 ] as const;
 
-export function readMetric(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-  key: string,
-): number | undefined {
-  const value = metrics?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-export function readStringMetric(
+// No trim guard, unlike utils.readStringMetric: SEC period-end strings pass through verbatim.
+export function readRawStringMetric(
   metrics: Readonly<Record<string, number | string>> | undefined,
   key: string,
 ): string | undefined {
@@ -89,21 +83,20 @@ export function readStringMetric(
 }
 
 // Typed accessors for the sec-edgar item only: its keys are the compile-time union
-// Written by financial-lens-canonical.ts and sec-edgar.ts. The untyped readMetric /
-// ReadStringMetric above stay string-keyed for the valuation and Yahoo items, whose
-// Keys come from other producers.
+// Written by financial-lens-canonical.ts and sec-edgar.ts.
+// Untyped readers above stay string-keyed: valuation and Yahoo keys come elsewhere.
 export function readSecMetric(
   metrics: Readonly<Record<string, number | string>> | undefined,
   key: SecMetricKey,
 ): number | undefined {
-  return readMetric(metrics, key);
+  return readNumberMetric(metrics, key);
 }
 
 function readSecStringMetric(
   metrics: Readonly<Record<string, number | string>> | undefined,
   key: SecMetricKey,
 ): string | undefined {
-  return readStringMetric(metrics, key);
+  return readRawStringMetric(metrics, key);
 }
 
 export function tickerSnapshot(
@@ -282,9 +275,9 @@ export function observedPeriod(
 export function valuationDateBasisMetric(
   valuationItem: ExtendedEvidenceItem | undefined,
 ): readonly FinancialLensMetric[] {
-  const quoteObservedAt = readStringMetric(valuationItem?.metrics, "quoteObservedAt");
-  const cashPeriodEnd = readStringMetric(valuationItem?.metrics, "cashPeriodEnd");
-  const debtPeriodEnd = readStringMetric(valuationItem?.metrics, "debtPeriodEnd");
+  const quoteObservedAt = readRawStringMetric(valuationItem?.metrics, "quoteObservedAt");
+  const cashPeriodEnd = readRawStringMetric(valuationItem?.metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readRawStringMetric(valuationItem?.metrics, "debtPeriodEnd");
   const balanceSheetPeriodEnd =
     cashPeriodEnd === debtPeriodEnd
       ? cashPeriodEnd

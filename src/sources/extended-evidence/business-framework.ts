@@ -10,6 +10,7 @@ import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
+import { readNumberMetric } from "./utils";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
@@ -188,14 +189,6 @@ function qualitativeGaps(
   return QUALITATIVE_GAPS.filter((gap) => codes.includes(gap.code));
 }
 
-function readMetric(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-  key: string,
-): number | undefined {
-  const value = metrics?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
 function itemByCategory(
   extendedEvidence: ExtendedEvidence | undefined,
   category: ExtendedEvidenceItem["category"],
@@ -365,20 +358,23 @@ export function addBusinessFrameworkEvidence(
     verifiedMarketSnapshot === undefined
       ? []
       : [verifiedSnapshotSourceId(verifiedMarketSnapshot.symbol)];
-  const revenue = readMetric(secItem?.metrics, "revenue");
-  const grossProfit = readMetric(secItem?.metrics, "grossProfit");
-  const operatingIncome = readMetric(secItem?.metrics, "operatingIncome");
-  const netIncome = readMetric(secItem?.metrics, "netIncome");
-  const revenueDeltaPercent = readMetric(secItem?.metrics, "revenueDeltaPercent");
-  const operatingIncomeDeltaPercent = readMetric(secItem?.metrics, "operatingIncomeDeltaPercent");
-  const netIncomeDeltaPercent = readMetric(secItem?.metrics, "netIncomeDeltaPercent");
-  const operatingCashFlowDeltaPercent = readMetric(
+  const revenue = readNumberMetric(secItem?.metrics, "revenue");
+  const grossProfit = readNumberMetric(secItem?.metrics, "grossProfit");
+  const operatingIncome = readNumberMetric(secItem?.metrics, "operatingIncome");
+  const netIncome = readNumberMetric(secItem?.metrics, "netIncome");
+  const revenueDeltaPercent = readNumberMetric(secItem?.metrics, "revenueDeltaPercent");
+  const operatingIncomeDeltaPercent = readNumberMetric(
+    secItem?.metrics,
+    "operatingIncomeDeltaPercent",
+  );
+  const netIncomeDeltaPercent = readNumberMetric(secItem?.metrics, "netIncomeDeltaPercent");
+  const operatingCashFlowDeltaPercent = readNumberMetric(
     secItem?.metrics,
     "operatingCashFlowDeltaPercent",
   );
-  const dividendsPaid = readMetric(secItem?.metrics, "dividendsPaid");
-  const shareRepurchases = readMetric(secItem?.metrics, "shareRepurchases");
-  const dividendYield = readMetric(yahooItem?.metrics, "dividendYield");
+  const dividendsPaid = readNumberMetric(secItem?.metrics, "dividendsPaid");
+  const shareRepurchases = readNumberMetric(secItem?.metrics, "shareRepurchases");
+  const dividendYield = readNumberMetric(yahooItem?.metrics, "dividendYield");
   const grossMargin = selectedFinancialLensDerivedMetric(
     secItem,
     "grossMargin",
@@ -389,8 +385,8 @@ export function addBusinessFrameworkEvidence(
     "operatingMargin",
     ratio(operatingIncome, revenue),
   );
-  const currentRatio = readMetric(financialLensItem?.metrics, "currentRatio");
-  const debtToMarketCap = readMetric(financialLensItem?.metrics, "debtToMarketCap");
+  const currentRatio = readNumberMetric(financialLensItem?.metrics, "currentRatio");
+  const debtToMarketCap = readNumberMetric(financialLensItem?.metrics, "debtToMarketCap");
   const hasCapitalReturnEvidence = hasCapitalReturn({
     dividendsPaid,
     shareRepurchases,
@@ -592,21 +588,21 @@ export function addBusinessFrameworkEvidence(
         ...metric(
           "trailingPE",
           "Trailing PE",
-          readMetric(yahooItem?.metrics, "trailingPE"),
+          readNumberMetric(yahooItem?.metrics, "trailingPE"),
           "ratio",
           yahooSourceIds,
         ),
         ...metric(
           "forwardPE",
           "Forward PE",
-          readMetric(yahooItem?.metrics, "forwardPE"),
+          readNumberMetric(yahooItem?.metrics, "forwardPE"),
           "ratio",
           yahooSourceIds,
         ),
         ...metric(
           "evToAnnualizedRevenue",
           "EV/revenue",
-          readMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
+          readNumberMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
           "ratio",
           valuationSourceIds,
         ),

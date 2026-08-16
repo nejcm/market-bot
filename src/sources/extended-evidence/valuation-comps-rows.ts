@@ -16,7 +16,7 @@ import {
   type ValuationGateProfile,
 } from "./valuation-comps-contract";
 
-import { readNumberMetric, readStringMetric } from "./valuation-comps";
+import { readNumberMetric, readStringMetric } from "./utils";
 import { isFreshDate, isFreshPeriodEnd, unique } from "./valuation-comps-support";
 
 export function targetRow(

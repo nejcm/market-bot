@@ -9,9 +9,8 @@ import {
   positive,
   postureFrom,
   ratio,
-  readMetric,
+  readRawStringMetric,
   readSecMetric,
-  readStringMetric,
   secPeriod,
   selectedDerivedPeriod,
   selectedRatioLabel,
@@ -28,6 +27,7 @@ import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contr
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
+import { readNumberMetric } from "./utils";
 
 export function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const sourceIds = secItem?.sourceIds ?? [];
@@ -265,9 +265,9 @@ export function strengthLens(
   const netDebt =
     valuationItem?.metrics?.netDebt === MIXED_PERIOD_METRIC
       ? undefined
-      : (readMetric(valuationItem?.metrics, "netDebt") ?? selectedNetDebt);
-  const debtToMarketCap = readMetric(valuationItem?.metrics, "debtToMarketCap");
-  const netDebtToMarketCap = readMetric(valuationItem?.metrics, "netDebtToMarketCap");
+      : (readNumberMetric(valuationItem?.metrics, "netDebt") ?? selectedNetDebt);
+  const debtToMarketCap = readNumberMetric(valuationItem?.metrics, "debtToMarketCap");
+  const netDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "netDebtToMarketCap");
   const currentRatio = selectedFinancialLensDerivedMetric(
     secItem,
     "currentRatio",
@@ -292,11 +292,11 @@ export function strengthLens(
       ? ratio(Math.abs(dividendsPaid), netIncome)
       : undefined,
   );
-  const yahooDividendRate = readMetric(
+  const yahooDividendRate = readNumberMetric(
     yahooFundamentalsItem?.metrics,
     "trailingAnnualDividendRate",
   );
-  const yahooEpsTtm = readMetric(yahooFundamentalsItem?.metrics, "epsTrailingTwelveMonths");
+  const yahooEpsTtm = readNumberMetric(yahooFundamentalsItem?.metrics, "epsTrailingTwelveMonths");
   const yahooPayout = ratio(yahooDividendRate, yahooEpsTtm);
   const payoutFromSec = secPayout !== undefined;
   const payoutRatio = payoutFromSec ? secPayout : yahooPayout;
@@ -304,7 +304,7 @@ export function strengthLens(
     ? (secItem?.sourceIds ?? [])
     : (yahooFundamentalsItem?.sourceIds ?? []);
   // Dividend yield is whole-percent (verified against captured RR.L/AAPL fixtures).
-  const dividendYield = readMetric(yahooFundamentalsItem?.metrics, "dividendYield");
+  const dividendYield = readNumberMetric(yahooFundamentalsItem?.metrics, "dividendYield");
   const metrics = [
     ...metric(
       "cash",
@@ -442,14 +442,14 @@ export function valueLens(
       ? undefined
       : supportability === "supported";
   const yahooSourceIds = yahooFundamentalsItem?.sourceIds ?? [];
-  const revenuePeriodMonths = readMetric(valuationItem?.metrics, "revenuePeriodMonths");
-  const trailingPe = readMetric(yahooFundamentalsItem?.metrics, "trailingPE");
-  const forwardPe = readMetric(yahooFundamentalsItem?.metrics, "forwardPE");
-  const epsTrailingTwelveMonths = readMetric(
+  const revenuePeriodMonths = readNumberMetric(valuationItem?.metrics, "revenuePeriodMonths");
+  const trailingPe = readNumberMetric(yahooFundamentalsItem?.metrics, "trailingPE");
+  const forwardPe = readNumberMetric(yahooFundamentalsItem?.metrics, "forwardPE");
+  const epsTrailingTwelveMonths = readNumberMetric(
     yahooFundamentalsItem?.metrics,
     "epsTrailingTwelveMonths",
   );
-  const epsForward = readMetric(yahooFundamentalsItem?.metrics, "epsForward");
+  const epsForward = readNumberMetric(yahooFundamentalsItem?.metrics, "epsForward");
   // A P/E renders as a bare numeric multiple only when it is "clean": a finite,
   // Positive ratio over positive earnings. Otherwise formatPeRatio produces annotated
   // Text — the negative value plus a caveat, or N/M for non-computable earnings — which
@@ -458,7 +458,7 @@ export function valueLens(
   const trailingPeClean = peIsClean(trailingPe, epsTrailingTwelveMonths);
   const forwardPeClean = peIsClean(forwardPe, epsForward);
   const valuationRevenuePeriod: Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> = {
-    ...observedPeriod(readStringMetric(valuationItem?.metrics, "revenuePeriodEnd")),
+    ...observedPeriod(readRawStringMetric(valuationItem?.metrics, "revenuePeriodEnd")),
     ...(revenuePeriodMonths !== undefined ? { periodMonths: revenuePeriodMonths } : {}),
   };
   // PCF = marketCap / annualized operating cash flow. marketCap comes from the
@@ -468,7 +468,7 @@ export function valueLens(
   // Cash flow) plus the source that supplied marketCap — not the valuation item's
   // IDs unconditionally, which would be empty when PCF computes without a valuation
   // Item (US listing with SEC cash flow but no valuation comps).
-  const marketCap = snapshot?.marketCap ?? readMetric(valuationItem?.metrics, "marketCap");
+  const marketCap = snapshot?.marketCap ?? readNumberMetric(valuationItem?.metrics, "marketCap");
   const operatingCashFlow = readSecMetric(secItem?.metrics, "operatingCashFlow");
   const operatingCashFlowPeriodMonths = readSecMetric(
     secItem?.metrics,
@@ -500,7 +500,7 @@ export function valueLens(
       ...metric(
         "enterpriseValue",
         "Enterprise value",
-        readMetric(valuationItem?.metrics, "enterpriseValue"),
+        readNumberMetric(valuationItem?.metrics, "enterpriseValue"),
         "currency",
         valuationItem?.sourceIds ?? [],
         observedPeriod(snapshot?.observedAt),
@@ -508,7 +508,7 @@ export function valueLens(
       ...metric(
         "annualizedRevenue",
         "Annualized revenue",
-        readMetric(valuationItem?.metrics, "annualizedRevenue"),
+        readNumberMetric(valuationItem?.metrics, "annualizedRevenue"),
         "currency",
         valuationItem?.sourceIds ?? [],
         valuationRevenuePeriod,
@@ -516,7 +516,7 @@ export function valueLens(
       ...metric(
         "evToAnnualizedRevenue",
         "EV/revenue",
-        readMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
+        readNumberMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
         "ratio",
         valuationItem?.sourceIds ?? [],
         valuationRevenuePeriod,
@@ -524,7 +524,7 @@ export function valueLens(
       ...metric(
         "marketCapToAnnualizedRevenue",
         "Market cap/revenue",
-        readMetric(valuationItem?.metrics, "marketCapToAnnualizedRevenue"),
+        readNumberMetric(valuationItem?.metrics, "marketCapToAnnualizedRevenue"),
         "ratio",
         valuationItem?.sourceIds ?? [],
         valuationRevenuePeriod,
@@ -576,7 +576,7 @@ export function valueLens(
       ...metric(
         "priceToBook",
         "Price/book",
-        readMetric(yahooFundamentalsItem?.metrics, "priceToBook"),
+        readNumberMetric(yahooFundamentalsItem?.metrics, "priceToBook"),
         "ratio",
         yahooSourceIds,
         observedPeriod(yahooFundamentalsItem?.observedAt),

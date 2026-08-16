@@ -33,7 +33,7 @@ plans/                Curated planning docs (humans only)
 data/                 Run artifacts and calibration output (gitignored)
 ```
 
-Keep files cohesive — soft target 200–400 lines, hard limit 800.
+Keep files cohesive — soft target 200–400 lines, hard limit 1000.
 
 ## Subsystems
 

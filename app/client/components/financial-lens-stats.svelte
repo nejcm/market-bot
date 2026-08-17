@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { RunWorkspaceFinancialLensGroup } from "../run-workspace-view";
+  import type { RunWorkspaceFinancialLensGroup, BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
   import type { FinancialLensStatTone } from "../view-model";
 
   interface Props {
     readonly groups: readonly RunWorkspaceFinancialLensGroup[];
-    readonly sectionKey: string;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly sectionKey: RunWorkspaceSectionKey;
+    readonly bindSection: BindSection;
   }
 
   let { groups, sectionKey, bindSection }: Props = $props();

@@ -170,11 +170,46 @@ interface RunWorkspaceSnapshotView {
   readonly tradingViewUrl: string;
 }
 
+export type RunWorkspaceSectionKey =
+  | "summary"
+  | "findings"
+  | "cases"
+  | "snapshot"
+  | "forecasts"
+  | "scenarios"
+  | "valuationWorkbench"
+  | "reverseDcf"
+  | "peerImpliedRange"
+  | "financialLensStats"
+  | "fundamentalHistory"
+  | "extendedEvidence"
+  | "webSubjectProfile"
+  | "businessFramework"
+  | "history"
+  | "gaps"
+  | "equityOverview"
+  | "researchSummary"
+  | "financialTrends"
+  | "financialPosition"
+  | "earningsConsensus"
+  | "equityMetrics"
+  | "balanceSheetHistory"
+  | "analystEstimateDistributions"
+  | "equityCompleteness"
+  | "rawMarkdown";
+
+/* Section components take this to register their element for the nav and to
+   stamp `data-section`. Named once so the callback shape stays a single edit. */
+export type BindSection = (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+
 export interface RunWorkspaceTableOfContentsEntry {
-  readonly key: string;
+  readonly key: RunWorkspaceSectionKey;
   readonly label: string;
   readonly advancedOnly: boolean;
 }
+
+/* A table-of-contents entry before the visibility filter drops it. */
+type TableOfContentsDraft = RunWorkspaceTableOfContentsEntry & { readonly visible: boolean };
 
 export interface RunWorkspaceEquityPresentationView {
   readonly defaultView: {
@@ -384,7 +419,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
         };
   const gapsVisible = splitGaps.shortfalls.length > 0 || triagedGaps.length > 0;
 
-  const tableOfContents = (
+  const tableOfContentsDraft: readonly TableOfContentsDraft[] =
     equityPresentation === undefined
       ? [
           { key: "summary", label: "Summary", visible: summary !== "", advancedOnly: false },
@@ -608,8 +643,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             visible: detail.markdown !== undefined,
             advancedOnly: true,
           },
-        ]
-  )
+        ];
+
+  const tableOfContents = tableOfContentsDraft
     .filter((entry) => entry.visible)
     .map(({ key, label, advancedOnly }) => ({ key, label, advancedOnly }));
 

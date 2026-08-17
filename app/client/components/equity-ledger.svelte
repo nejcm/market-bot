@@ -9,6 +9,8 @@
     RunWorkspaceCaseSection,
     RunWorkspaceEquityPresentationView,
     RunWorkspaceTableOfContentsEntry,
+    BindSection,
+    RunWorkspaceSectionKey,
   } from "../run-workspace-view";
   import type { FinancialLensPosture } from "../../../src/sources/extended-evidence/financial-lens";
   import EquityLedgerHeader from "./equity-ledger-header.svelte";
@@ -27,8 +29,8 @@
     readonly peerSupportability?: string | undefined;
     readonly tocEntries: readonly RunWorkspaceTableOfContentsEntry[];
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
-    readonly onScrollToSection: (key: string) => void;
+    readonly bindSection: BindSection;
+    readonly onScrollToSection: (key: RunWorkspaceSectionKey) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
     /* Report sections that belong inside the sheet, so the section nav stays
        sticky over them. */

@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { RunWorkspaceFundamentalHistoryView } from "../run-workspace-view";
+  import type { RunWorkspaceFundamentalHistoryView, BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
   import SparklineBars from "./sparkline-bars.svelte";
 
   interface Props {
     readonly history: RunWorkspaceFundamentalHistoryView;
-    readonly sectionKey: string;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly sectionKey: RunWorkspaceSectionKey;
+    readonly bindSection: BindSection;
   }
 
   let { history, sectionKey, bindSection }: Props = $props();

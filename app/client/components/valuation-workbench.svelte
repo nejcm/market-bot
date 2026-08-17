@@ -3,14 +3,16 @@
   import type {
     RunWorkspaceExcludedValuationPeerRow,
     RunWorkspaceValuationWorkbenchView,
+    BindSection,
+    RunWorkspaceSectionKey,
   } from "../run-workspace-view";
 
   interface Props {
     readonly workbench: RunWorkspaceValuationWorkbenchView;
     readonly excludedPeerRows: readonly RunWorkspaceExcludedValuationPeerRow[];
-    readonly sectionKey: string;
+    readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let {

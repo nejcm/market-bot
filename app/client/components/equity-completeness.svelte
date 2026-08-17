@@ -3,6 +3,8 @@
   import {
     completenessReasonCodeLabel,
     type RunWorkspaceEquityPresentationView,
+    type BindSection,
+    type RunWorkspaceSectionKey,
   } from "../run-workspace-view";
   import { COMPLETENESS_STATUS_CLASSES } from "../run-workspace-completeness";
 
@@ -10,9 +12,9 @@
     readonly completeness: NonNullable<
       RunWorkspaceEquityPresentationView["advanced"]["completeness"]
     >;
-    readonly sectionKey: string;
+    readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { completeness, sectionKey, citeChips, bindSection }: Props = $props();

@@ -3,14 +3,16 @@
   import type {
     RunWorkspaceEquityPresentationView,
     RunWorkspaceGapsView,
+    BindSection,
+    RunWorkspaceSectionKey,
   } from "../run-workspace-view";
 
   interface Props {
     readonly gaps: Pick<RunWorkspaceGapsView, "shortfalls" | "triagedGaps">;
     readonly uppercaseTriage: boolean;
     readonly financialCoreStatus: RunWorkspaceEquityPresentationView["defaultView"]["financialCoreStatus"];
-    readonly sectionKey: string;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly sectionKey: RunWorkspaceSectionKey;
+    readonly bindSection: BindSection;
   }
 
   let { gaps, uppercaseTriage, financialCoreStatus, sectionKey, bindSection }: Props = $props();

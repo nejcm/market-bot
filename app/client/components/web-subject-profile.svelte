@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { formatDateMinute, type WebSubjectProfileView } from "../view-model";
+  import type { BindSection } from "../run-workspace-view";
 
   interface Props {
     readonly profile: WebSubjectProfileView;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: string) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { profile, citeChips, bindSection }: Props = $props();

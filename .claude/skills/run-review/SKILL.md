@@ -211,7 +211,7 @@ Check these explicitly before final ranking:
   - Check relative forecasts for benchmark redundancy: same primary subject and
     horizon against two broad-market benchmarks at near-identical probabilities
     restates one view. The enforced class lives in
-    `BROAD_US_INDEX_BENCHMARK_SYMBOLS` (`src/forecast/observable.ts`); a pair
+    `BROAD_US_INDEX_BENCHMARK_SYMBOLS` (`src/forecast/observable-redundancy.ts`); a pair
     that escaped it is a roster gap, not a missing gate.
 - Positive deltas: compare target fulfillment, informative forecast count,
   source-gap totals/classes, web-source usage, source integrity, report

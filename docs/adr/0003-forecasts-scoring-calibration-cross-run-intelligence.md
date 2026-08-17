@@ -171,8 +171,11 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 
 ## Implementation validation
 
-- `src/forecast/observable.ts` owns parsing, canonicalization, and expression shape.
-- `src/research/report-assembly.ts` applies subject gates, trims, shortfalls, and policy stamping.
+- `src/forecast/observable.ts` is the public entry; `observable-expression.ts` owns parsing,
+  canonicalization, and expression shape, `observable-shapes.ts` the per-shape rules,
+  `observable-candidates.ts` candidate resolution, and `observable-redundancy.ts` redundancy rejection.
+- `src/research/report-assembly.ts` applies subject trims and policy stamping;
+  `report-assembly-data-gaps.ts` owns the research prediction gate and data-gap reconciliation.
 - `src/report/prediction-shortfall.ts` owns shortfall derivation, validation, presentation text,
   and anchored legacy normalization for artifact and Console reads.
 - `src/research/orchestrator.ts` re-derives the shortfall immediately after Report Integrity Audit

@@ -424,7 +424,7 @@ as `semis`, `chip stocks`, or `ai infrastructure` to:
 
 ### Predictions
 
-`researchPredictionGate` in `src/research/report-assembly.ts` is the authority:
+`researchPredictionGate` in `src/research/report-assembly-data-gaps.ts` is the authority:
 
 - If no proxy resolved &rarr; 0 predictions, explicit gap.
 - If proxy resolved but no market snapshot for proxy &rarr; 0 predictions, gap.

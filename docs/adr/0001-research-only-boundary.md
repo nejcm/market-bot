@@ -48,14 +48,14 @@ Amendment: research-only enforcement applies to market-bot-authored and model-de
 Provenance-preserving third-party `report.sources[].title`, `summary`, and `snippet` text is outside
 the boundary because the boundary governs assertions market-bot makes, not attributed third-party
 evidence it cites. The exemption also includes source titles in the cited-source list rendered by
-`src/report/markdown.ts:renderSources`. The only other exempt projection today is the
+`src/report/markdown-primitives.ts:renderSources`. The only other exempt projection today is the
 source-labelled search entry built by `src/report-search-entries.ts:sourceCandidates`; adding
 another exempt projection requires an ADR amendment.
 
 The exemption is only from the research-only screen. Prompt-injection sanitization remains
 mandatory through `sanitizeOptionalWebText` and the news-path `sanitizeNewsSource`. Any source
 wording copied or synthesized into authored report fields remains subject to
-`src/report/schema.ts:assertSafeReportLanguage`. `src/sources/evidence-request-tools.ts:buildSecFilingSourceItem`
+`src/report/schema.ts:assertSafeReportLanguage`. `src/sources/sec-filing-item.ts:buildSecFilingSourceItem`
 puts sanitized filing-packet text in exempt `Source.snippet` and an excerpt of those same bytes in
 gated `extendedEvidence[].summary`; `src/research/extended-evidence-projections.ts:webSubjectProfileExtra`
 projects model-derived profile text into scanned extras. `assertSafeReportLanguage` covers authored

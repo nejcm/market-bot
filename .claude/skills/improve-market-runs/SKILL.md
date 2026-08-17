@@ -107,7 +107,7 @@ The orchestrator selects at most the top two fixable findings (excluding `skip`)
 - **Packet in:** changed files and which findings they target, plus the verification recipe below.
 - **Task:**
   - Run focused tests for the touched code first.
-  - For equity pipeline or prompt/model-stage changes, use the static equity fixture suite from `docs/testing.md` to reduce live-data variance: `bun test tests/equity-fixture-run.test.ts`; run `bun run scripts/replay-fixture-run.ts equity-aapl-deep --live` only when judging prompt/model behavior against fixed inputs and live model cost is acceptable.
+  - For equity pipeline or prompt/model-stage changes, use the static equity fixture suite from `docs/testing.md` to reduce live-data variance: `bun test tests/equity-fixture/run.test.ts`; run `bun run scripts/replay-fixture-run.ts equity-aapl-deep --live` only when judging prompt/model behavior against fixed inputs and live model cost is acceptable.
   - Run `bun run check` (fmt + lint + fmt:check + typecheck + test:coverage) at stable completion. If too expensive mid-loop, defer to the final iteration and say so.
   - Stop after three failed attempts on the same failure and report the blocker; do not bypass hooks or CI.
 - **Return contract:** verifier model path/family, whether it is independent from the builder family, commands run and pass/fail each, the blocker if any, and any deferred check.

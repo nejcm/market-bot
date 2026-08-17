@@ -78,8 +78,7 @@ without pretending the project has a global security master.
 - `MarketSnapshot.observedAt` is the request fetch time, not the quote's own timestamp. An
   upstream-cached prior-session price therefore carries a fresh-looking `observedAt`, so no consumer
   can establish quote freshness from it. `observedAt` is not redefined to fix this: both meanings are
-  live on the one field, and `buildSourceList` (`src/research/report-assembly.ts:188`, `:199`,
-  `:211`) renames it to `Source.fetchedAt` in `report.json`, where fetch time is the correct and
+  live on the one field, and `buildSourceList` (`src/research/report-assembly.ts`) renames it to `Source.fetchedAt` in `report.json`, where fetch time is the correct and
   intended meaning.
 - Instead, `MarketSnapshot.quoteTimeUtc` optionally carries the provider's own quote timestamp as an
   ISO 8601 UTC string. Yahoo populates it from `regularMarketTime` (epoch seconds) at the single

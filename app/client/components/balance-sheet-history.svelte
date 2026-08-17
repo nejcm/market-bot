@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { RunWorkspaceBalanceSheetHistoryView, RunWorkspaceSectionKey } from "../run-workspace-view";
+  import type { RunWorkspaceBalanceSheetHistoryView, BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly history: RunWorkspaceBalanceSheetHistoryView;
     readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { history, sectionKey, citeChips, bindSection }: Props = $props();

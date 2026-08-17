@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { RunWorkspacePeerImpliedRangeView, RunWorkspaceSectionKey } from "../run-workspace-view";
+  import type { RunWorkspacePeerImpliedRangeView, BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
   import RangeBar from "./range-bar.svelte";
 
   interface Props {
     readonly range: RunWorkspacePeerImpliedRangeView;
     readonly sectionKey: RunWorkspaceSectionKey;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { range: peerImpliedRange, sectionKey, bindSection }: Props = $props();

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { SnapshotView } from "../view-model";
-  import type { RunWorkspaceSectionKey } from "../run-workspace-view";
+  import type { BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
   import PriceSnapshotChart from "./price-snapshot-chart.svelte";
 
   interface Props {
@@ -8,7 +8,7 @@
     readonly snapshotTradingViewUrl?: string | undefined;
     readonly forecastHorizons: readonly number[];
     readonly sectionKey: RunWorkspaceSectionKey;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let {

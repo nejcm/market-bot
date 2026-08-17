@@ -3,6 +3,7 @@
   import type {
     RunWorkspaceEquityPresentationView,
     RunWorkspaceGapsView,
+    BindSection,
     RunWorkspaceSectionKey,
   } from "../run-workspace-view";
 
@@ -11,7 +12,7 @@
     readonly uppercaseTriage: boolean;
     readonly financialCoreStatus: RunWorkspaceEquityPresentationView["defaultView"]["financialCoreStatus"];
     readonly sectionKey: RunWorkspaceSectionKey;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { gaps, uppercaseTriage, financialCoreStatus, sectionKey, bindSection }: Props = $props();

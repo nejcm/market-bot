@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { RunWorkspaceAnalystEstimateDistribution, RunWorkspaceSectionKey } from "../run-workspace-view";
+  import type { RunWorkspaceAnalystEstimateDistribution, BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly distributions: readonly RunWorkspaceAnalystEstimateDistribution[];
     readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
     readonly sectionHeading: Snippet<[string]>;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { distributions, sectionKey, citeChips, sectionHeading, bindSection }: Props = $props();

@@ -2,14 +2,14 @@
   import type { Snippet } from "svelte";
   import type { ExtendedEvidenceItemView } from "../../report-artifact-view";
   import { valuationMetricTiles } from "../view-model";
-  import type { RunWorkspaceSectionKey } from "../run-workspace-view";
+  import type { BindSection, RunWorkspaceSectionKey } from "../run-workspace-view";
 
   interface Props {
     readonly items: readonly ExtendedEvidenceItemView[];
     readonly sectionKey: RunWorkspaceSectionKey;
     readonly citeChips: Snippet<[readonly string[]]>;
     readonly sectionHeading: Snippet<[string]>;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
   }
 
   let { items, sectionKey, citeChips, sectionHeading, bindSection }: Props = $props();

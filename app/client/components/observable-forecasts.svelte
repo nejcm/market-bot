@@ -7,7 +7,7 @@
     PredictionTargetHealth,
     ScoredForecast,
   } from "../../report-artifact-view";
-  import type { RunWorkspaceSectionKey } from "../run-workspace-view";
+  import type { BindSection } from "../run-workspace-view";
 
   interface Props {
     readonly forecastItems: readonly ScoredForecast[];
@@ -17,7 +17,7 @@
     readonly assetClass: string;
     readonly compact?: boolean;
     readonly citeChips: Snippet<[readonly string[]]>;
-    readonly bindSection: (key: RunWorkspaceSectionKey) => (el: HTMLElement) => void;
+    readonly bindSection: BindSection;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
   }
 

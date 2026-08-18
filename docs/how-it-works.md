@@ -53,7 +53,6 @@ bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts equity AAPL
 bun run src/cli.ts crypto BTC
 bun run src/cli.ts research AI biotech
-bun run src/cli.ts research semis --deep
 bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score
 bun run src/cli.ts calibration
@@ -71,7 +70,7 @@ market-bot market-overview --asset equity
 market-bot market-overview --asset crypto --horizon 15 --deep
 market-bot equity AAPL --deep
 market-bot crypto BTC --deep
-market-bot research AI biotech --deep
+market-bot research AI biotech
 market-bot alpha-search --asset equity --deep
 market-bot score
 market-bot calibration

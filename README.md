@@ -88,8 +88,8 @@ market-bot market-overview --asset equity
 | `market-overview --asset equity\|crypto [--horizon days] [prompt]` | Market overview with predictions; optional `--deep`; `daily` / `weekly` remain deprecated aliases; prompt text steers spotlight selection and final synthesis |
 | `equity <SYMBOL>`                                                  | Single-instrument equity brief; `--deep` adds deterministic SEC/Tradier/peer packets + Coverage Panel                                                         |
 | `crypto <SYMBOL>`                                                  | Single-instrument crypto brief; `--deep` adds Coverage Panel                                                                                                  |
-| `research <subject> [--deep]`                                      | Equity thematic research; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions                              |
-| `alpha-search --asset equity`                                      | Research Leads only — no predictions or calibration side effects; later `score` runs update alpha validation artifacts                                        |
+| `research <subject>`                                               | Equity thematic research, always deep; registry hits with a listed proxy emit proxy-only predictions, unresolved subjects emit no predictions                 |
+| `alpha-search --asset equity [--deep]`                             | Research Leads only — no predictions or calibration side effects; later `score` runs update alpha validation artifacts                                        |
 | `score`                                                            | Resolve due predictions across prior runs                                                                                                                     |
 | `calibration`                                                      | Rebuild calibration summary + print reliability dashboard                                                                                                     |
 | `index rebuild`                                                    | Bootstrap / rebuild SQLite Run Artifact Index                                                                                                                 |
@@ -106,7 +106,7 @@ bun run src/cli.ts market-overview --asset equity
 bun run src/cli.ts market-overview --asset crypto --horizon 15 --deep
 bun run src/cli.ts equity AAPL --deep
 bun run src/cli.ts crypto BTC
-bun run src/cli.ts research AI biotech --deep
+bun run src/cli.ts research AI biotech
 bun run src/cli.ts alpha-search --asset equity
 bun run src/cli.ts score
 bun run src/cli.ts calibration
@@ -160,7 +160,7 @@ bun run src/cli.ts market-overview --asset equity
 | Coverage panel              | No                      | Yes — two concurrent role stages before critique            |
 | Deterministic packets       | No                      | Yes — equity only; target SEC, Tradier IV, and peer packets |
 | Alpha search pages          | Brief limit             | Deep page limit                                             |
-| Thematic research forecasts | Proxy-only, if resolved | Proxy-only, with a higher non-direction forecast mix target |
+| Thematic research forecasts | n/a — always deep       | Proxy-only, if resolved, with a higher non-direction mix    |
 
 ## Configuration
 
@@ -170,7 +170,7 @@ Copy [`.env.example`](./.env.example) to `.env` and set the variables you need. 
 
 ```
 data/
-  runs/<run-id>/          report.json, report.md, score.json, normalized/, trace.json
+  runs/<run-id>/          report.json, report.md, score.json, analytics.json, stages.json, trace.json, normalized/, raw/
   calibration/            summary.json, summary.md
   index.sqlite            derived Run Artifact Index (optional, rebuildable)
   history/                derived search index + instrument timelines
@@ -181,7 +181,7 @@ data/
 ## Development
 
 ```sh
-bun run check    # fmt + lint + fmt:check + typecheck + test — must pass before merge
+bun run check    # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage — must pass before merge
 bun test
 bun run typecheck
 bun run lint

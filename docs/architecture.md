@@ -7,25 +7,31 @@
 ```
 src/
   app.ts              CLI glue (dispatches by jobType)
-  cli/args.ts         Argument parsing
+  cli/args.ts         Argument parsing; cli/job-registry.ts for the CliCommand union and job shapes
   config.ts           Env-driven AppConfig
   config/runs/        Typed per-run-profile config (model, sampling knobs, depth profile)
   domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
   forecast/           Observable forecast contract: parser, expression shape, resolver
   model/              OpenAI / OpenAI-compatible / Codex / Anthropic providers
   movers/             Deterministic mover ranking and screener dedupe
-  report/             Report schema (zod) + markdown renderer
+  report/             Report schema (hand-rolled type guards) + markdown renderer
   alpha-search/       Equity lead discovery, listed-universe filtering, validation
   research/           Orchestrator, prompt loader, history, Market Spotlights, Domain Playbooks, regime summary
                       subject-registry.ts for checked-in research subject proxy resolution
   history/            Derived Historical Research Context indexes, search, and thesis deltas
-  run-artifact-index.ts Derived SQLite Run Artifact Index (query layer over disk artifacts)
+  deep-equity/        Deterministic deep-equity acquisition recipe, SEC/Tradier packets, artifact schema
+  health/             Provider-health validation report over persisted runs
+  run-artifacts.ts      Single read seam over persisted runs; run-artifact-*.ts writer, layout,
+                      projection, value guards, and per-sidecar readers
+  run-artifact-index.ts Derived SQLite Run Artifact Index (query layer over disk artifacts;
+                      run-artifact-index-*.ts for schema, rows, freshness, and repair)
   scoring/            Score pass, Observation fetching, close cache, calibration aggregator
   sources/            Provider modules, normalized source adapters, collector with retry/backoff/cache,
                       web gather provider execution (Exa/Firecrawl tools, emit, rejection reasons)
   web-evidence/       Web Evidence package: gather-loop orchestration and policy, Web Subject Profile
                       contract and reuse, web source usage; public index plus dependency-neutral contract leaf
 prompts/              Stage prompt files and checked-in Domain Playbooks
+scripts/              Coverage floor, fixture record/replay, and provider probe scripts
 tests/                Bun test suites
 app/                  Local Svelte + Bun Research Console App
 docs/adr/             Architecture decision records
@@ -218,7 +224,7 @@ Structured Prediction shortfalls render last among Material Gaps without a machi
 
 ### Research Console App (`app/`)
 
-A local, research-only Svelte 5 SPA (`app/client/`) served by a Bun HTTP API (`app/server.ts`). The server reads run artifacts from `MARKET_BOT_DATA_DIR` (list/search via the Run Artifact Index with disk fallback) and exposes: `/api/runs`, `/api/runs/:id`, `/api/runs/:id/files`, `/api/search`, `/api/jobs` (same-origin POST queues whitelisted CLI jobs), `/api/provider-health`, and `/api/calibration` (both read data-root `summary.{json,md}` siblings).
+A local, research-only Svelte 5 SPA (`app/client/`) served by a Bun HTTP API (`app/server.ts`). The server reads run artifacts from `MARKET_BOT_DATA_DIR` (list/search via the Run Artifact Index with disk fallback) and exposes: `/api/runs`, `/api/runs/:id`, `/api/runs/:id/files`, `/api/search`, `/api/jobs` (same-origin POST queues whitelisted CLI jobs), `/api/runs/:id/chat` (Run Chat), `/api/alpha-cohorts`, `/api/instruments/:assetClass/:symbol/timeline`, `/api/provider-health`, and `/api/calibration` (both read data-root `summary.{json,md}` siblings).
 
 Views: dashboard (metrics, runs-per-day chart, recent runs), run workspace, search, jobs, calibration, and provider health. The run workspace joins each run's `score.json` to its observable forecasts — hit/miss/pending badges with resolution evidence in neutral observation language — and joins `miss-autopsy.json` when present to show material forecast-error taxonomy without changing outcome badge semantics. `app/client/run-workspace-view.ts` projects a `RunDetail` into the report, forecast, evidence, gap, source, verified-snapshot, and table-of-contents sections; the Svelte component retains interaction state and rendering. For instrument runs that persisted `normalized/verified-market-snapshot.json` ([ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)), it renders a recent-closes chart with latest indicator values and forecast-horizon ticks. The calibration view shows resolved policy-v3 count, hit rate, Brier score, explicit sample-size warnings, a reliability chart over sparse bins, Miss Autopsy taxonomy counts, and slice tables; the quality-of-forecasts framing lives only there, never in per-run outcome badges.
 
@@ -237,7 +243,7 @@ per-section components under `app/client/components/`, each taking its table-of-
 The view model retains the full collected artifact. Equity Prediction shortfalls remain the last Material Gap in the
 Default View; non-equity runs render the same structured counts in a dedicated Shortfall block.
 
-Client conventions: loose `Record<string, unknown>` payloads at the wire, validated by type guards in `app/client/api.ts`, parsed by pure functions in `app/client/view-model.ts` / `app/report-artifact-view.ts`; hand-rolled SVG charts (no chart dependency). The console stays read-only over artifacts and adds no trade-action surface.
+Client conventions: loose `Record<string, unknown>` payloads at the wire, validated by type guards in `app/client/api.ts`, parsed by pure functions in `app/client/view-model.ts` / `app/report-artifact-view.ts`; hand-rolled SVG charts, with `lightweight-charts` used only for the price snapshot chart. The console stays read-only over artifacts and adds no trade-action surface.
 
 ## Data flow
 
@@ -252,7 +258,7 @@ CLI args → AppConfig → pre-run score + index repair (best-effort) → collec
                                       ├─ market update delta (market overview)
                                       └─ predictions
                                               ↓
-                                       report (zod-validated)
+                                       report (schema-validated)
                                               ↓
                                   artifacts written to data/runs/<id>/
                                               ↓

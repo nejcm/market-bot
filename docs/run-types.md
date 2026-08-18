@@ -21,7 +21,7 @@ CLI parser normalizes new `daily` / `weekly` invocations into canonical
 | `equity`          | implied equity         | yes        | yes        | yes        | yes          | yes              |
 | `crypto`          | implied crypto         | yes        | yes        | yes        | no           | yes              |
 | `alpha-search`    | fixed `--asset equity` | yes        | no         | no         | no           | no               |
-| `research`        | implied equity         | yes        | no         | yes        | no           | yes              |
+| `research`        | implied equity         | no         | no         | yes        | no           | yes              |
 
 Operational commands (`score`, `calibration`, `cache-prune`, `provider-health`,
 `history-*`, `index-rebuild`) are not research run types.

@@ -8,18 +8,6 @@
 
 <!-- "Closes #123", "Refs #456", or none. -->
 
-## Type
-
-<!-- Check one. Conventional Commits type should match. -->
-
-- [ ] `feat` — new capability
-- [ ] `fix` — bug fix
-- [ ] `refactor` — no behavior change
-- [ ] `perf` — performance
-- [ ] `docs` — documentation only
-- [ ] `test` — tests only
-- [ ] `chore` / `ci` — tooling
-
 ## Research-only boundary
 
 - [ ] No buy/sell calls, position sizing, or execution language.

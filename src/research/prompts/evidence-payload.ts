@@ -77,8 +77,9 @@ const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSou
 
 // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
 // The full bar series stays on disk (rawSnapshots / normalized sidecar).
-const projectVerifiedMarketSnapshot: EvidenceProjector = (_options, _command, collectedSources) =>
-  collectedSources.verifiedMarketSnapshot !== undefined
+// The profile validator allowlist only admits web sources and company SEC filings; a snapshot citation would null the whole profile item.
+const projectVerifiedMarketSnapshot: EvidenceProjector = (options, _command, collectedSources) =>
+  options.webSourceText !== "profile" && collectedSources.verifiedMarketSnapshot !== undefined
     ? {
         verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
         verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(

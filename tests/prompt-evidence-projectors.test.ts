@@ -19,6 +19,7 @@ import {
   verifiedMarketSnapshot as verifiedSnapshotFixture,
 } from "./support/fixtures";
 import { config, researchContext, stagePromptFromArgs } from "./support/research-context-helpers";
+import { verifiedSnapshotCitationRule } from "../src/research/verified-snapshot-contract";
 
 function evidenceFor(
   command: ResearchCommand,
@@ -154,7 +155,25 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
 
     expect(evidence.verifiedMarketSnapshot).toEqual(verifiedSnapshotValue);
     expect(evidence.verifiedMarketSnapshotSourceId).toBeDefined();
-    expect(evidence.verifiedMarketSnapshotCitationRule).toBeDefined();
+    expect(evidence.verifiedMarketSnapshotCitationRule).toBe(verifiedSnapshotCitationRule("AAPL"));
+  });
+
+  test("profile-stage snapshot projector omits non-citable snapshot data", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const evidence = evidenceFor(
+      command,
+      { verifiedMarketSnapshot: verifiedSnapshotValue },
+      "web-subject-profile",
+    );
+
+    expect(evidence).not.toHaveProperty("verifiedMarketSnapshot");
+    expect(evidence).not.toHaveProperty("verifiedMarketSnapshotSourceId");
+    expect(evidence).not.toHaveProperty("verifiedMarketSnapshotCitationRule");
   });
 
   test("representative snapshot projector contributes research snapshot list", () => {

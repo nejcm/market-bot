@@ -182,6 +182,9 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
     expect(result.report.dataGaps).toContain("No usable market data snapshots were collected");
     expect(result.report.dataGaps).toContain("No usable news sources were collected");
     expect(result.report.dataGaps).toContain("yahoo: source request failed with status 500");
+    expect(result.trace.evidenceQualityAssessment?.advisoryReasons).toContain(
+      "supplemental-market: evidence missing or unusable",
+    );
     expect(result.trace.predictionCompletion).toBeUndefined();
   });
 

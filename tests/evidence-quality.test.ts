@@ -112,13 +112,14 @@ describe("deterministic evidence quality", () => {
     ).toBe("medium");
   });
 
-  test("emits rubric version 2 for the current grading contract", () => {
+  test("emits rubric version 3 for the current grading contract", () => {
     const assessment = assessEvidenceQuality(
       planning([{ lane: "market-data", evidenceClass: "core" }]),
       generatedAt,
     );
-    expect(assessment.rubricVersion).toBe(2);
+    expect(assessment.rubricVersion).toBe(3);
     expect(assessment.version).toBe(1);
+    expect(assessment.advisoryReasons).toEqual([]);
   });
 
   test("supplemental gaps do not lower high", () => {
@@ -195,17 +196,41 @@ describe("deterministic evidence quality", () => {
     );
   });
 
-  test("unsupportable supplemental peer valuation does not lower the label", () => {
-    expect(
-      assessEvidenceQuality(
-        planning([
-          { lane: "market-data", evidenceClass: "core" },
-          { lane: "news", evidenceClass: "material", sourceCount: 2 },
-          { lane: "peer-valuation", evidenceClass: "supplemental", supportable: false },
-        ]),
-        generatedAt,
-      ).label,
-    ).toBe("high");
+  test("failed supplemental peer valuation is advisory without lowering the label", () => {
+    const assessment = assessEvidenceQuality(
+      planning([
+        { lane: "market-data", evidenceClass: "core" },
+        { lane: "news", evidenceClass: "material", sourceCount: 2 },
+        {
+          lane: "peer-valuation",
+          evidenceClass: "supplemental",
+          covered: false,
+          supportable: false,
+        },
+      ]),
+      generatedAt,
+    );
+
+    expect(assessment.label).toBe("high");
+    expect(assessment.limitingReasons).toEqual([]);
+    expect(assessment.advisoryReasons).toEqual(["peer-valuation: evidence missing or unusable"]);
+  });
+
+  test("covered but unsupportable supplemental peer valuation stays high", () => {
+    const assessment = assessEvidenceQuality(
+      planning([
+        { lane: "market-data", evidenceClass: "core" },
+        { lane: "news", evidenceClass: "material", sourceCount: 2 },
+        { lane: "peer-valuation", evidenceClass: "supplemental", supportable: false },
+      ]),
+      generatedAt,
+    );
+    const peerValuation = assessment.checks.find((check) => check.capability === "peer-valuation");
+
+    expect(assessment.label).toBe("high");
+    expect(peerValuation?.coverage).toBe("pass");
+    expect(peerValuation?.passed).toBe(true);
+    expect(assessment.advisoryReasons).toEqual([]);
   });
 
   test("provider identity does not affect capability assessment", () => {

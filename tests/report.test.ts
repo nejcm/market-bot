@@ -2102,6 +2102,7 @@ describe("report schema and rendering", () => {
         label: "high",
         checks: [],
         limitingReasons: [],
+        advisoryReasons: [],
       },
     };
     const assembled = assembleResearchReport({

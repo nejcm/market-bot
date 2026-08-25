@@ -316,7 +316,7 @@
     "label": "medium",
     "assessment": {
       "version": 1,
-      "rubricVersion": 2,
+      "rubricVersion": 3,
       "label": "medium",
       "checks": [
         {
@@ -423,6 +423,12 @@
         "corporate-events: evidence missing or unusable",
         "macro-indicators: evidence missing or unusable",
         "target-valuation: evidence missing or unusable"
+      ],
+      "advisoryReasons": [
+        "supplemental-market: evidence missing or unusable",
+        "derivatives-volatility: evidence missing or unusable",
+        "peer-valuation: evidence missing or unusable",
+        "subject-profile: evidence missing or unusable"
       ]
     },
     "dataGapCount": 28,

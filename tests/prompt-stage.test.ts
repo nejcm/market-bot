@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ResearchCommand } from "../src/cli/args";
 import { buildDepthProfile } from "../src/research/depth-profile";
+import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 import {
   config,
@@ -498,6 +499,40 @@ describe("buildStagePrompt", () => {
 
     expect(parsed.evidence?.deterministicCitationGuidance).toContain("exact numeric market claims");
     expect(parsed.evidence?.deterministicCitationGuidance).toContain("history-report-*");
+  });
+
+  test("scopes profile citation guidance to web sources", () => {
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
+    const sources = collectedSources({
+      rawSnapshots: [],
+      marketSnapshots: [marketSnapshot()],
+      newsSources: [newsSource()],
+      sourceGaps: [],
+    });
+    const context = contextWithHistory(command);
+
+    const profileGuidance = buildEvidencePayload(
+      { includePriorCalibration: false, webSourceText: "profile" },
+      command,
+      sources,
+      config,
+      context,
+    ).deterministicCitationGuidance as string;
+    const finalSynthesisGuidance = buildEvidencePayload(
+      { includePriorCalibration: true, webSourceText: "fresh-only" },
+      command,
+      sources,
+      config,
+      context,
+    ).deterministicCitationGuidance as string;
+
+    expect(profileGuidance).not.toContain("deterministic snapshot sourceIds");
+    expect(profileGuidance).toContain("evidence.webSources");
+    expect(profileGuidance).toContain("numeric KPI claims");
+    expect(finalSynthesisGuidance).toContain("exact numeric market claims");
   });
 
   test("adds warn-only post-synthesis audit guidance to final synthesis", () => {

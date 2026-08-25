@@ -35,6 +35,11 @@ export {
 } from "./observable-expression";
 
 export {
+  MAX_PREDICTION_HORIZON_TRADING_DAYS,
+  MIN_PREDICTION_HORIZON_TRADING_DAYS,
+} from "./observable-candidates";
+
+export {
   BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_CLASS,

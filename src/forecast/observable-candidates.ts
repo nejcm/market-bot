@@ -16,6 +16,9 @@ import {
   subjectForExpression,
 } from "./observable-expression";
 
+export const MIN_PREDICTION_HORIZON_TRADING_DAYS = 1;
+export const MAX_PREDICTION_HORIZON_TRADING_DAYS = 20;
+
 function validateProjection(
   id: string,
   kind: PredictionKind,
@@ -105,10 +108,14 @@ export function resolveCandidate(
   if (
     horizonTradingDays === undefined ||
     !Number.isInteger(horizonTradingDays) ||
-    horizonTradingDays < 1 ||
-    horizonTradingDays > 20
+    horizonTradingDays < MIN_PREDICTION_HORIZON_TRADING_DAYS ||
+    horizonTradingDays > MAX_PREDICTION_HORIZON_TRADING_DAYS
   ) {
-    return issue("invalid-horizon", `Prediction ${id}: horizonTradingDays must be 1–20`, id);
+    return issue(
+      "invalid-horizon",
+      `Prediction ${id}: horizonTradingDays must be ${MIN_PREDICTION_HORIZON_TRADING_DAYS}–${MAX_PREDICTION_HORIZON_TRADING_DAYS}`,
+      id,
+    );
   }
   if (
     probability === undefined ||

@@ -13,7 +13,9 @@ import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_CLASS,
+  MAX_PREDICTION_HORIZON_TRADING_DAYS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  MIN_PREDICTION_HORIZON_TRADING_DAYS,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
@@ -209,7 +211,7 @@ function predictionDslInstruction(
       clauses.push("iv(SUBJECT, +N) > T for IV");
     }
   }
-  return `Each prediction must use the measurableAs DSL: ${clauses.join(", ")}.`;
+  return `Each prediction must use the measurableAs DSL: ${clauses.join(", ")}. The legal range for N is ${MIN_PREDICTION_HORIZON_TRADING_DAYS}–${MAX_PREDICTION_HORIZON_TRADING_DAYS} trading days.`;
 }
 
 function withoutExcludedKinds(

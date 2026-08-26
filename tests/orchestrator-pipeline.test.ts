@@ -366,6 +366,8 @@ describe("runResearchJob pipeline stages", () => {
       baselineRunId: "prior-aapl-ticker",
       repeatedClaimCount: 1,
       unchangedProbabilityCount: 1,
+      changedProbabilityCount: 0,
+      maxAbsProbabilityDelta: 0,
     });
   });
 

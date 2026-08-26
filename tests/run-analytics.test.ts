@@ -1347,6 +1347,8 @@ describe("forecast persistence telemetry", () => {
         baselineRunId: "baseline-run",
         repeatedClaimCount: 2,
         unchangedProbabilityCount: 1,
+        changedProbabilityCount: 1,
+        maxAbsProbabilityDelta: 0.08,
       },
     });
 
@@ -1354,6 +1356,8 @@ describe("forecast persistence telemetry", () => {
       baselineRunId: "baseline-run",
       repeatedClaimCount: 2,
       unchangedProbabilityCount: 1,
+      changedProbabilityCount: 1,
+      maxAbsProbabilityDelta: 0.08,
     });
   });
 

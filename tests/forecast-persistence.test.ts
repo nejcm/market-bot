@@ -30,6 +30,12 @@ describe("buildForecastPersistence", () => {
           measurableAs: "close(IWM, +5) > close(IWM, 0)",
           probability: 0.55,
         }),
+        // Repeated claim, smaller revised probability after the largest delta.
+        prediction({
+          id: "pred-4",
+          measurableAs: "close(XLE, +5) > close(XLE, 0)",
+          probability: 0.53,
+        }),
       ],
     });
 
@@ -47,8 +53,61 @@ describe("buildForecastPersistence", () => {
       }),
     ).toEqual({
       baselineRunId: "baseline-run",
-      repeatedClaimCount: 2,
+      repeatedClaimCount: 3,
       unchangedProbabilityCount: 1,
+      changedProbabilityCount: 2,
+      maxAbsProbabilityDelta: 0.1,
+    });
+  });
+
+  test("reports the nearest rounded probability delta for a changed claim", () => {
+    const report = researchReport({
+      predictions: [
+        prediction({ measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.32 }),
+      ],
+    });
+
+    expect(
+      buildForecastPersistence({
+        report,
+        baseline: {
+          runId: "baseline-run",
+          predictions: [
+            { measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.5 },
+            { measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.24 },
+          ],
+        },
+      }),
+    ).toEqual({
+      baselineRunId: "baseline-run",
+      repeatedClaimCount: 1,
+      unchangedProbabilityCount: 0,
+      changedProbabilityCount: 1,
+      maxAbsProbabilityDelta: 0.08,
+    });
+  });
+
+  test("reports zero movement for an all-unchanged set", () => {
+    const report = researchReport({
+      predictions: [
+        prediction({ measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.24 }),
+      ],
+    });
+
+    expect(
+      buildForecastPersistence({
+        report,
+        baseline: {
+          runId: "baseline-run",
+          predictions: [{ measurableAs: "close(SPY, +5) > close(SPY, 0)", probability: 0.24 }],
+        },
+      }),
+    ).toEqual({
+      baselineRunId: "baseline-run",
+      repeatedClaimCount: 1,
+      unchangedProbabilityCount: 1,
+      changedProbabilityCount: 0,
+      maxAbsProbabilityDelta: 0,
     });
   });
 
@@ -69,6 +128,8 @@ describe("buildForecastPersistence", () => {
       baselineRunId: "baseline-run",
       repeatedClaimCount: 1,
       unchangedProbabilityCount: 1,
+      changedProbabilityCount: 0,
+      maxAbsProbabilityDelta: 0,
     });
   });
 
@@ -91,6 +152,8 @@ describe("buildForecastPersistence", () => {
       baselineRunId: "baseline-run",
       repeatedClaimCount: 1,
       unchangedProbabilityCount: 0,
+      changedProbabilityCount: 1,
+      maxAbsProbabilityDelta: 0.05,
     });
   });
 
@@ -106,6 +169,8 @@ describe("buildForecastPersistence", () => {
       baselineRunId: "baseline-run",
       repeatedClaimCount: 0,
       unchangedProbabilityCount: 0,
+      changedProbabilityCount: 0,
+      maxAbsProbabilityDelta: 0,
     });
   });
 });

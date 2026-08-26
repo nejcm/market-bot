@@ -5,6 +5,7 @@ import { readNewsSeenEntries } from "../src/sources/news-seen";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { collectedSources as collectedSourceBundle, newsSource } from "./support/fixtures";
 import { providerReturning } from "./support/mocks";
+import { readerDirectedAdviceClauses } from "./support/research-language-prompt";
 import {
   config,
   createDataDirRegistry,
@@ -151,7 +152,11 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
     const retryPrompt = finalPrompts[1] ?? {};
     expect(finalPrompts).toHaveLength(2);
-    expect(String(retryPrompt.reportLanguageRepair)).toContain("research-only");
+    const repair = String(retryPrompt.reportLanguageRepair);
+    const clauses = readerDirectedAdviceClauses('"');
+    expect(repair).toContain("research-only");
+    expect(repair).toContain(`${clauses.subject};`);
+    expect(repair).toContain(`${clauses.imperative}.`);
     expect(result.trace.reportValidationRetryErrors?.[0]).toContain("trade-action language");
     expect(result.report.summary).not.toContain("investors should");
   });

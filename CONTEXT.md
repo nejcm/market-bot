@@ -174,6 +174,10 @@ Artifact-backed prompt and user-facing context from prior reports, Sources, Pred
 
 Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`: Research View, scores, and normalized snapshots. Later runs and history read it; Source Providers are never refetched for it.
 
+## Failed Run Artifact
+
+Persisted diagnostics from a run whose final synthesis never produced a valid Research View. `failure.json` marks a complete Failed Run Artifact; `rejected-report.json`, `stages.json`, normalized evidence, and raw snapshots preserve the rejection context, while `report.json` is deliberately absent.
+
 ## Fixture Run
 
 Engineering-only deterministic test/eval run using real orchestration with HTTP/model boundaries replaced by cassettes or a live eval model.

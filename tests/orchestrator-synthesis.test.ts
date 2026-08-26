@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { sourceGap } from "../src/domain/source-gaps";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
+import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
 import { readNewsSeenEntries } from "../src/sources/news-seen";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { collectedSources as collectedSourceBundle, newsSource } from "./support/fixtures";
@@ -187,8 +188,9 @@ describe("runResearchJob synthesis retry and source gaps", () => {
       },
     };
 
-    await expect(
-      runResearchJob({
+    let rejection: unknown;
+    try {
+      await runResearchJob({
         command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
         config,
         provider,
@@ -199,10 +201,22 @@ describe("runResearchJob synthesis retry and source gaps", () => {
           sourceGaps: [],
         }),
         now: new Date("2026-05-19T00:00:00.000Z"),
-      }),
-    ).rejects.toThrow(
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(FinalSynthesisRejectedError);
+    const rejected = rejection as FinalSynthesisRejectedError;
+    expect(rejected.message).toMatch(
       /Report failed validation after 4 final-synthesis call\(s\) \(3 report-repair reprompt\(s\)\)/u,
     );
+    expect(rejected.stageOutputs).toHaveLength(4);
+    expect(rejected.stageOutputs.map((output) => output.attempt)).toEqual([1, 2, 3, 4]);
+    expect(rejected.reportValidationErrors).toHaveLength(1);
+    expect(rejected.reportValidationErrors[0]).toContain("trade-action language");
+    expect(rejected.predictionErrors).toEqual([]);
+    expect(rejected.payload).toEqual(JSON.parse(violatingReport));
     // Initial synthesis + one report-validation reprompt + two bounded repair reprompts.
     expect(finalCalls).toBe(4);
   });

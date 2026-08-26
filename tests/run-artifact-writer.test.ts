@@ -11,7 +11,9 @@ import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
 import {
   buildAlphaSearchManifest,
+  buildFailedRunManifest,
   buildResearchRunManifest,
+  persistFailedRunArtifactWrites,
   persistRunArtifactWrites,
   type ResearchRunManifestResult,
 } from "../src/run-artifact-writer";
@@ -184,6 +186,44 @@ function result(overrides: Partial<ResearchRunManifestResult> = {}): ResearchRun
     sourceLedger,
     ...overrides,
   };
+}
+
+function failedManifest() {
+  return buildFailedRunManifest({
+    command: equityCommand,
+    runId: "run-1",
+    generatedAt: GENERATED_AT,
+    failedAt: GENERATED_AT,
+    message: "Report failed validation",
+    reportValidationErrors: ["Report contains trade-action language"],
+    predictionErrors: [],
+    totalCalls: 4,
+    reportRepairReprompts: 3,
+    stageOutputs: [
+      {
+        stage: "final-synthesis",
+        content: '{"summary":"Readers should buy shares."}',
+        tokenEstimate: 100,
+        costEstimateUsd: 0.01,
+        attempt: 4,
+      },
+    ],
+    payload: { summary: "Readers should buy shares." },
+    collectedSources: result().collectedSources,
+    historicalContext,
+    sourcePlan,
+    evidenceLanes,
+    sourceLedger,
+    evidenceQuality: {
+      version: 1,
+      rubricVersion: 3,
+      label: "low",
+      checks: [],
+      limitingReasons: [],
+      advisoryReasons: [],
+    },
+    codeVersion: { dirty: false },
+  });
 }
 
 function filesOf(writes: ReturnType<typeof buildResearchRunManifest>): readonly string[] {
@@ -660,6 +700,69 @@ describe("run artifact writer manifests", () => {
         message: "SEC filing S-1 2026-05-18 did not map to a ticker (2 filings)",
       },
     ]);
+  });
+});
+
+describe("failed run manifest", () => {
+  test("contains diagnostics without completed report artifacts", () => {
+    const manifest = failedManifest();
+    const files = [...manifest.writes, manifest.failure].map((write) => write.file).toSorted();
+
+    expect(files).toEqual(
+      [
+        RUN_ARTIFACT_FILES.rawSnapshots,
+        RUN_ARTIFACT_FILES.marketSnapshots,
+        RUN_ARTIFACT_FILES.supplementalMarketSnapshots,
+        RUN_ARTIFACT_FILES.newsSources,
+        RUN_ARTIFACT_FILES.extendedSources,
+        RUN_ARTIFACT_FILES.sourceGaps,
+        RUN_ARTIFACT_FILES.sourcePlan,
+        RUN_ARTIFACT_FILES.evidenceLanes,
+        RUN_ARTIFACT_FILES.sourceLedger,
+        RUN_ARTIFACT_FILES.historicalContext,
+        RUN_ARTIFACT_FILES.webSubjectProfile,
+        RUN_ARTIFACT_FILES.extendedEvidence,
+        RUN_ARTIFACT_FILES.marketContext,
+        RUN_ARTIFACT_FILES.stages,
+        RUN_ARTIFACT_FILES.rejectedReport,
+        RUN_ARTIFACT_FILES.failure,
+      ].toSorted(),
+    );
+    expect(files).not.toContain(RUN_ARTIFACT_FILES.report);
+    expect(files).not.toContain(RUN_ARTIFACT_FILES.reportMarkdown);
+    expect(files).not.toContain(RUN_ARTIFACT_FILES.trace);
+    expect(files).not.toContain(RUN_ARTIFACT_FILES.analytics);
+    expect(manifest.failure.value).toMatchObject({
+      schemaVersion: 1,
+      phase: "final-synthesis",
+      languageViolations: [{ field: "summary", match: "buy shares" }],
+      cost: { tokenEstimate: 100, costEstimateUsd: 0.01 },
+      sourceGapsAsOf: "pre-synthesis",
+    });
+  });
+
+  test("writes failure.json last after awaiting diagnostic sidecars", async () => {
+    const manifest = failedManifest();
+    const calls: (readonly string[])[] = [];
+    let sidecarsComplete = false;
+
+    await persistFailedRunArtifactWrites(
+      { runDir: "run", rawDir: "raw", normalizedDir: "normalized" },
+      manifest,
+      async (_artifacts, writes) => {
+        if (writes[0]?.file === RUN_ARTIFACT_FILES.failure) {
+          expect(sidecarsComplete).toBe(true);
+        } else {
+          await Promise.resolve();
+          sidecarsComplete = true;
+        }
+        calls.push(writes.map((write) => write.file));
+      },
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).not.toContain(RUN_ARTIFACT_FILES.failure);
+    expect(calls[1]).toEqual([RUN_ARTIFACT_FILES.failure]);
   });
 });
 

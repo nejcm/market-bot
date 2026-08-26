@@ -141,7 +141,8 @@ export interface RunAnalytics {
       readonly rejectedCount: number;
       readonly outcome:
         | "improved"
-        | "no-candidates-returned"
+        | "declined-empty"
+        | "no-parsable-candidates"
         | "all-candidates-rejected"
         | "failed";
     };

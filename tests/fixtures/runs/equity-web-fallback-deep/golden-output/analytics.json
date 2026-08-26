@@ -559,7 +559,7 @@
       "initialCount": 2,
       "acceptedCount": 0,
       "rejectedCount": 0,
-      "outcome": "no-candidates-returned"
+      "outcome": "declined-empty"
     },
     "replacementAttempted": false,
     "byKind": {

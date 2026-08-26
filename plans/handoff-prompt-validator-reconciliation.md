@@ -10,8 +10,9 @@
 ## Read this first
 
 Everything in PR #47 is reviewed, green, and mergeable. Phases A–E did not fix the thing that
-actually blocks a deep equity run; **phase F (`c3047fe`) does.** Read "The live finding" for the
-evidence and "Phase F" for what changed. No live run has yet confirmed the fix end to end.
+actually blocked a deep equity run; **phase F does, and a live run confirms it.**
+`equity AMD --deep` completed on 2026-08-26 — the first AMD deep run ever to do so. See
+"Live confirmation" below.
 
 ## What is done
 
@@ -124,6 +125,31 @@ were acted on:
 
 Not acted on, recorded as open items: the `dataGaps` laundering path (item 1) and an extras-key
 drift guard (item 8).
+
+## Live confirmation — `data/runs/2026-08-26T15-01-24-300Z-e6889971/`
+
+`bun run src/cli.ts equity AMD --deep`, run after F landed. **It completed.** The dir holds
+`report.json`, `report.md`, `score.json`, `analytics.json`, `stages.json`, `trace.json` — and no
+`failure.json`. Four prior AMD deep runs never got here.
+
+The sentence that killed the previous three is present in the artifact and passed validation:
+
+    .sources[37].snippet
+    .sources[38].snippet
+    .extendedEvidence.items[9].summary      <- same slot as the failed run
+
+Zero occurrences in `summary`, `keyFindings`, `bullCase`, `bearCase`, `risks`, `catalysts`, or
+`scenarios`. So the fix is confirmed on the exact failure, not a proxy for it: the filing text still
+arrives, still lands in `items[9]`, and is now exempt rather than fatal.
+
+It also **does not appear in `report.md`** at all, which softens open item 9 for this run — the
+reader-facing document never carries the sentence. Don't generalize that to every configuration; it
+was checked on one run.
+
+Run quality for the record: Evidence Quality medium, 22 data gaps, 16 source gaps, 2/5 prediction
+target (3 short), 8 evidence lanes covered / 3 gaps. Those are quality signals, not correctness
+ones, and are untouched by F. The run also printed `index database missing, skipping write-through`
+— open item 5, still unexercised.
 
 ## Other open items
 

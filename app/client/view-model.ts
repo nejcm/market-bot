@@ -1,4 +1,5 @@
 import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 
 export {
   extendedEvidenceItems,
@@ -148,6 +149,10 @@ export function jsonBlock(value: Record<string, unknown> | undefined): string {
 
 export function runCountsLabel(run: RunSummary): string {
   return `${String(run.findingCount)} fnd · ${String(run.predictionCount)} fct · ${String(run.dataGapCount)} gap`;
+}
+
+export function isFailedRun(run: RunSummary): boolean {
+  return run.availableFiles.includes(RUN_ARTIFACT_FILES.failure);
 }
 
 export function runPath(runId: string): string {

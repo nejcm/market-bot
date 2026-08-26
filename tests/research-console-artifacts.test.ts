@@ -31,6 +31,70 @@ function writeJson(path: string, value: unknown): void {
 }
 
 describe("research console app artifacts", () => {
+  test("reads typed Failed Run Artifact diagnostics", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "failed-run");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(join(runDir, RUN_ARTIFACT_FILES.failure), {
+      schemaVersion: 1,
+      runId: "failed-run",
+      generatedAt: "2026-08-26T04:00:00.000Z",
+      failedAt: "2026-08-26T04:01:00.000Z",
+      phase: "final-synthesis",
+      message: "Report failed validation after 4 final-synthesis call(s)",
+      reportValidationErrors: ["Unsafe language: buy"],
+      predictionErrors: ["Prediction shape invalid"],
+      totalCalls: 4,
+      reportRepairReprompts: 3,
+      languageViolations: [{ field: "summary", match: "buy" }],
+      evidenceQuality: {
+        version: 1,
+        rubricVersion: 3,
+        label: "low",
+        checks: [
+          {
+            capability: "financial-core",
+            evidenceClass: "core",
+            coverage: "fail",
+            freshness: "pass",
+            corroboration: "not-applicable",
+            passed: false,
+            reasons: ["coverage missing"],
+          },
+        ],
+        limitingReasons: ["financial-core"],
+        advisoryReasons: [],
+      },
+      cost: { tokenEstimate: 12_345, costEstimateUsd: 1.25 },
+    });
+
+    const detail = await readRunDetail(dataDir, "failed-run");
+
+    expect(detail?.failure).toMatchObject({
+      message: "Report failed validation after 4 final-synthesis call(s)",
+      totalCalls: 4,
+      reportRepairReprompts: 3,
+      languageViolations: [{ field: "summary", match: "buy" }],
+      evidenceQuality: { label: "low", limitingReasons: ["financial-core"] },
+      cost: { tokenEstimate: 12_345, costEstimateUsd: 1.25 },
+    });
+    expect(detail?.summary.availableFiles).toContain(RUN_ARTIFACT_FILES.failure);
+    expect(detail?.report).toBeUndefined();
+  });
+
+  test("keeps the Failed Run Artifact marker when diagnostics are malformed", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    const runDir = join(dataDir, "failed-malformed");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(join(runDir, RUN_ARTIFACT_FILES.failure), { schemaVersion: 2 });
+
+    const detail = await readRunDetail(dataDir, "failed-malformed");
+
+    expect(detail?.summary.availableFiles).toContain(RUN_ARTIFACT_FILES.failure);
+    expect(detail?.failure).toBeUndefined();
+    expect(detail?.report).toBeUndefined();
+  });
+
   test("projects deep-equity detail evidence from the bundle", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "deep-detail");

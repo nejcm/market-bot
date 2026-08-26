@@ -176,6 +176,25 @@ async function writeBaselineRuns(
 }
 
 describe("provider health", () => {
+  test("skips Failed Run Artifacts and their Source Gaps", async () => {
+    await writeRun({ runId: "completed", jobType: "equity", assetClass: "equity" });
+    await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.failure), {});
+    await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.sourceGaps), [
+      {
+        source: "failed-provider",
+        provider: "failed-provider",
+        message: "collection gap from rejected run",
+      },
+    ]);
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.runCount).toBe(1);
+    expect(summary.runsByJobType).toEqual({ equity: 1 });
+    expect(summary.gapOverview.total).toBe(0);
+    expect(summary.routes.map((route) => route.route)).not.toContain("failed-provider");
+  });
+
   test("reads deep-equity source gaps from the bundle and ignores legacy sidecars", async () => {
     const runDir = join(dataDir, "deep-bundle");
     const generatedAt = "2026-06-01T00:00:00.000Z";

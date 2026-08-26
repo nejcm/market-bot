@@ -1488,6 +1488,21 @@ describe("loadRunArtifact", () => {
 });
 
 describe("scanRunArtifacts", () => {
+  test("treats a Failed Run Artifact as report-absent", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "failed-run");
+    await writeJson(join(runDir, RUN_ARTIFACT_FILES.failure), { schemaVersion: 1 });
+
+    const loaded = await loadRunArtifact(runDir);
+    const scan = await scanRunArtifacts(dataDir);
+
+    expect(loaded).toEqual({ status: { report: "absent", score: "absent" } });
+    expect(scan.artifacts).toEqual([]);
+    expect(scan.entries).toEqual([
+      { runDirName: "failed-run", status: { report: "absent", score: "absent" } },
+    ]);
+  });
+
   test("returns ok artifacts and a status entry per directory", async () => {
     const dataDir = tempRunsDir();
     await writeJson(join(dataDir, "ok-1", "report.json"), researchReport({ runId: "ok-1" }));

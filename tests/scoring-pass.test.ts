@@ -1279,6 +1279,19 @@ describe("runScorePass Alpha validation", () => {
     expect(result).toMatchObject({ scored: 0, skipped: 1 });
   });
 
+  test("skips Failed Run Artifacts", async () => {
+    const runDir = join(tmpDir, "failed-run");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "failure.json"), "{}\n", "utf8");
+
+    const result = await runScorePass(tmpDir, new Date("2026-06-01T00:00:00.000Z"), {
+      refreshProviderHealth: async () => {},
+    });
+
+    expect(result).toEqual({ scored: 0, skipped: 1, touchedRunDirs: [] });
+    expect(existsSync(join(runDir, "score.json"))).toBe(false);
+  });
+
   test("skips alpha-search reports without research leads", async () => {
     const runDir = await writeRun(
       "alpha-run-empty",

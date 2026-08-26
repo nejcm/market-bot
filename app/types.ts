@@ -1,4 +1,9 @@
-import type { MarketSnapshot, SourceGap, VerifiedMarketSnapshot } from "../src/domain/types";
+import type {
+  EvidenceQualityAssessment,
+  MarketSnapshot,
+  SourceGap,
+  VerifiedMarketSnapshot,
+} from "../src/domain/types";
 import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
@@ -26,8 +31,28 @@ export interface RunSummary {
   readonly availableFiles: readonly string[];
 }
 
+export interface FailedRunArtifactFailure {
+  readonly generatedAt?: string;
+  readonly failedAt?: string;
+  readonly message?: string;
+  readonly reportValidationErrors?: readonly string[];
+  readonly predictionErrors?: readonly string[];
+  readonly totalCalls?: number;
+  readonly reportRepairReprompts?: number;
+  readonly languageViolations?: readonly {
+    readonly field: string;
+    readonly match: string;
+  }[];
+  readonly evidenceQuality?: EvidenceQualityAssessment;
+  readonly cost?: {
+    readonly tokenEstimate?: number;
+    readonly costEstimateUsd?: number;
+  };
+}
+
 export interface RunDetail {
   readonly summary: RunSummary;
+  readonly failure?: FailedRunArtifactFailure;
   readonly report?: Record<string, unknown>;
   readonly markdown?: string;
   readonly analytics?: Record<string, unknown>;

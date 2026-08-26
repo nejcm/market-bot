@@ -1,17 +1,17 @@
 # Handoff: prompt/validator reconciliation + failed-run diagnostics
 
 **Branch:** `prompt-validator-reconciliation` (pushed) · **PR:** [#47](https://github.com/nejcm/market-bot/pull/47), CI green, `MERGEABLE`/`CLEAN`
-**HEAD:** `7d5ee5e` · **Base:** `master`
-**Unfinished work:** local branch `wip/language-guard-scope` at `eb17089` — **local only, never pushed**
+**HEAD:** `590cdad`+ · **Base:** `master`
+**Superseded:** `wip/language-guard-scope` (`eb17089`) finished as `590cdad`; branch deleted, recoverable from reflog
 
 > `AGENTS.md` bans unsolicited planning docs. This one and
 > [prompt-validator-reconciliation.md](./prompt-validator-reconciliation.md) were both solicited.
 
 ## Read this first
 
-Everything in PR #47 is reviewed, green, and mergeable. **The headline finding is that none of it
-fixes the thing that actually blocks a deep equity run.** Read "The live finding" below before
-deciding what to do next; it changes what is worth working on.
+Everything in PR #47 is reviewed, green, and mergeable. Phases A–E did not fix the thing that
+actually blocks a deep equity run; **phase F (`c3047fe`) does.** Read "The live finding" for the
+evidence and "Phase F" for what changed. No live run has yet confirmed the fix end to end.
 
 ## What is done
 
@@ -27,6 +27,8 @@ commit. Details are in the PR body. Summary:
 | `6c9c5a2` | D — trade-action ban matched to the validator regex |
 | `063fda1` | E1 — Failed Run Artifact persisted when synthesis fails |
 | `7d5ee5e` | E2 — console surfaces failed runs, provider health skips them |
+| `176d774` | oxfmt the README depth table so `bun run check` stops dirtying a clean tree |
+| `590cdad` | F — research-only validation scoped to model-authored prose; ADR 0001 amended |
 
 ## The live finding — read before picking up anything
 
@@ -46,89 +48,121 @@ Artifact that answered the question:
   The three repair reprompts were structurally incapable of fixing it: they ask the model to rewrite
   text the model never wrote.
 
-`assertSafeReportLanguage` ([src/report/schema.ts:127](../src/report/schema.ts)) scans
-collector-derived evidence, so **any issuer whose filings carry reader-directed risk language can
-never produce a passing report.** That is the blocker. It is not caused by anything in PR #47 and is
-not fixed by it.
+`assertSafeReportLanguage` ([src/report/schema.ts](../src/report/schema.ts)) scanned
+collector-derived evidence, so **any issuer whose filings carried reader-directed risk language
+could never produce a passing report.** That was the blocker, caused by nothing in phases A–E.
+Fixed in `c3047fe`; see "Phase F" below.
 
 Reading anything under `data/runs/` is always allowed and free. Do not modify or delete it.
 
-## Next task: finish phase F
+## Phase F — done in `590cdad`, reviewed
 
-**Decision already made by the user — do not revisit it:** scope the language scan to
-**model-authored** fields. Rationale: the research-only boundary exists to stop *the system* from
-giving advice. Quoting a filing that says "you should consider these risks" is not market-bot
-advising anyone. Keep scanning everything the model writes.
+`assertSafeReportLanguage` now scans model-authored prose only. `src/domain/research-language.ts`
+is untouched; only what is fed to it changed. Every surface was classified against its producer:
 
-Starting point: `git show eb17089` (branch `wip/language-guard-scope`). It typechecks, `report.test.ts`
-passes, the ADR 0001 amendment is drafted — and **2 tests fail**. It has had no review.
+| Surface | Verdict | Evidence |
+|---|---|---|
+| `summary`, `keyFindings`, `bullCase`, `bearCase`, `risks`, `catalysts`, `scenarios` | scanned | final-synthesis model payload |
+| `extendedEvidence` | exempt | collector-derived filing/news text — the AMD case |
+| `researchQualityDriver` | exempt | deterministic, `src/research/quality-driver.ts` |
+| `extras.historicalContext` | exempt (whole) | `report-assembly.ts:historicalContextExtra` builds every field; `items[].text` quotes a prior run summary already gated on its own run. The wip kept this one; the audit dropped it. |
+| `extras.catalystCalendar` | exempt (whole) | `report-assembly.ts:catalystCalendarExtra` — catalyst labels *are* `report.catalysts[].text`, scanned at their own key; macro labels are collector titles; the rest are code templates |
+| `extras.earningsSetup` | bullets scanned, `gaps` exempt | model extras at `extended-evidence-projections.ts:116-121`; `gaps` code-owned at `:123-128` |
+| `extras.businessFramework` | `sections[].text` scanned, rest exempt | model text at `:70`; artifact `gaps`/`summary` at `:57,62-69` |
+| `extras.spotlights` | scanned, **widened** | both rationale fields are parsed model output (`spotlights.ts:371,377`); the selection-level `rationale` was previously unscanned |
+| `extras.webSubjectProfile` | scanned | model-parsed prose, `web-subject-profile.ts:274` |
+| any `*.gaps` | exempt | Source Gap strings emitted by code |
 
-    git checkout wip/language-guard-scope     # or cherry-pick eb17089
+Both collisions were resolved, neither by deleting a test:
 
-### The scan surface
+1. **`tests/evidence-request-tools.test.ts`** — the gate it asserted *was* the over-broad scan.
+   It required the same filing bytes to be exempt in `Source.snippet` and gated in
+   `extendedEvidence[].summary`. It now asserts both copies are exempt and that the same bytes
+   restated as `report.summary` still throw.
+2. **`tests/orchestrator-failure-persistence.test.ts`** — `languageViolations: []` has a new and
+   more accurate route: prose from an *earlier model stage* merged during assembly, absent from the
+   final-synthesis payload that per-field attribution scans. The Web Subject Profile is that case.
+   The explanatory comment at `src/run-artifact-writer.ts:325` was updated to match.
 
-`assertSafeReportLanguage` stringifies ten surfaces into one blob:
+Regression coverage runs both ways: a model-authored violation is rejected in each still-scanned
+surface, each exempt surface is proven not to throw, and the real AMD sentence is pinned as a
+fixture — clean in `extendedEvidence`, rejected in `summary` and `risks`, and passing end to end
+through `persistResearchJob`.
 
-    summary, keyFindings, bullCase, bearCase, risks, catalysts, scenarios   <- model-authored
-    researchQualityDriver          <- deterministic (src/research/quality-driver.ts)
-    extendedEvidence               <- collector-derived (proven above)
-    renderedExtras                 <- MIXED, needs a real audit
+ADR 0001 was amended in the same commit and `AGENTS.md` gained the matching clause. `bun run check`
+is green and leaves a clean tree.
 
-`renderedExtras` is the one requiring judgment: audit what `researchOnlyExtraText`
-([schema.ts:146](../src/report/schema.ts)) pulls out of `report.extras` and classify it **per field**,
-with file:line evidence. If a surface is deterministic scaffolding around model-authored prose, scan
-the model-authored part — do not drop a whole surface because one field inside it is quoted.
+### Review outcome
 
-Do **not** touch `src/domain/research-language.ts`. The patterns are correct; only what is fed to
-them changes.
+F was independently reviewed (fresh context, same model family as the author — not cross-family, so
+independence is reduced). Verdict: **no model-authored surface lost enforcement on any reachable
+production path**; every classification traced to a producer held up. It confirmed the
+`catalystCalendar` labels are literally the same array object as `report.catalysts`, and that the
+`webSubjectProfile` route to `languageViolations: []` is real rather than accidental. Four findings
+were acted on:
 
-### The two unresolved collisions
+1. **The bulk of F was committed under a message saying "chore: apply oxfmt".** A `cherry-pick -n`
+   left files staged and a later `git add README.md && git commit` swept the whole index in, so
+   `git log -S modelAuthoredExtraText` answered "a formatting chore". The six commits were rebuilt
+   as three honest ones (`176d774`, `590cdad`, this one) and force-pushed.
+2. **Sentence-initial trade verbs were unenforceable at the start of every scanned field** — before
+   F as well as after. `SENTENCE_INITIAL_TRADE_ACTION_PATTERN` needs `^` or `.!?;:\n` before the
+   verb; a `JSON.stringify` blob puts a `"` there, and it escapes real newlines besides. So
+   `summary = "Buy the dip ahead of the print."` passed. Verified against the real function, fixed
+   by joining the scanned strings with newlines, fleet-checked (77 artifacts, 0 newly flagged), and
+   pinned with tests. AGENTS.md had been advertising this as blocked.
+3. **The ADR's justification for dropping `extras.historicalContext` was wrong.** "Already gated on
+   its own run" does not hold — patterns widen over time (`6c9c5a2` did), so an older artifact was
+   never screened by a newer one. The real justification is stronger and already in the codebase:
+   prior-run prose is external ingress, sanitized as `provider: "historical-artifact"` in
+   `historical-context-sanitization.ts:24-35`. ADR corrected. Note the final-synthesis prompt still
+   asks the model to author a `historicalContext` object unconditionally; the exemption holds only
+   because the orchestrator always supplies the real one.
+4. **The closed-list governance clause had been dropped.** The pre-F ADR said adding an exempt
+   projection requires an amendment; the replacement said only "classify per field", which is advice
+   rather than a gate. Restored.
 
-Both are design questions, not defects. Neither may be resolved by deleting the test.
-
-1. **`tests/report.test.ts` — "gates the filing excerpt built from exempt SEC source text."**
-   Asserts SEC-derived excerpt text *is* gated. Someone wanted that gate. Decide whether it encodes a
-   real requirement F violates, or whether it is the same over-broad scan the AMD run disproved, and
-   say which.
-2. **`tests/orchestrator-failure-persistence.test.ts` — "records an empty draft violation list when
-   deterministic assembly is rejected."** This is E1's own off-path test; it drives a violation
-   through assembly output to prove `languageViolations: []` renders. Once assembly output is no
-   longer scanned, that rejection cannot happen. The `[]` case still needs coverage — it is the
-   signal that cracked this open — so it needs a *new route* to that state.
-
-### Guard against the obvious regression
-
-Removing scan coverage is how a research-only violation ships unnoticed.
-
-- Prove a model-authored violation in **each** still-scanned surface is still rejected.
-- Prove the AMD case passes: `extendedEvidence` item summary containing "you should consider ..."
-  validates cleanly, while the same phrase in `summary` or `risks` still throws.
-- Use the real sentence above as the fixture so the regression is pinned to reality.
-
-### ADR
-
-ADR 0001 ([docs/adr/0001-research-only-boundary.md](../docs/adr/0001-research-only-boundary.md)) is the
-record and must be amended in the same commit: the boundary is about what the system asserts, not
-what its sources say. A draft amendment is in `eb17089` — review it, do not assume it is right.
-Check whether `AGENTS.md`'s research-only section needs a clause about quoted source text.
+Not acted on, recorded as open items: the `dataGaps` laundering path (item 1) and an extras-key
+drift guard (item 8).
 
 ## Other open items
 
 Ranked. None blocking the PR.
 
-1. **`TICKER_TRADE_ACTION_PATTERN`** ([research-language.ts:24](../src/domain/research-language.ts))
+1. **`report.dataGaps` is model-authored and unscanned.** Found while reviewing F, pre-existing, not
+   a regression from it. It merges model `payload.dataGaps` with deterministic gap text at
+   [report-assembly.ts:761](../src/research/report-assembly.ts), and F's principle says the model
+   half should be scanned.
+
+   The fleet check that was blocking this is **done and clean**: 77 `report.json` artifacts under
+   `data/evaluations/`, 2,125 `dataGaps` entries, **0 research-only matches**. Nothing known would
+   newly fail. The scan script is disposable; it imported `violatesResearchOnly` and walked
+   `data/**/report.json`.
+
+   Review sharpened this: `dataGaps` is **not inert**. `partitionGapShapedFindings` and
+   `relocateBusinessFrameworkClaims` ([report-assembly.ts:128-188](../src/research/report-assembly.ts))
+   *move* uncited findings and business-framework text out of scanned fields into `dataGaps`. So a
+   model sentence like *"No guidance coverage for FY27; investors should treat the $250 price target
+   as unsupported."* is gap-shaped, gets relocated, and bypasses both the reader-directed and
+   valuation patterns — rendering as a Source Gap in `report.md`. Pre-existing, not caused by F.
+
+   Not implemented here deliberately: it can only *add* failures, and it deserves its own branch and
+   review rather than being bolted onto a mergeable PR. The fleet evidence says it is safe to do.
+
+   An earlier draft of this item also named `predictions[].claim` / `.measurableAs`. **That was
+   wrong** — `claim` is rendered from the parsed observable expression
+   ([observable-candidates.ts:172](../src/forecast/observable-candidates.ts)) and `measurableAs` is
+   a parsed DSL expression, not prose. Predictions need no screen. Corrected in the ADR.
+2. **`TICKER_TRADE_ACTION_PATTERN`** ([research-language.ts:24](../src/domain/research-language.ts))
    accepts a lowercase verb before any 1–5 uppercase letters, so `"OEMs buy AMD chips"` matches like
    `"Buy AMD"`. The second AMD run died on `"buy AMD"`, but that run persisted nothing, so **this is
    unconfirmed** — the phrase was never seen in context. If a future failed run reproduces it, check
    `rejected-report.json` before changing the pattern. ADR 0001 territory.
-2. **`--horizon` hard-codes `1-20`** ([src/cli/args.ts:84](../src/cli/args.ts)) — a third copy of the
+3. **`--horizon` hard-codes `1-20`** ([src/cli/args.ts:84](../src/cli/args.ts)) — a third copy of the
    bound phase A consolidated. Raising `MAX_PREDICTION_HORIZON_TRADING_DAYS` desyncs the CLI.
-3. **No baseline hash covers `prompts/*.md`.** `prompt-baseline-matrix.ts` hashes only
+4. **No baseline hash covers `prompts/*.md`.** `prompt-baseline-matrix.ts` hashes only
    `buildStagePrompt` output, so a prompt file can be rewritten with zero test signal. Nine prompt
    bases are unpinned.
-4. **`bun run check` dirties `AGENTS.md` and `README.md` on a clean tree.** Its `fmt` step writes, and
-   HEAD is not fmt-clean (`*recorder*` → `_recorder_` at AGENTS.md:49, README table padding). This has
-   cost several agents a bogus "unrelated file" detour. Cheap to fix at the source.
 5. **`src/app.ts:86-88` and `:94-96`** write to stderr unguarded inside `updateRunArtifactIndex`'s
    `.catch` handlers, so a simultaneous index failure and broken stderr masks the original error.
    Shared with the success path.
@@ -138,7 +172,22 @@ Ranked. None blocking the PR.
 7. **Sidebar failed-badge markup has no render test** — only `isFailedRun` is unit-tested. The only
    Svelte render seam is `tests/support/render-run-workspace.ts`; covering the badge means extracting
    its loader, roughly 25 lines, not duplicating the harness.
-8. Deferred in the original plan and still open: peer-universe fallback unreachable, Finnhub 403 gap
+8. **`extras` is an open record scanned by a closed key list, with no drift detector.**
+   `modelAuthoredExtraText` names four keys; `payload.extras` is accepted wholesale. The next extra
+   the model is taught to emit is unscanned by default and no test fails to say so. Suggested guard:
+   enumerate the extras keys the final-synthesis prompt requests and assert each is either scanned
+   or named in the exempt comment.
+9. **Exempt Extended Evidence renders without visible attribution.** SEC items carry a
+   `"Filing excerpt: …"` prefix; news items do not
+   ([markdown-evidence-sections.ts:96](../src/report/markdown-evidence-sections.ts)), so a reader
+   sees *"In addition, you should consider…"* as a plain bullet in market-bot's own report,
+   attributed only by citation number. Follows from the F decision; a blockquote or "as filed"
+   prefix would put the attribution where the ADR claims it lives.
+10. **Consider screening the Web Subject Profile at its stage boundary.** A violation in profile
+   prose still fails final synthesis unrecoverably — the same 13-minute burn, different origin,
+   since that stage's model never wrote it either. Running `violatesResearchOnly` at `parseProfile`
+   would cost one small regenerate instead, as `history/artifacts.ts:822` already does.
+11. Deferred in the original plan and still open: peer-universe fallback unreachable, Finnhub 403 gap
    cardinality. See [prompt-validator-reconciliation.md](./prompt-validator-reconciliation.md).
 
 ## Working constraints

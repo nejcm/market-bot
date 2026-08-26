@@ -27,6 +27,8 @@ interface RunFixture {
   readonly sources?: readonly Partial<Source>[];
   readonly gaps?: readonly SourceGap[];
   readonly selectedNewsSourceCount?: number;
+  readonly repeatFallbackKeptCount?: number;
+  readonly relevantRepeatKeptCount?: number;
   readonly predictions?: readonly { readonly horizonTradingDays: number }[];
   readonly scores?: readonly { readonly resolved: boolean }[];
 }
@@ -120,7 +122,10 @@ async function writeRun(fixture: RunFixture): Promise<void> {
         fixture.selectedNewsSourceCount ??
         sources.filter((source) => source.kind === "news").length,
       persistentSuppressedNewsSourceCount: 0,
-      repeatFallbackKeptCount: 0,
+      repeatFallbackKeptCount: fixture.repeatFallbackKeptCount ?? 0,
+      ...(fixture.relevantRepeatKeptCount !== undefined
+        ? { relevantRepeatKeptCount: fixture.relevantRepeatKeptCount }
+        : {}),
     },
     evidenceQuality: {
       extendedEvidence: { itemCount: fixture.depth === "deep" ? 1 : 0, gapCount: 0 },
@@ -176,6 +181,30 @@ async function writeBaselineRuns(
 }
 
 describe("provider health", () => {
+  test("keeps news repeat counters independent and ignores absent relevant-repeat fields", async () => {
+    await writeRun({
+      runId: "relevant-repeat",
+      jobType: "equity",
+      assetClass: "equity",
+      relevantRepeatKeptCount: 6,
+    });
+    await writeRun({
+      runId: "fallback-repeat",
+      jobType: "equity",
+      assetClass: "equity",
+      repeatFallbackKeptCount: 4,
+    });
+    await writeRun({ runId: "no-repeats", jobType: "equity", assetClass: "equity" });
+
+    const result = await writeProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(result.summary.realRunValidation.repeatFallbackKept).toBe(4);
+    expect(result.summary.realRunValidation.relevantRepeatKept).toBe(6);
+    await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
+      "| Relevant repeat kept | 6 |",
+    );
+  });
+
   test("skips Failed Run Artifacts and their Source Gaps", async () => {
     await writeRun({ runId: "completed", jobType: "equity", assetClass: "equity" });
     await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.failure), {});

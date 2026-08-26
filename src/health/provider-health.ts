@@ -98,6 +98,7 @@ export interface ProviderHealthSummary {
     readonly sourceGapRuns: number;
     readonly persistentNewsSuppressed: number;
     readonly repeatFallbackKept: number;
+    readonly relevantRepeatKept: number;
     readonly scoredRuns: number;
     readonly resolvedPredictions: number;
     readonly calibrationPresent: boolean;
@@ -545,6 +546,10 @@ function validationSummary(
       (total, run) => total + numberAt(run.analytics, ["newsDedupe", "repeatFallbackKeptCount"]),
       0,
     ),
+    relevantRepeatKept: runs.reduce(
+      (total, run) => total + numberAt(run.analytics, ["newsDedupe", "relevantRepeatKeptCount"]),
+      0,
+    ),
     scoredRuns: runs.filter((run) => run.scoreCount > 0).length,
     resolvedPredictions: runs.reduce((total, run) => total + run.resolvedScoreCount, 0),
     calibrationPresent,
@@ -730,6 +735,7 @@ function renderProviderHealthMarkdown(summary: ProviderHealthSummary): string {
       String(summary.realRunValidation.persistentNewsSuppressed),
     ]),
     tableRow(["Repeat fallback kept", String(summary.realRunValidation.repeatFallbackKept)]),
+    tableRow(["Relevant repeat kept", String(summary.realRunValidation.relevantRepeatKept)]),
     tableRow(["Scored runs", String(summary.realRunValidation.scoredRuns)]),
     tableRow(["Resolved predictions", String(summary.realRunValidation.resolvedPredictions)]),
     tableRow(["Calibration present", summary.realRunValidation.calibrationPresent ? "yes" : "no"]),

@@ -142,6 +142,43 @@ export interface SynthesizeReportUntilValidResult {
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
 }
 
+export class FinalSynthesisRejectedError extends Error {
+  readonly reportValidationErrors: readonly string[];
+  readonly predictionErrors: readonly string[];
+  readonly stageOutputs: readonly StageOutput[];
+  readonly payload: ModelReportPayload;
+  readonly totalCalls: number;
+  readonly reportRepairReprompts: number;
+  // Only mutable field: orchestrator sets it post-hoc after complete persist; undefined skips app indexing.
+  runDir?: string;
+
+  constructor(input: {
+    readonly message: string;
+    readonly cause: unknown;
+    readonly reportValidationErrors: readonly string[];
+    readonly predictionErrors: readonly string[];
+    readonly stageOutputs: readonly StageOutput[];
+    readonly payload: ModelReportPayload;
+    readonly totalCalls: number;
+    readonly reportRepairReprompts: number;
+  }) {
+    super(input.message, { cause: input.cause });
+    this.name = "FinalSynthesisRejectedError";
+    this.reportValidationErrors = input.reportValidationErrors;
+    this.predictionErrors = input.predictionErrors;
+    this.stageOutputs = input.stageOutputs;
+    this.payload = input.payload;
+    this.totalCalls = input.totalCalls;
+    this.reportRepairReprompts = input.reportRepairReprompts;
+  }
+}
+
+export function isFinalSynthesisRejectedError(
+  error: unknown,
+): error is FinalSynthesisRejectedError {
+  return error instanceof FinalSynthesisRejectedError;
+}
+
 interface SynthesisCallCounts {
   readonly totalCalls: number;
   readonly reportRepairReprompts: number;
@@ -333,10 +370,16 @@ async function buildReportWithRepair(
     const accumulatedErrors = accumulateReportValidationErrors([...seenErrors, message]);
     if (attemptsLeft <= 0) {
       const counts = callCounts();
-      throw new Error(
-        `Report failed validation after ${String(counts.totalCalls)} final-synthesis call(s) (${String(counts.reportRepairReprompts)} report-repair reprompt(s)); accumulated errors: ${accumulatedErrors.join("; ")}`,
-        { cause: error },
-      );
+      throw new FinalSynthesisRejectedError({
+        message: `Report failed validation after ${String(counts.totalCalls)} final-synthesis call(s) (${String(counts.reportRepairReprompts)} report-repair reprompt(s)); accumulated errors: ${accumulatedErrors.join("; ")}`,
+        cause: error,
+        reportValidationErrors: accumulatedErrors,
+        predictionErrors: progress.state.predResult.errors,
+        stageOutputs: progress.stageOutputs,
+        payload: progress.state.payload,
+        totalCalls: counts.totalCalls,
+        reportRepairReprompts: counts.reportRepairReprompts,
+      });
     }
     const predictionErrors = progress.state.predResult.errors;
     recordReportRepairReprompt();

@@ -3,6 +3,10 @@ import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ResearchCommand } from "../src/cli/args";
 import { buildStagePrompt, type StageInput } from "../src/research/prompts";
 import { buildDepthProfile } from "../src/research/depth-profile";
+import {
+  MAX_PREDICTION_HORIZON_TRADING_DAYS,
+  MIN_PREDICTION_HORIZON_TRADING_DAYS,
+} from "../src/forecast/observable";
 import type { ResearchContext } from "../src/research/research-context-types";
 import type { Prediction } from "../src/domain/types";
 import {
@@ -190,6 +194,19 @@ describe("buildStagePrompt forecast diversity guidance", () => {
       "a starting horizon of 5 trading days; a forecast may depart from it when the cited evidence supports a different resolution window.",
     );
     expect(instruction).not.toContain("a default horizon near 5 trading days");
+  });
+
+  test("states the legal prediction horizon range in the DSL guidance", () => {
+    const instruction = finalSynthesisInstruction({
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    });
+
+    expect(instruction).toContain(
+      `The legal range for N is ${MIN_PREDICTION_HORIZON_TRADING_DAYS}–${MAX_PREDICTION_HORIZON_TRADING_DAYS} trading days.`,
+    );
   });
 
   test("deep instrument runs include forecast-shape diversity guidance", () => {

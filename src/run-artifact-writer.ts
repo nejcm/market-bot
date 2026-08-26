@@ -4,7 +4,10 @@ import type { AppConfig } from "./config";
 import { isInstrumentCommand, type ResearchCommand } from "./cli/args";
 import { writeJson, type RunArtifactPaths } from "./artifacts";
 import { compactUnmappedSecFilingGaps } from "./domain/source-gaps";
+import { violatesResearchOnly } from "./domain/research-language";
 import {
+  type CodeVersion,
+  type EvidenceQualityAssessment,
   isMarketUpdateJobType,
   type Mover,
   type ResearchReport,
@@ -21,6 +24,7 @@ import type { AlphaSearchLead, AlphaSearchRejectedCandidate } from "./alpha-sear
 import type { SecDiscoveryCandidate } from "./alpha-search/sec-discovery";
 import type { SocialMomentumRankedCandidate } from "./alpha-search/social-momentum-ranking";
 import type { ForecastDisagreementArtifact } from "./research/forecast-disagreement";
+import type { StageOutput } from "./research/final-synthesis";
 import type { HistoricalResearchContext } from "./research/historical-context";
 import { emptySpotlightSelectionFor } from "./research/market-update-phase";
 import type {
@@ -33,6 +37,8 @@ import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
 import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "./deep-equity/types";
+import { sumKnownCosts } from "./model/pricing";
+import type { ModelReportPayload } from "./research/report-assembly";
 
 export interface RunArtifactWrite {
   readonly file: RunArtifactFileName;
@@ -56,6 +62,28 @@ export interface ResearchRunManifestResult {
   readonly spotlightCandidates?: readonly SpotlightCandidate[];
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly marketUpdateMovers?: readonly Mover[];
+}
+
+interface FailedRunManifestInput {
+  readonly command: ResearchCommand;
+  readonly runId: string;
+  readonly generatedAt: string;
+  readonly failedAt: string;
+  readonly message: string;
+  readonly reportValidationErrors: readonly string[];
+  readonly predictionErrors: readonly string[];
+  readonly totalCalls: number;
+  readonly reportRepairReprompts: number;
+  readonly stageOutputs: readonly StageOutput[];
+  readonly payload: ModelReportPayload;
+  readonly collectedSources: CollectedSources;
+  readonly historicalContext: HistoricalResearchContext;
+  readonly sourcePlan: SourcePlanArtifact;
+  readonly evidenceLanes: EvidenceLanesArtifact;
+  readonly sourceLedger: SourceLedgerArtifact;
+  readonly evidenceQuality: EvidenceQualityAssessment;
+  readonly codeVersion: CodeVersion;
+  readonly sourceStateHash?: string;
 }
 
 export interface AlphaSearchManifestInput {
@@ -193,6 +221,126 @@ function sidecarWrites(
 function catalystCalendarItems(report: ResearchReport): readonly unknown[] {
   const calendar = report.extras?.catalystCalendar;
   return isRecord(calendar) && Array.isArray(calendar.items) ? calendar.items : [];
+}
+
+function languageViolations(payload: ModelReportPayload): readonly {
+  readonly field: string;
+  readonly match: string;
+}[] {
+  return Object.entries(payload).flatMap(([field, value]) => {
+    const text = JSON.stringify(value);
+    if (text === undefined) {
+      return [];
+    }
+    const violation = violatesResearchOnly(text);
+    return violation === null ? [] : [{ field, match: violation.match }];
+  });
+}
+
+export function buildFailedRunManifest(input: FailedRunManifestInput): {
+  readonly writes: readonly RunArtifactWrite[];
+  readonly failure: RunArtifactWrite;
+} {
+  const costEstimateUsd = sumKnownCosts(input.stageOutputs.map((output) => output.costEstimateUsd));
+  const writes: readonly RunArtifactWrite[] = [
+    {
+      file: RUN_ARTIFACT_FILES.rawSnapshots,
+      kind: "json",
+      value: compactOversizedRawSnapshots(input.collectedSources.rawSnapshots),
+    },
+    {
+      file: RUN_ARTIFACT_FILES.marketSnapshots,
+      kind: "json",
+      value: input.collectedSources.marketSnapshots,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.supplementalMarketSnapshots,
+      kind: "json",
+      value: input.collectedSources.supplementalMarketSnapshots,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.newsSources,
+      kind: "json",
+      value: input.collectedSources.newsSources,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.extendedSources,
+      kind: "json",
+      value: input.collectedSources.extendedSources,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.sourceGaps,
+      kind: "json",
+      value: input.collectedSources.sourceGaps,
+    },
+    { file: RUN_ARTIFACT_FILES.sourcePlan, kind: "json", value: input.sourcePlan },
+    { file: RUN_ARTIFACT_FILES.evidenceLanes, kind: "json", value: input.evidenceLanes },
+    { file: RUN_ARTIFACT_FILES.sourceLedger, kind: "json", value: input.sourceLedger },
+    {
+      file: RUN_ARTIFACT_FILES.historicalContext,
+      kind: "json",
+      value: input.historicalContext,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.webSubjectProfile,
+      kind: "json",
+      value: input.collectedSources.webSubjectProfile ?? null,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.extendedEvidence,
+      kind: "json",
+      value: input.collectedSources.extendedEvidence ?? null,
+    },
+    {
+      file: RUN_ARTIFACT_FILES.marketContext,
+      kind: "json",
+      value: input.collectedSources.marketContext ?? null,
+    },
+    { file: RUN_ARTIFACT_FILES.stages, kind: "json", value: input.stageOutputs },
+    { file: RUN_ARTIFACT_FILES.rejectedReport, kind: "json", value: input.payload },
+  ];
+
+  return {
+    writes,
+    failure: {
+      file: RUN_ARTIFACT_FILES.failure,
+      kind: "json",
+      value: {
+        schemaVersion: 1,
+        runId: input.runId,
+        generatedAt: input.generatedAt,
+        failedAt: input.failedAt,
+        phase: "final-synthesis",
+        jobType: input.command.jobType,
+        assetClass: input.command.assetClass,
+        ...(isInstrumentCommand(input.command) ? { symbol: input.command.symbol } : {}),
+        depth: input.command.depth,
+        message: input.message,
+        reportValidationErrors: input.reportValidationErrors,
+        predictionErrors: input.predictionErrors,
+        totalCalls: input.totalCalls,
+        reportRepairReprompts: input.reportRepairReprompts,
+        // Field attribution is a hint: JSON delimiters can create cross-element matches, phrases
+        // Spanning nested fields are missed, and only the first match per top-level field is kept.
+        // ReportValidationErrors is authoritative; [] means this draft had no detected match, so the
+        // Rejected wording came from somewhere else -- since assertSafeReportLanguage scans only
+        // Model-authored prose (ADR 0001, 2026-08-26), that is prose from an earlier model stage
+        // Merged during assembly, such as the Web Subject Profile.
+        languageViolations: languageViolations(input.payload),
+        evidenceQuality: input.evidenceQuality,
+        cost: {
+          tokenEstimate: input.stageOutputs.reduce(
+            (total, output) => total + output.tokenEstimate,
+            0,
+          ),
+          ...(costEstimateUsd !== undefined ? { costEstimateUsd } : {}),
+        },
+        sourceGapsAsOf: "pre-synthesis",
+        codeVersion: input.codeVersion,
+        ...(input.sourceStateHash !== undefined ? { sourceStateHash: input.sourceStateHash } : {}),
+      },
+    },
+  };
 }
 
 export function buildResearchRunManifest(
@@ -379,6 +527,16 @@ export async function persistRunArtifactWrites(
 ): Promise<void> {
   // Manifests must not contain duplicate files; callers build one value per sidecar.
   await Promise.all(writes.map((write) => persistRunArtifactWrite(artifacts, write)));
+}
+
+export async function persistFailedRunArtifactWrites(
+  artifacts: RunArtifactPaths,
+  manifest: ReturnType<typeof buildFailedRunManifest>,
+  persist: typeof persistRunArtifactWrites = persistRunArtifactWrites,
+): Promise<void> {
+  await persist(artifacts, manifest.writes);
+  // Failure.json is the completeness marker. Write it only after every diagnostic sidecar.
+  await persist(artifacts, [manifest.failure]);
 }
 
 async function persistRunArtifactWrite(

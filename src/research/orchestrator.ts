@@ -14,7 +14,12 @@ import {
   type ResearchReport,
   type RunTrace,
 } from "../domain/types";
-import { buildResearchRunManifest, persistRunArtifactWrites } from "../run-artifact-writer";
+import {
+  buildFailedRunManifest,
+  buildResearchRunManifest,
+  persistFailedRunArtifactWrites,
+  persistRunArtifactWrites,
+} from "../run-artifact-writer";
 import type { ModelProvider } from "../model/types";
 import { sumKnownCosts, type CostPricing } from "../model/pricing";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
@@ -24,7 +29,9 @@ import { recordSeenNewsSources } from "../sources/news-seen";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { runEvidenceRequestLoop } from "./evidence-request-loop";
 import {
+  isFinalSynthesisRejectedError,
   synthesizeReportUntilValid,
+  type SynthesizeReportUntilValidResult,
   type StageOutput,
   type StageReprompt,
 } from "./final-synthesis";
@@ -737,27 +744,86 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     command.jobType !== "research" ? new Set(runParams.predictionSubjects) : undefined;
 
   progress("final synthesis");
-  const synthesis = await synthesizeReportUntilValid({
-    runId,
-    generatedAt,
-    command,
-    collectedSources,
-    context: playbookContext,
-    sources,
-    knownSourceIds,
-    ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
-    ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
-    priorStages: [...analysisOutputs, critiqueOutput],
-    maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
-    runFinalSynthesis: (priorStages, reprompt) =>
-      runModelStage("final-synthesis", runParams.synthesisModel, {
-        job: jobInput,
-        collectedSources,
-        context: playbookContext,
-        priorStages,
-        ...(reprompt !== undefined ? { reprompt } : {}),
-      }),
-  });
+  let synthesis: SynthesizeReportUntilValidResult;
+  try {
+    synthesis = await synthesizeReportUntilValid({
+      runId,
+      generatedAt,
+      command,
+      collectedSources,
+      context: playbookContext,
+      sources,
+      knownSourceIds,
+      ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
+      ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
+      priorStages: [...analysisOutputs, critiqueOutput],
+      maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
+      runFinalSynthesis: (priorStages, reprompt) =>
+        runModelStage("final-synthesis", runParams.synthesisModel, {
+          job: jobInput,
+          collectedSources,
+          context: playbookContext,
+          priorStages,
+          ...(reprompt !== undefined ? { reprompt } : {}),
+        }),
+    });
+  } catch (error: unknown) {
+    if (!isFinalSynthesisRejectedError(error)) {
+      throw error;
+    }
+
+    try {
+      const codeVersion = readCodeVersion();
+      const sourceStateHash = codeVersion.dirty ? dirtySourceHash() : undefined;
+      const stageOutputs: readonly StageOutput[] = [
+        ...evidenceLoop.stageOutputs,
+        ...financialTableExtraction.stageOutputs,
+        ...webGatherLoop.stageOutputs,
+        ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
+        ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
+        ...(playbookSelectionOutput === undefined ? [] : [playbookSelectionOutput]),
+        ...analysisOutputs,
+        critiqueOutput,
+        ...error.stageOutputs,
+      ];
+      const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
+      progress(`writing failed run artifacts to ${artifacts.runDir}`);
+      await persistFailedRunArtifactWrites(
+        artifacts,
+        buildFailedRunManifest({
+          command,
+          runId,
+          generatedAt,
+          failedAt: completedAt(),
+          message: error.message,
+          reportValidationErrors: error.reportValidationErrors,
+          predictionErrors: error.predictionErrors,
+          totalCalls: error.totalCalls,
+          reportRepairReprompts: error.reportRepairReprompts,
+          stageOutputs,
+          payload: error.payload,
+          collectedSources,
+          historicalContext,
+          sourcePlan: sourcePlanning.sourcePlan,
+          evidenceLanes: sourcePlanning.evidenceLanes,
+          sourceLedger: sourcePlanning.sourceLedger,
+          evidenceQuality: evidenceQualityAssessment,
+          codeVersion,
+          ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
+        }),
+      );
+      error.runDir = artifacts.runDir;
+    } catch (persistError: unknown) {
+      try {
+        process.stderr.write(
+          `Failed to persist run diagnostics: ${persistError instanceof Error ? persistError.message : String(persistError)}\n`,
+        );
+      } catch {
+        // The original validator error remains authoritative even if stderr is unavailable.
+      }
+    }
+    throw error;
+  }
   collectedSources = { ...collectedSources, sourceGaps: synthesis.sourceGaps };
   const deepEquityEvidenceBundle =
     isInstrumentCommand(command) && command.assetClass === "equity" && command.depth === "deep"

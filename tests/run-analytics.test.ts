@@ -1024,6 +1024,7 @@ describe("web source roles accounting", () => {
           label: "high",
           checks: [],
           limitingReasons: [],
+          advisoryReasons: [],
         },
         reportIntegrityAudit: {
           reportIntegrity: "high",

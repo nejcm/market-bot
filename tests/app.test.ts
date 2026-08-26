@@ -6,6 +6,7 @@ import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
 import { runCli, scorePassOptions } from "../src/app";
 import type { ModelProvider } from "../src/model/types";
 import type { PersistedResearchJobResult } from "../src/research/orchestrator";
+import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
 import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
 import { collectedSources, researchReport } from "./support/fixtures";
@@ -309,6 +310,66 @@ describe("runCli", () => {
     ).rejects.toThrow("simulated collection failure");
 
     expect(calls).toEqual(["score", "index", "stale-rebuild", "collect"]);
+  });
+
+  test("indexes a Failed Run Artifact before rethrowing its validator error", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-failed-index-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const runDir = join(dataDir, "run-1");
+    const indexedRunDirs: (readonly string[])[] = [];
+    const stderr: string[] = [];
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    const rejection = new FinalSynthesisRejectedError({
+      message: "Report failed validation",
+      cause: new Error("trade-action language"),
+      reportValidationErrors: ["trade-action language"],
+      predictionErrors: [],
+      stageOutputs: [],
+      payload: {},
+      totalCalls: 4,
+      reportRepairReprompts: 3,
+    });
+    rejection.runDir = runDir;
+    process.stderr.write = ((chunk: unknown) => {
+      const text = String(chunk);
+      stderr.push(text);
+      if (text.includes("Run failed; diagnostics at")) {
+        throw new Error("stderr unavailable");
+      }
+      return true;
+    }) as typeof process.stderr.write;
+
+    let caught: unknown;
+    try {
+      await runCli(["daily", "--asset", "equity"], {
+        createProvider: () => ({
+          name: "test" as const,
+          generate: async () => ({ content: "{}", tokenEstimate: 0, costEstimateUsd: 0 }),
+        }),
+        runScorePass: async () => ({ scored: 0, skipped: 0, touchedRunDirs: [] }),
+        collectSources: async () => collectedSources(),
+        persistResearchJob: async () => {
+          throw rejection;
+        },
+        writeThroughRunArtifactIndex: async (_receivedDataDir, runDirs) => {
+          indexedRunDirs.push(runDirs);
+        },
+        rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+        now: () => new Date("2026-06-01T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      caught = error;
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+
+    expect(caught).toBe(rejection);
+    expect(indexedRunDirs).toEqual([["run-1"]]);
+    expect(stderr.join("")).toContain(`Run failed; diagnostics at ${runDir}`);
   });
 
   test("freezes the Source Plan before source collection begins", async () => {

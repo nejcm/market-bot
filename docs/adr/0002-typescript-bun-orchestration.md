@@ -7,7 +7,7 @@ Accepted
 ## Date
 
 2026-06-30 (consolidated 2026-07-15; amended 2026-07-25: bundle-only deep-equity
-persistence and migration)
+persistence and migration; amended 2026-08-26: failed-run diagnostics)
 
 ## Context
 
@@ -49,11 +49,14 @@ derived indexes, and pipeline fixtures were previously split across several reco
 - Research and alpha-search initial writes use typed manifests from
   `src/run-artifact-writer.ts`. Manifest builders own required sidecars, null-when-absent files,
   empty defaults, and run-type conditionals; `src/run-artifact-layout.ts` owns file layout.
-- Deep-equity runs persist normalized current evidence and deterministic derived views only in
+- Completed deep-equity runs persist normalized current evidence and deterministic derived views only in
   `normalized/evidence-bundle.json`. They do not write the component normalized sidecars subsumed
   by `DeepEquityEvidenceBundleV1`; raw provider payloads remain only in `raw/snapshots.json`.
   Crypto, thematic research, alpha-search, market-overview, and non-deep equity runs retain their
   existing component layouts.
+- Failed deep-equity runs have no validated `report.json`, so they persist component normalized
+  sidecars with `failure.json`, `rejected-report.json`, and `stages.json`. This keeps the collected
+  evidence and rejected synthesis readable without constructing a completed evidence bundle.
 - `trace.json:stageRecords[]` and `analytics.json:runShape.stages[]` may contain monotonic-clock
   `durationMs` values. They measure individual attempts and may overlap when stages run
   concurrently.

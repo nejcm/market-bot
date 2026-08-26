@@ -103,6 +103,9 @@ export function assessEvidenceQuality(
   const failedMaterial = checks.filter(
     (check) => check.evidenceClass === "material" && !check.passed,
   );
+  const failedSupplemental = checks.filter(
+    (check) => check.evidenceClass === "supplemental" && !check.passed,
+  );
   let label: EvidenceQuality = "high";
   if (failedCore.length > 0) {
     label = "low";
@@ -111,9 +114,10 @@ export function assessEvidenceQuality(
   }
   return {
     version: 1,
-    rubricVersion: 2,
+    rubricVersion: 3,
     label,
     checks,
     limitingReasons: [...failedCore, ...failedMaterial].flatMap((check) => check.reasons),
+    advisoryReasons: failedSupplemental.flatMap((check) => check.reasons),
   };
 }

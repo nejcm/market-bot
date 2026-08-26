@@ -411,7 +411,7 @@
     "label": "medium",
     "assessment": {
       "version": 1,
-      "rubricVersion": 2,
+      "rubricVersion": 3,
       "label": "medium",
       "checks": [
         {
@@ -514,7 +514,8 @@
           "reasons": []
         }
       ],
-      "limitingReasons": ["macro-indicators: evidence missing or unusable"]
+      "limitingReasons": ["macro-indicators: evidence missing or unusable"],
+      "advisoryReasons": ["supplemental-market: evidence missing or unusable"]
     },
     "dataGapCount": 20,
     "extendedEvidence": {

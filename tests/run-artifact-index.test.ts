@@ -138,6 +138,32 @@ function writeRun(
 }
 
 describe("run artifact index", () => {
+  test("indexes a Failed Run Artifact without report projections", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    const runDir = join(dataDir, "failed-run");
+    mkdirSync(runDir, { recursive: true });
+    writeJson(join(runDir, "failure.json"), { schemaVersion: 1 });
+    writeJson(join(runDir, "rejected-report.json"), { summary: "rejected" });
+
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const db = new Database(dbPath, { readonly: true });
+    const row = db.query<{ report_status: string }, []>("SELECT report_status FROM runs").get();
+    const searchCount = db
+      .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM search_entries")
+      .get();
+    const predictionCount = db
+      .query<{ count: number }, []>("SELECT COUNT(*) AS count FROM predictions")
+      .get();
+    db.close();
+
+    const summaries = await listRunSummariesFromIndex(dataDir);
+    expect(row?.report_status).toBe("absent");
+    expect(searchCount?.count).toBe(0);
+    expect(predictionCount?.count).toBe(0);
+    expect(summaries).toHaveLength(1);
+    expect(summaries?.[0]?.availableFiles).toContain("failure.json");
+  });
+
   test("reports unsupported schema with rebuild guidance", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     const db = new Database(dbPath, { create: true });

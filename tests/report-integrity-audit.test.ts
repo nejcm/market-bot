@@ -30,6 +30,7 @@ function evidenceAssessment(label: EvidenceQualityAssessment["label"]): Evidence
       },
     ],
     limitingReasons: [],
+    advisoryReasons: [],
   };
 }
 

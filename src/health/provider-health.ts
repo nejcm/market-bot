@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { dataRootFromRunsDir } from "../data-paths";
 import {
@@ -38,6 +38,7 @@ const SOURCE_GAPS_FILE = RUN_ARTIFACT_FILES.sourceGaps;
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
 const ANALYTICS_FILE = RUN_ARTIFACT_FILES.analytics;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
+const FAILURE_FILE = RUN_ARTIFACT_FILES.failure;
 const SAMPLE_MESSAGE_LIMIT = 3;
 
 type IssueClass = "missingCredential" | "fetchFailed" | "yahooAuth" | "other";
@@ -331,7 +332,15 @@ function deepEquitySourceGaps(
   return [deepEquityBundleStatusGap(bundle?.status ?? "absent")];
 }
 
-async function loadRunHealth(runDir: string): Promise<RunHealth> {
+async function loadRunHealth(runDir: string): Promise<RunHealth | undefined> {
+  if (
+    await access(join(runDir, FAILURE_FILE)).then(
+      () => true,
+      () => false,
+    )
+  ) {
+    return undefined;
+  }
   const reportRaw = await readJson(join(runDir, REPORT_FILE));
   const report = isRecord(reportRaw) ? reportRaw : {};
   const analyticsRaw = await readJson(join(runDir, ANALYTICS_FILE));
@@ -617,7 +626,8 @@ export async function buildProviderHealthSummary(
   now: Date = new Date(),
 ): Promise<ProviderHealthSummary> {
   const runDirs = await listRunDirs(runsDir);
-  const runs = await Promise.all(runDirs.map((runDir) => loadRunHealth(runDir)));
+  const loadedRuns = await Promise.all(runDirs.map((runDir) => loadRunHealth(runDir)));
+  const runs = loadedRuns.filter((run): run is RunHealth => run !== undefined);
   const dates = generatedDates(runs);
   const routes = routeHealth(runs);
   const calibrationPresent = await hasCalibration(runsDir);

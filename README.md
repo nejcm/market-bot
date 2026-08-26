@@ -154,13 +154,13 @@ bun run src/cli.ts market-overview --asset equity
 
 ## `--deep` flag
 
-|                             | Brief (default)         | `--deep`                                                    |
-| --------------------------- | ----------------------- | ----------------------------------------------------------- |
-| Model                       | Quick model             | Synthesis model                                             |
-| Coverage panel              | No                      | Yes — two concurrent role stages before critique            |
-| Deterministic packets       | No                      | Yes — equity only; target SEC, Tradier IV, and peer packets |
-| Alpha search pages          | Brief limit             | Deep page limit                                             |
-| Thematic research forecasts | n/a — always deep       | Proxy-only, if resolved, with a higher non-direction mix    |
+|                             | Brief (default)   | `--deep`                                                    |
+| --------------------------- | ----------------- | ----------------------------------------------------------- |
+| Model                       | Quick model       | Synthesis model                                             |
+| Coverage panel              | No                | Yes — two concurrent role stages before critique            |
+| Deterministic packets       | No                | Yes — equity only; target SEC, Tradier IV, and peer packets |
+| Alpha search pages          | Brief limit       | Deep page limit                                             |
+| Thematic research forecasts | n/a — always deep | Proxy-only, if resolved, with a higher non-direction mix    |
 
 ## Configuration
 

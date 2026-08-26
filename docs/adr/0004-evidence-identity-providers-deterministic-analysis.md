@@ -30,7 +30,8 @@ not-assessed equity completeness status; amended 2026-07-31: persisted Source Ga
 statement parity retirement; amended 2026-08-03: interchangeable-alias offline detection; amended
 2026-08-03: parsed-artifact authority for Research Console snapshot rendering; amended 2026-08-10:
 current-report selection and Evidence Quality / Equity Analysis Completeness boundary; amended
-2026-08-15: depository-issuer valuation applicability)
+2026-08-15: depository-issuer valuation applicability; amended 2026-08-26: supplemental Evidence
+Quality advisory reasons)
 
 ## Context
 
@@ -117,6 +118,7 @@ without pretending the project has a global security master.
   target-valuation lane is present but not supportable); `high` requires complete core plus
   sufficiently broad, fresh, corroborated, and usable material evidence. Supplemental gaps do not
   lower it, and synthesis cannot author or lower it.
+- Rubric v3 emits failed supplemental lane reasons as `advisoryReasons` without changing the label.
 - Every model evidence payload carries `analysisAsOf`. Adapters exclude facts published, filed, or
   ending after that cutoff when their data supports those semantics.
 - Cache entries are freshness-budgeted and validated. A failed refresh may retain stale data in raw

@@ -55,6 +55,9 @@ const report: ResearchReport = {
   notFinancialAdvice: true,
 };
 
+const AMD_RISK_FACTOR_SENTENCE =
+  "In addition, you should consider the interrelationship and compounding effects of two or more risks occurring simultaneously.";
+
 function validationErrorMessage(candidate: ResearchReport): string {
   try {
     validateResearchReport(candidate);
@@ -2102,6 +2105,7 @@ describe("report schema and rendering", () => {
         label: "high",
         checks: [],
         limitingReasons: [],
+        advisoryReasons: [],
       },
     };
     const assembled = assembleResearchReport({
@@ -3314,34 +3318,182 @@ describe("report schema and rendering", () => {
   );
 
   test.each([
-    { summary: "Fair value is $100." },
-    { keyFindings: [{ text: "Fair value is $100.", sourceIds: ["source-1"] }] },
-  ])("keeps authored report text behind the research-only gate", (authoredFields) => {
-    expect(() => assertSafeReportLanguage({ ...report, ...authoredFields })).toThrow(
-      "trade-action language",
-    );
+    ["summary", { summary: AMD_RISK_FACTOR_SENTENCE }],
+    ["keyFindings", { keyFindings: [{ text: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] }] }],
+    ["bullCase", { bullCase: [{ text: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] }] }],
+    ["bearCase", { bearCase: [{ text: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] }] }],
+    ["risks", { risks: [{ text: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] }] }],
+    ["catalysts", { catalysts: [{ text: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] }] }],
+    [
+      "scenarios",
+      {
+        scenarios: [
+          { name: "Base", description: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] },
+        ],
+      },
+    ],
+  ] satisfies readonly (readonly [string, Partial<ResearchReport>])[])(
+    "keeps model-authored %s behind the research-only gate",
+    (_surface, authoredFields) => {
+      expect(() => assertSafeReportLanguage({ ...report, ...authoredFields })).toThrow(
+        "trade-action language",
+      );
+    },
+  );
+
+  test.each([
+    ["spotlight selection rationale", { spotlights: { rationale: AMD_RISK_FACTOR_SENTENCE } }],
+    ["spotlight rationale", { spotlights: { items: [{ rationale: AMD_RISK_FACTOR_SENTENCE }] } }],
+    [
+      "earnings expectation bar",
+      { earningsSetup: { expectationBar: [{ text: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    [
+      "earnings quality landmine",
+      { earningsSetup: { qualityLandmines: [{ text: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    [
+      "earnings guidance credibility",
+      { earningsSetup: { guidanceCredibility: [{ text: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    [
+      "business framework explanation",
+      { businessFramework: { sections: [{ text: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    [
+      "Web Subject Profile summary",
+      { webSubjectProfile: { subjectSummary: { answer: AMD_RISK_FACTOR_SENTENCE } } },
+    ],
+    [
+      "Web Subject Profile answer",
+      { webSubjectProfile: { questions: { riskFactors: { answer: AMD_RISK_FACTOR_SENTENCE } } } },
+    ],
+    [
+      "Web Subject Profile event",
+      { webSubjectProfile: { recentMaterialEvents: [{ claim: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    [
+      "Web Subject Profile fact",
+      { webSubjectProfile: { factLedger: [{ claim: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    ["Web Subject Profile gap", { webSubjectProfile: { openGaps: [AMD_RISK_FACTOR_SENTENCE] } }],
+  ] as const)(
+    "keeps model-authored extras %s behind the research-only gate",
+    (_surface, extras) => {
+      expect(() => assertSafeReportLanguage({ ...report, extras })).toThrow(
+        "trade-action language",
+      );
+    },
+  );
+
+  test.each([
+    [
+      "historical context summary quoting a prior run",
+      { historicalContext: { summary: AMD_RISK_FACTOR_SENTENCE } },
+    ],
+    [
+      "historical context item quoting a prior run",
+      { historicalContext: { items: [{ text: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    ["historical context gap", { historicalContext: { gaps: [AMD_RISK_FACTOR_SENTENCE] } }],
+    [
+      "catalyst calendar label",
+      { catalystCalendar: { items: [{ label: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+    ["earnings setup gap", { earningsSetup: { gaps: [AMD_RISK_FACTOR_SENTENCE] } }],
+    ["business framework gap", { businessFramework: { gaps: [AMD_RISK_FACTOR_SENTENCE] } }],
+    [
+      "business framework section gap",
+      { businessFramework: { sections: [{ gaps: [AMD_RISK_FACTOR_SENTENCE] }] } },
+    ],
+    [
+      "business framework collected section summary",
+      { businessFramework: { sections: [{ summary: AMD_RISK_FACTOR_SENTENCE }] } },
+    ],
+  ] as const)("leaves deterministic assembly extras %s outside the gate", (_surface, extras) => {
+    expect(() => assertSafeReportLanguage({ ...report, extras })).not.toThrow();
   });
 
-  test("gates attributed source text copied into derived extended evidence", () => {
+  /*
+   * A sentence-initial trade verb at the *start* of a scanned field. Under the previous
+   * JSON.stringify blob the preceding character was a quote, which the sentence-initial
+   * Pattern does not accept, so every one of these shipped.
+   */
+  test.each([
+    ["summary", { summary: "Buy the dip ahead of the print." }],
+    ["keyFindings", { keyFindings: [{ text: "Buy the dip.", sourceIds: ["source-1"] }] }],
+    ["risks", { risks: [{ text: "Sell into strength.", sourceIds: ["source-1"] }] }],
+    [
+      "scenarios",
+      {
+        scenarios: [
+          { name: "Base", description: "Hold through the print.", sourceIds: ["source-1"] },
+        ],
+      },
+    ],
+  ] satisfies readonly (readonly [string, Partial<ResearchReport>])[])(
+    "gates a sentence-initial trade verb opening %s",
+    (_surface, authoredFields) => {
+      expect(() => assertSafeReportLanguage({ ...report, ...authoredFields })).toThrow(
+        "trade-action language",
+      );
+    },
+  );
+
+  test("gates a sentence-initial trade verb opening a model-authored extra", () => {
     expect(() =>
       assertSafeReportLanguage({
         ...report,
-        jobType: "equity",
-        assetClass: "equity",
-        symbol: "AAPL",
-        extendedEvidence: {
-          instrument: { assetClass: "equity", symbol: "AAPL" },
-          items: [
-            {
-              category: "sec-edgar",
-              title: "SEC filing excerpt",
-              summary: "Fair value is $100.",
-              sourceIds: ["source-1"],
-              observedAt: "2026-05-19T00:00:00.000Z",
-            },
-          ],
-          gaps: [],
+        extras: { businessFramework: { sections: [{ text: "Buy the dip." }] } },
+      }),
+    ).toThrow("trade-action language");
+  });
+
+  test("leaves the deterministic Research Quality Driver outside the gate", () => {
+    expect(() =>
+      assertSafeReportLanguage({ ...report, researchQualityDriver: AMD_RISK_FACTOR_SENTENCE }),
+    ).not.toThrow();
+  });
+
+  test("allows AMD filing language in Extended Evidence while rejecting it in authored prose", () => {
+    const amdReport: ResearchReport = {
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AMD",
+      sources: [
+        {
+          id: "source-1",
+          title: "AMD SEC 10-Q",
+          fetchedAt: "2026-08-05T00:00:00.000Z",
+          kind: "extended-evidence",
+          assetClass: "equity",
+          symbol: "AMD",
         },
+      ],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AMD" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "AMD SEC 10-Q",
+            summary: AMD_RISK_FACTOR_SENTENCE,
+            sourceIds: ["source-1"],
+            observedAt: "2026-08-05T00:00:00.000Z",
+          },
+        ],
+        gaps: [],
+      },
+    };
+
+    expect(() => validateResearchReport(amdReport)).not.toThrow();
+    expect(() =>
+      validateResearchReport({ ...amdReport, summary: AMD_RISK_FACTOR_SENTENCE }),
+    ).toThrow("trade-action language");
+    expect(() =>
+      validateResearchReport({
+        ...amdReport,
+        risks: [{ text: AMD_RISK_FACTOR_SENTENCE, sourceIds: ["source-1"] }],
       }),
     ).toThrow("trade-action language");
   });

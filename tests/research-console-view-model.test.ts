@@ -51,6 +51,7 @@ import {
   webSubjectProfileView,
   instrumentFromPathname,
   instrumentPath,
+  isFailedRun,
 } from "../app/client/view-model";
 
 describe("research console app view model", () => {
@@ -94,6 +95,20 @@ describe("research console app view model", () => {
         availableFiles: [],
       }),
     ).toBe("5 fnd · 4 fct · 3 gap");
+  });
+
+  test("marks Failed Run Artifacts for the sidebar badge", () => {
+    const run = {
+      runId: "failed-run",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: ["failure.json"],
+    };
+    expect(isFailedRun(run)).toBe(true);
+    expect(isFailedRun({ ...run, availableFiles: [] })).toBe(false);
   });
 
   test("filters runs by job type and search query together", () => {

@@ -752,7 +752,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     expect(result.artifact?.sourceIds).toEqual([webSource.id]);
   });
 
-  test("degrades a subject summary with unknown sourceIds and preserves the fact ledger", () => {
+  test("degrades a subject summary citing snapshot sourceIds and preserves the fact ledger", () => {
     const result = buildWebSubjectProfileEvidence({
       command,
       subject,
@@ -761,7 +761,7 @@ describe("buildWebSubjectProfileEvidence", () => {
         ...JSON.parse(profilePayload()),
         subjectSummary: {
           answer: "Summary with unknown citations.",
-          sourceIds: ["unknown-alpha", "unknown-beta"],
+          sourceIds: ["verified-snapshot-AAPL", "verified-snapshot-SPY"],
         },
       }),
       webSources: [webSource],
@@ -779,7 +779,7 @@ describe("buildWebSubjectProfileEvidence", () => {
     });
     const gapMessage = result.sourceGaps[0]?.message ?? "";
     expect(gapMessage).toContain("subjectSummary: answer cited 2 unknown sourceIds");
-    expect(gapMessage).not.toContain("unknown-alpha");
+    expect(gapMessage).not.toContain("verified-snapshot-AAPL");
   });
 
   test("counts repeated unknown sourceIds once", () => {

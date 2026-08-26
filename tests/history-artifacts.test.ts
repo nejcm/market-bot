@@ -205,6 +205,30 @@ describe("history artifacts", () => {
     expect(readResult.timeline.entries.map((entry) => entry.runId)).toEqual(["run-old", "run-new"]);
   });
 
+  test("excludes Failed Run Artifacts without causing a stale rebuild", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-failed-run-"));
+    const dataDir = join(rootDir, "runs");
+    mkdirSync(dataDir);
+    writeRun(dataDir, "run-ok", "2026-06-01T00:00:00.000Z", "Thesis", "Risk");
+    mkdirSync(join(dataDir, "run-failed"));
+    writeJson(join(dataDir, "run-failed", RUN_ARTIFACT_FILES.failure), { schemaVersion: 1 });
+
+    const result = await rebuildHistoryArtifacts(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+    const index = JSON.parse(await readFile(join(rootDir, "history", "index.json"), "utf8")) as {
+      readonly sourceRunIds: readonly string[];
+    };
+    let rebuildCalls = 0;
+    const rebuilt = await rebuildHistoryArtifactsIfStale(dataDir, new Date(), async () => {
+      rebuildCalls += 1;
+      throw new Error("unexpected rebuild");
+    });
+
+    expect(result.sourceRunCount).toBe(1);
+    expect(index.sourceRunIds).toEqual(["run-ok"]);
+    expect(rebuilt).toBeUndefined();
+    expect(rebuildCalls).toBe(0);
+  });
+
   test("searches structured history index with filters", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "market-bot-history-search-"));
     const dataDir = join(rootDir, "runs");

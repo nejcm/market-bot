@@ -13,7 +13,9 @@ import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_CLASS,
+  MAX_PREDICTION_HORIZON_TRADING_DAYS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
+  MIN_PREDICTION_HORIZON_TRADING_DAYS,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
@@ -209,7 +211,7 @@ function predictionDslInstruction(
       clauses.push("iv(SUBJECT, +N) > T for IV");
     }
   }
-  return `Each prediction must use the measurableAs DSL: ${clauses.join(", ")}.`;
+  return `Each prediction must use the measurableAs DSL: ${clauses.join(", ")}. The legal range for N is ${MIN_PREDICTION_HORIZON_TRADING_DAYS}–${MAX_PREDICTION_HORIZON_TRADING_DAYS} trading days.`;
 }
 
 function withoutExcludedKinds(
@@ -665,7 +667,7 @@ function buildReportLanguageRepairInstruction(
   if (languageErrors.length === 0) {
     return undefined;
   }
-  return `Your previous report was rejected for reader-directed advice or trade-action language: ${languageErrors.join("; ")}. Rewrite every affected field in neutral, research-only language. Never instruct anyone to act: do not write "investors should", "readers should", "you should", "buy", "sell", "hold", "accumulate", or any recommendation, allocation, position-sizing, or execution phrasing. Replace advice with observational phrasing such as "evidence supports", "the data shows", "a source states", or "the setup is consistent with". Valuation-certainty wording is rejected by the same gate: never write "fair value", "margin of safety", "undervalued", "overvalued", "price target", or "target price" — even when quoting a source. Describe prices positionally instead, such as "trades below the peer-median multiple" or "the quote sits above the peer-implied reference range". Keep the same factual claims and sourceIds; change only the wording.`;
+  return `Your previous report was rejected for reader-directed advice or trade-action language: ${languageErrors.join("; ")}. Rewrite every affected field in neutral, research-only language. Never instruct anyone to act: do not put "should", "could", "may want to", "might want to", "need to", or "must" after "investors", "traders", "readers", or "you"; do not put "buy", "sell", "hold", "open", "trim", "add", "exit", "enter", "reduce", "increase", or "rebalance" after "should", "must", or "need to". Avoid standalone trade verbs such as "buy", "sell", "hold", or "accumulate", or any recommendation, allocation, position-sizing, or execution phrasing. Replace advice with observational phrasing such as "evidence supports", "the data shows", "a source states", or "the setup is consistent with". Valuation-certainty wording is rejected by the same gate: never write "fair value", "margin of safety", "undervalued", "overvalued", "price target", or "target price" — even when quoting a source. Describe prices positionally instead, such as "trades below the peer-median multiple" or "the quote sits above the peer-implied reference range". Keep the same factual claims and sourceIds; change only the wording.`;
 }
 
 export function buildFinalSynthesisStagePrompt(input: StageInput): string {

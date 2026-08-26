@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   instrumentsForMeasurableAs,
   isPredictionKind,
+  MAX_PREDICTION_HORIZON_TRADING_DAYS,
+  MIN_PREDICTION_HORIZON_TRADING_DAYS,
   observationStrategyForForecast,
   parseObservableExpression,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
@@ -518,6 +520,28 @@ describe("isPredictionKind", () => {
 function readOne(prediction: Record<string, unknown>): ReturnType<typeof readObservableForecasts> {
   return readObservableForecasts([prediction]);
 }
+
+describe("readObservableForecasts horizon validation", () => {
+  test("rejects a horizon beyond the legal range", () => {
+    const result = readOne({
+      id: "p1",
+      kind: "direction",
+      subject: "AAPL",
+      measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
+      horizonTradingDays: 21,
+      probability: 0.62,
+      sourceIds: [],
+    });
+
+    expect(result.predictions).toEqual([]);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        code: "invalid-horizon",
+        message: `Prediction p1: horizonTradingDays must be ${MIN_PREDICTION_HORIZON_TRADING_DAYS}–${MAX_PREDICTION_HORIZON_TRADING_DAYS}`,
+      }),
+    ]);
+  });
+});
 
 describe("readObservableForecasts subject normalization", () => {
   test("completes a bare subject on a conditional with a relative consequent", () => {

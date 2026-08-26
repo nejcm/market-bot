@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve } fro
 import type {
   CalibrationDetail,
   AlphaCohortDetail,
+  FailedRunArtifactFailure,
   ProviderHealthDetail,
   RunDetail,
   RunFile,
@@ -25,7 +26,7 @@ import {
 } from "../src/run-artifact-projection";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
-import { isRecord } from "../src/guards";
+import { isRecord, readNumber, readString, readStringArray } from "../src/guards";
 import { normalizePredictionShortfallReport } from "../src/report/prediction-shortfall";
 
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
@@ -34,6 +35,7 @@ const ANALYTICS_FILE = RUN_ARTIFACT_FILES.analytics;
 const TRACE_FILE = RUN_ARTIFACT_FILES.trace;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const MISS_AUTOPSY_FILE = RUN_ARTIFACT_FILES.missAutopsy;
+const FAILURE_FILE = RUN_ARTIFACT_FILES.failure;
 const PROVIDER_HEALTH_DIR = "provider-health";
 const CALIBRATION_DIR = "calibration";
 const ALPHA_SEARCH_DIR = "alpha-search";
@@ -55,6 +57,144 @@ async function readJsonRecord(path: string): Promise<Record<string, unknown> | u
 
 async function readReportRecord(path: string): Promise<Record<string, unknown> | undefined> {
   return normalizePredictionShortfallReport(await readJsonRecord(path));
+}
+
+function readEvidenceQuality(
+  value: unknown,
+): NonNullable<FailedRunArtifactFailure["evidenceQuality"]> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const { checks } = value;
+  const limitingReasons = readStringArray(value, "limitingReasons");
+  const advisoryReasons = readStringArray(value, "advisoryReasons");
+  if (
+    value.version !== 1 ||
+    (value.rubricVersion !== 1 && value.rubricVersion !== 2 && value.rubricVersion !== 3) ||
+    (value.label !== "high" && value.label !== "medium" && value.label !== "low") ||
+    !Array.isArray(checks) ||
+    limitingReasons === undefined ||
+    advisoryReasons === undefined
+  ) {
+    return undefined;
+  }
+  const parsedChecks: NonNullable<FailedRunArtifactFailure["evidenceQuality"]>["checks"] =
+    checks.flatMap((check): NonNullable<FailedRunArtifactFailure["evidenceQuality"]>["checks"] => {
+      if (!isRecord(check)) {
+        return [];
+      }
+      const { evidenceClass } = check;
+      const { coverage } = check;
+      const { freshness } = check;
+      const { corroboration } = check;
+      if (
+        typeof check.capability !== "string" ||
+        (evidenceClass !== "core" &&
+          evidenceClass !== "material" &&
+          evidenceClass !== "supplemental") ||
+        (coverage !== "pass" && coverage !== "fail") ||
+        (freshness !== "pass" && freshness !== "fail" && freshness !== "not-applicable") ||
+        (corroboration !== "pass" &&
+          corroboration !== "fail" &&
+          corroboration !== "not-applicable") ||
+        typeof check.passed !== "boolean"
+      ) {
+        return [];
+      }
+      const reasons = readStringArray(check, "reasons");
+      return reasons === undefined
+        ? []
+        : [
+            {
+              capability: check.capability,
+              evidenceClass,
+              coverage,
+              freshness,
+              corroboration,
+              passed: check.passed,
+              reasons,
+            },
+          ];
+    });
+  return parsedChecks.length !== checks.length
+    ? undefined
+    : {
+        version: 1,
+        rubricVersion: value.rubricVersion,
+        label: value.label,
+        checks: parsedChecks,
+        limitingReasons,
+        advisoryReasons,
+      };
+}
+
+async function readFailedRunArtifactFailure(
+  path: string,
+): Promise<FailedRunArtifactFailure | undefined> {
+  const value = await readJsonRecord(path);
+  if (value === undefined) {
+    return undefined;
+  }
+  const generatedAt = readString(value, "generatedAt");
+  const failedAt = readString(value, "failedAt");
+  const message = readString(value, "message");
+  const reportValidationErrors = readStringArray(value, "reportValidationErrors");
+  const predictionErrors = readStringArray(value, "predictionErrors");
+  const totalCalls = readNumber(value, "totalCalls");
+  const reportRepairReprompts = readNumber(value, "reportRepairReprompts");
+  const evidenceQuality = readEvidenceQuality(value.evidenceQuality);
+  const cost = isRecord(value.cost) ? value.cost : undefined;
+  const tokenEstimate = cost === undefined ? undefined : readNumber(cost, "tokenEstimate");
+  const costEstimateUsd = cost === undefined ? undefined : readNumber(cost, "costEstimateUsd");
+  const rawLanguageViolations = value.languageViolations;
+  const languageViolations = Array.isArray(rawLanguageViolations)
+    ? rawLanguageViolations.flatMap((violation) =>
+        isRecord(violation) &&
+        typeof violation.field === "string" &&
+        typeof violation.match === "string"
+          ? [{ field: violation.field, match: violation.match }]
+          : [],
+      )
+    : undefined;
+  const parsedLanguageViolations =
+    languageViolations !== undefined &&
+    languageViolations.length ===
+      (Array.isArray(rawLanguageViolations) ? rawLanguageViolations.length : -1)
+      ? languageViolations
+      : undefined;
+  const parsedCost =
+    tokenEstimate === undefined && costEstimateUsd === undefined
+      ? undefined
+      : {
+          ...(tokenEstimate === undefined ? {} : { tokenEstimate }),
+          ...(costEstimateUsd === undefined ? {} : { costEstimateUsd }),
+        };
+  if (
+    message === undefined &&
+    reportValidationErrors === undefined &&
+    predictionErrors === undefined &&
+    totalCalls === undefined &&
+    reportRepairReprompts === undefined &&
+    parsedLanguageViolations === undefined &&
+    evidenceQuality === undefined &&
+    parsedCost === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    ...(generatedAt === undefined ? {} : { generatedAt }),
+    ...(failedAt === undefined ? {} : { failedAt }),
+    ...(message === undefined ? {} : { message }),
+    ...(reportValidationErrors === undefined ? {} : { reportValidationErrors }),
+    ...(predictionErrors === undefined ? {} : { predictionErrors }),
+    ...(totalCalls === undefined ? {} : { totalCalls }),
+    ...(reportRepairReprompts === undefined ? {} : { reportRepairReprompts }),
+    ...(parsedLanguageViolations === undefined
+      ? {}
+      : { languageViolations: parsedLanguageViolations }),
+    ...(evidenceQuality === undefined ? {} : { evidenceQuality }),
+    ...(parsedCost === undefined ? {} : { cost: parsedCost }),
+  };
 }
 
 async function readOptionalText(path: string): Promise<string | undefined> {
@@ -248,9 +388,10 @@ export async function readRunDetail(
     return undefined;
   }
 
-  const [report, markdown, analytics, trace, score, missAutopsy, indexedSummary] =
+  const [report, failure, markdown, analytics, trace, score, missAutopsy, indexedSummary] =
     await Promise.all([
       readReportRecord(join(runDir, REPORT_FILE)),
+      readFailedRunArtifactFailure(join(runDir, FAILURE_FILE)),
       readOptionalText(join(runDir, MARKDOWN_FILE)),
       readJsonRecord(join(runDir, ANALYTICS_FILE)),
       readJsonRecord(join(runDir, TRACE_FILE)),
@@ -267,6 +408,7 @@ export async function readRunDetail(
 
   return {
     summary: indexedSummary ?? runSummaryFromReport(runId, report, availableFiles),
+    ...(failure !== undefined ? { failure } : {}),
     ...(detailReport !== undefined ? { report: detailReport } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
     ...(analytics !== undefined ? { analytics } : {}),

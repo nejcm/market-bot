@@ -77,8 +77,9 @@ const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSou
 
 // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
 // The full bar series stays on disk (rawSnapshots / normalized sidecar).
-const projectVerifiedMarketSnapshot: EvidenceProjector = (_options, _command, collectedSources) =>
-  collectedSources.verifiedMarketSnapshot !== undefined
+// The profile validator allowlist only admits web sources and company SEC filings; a snapshot citation would null the whole profile item.
+const projectVerifiedMarketSnapshot: EvidenceProjector = (options, _command, collectedSources) =>
+  options.webSourceText !== "profile" && collectedSources.verifiedMarketSnapshot !== undefined
     ? {
         verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
         verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(
@@ -195,6 +196,13 @@ const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectWebSubjectProfile,
 ];
 
+function citationGuidanceFor(options: EvidencePayloadOptions): string {
+  if (options.webSourceText === "profile") {
+    return "Profile citations must come from sourceIds in evidence.webSources. Attribute numeric KPI claims to the filing or web source that states them.";
+  }
+  return "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
+}
+
 export function buildEvidencePayload(
   options: EvidencePayloadOptions,
   command: ResearchCommand,
@@ -218,8 +226,7 @@ export function buildEvidencePayload(
   const priorThesisErrors = buildPriorThesisErrorBlock(command, historicalContext);
   const priorMarketForecastErrors = buildMarketForecastErrorBlock(command, context);
   const priorThematicForecastErrors = buildResearchForecastErrorBlock(command, historicalContext);
-  const deterministicCitationGuidance =
-    "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
+  const deterministicCitationGuidance = citationGuidanceFor(options);
 
   const evidenceProjections = EVIDENCE_PROJECTORS.reduce<Record<string, unknown>>(
     (payload, project) => ({ ...payload, ...project(options, command, collectedSources) }),

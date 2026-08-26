@@ -7,6 +7,7 @@ import { createProvider } from "./model/factory";
 import type { ModelProvider } from "./model/types";
 import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
+import { isFinalSynthesisRejectedError } from "./research/final-synthesis";
 import { buildSourcePlan } from "./research/source-plan";
 import { renderRunAnalyticsConsole } from "./research/run-analytics-console";
 import {
@@ -303,30 +304,49 @@ export async function runCli(
   emitUnresolvedResearchSubjectGuidance(resolvedSubject);
   const researchCommand = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
   const invokedAt = now();
-  const result =
-    researchCommand.jobType === "equity" &&
-    researchCommand.assetClass === "equity" &&
-    researchCommand.depth === "deep"
-      ? await (dependencies.runDeepEquity ?? runDeepEquity)(
-          { command: researchCommand, config, now: invokedAt },
-          {
+  const result = await (async () => {
+    try {
+      return researchCommand.jobType === "equity" &&
+        researchCommand.assetClass === "equity" &&
+        researchCommand.depth === "deep"
+        ? await (dependencies.runDeepEquity ?? runDeepEquity)(
+            { command: researchCommand, config, now: invokedAt },
+            {
+              provider,
+              ...(dependencies.collectSources !== undefined
+                ? { collectSources: dependencies.collectSources }
+                : {}),
+              ...(dependencies.persistResearchJob !== undefined
+                ? { persistResearchJob: dependencies.persistResearchJob }
+                : {}),
+            },
+          )
+        : await runStandardResearch({
+            command: researchCommand,
+            config,
             provider,
-            ...(dependencies.collectSources !== undefined
-              ? { collectSources: dependencies.collectSources }
-              : {}),
-            ...(dependencies.persistResearchJob !== undefined
-              ? { persistResearchJob: dependencies.persistResearchJob }
-              : {}),
-          },
-        )
-      : await runStandardResearch({
-          command: researchCommand,
-          config,
-          provider,
-          ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
-          invokedAt,
+            ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
+            invokedAt,
+            dependencies,
+          });
+    } catch (error: unknown) {
+      if (isFinalSynthesisRejectedError(error) && error.runDir !== undefined) {
+        progress("updating run artifact index");
+        await updateRunArtifactIndex(
+          config.dataDir,
+          [error.runDir],
           dependencies,
-        });
+          config.indexOptions?.dbPath,
+        );
+        try {
+          process.stderr.write(`Run failed; diagnostics at ${error.runDir}\n`);
+        } catch {
+          // The validator error remains authoritative if stderr is unavailable.
+        }
+      }
+      throw error;
+    }
+  })();
 
   progress("post-run score pass");
   const scoreResult = await runScore(

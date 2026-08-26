@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
-import type { RunDetail, RunSummary } from "../app/types";
+import { readRunDetail } from "../app/artifacts";
+import type { FailedRunArtifactFailure, RunDetail, RunSummary } from "../app/types";
 import {
   buildRunWorkspaceView,
   equityHeaderView,
@@ -101,6 +103,45 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
     hasScore: false,
     availableFiles: [],
     ...overrides,
+  };
+}
+
+function failedDetail(
+  languageViolations: FailedRunArtifactFailure["languageViolations"] = [
+    { field: "summary", match: "buy" },
+  ],
+): RunDetail {
+  return {
+    summary: summary({ availableFiles: ["failure.json"] }),
+    failure: {
+      generatedAt: "2026-08-26T04:00:00.000Z",
+      failedAt: "2026-08-26T04:01:00.000Z",
+      message: "Report failed validation after 4 final-synthesis call(s)",
+      reportValidationErrors: ["Unsafe language: buy"],
+      predictionErrors: ["Prediction shape invalid"],
+      totalCalls: 4,
+      reportRepairReprompts: 3,
+      languageViolations,
+      evidenceQuality: {
+        version: 1,
+        rubricVersion: 3,
+        label: "low",
+        checks: [
+          {
+            capability: "financial-core",
+            evidenceClass: "core",
+            coverage: "fail",
+            freshness: "pass",
+            corroboration: "not-applicable",
+            passed: false,
+            reasons: ["coverage missing"],
+          },
+        ],
+        limitingReasons: ["financial-core"],
+        advisoryReasons: ["supplemental gap"],
+      },
+      cost: { tokenEstimate: 12_345, costEstimateUsd: 1.25 },
+    },
   };
 }
 
@@ -567,6 +608,91 @@ function htmlText(html: string): string {
 }
 
 describe("run workspace view", () => {
+  test("renders Failed Run Artifact diagnostics", async () => {
+    const detail = failedDetail();
+
+    const view = buildRunWorkspaceView(detail);
+    const html = await renderRunWorkspaceComponent(detail);
+
+    expect(view.failure?.diagnostics).toBe(detail.failure);
+    expect(html).toContain("Failed Run Artifact");
+    expect(html).toContain("Unsafe language: buy");
+    expect(html).toContain("Prediction shape invalid");
+    expect(html).toContain("Final-synthesis calls");
+    expect(html).toContain("Repair reprompts");
+    expect(html).toContain("summary");
+    expect(html).toContain("12,345");
+    expect(html).toContain("$1.2500");
+    expect(html).toContain("financial-core");
+    expect(html).toContain("coverage missing");
+  });
+
+  test("renders surviving diagnostics from future Failed Run Artifact versions", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "run-workspace-failure-"));
+    const runDir = join(dataDir, "future-failure");
+    mkdirSync(runDir);
+    writeFileSync(
+      join(runDir, "failure.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        message: "Future-version failure survived",
+        reportValidationErrors: ["Future report error"],
+        languageViolations: [{ field: "summary", match: "future match" }],
+        totalCalls: 4,
+        reportRepairReprompts: 3,
+        evidenceQuality: {
+          version: 1,
+          rubricVersion: 4,
+          label: "low",
+          checks: [],
+          limitingReasons: [],
+          advisoryReasons: [],
+        },
+        cost: { tokenEstimate: 12_345, costEstimateUsd: 1.25 },
+      }),
+      "utf8",
+    );
+
+    const detail = await readRunDetail(dataDir, "future-failure");
+    if (detail === undefined) {
+      throw new Error("Expected future Failed Run Artifact detail");
+    }
+    const html = await renderRunWorkspaceComponent(detail);
+    const text = htmlText(html);
+
+    expect(text).toContain("Future-version failure survived");
+    expect(text).toContain("Future report error");
+    expect(text).toContain("summary matched future match");
+    expect(text).toContain("4 Final-synthesis calls");
+    expect(text).toContain("3 Repair reprompts");
+    expect(text).toContain("12,345 Token estimate");
+    expect(text).toContain("$1.2500 Estimated cost");
+    expect(text).not.toContain("Evidence quality assessment");
+    expect(text).not.toContain("Failure diagnostics unavailable");
+  });
+
+  test("attributes an empty language violation list to assembly output", async () => {
+    const html = await renderRunWorkspaceComponent(failedDetail([]));
+
+    expect(html).toContain("Attributed to assembly output, not the draft.");
+    expect(html).not.toContain("matched");
+  });
+
+  test("uses the failure marker when diagnostics are malformed", async () => {
+    const detail: RunDetail = {
+      summary: summary({ availableFiles: ["failure.json"] }),
+    };
+
+    const view = buildRunWorkspaceView(detail);
+    const html = await renderRunWorkspaceComponent(detail);
+
+    expect(view.failure).toEqual({});
+    expect(html).toContain("Failure diagnostics unavailable");
+    expect(html).toContain("failure.json marks this run complete");
+    expect(html).not.toContain("unknown time");
+    expect(html).not.toContain("Evidence Quality");
+  });
+
   test("emits the exact mode-aware table of contents for a deep equity run", () => {
     const entries = buildRunWorkspaceView(tableOfContentsFixture()).tableOfContents;
 

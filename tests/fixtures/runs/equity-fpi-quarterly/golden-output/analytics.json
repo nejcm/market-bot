@@ -298,7 +298,7 @@
     "label": "medium",
     "assessment": {
       "version": 1,
-      "rubricVersion": 2,
+      "rubricVersion": 3,
       "label": "medium",
       "checks": [
         {
@@ -405,6 +405,12 @@
         "news: corroboration check failed",
         "corporate-events: evidence missing or unusable",
         "macro-indicators: evidence missing or unusable"
+      ],
+      "advisoryReasons": [
+        "supplemental-market: evidence missing or unusable",
+        "derivatives-volatility: evidence missing or unusable",
+        "peer-valuation: evidence missing or unusable",
+        "subject-profile: evidence missing or unusable"
       ]
     },
     "dataGapCount": 18,

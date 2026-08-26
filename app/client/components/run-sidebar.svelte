@@ -12,7 +12,13 @@
   import { Input } from "$lib/components/ui/input";
   import { Sheet, SheetContent, SheetTrigger } from "$lib/components/ui/sheet";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { formatDateMinute, runCountsLabel, runLabel, type SidebarView } from "../view-model";
+  import {
+    formatDateMinute,
+    isFailedRun,
+    runCountsLabel,
+    runLabel,
+    type SidebarView,
+  } from "../view-model";
   import type { View } from "./console-types";
   import type { RunSummary } from "../../types";
   import logoUrl from "../../../assets/logo.png";
@@ -209,9 +215,15 @@
               >
                 {runLabel(run)}
               </span>
-              <span class="shrink-0 font-mono text-[10px] text-[#6e757d]">
-                {formatDateMinute(run.generatedAt)}
-              </span>
+              {#if isFailedRun(run)}
+                <span
+                  class="shrink-0 rounded border border-red-900/60 bg-red-950/40 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-red-300"
+                >failed</span>
+              {:else}
+                <span class="shrink-0 font-mono text-[10px] text-[#6e757d]">
+                  {formatDateMinute(run.generatedAt)}
+                </span>
+              {/if}
             </span>
             <span class="mt-1 block font-mono text-[10px] text-[#7f868e]">
               {runCountsLabel(run)}

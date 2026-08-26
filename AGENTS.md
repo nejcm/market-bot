@@ -33,6 +33,10 @@ good — same information, sanctioned framing:
 
 Blocked: "fair value", "intrinsic value", "price target", "under/overvalued", "margin of safety", "% gap", sentence-initial Buy/Sell/Hold, and "investors/traders/you should". Descriptive lowercase prose is fine.
 
+The gate applies to what market-bot asserts, not what its sources say. `assertSafeReportLanguage` scans model-authored prose only; quoted source text — `sources[]`, `extendedEvidence[]` — and deterministic assembly text are exempt ([ADR 0001](./docs/adr/0001-research-only-boundary.md)). Widening it to quoted text makes reports unpublishable over an issuer's own filing wording, which no repair reprompt can fix. When you add a report surface, classify it per field and say which side it lands on; the exempt list is closed, so adding to it needs an ADR amendment.
+
+The scanned text is joined with newlines, not `JSON.stringify`. The sentence-initial pattern needs `^` or `.!?;:\n` before the verb, and a JSON blob puts a quote there — under the old blob a field opening with "Buy the dip" passed. Keep the delimiter.
+
 ## ADR guidance
 
 ADRs document current decisions and should be followed by default, but they can be changed when a better approach is justified.
@@ -46,7 +50,7 @@ ADRs document current decisions and should be followed by default, but they can 
 Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens.
 
 - **Never run the CLI to "check something."** Read an existing artifact under `data/runs/` (newest first) or replay a fixture. Fixture replays are free.
-- **Never pass `--live`**, and never run the fixture *recorder* — it hits every provider and can capture secrets into cassettes.
+- **Never pass `--live`**, and never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.
 - **Never `--write-golden`** unless the change was intentionally output-changing, and say so in the commit body.
 - **Never delete or prune under `data/`.** `cache prune`, `index rebuild`, `history rebuild` throw away derived state that costs provider calls to rebuild. Ask instead.
 - **Never read or echo `.env`.** It holds live keys; `.env.example` has the names.
@@ -57,6 +61,8 @@ Always fine: `bun test`, `bun run check`, fixture replays without `--live`, read
 ## Data layout
 
 Artifacts land in `data/runs/<run-id>/` — `report.json`, `report.md`, `score.json`, `analytics.json`, `stages.json`, `trace.json`, `normalized/`, `raw/`.
+
+Failed final-synthesis runs leave `failure.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`; no `report.json`, `report.md`, `trace.json`, or `analytics.json`. `failure.json` is written last, so its presence means the run dir is complete.
 
 `data/` also holds `calibration/`, `index.sqlite` (Run Artifact Index), `history/` (search index + instrument timelines), `cache/`, and `news-seen.json` (suppresses repeat news URLs for 30 days). All rebuildable, none disposable.
 

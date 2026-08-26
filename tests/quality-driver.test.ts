@@ -31,6 +31,7 @@ function assessment(
     label,
     checks,
     limitingReasons: [],
+    advisoryReasons: [],
   };
 }
 

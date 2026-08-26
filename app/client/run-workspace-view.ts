@@ -1,4 +1,5 @@
 import type { RunDetail } from "../types";
+import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { readGapTriage, type GapTriage } from "../../src/report/gap-triage";
 import {
   normalizePredictionShortfallReport,
@@ -243,7 +244,12 @@ export interface RunWorkspaceEquityPresentationView {
   };
 }
 
+interface RunWorkspaceFailureView {
+  readonly diagnostics?: NonNullable<RunDetail["failure"]>;
+}
+
 export interface RunWorkspaceView {
+  readonly failure?: RunWorkspaceFailureView;
   readonly equityHeader?: RunWorkspaceEquityHeaderView;
   readonly equityPresentation?: RunWorkspaceEquityPresentationView;
   readonly fundamentalHistory?: RunWorkspaceFundamentalHistoryView;
@@ -286,6 +292,7 @@ function snapshotView(detail: RunDetail): RunWorkspaceSnapshotView | undefined {
 }
 
 export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
+  const failed = detail.summary.availableFiles.includes(RUN_ARTIFACT_FILES.failure);
   const report = normalizePredictionShortfallReport(detail.report);
   const isEquityPresentation =
     detail.summary.jobType === "equity" &&
@@ -650,6 +657,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     .map(({ key, label, advancedOnly }) => ({ key, label, advancedOnly }));
 
   return {
+    ...(failed
+      ? { failure: detail.failure === undefined ? {} : { diagnostics: detail.failure } }
+      : {}),
     ...(equityHeader !== undefined ? { equityHeader } : {}),
     ...(equityPresentation !== undefined ? { equityPresentation } : {}),
     ...(fundamentalHistory !== undefined ? { fundamentalHistory } : {}),

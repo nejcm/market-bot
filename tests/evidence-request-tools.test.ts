@@ -200,7 +200,14 @@ describe("SEC latest filing evidence tool", () => {
     ).toBe(true);
   });
 
-  test("gates the filing excerpt built from exempt SEC source text", async () => {
+  /*
+   * ADR 0001 (2026-08-26) removed the asymmetry this test used to assert. The same filing
+   * Bytes land in `Source.snippet` and `extendedEvidence[].summary`; gating only the second
+   * Copy made a report unpublishable over wording market-bot never wrote, which is what
+   * Killed run 2026-08-26T10-22-14-230Z-52aac308. Both copies are now exempt, and the gate
+   * Fires only when the same bytes are restated as market-bot's own assertion.
+   */
+  test("exempts the filing excerpt but gates the same bytes restated as authored prose", async () => {
     const result = await executeEvidenceRequestTool(
       "sec_latest_filing",
       baseCtx({
@@ -224,20 +231,22 @@ describe("SEC latest filing evidence tool", () => {
 
     expect(source.snippet).toContain("Fair value is measured under ASC 820.");
     expect(item.summary).toContain("Filing excerpt: [MD&A] ITEM 2-MANAGEMENT Fair value");
-    expect(() =>
-      assertSafeReportLanguage(
-        researchReport({
-          jobType: "equity",
-          symbol: "AAPL",
-          sources: [source],
-          extendedEvidence: {
-            instrument: { assetClass: "equity", symbol: "AAPL" },
-            items: [item],
-            gaps: [],
-          },
-        }),
-      ),
-    ).toThrow('trade-action language: "Fair value"');
+
+    const filingReport = researchReport({
+      jobType: "equity",
+      symbol: "AAPL",
+      sources: [source],
+      extendedEvidence: {
+        instrument: { assetClass: "equity", symbol: "AAPL" },
+        items: [item],
+        gaps: [],
+      },
+    });
+
+    expect(() => assertSafeReportLanguage(filingReport)).not.toThrow();
+    expect(() => assertSafeReportLanguage({ ...filingReport, summary: item.summary })).toThrow(
+      'trade-action language: "Fair value"',
+    );
   });
 
   test("encodes the SEC primary document URL segment", async () => {

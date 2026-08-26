@@ -129,13 +129,70 @@ describe("Failed Run Artifact persistence", () => {
     });
   });
 
-  test("records an empty draft violation list when deterministic assembly is rejected", async () => {
+  /*
+   * `languageViolations: []` is the signal that the rejected wording is not in the draft.
+   * Since ADR 0001 (2026-08-26) scoped validation to model-authored prose, deterministic
+   * Assembly text can no longer trigger it; the remaining route is prose written by an
+   * Earlier model stage and merged during assembly, which never appears in the
+   * Final-synthesis payload the per-field attribution scans. The Web Subject Profile is
+   * That case.
+   */
+  test("records an empty draft violation list when an earlier stage's prose is rejected", async () => {
     const dataDir = tempDataDir("market-bot-failed-assembly");
-    const sourceId = "extended-sec-test";
+    const sourceId = "web-profile-test";
     const error = await rejectAndCapture(
       dataDir,
       providerReturningFinal(modelPayload("AAPL evidence is sourced.")),
       sources({
+        extendedSources: [
+          {
+            id: sourceId,
+            title: "AAPL company overview",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "web",
+            assetClass: "equity",
+            symbol: "AAPL",
+          },
+        ],
+        webSubjectProfile: {
+          version: 2,
+          generatedAt: "2026-05-19T00:00:00.000Z",
+          subjectKind: "company",
+          subjectId: "AAPL",
+          symbol: "AAPL",
+          subjectSummary: { answer: "Buy AAPL after catalyst.", sourceIds: [sourceId] },
+          questions: {
+            whatItDoes: { answer: "Consumer electronics", sourceIds: [sourceId] },
+            howItMakesMoney: { answer: "Hardware and services", sourceIds: [sourceId] },
+            customers: { answer: "Global consumers", sourceIds: [sourceId] },
+            geography: { answer: "Worldwide", sourceIds: [sourceId] },
+            purchaseRecurrence: { answer: "High", sourceIds: [sourceId] },
+            pricingPower: { answer: "Premium", sourceIds: [sourceId] },
+            recessionCyclicality: { answer: "Moderate", sourceIds: [sourceId] },
+          },
+          recentMaterialEvents: [{ claim: "Launched a device", sourceIds: [sourceId] }],
+          factLedger: [{ claim: "Revenue grew", sourceIds: [sourceId] }],
+          openGaps: [],
+          sourceIds: [sourceId],
+        },
+      }),
+    );
+    const failure = JSON.parse(
+      await readFile(join(error.runDir ?? "missing", "failure.json"), "utf8"),
+    ) as { readonly languageViolations?: unknown };
+
+    expect(error.message).toMatch(/trade-action language: "Buy AAPL"/u);
+    expect(failure.languageViolations).toEqual([]);
+  });
+
+  test("leaves collector-derived Extended Evidence outside the language gate", async () => {
+    const dataDir = tempDataDir("market-bot-evidence-exempt");
+    const sourceId = "extended-sec-test";
+    await persistResearchJob({
+      command,
+      config: { ...config, dataDir },
+      provider: providerReturningFinal(modelPayload("AAPL evidence is sourced.")),
+      collectedSources: sources({
         extendedSources: [
           {
             id: sourceId,
@@ -153,7 +210,8 @@ describe("Failed Run Artifact persistence", () => {
             {
               category: "sec-edgar",
               title: "AAPL SEC evidence",
-              summary: "Buy AAPL after catalyst.",
+              summary:
+                "In addition, you should consider the interrelationship and compounding effects of two or more risks occurring simultaneously.",
               sourceIds: [sourceId],
               observedAt: "2026-05-19T00:00:00.000Z",
             },
@@ -161,12 +219,15 @@ describe("Failed Run Artifact persistence", () => {
           gaps: [],
         },
       }),
-    );
-    const failure = JSON.parse(
-      await readFile(join(error.runDir ?? "missing", "failure.json"), "utf8"),
-    ) as { readonly languageViolations?: unknown };
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      endClock: () => new Date("2026-05-19T00:01:00.000Z"),
+    });
 
-    expect(failure.languageViolations).toEqual([]);
+    const [runId] = await readdir(dataDir);
+    const rootFiles = await readdir(join(dataDir, runId ?? "missing"));
+
+    expect(rootFiles).toContain("report.json");
+    expect(rootFiles).not.toContain("failure.json");
   });
 
   test("preserves the validator error when diagnostics persistence fails", async () => {

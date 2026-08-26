@@ -112,96 +112,88 @@ function validateScenarios(
   }
 }
 
-function extendedEvidenceLanguageText(report: ResearchReport): readonly {
-  readonly title: string;
-  readonly summary: string;
-}[] {
-  return (
-    report.extendedEvidence?.items.map((item) => ({
-      title: item.title,
-      summary: item.summary,
-    })) ?? []
-  );
-}
-
+/*
+ * Research-only validation covers model-authored report prose only (ADR 0001,
+ * 2026-08-26 amendment). Collector-derived and deterministic assembly text is out of
+ * Scope: the boundary governs what market-bot asserts, not what its sources say, and a
+ * Violation the model never wrote is unfixable by a repair reprompt. Deliberately not
+ * Scanned, with the producer that proves each classification:
+ *   extendedEvidence         collector-derived filing/news text
+ *   researchQualityDriver    deterministic (research/quality-driver.ts)
+ *   extras.historicalContext code-built in research/report-assembly.ts:historicalContextExtra;
+ *                            items[].text quotes a prior run summary already gated on its own run
+ *   extras.catalystCalendar  research/report-assembly.ts:catalystCalendarExtra; catalyst labels
+ *                            duplicate report.catalysts (scanned below), macro labels are
+ *                            collector titles, prediction labels are code templates
+ *   extras.*.gaps            Source Gap strings emitted by code, never by the model
+ * One model-authored surface stays unscanned, unchanged by this scoping: report.dataGaps,
+ * Which merges model payload.dataGaps with deterministic text (report-assembly.ts:761).
+ * Predictions need no scan -- claim is rendered from the parsed expression
+ * (observable-candidates.ts:172) and measurableAs is DSL, not prose.
+ */
 export function assertSafeReportLanguage(report: ResearchReport): void {
-  const text = JSON.stringify({
-    summary: report.summary,
-    keyFindings: report.keyFindings,
-    bullCase: report.bullCase,
-    bearCase: report.bearCase,
-    risks: report.risks,
-    catalysts: report.catalysts,
-    scenarios: report.scenarios,
-    researchQualityDriver: report.researchQualityDriver,
-    extendedEvidence: extendedEvidenceLanguageText(report),
-    renderedExtras: researchOnlyExtraText(report.extras),
-  });
-
-  const violation = violatesResearchOnly(text);
+  /*
+   * Joined with newlines rather than JSON.stringify: the sentence-initial pattern needs
+   * `^` or one of `.!?;:\n` before the verb, and a JSON blob puts a quote there instead,
+   * So a field opening with "Buy the dip ..." went undetected. JSON.stringify also escapes
+   * Real newlines to a literal backslash-n, which defeats that branch a second time. The
+   * Delimiter matters, so keep this a newline join.
+   */
+  const violation = violatesResearchOnly(modelAuthoredReportText(report).join("\n"));
   if (violation !== null) {
     throw new Error(`Report contains trade-action language: "${violation.match}"`);
   }
 }
 
-function researchOnlyExtraText(extras: ResearchReport["extras"]): Record<string, unknown> {
-  if (extras === undefined) {
-    return {};
-  }
-  return {
-    historicalContext: historicalContextText(extras.historicalContext),
-    spotlights: spotlightsText(extras.spotlights),
-    catalystCalendar: catalystCalendarText(extras.catalystCalendar),
-    earningsSetup: earningsSetupText(extras.earningsSetup),
-    businessFramework: businessFrameworkText(extras.businessFramework),
-    webSubjectProfile: webSubjectProfileText(extras.webSubjectProfile),
-  };
-}
-
-function historicalContextText(extra: unknown): readonly string[] {
-  if (!isRecord(extra)) {
-    return [];
-  }
+function modelAuthoredReportText(report: ResearchReport): readonly string[] {
   return [
-    ...(typeof extra.summary === "string" ? [extra.summary] : []),
-    ...(Array.isArray(extra.items)
-      ? extra.items.flatMap((item) =>
-          isRecord(item) && typeof item.text === "string" ? [item.text] : [],
-        )
-      : []),
-    ...readStringArray(extra.gaps),
+    report.summary,
+    ...[
+      report.keyFindings,
+      report.bullCase,
+      report.bearCase,
+      report.risks,
+      report.catalysts,
+    ].flatMap((findings) => findings.map((finding) => finding.text)),
+    ...report.scenarios.flatMap((scenario) => [scenario.name, scenario.description]),
+    ...modelAuthoredExtraText(report.extras),
   ];
 }
 
-function spotlightsText(extra: unknown): readonly string[] {
-  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+function modelAuthoredExtraText(extras: ResearchReport["extras"]): readonly string[] {
+  if (extras === undefined) {
     return [];
   }
-  return extra.items.flatMap((item) => {
-    if (!isRecord(item)) {
-      return [];
-    }
-    if (typeof item.rationale === "string") {
-      return [item.rationale];
-    }
-    return typeof item.text === "string" ? [item.text] : [];
-  });
+  return [
+    ...spotlightsText(extras.spotlights),
+    ...earningsSetupText(extras.earningsSetup),
+    ...businessFrameworkText(extras.businessFramework),
+    ...webSubjectProfileText(extras.webSubjectProfile),
+  ];
 }
 
-function catalystCalendarText(extra: unknown): readonly string[] {
-  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+// Both the selection rationale and each item rationale are model-authored: they are read
+// Out of parsed model output in research/spotlights.ts and merged in report-assembly.ts.
+function spotlightsText(extra: unknown): readonly string[] {
+  if (!isRecord(extra)) {
     return [];
   }
-  return extra.items.flatMap((item) => {
-    if (!isRecord(item)) {
-      return [];
-    }
-    return [
-      typeof item.label === "string" ? item.label : undefined,
-      typeof item.sourceStatus === "string" ? item.sourceStatus : undefined,
-      typeof item.researchRelevance === "string" ? item.researchRelevance : undefined,
-    ].filter((value): value is string => value !== undefined);
-  });
+  const selectionRationale = typeof extra.rationale === "string" ? [extra.rationale] : [];
+  if (!Array.isArray(extra.items)) {
+    return selectionRationale;
+  }
+  return [
+    ...selectionRationale,
+    ...extra.items.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+      if (typeof item.rationale === "string") {
+        return [item.rationale];
+      }
+      return typeof item.text === "string" ? [item.text] : [];
+    }),
+  ];
 }
 
 function earningsSetupText(extra: unknown): readonly string[] {
@@ -219,7 +211,6 @@ function earningsSetupText(extra: unknown): readonly string[] {
       }
     }
   }
-  texts.push(...readStringArray(extra.gaps));
   return texts;
 }
 
@@ -227,20 +218,11 @@ function businessFrameworkText(extra: unknown): readonly string[] {
   if (!isRecord(extra)) {
     return [];
   }
-  return [
-    ...readStringArray(extra.gaps),
-    ...(Array.isArray(extra.sections)
-      ? extra.sections.flatMap((section) => {
-          if (!isRecord(section)) {
-            return [];
-          }
-          return [
-            typeof section.text === "string" ? section.text : undefined,
-            ...readStringArray(section.gaps),
-          ].filter((value): value is string => value !== undefined);
-        })
-      : []),
-  ];
+  return Array.isArray(extra.sections)
+    ? extra.sections.flatMap((section) =>
+        isRecord(section) && typeof section.text === "string" ? [section.text] : [],
+      )
+    : [];
 }
 
 function webSubjectProfileFactTexts(value: unknown): readonly string[] {

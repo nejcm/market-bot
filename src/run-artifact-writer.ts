@@ -322,9 +322,10 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
         reportRepairReprompts: input.reportRepairReprompts,
         // Field attribution is a hint: JSON delimiters can create cross-element matches, phrases
         // Spanning nested fields are missed, and only the first match per top-level field is kept.
-        // ReportValidationErrors is authoritative; [] means the draft had no detected match, so the
-        // Violation came from assembly output (researchQualityDriver, extendedEvidence, renderedExtras;
-        // Schema.ts:128-138), not the draft.
+        // ReportValidationErrors is authoritative; [] means this draft had no detected match, so the
+        // Rejected wording came from somewhere else -- since assertSafeReportLanguage scans only
+        // Model-authored prose (ADR 0001, 2026-08-26), that is prose from an earlier model stage
+        // Merged during assembly, such as the Web Subject Profile.
         languageViolations: languageViolations(input.payload),
         evidenceQuality: input.evidenceQuality,
         cost: {

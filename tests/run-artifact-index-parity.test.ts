@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { listRunSummaries, searchRunReports } from "../app/artifacts";
+import { buildProviderHealthSummary } from "../src/health/provider-health";
 import { rebuildHistoryArtifacts, searchHistoryIndex } from "../src/history/artifacts";
 import {
   INDEX_SCHEMA_VERSION,
@@ -205,7 +206,24 @@ describe("run artifact index parity", () => {
     expect(indexed?.map((outcome) => outcome.runId)).toEqual(["a-report", "run-a"]);
   });
 
-  test("outcome reads degrade to disk on index version mismatch", async () => {
+  test("provider health reads fresh outcome rows through the index projection", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const db = new Database(dbPath);
+    const update = db.prepare(
+      "UPDATE subsystem_outcomes SET code = ? WHERE run_id = ? AND subsystem = ?",
+    );
+    update.run("indexed-produced", "run-a", "web-gather");
+    update.finalize();
+    db.close();
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.subsystemOutcomes.byCode).toEqual({ "indexed-produced": 1 });
+  });
+
+  test("provider health outcome reads degrade to disk on index version mismatch", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeFixtureRun(dataDir, "run-a");
     const db = new Database(dbPath, { create: true });
@@ -213,12 +231,10 @@ describe("run artifact index parity", () => {
     db.close();
     const stderr = captureStderr();
 
-    const indexed = await loadRunSubsystemOutcomesFromIndex(dataDir);
-    const disk = indexed ?? (await scanRunSubsystemOutcomesFromDisk(dataDir));
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
 
-    expect(indexed).toBeUndefined();
-    expect(disk).toHaveLength(1);
-    expect(disk[0]?.runId).toBe("run-a");
+    expect(summary.subsystemOutcomes.count).toBe(1);
+    expect(summary.subsystemOutcomes.ledgerStatus).toEqual({ ok: 1, absent: 0, malformed: 0 });
     expect(stderr.join("")).toContain(
       `unsupported schema version ${String(INDEX_SCHEMA_VERSION - 1)}, falling back to disk scan`,
     );

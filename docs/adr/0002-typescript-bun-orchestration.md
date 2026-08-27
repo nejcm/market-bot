@@ -78,6 +78,9 @@ derived indexes, and pipeline fixtures were previously split across several reco
 - The SQLite Run Artifact Index accelerates list/search and selected calibration/history reads.
   Readers use it only when schema and freshness checks pass; otherwise they warn and fall back to
   disk.
+- Index schema v11 stores each run's `outcomes_status` as `ok`, `absent`, or `malformed` and stores
+  valid ledger rows in `subsystem_outcomes`. This preserves unreadable-ledger state instead of
+  collapsing it into an empty outcome set.
 - Research, alpha-search, and score mutations write through affected index rows when an index
   exists. Failure is non-fatal because disk remains authoritative.
 - A present, schema-compatible stale index may rebuild automatically after write-through. Missing

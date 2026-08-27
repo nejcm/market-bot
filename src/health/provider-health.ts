@@ -19,8 +19,13 @@ import {
   type Source,
   type SourceGap,
 } from "../domain/types";
-import { readRunArtifactIndexStatus, type RunArtifactIndexStatus } from "../run-artifact-index";
-import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
+import {
+  loadRunSubsystemOutcomesFromIndex,
+  readRunArtifactIndexStatus,
+  scanRunSubsystemOutcomesFromDisk,
+  type RunArtifactIndexStatus,
+} from "../run-artifact-index";
+import { RUN_ARTIFACT_FILES, type ArtifactFileStatus } from "../run-artifact-layout";
 import { isDeepEquityReport } from "../deep-equity/artifact-schema";
 import {
   loadDeepEquityEvidenceBundle,
@@ -28,6 +33,10 @@ import {
   type LoadedDeepEquityEvidenceBundle,
 } from "../run-artifacts";
 import { readAnalytics } from "../run-artifact-analytics-reader";
+import {
+  rollupSubsystemOutcomes,
+  type SubsystemOutcomeRollup,
+} from "../research/subsystem-outcomes";
 import { isRecord, numberAt } from "../guards";
 import {
   buildValidation,
@@ -53,6 +62,7 @@ interface SourceHealth {
 
 export interface RunHealth {
   readonly runId: string;
+  readonly failed: boolean;
   readonly generatedAt?: string;
   readonly jobType?: JobType;
   readonly assetClass?: AssetClass;
@@ -82,7 +92,7 @@ export interface ProviderRouteHealth {
 }
 
 export interface ProviderHealthSummary {
-  readonly version: 2;
+  readonly version: 3;
   readonly generatedAt: string;
   readonly runCount: number;
   readonly firstRunAt?: string;
@@ -102,6 +112,10 @@ export interface ProviderHealthSummary {
     readonly scoredRuns: number;
     readonly resolvedPredictions: number;
     readonly calibrationPresent: boolean;
+  };
+  readonly subsystemOutcomes: SubsystemOutcomeRollup & {
+    readonly failedRunCount: number;
+    readonly ledgerStatus: Readonly<Record<ArtifactFileStatus, number>>;
   };
   readonly gapOverview: {
     readonly total: number;
@@ -135,7 +149,9 @@ function isJobType(value: unknown): value is JobType {
     value === "daily" ||
     value === "weekly" ||
     value === "equity" ||
-    value === "crypto"
+    value === "crypto" ||
+    value === "alpha-search" ||
+    value === "research"
   );
 }
 
@@ -333,25 +349,21 @@ function deepEquitySourceGaps(
   return [deepEquityBundleStatusGap(bundle?.status ?? "absent")];
 }
 
-async function loadRunHealth(runDir: string): Promise<RunHealth | undefined> {
-  if (
-    await access(join(runDir, FAILURE_FILE)).then(
-      () => true,
-      () => false,
-    )
-  ) {
-    return undefined;
-  }
-  const reportRaw = await readJson(join(runDir, REPORT_FILE));
+async function loadRunHealth(runDir: string): Promise<RunHealth> {
+  const failed = await access(join(runDir, FAILURE_FILE)).then(
+    () => true,
+    () => false,
+  );
+  const reportRaw = await readJson(join(runDir, failed ? FAILURE_FILE : REPORT_FILE));
   const report = isRecord(reportRaw) ? reportRaw : {};
-  const analyticsFile = await readAnalytics(runDir);
+  const analyticsFile = failed ? undefined : await readAnalytics(runDir);
   const analytics =
-    analyticsFile.status === "ok" && isRecord(analyticsFile.value)
+    analyticsFile?.status === "ok" && isRecord(analyticsFile.value)
       ? analyticsFile.value
       : undefined;
   const score = parseScoreCounts(await readJson(join(runDir, SCORE_FILE)));
   const reportSourceIds = parseSourceIds(report.sources);
-  const deepEquity = isDeepEquityReport(report);
+  const deepEquity = !failed && isDeepEquityReport(report);
   const deepEquityBundle = deepEquity
     ? await loadDeepEquityEvidenceBundle(runDir, reportSourceIds)
     : undefined;
@@ -364,6 +376,7 @@ async function loadRunHealth(runDir: string): Promise<RunHealth | undefined> {
 
   return {
     runId: stringValue(report.runId) ?? basename(runDir),
+    failed,
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     ...(isJobType(report.jobType) ? { jobType: report.jobType } : {}),
     ...(isAssetClass(report.assetClass) ? { assetClass: report.assetClass } : {}),
@@ -634,26 +647,40 @@ export async function buildProviderHealthSummary(
   now: Date = new Date(),
 ): Promise<ProviderHealthSummary> {
   const runDirs = await listRunDirs(runsDir);
-  const loadedRuns = await Promise.all(runDirs.map((runDir) => loadRunHealth(runDir)));
-  const runs = loadedRuns.filter((run): run is RunHealth => run !== undefined);
+  const runs = await Promise.all(runDirs.map((runDir) => loadRunHealth(runDir)));
+  const indexedOutcomeLedgers = await loadRunSubsystemOutcomesFromIndex(runsDir);
+  const outcomeLedgers = indexedOutcomeLedgers ?? (await scanRunSubsystemOutcomesFromDisk(runsDir));
+  const subsystemOutcomeRollup = rollupSubsystemOutcomes(
+    outcomeLedgers.flatMap((ledger) => ledger.outcomes),
+  );
+  const successfulRuns = runs.filter((run) => !run.failed);
   const dates = generatedDates(runs);
   const routes = routeHealth(runs);
   const calibrationPresent = await hasCalibration(runsDir);
   const runArtifactIndex = readRunArtifactIndexStatus(runsDir);
   const validation = validationWithIndexStatus(
-    buildValidation(runs, routes, calibrationPresent, now),
+    buildValidation(successfulRuns, routes, calibrationPresent, now),
     runArtifactIndex,
   );
 
   return {
-    version: 2,
+    version: 3,
     generatedAt: now.toISOString(),
     runCount: runs.length,
     ...(dates[0] !== undefined ? { firstRunAt: dates[0] } : {}),
     ...(dates.at(-1) !== undefined ? { lastRunAt: dates.at(-1) as string } : {}),
     runsByJobType: countBy(runs, (run) => run.jobType),
     runsByAssetClass: countBy(runs, (run) => run.assetClass),
-    realRunValidation: validationSummary(runs, calibrationPresent),
+    realRunValidation: validationSummary(successfulRuns, calibrationPresent),
+    subsystemOutcomes: {
+      ...subsystemOutcomeRollup,
+      failedRunCount: runs.filter((run) => run.failed).length,
+      ledgerStatus: {
+        ok: outcomeLedgers.filter((ledger) => ledger.status === "ok").length,
+        absent: outcomeLedgers.filter((ledger) => ledger.status === "absent").length,
+        malformed: outcomeLedgers.filter((ledger) => ledger.status === "malformed").length,
+      },
+    },
     gapOverview: gapOverview(routes),
     runArtifactIndex,
     validation,
@@ -742,6 +769,23 @@ function renderProviderHealthMarkdown(summary: ProviderHealthSummary): string {
     tableRow(["Scored runs", String(summary.realRunValidation.scoredRuns)]),
     tableRow(["Resolved predictions", String(summary.realRunValidation.resolvedPredictions)]),
     tableRow(["Calibration present", summary.realRunValidation.calibrationPresent ? "yes" : "no"]),
+    "",
+    "## Subsystem outcomes",
+    "",
+    tableRow(["Metric", "Value"]),
+    tableRow(["---", "---"]),
+    tableRow(["Failed runs", String(summary.subsystemOutcomes.failedRunCount)]),
+    tableRow(["Ledger ok", String(summary.subsystemOutcomes.ledgerStatus.ok)]),
+    tableRow(["Ledger absent", String(summary.subsystemOutcomes.ledgerStatus.absent)]),
+    tableRow(["Ledger malformed", String(summary.subsystemOutcomes.ledgerStatus.malformed)]),
+    tableRow(["Recorded outcomes", String(summary.subsystemOutcomes.count)]),
+    tableRow(["Expected empty", String(summary.subsystemOutcomes.expectedEmptyCount)]),
+    ...Object.entries(summary.subsystemOutcomes.byOutcome).map(([outcome, count]) =>
+      tableRow([`Outcome ${outcome}`, String(count)]),
+    ),
+    ...Object.entries(summary.subsystemOutcomes.byCode).map(([code, count]) =>
+      tableRow([`Code ${code}`, String(count)]),
+    ),
     "",
     "## Gap overview",
     "",

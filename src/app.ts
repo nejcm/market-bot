@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { commandBanner, isResearchCommand, parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
 import { runAlphaSearchWorkflow } from "./alpha-search/workflow";
@@ -9,13 +9,18 @@ import { writeProviderHealthSummary } from "./health/provider-health";
 import { persistResearchJob } from "./research/orchestrator";
 import { isFinalSynthesisRejectedError } from "./research/final-synthesis";
 import { buildSourcePlan } from "./research/source-plan";
-import { renderRunAnalyticsConsole } from "./research/run-analytics-console";
+import {
+  renderRunAnalyticsConsole,
+  renderSubsystemOutcomeConsoleLine,
+} from "./research/run-analytics-console";
+import { rollupSubsystemOutcomes } from "./research/subsystem-outcomes";
 import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,
   type ResolvedResearchSubject,
 } from "./research/research-subject-identity";
 import { collectSources } from "./sources/collector";
+import { readRunSubsystemOutcomesFromDisk } from "./run-artifact-index-rows";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
 import { renderCalibrationConsole } from "./scoring/calibration-console";
@@ -30,7 +35,10 @@ import {
 import { rebuildRunArtifactIndex, writeThroughRunArtifactIndex } from "./run-artifact-index";
 import { rebuildRunArtifactIndexIfStale } from "./run-artifact-index-repair";
 import { runDeepEquity } from "./deep-equity";
+import { isRecord, readStringVerbatim } from "./guards";
 import { progress } from "./progress";
+import { readJsonFile } from "./run-artifact-json-reader";
+import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -338,8 +346,18 @@ export async function runCli(
           dependencies,
           config.indexOptions?.dbPath,
         );
+        const failureFile = await readJsonFile(join(error.runDir, RUN_ARTIFACT_FILES.failure));
+        const runId =
+          failureFile.status === "ok" && isRecord(failureFile.value)
+            ? (readStringVerbatim(failureFile.value, "runId") ?? basename(error.runDir))
+            : basename(error.runDir);
+        const ledger = await readRunSubsystemOutcomesFromDisk(error.runDir, runId);
         try {
-          process.stderr.write(`Run failed; diagnostics at ${error.runDir}\n`);
+          const subsystemLine =
+            ledger.status === "ok"
+              ? renderSubsystemOutcomeConsoleLine(rollupSubsystemOutcomes(ledger.outcomes))
+              : `  Subsystem outcomes: status=${ledger.status}`;
+          process.stderr.write(`Run failed; diagnostics at ${error.runDir}\n${subsystemLine}\n`);
         } catch {
           // The validator error remains authoritative if stderr is unavailable.
         }

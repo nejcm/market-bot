@@ -181,6 +181,13 @@ After final synthesis, the source-plan layer records compact `sourcePlan` and `e
 
 A Failed Run Artifact is marked by `failure.json`, includes `outcomes.json`, and deliberately has no `report.json` or `analytics.json`. Its diagnostics stay outside the completed-run `src/run-artifacts.ts` reader.
 
+Provider Health v3 reads Subsystem Outcomes through Run Artifact Index schema v11 when fresh and
+scans `outcomes.json` from disk when the index is missing, stale, or unsupported. It counts Failed
+Run Artifacts, preserves `ok`/`absent`/`malformed` ledger status, and aggregates coded outcomes.
+The successful-run stderr digest prints the `analytics.json` rollup beside Forecast Completion.
+The failed-run catch reads `outcomes.json` directly and prints the same coded count line before
+rethrowing the synthesis error.
+
 ### Predictions and scoring (`src/scoring/`, `src/forecast/`)
 
 - `src/forecast/observable.ts` — the shared contract: `measurableAs` parser, expression shape, validation rules, and resolution against Observations. Adding a new prediction shape starts here. The persisted public `claim` is rendered from the parsed DSL. Conditional Predictions use `P(B | A)` semantics and void/exclude condition-unmet scores. Earnings-anchored shapes (`earnings-direction`, `earnings-move`, resolved via the `earningsReturn` DSL) count `horizonTradingDays` from the earnings event date rather than `generatedAt`. Final synthesis treats `DepthProfile.targetPredictions` as a soft target: below-target runs ship as-is and, after earnings and research-subject gates, derive the structured `ResearchReport.predictionShortfall` contract rather than padding with coin-flip forecasts. `src/report/prediction-shortfall.ts` owns derivation, strict count validation, reader text, and anchored legacy recognition; `src/research/orchestrator.ts` re-derives the shortfall immediately after Report Integrity Audit pruning so persisted reports and downstream consumers reflect retained predictions. Analytics thresholds remain separate from Prediction validation. Report assembly also rejects adjacent same-subject direction forecasts whose horizons are fewer than two trading days apart. `ObservableForecastPolicy.allowedSubjects` provides a per-run-type emission gate: market-overview and instrument runs enforce that prediction subjects (or, for relative forecasts, the primary instrument) belong to the run's configured subject set; research runs skip this gate and rely on `researchPredictionGate` in `report-assembly.ts` instead ([ADR 0003](./adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)).

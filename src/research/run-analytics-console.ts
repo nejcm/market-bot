@@ -41,6 +41,12 @@ function auditLine(audit: NonNullable<RunAnalytics["postSynthesisAudit"]>): stri
   return `  Audit: ${String(audit.warningCount)} warning(s)${codes === "" ? "" : ` [${codes}]`}`;
 }
 
+export function renderSubsystemOutcomeConsoleLine(
+  outcomes: RunAnalytics["subsystemOutcomes"],
+): string {
+  return `  Subsystem outcomes: ${String(outcomes.count)} recorded · ${String(outcomes.expectedEmptyCount)} expected-empty`;
+}
+
 function sourceGapCauseLine(analytics: RunAnalytics): string | undefined {
   /* Cosmetic digest must never abort: tolerate analytics that predates the
    * sourceGapsByCause field or omits sourceFunnel entirely. */
@@ -110,6 +116,7 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
       `  Completion: ${predictions.completion.outcome} · ${String(predictions.completion.acceptedCount)} accepted, ${String(predictions.completion.rejectedCount)} rejected`,
     );
   }
+  lines.push(renderSubsystemOutcomeConsoleLine(analytics.subsystemOutcomes));
 
   if (evidenceLanes !== undefined) {
     lines.push(evidenceLaneLine(evidenceLanes));

@@ -33,7 +33,8 @@ function schemaSql(): string {
       data_gap_count INTEGER NOT NULL,
       has_score INTEGER NOT NULL,
       report_status TEXT NOT NULL,
-      score_status TEXT NOT NULL
+      score_status TEXT NOT NULL,
+      outcomes_status TEXT NOT NULL
     );
 
     CREATE TABLE artifact_files (

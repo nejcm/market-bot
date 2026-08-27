@@ -13,7 +13,7 @@ import {
 import {
   readDepth,
   runSubsystemOutcomesFromSidecar,
-  type RunSubsystemOutcome,
+  type RunSubsystemOutcomeLedger,
 } from "./run-artifact-projection";
 import { readJsonFile } from "./run-artifact-json-reader";
 import { predictionShortfallGapCount } from "./report/prediction-shortfall";
@@ -103,6 +103,7 @@ function runRowFor(
   runDirName: string,
   loaded: Awaited<ReturnType<typeof loadRunArtifact>>,
   files: readonly ArtifactFileRow[],
+  outcomesStatus: RunSubsystemOutcomeLedger["status"],
 ): RunRow {
   const { artifact } = loaded;
   if (artifact === undefined) {
@@ -126,6 +127,7 @@ function runRowFor(
         ? "failed"
         : loaded.status.report,
       score_status: loaded.status.score,
+      outcomes_status: outcomesStatus,
     };
   }
   const { report } = artifact;
@@ -147,6 +149,7 @@ function runRowFor(
     has_score: files.some((file) => file.path === RUN_ARTIFACT_FILES.score) ? 1 : 0,
     report_status: loaded.status.report,
     score_status: loaded.status.score,
+    outcomes_status: outcomesStatus,
   };
 }
 
@@ -197,9 +200,9 @@ function scoreRowsFor(
 export async function readRunSubsystemOutcomesFromDisk(
   runDir: string,
   runId: string,
-): Promise<readonly RunSubsystemOutcome[]> {
+): Promise<RunSubsystemOutcomeLedger> {
   const file = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.outcomes));
-  return runSubsystemOutcomesFromSidecar(runId, file.status === "ok" ? file.value : undefined);
+  return runSubsystemOutcomesFromSidecar(runId, file);
 }
 
 export async function indexRowsForRun(dataDir: string, runDirName: string): Promise<RunIndexRows> {
@@ -211,7 +214,7 @@ export async function indexRowsForRun(dataDir: string, runDirName: string): Prom
     readRunSubsystemOutcomesFromDisk(runDir, runId),
   ]);
   return {
-    run: runRowFor(runDirName, loaded, files),
+    run: runRowFor(runDirName, loaded, files, outcomes.status),
     files,
     searchEntries:
       loaded.artifact === undefined
@@ -228,7 +231,7 @@ export async function indexRowsForRun(dataDir: string, runDirName: string): Prom
       loaded.artifact === undefined
         ? []
         : scoreRowsFor(runId, loaded.artifact.scores, loaded.artifact.missAutopsies),
-    outcomes: outcomes.map(
+    outcomes: outcomes.outcomes.map(
       (outcome): SubsystemOutcomeRow => ({
         run_id: outcome.runId,
         subsystem: outcome.subsystem,

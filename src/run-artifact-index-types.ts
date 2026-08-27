@@ -1,5 +1,6 @@
 import type { AssetClass, JobType } from "./domain/types";
 import type { ReportSearchScope } from "./report-search-entries";
+import type { ArtifactFileStatus } from "./run-artifact-layout";
 
 export type SearchScope = ReportSearchScope;
 export type SqlParam = string | number | bigint | boolean | null | Uint8Array;
@@ -29,6 +30,7 @@ export interface RunRow {
   readonly has_score: number;
   readonly report_status: string;
   readonly score_status: string;
+  readonly outcomes_status: ArtifactFileStatus;
 }
 
 export interface PredictionRow {

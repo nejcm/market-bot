@@ -183,13 +183,19 @@ describe("run artifact index", () => {
     expect(outcomes).toEqual([
       {
         runId: "failed-run",
-        subsystem: "final-synthesis",
-        expectation: "expected",
-        outcome: "failed",
-        code: "validation-exhausted",
-        stage: "final-synthesis",
-        count: 2,
-        detail: { reportRepairReprompts: 2 },
+        status: "ok",
+        outcomes: [
+          {
+            runId: "failed-run",
+            subsystem: "final-synthesis",
+            expectation: "expected",
+            outcome: "failed",
+            code: "validation-exhausted",
+            stage: "final-synthesis",
+            count: 2,
+            detail: { reportRepairReprompts: 2 },
+          },
+        ],
       },
     ]);
     expect(summaries).toHaveLength(1);
@@ -223,9 +229,45 @@ describe("run artifact index", () => {
     writeJson(join(dataDir, "run-a", "outcomes.json"), replacement);
     await writeThroughRunArtifactIndex(dataDir, [join(dataDir, "run-a")], { dbPath });
 
-    await expect(loadRunSubsystemOutcomesFromIndex(dataDir)).resolves.toEqual(
-      replacement.map((outcome) => ({ runId: "run-a", ...outcome })),
-    );
+    await expect(loadRunSubsystemOutcomesFromIndex(dataDir)).resolves.toEqual([
+      {
+        runId: "run-a",
+        status: "ok",
+        outcomes: replacement.map((outcome) => ({ runId: "run-a", ...outcome })),
+      },
+    ]);
+  });
+
+  test("keeps absent and malformed outcome ledgers distinct", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "absent");
+    writeRun(dataDir, "malformed");
+    writeJson(join(dataDir, "malformed", "outcomes.json"), { outcomes: [] });
+    writeRun(dataDir, "duplicate", {
+      outcomes: [
+        {
+          subsystem: "web-gather",
+          expectation: "optional",
+          outcome: "produced",
+          code: "produced",
+        },
+        {
+          subsystem: "web-gather",
+          expectation: "optional",
+          outcome: "empty",
+          code: "no-accepted-sources",
+        },
+      ],
+    });
+
+    const result = await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    expect(result.malformedRunCount).toBe(2);
+    await expect(loadRunSubsystemOutcomesFromIndex(dataDir)).resolves.toEqual([
+      { runId: "absent", status: "absent", outcomes: [] },
+      { runId: "duplicate", status: "malformed", outcomes: [] },
+      { runId: "malformed", status: "malformed", outcomes: [] },
+    ]);
   });
 
   test("reports unsupported schema with rebuild guidance", async () => {

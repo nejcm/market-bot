@@ -180,12 +180,20 @@ The report’s item 1 before item 6 ordering is not a code dependency. Anti-padd
 #### Files
 
 - [prompts/playbooks/synthesis-discipline.md:11](../prompts/playbooks/synthesis-discipline.md:11)
+- [tests/support/run-fixtures/assertions.ts:384](../tests/support/run-fixtures/assertions.ts:384) — **breaks under this phase (assumption audit).** It hard-codes the kind union: `expect(finalSynthesisPrompt).toContain('"kind": "direction|relative|iv|range|macro|conditional"')`, and runs against `equity-analysis-estimated-suppressed`, an AAPL instrument run whose `predictionSubjects` is `["AAPL"]`. Removing `macro` from `supportedPredictionKinds` feeds the required-shape union at [final-synthesis.ts:68](../src/research/prompts/final-synthesis.ts:68) and fails this assertion. It is a source edit, not a golden regeneration.
 - [src/research/prompts/prediction-coverage.ts:11](../src/research/prompts/prediction-coverage.ts:11)
 - [src/research/prompts/final-synthesis.ts:194](../src/research/prompts/final-synthesis.ts:194)
 - [src/sources/fred.ts:3](../src/sources/fred.ts:3), reuse only
 - [tests/prompt-final-synthesis-shape.test.ts:282](../tests/prompt-final-synthesis-shape.test.ts:282)
 - [tests/prompt-final-synthesis-shape.test.ts:560](../tests/prompt-final-synthesis-shape.test.ts:560)
 - `tests/support/prompt-baseline.golden.json`
+
+> **Coverage gap (assumption audit):** the playbook edit is **not** covered by the prompt baseline.
+> `tests/support/prompt-baseline-matrix.ts:356-369` supplies the playbook as an inline literal
+> (`instruction: "Cite every claim."`) and never reads `prompts/playbooks/synthesis-discipline.md`, so
+> editing that markdown changes no hash. Without its own direct assertion the edit lands unverified —
+> exactly the "only the path you tested" defect AGENTS.md warns about. Add an assertion that the
+> assembled completion prompt's playbook text does not offer `macro` as a favored kind.
 
 #### Golden churn
 
@@ -265,7 +273,9 @@ Also record exact prompt diagnostics:
 
 - `PredictionCompletionAudit.payloadBlocks`: keys from the serialized completion prompt’s `evidence` object, such as `sources`, `webSources`, `latestClose`, `earningsSetup`, `optionsIv`, and `priorCalibration`.
 - Derive these keys from the actual serialized prompt in [orchestrator.ts:225](../src/research/orchestrator.ts:225), not by rebuilding the payload again.
-- Add `steeringRepresentation: "reconstructed-segment"` beside recorded steering. Do not describe it as the literal sent prompt.
+- Add `steeringRepresentation: "reconstructed-segment"` beside recorded steering. Do not describe it as the literal sent prompt. Note that the reconstruction is a strict **subset** of the wire prompt: it omits `domainPlaybooks`, `depthProfile`, `evidence`, `reportDraft`, `predictionCompletion` and `requiredShape`. Every earlier pass in this chain quoted it as "what the model saw", and it under-represents the prompt by precisely the fields that matter.
+- Extend `payloadBlocks` to record **attached playbook ids**, not only the `evidence` keys. The Domain Playbook reaches the completion prompt via `stagePlaybooks("final-synthesis", …)` ([final-synthesis.ts:743](../src/research/prompts/final-synthesis.ts:743)) but is absent from recorded steering, so it was invisible to every clause census performed on this problem.
+- Record a Near-Base-Rate rejection as a **completion-only** outcome with no initial-pass analogue. The asymmetry is deliberate and documented — [ADR 0003:53](../docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md:53) requires completion candidates to sit outside the inclusive 0.40–0.60 band while in-band primary Predictions remain valid telemetry — but it means a candidate can be rejected at completion that would have been accepted had the initial pass emitted it. Telemetry must not present the two gates as equivalent.
 - On a completion attempt, `payloadBlocks` is always present. `[]` means the captured evidence object had no keys and should fail a unit invariant because `sources` is mandatory. `undefined` remains reserved for stages without a completion pass.
 
 Project the codes, contract status, and payload blocks into `analytics.json`. Extend the terminal analytics line to print codes or `reason-contract-missing`.
@@ -283,6 +293,7 @@ Project the codes, contract status, and payload blocks into `analytics.json`. Ex
 - [src/research/run-analytics.ts:759](../src/research/run-analytics.ts:759)
 - [src/research/run-analytics-console.ts:99](../src/research/run-analytics-console.ts:99)
 - [docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md:44](../docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md:44)
+- [tests/orchestrator-completion.test.ts:765](../tests/orchestrator-completion.test.ts:765) — **breaks under this phase (assumption audit).** It asserts `Object.keys(completionPrompt.requiredShape)` equals `["predictions"]`; adding `declineReasonCodes` fails it. Update the assertion rather than loosening it to a partial match.
 - [CONTEXT.md:125](../CONTEXT.md:125) — **added in validation.** This phase introduces domain terms (decline reason code, completion telemetry status) and AGENTS.md requires a new domain term to land in `CONTEXT.md` in the same change. Extend the existing `## Forecast Completion Pass` entry with the decline-reason contract; do not paraphrase the terms into generic finance words.
 
 #### Golden churn

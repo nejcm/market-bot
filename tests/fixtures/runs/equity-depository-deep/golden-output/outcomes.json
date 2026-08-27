@@ -1,0 +1,144 @@
+[
+  {
+    "subsystem": "evidence-lane:market-data",
+    "expectation": "expected",
+    "outcome": "produced",
+    "code": "covered",
+    "stage": "source-collection",
+    "count": 7
+  },
+  {
+    "subsystem": "evidence-lane:supplemental-market",
+    "expectation": "optional",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:news",
+    "expectation": "expected",
+    "outcome": "produced",
+    "code": "covered",
+    "stage": "source-collection",
+    "count": 8
+  },
+  {
+    "subsystem": "evidence-lane:verified-price-history",
+    "expectation": "expected",
+    "outcome": "produced",
+    "code": "covered",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:regulatory-filings",
+    "expectation": "expected",
+    "outcome": "produced",
+    "code": "covered",
+    "stage": "source-collection",
+    "count": 4
+  },
+  {
+    "subsystem": "evidence-lane:corporate-events",
+    "expectation": "expected",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:macro-indicators",
+    "expectation": "expected",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:derivatives-volatility",
+    "expectation": "optional",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:target-valuation",
+    "expectation": "expected",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:peer-valuation",
+    "expectation": "optional",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "evidence-lane:subject-profile",
+    "expectation": "optional",
+    "outcome": "empty",
+    "code": "coverage-gap",
+    "stage": "source-collection",
+    "count": 1
+  },
+  {
+    "subsystem": "web-gather",
+    "expectation": "optional",
+    "outcome": "declined",
+    "code": "missing-exa-credential",
+    "stage": "web-gather",
+    "count": 0
+  },
+  {
+    "subsystem": "web-subject-profile",
+    "expectation": "optional",
+    "outcome": "empty",
+    "code": "profile-empty",
+    "stage": "web-subject-profile",
+    "count": 0
+  },
+  {
+    "subsystem": "market-spotlight-selection",
+    "expectation": "not-applicable",
+    "outcome": "declined",
+    "code": "not-applicable"
+  },
+  {
+    "subsystem": "domain-playbook-selection",
+    "expectation": "expected",
+    "outcome": "produced",
+    "code": "playbooks-selected",
+    "stage": "playbook-selection",
+    "count": 5
+  },
+  {
+    "subsystem": "prediction-completion",
+    "expectation": "expected",
+    "outcome": "empty",
+    "code": "declined-empty",
+    "stage": "prediction-completion",
+    "count": 0
+  },
+  {
+    "subsystem": "report-integrity-audit",
+    "expectation": "expected",
+    "outcome": "produced",
+    "code": "audit-complete",
+    "stage": "report-integrity-audit",
+    "count": 0
+  },
+  {
+    "subsystem": "forecast-disagreement",
+    "expectation": "not-applicable",
+    "outcome": "declined",
+    "code": "not-configured",
+    "stage": "forecast-disagreement",
+    "count": 0
+  }
+]

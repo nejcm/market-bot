@@ -27,7 +27,17 @@ export interface WebGatherLoopResult {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly WebGatherStageOutput[];
   readonly audit?: WebGatherLoopAudit;
+  readonly skipCode?: WebGatherSkipCode;
 }
+
+export type WebGatherSkipCode =
+  | "run-not-applicable"
+  | "missing-exa-credential"
+  | "disabled-by-config"
+  | "round-budget-zero"
+  | "tool-call-budget-zero"
+  | "source-budget-zero"
+  | "subject-unavailable";
 
 export interface WebGatherLoopInput {
   readonly command: ResearchCommand;

@@ -99,6 +99,11 @@ import {
 import { normalizeResearchCommandDepth, resolveResearchSubject } from "./research-subject-identity";
 import { plannedResearchStages, runAnalysisPhase } from "./analysis-phase";
 import { buildRunTrace } from "./run-trace";
+import {
+  buildSubsystemOutcomes,
+  type ForecastDisagreementOutcomeCode,
+  type SubsystemOutcome,
+} from "./subsystem-outcomes";
 import { createSourceRequestContext } from "../sources/source-request";
 import {
   runFinancialTableExtractionPhase,
@@ -132,6 +137,7 @@ export interface RunResearchJobResult {
   readonly markdown: string;
   readonly trace: RunTrace;
   readonly analytics: RunAnalytics;
+  readonly outcomes: readonly SubsystemOutcome[];
   readonly stageOutputs: readonly StageOutput[];
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
@@ -416,6 +422,7 @@ async function runForecastDisagreementPhase(input: {
   readonly challengerModels: readonly string[];
   readonly stageOutputs: readonly StageOutput[];
   readonly artifact?: ForecastDisagreementArtifact;
+  readonly outcomeCode: ForecastDisagreementOutcomeCode;
 }> {
   const challengerModels = forecastDisagreementModels(
     input.jobInput,
@@ -465,6 +472,7 @@ async function runForecastDisagreementPhase(input: {
         challengerModels,
         stageOutputs: disagreement.stageOutputs,
         artifact: disagreement.artifact,
+        outcomeCode: "produced",
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -475,6 +483,7 @@ async function runForecastDisagreementPhase(input: {
           `forecastDisagreement: stage failed (${message}); uncertainty signal unavailable`,
         ],
       });
+      return { report, challengerModels, stageOutputs: [], outcomeCode: "failed" };
     }
   } else if (challengerModels.length > 0) {
     report = validateResearchReport({
@@ -485,7 +494,12 @@ async function runForecastDisagreementPhase(input: {
       ],
     });
   }
-  return { report, challengerModels, stageOutputs: [] };
+  return {
+    report,
+    challengerModels,
+    stageOutputs: [],
+    outcomeCode: challengerModels.length === 0 ? "not-configured" : "no-predictions",
+  };
 }
 
 // The optional slice of CollectedSources the completeness derivation reads. Exact-optional
@@ -807,6 +821,12 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           sourcePlan: sourcePlanning.sourcePlan,
           evidenceLanes: sourcePlanning.evidenceLanes,
           sourceLedger: sourcePlanning.sourceLedger,
+          ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
+          ...(webGatherLoop.skipCode !== undefined
+            ? { webGatherSkipCode: webGatherLoop.skipCode }
+            : {}),
+          ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
+          playbookAudit,
           evidenceQuality: evidenceQualityAssessment,
           codeVersion,
           ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
@@ -857,7 +877,11 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     runParams,
     report: validateResearchReport(integrityReport),
   });
-  const { report, challengerModels } = forecastDisagreementPhase;
+  const {
+    report,
+    challengerModels,
+    outcomeCode: forecastDisagreementOutcomeCode,
+  } = forecastDisagreementPhase;
   const forecastDisagreement = forecastDisagreementPhase.artifact;
   const forecastDisagreementStageOutputs = forecastDisagreementPhase.stageOutputs;
   const configuredForecastDisagreementModels =
@@ -867,6 +891,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionRetryErrors,
     predictionTrimWarnings,
     predictionCompletion,
+    predictionCompletionSkipCode,
     reportValidationErrors,
     relocatedGapClaims,
   } = synthesis;
@@ -925,12 +950,33 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     report,
     baseline: historicalContextReader.findForecastPersistenceBaseline(report),
   });
+  const outcomes = buildSubsystemOutcomes({
+    sourcePlan: sourcePlanning.sourcePlan,
+    evidenceLanes: sourcePlanning.evidenceLanes,
+    sourceGaps: collectedSources.sourceGaps,
+    webSubjectProfilePresent: collectedSources.webSubjectProfile !== undefined,
+    webSubjectProfileReused: collectedSources.webSubjectProfileReuse !== undefined,
+    ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
+    ...(webGatherLoop.skipCode !== undefined ? { webGatherSkipCode: webGatherLoop.skipCode } : {}),
+    ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
+    playbookAudit,
+    ...(predictionCompletion !== undefined ? { predictionCompletion } : {}),
+    ...(predictionCompletionSkipCode !== undefined ? { predictionCompletionSkipCode } : {}),
+    ...(trace.reportIntegrityAudit !== undefined
+      ? { reportIntegrityAudit: trace.reportIntegrityAudit }
+      : {}),
+    ...(trace.forecastDisagreement !== undefined
+      ? { forecastDisagreement: trace.forecastDisagreement }
+      : {}),
+    forecastDisagreementCode: forecastDisagreementOutcomeCode,
+  });
   const analytics = buildRunAnalytics({
     report,
     trace,
     collectedSources,
     stageOutputs,
     targetPredictions: context.depthProfile.targetPredictions,
+    outcomes,
     sourcePlanSummary: sourcePlanning.evidenceLanes.summary,
     calibrationGuidanceKeys: {
       assetClass: command.assetClass,
@@ -948,6 +994,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     markdown: renderMarkdownReport(report, marketSnapshot, collectedSources),
     trace,
     analytics,
+    outcomes,
     stageOutputs,
     collectedSources,
     historicalContext,

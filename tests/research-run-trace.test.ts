@@ -199,6 +199,7 @@ describe("run trace builder", () => {
       collectedSources: collectedSources(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.sourceTextResearchOnly).toEqual({
@@ -453,6 +454,7 @@ describe("run trace builder", () => {
       collectedSources: sources,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(trace.webEvidenceUtilization).toEqual({

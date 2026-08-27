@@ -43,6 +43,7 @@ test("writes and reads an exact, byte-stable split golden output", async () => {
     await Promise.all([
       writeFile(join(runDir, "report.json"), '{"summary":"A deliberately long report summary"}'),
       writeFile(join(runDir, "analytics.json"), '{"counts":{"sources":3,"gaps":1}}'),
+      writeFile(join(runDir, "outcomes.json"), '[{"subsystem":"web-gather"}]'),
       writeFile(join(runDir, "report.md"), markdown),
       writeFile(join(runDir, "normalized", "evidence.json"), '{"values":[1,2,3,4,5,6,7,8,9,10]}'),
     ]);
@@ -60,6 +61,7 @@ test("writes and reads an exact, byte-stable split golden output", async () => {
     const firstFiles = await writeGoldenOutput(runDir, fixtureName, () => {});
     const expectedFiles = [
       join(outputDirectory, "analytics.json"),
+      join(outputDirectory, "outcomes.json"),
       join(outputDirectory, "report.json"),
       join(outputDirectory, "report.md"),
       join(outputDirectory, "normalized", "evidence.json"),
@@ -73,7 +75,13 @@ test("writes and reads an exact, byte-stable split golden output", async () => {
         .map((entry) => `${entry.isDirectory() ? "dir" : "file"}:${entry.name}`)
         .toSorted(),
     ).toEqual(
-      ["dir:normalized", "file:analytics.json", "file:report.json", "file:report.md"].toSorted(),
+      [
+        "dir:normalized",
+        "file:analytics.json",
+        "file:outcomes.json",
+        "file:report.json",
+        "file:report.md",
+      ].toSorted(),
     );
     const normalizedEntries = await readdir(join(outputDirectory, "normalized"), {
       withFileTypes: true,
@@ -88,6 +96,9 @@ test("writes and reads an exact, byte-stable split golden output", async () => {
     );
     expect(await readFile(join(outputDirectory, "analytics.json"), "utf8")).toBe(
       await formattedJson(join(outputDirectory, "analytics.json"), scrubbed.analytics),
+    );
+    expect(await readFile(join(outputDirectory, "outcomes.json"), "utf8")).toBe(
+      await formattedJson(join(outputDirectory, "outcomes.json"), scrubbed.outcomes),
     );
     expect(await readFile(join(outputDirectory, "normalized", "evidence.json"), "utf8")).toBe(
       await formattedJson(

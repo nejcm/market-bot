@@ -4,6 +4,7 @@ import {
   type EvidenceQualityAssessment,
   type KeyFinding,
   type Prediction,
+  type ReportIntegrityAdvisoryCode,
   type ReportIntegrity,
   type ResearchReport,
   type Scenario,
@@ -31,10 +32,6 @@ interface ReportIntegrityPrunedItem {
   readonly text: string;
   readonly sourceIds: readonly string[];
 }
-
-type ReportIntegrityAdvisoryCode =
-  | "uncited-numeric-summary-sentence"
-  | "weak-evidence-posture-missing";
 
 interface ReportIntegrityAdvisory {
   readonly code: ReportIntegrityAdvisoryCode;

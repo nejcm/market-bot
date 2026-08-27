@@ -17,6 +17,13 @@ function baseAnalytics(): RunAnalytics {
       flaggedByKind: {},
       flaggedByProvider: {},
     },
+    subsystemOutcomes: {
+      count: 0,
+      expectedEmptyCount: 0,
+      byExpectation: { expected: 0, optional: 0, "not-applicable": 0 },
+      byOutcome: { produced: 0, empty: 0, declined: 0, failed: 0, blocked: 0 },
+      byCode: {},
+    },
     sourceFunnel: {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },

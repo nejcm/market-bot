@@ -60,9 +60,9 @@ Always fine: `bun test`, `bun run check`, fixture replays without `--live`, read
 
 ## Data layout
 
-Artifacts land in `data/runs/<run-id>/` — `report.json`, `report.md`, `score.json`, `analytics.json`, `stages.json`, `trace.json`, `normalized/`, `raw/`.
+Artifacts land in `data/runs/<run-id>/` — `report.json`, `report.md`, `score.json`, `analytics.json`, `outcomes.json`, `stages.json`, `trace.json`, `normalized/`, `raw/`.
 
-Failed final-synthesis runs leave `failure.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`; no `report.json`, `report.md`, `trace.json`, or `analytics.json`. `failure.json` is written last, so its presence means the run dir is complete.
+Failed final-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`; no `report.json`, `report.md`, `trace.json`, or `analytics.json`. `failure.json` is written last, so its presence means the run dir is complete.
 
 `data/` also holds `calibration/`, `index.sqlite` (Run Artifact Index), `history/` (search index + instrument timelines), `cache/`, and `news-seen.json` (suppresses repeat news URLs for 30 days). All rebuildable, none disposable.
 

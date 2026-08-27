@@ -65,7 +65,7 @@ interface SelectedSpotlight {
   readonly candidate: SpotlightCandidate;
 }
 
-type SpotlightSelectionRejectionReason =
+export type SpotlightSelectionRejectionReason =
   | "malformed-json"
   | "malformed-selection"
   | "unknown-symbol"

@@ -20,6 +20,7 @@ export const RUN_ARTIFACT_FILES = {
   reportMarkdown: "report.md",
   trace: "trace.json",
   analytics: "analytics.json",
+  outcomes: "outcomes.json",
   stages: "stages.json",
   failure: "failure.json",
   rejectedReport: "rejected-report.json",

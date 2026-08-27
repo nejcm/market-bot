@@ -73,12 +73,24 @@ export interface SearchEntryRow {
   readonly sequence: number;
 }
 
+export interface SubsystemOutcomeRow {
+  readonly run_id: string;
+  readonly subsystem: string;
+  readonly expectation: string;
+  readonly outcome: string;
+  readonly code: string;
+  readonly stage: string | null;
+  readonly count: number | null;
+  readonly detail_json: string | null;
+}
+
 export interface RunIndexRows {
   readonly run: RunRow;
   readonly files: readonly ArtifactFileRow[];
   readonly searchEntries: readonly SearchEntryRow[];
   readonly predictions: readonly PredictionRow[];
   readonly scores: readonly ScoreRow[];
+  readonly outcomes: readonly SubsystemOutcomeRow[];
 }
 
 export interface RebuildOptions {

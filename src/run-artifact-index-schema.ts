@@ -1,6 +1,6 @@
 import { Database, type Statement } from "bun:sqlite";
 
-export const INDEX_SCHEMA_VERSION = 10;
+export const INDEX_SCHEMA_VERSION = 11;
 const BUSY_TIMEOUT_MS = 1000;
 
 export function openRunArtifactIndexDatabase(path: string, readonly: boolean): Database {
@@ -104,12 +104,26 @@ function schemaSql(): string {
 
     CREATE INDEX scores_resolved_idx ON scores(resolved, outcome);
     CREATE INDEX scores_status_idx ON scores(status);
+
+    CREATE TABLE subsystem_outcomes (
+      run_id TEXT NOT NULL,
+      subsystem TEXT NOT NULL,
+      expectation TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      code TEXT NOT NULL,
+      stage TEXT,
+      count INTEGER,
+      detail_json TEXT,
+      PRIMARY KEY (run_id, subsystem),
+      FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+    );
   `;
 }
 
 export function resetRunArtifactIndexSchema(db: Database): void {
   db.exec(`
     DROP TABLE IF EXISTS search_fts;
+    DROP TABLE IF EXISTS subsystem_outcomes;
     DROP TABLE IF EXISTS scores;
     DROP TABLE IF EXISTS predictions;
     DROP TABLE IF EXISTS search_entries;

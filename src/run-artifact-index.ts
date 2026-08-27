@@ -20,9 +20,17 @@ import {
   resetRunArtifactIndexSchema as resetSchema,
 } from "./run-artifact-index-schema";
 import { indexIsFresh } from "./run-artifact-index-freshness";
+import { readJsonFile } from "./run-artifact-json-reader";
+import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import { readReport } from "./run-artifact-report-reader";
 import { isMissAutopsyCause } from "./run-artifacts";
-import { indexRowsForRun } from "./run-artifact-index-rows";
-import { runSearchResultFromIndexRow, runSummaryFromIndexRow } from "./run-artifact-projection";
+import { indexRowsForRun, readRunSubsystemOutcomesFromDisk } from "./run-artifact-index-rows";
+import {
+  runSearchResultFromIndexRow,
+  runSummaryFromIndexRow,
+  subsystemOutcomeFromIndexRow,
+  type RunSubsystemOutcome,
+} from "./run-artifact-projection";
 import { parseStringArrayJson } from "./guards";
 import type {
   PredictionRow,
@@ -32,6 +40,7 @@ import type {
   SearchEntryRow,
   SearchScope,
   SqlParam,
+  SubsystemOutcomeRow,
 } from "./run-artifact-index-types";
 import type { ResolvedPair } from "./scoring/calibration";
 import type {
@@ -164,6 +173,11 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
       miss_autopsy_cause
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertOutcome = db.prepare(`
+    INSERT INTO subsystem_outcomes (
+      run_id, subsystem, expectation, outcome, code, stage, count, detail_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
   for (const indexed of indexedRuns) {
     for (const row of indexed.predictions) {
       insertPrediction.run(
@@ -190,9 +204,22 @@ function insertDomainRows(db: Database, indexedRuns: readonly RunIndexRows[]): v
         row.miss_autopsy_cause,
       );
     }
+    for (const row of indexed.outcomes) {
+      insertOutcome.run(
+        row.run_id,
+        row.subsystem,
+        row.expectation,
+        row.outcome,
+        row.code,
+        row.stage,
+        row.count,
+        row.detail_json,
+      );
+    }
   }
   finalizeStatement(insertPrediction);
   finalizeStatement(insertScore);
+  finalizeStatement(insertOutcome);
 }
 
 export async function rebuildRunArtifactIndex(
@@ -343,6 +370,7 @@ export async function writeThroughRunArtifactIndex(
       const deleteSearch = db.prepare("DELETE FROM search_entries WHERE run_id = ?");
       const deletePredictions = db.prepare("DELETE FROM predictions WHERE run_id = ?");
       const deleteScores = db.prepare("DELETE FROM scores WHERE run_id = ?");
+      const deleteOutcomes = db.prepare("DELETE FROM subsystem_outcomes WHERE run_id = ?");
       const deleteRun = db.prepare("DELETE FROM runs WHERE run_id = ?");
       const insertRun = db.prepare(`
         INSERT INTO runs (
@@ -376,6 +404,7 @@ export async function writeThroughRunArtifactIndex(
           deleteSearch.run(runId);
           deletePredictions.run(runId);
           deleteScores.run(runId);
+          deleteOutcomes.run(runId);
           deleteRun.run(runId);
         }
         insertRun.run(
@@ -427,6 +456,7 @@ export async function writeThroughRunArtifactIndex(
       finalizeStatement(deleteSearch);
       finalizeStatement(deletePredictions);
       finalizeStatement(deleteScores);
+      finalizeStatement(deleteOutcomes);
       finalizeStatement(deleteRun);
       finalizeStatement(insertRun);
       finalizeStatement(insertFile);
@@ -547,6 +577,40 @@ export async function listRunSummariesFromIndex(
     );
     return rows.map((row) => runSummaryFromIndexRow(row, filesByRunId.get(row.run_id) ?? []));
   });
+}
+
+export async function loadRunSubsystemOutcomesFromIndex(
+  dataDir: string,
+): Promise<readonly RunSubsystemOutcome[] | undefined> {
+  return await withFreshIndex(dataDir, async (db) => {
+    const rows = db
+      .query("SELECT * FROM subsystem_outcomes ORDER BY run_id, rowid")
+      .all() as readonly SubsystemOutcomeRow[];
+    return rows.flatMap((row) => {
+      const outcome = subsystemOutcomeFromIndexRow(row);
+      return outcome === undefined ? [] : [outcome];
+    });
+  });
+}
+
+export async function scanRunSubsystemOutcomesFromDisk(
+  dataDir: string,
+): Promise<readonly RunSubsystemOutcome[]> {
+  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
+  const outcomes = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .toSorted((left, right) => left.name.localeCompare(right.name))
+      .map(async (entry) => {
+        const runDir = join(dataDir, entry.name);
+        const reportFile = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.report));
+        const report = reportFile.status === "ok" ? readReport(reportFile.value) : undefined;
+        return await readRunSubsystemOutcomesFromDisk(runDir, report?.runId ?? entry.name);
+      }),
+  );
+  return outcomes
+    .flat()
+    .toSorted((left, right) => Number(left.runId > right.runId) - Number(left.runId < right.runId));
 }
 
 export async function readRunSummaryFromIndex(

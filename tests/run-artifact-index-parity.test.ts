@@ -3,16 +3,25 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import { listRunSummaries, searchRunReports } from "../app/artifacts";
 import { rebuildHistoryArtifacts, searchHistoryIndex } from "../src/history/artifacts";
-import { rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import {
+  INDEX_SCHEMA_VERSION,
+  loadRunSubsystemOutcomesFromIndex,
+  rebuildRunArtifactIndex,
+  scanRunSubsystemOutcomesFromDisk,
+} from "../src/run-artifact-index";
+import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
 import { prediction, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
 const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
 const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
 afterEach(async () => {
+  process.stderr.write = originalStderrWrite;
   if (originalIndexDbPath === undefined) {
     delete process.env.MARKET_BOT_INDEX_DB_PATH;
   } else {
@@ -48,6 +57,15 @@ async function removeTempDir(dir: string): Promise<void> {
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function captureStderr(): string[] {
+  const chunks: string[] = [];
+  process.stderr.write = ((chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+  return chunks;
 }
 
 async function tempDataDir(): Promise<{
@@ -94,8 +112,8 @@ function searchResultProjection(entry: {
   };
 }
 
-function writeFixtureRun(dataDir: string, runId: string): void {
-  const runDir = join(dataDir, runId);
+function writeFixtureRun(dataDir: string, runDirName: string, runId: string = runDirName): void {
+  const runDir = join(dataDir, runDirName);
   mkdirSync(join(runDir, "normalized"), { recursive: true });
   writeJson(
     join(runDir, "report.json"),
@@ -146,10 +164,66 @@ function writeFixtureRun(dataDir: string, runId: string): void {
     }),
   );
   writeJson(join(runDir, "score.json"), { runId, scores: [] });
+  writeJson(join(runDir, "outcomes.json"), [
+    {
+      subsystem: "web-gather",
+      expectation: "optional",
+      outcome: "produced",
+      code: "produced",
+      stage: "web-gather",
+      count: 2,
+      detail: { acceptedSourceCount: 2 },
+    },
+  ] satisfies readonly SubsystemOutcome[]);
   writeFileSync(join(runDir, "report.md"), "# Report\n", "utf8");
 }
 
 describe("run artifact index parity", () => {
+  test("indexed outcomes equal sidecar outcomes", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    writeFixtureRun(dataDir, "z-dir", "a-report");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const db = new Database(dbPath);
+    const duplicate = db.prepare(`
+      INSERT INTO subsystem_outcomes (
+        run_id, subsystem, expectation, outcome, code, stage, count, detail_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    expect(() =>
+      duplicate.run("run-a", "web-gather", "optional", "empty", "duplicate", null, null, null),
+    ).toThrow();
+    duplicate.finalize();
+    db.close();
+
+    const indexed = await loadRunSubsystemOutcomesFromIndex(dataDir);
+    const sidecar = await scanRunSubsystemOutcomesFromDisk(dataDir);
+
+    expect(indexed).toEqual(sidecar);
+    expect(indexed?.map((outcome) => outcome.runId)).toEqual(["a-report", "run-a"]);
+  });
+
+  test("outcome reads degrade to disk on index version mismatch", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    const db = new Database(dbPath, { create: true });
+    db.exec(`PRAGMA user_version = ${String(INDEX_SCHEMA_VERSION - 1)}`);
+    db.close();
+    const stderr = captureStderr();
+
+    const indexed = await loadRunSubsystemOutcomesFromIndex(dataDir);
+    const disk = indexed ?? (await scanRunSubsystemOutcomesFromDisk(dataDir));
+
+    expect(indexed).toBeUndefined();
+    expect(disk).toHaveLength(1);
+    expect(disk[0]?.runId).toBe("run-a");
+    expect(stderr.join("")).toContain(
+      `unsupported schema version ${String(INDEX_SCHEMA_VERSION - 1)}, falling back to disk scan`,
+    );
+  });
+
   test("console list and search match disk fallback", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeFixtureRun(dataDir, "run-a");

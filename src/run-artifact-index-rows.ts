@@ -10,7 +10,12 @@ import {
   predictionClaim,
   type ReportSearchScope,
 } from "./report-search-entries";
-import { readDepth } from "./run-artifact-projection";
+import {
+  readDepth,
+  runSubsystemOutcomesFromSidecar,
+  type RunSubsystemOutcome,
+} from "./run-artifact-projection";
+import { readJsonFile } from "./run-artifact-json-reader";
 import { predictionShortfallGapCount } from "./report/prediction-shortfall";
 import { loadRunArtifact, readReportMarketRegimeLabel } from "./run-artifacts";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
@@ -22,6 +27,7 @@ import type {
   RunRow,
   ScoreRow,
   SearchEntryRow,
+  SubsystemOutcomeRow,
 } from "./run-artifact-index-types";
 
 function sourceIdsJson(sourceIds: readonly string[]): string {
@@ -116,7 +122,9 @@ function runRowFor(
       source_count: 0,
       data_gap_count: 0,
       has_score: files.some((file) => file.path === RUN_ARTIFACT_FILES.score) ? 1 : 0,
-      report_status: loaded.status.report,
+      report_status: files.some((file) => file.path === RUN_ARTIFACT_FILES.failure)
+        ? "failed"
+        : loaded.status.report,
       score_status: loaded.status.score,
     };
   }
@@ -186,11 +194,22 @@ function scoreRowsFor(
   }));
 }
 
+export async function readRunSubsystemOutcomesFromDisk(
+  runDir: string,
+  runId: string,
+): Promise<readonly RunSubsystemOutcome[]> {
+  const file = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.outcomes));
+  return runSubsystemOutcomesFromSidecar(runId, file.status === "ok" ? file.value : undefined);
+}
+
 export async function indexRowsForRun(dataDir: string, runDirName: string): Promise<RunIndexRows> {
   const runDir = join(dataDir, runDirName);
   const loaded = await loadRunArtifact(runDir);
   const runId = loaded.artifact?.report.runId ?? runDirName;
-  const files = await listArtifactFiles(runDir, runId);
+  const [files, outcomes] = await Promise.all([
+    listArtifactFiles(runDir, runId),
+    readRunSubsystemOutcomesFromDisk(runDir, runId),
+  ]);
   return {
     run: runRowFor(runDirName, loaded, files),
     files,
@@ -209,5 +228,17 @@ export async function indexRowsForRun(dataDir: string, runDirName: string): Prom
       loaded.artifact === undefined
         ? []
         : scoreRowsFor(runId, loaded.artifact.scores, loaded.artifact.missAutopsies),
+    outcomes: outcomes.map(
+      (outcome): SubsystemOutcomeRow => ({
+        run_id: outcome.runId,
+        subsystem: outcome.subsystem,
+        expectation: outcome.expectation,
+        outcome: outcome.outcome,
+        code: outcome.code,
+        stage: outcome.stage ?? null,
+        count: outcome.count ?? null,
+        detail_json: outcome.detail === undefined ? null : JSON.stringify(outcome.detail),
+      }),
+    ),
   };
 }

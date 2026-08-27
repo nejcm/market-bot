@@ -9,6 +9,7 @@ import {
   listRunSummariesFromIndex,
   loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
+  loadRunSubsystemOutcomesFromIndex,
   readRunArtifactIndexStatus,
   rebuildRunArtifactIndex,
   searchHistoryEntriesFromIndex,
@@ -16,6 +17,7 @@ import {
   writeThroughRunArtifactIndex,
 } from "../src/run-artifact-index";
 import { rebuildRunArtifactIndexIfStale } from "../src/run-artifact-index-repair";
+import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
 import { buildAndWriteCalibration } from "../src/scoring/index";
 import { prediction, predictionScore, researchReport, newsSource } from "./support/fixtures";
 
@@ -92,7 +94,10 @@ async function tempDataDir(): Promise<{
 function writeRun(
   dataDir: string,
   runId: string,
-  options: { readonly writeScore?: boolean } = {},
+  options: {
+    readonly writeScore?: boolean;
+    readonly outcomes?: readonly SubsystemOutcome[];
+  } = {},
 ): void {
   const runDir = join(dataDir, runId);
   mkdirSync(join(runDir, "normalized"), { recursive: true });
@@ -134,6 +139,9 @@ function writeRun(
   if (options.writeScore ?? true) {
     writeJson(join(runDir, "score.json"), { runId, scores: [] });
   }
+  if (options.outcomes !== undefined) {
+    writeJson(join(runDir, "outcomes.json"), options.outcomes);
+  }
   writeFileSync(join(runDir, "report.md"), "# Report\n", "utf8");
 }
 
@@ -143,6 +151,17 @@ describe("run artifact index", () => {
     const runDir = join(dataDir, "failed-run");
     mkdirSync(runDir, { recursive: true });
     writeJson(join(runDir, "failure.json"), { schemaVersion: 1 });
+    writeJson(join(runDir, "outcomes.json"), [
+      {
+        subsystem: "final-synthesis",
+        expectation: "expected",
+        outcome: "failed",
+        code: "validation-exhausted",
+        stage: "final-synthesis",
+        count: 2,
+        detail: { reportRepairReprompts: 2 },
+      },
+    ] satisfies readonly SubsystemOutcome[]);
     writeJson(join(runDir, "rejected-report.json"), { summary: "rejected" });
 
     await rebuildRunArtifactIndex(dataDir, { dbPath });
@@ -157,11 +176,56 @@ describe("run artifact index", () => {
     db.close();
 
     const summaries = await listRunSummariesFromIndex(dataDir);
-    expect(row?.report_status).toBe("absent");
+    const outcomes = await loadRunSubsystemOutcomesFromIndex(dataDir);
+    expect(row?.report_status).toBe("failed");
     expect(searchCount?.count).toBe(0);
     expect(predictionCount?.count).toBe(0);
+    expect(outcomes).toEqual([
+      {
+        runId: "failed-run",
+        subsystem: "final-synthesis",
+        expectation: "expected",
+        outcome: "failed",
+        code: "validation-exhausted",
+        stage: "final-synthesis",
+        count: 2,
+        detail: { reportRepairReprompts: 2 },
+      },
+    ]);
     expect(summaries).toHaveLength(1);
     expect(summaries?.[0]?.availableFiles).toContain("failure.json");
+  });
+
+  test("round trips replacement outcomes through index rows and projection", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", {
+      outcomes: [
+        {
+          subsystem: "web-gather",
+          expectation: "optional",
+          outcome: "empty",
+          code: "no-accepted-sources",
+        },
+      ],
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const replacement = [
+      {
+        subsystem: "prediction-completion",
+        expectation: "expected",
+        outcome: "produced",
+        code: "produced",
+        count: 3,
+        detail: { acceptedSourceCount: 3 },
+      },
+    ] satisfies readonly SubsystemOutcome[];
+    writeJson(join(dataDir, "run-a", "outcomes.json"), replacement);
+    await writeThroughRunArtifactIndex(dataDir, [join(dataDir, "run-a")], { dbPath });
+
+    await expect(loadRunSubsystemOutcomesFromIndex(dataDir)).resolves.toEqual(
+      replacement.map((outcome) => ({ runId: "run-a", ...outcome })),
+    );
   });
 
   test("reports unsupported schema with rebuild guidance", async () => {

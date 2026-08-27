@@ -19,10 +19,34 @@ Three passes, each by a different model, each disagreeing with the one before:
    `(validation)` where they changed the text.
 
 The headline finding is not the single decline. It is that **the Forecast Completion Pass has never
-accepted a Prediction in any artifact on disk** — `acceptedCount: 0` across three live runs and nine
-fixtures, twelve for twelve. The `improved` path exists and is unit-tested, but only ever against
-stubbed model output. Nothing aggregated the outcome across runs, so a subsystem at a 0% acceptance
-rate produced no signal.
+accepted a Prediction in any artifact on disk** — `acceptedCount: 0`, twelve for twelve. Nothing
+aggregated that outcome across runs, so it produced no signal.
+
+**How much that number is worth (fourth pass, assumption audit).** The raw count is real; its
+evidential weight is roughly a third of what the first three passes assumed, because provenance was
+never checked:
+
+| Evidence | Count | What it is |
+|---|---|---|
+| Real-model explicit declines | **2** | the live AMD run, and `equity-depository-deep` (`meta.json:synthesisModel: "gpt-5.6-sol"`) |
+| Ambiguous legacy-labelled live runs | 2 | `e6889971` and `11a115d4` record `no-candidates-returned`, a label predating the `a0ac583` split that conflated an explicit `[]` with a missing key |
+| Synthetic non-observations | 8 | `synthesisModel: "fixture-synthesis"`, a placeholder rather than a model |
+
+Worse, in five of those eight the recorded "completion response" is **byte-identical to the first
+synthesis response** — the same canned report replayed a second time, whose `predictions` is `[]`
+because `initialCount` is `0`. Verified directly: `equity-aapl-brief`, `equity-aapl-deep`,
+`equity-fpi-ifrs-semiannual`, `equity-fpi-quarterly` and `equity-nbis-deep` all satisfy
+`entries["final-synthesis|…"][1] === [0]`. They carry no information about whether a model declines.
+
+**Real evidence base: n≈2.** The `improved` path is exercised only against stubs
+([orchestrator-completion.test.ts:371](../tests/orchestrator-completion.test.ts:371)), which proves
+mechanism, not behavior. This makes phases 2 and 3 *more* necessary, not less — at n≈2 nothing can be
+diagnosed and telemetry is the only way out — but nobody should read this plan as evidence that a
+subsystem is measurably broken. It is evidence that we cannot currently tell.
+
+The chain's own correction table claimed it had avoided "inferring fixture behavior instead of
+reading a cassette." It read cassette *content* and never checked cassette *provenance* — the same
+error one level down. Recorded here rather than quietly fixed.
 
 What is deliberately *not* claimed: that the AMD decline was wrong. It cannot be shown wrong, and it
 cannot be shown right, because a decline is structurally unable to carry a reason. That

@@ -3,6 +3,7 @@ import {
   researchReportEvidenceQuality,
   sourceProvider,
   type EarningsForecastTelemetry,
+  type PredictionCompletionAudit,
   type PredictionShortfall,
   type ReportIntegrity,
   type ResearchReport,
@@ -139,12 +140,7 @@ export interface RunAnalytics {
       readonly initialCount: number;
       readonly acceptedCount: number;
       readonly rejectedCount: number;
-      readonly outcome:
-        | "improved"
-        | "declined-empty"
-        | "no-parsable-candidates"
-        | "all-candidates-rejected"
-        | "failed";
+      readonly outcome: PredictionCompletionAudit["outcome"];
     };
     /** Legacy artifact compatibility. */
     readonly replacementAttempted: boolean;

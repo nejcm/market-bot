@@ -151,6 +151,47 @@ target (3 short), 8 evidence lanes covered / 3 gaps. Those are quality signals, 
 ones, and are untouched by F. The run also printed `index database missing, skipping write-through`
 — open item 5, still unexercised.
 
+## Telemetry truthfulness — done, live-confirmed
+
+Three findings from the `/run-review` of `…11a115d4` plus a GPT-5.6-sol audit shared one shape: a
+telemetry field collapsed two materially different states into one value, so a reviewer reading the
+artifact reached the wrong conclusion and recommended the wrong work.
+
+| Commit | What |
+|---|---|
+| `e556dfe` | 1 — `relevantRepeatKept` counted separately from `repeatFallbackKept` in the provider-health rollup |
+| `f87196d` | 2 — `changedProbabilityCount` / `maxAbsProbabilityDelta` beside the repeated-claim counters |
+| `a0ac583` | 3 — `no-candidates-returned` split into `declined-empty` / `no-parsable-candidates`; nine goldens regenerated |
+| `7f18bad` | `run-analytics` derives the outcome union from `PredictionCompletionAudit` instead of restating it |
+
+Each phase was builder → independent cross-family review → fix pass, `bun run check` green at every
+commit. The phase 1 review found the new markdown row untested; the phase 2 review found two tests
+that passed under wrong implementations plus a stale `CONTEXT.md:143`; the phase 3 review was clean
+under a mutation pass.
+
+Confirmed on `data/runs/2026-08-27T03-44-11-077Z-ff74ecfc/` (`equity AMD --deep`, completed):
+
+- `forecastPersistence` → `repeatedClaimCount 3`, `unchangedProbabilityCount 0`,
+  `changedProbabilityCount 3`, `maxAbsProbabilityDelta 0.02`, baseline `…11a115d4`. All three
+  repeated claims moved, by at most two points. The old telemetry rendered that identically to the
+  eight-point `pred-1` move that motivated the phase.
+- `predictions.completion.outcome` → `declined-empty`, from a live model rather than a stub.
+- provider-health across three runs → `relevantRepeatKept 6`, `repeatFallbackKept 0`. This run kept
+  zero relevant repeats and correctly contributed 0 rather than inflating the total.
+
+**Phase 3's stated premise was wrong, and the golden guard caught it.** The plan asserted every
+fixture cassette replays a payload with no `predictions` key, so all nine goldens would move to
+`no-parsable-candidates`. They carry an explicit empty array — `final-synthesis|fixture-synthesis`
+in `tests/fixtures/runs/equity-aapl-brief/llm-cassette.json` holds two responses, both
+`isArray=true len=0`. All nine moved to `declined-empty`, so the old label had been recording a
+sanctioned decline, not the contract break the plan described. Consequence worth carrying:
+**no fixture exercises `no-parsable-candidates`.** That branch is held by
+`tests/orchestrator-completion.test.ts` alone — mutation-checked, both inversions fail there.
+
+Method note for the next pickup: that premise came from a review pass that inferred fixture
+behavior instead of reading a cassette. Verify the other surviving findings against data before
+building on them.
+
 ## Other open items
 
 Ranked. None blocking the PR.
@@ -192,9 +233,11 @@ Ranked. None blocking the PR.
 5. **`src/app.ts:86-88` and `:94-96`** write to stderr unguarded inside `updateRunArtifactIndex`'s
    `.catch` handlers, so a simultaneous index failure and broken stderr masks the original error.
    Shared with the success path.
-6. **Index write-through is unexercised.** The third AMD run printed `index database missing,
-   skipping write-through` because `data/index.sqlite` did not exist. The guard behaved correctly;
-   the path where the index *does* exist has never run.
+6. **Index write-through is unexercised — now unblocked.** The third and fourth AMD runs both
+   printed `index database missing, skipping write-through` because `data/index.sqlite` did not
+   exist. The guard behaved correctly; the path where the index *does* exist has never run.
+   `index rebuild` has since recreated it (3 runs, 0 malformed, 721 search entries), so the next
+   run exercises write-through for the first time. Watch it.
 7. **Sidebar failed-badge markup has no render test** — only `isFailedRun` is unit-tested. The only
    Svelte render seam is `tests/support/render-run-workspace.ts`; covering the badge means extracting
    its loader, roughly 25 lines, not duplicating the harness.
@@ -213,7 +256,21 @@ Ranked. None blocking the PR.
    prose still fails final synthesis unrecoverably — the same 13-minute burn, different origin,
    since that stage's model never wrote it either. Running `violatesResearchOnly` at `parseProfile`
    would cost one small regenerate instead, as `history/artifacts.ts:822` already does.
-11. Deferred in the original plan and still open: peer-universe fallback unreachable, Finnhub 403 gap
+11. **A sanctioned decline is reachable while under prediction target.** The fourth AMD run came in
+   at 3/5 predictions (2 short) and the completion pass still returned `declined-empty` — the model
+   chose to add nothing while a shortfall stood. Not a defect in the outcome split; that change is
+   what made the behavior visible, since it was previously indistinguishable from a parse failure.
+   Whether `buildPredictionCompletionInstruction`
+   ([src/research/prompts/final-synthesis.ts:550](../src/research/prompts/final-synthesis.ts))
+   should sanction an empty return while `predictionShortfall` is non-zero is a prompt/policy
+   question, and needs a live run to settle either way.
+12. **Operating-KPI coverage gap.** `equityAnalysisCompleteness.dimensions.operatingKpis.status`
+   reads `not-assessed` because `DEFAULT_OPERATING_KPI_REGISTRY`
+   ([src/sources/extended-evidence/operating-kpi-registry.ts:28](../src/sources/extended-evidence/operating-kpi-registry.ts))
+   holds only ASTS and NBIS. Cause verified. Closing it means sourcing per-subject KPI definitions —
+   domain data entry with its own research and review burden, deliberately not bundled with the
+   telemetry work.
+13. Deferred in the original plan and still open: peer-universe fallback unreachable, Finnhub 403 gap
    cardinality. See [prompt-validator-reconciliation.md](./prompt-validator-reconciliation.md).
 
 ## Working constraints

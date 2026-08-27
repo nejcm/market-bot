@@ -13,7 +13,7 @@ import {
 import type { ModelProvider } from "../src/model/types";
 
 describe("runResearchJob completion and redundancy", () => {
-  test("attempts completion once and keeps the shortfall when no candidate is returned", async () => {
+  test("records a deliberate empty completion and keeps the shortfall", async () => {
     const prompts: Record<string, unknown>[] = [];
     const provider: ModelProvider = {
       name: "mock",
@@ -63,7 +63,7 @@ describe("runResearchJob completion and redundancy", () => {
       initialCount: 0,
       targetCount: 2,
       acceptedPredictionIds: [],
-      outcome: "no-candidates-returned",
+      outcome: "declined-empty",
     });
     expect(result.report.predictions).toHaveLength(0);
     expect(result.report.predictionShortfall).toEqual({
@@ -72,6 +72,80 @@ describe("runResearchJob completion and redundancy", () => {
       missingCount: 2,
     });
     expect(result.report.dataGaps.filter((gap) => gap.includes("prediction"))).toEqual([]);
+  });
+
+  test("records a missing predictions key as no-parsable-candidates", async () => {
+    const prompts: Record<string, unknown>[] = [];
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        prompts.push(prompt);
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          if (finalCalls === 2) {
+            return {
+              content: JSON.stringify({ summary: "No candidates returned." }),
+              tokenEstimate: 100,
+              costEstimateUsd: 0.01,
+            };
+          }
+        }
+        return {
+          content: JSON.stringify({
+            summary: "Evidence is sourced.",
+            keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+            bullCase: [],
+            bearCase: [],
+            risks: [],
+            catalysts: [],
+            scenarios: [],
+            confidence: "medium",
+            dataGaps: ["A fifth prediction was not emitted because evidence was weak."],
+            predictions: [],
+          }),
+          tokenEstimate: 100,
+          costEstimateUsd: 0.01,
+        };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", {
+        assetClass: "equity",
+        depth: "brief",
+      }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    const finalPrompts = prompts.filter((prompt) => prompt.stage === "final-synthesis");
+    expect(finalPrompts).toHaveLength(2);
+    expect(finalPrompts[1]?.predictionCompletion).toMatchObject({
+      requestedCount: 2,
+      existingPredictions: [],
+    });
+    expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
+    expect(result.trace.predictionCompletion).toMatchObject({
+      initialCount: 0,
+      targetCount: 2,
+      acceptedPredictionIds: [],
+      outcome: "no-parsable-candidates",
+    });
+    expect(result.report.predictions).toHaveLength(0);
+    expect(result.report.predictionShortfall).toEqual({
+      emittedCount: 0,
+      targetCount: 2,
+      missingCount: 2,
+    });
   });
 
   test("records redundancy trims without reprompting when post-trim count meets target", async () => {

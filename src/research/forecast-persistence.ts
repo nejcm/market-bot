@@ -17,7 +17,11 @@ export interface ForecastPersistence {
   readonly baselineRunId: string;
   readonly repeatedClaimCount: number;
   readonly unchangedProbabilityCount: number;
+  readonly changedProbabilityCount: number;
+  readonly maxAbsProbabilityDelta: number;
 }
+
+const PROBABILITY_DELTA_DECIMAL_PLACES = 4;
 
 // Claim identity is the canonical measurableAs rendered from the parsed observable
 // Expression, so formatting drift between runs does not defeat the comparison.
@@ -47,6 +51,8 @@ export function buildForecastPersistence(input: {
   }
   let repeatedClaimCount = 0;
   let unchangedProbabilityCount = 0;
+  let changedProbabilityCount = 0;
+  let maxAbsProbabilityDelta = 0;
   for (const prediction of report.predictions) {
     const probabilities = baselineProbabilities.get(claimKey(prediction.measurableAs));
     if (probabilities === undefined) {
@@ -55,7 +61,25 @@ export function buildForecastPersistence(input: {
     repeatedClaimCount += 1;
     if (probabilities.has(prediction.probability)) {
       unchangedProbabilityCount += 1;
+      continue;
     }
+    changedProbabilityCount += 1;
+    let nearestAbsProbabilityDelta = Number.POSITIVE_INFINITY;
+    for (const baselineProbability of probabilities) {
+      nearestAbsProbabilityDelta = Math.min(
+        nearestAbsProbabilityDelta,
+        Math.abs(prediction.probability - baselineProbability),
+      );
+    }
+    maxAbsProbabilityDelta = Math.max(maxAbsProbabilityDelta, nearestAbsProbabilityDelta);
   }
-  return { baselineRunId: baseline.runId, repeatedClaimCount, unchangedProbabilityCount };
+  return {
+    baselineRunId: baseline.runId,
+    repeatedClaimCount,
+    unchangedProbabilityCount,
+    changedProbabilityCount,
+    maxAbsProbabilityDelta: Number(
+      maxAbsProbabilityDelta.toFixed(PROBABILITY_DELTA_DECIMAL_PLACES),
+    ),
+  };
 }

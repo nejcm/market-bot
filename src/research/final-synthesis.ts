@@ -621,9 +621,8 @@ async function runPredictionCompletion(
       },
     });
     const payload = parseModelPayload(output.content);
-    const returnedCandidateCount = Array.isArray(payload.predictions)
-      ? payload.predictions.length
-      : 0;
+    const hasPredictionArray = Array.isArray(payload.predictions);
+    const returnedCandidateCount = hasPredictionArray ? payload.predictions.length : 0;
     const merged = mergeCompletionCandidates({
       candidates: payload.predictions,
       existing: report.predictions,
@@ -645,7 +644,9 @@ async function runPredictionCompletion(
         ? { suppressedEarningsPredictionCountOffset }
         : {}),
     };
-    let outcome: PredictionCompletionAudit["outcome"] = "no-candidates-returned";
+    let outcome: PredictionCompletionAudit["outcome"] = hasPredictionArray
+      ? "declined-empty"
+      : "no-parsable-candidates";
     if (merged.acceptedPredictionIds.length > 0) {
       outcome = "improved";
     } else if (returnedCandidateCount > 0) {

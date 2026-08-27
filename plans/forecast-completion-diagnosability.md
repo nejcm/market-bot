@@ -7,7 +7,7 @@ tests, builds, live runs, fixture recorder, or writes were performed in producin
 
 ## Provenance
 
-Three passes, each by a different model, each disagreeing with the one before:
+Four passes, each by a different model, each disagreeing with the one before:
 
 1. A `/run-review` of `data/runs/2026-08-27T03-44-11-077Z-ff74ecfc/` (live `equity AMD --deep`),
    focused on why the run returned `predictions.completion.outcome: "declined-empty"` while two
@@ -17,6 +17,14 @@ Three passes, each by a different model, each disagreeing with the one before:
 3. An adversarial validation of that plan, which returned nine findings and the recommendation
    "land with the listed corrections". All nine are folded in below and marked
    `(validation)` where they changed the text.
+4. An assumption audit, asked to find what the first three passes never questioned rather than
+   whether their stated claims were true. It confirmed the completion pass is mechanically capable
+   of accepting, refuted the premise of the shortfall-wording phase, found two tests that break
+   under phases 1 and 2, and cut the plan's headline evidence base by roughly two thirds. Marked
+   `(assumption audit)` below.
+
+Each pass corrected the one before it. Treat a fifth as likely to find something too, and treat any
+claim here that carries no file:line as unverified.
 
 The headline finding is not the single decline. It is that **the Forecast Completion Pass has never
 accepted a Prediction in any artifact on disk** — `acceptedCount: 0`, twelve for twelve. Nothing
@@ -105,6 +113,38 @@ One such reading gives:
 - Excluded from the pro count: `"up to 2"`. It permits output but does not request that two be produced.
 
 The instruction is cautious by design. That conclusion is qualitative and holds; no numeric ratio should be quoted as evidence for it, including 6:6.
+
+### Gate asymmetry, and a playbook that argues against the gate (assumption audit)
+
+The completion pass applies **strictly stricter** gates than the initial synthesis pass. This is not
+a defect — the main one is deliberate and documented — but no phase should present the two gates as
+equivalent, and one of the three was never documented anywhere.
+
+| Gate | Initial pass | Completion candidate |
+|---|---|---|
+| grammar, horizon 1–20, probability 0–1, citations | `readPredictions` | same call ([final-synthesis.ts:551](../src/research/final-synthesis.ts:551)) |
+| Near-Base-Rate 0.40–0.60 | **not applied** — analytics only *counts* in-band Predictions ([run-analytics.ts:648](../src/research/run-analytics.ts:648)) | **hard reject** ([final-synthesis.ts:511](../src/research/final-synthesis.ts:511), [:555](../src/research/final-synthesis.ts:555)) |
+| redundancy replacement | a candidate may **replace** a longer direction forecast | **rejected** — `preservesExisting && addsCandidate` ([final-synthesis.ts:568](../src/research/final-synthesis.ts:568)) forbids any merge that drops an existing Prediction |
+| empty subject allowlist | runs unrestricted | **pass skipped entirely** ([final-synthesis.ts:477](../src/research/final-synthesis.ts:477)) |
+
+The band asymmetry is required by [ADR 0003:53](../docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md:53).
+The replacement and empty-allowlist asymmetries are undocumented; neither is causal for the AMD run,
+but both mean a candidate can fail at completion that the initial pass would have accepted.
+
+**The attached Domain Playbook argues for probabilities the completion gate then rejects.**
+[synthesis-discipline.md:7](../prompts/playbooks/synthesis-discipline.md:7) instructs: "Anchor to base
+rates. Start from the outcome's base rate — roughly 0.5 for short-horizon direction calls." Line 8
+adds: "When the evidence is thin, single-source, stale, or conflicting, pull the probability back
+toward the base rate." The completion gate then hard-rejects anything in 0.40–0.60. For a marginal
+fourth or fifth forecast on a single-subject run, "shade toward 0.5", "0.40–0.60 is invalid" and "do
+not pad" compose into an empty array as the only coherent output.
+
+That playbook reaches the completion prompt via `stagePlaybooks("final-synthesis", …)`
+([final-synthesis.ts:743](../src/research/prompts/final-synthesis.ts:743)) but is **absent from the
+recorded steering**, which is why every clause census in this chain missed it. It does not refute the
+"cautious by design" reading — it strengthens it. Any future prompt-rebalancing experiment must treat
+the playbook as in scope, and phase 2's `payloadBlocks` must record attached playbook ids so the next
+reader can see it.
 
 ### Bottom line
 

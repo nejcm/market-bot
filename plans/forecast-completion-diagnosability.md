@@ -135,8 +135,29 @@ Implement four phases:
 
 1. Remove the unreachable `macro` option.
 2. Add a structured decline contract and exact completion-prompt diagnostics.
-3. State the current shortfall explicitly without weakening anti-padding policy.
-4. Add cross-run completion telemetry to the Run Artifact Index and Research Console.
+3. Add cross-run completion telemetry to the Run Artifact Index and Research Console.
+4. *(demoted by the assumption audit)* State the current shortfall explicitly — a prompt-emphasis
+   experiment, not a fix, and unmeasurable until the telemetry above exists.
+
+**This ordering is authoritative.** The per-phase sections below are still numbered and written in
+the original order, in which the shortfall wording was phase 3 and telemetry phase 4. Execute
+telemetry first.
+
+**Why the shortfall wording moved to last.** Its original premise — that the model is never told it
+is short — is false. Current, target and missing are all already in the wire prompt as structured
+fields: `depthProfile.targetPredictions: 5`
+([research-context-types.ts:24](../src/research/research-context-types.ts:24), serialized at
+[stage-envelope.ts:84](../src/research/prompts/stage-envelope.ts:84)) and
+`predictionCompletion.requestedCount: 2` beside `existingPredictions` of length 3
+([final-synthesis.ts:750](../src/research/prompts/final-synthesis.ts:750),
+[stage-envelope.ts:96](../src/research/prompts/stage-envelope.ts:96)). Restating them as prose may
+still change behavior — models do not weight prose and JSON fields alike — but it is a low-confidence
+experiment on data already present, and its effect cannot be read without the telemetry.
+
+A related suspicion was checked and dismissed: `signalTargetMet: true` in the AMD analytics is not a
+contradictory signal. It measures the fraction of emitted Predictions outside the Near-Base-Rate band
+against a 0.5 floor ([run-analytics.ts:652](../src/research/run-analytics.ts:652)), is computed after
+the run from the finished report, and never reaches any prompt.
 
 The report’s item 1 before item 6 ordering is not a code dependency. Anti-padding wording can be unit-tested without decline reasons. It is a measurement dependency: another live `declined-empty` cannot distinguish insufficient evidence from prompt pressure without a rationale. Therefore phase 2 must precede any behavioral prompt experiment. This plan does not include that experiment because the causal claim did not survive verification.
 

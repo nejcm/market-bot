@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type {
   MarketSnapshot,
@@ -8,7 +8,11 @@ import type {
   SubjectKind,
   VerifiedMarketSnapshot,
 } from "./domain/types";
-import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import {
+  RUN_ARTIFACT_FILES,
+  type ArtifactFileStatus,
+  type JsonFileResult,
+} from "./run-artifact-layout";
 import {
   isDeepEquityReport,
   readDeepEquityEvidenceBundle,
@@ -57,6 +61,8 @@ import {
   readVerifiedMarketSnapshots,
 } from "./run-artifact-snapshot-reader";
 import { readMissAutopsies, readScores } from "./run-artifact-score-reader";
+import { readAnalytics } from "./run-artifact-analytics-reader";
+import { readJsonFile } from "./run-artifact-json-reader";
 import {
   readBusinessFrameworkArtifact,
   readEvidenceLanes,
@@ -83,10 +89,6 @@ export { isMissAutopsyCause } from "./run-artifact-score-reader";
 // The per-artifact shape readers live in the run-artifact-*-reader leaves; this
 // Module owns the file IO, the run directory layout, and assembly.
 // ---------------------------------------------------------------------------
-
-// Per-file load outcome. "absent" = the file is missing (ENOENT); "malformed" =
-// Present but unreadable or wrong shape.
-type ArtifactFileStatus = "ok" | "malformed" | "absent";
 
 interface RunArtifactStatus {
   readonly report: ArtifactFileStatus;
@@ -151,31 +153,9 @@ export interface LoadedRunArtifact {
   readonly status: RunArtifactStatus;
 }
 
-interface JsonFileResult {
-  readonly status: ArtifactFileStatus;
-  readonly value?: unknown;
-}
-
 export type LoadedDeepEquityEvidenceBundle =
   | { readonly status: "ok"; readonly value: DeepEquityEvidenceBundleV1 }
   | { readonly status: "absent" | "malformed" };
-
-// Distinguishes a missing file from a present-but-broken one: ENOENT returns
-// "absent", any other failure (IO error, invalid JSON) returns "malformed".
-async function readJsonFile(path: string): Promise<JsonFileResult> {
-  try {
-    const raw = await readFile(path, "utf8");
-    try {
-      return { status: "ok", value: JSON.parse(raw) as unknown };
-    } catch {
-      return { status: "malformed" };
-    }
-  } catch (error) {
-    return isRecord(error) && error.code === "ENOENT"
-      ? { status: "absent" }
-      : { status: "malformed" };
-  }
-}
 
 function scoreStatusFor(
   file: JsonFileResult,
@@ -561,9 +541,7 @@ export async function scanWebSubjectProfileRunArtifacts(
         ? []
         : [
             (async () => {
-              const analyticsFile = await readJsonFile(
-                join(candidate.runDir, RUN_ARTIFACT_FILES.analytics),
-              );
+              const analyticsFile = await readAnalytics(candidate.runDir);
               const webSubjectProfile = await readWebSubjectProfileForRun(
                 candidate.runDir,
                 candidate.report,

@@ -27,6 +27,7 @@ import {
   readSourceGapAttempts,
   type LoadedDeepEquityEvidenceBundle,
 } from "../run-artifacts";
+import { readAnalytics } from "../run-artifact-analytics-reader";
 import { isRecord, numberAt } from "../guards";
 import {
   buildValidation,
@@ -36,7 +37,6 @@ import {
 
 const SOURCE_GAPS_FILE = RUN_ARTIFACT_FILES.sourceGaps;
 const REPORT_FILE = RUN_ARTIFACT_FILES.report;
-const ANALYTICS_FILE = RUN_ARTIFACT_FILES.analytics;
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const FAILURE_FILE = RUN_ARTIFACT_FILES.failure;
 const SAMPLE_MESSAGE_LIMIT = 3;
@@ -344,8 +344,11 @@ async function loadRunHealth(runDir: string): Promise<RunHealth | undefined> {
   }
   const reportRaw = await readJson(join(runDir, REPORT_FILE));
   const report = isRecord(reportRaw) ? reportRaw : {};
-  const analyticsRaw = await readJson(join(runDir, ANALYTICS_FILE));
-  const analytics = isRecord(analyticsRaw) ? analyticsRaw : undefined;
+  const analyticsFile = await readAnalytics(runDir);
+  const analytics =
+    analyticsFile.status === "ok" && isRecord(analyticsFile.value)
+      ? analyticsFile.value
+      : undefined;
   const score = parseScoreCounts(await readJson(join(runDir, SCORE_FILE)));
   const reportSourceIds = parseSourceIds(report.sources);
   const deepEquity = isDeepEquityReport(report);

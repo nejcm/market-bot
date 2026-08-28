@@ -204,17 +204,23 @@ describe("run artifact index", () => {
 
   test("round trips replacement outcomes through index rows and projection", async () => {
     const { dataDir, dbPath } = await tempDataDir();
+    const historical = {
+      subsystem: "web-gather",
+      expectation: "optional",
+      outcome: "empty",
+      code: "validation-exhausted",
+    } satisfies SubsystemOutcome;
     writeRun(dataDir, "run-a", {
-      outcomes: [
-        {
-          subsystem: "web-gather",
-          expectation: "optional",
-          outcome: "empty",
-          code: "no-accepted-requests",
-        },
-      ],
+      outcomes: [historical],
     });
     await rebuildRunArtifactIndex(dataDir, { dbPath });
+    await expect(loadRunSubsystemOutcomesFromIndex(dataDir)).resolves.toEqual([
+      {
+        runId: "run-a",
+        status: "ok",
+        outcomes: [{ runId: "run-a", ...historical }],
+      },
+    ]);
 
     const replacement = [
       {

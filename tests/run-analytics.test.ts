@@ -109,6 +109,7 @@ function analyticsFor(reportIntegrityTrace: RunTrace): ReturnType<typeof buildRu
     collectedSources: collectedSourceBundle(),
     stageOutputs: [],
     targetPredictions: 0,
+    outcomes: [],
   });
 }
 
@@ -255,6 +256,7 @@ describe("run analytics", () => {
         },
       ],
       targetPredictions: 3,
+      outcomes: [],
       sourcePlanSummary: {
         plannedLaneCount: 5,
         coreLaneCount: 2,
@@ -451,6 +453,7 @@ describe("run analytics", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: example.targetPredictions,
+      outcomes: [],
     });
 
     expect(analytics.predictions.targetCount).toBe(example.expectedTarget);
@@ -503,6 +506,7 @@ describe("forecast quality telemetry (3.2)", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: preds.length,
+      outcomes: [],
     }).predictions;
   }
 
@@ -755,6 +759,7 @@ describe("web source roles accounting", () => {
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toBeDefined();
@@ -797,6 +802,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toBeDefined();
@@ -834,6 +840,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     // A primary citation dominates: reportCited claims it, extrasCited excludes it.
@@ -872,6 +879,7 @@ describe("web source roles accounting", () => {
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources!.accepted).toBe(3);
@@ -933,6 +941,7 @@ describe("web source roles accounting", () => {
         collectedSources: collectedSourceBundle(),
         stageOutputs: [],
         targetPredictions: 0,
+        outcomes: [],
       });
 
       expect(analytics.webEvidenceUtilization?.acceptedCurrentRun).toBe(accepted);
@@ -963,6 +972,7 @@ describe("web source roles accounting", () => {
         collectedSources: collectedSourceBundle(),
         stageOutputs: [],
         targetPredictions: 0,
+        outcomes: [],
       });
 
       expect(analytics.webEvidenceUtilization?.ratio).toBe(ratio);
@@ -996,6 +1006,7 @@ describe("web source roles accounting", () => {
       }),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webEvidenceUtilization).toMatchObject({
@@ -1037,6 +1048,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webEvidenceUtilization?.level).toBe("low");
@@ -1068,6 +1080,7 @@ describe("web source roles accounting", () => {
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toEqual({
@@ -1109,6 +1122,7 @@ describe("web source roles accounting", () => {
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toEqual({
@@ -1141,6 +1155,7 @@ describe("web source roles accounting", () => {
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toEqual({
@@ -1167,6 +1182,7 @@ describe("web source roles accounting", () => {
       collectedSources: collected,
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources?.accepted).toBe(3);
@@ -1186,6 +1202,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toEqual({
@@ -1206,6 +1223,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toBeUndefined();
@@ -1259,6 +1277,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toEqual({
@@ -1286,6 +1305,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources).toBeDefined();
@@ -1307,6 +1327,7 @@ describe("web source roles accounting", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.webSources?.usageRatio).toBe(0);
@@ -1328,6 +1349,7 @@ describe("web source roles accounting", () => {
         },
       ],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.runShape.costEstimateUsd).toBeUndefined();
@@ -1343,6 +1365,7 @@ describe("forecast persistence telemetry", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
       forecastPersistence: {
         baselineRunId: "baseline-run",
         repeatedClaimCount: 2,
@@ -1368,6 +1391,7 @@ describe("forecast persistence telemetry", () => {
       collectedSources: collectedSourceBundle(),
       stageOutputs: [],
       targetPredictions: 0,
+      outcomes: [],
     });
 
     expect(analytics.forecastPersistence).toBeUndefined();

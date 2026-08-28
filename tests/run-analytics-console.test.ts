@@ -17,6 +17,13 @@ function baseAnalytics(): RunAnalytics {
       flaggedByKind: {},
       flaggedByProvider: {},
     },
+    subsystemOutcomes: {
+      count: 0,
+      expectedEmptyCount: 0,
+      byExpectation: { expected: 0, optional: 0, "not-applicable": 0 },
+      byOutcome: { produced: 0, empty: 0, declined: 0, failed: 0, blocked: 0 },
+      byCode: {},
+    },
     sourceFunnel: {
       rawSnapshots: { total: 0, byAdapter: {} },
       reportSources: { total: 0, byKind: {}, byProvider: {} },
@@ -77,6 +84,7 @@ describe("run analytics console", () => {
       [
         "Run quality — equity AAPL (run-1)",
         "  Predictions: 5/5 target met · 3 informative, 2 near base rate",
+        "  Subsystem outcomes: 0 recorded · 0 expected-empty",
         "  Evidence Quality: medium · 1 data gap(s)",
       ].join("\n"),
     );
@@ -113,6 +121,11 @@ describe("run analytics console", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
+      subsystemOutcomes: {
+        ...analytics.subsystemOutcomes,
+        count: 4,
+        expectedEmptyCount: 1,
+      },
       predictions: {
         ...analytics.predictions,
         completion: {
@@ -125,7 +138,12 @@ describe("run analytics console", () => {
       },
     });
 
-    expect(output).toContain("Completion: improved · 2 accepted, 1 rejected");
+    expect(output).toContain(
+      [
+        "  Completion: improved · 2 accepted, 1 rejected",
+        "  Subsystem outcomes: 4 recorded · 1 expected-empty",
+      ].join("\n"),
+    );
   });
 
   test("renders explicit earnings eligibility and suppression counts", () => {

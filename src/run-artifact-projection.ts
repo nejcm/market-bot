@@ -2,8 +2,13 @@ import type { RunSearchFilters, RunSearchResult, RunSearchSection, RunSummary } 
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { ReportSearchCandidate } from "./report-search-entries";
 import { predictionShortfallGapCount } from "./report/prediction-shortfall";
-import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
-import type { RunRow, SearchEntryRow } from "./run-artifact-index-types";
+import {
+  RUN_ARTIFACT_FILES,
+  type ArtifactFileStatus,
+  type JsonFileResult,
+} from "./run-artifact-layout";
+import type { RunRow, SearchEntryRow, SubsystemOutcomeRow } from "./run-artifact-index-types";
+import { isSubsystemOutcome, type SubsystemOutcome } from "./research/subsystem-outcomes";
 import {
   isRecord,
   parseStringArrayJson,
@@ -14,6 +19,66 @@ import {
 
 const SCORE_FILE = RUN_ARTIFACT_FILES.score;
 const SNIPPET_RADIUS = 72;
+
+export interface RunSubsystemOutcome extends SubsystemOutcome {
+  readonly runId: string;
+}
+
+export interface RunSubsystemOutcomeLedger {
+  readonly runId: string;
+  readonly status: ArtifactFileStatus;
+  readonly outcomes: readonly RunSubsystemOutcome[];
+}
+
+export function subsystemOutcomeFromIndexRow(
+  row: SubsystemOutcomeRow,
+): RunSubsystemOutcome | undefined {
+  let detail: unknown = undefined;
+  try {
+    detail = row.detail_json === null ? undefined : JSON.parse(row.detail_json);
+  } catch {
+    return undefined;
+  }
+  const outcome = {
+    subsystem: row.subsystem,
+    expectation: row.expectation,
+    outcome: row.outcome,
+    code: row.code,
+    ...(row.stage !== null ? { stage: row.stage } : {}),
+    ...(row.count !== null ? { count: row.count } : {}),
+    ...(detail !== undefined ? { detail } : {}),
+  };
+  return isSubsystemOutcome(outcome) ? { runId: row.run_id, ...outcome } : undefined;
+}
+
+export function runSubsystemOutcomesFromSidecar(
+  runId: string,
+  file: JsonFileResult,
+): RunSubsystemOutcomeLedger {
+  // AGENTS.md keeps malformed rows when source-id traversal needs them. This completeness ledger
+  // Has no source IDs, so one invalid row makes the whole ledger malformed rather than presenting
+  // Its valid siblings as complete telemetry.
+  if (
+    file.status !== "ok" ||
+    !Array.isArray(file.value) ||
+    !file.value.every((item) => isSubsystemOutcome(item))
+  ) {
+    return {
+      runId,
+      status: file.status === "absent" ? "absent" : "malformed",
+      outcomes: [],
+    };
+  }
+  const subsystems = file.value.map((outcome) => outcome.subsystem);
+  if (new Set(subsystems).size !== subsystems.length) {
+    return { runId, status: "malformed", outcomes: [] };
+  }
+  return {
+    runId,
+    status: "ok",
+    outcomes: file.value.map((outcome) => ({ runId, ...outcome })),
+  };
+}
 
 function arrayCount(record: Record<string, unknown>, key: string): number {
   const value = record[key];

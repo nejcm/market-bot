@@ -7,7 +7,8 @@ Accepted
 ## Date
 
 2026-06-30 (consolidated 2026-07-15; amended 2026-07-25: bundle-only deep-equity
-persistence and migration; amended 2026-08-26: failed-run diagnostics)
+persistence and migration; amended 2026-08-26: failed-run diagnostics; amended 2026-08-28:
+Subsystem Outcomes)
 
 ## Context
 
@@ -55,8 +56,13 @@ derived indexes, and pipeline fixtures were previously split across several reco
   Crypto, thematic research, alpha-search, market-overview, and non-deep equity runs retain their
   existing component layouts.
 - Failed deep-equity runs have no validated `report.json`, so they persist component normalized
-  sidecars with `failure.json`, `rejected-report.json`, and `stages.json`. This keeps the collected
-  evidence and rejected synthesis readable without constructing a completed evidence bundle.
+  sidecars with `failure.json`, `outcomes.json`, `rejected-report.json`, and `stages.json`. This keeps
+  the collected evidence, coded Subsystem Outcomes, and rejected synthesis readable without
+  constructing a completed evidence bundle.
+- Root `outcomes.json` is the canonical Subsystem Outcome ledger for successful and failed
+  final-synthesis Run Artifacts. Successful runs also project its text-free rollup into
+  `analytics.json`; failed runs retain no `analytics.json`. Alpha-search artifacts do not write this
+  sidecar.
 - `trace.json:stageRecords[]` and `analytics.json:runShape.stages[]` may contain monotonic-clock
   `durationMs` values. They measure individual attempts and may overlap when stages run
   concurrently.
@@ -72,10 +78,14 @@ derived indexes, and pipeline fixtures were previously split across several reco
 - The SQLite Run Artifact Index accelerates list/search and selected calibration/history reads.
   Readers use it only when schema and freshness checks pass; otherwise they warn and fall back to
   disk.
+- Index schema v11 stores each run's `outcomes_status` as `ok`, `absent`, or `malformed` and stores
+  valid ledger rows in `subsystem_outcomes`. This preserves unreadable-ledger state instead of
+  collapsing it into an empty outcome set.
 - Research, alpha-search, and score mutations write through affected index rows when an index
   exists. Failure is non-fatal because disk remains authoritative.
 - A present, schema-compatible stale index may rebuild automatically after write-through. Missing
-  or unsupported-schema indexes are never auto-created or migrated; operators run `index rebuild`.
+  or unsupported-schema indexes are never auto-created or migrated; schema additions such as a
+  derived Subsystem Outcome projection require operators to run `index rebuild`.
 - Derived history indexes rebuild when the canonical run set or tracked mutable sidecars drift.
   Index-disable configuration forces disk-only behavior.
 

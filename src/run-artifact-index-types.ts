@@ -1,5 +1,6 @@
 import type { AssetClass, JobType } from "./domain/types";
 import type { ReportSearchScope } from "./report-search-entries";
+import type { ArtifactFileStatus } from "./run-artifact-layout";
 
 export type SearchScope = ReportSearchScope;
 export type SqlParam = string | number | bigint | boolean | null | Uint8Array;
@@ -29,6 +30,7 @@ export interface RunRow {
   readonly has_score: number;
   readonly report_status: string;
   readonly score_status: string;
+  readonly outcomes_status: ArtifactFileStatus;
 }
 
 export interface PredictionRow {
@@ -73,12 +75,24 @@ export interface SearchEntryRow {
   readonly sequence: number;
 }
 
+export interface SubsystemOutcomeRow {
+  readonly run_id: string;
+  readonly subsystem: string;
+  readonly expectation: string;
+  readonly outcome: string;
+  readonly code: string;
+  readonly stage: string | null;
+  readonly count: number | null;
+  readonly detail_json: string | null;
+}
+
 export interface RunIndexRows {
   readonly run: RunRow;
   readonly files: readonly ArtifactFileRow[];
   readonly searchEntries: readonly SearchEntryRow[];
   readonly predictions: readonly PredictionRow[];
   readonly scores: readonly ScoreRow[];
+  readonly outcomes: readonly SubsystemOutcomeRow[];
 }
 
 export interface RebuildOptions {

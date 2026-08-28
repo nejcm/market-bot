@@ -174,9 +174,15 @@ Artifact-backed prompt and user-facing context from prior reports, Sources, Pred
 
 Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`: Research View, scores, and normalized snapshots. Later runs and history read it; Source Providers are never refetched for it.
 
+## Subsystem Outcome
+
+Coded record of what one run subsystem was expected to do and whether it produced, stayed empty,
+declined, failed, or was blocked by an unmet prerequisite. It is run telemetry, not a Diagnostic
+Gap.
+
 ## Failed Run Artifact
 
-Persisted diagnostics from a run whose final synthesis never produced a valid Research View. `failure.json` marks a complete Failed Run Artifact; `rejected-report.json`, `stages.json`, normalized evidence, and raw snapshots preserve the rejection context, while `report.json` is deliberately absent.
+Persisted diagnostics from a run whose final synthesis never produced a valid Research View. `failure.json` marks a complete Failed Run Artifact; `outcomes.json`, `rejected-report.json`, `stages.json`, normalized evidence, and raw snapshots preserve the rejection context, while `report.json` is deliberately absent.
 
 ## Fixture Run
 

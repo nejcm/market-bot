@@ -205,9 +205,22 @@ describe("provider health", () => {
     );
   });
 
-  test("skips Failed Run Artifacts and their Source Gaps", async () => {
+  test("includes Failed Run Artifacts, their Source Gaps, and outcome rows", async () => {
     await writeRun({ runId: "completed", jobType: "equity", assetClass: "equity" });
-    await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.failure), {});
+    await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.failure), {
+      runId: "failed",
+      generatedAt: "2026-06-01T01:00:00.000Z",
+      jobType: "equity",
+      assetClass: "equity",
+    });
+    await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.outcomes), [
+      {
+        subsystem: "final-synthesis",
+        expectation: "expected",
+        outcome: "failed",
+        code: "validation-exhausted",
+      },
+    ]);
     await writeJson(join(dataDir, "failed", RUN_ARTIFACT_FILES.sourceGaps), [
       {
         source: "failed-provider",
@@ -216,12 +229,65 @@ describe("provider health", () => {
       },
     ]);
 
+    const result = await writeProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+    const { summary } = result;
+
+    expect(summary.runCount).toBe(2);
+    expect(summary.runsByJobType).toEqual({ equity: 2 });
+    expect(summary.gapOverview.total).toBe(1);
+    expect(summary.routes.map((route) => route.route)).toContain("failed-provider");
+    expect(summary.subsystemOutcomes.failedRunCount).toBe(1);
+    expect(summary.subsystemOutcomes.byOutcome.failed).toBe(1);
+    expect(summary.subsystemOutcomes.ledgerStatus).toEqual({ ok: 1, absent: 1, malformed: 0 });
+    await expect(readFile(result.markdownPath, "utf8")).resolves.toContain("| Failed runs | 1 |");
+    await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
+      "| Outcome failed | 1 |",
+    );
+    await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
+      "| Code validation-exhausted | 1 |",
+    );
+  });
+
+  test("keeps failed runs out of existing real-run and coverage aggregates", async () => {
+    await writeRun({
+      runId: "completed-deep",
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    });
+    await writeJson(join(dataDir, "failed-deep", RUN_ARTIFACT_FILES.failure), {
+      runId: "failed-deep",
+      generatedAt: "2026-06-01T01:00:00.000Z",
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "MSFT",
+      depth: "deep",
+    });
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+    const deepCoverage = summary.validation.requiredCoverage.find(
+      (item) => item.key === "deep-equity-ticker",
+    );
+
+    expect(summary.runCount).toBe(2);
+    expect(summary.subsystemOutcomes.failedRunCount).toBe(1);
+    expect(summary.realRunValidation.instrumentRuns).toBe(1);
+    expect(summary.realRunValidation.deepInstrumentRuns).toBe(1);
+    expect(deepCoverage).toEqual(
+      expect.objectContaining({ met: true, runIds: ["completed-deep"] }),
+    );
+  });
+
+  test("distinguishes absent and schema-invalid outcome ledgers", async () => {
+    await writeRun({ runId: "absent", jobType: "equity", assetClass: "equity" });
+    await writeRun({ runId: "malformed", jobType: "equity", assetClass: "equity" });
+    await writeJson(join(dataDir, "malformed", RUN_ARTIFACT_FILES.outcomes), { outcomes: [] });
+
     const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
 
-    expect(summary.runCount).toBe(1);
-    expect(summary.runsByJobType).toEqual({ equity: 1 });
-    expect(summary.gapOverview.total).toBe(0);
-    expect(summary.routes.map((route) => route.route)).not.toContain("failed-provider");
+    expect(summary.subsystemOutcomes.ledgerStatus).toEqual({ ok: 0, absent: 1, malformed: 1 });
+    expect(summary.subsystemOutcomes.count).toBe(0);
   });
 
   test("reads deep-equity source gaps from the bundle and ignores legacy sidecars", async () => {
@@ -363,7 +429,7 @@ describe("provider health", () => {
 
     const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
 
-    expect(summary.version).toBe(2);
+    expect(summary.version).toBe(3);
     expect(summary.validation.status).toBe("fail");
     expect(summary.validation.routeClassifications).toContainEqual(
       expect.objectContaining({
@@ -679,7 +745,7 @@ describe("provider health", () => {
 
     const result = await writeProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
 
-    await expect(readFile(result.jsonPath, "utf8")).resolves.toContain('"version": 2');
+    await expect(readFile(result.jsonPath, "utf8")).resolves.toContain('"version": 3');
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain("## Validation");
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
       String.raw`provider returned a \| separated message`,

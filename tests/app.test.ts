@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AlphaSearchWorkflowResult } from "../src/alpha-search/workflow";
@@ -17,6 +17,13 @@ import { collectedSources, researchReport } from "./support/fixtures";
 const analyticsStub = {
   jobType: "daily",
   runId: "run-1",
+  subsystemOutcomes: {
+    count: 0,
+    expectedEmptyCount: 0,
+    byExpectation: { expected: 0, optional: 0, "not-applicable": 0 },
+    byOutcome: { produced: 0, empty: 0, declined: 0, failed: 0, blocked: 0 },
+    byCode: {},
+  },
   evidenceQuality: { confidence: "low", dataGapCount: 0 },
   predictions: {
     count: 0,
@@ -334,6 +341,19 @@ describe("runCli", () => {
       reportRepairReprompts: 3,
     });
     rejection.runDir = runDir;
+    await mkdir(runDir, { recursive: true });
+    await writeFile(
+      join(runDir, "outcomes.json"),
+      `${JSON.stringify([
+        {
+          subsystem: "final-synthesis",
+          expectation: "expected",
+          outcome: "failed",
+          code: "validation-exhausted",
+        },
+      ])}\n`,
+      "utf8",
+    );
     process.stderr.write = ((chunk: unknown) => {
       const text = String(chunk);
       stderr.push(text);
@@ -370,6 +390,7 @@ describe("runCli", () => {
     expect(caught).toBe(rejection);
     expect(indexedRunDirs).toEqual([["run-1"]]);
     expect(stderr.join("")).toContain(`Run failed; diagnostics at ${runDir}`);
+    expect(stderr.join("")).toContain("Subsystem outcomes: 1 recorded · 0 expected-empty");
   });
 
   test("freezes the Source Plan before source collection begins", async () => {

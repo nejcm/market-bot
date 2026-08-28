@@ -244,6 +244,33 @@
     "flaggedByKind": {},
     "flaggedByProvider": {}
   },
+  "subsystemOutcomes": {
+    "count": 18,
+    "expectedEmptyCount": 2,
+    "byExpectation": {
+      "expected": 11,
+      "optional": 5,
+      "not-applicable": 2
+    },
+    "byOutcome": {
+      "produced": 13,
+      "empty": 3,
+      "declined": 2,
+      "failed": 0,
+      "blocked": 0
+    },
+    "byCode": {
+      "accepted-requests": 1,
+      "audit-complete": 1,
+      "coverage-gap": 2,
+      "covered": 9,
+      "declined-empty": 1,
+      "not-applicable": 1,
+      "not-configured": 1,
+      "playbooks-selected": 1,
+      "profile-produced": 1
+    }
+  },
   "sourceFunnel": {
     "rawSnapshots": {
       "total": 34,

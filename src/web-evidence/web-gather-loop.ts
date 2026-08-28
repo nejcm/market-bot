@@ -35,6 +35,7 @@ import {
   type WebGatherExecutionAudit,
   type WebGatherLoopInput,
   type WebGatherLoopResult,
+  type WebGatherSkipCode,
   type WebGatherStageOutput,
 } from "./web-gather-types";
 import { secFilingCoverageFromSources } from "./web-gather-coverage";
@@ -49,7 +50,8 @@ import {
 export type { WebGatherLoopResult, WebGatherStageOutput } from "./web-gather-types";
 
 export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGatherLoopResult> {
-  if (!isWebGatherLoopEnabled(input.command, input.config)) {
+  const skipCode = webGatherSkipCode(input.command, input.config);
+  if (skipCode !== undefined) {
     const unavailableGap = webGatherSearchUnavailableGap(input.command, input.config);
     return {
       collectedSources:
@@ -57,6 +59,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           ? input.collectedSources
           : mergeGaps(input.command, input.collectedSources, [unavailableGap]),
       stageOutputs: [],
+      skipCode,
     };
   }
   const { command } = input;
@@ -65,7 +68,11 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   const thematicListSearchWidened = { value: false };
   const subject = webGatherSubjectForRun(command, input.collectedSources);
   if (subject === undefined) {
-    return { collectedSources: input.collectedSources, stageOutputs: [] };
+    return {
+      collectedSources: input.collectedSources,
+      stageOutputs: [],
+      skipCode: "subject-unavailable",
+    };
   }
   const webGatherOptions = effectiveWebGatherOptions(command, input.config);
   const config: AppConfig =
@@ -425,15 +432,33 @@ async function runDeepEquityWebGatherBatch(input: {
 }
 
 export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {
+  return webGatherSkipCode(command, config) === undefined;
+}
+
+function webGatherSkipCode(
+  command: ResearchCommand,
+  config: AppConfig,
+): WebGatherSkipCode | undefined {
   const webGatherOptions = effectiveWebGatherOptions(command, config);
-  return (
-    isWebGatherScope(command) &&
-    config.sourceOptions.exaApiKey !== undefined &&
-    !config.webGatherDisabled &&
-    webGatherOptions.maxRounds > 0 &&
-    webGatherOptions.maxToolCalls > 0 &&
-    webGatherOptions.sourceBudget > 0
-  );
+  if (!isWebGatherScope(command)) {
+    return "run-not-applicable";
+  }
+  if (config.sourceOptions.exaApiKey === undefined) {
+    return "missing-exa-credential";
+  }
+  if (config.webGatherDisabled) {
+    return "disabled-by-config";
+  }
+  if (webGatherOptions.maxRounds <= 0) {
+    return "round-budget-zero";
+  }
+  if (webGatherOptions.maxToolCalls <= 0) {
+    return "tool-call-budget-zero";
+  }
+  if (webGatherOptions.sourceBudget <= 0) {
+    return "source-budget-zero";
+  }
+  return undefined;
 }
 
 function effectiveWebGatherOptions(

@@ -2,6 +2,7 @@
 // Sidecar filenames, the normalized/ prefix convention, and the
 // Mutable-vs-immutable classification live here. No I/O imports: this is a
 // Leaf module so the reader, writers, freshness check, and health probe
+// File-status/result vocabulary lives here too.
 // Cross one seam instead of re-declaring the same string constants.
 //
 // Only artifacts whose paths are actually consumed through this module live
@@ -19,6 +20,7 @@ export const RUN_ARTIFACT_FILES = {
   reportMarkdown: "report.md",
   trace: "trace.json",
   analytics: "analytics.json",
+  outcomes: "outcomes.json",
   stages: "stages.json",
   failure: "failure.json",
   rejectedReport: "rejected-report.json",
@@ -72,6 +74,15 @@ export const RUN_ARTIFACT_FILES = {
 } as const;
 
 export type RunArtifactFileName = (typeof RUN_ARTIFACT_FILES)[keyof typeof RUN_ARTIFACT_FILES];
+
+// Per-file load outcome. "absent" = the file is missing (ENOENT); "malformed" =
+// Present but unreadable or wrong shape.
+export type ArtifactFileStatus = "ok" | "malformed" | "absent";
+
+export interface JsonFileResult {
+  readonly status: ArtifactFileStatus;
+  readonly value?: unknown;
+}
 
 // Index freshness depends on this set; it must stay closed over the layout.
 // These sidecars are mutated in place after the initial run write, so the

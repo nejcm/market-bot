@@ -27,18 +27,21 @@ import type { ForecastDisagreementArtifact } from "./research/forecast-disagreem
 import type { StageOutput } from "./research/final-synthesis";
 import type { HistoricalResearchContext } from "./research/historical-context";
 import { emptySpotlightSelectionFor } from "./research/market-update-phase";
+import type { PlaybookSelectionAudit } from "./research/playbooks";
 import type {
   SourcePlanArtifact,
   EvidenceLanesArtifact,
   SourceLedgerArtifact,
 } from "./research/source-plan";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/spotlights";
+import { buildSubsystemOutcomes, type SubsystemOutcome } from "./research/subsystem-outcomes";
 import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
 import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "./deep-equity/types";
 import { sumKnownCosts } from "./model/pricing";
 import type { ModelReportPayload } from "./research/report-assembly";
+import type { WebGatherSkipCode } from "./web-evidence/web-gather-types";
 
 export interface RunArtifactWrite {
   readonly file: RunArtifactFileName;
@@ -51,6 +54,7 @@ export interface ResearchRunManifestResult {
   readonly markdown: string;
   readonly trace: RunTrace;
   readonly analytics: unknown;
+  readonly outcomes: readonly SubsystemOutcome[];
   readonly stageOutputs: readonly unknown[];
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
@@ -81,6 +85,10 @@ interface FailedRunManifestInput {
   readonly sourcePlan: SourcePlanArtifact;
   readonly evidenceLanes: EvidenceLanesArtifact;
   readonly sourceLedger: SourceLedgerArtifact;
+  readonly webGatherAudit?: RunTrace["webGatherLoop"];
+  readonly webGatherSkipCode?: WebGatherSkipCode;
+  readonly spotlightSelection?: SpotlightSelectionResult;
+  readonly playbookAudit: PlaybookSelectionAudit;
   readonly evidenceQuality: EvidenceQualityAssessment;
   readonly codeVersion: CodeVersion;
   readonly sourceStateHash?: string;
@@ -242,6 +250,22 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
   readonly failure: RunArtifactWrite;
 } {
   const costEstimateUsd = sumKnownCosts(input.stageOutputs.map((output) => output.costEstimateUsd));
+  const outcomes = buildSubsystemOutcomes({
+    sourcePlan: input.sourcePlan,
+    evidenceLanes: input.evidenceLanes,
+    sourceGaps: input.collectedSources.sourceGaps,
+    webSubjectProfilePresent: input.collectedSources.webSubjectProfile !== undefined,
+    webSubjectProfileReused: input.collectedSources.webSubjectProfileReuse !== undefined,
+    ...(input.webGatherAudit !== undefined ? { webGatherAudit: input.webGatherAudit } : {}),
+    ...(input.webGatherSkipCode !== undefined
+      ? { webGatherSkipCode: input.webGatherSkipCode }
+      : {}),
+    ...(input.spotlightSelection !== undefined
+      ? { spotlightSelection: input.spotlightSelection }
+      : {}),
+    playbookAudit: input.playbookAudit,
+    finalSynthesisRejected: true,
+  });
   const writes: readonly RunArtifactWrite[] = [
     {
       file: RUN_ARTIFACT_FILES.rawSnapshots,
@@ -281,6 +305,24 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
       kind: "json",
       value: input.historicalContext,
     },
+    ...(input.webGatherAudit === undefined
+      ? []
+      : [
+          {
+            file: RUN_ARTIFACT_FILES.webGatherAudit,
+            kind: "json" as const,
+            value: input.webGatherAudit,
+          },
+        ]),
+    ...(input.spotlightSelection === undefined
+      ? []
+      : [
+          {
+            file: RUN_ARTIFACT_FILES.spotlightSelection,
+            kind: "json" as const,
+            value: input.spotlightSelection,
+          },
+        ]),
     {
       file: RUN_ARTIFACT_FILES.webSubjectProfile,
       kind: "json",
@@ -297,6 +339,7 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
       value: input.collectedSources.marketContext ?? null,
     },
     { file: RUN_ARTIFACT_FILES.stages, kind: "json", value: input.stageOutputs },
+    { file: RUN_ARTIFACT_FILES.outcomes, kind: "json", value: outcomes },
     { file: RUN_ARTIFACT_FILES.rejectedReport, kind: "json", value: input.payload },
   ];
 
@@ -450,6 +493,7 @@ export function buildResearchRunManifest(
   writes.push(
     { file: RUN_ARTIFACT_FILES.stages, kind: "json", value: result.stageOutputs },
     { file: RUN_ARTIFACT_FILES.analytics, kind: "json", value: result.analytics },
+    { file: RUN_ARTIFACT_FILES.outcomes, kind: "json", value: result.outcomes },
   );
 
   if (result.forecastDisagreement !== undefined) {
@@ -482,6 +526,7 @@ export function buildResearchRunManifest(
 export function buildAlphaSearchManifest(
   input: AlphaSearchManifestInput,
 ): readonly RunArtifactWrite[] {
+  // Alpha-search has its own manifest and no failure sidecar; outcomes.json starts with research runs.
   return [
     {
       file: RUN_ARTIFACT_FILES.rawSnapshots,

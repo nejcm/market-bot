@@ -486,6 +486,9 @@ No amendment. The change states ADR 0003’s existing soft-target and disclosure
 
 ### Phase 4: aggregate completion outcomes across runs
 
+> Superseded by `plans/subsystem-outcomes.md`, which replaces the five typed `runs` columns below
+> with the general `subsystem_outcomes` table. Phases 1-3 stand unchanged.
+
 #### Required behavior
 
 Extend the `runs` index row with:

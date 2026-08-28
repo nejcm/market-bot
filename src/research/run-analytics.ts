@@ -46,6 +46,11 @@ import {
   deriveProviderEndpointAvailability,
   type ProviderEndpointAvailability,
 } from "../sources/provider-endpoint-availability";
+import {
+  rollupSubsystemOutcomes,
+  type SubsystemOutcome,
+  type SubsystemOutcomeRollup,
+} from "./subsystem-outcomes";
 
 interface RunAnalyticsStage {
   readonly stage: string;
@@ -64,6 +69,7 @@ export interface BuildRunAnalyticsInput {
   readonly collectedSources: CollectedSources;
   readonly stageOutputs: readonly RunAnalyticsStage[];
   readonly targetPredictions: number;
+  readonly outcomes: readonly SubsystemOutcome[];
   readonly sourcePlanSummary?: EvidenceLaneSummaryV2;
   readonly calibrationContext?: CalibrationContext;
   readonly calibrationGuidanceKeys?: ApplicableCalibrationKeys;
@@ -82,6 +88,7 @@ export interface RunAnalytics {
   readonly reproducibility?: RunTrace["reproducibility"];
   readonly modelInputSanitization?: RunTrace["modelInputSanitization"];
   readonly sourceTextResearchOnly: SourceTextResearchOnlySummary;
+  readonly subsystemOutcomes: SubsystemOutcomeRollup;
   readonly sourceFunnel: {
     readonly rawSnapshots: {
       readonly total: number;
@@ -701,6 +708,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       ? { modelInputSanitization: trace.modelInputSanitization }
       : {}),
     sourceTextResearchOnly: trace.sourceTextResearchOnly.summary,
+    subsystemOutcomes: rollupSubsystemOutcomes(input.outcomes),
     sourceFunnel: {
       rawSnapshots: {
         total: collectedSources.rawSnapshots.length,

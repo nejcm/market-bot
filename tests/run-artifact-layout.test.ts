@@ -14,6 +14,7 @@ describe("run-artifact-layout", () => {
     expect(RUN_ARTIFACT_FILES.reportMarkdown).toBe("report.md");
     expect(RUN_ARTIFACT_FILES.trace).toBe("trace.json");
     expect(RUN_ARTIFACT_FILES.analytics).toBe("analytics.json");
+    expect(RUN_ARTIFACT_FILES.outcomes).toBe("outcomes.json");
     expect(RUN_ARTIFACT_FILES.stages).toBe("stages.json");
     expect(RUN_ARTIFACT_FILES.score).toBe("score.json");
     expect(RUN_ARTIFACT_FILES.missAutopsy).toBe("miss-autopsy.json");

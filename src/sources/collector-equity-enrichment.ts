@@ -64,6 +64,7 @@ import type { PeerUniverseFallbackContext } from "../research/peer-universe";
 import { type SecTargetPacket } from "./sec-target-packet";
 import { deriveTradierImpliedMove, type TradierPacket } from "./tradier-packet";
 import { sourceGap } from "../domain/source-gaps";
+import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "./sec-packet-dependencies";
 
 export interface PeerUniverseSeam {
   readonly provider: ModelProvider;
@@ -433,15 +434,7 @@ function noEquityEnrichment(
 }
 
 function secPacketDependencyGaps(symbol: string): readonly SourceGap[] {
-  return [
-    "financial-statements",
-    "fundamental-history",
-    "financial-lenses",
-    "subsequent-financing",
-    "capital-ownership",
-    "valuation",
-    "business-framework",
-  ].map((derivation) =>
+  return Object.keys(SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION).map((derivation) =>
     sourceGap({
       source: `sec-target-packet:${derivation}`,
       message: `${derivation} suppressed for ${symbol}: target SEC packet is unavailable`,

@@ -137,10 +137,17 @@ export interface SynthesizeReportUntilValidResult {
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
   readonly predictionCompletion?: PredictionCompletionAudit;
+  readonly predictionCompletionSkipCode?: PredictionCompletionSkipCode;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
 }
+
+export type PredictionCompletionSkipCode =
+  | "evidence-quality-ineligible"
+  | "target-zero"
+  | "target-met"
+  | "subject-ineligible";
 
 export class FinalSynthesisRejectedError extends Error {
   readonly reportValidationErrors: readonly string[];
@@ -234,6 +241,9 @@ export async function synthesizeReportUntilValid(
     predictionRetryErrors: completion.progress.predictionRetryErrors,
     predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
     ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
+    ...(completion.skipCode !== undefined
+      ? { predictionCompletionSkipCode: completion.skipCode }
+      : {}),
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
     relocatedGapClaims,
@@ -472,6 +482,7 @@ async function runAndReadFinalSynthesis(
 interface PredictionCompletionResult {
   readonly progress: SynthesisProgress;
   readonly audit?: PredictionCompletionAudit;
+  readonly skipCode?: PredictionCompletionSkipCode;
 }
 
 function completionSubjects(
@@ -495,17 +506,22 @@ function completionSubjects(
 function completionEligible(
   input: SynthesizeReportUntilValidInput,
   report: ResearchReport,
-): ReadonlySet<string> | undefined {
+):
+  | { readonly allowedSubjects: ReadonlySet<string> }
+  | { readonly skipCode: PredictionCompletionSkipCode } {
   const quality = input.context.evidenceQualityAssessment?.label;
   const target = input.context.depthProfile.targetPredictions;
-  if (
-    (quality !== "high" && quality !== "medium") ||
-    target === 0 ||
-    report.predictions.length >= target
-  ) {
-    return undefined;
+  if (quality !== "high" && quality !== "medium") {
+    return { skipCode: "evidence-quality-ineligible" };
   }
-  return completionSubjects(input);
+  if (target === 0) {
+    return { skipCode: "target-zero" };
+  }
+  if (report.predictions.length >= target) {
+    return { skipCode: "target-met" };
+  }
+  const allowedSubjects = completionSubjects(input);
+  return allowedSubjects === undefined ? { skipCode: "subject-ineligible" } : { allowedSubjects };
 }
 
 function isNearBaseRate(prediction: Prediction): boolean {
@@ -601,10 +617,11 @@ async function runPredictionCompletion(
   progress: SynthesisProgress,
   report: ResearchReport,
 ): Promise<PredictionCompletionResult> {
-  const allowedSubjects = completionEligible(input, report);
-  if (allowedSubjects === undefined) {
-    return { progress };
+  const eligibility = completionEligible(input, report);
+  if ("skipCode" in eligibility) {
+    return { progress, skipCode: eligibility.skipCode };
   }
+  const { allowedSubjects } = eligibility;
 
   const initialCount = report.predictions.length;
   const targetCount = input.context.depthProfile.targetPredictions;

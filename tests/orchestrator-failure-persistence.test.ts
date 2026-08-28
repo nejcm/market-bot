@@ -5,6 +5,7 @@ import type { InstrumentCommand } from "../src/cli/args";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
 import { persistResearchJob } from "../src/research/orchestrator";
+import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
 import type { CollectedSources } from "../src/sources/types";
 import { collectedSources as collectedSourceBundle } from "./support/fixtures";
 import {
@@ -96,6 +97,9 @@ describe("Failed Run Artifact persistence", () => {
     const stages = JSON.parse(await readFile(join(runDir, "stages.json"), "utf8")) as readonly {
       readonly stage: string;
     }[];
+    const outcomes = JSON.parse(
+      await readFile(join(runDir, "outcomes.json"), "utf8"),
+    ) as readonly SubsystemOutcome[];
 
     expect(error.runDir).toBe(runDir);
     expect(error.message).toMatch(/Report failed validation after 4 final-synthesis call\(s\)/u);
@@ -112,6 +116,22 @@ describe("Failed Run Artifact persistence", () => {
     expect(rootFiles).not.toContain("report.md");
     expect(rootFiles).not.toContain("trace.json");
     expect(rootFiles).not.toContain("analytics.json");
+    const blocked = outcomes
+      .filter((item) => item.outcome === "blocked")
+      .map((item) => item.subsystem);
+    const expectedEmpty = outcomes
+      .filter((item) => item.expectation === "expected" && item.outcome === "empty")
+      .map((item) => item.subsystem);
+    expect(blocked).toEqual(
+      expect.arrayContaining([
+        "prediction-completion",
+        "report-integrity-audit",
+        "forecast-disagreement",
+      ]),
+    );
+    expect(expectedEmpty).not.toContain("prediction-completion");
+    expect(expectedEmpty).not.toContain("report-integrity-audit");
+    expect(expectedEmpty).not.toContain("forecast-disagreement");
     expect(failure).toMatchObject({
       schemaVersion: 1,
       runId,

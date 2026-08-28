@@ -7,6 +7,7 @@ const NOW = new Date("2026-06-01T00:00:00.000Z");
 function run(overrides: Partial<RunHealth> = {}): RunHealth {
   return {
     runId: "run-1",
+    failed: false,
     sourceGaps: [],
     sources: [],
     predictionHorizons: [],

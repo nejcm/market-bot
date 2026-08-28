@@ -62,6 +62,33 @@
     "flaggedByKind": {},
     "flaggedByProvider": {}
   },
+  "subsystemOutcomes": {
+    "count": 18,
+    "expectedEmptyCount": 5,
+    "byExpectation": {
+      "expected": 9,
+      "optional": 6,
+      "not-applicable": 3
+    },
+    "byOutcome": {
+      "produced": 6,
+      "empty": 8,
+      "declined": 4,
+      "failed": 0,
+      "blocked": 0
+    },
+    "byCode": {
+      "audit-complete": 1,
+      "coverage-gap": 8,
+      "covered": 3,
+      "evidence-quality-ineligible": 1,
+      "missing-exa-credential": 1,
+      "not-applicable": 1,
+      "not-configured": 1,
+      "playbooks-selected": 1,
+      "profile-produced": 1
+    }
+  },
   "sourceFunnel": {
     "rawSnapshots": {
       "total": 9,

@@ -15,11 +15,12 @@ export interface GoldenOutput {
   readonly [key: string]: JsonValue;
   readonly report: JsonValue;
   readonly analytics: JsonValue;
+  readonly outcomes: JsonValue;
   readonly markdown: string;
   readonly normalized: Readonly<Record<string, JsonValue>>;
 }
 
-const GOLDEN_ROOT_FILES = ["analytics.json", "report.json", "report.md"] as const;
+const GOLDEN_ROOT_FILES = ["analytics.json", "outcomes.json", "report.json", "report.md"] as const;
 
 export const VOLATILE_KEYS: ReadonlySet<string> = new Set([
   "runId",
@@ -118,6 +119,7 @@ export async function scrubbedRunArtifacts(runDir: string): Promise<GoldenOutput
   return scrub({
     report: await readJson(join(runDir, RUN_ARTIFACT_FILES.report)),
     analytics: await readJson(join(runDir, RUN_ARTIFACT_FILES.analytics)),
+    outcomes: await readJson(join(runDir, RUN_ARTIFACT_FILES.outcomes)),
     markdown,
     normalized: await readNormalizedArtifacts(runDir),
   }) as GoldenOutput;
@@ -130,6 +132,7 @@ export async function readGoldenOutput(fixtureName: string): Promise<GoldenOutpu
   return {
     report: await readJson(join(directory, "report.json")),
     analytics: await readJson(join(directory, "analytics.json")),
+    outcomes: await readJson(join(directory, "outcomes.json")),
     markdown: await readFile(join(directory, "report.md"), "utf8"),
     normalized,
   };
@@ -162,6 +165,9 @@ export async function writeGoldenOutput(
     ),
     formatJson(join(directory, "analytics.json"), golden.analytics).then(
       (content) => [join(directory, "analytics.json"), content] as const,
+    ),
+    formatJson(join(directory, "outcomes.json"), golden.outcomes).then(
+      (content) => [join(directory, "outcomes.json"), content] as const,
     ),
     Promise.resolve([join(directory, "report.md"), golden.markdown] as const),
     ...normalizedNames.map((name) =>

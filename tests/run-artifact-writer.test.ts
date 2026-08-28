@@ -176,6 +176,7 @@ function result(overrides: Partial<ResearchRunManifestResult> = {}): ResearchRun
     markdown: "# Report\n",
     trace: trace(),
     analytics: { version: 1 },
+    outcomes: [],
     stageOutputs: [],
     collectedSources: collectedSources({
       marketSnapshots: [marketSnapshot({ sourceId: "market-aapl", symbol: "AAPL" })],
@@ -188,7 +189,7 @@ function result(overrides: Partial<ResearchRunManifestResult> = {}): ResearchRun
   };
 }
 
-function failedManifest() {
+function failedManifest(overrides: Partial<Parameters<typeof buildFailedRunManifest>[0]> = {}) {
   return buildFailedRunManifest({
     command: equityCommand,
     runId: "run-1",
@@ -214,6 +215,7 @@ function failedManifest() {
     sourcePlan,
     evidenceLanes,
     sourceLedger,
+    playbookAudit: { selected: [], rejected: [] },
     evidenceQuality: {
       version: 1,
       rubricVersion: 3,
@@ -223,6 +225,7 @@ function failedManifest() {
       advisoryReasons: [],
     },
     codeVersion: { dirty: false },
+    ...overrides,
   });
 }
 
@@ -253,6 +256,7 @@ const baseResearchFiles = [
   RUN_ARTIFACT_FILES.marketContext,
   RUN_ARTIFACT_FILES.stages,
   RUN_ARTIFACT_FILES.analytics,
+  RUN_ARTIFACT_FILES.outcomes,
   RUN_ARTIFACT_FILES.report,
   RUN_ARTIFACT_FILES.reportMarkdown,
   RUN_ARTIFACT_FILES.trace,
@@ -477,6 +481,7 @@ describe("run artifact writer manifests", () => {
         RUN_ARTIFACT_FILES.marketContext,
         RUN_ARTIFACT_FILES.stages,
         RUN_ARTIFACT_FILES.analytics,
+        RUN_ARTIFACT_FILES.outcomes,
         RUN_ARTIFACT_FILES.report,
         RUN_ARTIFACT_FILES.reportMarkdown,
         RUN_ARTIFACT_FILES.trace,
@@ -724,6 +729,7 @@ describe("failed run manifest", () => {
         RUN_ARTIFACT_FILES.extendedEvidence,
         RUN_ARTIFACT_FILES.marketContext,
         RUN_ARTIFACT_FILES.stages,
+        RUN_ARTIFACT_FILES.outcomes,
         RUN_ARTIFACT_FILES.rejectedReport,
         RUN_ARTIFACT_FILES.failure,
       ].toSorted(),
@@ -738,6 +744,58 @@ describe("failed run manifest", () => {
       languageViolations: [{ field: "summary", match: "buy shares" }],
       cost: { tokenEstimate: 100, costEstimateUsd: 0.01 },
       sourceGapsAsOf: "pre-synthesis",
+    });
+  });
+
+  test("includes persisted pre-synthesis audit artifacts when present", () => {
+    const manifest = failedManifest({
+      webGatherAudit: {
+        rounds: 1,
+        acceptedRequests: [],
+        rejectedRequests: [],
+        sourceUnitsUsed: 0,
+        executedTools: [],
+        emittedGaps: [],
+        sanitizer: {
+          sourceCount: 0,
+          sanitizedSourceCount: 0,
+          emptyAfterSanitizeCount: 0,
+          inputCharCount: 0,
+          outputCharCount: 0,
+          removedInstructionSpanCount: 0,
+          removedChromeHtmlCount: 0,
+        },
+      },
+      spotlightSelection: {
+        selected: [],
+        rejected: [],
+        audit: {
+          cap: 3,
+          candidateCount: 0,
+          selectedCount: 0,
+          rejectedCount: 0,
+          malformed: false,
+        },
+      },
+    });
+    const files = [...manifest.writes, manifest.failure].map((write) => write.file).toSorted();
+    const baseManifest = failedManifest();
+    const baseFiles = [...baseManifest.writes, baseManifest.failure]
+      .map((write) => write.file)
+      .toSorted();
+
+    expect(files).toEqual(
+      [
+        ...baseFiles,
+        RUN_ARTIFACT_FILES.webGatherAudit,
+        RUN_ARTIFACT_FILES.spotlightSelection,
+      ].toSorted(),
+    );
+    expect(valueFor(manifest.writes, RUN_ARTIFACT_FILES.webGatherAudit)).toMatchObject({
+      rounds: 1,
+    });
+    expect(valueFor(manifest.writes, RUN_ARTIFACT_FILES.spotlightSelection)).toMatchObject({
+      audit: { malformed: false },
     });
   });
 

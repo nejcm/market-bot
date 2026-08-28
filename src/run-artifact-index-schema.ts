@@ -8,6 +8,7 @@ export function openRunArtifactIndexDatabase(path: string, readonly: boolean): D
     ? new Database(path, { readonly: true })
     : new Database(path, { create: true });
   db.exec(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)}`);
+  db.exec("PRAGMA foreign_keys = ON");
   if (!readonly) {
     db.exec("PRAGMA journal_mode = WAL");
   }

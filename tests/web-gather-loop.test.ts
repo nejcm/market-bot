@@ -1357,6 +1357,7 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.rounds).toBeGreaterThanOrEqual(2);
     expect(result.audit?.acceptedRequests).not.toEqual([]);
     expect(result.audit?.emittedGaps).toEqual([]);
+    expect(result.audit?.failureCode).toBeUndefined();
     expect(retryPriorStages[1]?.[0]?.content).toContain(
       "Parse failure: Web gather stage returned invalid JSON",
     );
@@ -1379,6 +1380,7 @@ describe("runWebGatherLoop", () => {
 
     expect(modelCalls).toBe(2);
     expect(result.audit?.rounds).toBe(2);
+    expect(result.audit?.failureCode).toBe("parse-retries-exhausted");
     expect(result.audit?.emittedGaps).toEqual([
       expect.objectContaining({
         source: "web-gather",
@@ -1416,6 +1418,7 @@ describe("runWebGatherLoop", () => {
 
     expect(modelCalls).toBe(2);
     expect(result.audit?.rounds).toBe(2);
+    expect(result.audit?.failureCode).toBe("parse-retries-exhausted");
     expect(result.audit?.emittedGaps).toHaveLength(1);
   });
 
@@ -1435,10 +1438,12 @@ describe("runWebGatherLoop", () => {
 
     expect(modelCalls).toBe(1);
     expect(result.audit?.rounds).toBe(1);
+    expect(result.audit?.failureCode).toBe("parse-retries-exhausted");
     expect(result.audit?.emittedGaps).toHaveLength(1);
   });
 
   test("attributes malformed JSON from the generic loop to the model", async () => {
+    let modelCalls = 0;
     const result = await runWebGatherLoop({
       command: {
         jobType: "research",
@@ -1450,9 +1455,15 @@ describe("runWebGatherLoop", () => {
       collectedSources: collectedSources(),
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => stage("not-json"),
+      generateRound: async () => {
+        modelCalls += 1;
+        return stage("not-json");
+      },
     });
 
+    expect(modelCalls).toBe(2);
+    expect(result.audit?.rounds).toBe(2);
+    expect(result.audit?.failureCode).toBe("parse-retries-exhausted");
     expect(result.audit?.emittedGaps).toEqual([
       expect.objectContaining({
         source: "web-gather",
@@ -1463,6 +1474,48 @@ describe("runWebGatherLoop", () => {
     ]);
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({ provider: "quick-test" }),
+    );
+  });
+
+  test("accepts a valid generic-loop batch after one malformed response", async () => {
+    let modelCalls = 0;
+    const retryPriorStages: (readonly WebGatherStageOutput[])[] = [];
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "biotech",
+        depth: "deep",
+      },
+      config,
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async (_sources, _roundContext, priorStages) => {
+        modelCalls += 1;
+        retryPriorStages.push(priorStages);
+        return modelCalls === 1
+          ? stage("not-json")
+          : stage({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: { query: "biotech sector drivers 2026", searchType: "background" },
+                  rationale: "category landscape angle",
+                },
+              ],
+            });
+      },
+    });
+
+    expect(modelCalls).toBe(2);
+    expect(result.audit?.failureCode).toBeUndefined();
+    expect(result.audit?.acceptedRequests).not.toEqual([]);
+    expect(result.audit?.emittedGaps).toEqual([]);
+    expect(retryPriorStages[1]?.[0]?.content).toContain(
+      "Parse failure: Web gather stage returned invalid JSON",
     );
   });
 

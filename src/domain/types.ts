@@ -261,6 +261,8 @@ export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonT
   readonly emittedGaps: readonly SourceGap[];
 }
 
+type WebGatherLoopFailureCode = "parse-retries-exhausted";
+
 export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
 
 export type EvidenceRequestLoopAudit = JsonToolLoopAudit<EvidenceRequestToolName>;
@@ -367,6 +369,7 @@ export interface WebGatherFallbackAudit {
 export type WebGatherLoopAudit = JsonToolLoopAudit<WebGatherToolName, WebGatherAuditEntry> & {
   readonly sanitizer: WebGatherSanitizerAudit;
   readonly acceptancePolicy?: WebGatherAcceptancePolicy;
+  readonly failureCode?: WebGatherLoopFailureCode;
 };
 
 interface DomainPlaybookSelectionAudit {

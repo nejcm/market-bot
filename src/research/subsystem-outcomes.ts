@@ -183,6 +183,17 @@ function webGatherOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome 
     };
   }
   const acceptedCount = input.webGatherAudit?.acceptedRequests.length ?? 0;
+  const failureCode = input.webGatherAudit?.failureCode;
+  if (failureCode !== undefined) {
+    return {
+      subsystem: "web-gather",
+      expectation: "expected",
+      outcome: "failed",
+      code: failureCode,
+      stage: "web-gather",
+      count: acceptedCount,
+    };
+  }
   return {
     subsystem: "web-gather",
     expectation: "expected",

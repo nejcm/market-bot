@@ -6,7 +6,10 @@ interface JsonToolLoopOptions {
   readonly maxRounds: number;
   readonly maxToolCalls: number;
   readonly sourceBudget: number;
+  readonly maxParseRetries?: number;
 }
+
+const MAX_PARSE_FAILURE_ECHO_LENGTH = 2000;
 
 export interface JsonToolLoopStageOutput {
   readonly content: string;
@@ -76,6 +79,17 @@ export interface JsonToolLoopResult<
   readonly state: TState;
   readonly stageOutputs: readonly TStage[];
   readonly audit: JsonToolLoopAudit<TTool, TAudit>;
+  readonly parseRetriesExhausted?: true;
+}
+
+export function withParseFailureEcho<TStage extends JsonToolLoopStageOutput>(
+  stage: TStage,
+  parseError: string,
+): TStage {
+  return {
+    ...stage,
+    content: `${stage.content.slice(0, MAX_PARSE_FAILURE_ECHO_LENGTH)}\n\nParse failure: ${parseError}`,
+  };
 }
 
 export async function runJsonToolLoop<
@@ -88,9 +102,13 @@ export async function runJsonToolLoop<
   input: JsonToolLoopInput<TState, TRequest, TTool, TStage, TAudit>,
 ): Promise<JsonToolLoopResult<TState, TTool, TStage, TAudit>> {
   const { options } = input;
+  const maxParseRetries = options.maxParseRetries ?? 0;
   let state = input.initialState;
   let sourceUnitsUsed = 0;
   let toolCallsUsed = 0;
+  let parseRetriesUsed = 0;
+  let parseRetriesExhausted = false;
+  let pendingParseEcho: TStage | undefined = undefined;
   const stageOutputs: TStage[] = [];
   const acceptedRequests: TAudit[] = [];
   const rejectedRequests: TAudit[] = [];
@@ -98,7 +116,12 @@ export async function runJsonToolLoop<
   const executedTools: TTool[] = [];
 
   for (let round = 1; round <= options.maxRounds; round += 1) {
-    const roundState = { round, sourceUnitsUsed, toolCallsUsed, priorStages: [...stageOutputs] };
+    const priorStages =
+      pendingParseEcho === undefined
+        ? [...stageOutputs]
+        : [...stageOutputs.slice(0, -1), pendingParseEcho];
+    pendingParseEcho = undefined;
+    const roundState = { round, sourceUnitsUsed, toolCallsUsed, priorStages };
     // oxlint-disable-next-line no-await-in-loop -- each round depends on prior evidence and budgets.
     const stageOutput = await input.generateRound(state, roundState);
     stageOutputs.push(stageOutput);
@@ -109,9 +132,15 @@ export async function runJsonToolLoop<
       input.invalidShapeMessage,
     );
     if (typeof parsed === "string") {
+      if (parseRetriesUsed < maxParseRetries && round < options.maxRounds) {
+        parseRetriesUsed += 1;
+        pendingParseEcho = withParseFailureEcho(stageOutput, parsed);
+        continue;
+      }
       const gap = input.malformedGap(parsed);
       emittedGaps.push(gap);
       state = input.mergeGaps(state, [gap]);
+      parseRetriesExhausted = true;
       break;
     }
     if (parsed.length === 0) {
@@ -173,6 +202,7 @@ export async function runJsonToolLoop<
       executedTools,
       emittedGaps,
     },
+    ...(parseRetriesExhausted ? { parseRetriesExhausted: true } : {}),
   };
 }
 

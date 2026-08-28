@@ -124,6 +124,29 @@ describe("Subsystem Outcomes", () => {
     );
   });
 
+  test("maps exhausted Web Gather parse retries to failed", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherAudit: {
+        ...webGatherAudit,
+        acceptedRequests: [],
+        sourceUnitsUsed: 0,
+        executedTools: [],
+        failureCode: "parse-retries-exhausted",
+      },
+    });
+
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "web-gather",
+        expectation: "expected",
+        outcome: "failed",
+        code: "parse-retries-exhausted",
+        count: 0,
+      }),
+    );
+  });
+
   test.each([
     { skipCode: "run-not-applicable" as const, expectation: "not-applicable" },
     { skipCode: "missing-exa-credential" as const, expectation: "optional" },

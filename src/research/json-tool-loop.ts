@@ -108,20 +108,20 @@ export async function runJsonToolLoop<
   let toolCallsUsed = 0;
   let parseRetriesUsed = 0;
   let parseRetriesExhausted = false;
-  let pendingParseEcho: TStage | undefined = undefined;
   const stageOutputs: TStage[] = [];
+  const promptStages: TStage[] = [];
   const acceptedRequests: TAudit[] = [];
   const rejectedRequests: TAudit[] = [];
   const emittedGaps: SourceGap[] = [];
   const executedTools: TTool[] = [];
 
   for (let round = 1; round <= options.maxRounds; round += 1) {
-    const priorStages =
-      pendingParseEcho === undefined
-        ? [...stageOutputs]
-        : [...stageOutputs.slice(0, -1), pendingParseEcho];
-    pendingParseEcho = undefined;
-    const roundState = { round, sourceUnitsUsed, toolCallsUsed, priorStages };
+    const roundState = {
+      round,
+      sourceUnitsUsed,
+      toolCallsUsed,
+      priorStages: [...promptStages],
+    };
     // oxlint-disable-next-line no-await-in-loop -- each round depends on prior evidence and budgets.
     const stageOutput = await input.generateRound(state, roundState);
     stageOutputs.push(stageOutput);
@@ -134,7 +134,7 @@ export async function runJsonToolLoop<
     if (typeof parsed === "string") {
       if (parseRetriesUsed < maxParseRetries && round < options.maxRounds) {
         parseRetriesUsed += 1;
-        pendingParseEcho = withParseFailureEcho(stageOutput, parsed);
+        promptStages.push(withParseFailureEcho(stageOutput, parsed));
         continue;
       }
       const gap = input.malformedGap(parsed);
@@ -147,6 +147,7 @@ export async function runJsonToolLoop<
       break;
     }
 
+    promptStages.push(stageOutput);
     const validation = input.validateRequests(parsed, roundState);
     rejectedRequests.push(...validation.rejected);
     emittedGaps.push(...validation.gaps);

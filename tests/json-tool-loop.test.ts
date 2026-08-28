@@ -198,6 +198,57 @@ describe("runJsonToolLoop", () => {
     expect(retryPriorContents[1]).toContain("not-json");
   });
 
+  test("keeps parse-failure annotation in later-round prompt history without rewriting persisted output", async () => {
+    const garbled = "not-json";
+    const priorByRound: string[][] = [];
+
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 3, maxToolCalls: 2, sourceBudget: 4, maxParseRetries: 1 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async (_state, roundState) => {
+        priorByRound[roundState.round] = roundState.priorStages.map((stage) => stage.content);
+        if (roundState.round === 1) {
+          return testStage(garbled);
+        }
+        if (roundState.round === 2) {
+          return testStage(JSON.stringify({ requests: [{ tool: "lookup" }] }));
+        }
+        return testStage(JSON.stringify({ requests: [] }));
+      },
+      validateRequests: (_requests, roundState) => ({
+        requests: [
+          {
+            request: { tool: "lookup" },
+            audit: { round: roundState.round, tool: "lookup", status: "accepted", sourceUnits: 2 },
+            sourceUnits: 2,
+            tool: "lookup",
+          },
+        ],
+        rejected: [],
+        gaps: [],
+      }),
+      mergeGaps: (state, gaps) => ({
+        ...state,
+        gaps: [...state.gaps, ...gaps.map((gap) => gap.message)],
+      }),
+      executeRequest: async (state, request) => ({
+        state: { ...state, executed: [...state.executed, request.tool] },
+        gaps: [],
+      }),
+    });
+
+    const round3Prior = priorByRound[3] ?? [];
+    expect(result.stageOutputs[0]?.content).toBe(garbled);
+    expect(result.stageOutputs[0]?.content).not.toContain("Parse failure:");
+    expect(round3Prior).toHaveLength(2);
+    expect(round3Prior[0]).toContain(garbled);
+    expect(round3Prior[0]).toContain("Parse failure: invalid json");
+    expect(round3Prior[0]).not.toBe(garbled);
+  });
+
   test("treats the first unparseable round as exhausted when no parse retry remains", async () => {
     let modelCalls = 0;
 

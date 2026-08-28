@@ -120,10 +120,14 @@ export interface SubsystemOutcome {
   readonly subsystem: string;
   readonly expectation: SubsystemExpectation;
   readonly outcome: SubsystemOutcomeStatus;
-  readonly code: SubsystemOutcomeCode;
+  readonly code: string;
   readonly stage?: string;
   readonly count?: number;
   readonly detail?: Readonly<Record<string, unknown>>;
+}
+
+export interface WrittenSubsystemOutcome extends SubsystemOutcome {
+  readonly code: SubsystemOutcomeCode;
 }
 
 export interface SubsystemOutcomeRollup {
@@ -203,7 +207,9 @@ function blockedSecDependents(sourceGaps: readonly SourceGap[]): ReadonlySet<str
   );
 }
 
-function evidenceLaneOutcomes(input: BuildSubsystemOutcomesInput): readonly SubsystemOutcome[] {
+function evidenceLaneOutcomes(
+  input: BuildSubsystemOutcomesInput,
+): readonly WrittenSubsystemOutcome[] {
   const evidenceByLane = new Map(input.evidenceLanes.lanes.map((lane) => [lane.lane, lane]));
   const secDependents = blockedSecDependents(input.sourceGaps);
   const blockedLanes: ReadonlySet<string> = new Set(
@@ -211,7 +217,7 @@ function evidenceLaneOutcomes(input: BuildSubsystemOutcomesInput): readonly Subs
       secDependents.has(derivation) ? lanes : [],
     ),
   );
-  return input.sourcePlan.lanes.map((planLane): SubsystemOutcome => {
+  return input.sourcePlan.lanes.map((planLane): WrittenSubsystemOutcome => {
     const subsystem = `evidence-lane:${planLane.lane}`;
     const expectation = expectationForLane(planLane);
     if (expectation === "not-applicable") {
@@ -249,7 +255,7 @@ function evidenceLaneOutcomes(input: BuildSubsystemOutcomesInput): readonly Subs
   });
 }
 
-function webGatherOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function webGatherOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   const subjectProfileLane = input.sourcePlan.lanes.find((lane) => lane.lane === "subject-profile");
   if (input.webGatherSkipCode !== undefined) {
     return {
@@ -286,7 +292,7 @@ function webGatherOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome 
   };
 }
 
-function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   const expectation = expectationForLane(
     input.sourcePlan.lanes.find((lane) => lane.lane === "subject-profile"),
   );
@@ -318,7 +324,7 @@ function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): Subsystem
   };
 }
 
-function spotlightOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function spotlightOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   const selection = input.spotlightSelection;
   if (selection === undefined) {
     return {
@@ -350,7 +356,7 @@ function spotlightOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome 
   };
 }
 
-function playbookOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function playbookOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   const selectedCount = input.playbookAudit.selected.reduce(
     (count, selection) => count + selection.playbookIds.length,
     0,
@@ -377,7 +383,7 @@ function playbookOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
   };
 }
 
-function predictionCompletionOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function predictionCompletionOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   if (input.finalSynthesisRejected === true) {
     return {
       subsystem: "prediction-completion",
@@ -415,7 +421,7 @@ function predictionCompletionOutcome(input: BuildSubsystemOutcomesInput): Subsys
   };
 }
 
-function integrityAuditOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function integrityAuditOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   if (input.finalSynthesisRejected === true) {
     return {
       subsystem: "report-integrity-audit",
@@ -437,7 +443,7 @@ function integrityAuditOutcome(input: BuildSubsystemOutcomesInput): SubsystemOut
   };
 }
 
-function forecastDisagreementOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
+function forecastDisagreementOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   if (input.finalSynthesisRejected === true) {
     return {
       subsystem: "forecast-disagreement",
@@ -483,7 +489,9 @@ function forecastDisagreementOutcome(input: BuildSubsystemOutcomesInput): Subsys
   };
 }
 
-function secDependentOutcomes(input: BuildSubsystemOutcomesInput): readonly SubsystemOutcome[] {
+function secDependentOutcomes(
+  input: BuildSubsystemOutcomesInput,
+): readonly WrittenSubsystemOutcome[] {
   return [...blockedSecDependents(input.sourceGaps)].toSorted().map((dependency) => ({
     subsystem: `deep-equity:${dependency}`,
     expectation: "expected",
@@ -496,7 +504,7 @@ function secDependentOutcomes(input: BuildSubsystemOutcomesInput): readonly Subs
 
 export function buildSubsystemOutcomes(
   input: BuildSubsystemOutcomesInput,
-): readonly SubsystemOutcome[] {
+): readonly WrittenSubsystemOutcome[] {
   const outcomes = [
     ...evidenceLaneOutcomes(input),
     webGatherOutcome(input),

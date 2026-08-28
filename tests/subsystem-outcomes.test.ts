@@ -8,6 +8,7 @@ import {
   type SubsystemExpectation,
   type SubsystemOutcomeCode,
   type SubsystemOutcomeStatus,
+  type WrittenSubsystemOutcome,
 } from "../src/research/subsystem-outcomes";
 import { runSubsystemOutcomesFromSidecar } from "../src/run-artifact-projection";
 import type { EvidenceLanesArtifact, SourcePlanArtifact } from "../src/research/source-plan";
@@ -131,9 +132,8 @@ describe("Subsystem Outcomes", () => {
       status: "ok",
       value: [historical],
     });
-    const codes: readonly string[] = ledger.outcomes.map((outcome) => outcome.code);
     expect(ledger.status).toBe("ok");
-    expect(codes).toEqual(["legacy Odd_code"]);
+    expect(ledger.outcomes[0]?.code).toBe("legacy Odd_code");
   });
 
   test("marks an attempted Web Gather with no accepted requests expected and empty", () => {
@@ -244,7 +244,8 @@ describe("Subsystem Outcomes", () => {
 
     const expected: SubsystemExpectation = "expected";
     const empty: SubsystemOutcomeStatus = "empty";
-    expect(outcomes.every((outcome) => isSubsystemOutcome(outcome))).toBe(true);
+    const written: readonly WrittenSubsystemOutcome[] = outcomes;
+    expect(written.every((outcome) => isSubsystemOutcome(outcome))).toBe(true);
     expect(() => {
       for (const outcome of outcomes) {
         assertSubsystemOutcomeCode(outcome.code);

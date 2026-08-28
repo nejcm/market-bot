@@ -261,7 +261,7 @@ export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonT
   readonly emittedGaps: readonly SourceGap[];
 }
 
-type WebGatherLoopFailureCode = "parse-retries-exhausted";
+export type WebGatherLoopFailureCode = "parse-retries-exhausted";
 
 export type EvidenceRequestAuditEntry = JsonToolLoopAuditEntry;
 

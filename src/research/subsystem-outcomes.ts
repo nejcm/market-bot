@@ -3,17 +3,49 @@ import type {
   RunTrace,
   SourceGap,
   WebGatherLoopAudit,
+  WebGatherLoopFailureCode,
 } from "../domain/types";
 import { isRecord, readNumber, readString } from "../guards";
 import type { PredictionCompletionSkipCode } from "./final-synthesis";
 import type { PlaybookSelectionAudit } from "./playbooks";
 import type { EvidenceLanesArtifact, SourcePlanArtifact } from "./source-plan";
-import type { SpotlightSelectionResult } from "./spotlights";
+import type { SpotlightSelectionRejectionReason, SpotlightSelectionResult } from "./spotlights";
 import type { WebGatherSkipCode } from "../web-evidence/web-gather-types";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "../sources/sec-packet-dependencies";
 
 export type SubsystemExpectation = "expected" | "optional" | "not-applicable";
 export type SubsystemOutcomeStatus = "produced" | "empty" | "declined" | "failed" | "blocked";
+export type ForecastDisagreementOutcomeCode =
+  | "produced"
+  | "failed"
+  | "not-configured"
+  | "no-predictions";
+
+export type SubsystemOutcomeCode =
+  | WebGatherSkipCode
+  | WebGatherLoopFailureCode
+  | SpotlightSelectionRejectionReason
+  | PredictionCompletionSkipCode
+  | PredictionCompletionAudit["outcome"]
+  | ForecastDisagreementOutcomeCode
+  | "not-applicable"
+  | "sec-base-packet-unavailable"
+  | "covered"
+  | "audit-missing"
+  | "coverage-gap"
+  | "accepted-requests"
+  | "no-accepted-requests"
+  | "reused-profile"
+  | "profile-produced"
+  | "profile-empty"
+  | "no-spotlights-selected"
+  | "spotlights-selected"
+  | "no-playbooks-selected"
+  | "playbooks-selected"
+  | "selection-rejected"
+  | "final-synthesis-rejected"
+  | "gate-code-missing"
+  | "audit-complete";
 
 const SUBSYSTEM_EXPECTATION_TABLE = {
   expected: true,
@@ -29,16 +61,66 @@ const SUBSYSTEM_OUTCOME_TABLE = {
   blocked: true,
 } satisfies Record<SubsystemOutcomeStatus, true>;
 
+const SUBSYSTEM_OUTCOME_CODE_TABLE = {
+  "not-applicable": true,
+  "sec-base-packet-unavailable": true,
+  covered: true,
+  "audit-missing": true,
+  "coverage-gap": true,
+  "run-not-applicable": true,
+  "missing-exa-credential": true,
+  "disabled-by-config": true,
+  "round-budget-zero": true,
+  "tool-call-budget-zero": true,
+  "source-budget-zero": true,
+  "subject-unavailable": true,
+  "parse-retries-exhausted": true,
+  "accepted-requests": true,
+  "no-accepted-requests": true,
+  "reused-profile": true,
+  "profile-produced": true,
+  "profile-empty": true,
+  "malformed-json": true,
+  "malformed-selection": true,
+  "unknown-symbol": true,
+  "duplicate-symbol": true,
+  "cap-overflow": true,
+  "unknown-source-id": true,
+  "no-spotlights-selected": true,
+  "spotlights-selected": true,
+  "no-playbooks-selected": true,
+  "playbooks-selected": true,
+  "selection-rejected": true,
+  "final-synthesis-rejected": true,
+  improved: true,
+  "declined-empty": true,
+  "no-parsable-candidates": true,
+  "all-candidates-rejected": true,
+  failed: true,
+  "evidence-quality-ineligible": true,
+  "target-zero": true,
+  "target-met": true,
+  "subject-ineligible": true,
+  "gate-code-missing": true,
+  "audit-complete": true,
+  produced: true,
+  "not-configured": true,
+  "no-predictions": true,
+} satisfies Record<SubsystemOutcomeCode, true>;
+
 const SUBSYSTEM_EXPECTATIONS: ReadonlySet<string> = new Set(
   Object.keys(SUBSYSTEM_EXPECTATION_TABLE),
 );
 const SUBSYSTEM_OUTCOMES: ReadonlySet<string> = new Set(Object.keys(SUBSYSTEM_OUTCOME_TABLE));
+const SUBSYSTEM_OUTCOME_CODES: ReadonlySet<string> = new Set(
+  Object.keys(SUBSYSTEM_OUTCOME_CODE_TABLE),
+);
 
 export interface SubsystemOutcome {
   readonly subsystem: string;
   readonly expectation: SubsystemExpectation;
   readonly outcome: SubsystemOutcomeStatus;
-  readonly code: string;
+  readonly code: SubsystemOutcomeCode;
   readonly stage?: string;
   readonly count?: number;
   readonly detail?: Readonly<Record<string, unknown>>;
@@ -51,12 +133,6 @@ export interface SubsystemOutcomeRollup {
   readonly byOutcome: Readonly<Record<SubsystemOutcomeStatus, number>>;
   readonly byCode: Readonly<Record<string, number>>;
 }
-
-export type ForecastDisagreementOutcomeCode =
-  | "produced"
-  | "failed"
-  | "not-configured"
-  | "no-predictions";
 
 interface BuildSubsystemOutcomesInput {
   readonly sourcePlan: SourcePlanArtifact;
@@ -82,6 +158,12 @@ function isSubsystemExpectation(value: unknown): value is SubsystemExpectation {
 
 function isSubsystemOutcomeStatus(value: unknown): value is SubsystemOutcomeStatus {
   return typeof value === "string" && SUBSYSTEM_OUTCOMES.has(value);
+}
+
+export function assertSubsystemOutcomeCode(code: string): asserts code is SubsystemOutcomeCode {
+  if (!SUBSYSTEM_OUTCOME_CODES.has(code)) {
+    throw new Error(`Unsupported subsystem outcome code: ${JSON.stringify(code)}`);
+  }
 }
 
 export function isSubsystemOutcome(value: unknown): value is SubsystemOutcome {
@@ -249,7 +331,7 @@ function spotlightOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome 
   const rejectionCodes = selection.rejected.map((item) => item.reason);
   const [firstRejection] = rejectionCodes;
   let outcome: SubsystemOutcomeStatus = "empty";
-  let code: string = firstRejection ?? "no-spotlights-selected";
+  let code: SubsystemOutcomeCode = firstRejection ?? "no-spotlights-selected";
   if (selection.audit.malformed) {
     outcome = "failed";
     code = firstRejection ?? "malformed-selection";
@@ -274,7 +356,7 @@ function playbookOutcome(input: BuildSubsystemOutcomesInput): SubsystemOutcome {
     0,
   );
   let outcome: SubsystemOutcomeStatus = "empty";
-  let code = "no-playbooks-selected";
+  let code: SubsystemOutcomeCode = "no-playbooks-selected";
   if (selectedCount > 0) {
     outcome = "produced";
     code = "playbooks-selected";
@@ -415,7 +497,7 @@ function secDependentOutcomes(input: BuildSubsystemOutcomesInput): readonly Subs
 export function buildSubsystemOutcomes(
   input: BuildSubsystemOutcomesInput,
 ): readonly SubsystemOutcome[] {
-  return [
+  const outcomes = [
     ...evidenceLaneOutcomes(input),
     webGatherOutcome(input),
     webSubjectProfileOutcome(input),
@@ -426,6 +508,10 @@ export function buildSubsystemOutcomes(
     forecastDisagreementOutcome(input),
     ...secDependentOutcomes(input),
   ];
+  for (const outcome of outcomes) {
+    assertSubsystemOutcomeCode(outcome.code);
+  }
+  return outcomes;
 }
 
 function countBy<T extends string>(values: readonly T[], keys: readonly T[]): Record<T, number> {

@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { WebGatherLoopAudit } from "../src/domain/types";
 import {
+  assertSubsystemOutcomeCode,
   buildSubsystemOutcomes,
   isSubsystemOutcome,
   rollupSubsystemOutcomes,
   type SubsystemExpectation,
+  type SubsystemOutcomeCode,
   type SubsystemOutcomeStatus,
 } from "../src/research/subsystem-outcomes";
+import { runSubsystemOutcomesFromSidecar } from "../src/run-artifact-projection";
 import type { EvidenceLanesArtifact, SourcePlanArtifact } from "../src/research/source-plan";
 import type { SpotlightSelectionRejectionReason } from "../src/research/spotlights";
 
@@ -103,6 +106,36 @@ const baseWebGatherInput = {
 } satisfies Parameters<typeof buildSubsystemOutcomes>[0];
 
 describe("Subsystem Outcomes", () => {
+  test("rejects a non-union code at write time", () => {
+    const written: SubsystemOutcomeCode = "covered";
+    expect(() => assertSubsystemOutcomeCode(written)).not.toThrow();
+    const illegal = "legacy Odd_code";
+    expect(() => assertSubsystemOutcomeCode(illegal)).toThrow(
+      `Unsupported subsystem outcome code: ${JSON.stringify(illegal)}`,
+    );
+    const withNewline = "not a kebab\ncode";
+    expect(() => assertSubsystemOutcomeCode(withNewline)).toThrow(
+      `Unsupported subsystem outcome code: ${JSON.stringify(withNewline)}`,
+    );
+  });
+
+  test("reads a historically odd-but-string code", () => {
+    const historical = {
+      subsystem: "web-gather",
+      expectation: "expected",
+      outcome: "empty",
+      code: "legacy Odd_code",
+    };
+    expect(isSubsystemOutcome(historical)).toBe(true);
+    const ledger = runSubsystemOutcomesFromSidecar("run-1", {
+      status: "ok",
+      value: [historical],
+    });
+    const codes: readonly string[] = ledger.outcomes.map((outcome) => outcome.code);
+    expect(ledger.status).toBe("ok");
+    expect(codes).toEqual(["legacy Odd_code"]);
+  });
+
   test("marks an attempted Web Gather with no accepted requests expected and empty", () => {
     const outcomes = buildSubsystemOutcomes({
       ...baseWebGatherInput,
@@ -212,6 +245,11 @@ describe("Subsystem Outcomes", () => {
     const expected: SubsystemExpectation = "expected";
     const empty: SubsystemOutcomeStatus = "empty";
     expect(outcomes.every((outcome) => isSubsystemOutcome(outcome))).toBe(true);
+    expect(() => {
+      for (const outcome of outcomes) {
+        assertSubsystemOutcomeCode(outcome.code);
+      }
+    }).not.toThrow();
     expect(outcomes).toContainEqual(
       expect.objectContaining({
         subsystem: "web-gather",

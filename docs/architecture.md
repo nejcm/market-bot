@@ -179,6 +179,8 @@ Deep runs use the legacy specialist and fixed Coverage Panel path, the sole prod
 
 After final synthesis, the source-plan layer records compact `sourcePlan` and `evidenceLanes` summaries in `trace.json` and `analytics.json`. Full detail stays in the three normalized sidecars; no report schema fields are added. Successful and failed final-synthesis runs also persist the canonical coded Subsystem Outcome ledger at root `outcomes.json`; only successful runs project its text-free rollup into `analytics.json`. Alpha-search has a separate artifact manifest and does not write `outcomes.json`.
 
+Web Gather records `failed` / `parse-retries-exhausted` only when parse retries are exhausted and the loop accepted no requests — the silence-vs-failure case the ledger exists to draw. Earlier-round accepted requests still roll up as `produced` / `accepted-requests`, with the exhaustion left on `detail`. The generic Web Gather loop spends one extra model round on a parse retry (live-token cost, bounded by that one retry and `maxRounds`). The Evidence Request loop passes no retry option and is unaffected.
+
 A Failed Run Artifact is marked by `failure.json`, includes `outcomes.json`, and deliberately has no `report.json` or `analytics.json`. Its diagnostics stay outside the completed-run `src/run-artifacts.ts` reader.
 
 Provider Health v3 reads Subsystem Outcomes through Run Artifact Index schema v11 when fresh and

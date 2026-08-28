@@ -102,7 +102,7 @@ import { buildRunTrace } from "./run-trace";
 import {
   buildSubsystemOutcomes,
   type ForecastDisagreementOutcomeCode,
-  type SubsystemOutcome,
+  type WrittenSubsystemOutcome,
 } from "./subsystem-outcomes";
 import { createSourceRequestContext } from "../sources/source-request";
 import {
@@ -137,7 +137,7 @@ export interface RunResearchJobResult {
   readonly markdown: string;
   readonly trace: RunTrace;
   readonly analytics: RunAnalytics;
-  readonly outcomes: readonly SubsystemOutcome[];
+  readonly outcomes: readonly WrittenSubsystemOutcome[];
   readonly stageOutputs: readonly StageOutput[];
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;

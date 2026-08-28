@@ -647,9 +647,12 @@ export async function buildProviderHealthSummary(
   now: Date = new Date(),
 ): Promise<ProviderHealthSummary> {
   const runDirs = await listRunDirs(runsDir);
+  // Snapshot the directory set once so run health and the outcome ledger cannot desync.
+  const runDirNames = runDirs.map((runDir) => basename(runDir));
   const runs = await Promise.all(runDirs.map((runDir) => loadRunHealth(runDir)));
-  const indexedOutcomeLedgers = await loadRunSubsystemOutcomesFromIndex(runsDir);
-  const outcomeLedgers = indexedOutcomeLedgers ?? (await scanRunSubsystemOutcomesFromDisk(runsDir));
+  const indexedOutcomeLedgers = await loadRunSubsystemOutcomesFromIndex(runsDir, runDirNames);
+  const outcomeLedgers =
+    indexedOutcomeLedgers ?? (await scanRunSubsystemOutcomesFromDisk(runsDir, runDirNames));
   const subsystemOutcomeRollup = rollupSubsystemOutcomes(
     outcomeLedgers.flatMap((ledger) => ledger.outcomes),
   );
@@ -772,12 +775,17 @@ function renderProviderHealthMarkdown(summary: ProviderHealthSummary): string {
     "",
     "## Subsystem outcomes",
     "",
+    "Failed Run Artifacts count `failure.json`. Outcome-ledger status counts `outcomes.json` for every run. Those are different questions.",
+    "",
     tableRow(["Metric", "Value"]),
     tableRow(["---", "---"]),
-    tableRow(["Failed runs", String(summary.subsystemOutcomes.failedRunCount)]),
-    tableRow(["Ledger ok", String(summary.subsystemOutcomes.ledgerStatus.ok)]),
-    tableRow(["Ledger absent", String(summary.subsystemOutcomes.ledgerStatus.absent)]),
-    tableRow(["Ledger malformed", String(summary.subsystemOutcomes.ledgerStatus.malformed)]),
+    tableRow(["Failed Run Artifacts", String(summary.subsystemOutcomes.failedRunCount)]),
+    tableRow(["Outcome ledger ok", String(summary.subsystemOutcomes.ledgerStatus.ok)]),
+    tableRow(["Outcome ledger absent", String(summary.subsystemOutcomes.ledgerStatus.absent)]),
+    tableRow([
+      "Outcome ledger malformed",
+      String(summary.subsystemOutcomes.ledgerStatus.malformed),
+    ]),
     tableRow(["Recorded outcomes", String(summary.subsystemOutcomes.count)]),
     tableRow(["Expected empty", String(summary.subsystemOutcomes.expectedEmptyCount)]),
     ...Object.entries(summary.subsystemOutcomes.byOutcome).map(([outcome, count]) =>

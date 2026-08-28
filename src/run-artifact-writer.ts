@@ -34,7 +34,10 @@ import type {
   SourceLedgerArtifact,
 } from "./research/source-plan";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/spotlights";
-import { buildSubsystemOutcomes, type SubsystemOutcome } from "./research/subsystem-outcomes";
+import {
+  buildSubsystemOutcomes,
+  type WrittenSubsystemOutcome,
+} from "./research/subsystem-outcomes";
 import { compactOversizedRawSnapshots } from "./sources/raw-snapshots";
 import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
@@ -54,7 +57,7 @@ export interface ResearchRunManifestResult {
   readonly markdown: string;
   readonly trace: RunTrace;
   readonly analytics: unknown;
-  readonly outcomes: readonly SubsystemOutcome[];
+  readonly outcomes: readonly WrittenSubsystemOutcome[];
   readonly stageOutputs: readonly unknown[];
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;

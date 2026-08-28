@@ -121,6 +121,7 @@ describe("runJsonToolLoop", () => {
 
     expect(result.stageOutputs).toHaveLength(1);
     expect(result.state.gaps).toEqual(["invalid json"]);
+    expect(result.parseRetriesExhausted).toBe(true);
     expect(result.audit.emittedGaps).toEqual([
       expect.objectContaining({ message: "invalid json" }),
     ]);
@@ -144,8 +145,136 @@ describe("runJsonToolLoop", () => {
 
     expect(result.stageOutputs).toHaveLength(1);
     expect(result.state.gaps).toEqual(["invalid shape"]);
+    expect(result.parseRetriesExhausted).toBe(true);
     expect(result.audit.emittedGaps).toEqual([
       expect.objectContaining({ message: "invalid shape" }),
+    ]);
+  });
+
+  test("retries once on invalid JSON then continues without a malformed gap", async () => {
+    let modelCalls = 0;
+    const retryPriorContents: string[] = [];
+
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 2, maxToolCalls: 2, sourceBudget: 4, maxParseRetries: 1 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async (_state, roundState) => {
+        modelCalls += 1;
+        retryPriorContents.push(roundState.priorStages[0]?.content ?? "");
+        return modelCalls === 1
+          ? testStage("not-json")
+          : testStage(JSON.stringify({ requests: [{ tool: "lookup" }] }));
+      },
+      validateRequests: (_requests, roundState) => ({
+        requests: [
+          {
+            request: { tool: "lookup" },
+            audit: { round: roundState.round, tool: "lookup", status: "accepted", sourceUnits: 2 },
+            sourceUnits: 2,
+            tool: "lookup",
+          },
+        ],
+        rejected: [],
+        gaps: [],
+      }),
+      mergeGaps: (state, gaps) => ({
+        ...state,
+        gaps: [...state.gaps, ...gaps.map((gap) => gap.message)],
+      }),
+      executeRequest: async (state, request) => ({
+        state: { ...state, executed: [...state.executed, request.tool] },
+        gaps: [],
+      }),
+    });
+
+    expect(modelCalls).toBe(2);
+    expect(result.parseRetriesExhausted).toBeUndefined();
+    expect(result.audit.emittedGaps).toEqual([]);
+    expect(result.state.executed).toEqual(["lookup"]);
+    expect(retryPriorContents[1]).toContain("Parse failure: invalid json");
+    expect(retryPriorContents[1]).toContain("not-json");
+  });
+
+  test("keeps parse-failure annotation in later-round prompt history without rewriting persisted output", async () => {
+    const garbled = "not-json";
+    const priorByRound: string[][] = [];
+
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 3, maxToolCalls: 2, sourceBudget: 4, maxParseRetries: 1 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async (_state, roundState) => {
+        priorByRound[roundState.round] = roundState.priorStages.map((stage) => stage.content);
+        if (roundState.round === 1) {
+          return testStage(garbled);
+        }
+        if (roundState.round === 2) {
+          return testStage(JSON.stringify({ requests: [{ tool: "lookup" }] }));
+        }
+        return testStage(JSON.stringify({ requests: [] }));
+      },
+      validateRequests: (_requests, roundState) => ({
+        requests: [
+          {
+            request: { tool: "lookup" },
+            audit: { round: roundState.round, tool: "lookup", status: "accepted", sourceUnits: 2 },
+            sourceUnits: 2,
+            tool: "lookup",
+          },
+        ],
+        rejected: [],
+        gaps: [],
+      }),
+      mergeGaps: (state, gaps) => ({
+        ...state,
+        gaps: [...state.gaps, ...gaps.map((gap) => gap.message)],
+      }),
+      executeRequest: async (state, request) => ({
+        state: { ...state, executed: [...state.executed, request.tool] },
+        gaps: [],
+      }),
+    });
+
+    const round3Prior = priorByRound[3] ?? [];
+    expect(result.stageOutputs[0]?.content).toBe(garbled);
+    expect(result.stageOutputs[0]?.content).not.toContain("Parse failure:");
+    expect(round3Prior).toHaveLength(2);
+    expect(round3Prior[0]).toContain(garbled);
+    expect(round3Prior[0]).toContain("Parse failure: invalid json");
+    expect(round3Prior[0]).not.toBe(garbled);
+  });
+
+  test("treats the first unparseable round as exhausted when no parse retry remains", async () => {
+    let modelCalls = 0;
+
+    const result = await runJsonToolLoop<TestState, TestRequest, "lookup", TestStage, TestAudit>({
+      options: { maxRounds: 3, maxToolCalls: 2, sourceBudget: 4, maxParseRetries: 1 },
+      initialState: { executed: [], gaps: [] },
+      invalidJsonMessage: "invalid json",
+      invalidShapeMessage: "invalid shape",
+      malformedGap: testGap,
+      generateRound: async () => {
+        modelCalls += 1;
+        return testStage("not-json");
+      },
+      validateRequests: () => ({ requests: [], rejected: [], gaps: [] }),
+      mergeGaps: (state, gaps) => ({
+        ...state,
+        gaps: [...state.gaps, ...gaps.map((gap) => gap.message)],
+      }),
+      executeRequest: async (state) => ({ state, gaps: [] }),
+    });
+
+    expect(modelCalls).toBe(2);
+    expect(result.stageOutputs).toHaveLength(2);
+    expect(result.parseRetriesExhausted).toBe(true);
+    expect(result.audit.emittedGaps).toEqual([
+      expect.objectContaining({ message: "invalid json" }),
     ]);
   });
 

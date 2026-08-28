@@ -31,6 +31,7 @@ export async function indexIsFresh(
   dataDir: string,
   db: Database,
   warn: (message: string) => void,
+  diskDirNames?: readonly string[],
 ): Promise<boolean> {
   const version = db.query("PRAGMA user_version").get() as { readonly user_version: number } | null;
   if (version?.user_version !== INDEX_SCHEMA_VERSION) {
@@ -40,7 +41,8 @@ export async function indexIsFresh(
     return false;
   }
 
-  const diskDirs = await listRunDirNames(dataDir);
+  const diskDirs =
+    diskDirNames === undefined ? await listRunDirNames(dataDir) : [...diskDirNames].toSorted();
   const indexedDirs = (
     db.query("SELECT run_dir_name FROM runs ORDER BY run_dir_name").all() as readonly {
       readonly run_dir_name: string;

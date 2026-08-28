@@ -96,4 +96,3 @@ export interface WebGatherExecutionAudit {
 export const ALLOWED_TOOLS: ReadonlySet<string> = new Set(Object.keys(WEB_GATHER_TOOL_UNITS));
 export const AVAILABLE_TOOLS: readonly WebGatherToolName[] = ["web_search", "web_fetch"];
 export const MAX_RATIONALE_TRACE_LENGTH = 500;
-export const MAX_PARSE_FAILURE_ECHO_LENGTH = 2000;

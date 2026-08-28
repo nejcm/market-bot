@@ -4,6 +4,7 @@ import { runTypeSupportsWebGather } from "../domain/run-types";
 import type {
   SourceGap,
   SourceGapAttempts,
+  WebGatherLoopAudit,
   WebGatherToolName,
   JsonToolLoopAuditEntry,
 } from "../domain/types";
@@ -23,13 +24,13 @@ import { webSubjectProfileSubjectForCommand } from "./web-subject-profile";
 import {
   parseModelRequests,
   runJsonToolLoop,
+  withParseFailureEcho,
   type JsonToolLoopRoundState,
 } from "../research/json-tool-loop";
 import { withStaleFallbackGaps } from "../research/json-tool-loop-support";
 import type { ResearchContext, WebGatherContext } from "../research/research-context-types";
 import {
   AVAILABLE_TOOLS,
-  MAX_PARSE_FAILURE_ECHO_LENGTH,
   type ModelWebGatherRequest,
   type ValidationState,
   type WebGatherExecutionAudit,
@@ -169,7 +170,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     WebGatherStageOutput,
     JsonToolLoopAuditEntry
   >({
-    options: webGatherOptions,
+    options: { ...webGatherOptions, maxParseRetries: 1 },
     initialState: input.collectedSources,
     invalidJsonMessage: "Web gather stage returned invalid JSON",
     invalidShapeMessage: "Web gather stage must return JSON object with requests array",
@@ -223,25 +224,30 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
   return {
     collectedSources: loop.state,
     stageOutputs: loop.stageOutputs,
-    audit: {
-      ...loop.audit,
-      acceptedRequests: loop.audit.acceptedRequests.map((entry, index) => ({
-        ...entry,
-        ...executionAudits[index]!,
-      })),
-      rejectedRequests: [
-        ...loop.audit.rejectedRequests,
-        ...executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
-          executionRejectedEntry(
-            loop.audit.acceptedRequests[acceptedRequestIndex]!,
-            reason,
-            attempts,
+    audit: withWebGatherFailureCode(
+      {
+        ...loop.audit,
+        acceptedRequests: loop.audit.acceptedRequests.map((entry, index) => ({
+          ...entry,
+          ...executionAudits[index]!,
+        })),
+        rejectedRequests: [
+          ...loop.audit.rejectedRequests,
+          ...executionRejections.map(({ acceptedRequestIndex, reason, attempts }) =>
+            executionRejectedEntry(
+              loop.audit.acceptedRequests[acceptedRequestIndex]!,
+              reason,
+              attempts,
+            ),
           ),
-        ),
-      ],
-      sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
-      ...(input.acceptancePolicy !== undefined ? { acceptancePolicy: input.acceptancePolicy } : {}),
-    },
+        ],
+        sanitizer: aggregateSanitizerAudit(executionAudits.map((audit) => audit.sanitizer)),
+        ...(input.acceptancePolicy !== undefined
+          ? { acceptancePolicy: input.acceptancePolicy }
+          : {}),
+      },
+      loop.parseRetriesExhausted === true,
+    ),
   };
 }
 
@@ -305,14 +311,7 @@ async function runDeepEquityWebGatherBatch(input: {
   if (typeof parsed === "string" && input.webGatherOptions.maxRounds > 1) {
     const failedStage = stageOutputs[0]!;
     round = 2;
-    stageOutputs.push(
-      await generateRound(round, [
-        {
-          ...failedStage,
-          content: `${failedStage.content.slice(0, MAX_PARSE_FAILURE_ECHO_LENGTH)}\n\nParse failure: ${parsed}`,
-        },
-      ]),
-    );
+    stageOutputs.push(await generateRound(round, [withParseFailureEcho(failedStage, parsed)]));
     parsed = parseModelRequests(
       stageOutputs[1]!.content,
       "Web gather stage returned invalid JSON",
@@ -324,18 +323,21 @@ async function runDeepEquityWebGatherBatch(input: {
     return {
       collectedSources: mergeGaps(input.command, input.input.collectedSources, [gap]),
       stageOutputs,
-      audit: {
-        rounds: stageOutputs.length,
-        acceptedRequests: [],
-        rejectedRequests: [],
-        sourceUnitsUsed: 0,
-        executedTools: [],
-        emittedGaps: [gap],
-        sanitizer: aggregateSanitizerAudit([]),
-        ...(input.input.acceptancePolicy !== undefined
-          ? { acceptancePolicy: input.input.acceptancePolicy }
-          : {}),
-      },
+      audit: withWebGatherFailureCode(
+        {
+          rounds: stageOutputs.length,
+          acceptedRequests: [],
+          rejectedRequests: [],
+          sourceUnitsUsed: 0,
+          executedTools: [],
+          emittedGaps: [gap],
+          sanitizer: aggregateSanitizerAudit([]),
+          ...(input.input.acceptancePolicy !== undefined
+            ? { acceptancePolicy: input.input.acceptancePolicy }
+            : {}),
+        },
+        true,
+      ),
     };
   }
   const priorStages = stageOutputs.slice(0, -1);
@@ -429,6 +431,16 @@ async function runDeepEquityWebGatherBatch(input: {
         : {}),
     },
   };
+}
+
+function withWebGatherFailureCode(
+  audit: WebGatherLoopAudit,
+  parseRetriesExhausted: boolean,
+): WebGatherLoopAudit {
+  if (!parseRetriesExhausted) {
+    return audit;
+  }
+  return { ...audit, failureCode: "parse-retries-exhausted" };
 }
 
 export function isWebGatherLoopEnabled(command: ResearchCommand, config: AppConfig): boolean {

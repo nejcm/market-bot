@@ -80,7 +80,10 @@ derived indexes, and pipeline fixtures were previously split across several reco
   disk.
 - Index schema v11 stores each run's `outcomes_status` as `ok`, `absent`, or `malformed` and stores
   valid ledger rows in `subsystem_outcomes`. This preserves unreadable-ledger state instead of
-  collapsing it into an empty outcome set.
+  collapsing it into an empty outcome set. `openRunArtifactIndexDatabase` sets
+  `PRAGMA foreign_keys = ON`, so the `ON DELETE CASCADE` on `subsystem_outcomes` is enforced rather
+  than documentation. Any new delete path must remove children itself. Any new child table must be
+  inserted parent-first on rebuild or SQLite throws at runtime.
 - Research, alpha-search, and score mutations write through affected index rows when an index
   exists. Failure is non-fatal because disk remains authoritative.
 - A present, schema-compatible stale index may rebuild automatically after write-through. Missing

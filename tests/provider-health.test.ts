@@ -239,7 +239,20 @@ describe("provider health", () => {
     expect(summary.subsystemOutcomes.failedRunCount).toBe(1);
     expect(summary.subsystemOutcomes.byOutcome.failed).toBe(1);
     expect(summary.subsystemOutcomes.ledgerStatus).toEqual({ ok: 1, absent: 1, malformed: 0 });
-    await expect(readFile(result.markdownPath, "utf8")).resolves.toContain("| Failed runs | 1 |");
+    expect(
+      summary.subsystemOutcomes.ledgerStatus.ok +
+        summary.subsystemOutcomes.ledgerStatus.absent +
+        summary.subsystemOutcomes.ledgerStatus.malformed,
+    ).toBe(summary.runCount);
+    const markdown = await readFile(result.markdownPath, "utf8");
+    expect(markdown).toContain("| Failed Run Artifacts | 1 |");
+    expect(markdown).toContain("| Outcome ledger ok | 1 |");
+    expect(markdown).toContain("| Outcome ledger absent | 1 |");
+    expect(markdown).toContain(
+      "Failed Run Artifacts count `failure.json`. Outcome-ledger status counts `outcomes.json` for every run. Those are different questions.",
+    );
+    expect(markdown).not.toContain("| Failed runs |");
+    expect(markdown).not.toContain("| Ledger ok |");
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
       "| Outcome failed | 1 |",
     );
@@ -287,6 +300,11 @@ describe("provider health", () => {
     const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
 
     expect(summary.subsystemOutcomes.ledgerStatus).toEqual({ ok: 0, absent: 1, malformed: 1 });
+    expect(
+      summary.subsystemOutcomes.ledgerStatus.ok +
+        summary.subsystemOutcomes.ledgerStatus.absent +
+        summary.subsystemOutcomes.ledgerStatus.malformed,
+    ).toBe(summary.runCount);
     expect(summary.subsystemOutcomes.count).toBe(0);
   });
 

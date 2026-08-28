@@ -180,6 +180,27 @@ describe("Subsystem Outcomes", () => {
     );
   });
 
+  test("keeps mixed Web Gather parse exhaustion as produced with exhaustion on detail", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherAudit: {
+        ...webGatherAudit,
+        failureCode: "parse-retries-exhausted",
+      },
+    });
+
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "web-gather",
+        expectation: "expected",
+        outcome: "produced",
+        code: "accepted-requests",
+        count: 1,
+        detail: { failureCode: "parse-retries-exhausted" },
+      }),
+    );
+  });
+
   test.each([
     { skipCode: "run-not-applicable" as const, expectation: "not-applicable" },
     { skipCode: "missing-exa-credential" as const, expectation: "optional" },

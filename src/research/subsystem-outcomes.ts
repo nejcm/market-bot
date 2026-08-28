@@ -272,7 +272,7 @@ function webGatherOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemO
   }
   const acceptedCount = input.webGatherAudit?.acceptedRequests.length ?? 0;
   const failureCode = input.webGatherAudit?.failureCode;
-  if (failureCode !== undefined) {
+  if (failureCode !== undefined && acceptedCount === 0) {
     return {
       subsystem: "web-gather",
       expectation: "expected",
@@ -289,6 +289,7 @@ function webGatherOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemO
     code: acceptedCount > 0 ? "accepted-requests" : "no-accepted-requests",
     stage: "web-gather",
     count: acceptedCount,
+    ...(failureCode !== undefined ? { detail: { failureCode } } : {}),
   };
 }
 

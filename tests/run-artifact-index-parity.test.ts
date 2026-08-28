@@ -240,6 +240,31 @@ describe("run artifact index parity", () => {
     );
   });
 
+  test("disk outcome scan honors a provided run-directory snapshot", async () => {
+    const { dataDir } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    writeFixtureRun(dataDir, "run-b");
+
+    const snapshot = await scanRunSubsystemOutcomesFromDisk(dataDir, ["run-a"]);
+
+    expect(snapshot.map((ledger) => ledger.runId)).toEqual(["run-a"]);
+  });
+
+  test("outcome index load uses the provided directory snapshot instead of a second listing", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeFixtureRun(dataDir, "run-a");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    writeFixtureRun(dataDir, "run-b");
+    const stderr = captureStderr();
+
+    const fromSnapshot = await loadRunSubsystemOutcomesFromIndex(dataDir, ["run-a"]);
+    const fromRelist = await loadRunSubsystemOutcomesFromIndex(dataDir);
+
+    expect(fromSnapshot?.map((ledger) => ledger.runId)).toEqual(["run-a"]);
+    expect(fromRelist).toBeUndefined();
+    expect(stderr.join("")).toContain("index stale (run directory set mismatch)");
+  });
+
   test("console list and search match disk fallback", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     writeFixtureRun(dataDir, "run-a");

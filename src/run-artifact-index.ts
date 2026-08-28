@@ -508,13 +508,16 @@ function openReadableIndex(dataDir: string): Database | undefined {
 async function withFreshIndex<T>(
   dataDir: string,
   read: (db: Database) => Promise<T>,
+  diskDirNames?: readonly string[],
 ): Promise<T | undefined> {
   const db = openReadableIndex(dataDir);
   if (db === undefined) {
     return;
   }
   try {
-    return (await indexIsFresh(dataDir, db, warnIndexFallback)) ? await read(db) : undefined;
+    return (await indexIsFresh(dataDir, db, warnIndexFallback, diskDirNames))
+      ? await read(db)
+      : undefined;
   } catch (error: unknown) {
     warnIndexFallback(
       `index read failed (${error instanceof Error ? error.message : String(error)}), falling back to disk scan`,
@@ -585,57 +588,62 @@ export async function listRunSummariesFromIndex(
 
 export async function loadRunSubsystemOutcomesFromIndex(
   dataDir: string,
+  diskDirNames?: readonly string[],
 ): Promise<readonly RunSubsystemOutcomeLedger[] | undefined> {
-  return await withFreshIndex(dataDir, async (db) => {
-    const statusRows = db
-      .query("SELECT run_id, outcomes_status FROM runs ORDER BY run_id")
-      .all() as readonly {
-      readonly run_id: string;
-      readonly outcomes_status: string;
-    }[];
-    const outcomeRows = db
-      .query("SELECT * FROM subsystem_outcomes ORDER BY run_id, rowid")
-      .all() as readonly SubsystemOutcomeRow[];
-    const outcomeRowsByRunId = new Map<string, SubsystemOutcomeRow[]>();
-    for (const outcomeRow of outcomeRows) {
-      const rows = outcomeRowsByRunId.get(outcomeRow.run_id) ?? [];
-      rows.push(outcomeRow);
-      outcomeRowsByRunId.set(outcomeRow.run_id, rows);
-    }
-    return statusRows.map((row): RunSubsystemOutcomeLedger => {
-      const status: ArtifactFileStatus =
-        row.outcomes_status === "ok" ||
-        row.outcomes_status === "absent" ||
-        row.outcomes_status === "malformed"
-          ? row.outcomes_status
-          : "malformed";
-      const indexedRows = outcomeRowsByRunId.get(row.run_id) ?? [];
-      const outcomes = indexedRows.map((item) => subsystemOutcomeFromIndexRow(item));
-      if (status !== "ok") {
-        return { runId: row.run_id, status, outcomes: [] };
+  return await withFreshIndex(
+    dataDir,
+    async (db) => {
+      const statusRows = db
+        .query("SELECT run_id, outcomes_status FROM runs ORDER BY run_id")
+        .all() as readonly {
+        readonly run_id: string;
+        readonly outcomes_status: string;
+      }[];
+      const outcomeRows = db
+        .query("SELECT * FROM subsystem_outcomes ORDER BY run_id, rowid")
+        .all() as readonly SubsystemOutcomeRow[];
+      const outcomeRowsByRunId = new Map<string, SubsystemOutcomeRow[]>();
+      for (const outcomeRow of outcomeRows) {
+        const rows = outcomeRowsByRunId.get(outcomeRow.run_id) ?? [];
+        rows.push(outcomeRow);
+        outcomeRowsByRunId.set(outcomeRow.run_id, rows);
       }
-      if (outcomes.some((outcome) => outcome === undefined)) {
-        return { runId: row.run_id, status: "malformed", outcomes: [] };
-      }
-      return {
-        runId: row.run_id,
-        status,
-        outcomes: outcomes.filter((outcome) => outcome !== undefined),
-      };
-    });
-  });
+      return statusRows.map((row): RunSubsystemOutcomeLedger => {
+        const status: ArtifactFileStatus =
+          row.outcomes_status === "ok" ||
+          row.outcomes_status === "absent" ||
+          row.outcomes_status === "malformed"
+            ? row.outcomes_status
+            : "malformed";
+        const indexedRows = outcomeRowsByRunId.get(row.run_id) ?? [];
+        const outcomes = indexedRows.map((item) => subsystemOutcomeFromIndexRow(item));
+        if (status !== "ok") {
+          return { runId: row.run_id, status, outcomes: [] };
+        }
+        if (outcomes.some((outcome) => outcome === undefined)) {
+          return { runId: row.run_id, status: "malformed", outcomes: [] };
+        }
+        return {
+          runId: row.run_id,
+          status,
+          outcomes: outcomes.filter((outcome) => outcome !== undefined),
+        };
+      });
+    },
+    diskDirNames,
+  );
 }
 
 export async function scanRunSubsystemOutcomesFromDisk(
   dataDir: string,
+  runDirNames?: readonly string[],
 ): Promise<readonly RunSubsystemOutcomeLedger[]> {
-  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
+  const names = runDirNames ?? (await listOutcomeScanDirNames(dataDir));
   const outcomes = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .toSorted((left, right) => left.name.localeCompare(right.name))
-      .map(async (entry) => {
-        const runDir = join(dataDir, entry.name);
+    [...names]
+      .toSorted((left, right) => left.localeCompare(right))
+      .map(async (name) => {
+        const runDir = join(dataDir, name);
         const reportFile = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.report));
         const failureFile = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.failure));
         const report = reportFile.status === "ok" ? readReport(reportFile.value) : undefined;
@@ -644,13 +652,18 @@ export async function scanRunSubsystemOutcomesFromDisk(
           (failureFile.status === "ok" && isRecord(failureFile.value)
             ? readStringVerbatim(failureFile.value, "runId")
             : undefined) ??
-          entry.name;
+          name;
         return await readRunSubsystemOutcomesFromDisk(runDir, runId);
       }),
   );
   return outcomes.toSorted(
     (left, right) => Number(left.runId > right.runId) - Number(left.runId < right.runId),
   );
+}
+
+async function listOutcomeScanDirNames(dataDir: string): Promise<readonly string[]> {
+  const entries = await readdir(dataDir, { withFileTypes: true }).catch(() => []);
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
 export async function readRunSummaryFromIndex(

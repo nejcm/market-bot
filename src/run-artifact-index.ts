@@ -537,7 +537,11 @@ async function withReadSnapshot<T>(db: Database, work: () => Promise<T>): Promis
     db.exec("COMMIT");
     return result;
   } catch (error: unknown) {
-    db.exec("ROLLBACK");
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // Connection-level failures leave no transaction; keep the original error.
+    }
     throw error;
   }
 }

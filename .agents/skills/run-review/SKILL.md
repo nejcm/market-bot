@@ -58,7 +58,8 @@ target's `codeVersion.commit`, then the newest comparable runs. Per run read onl
   `codeVersion.commit`, `reproducibility.effectiveConfigHash`,
   `predictions.count`, `predictions.targetMet`, `evidenceQuality.label`,
   `sourceFunnel.sourceGaps.total`, `evidenceLanes.coverageRatio`,
-  `providerEndpointAvailability`
+  `providerEndpointAvailability`, `subsystemOutcomes` (`byOutcome`,
+  `expectedEmptyCount`)
 - `report.json`: prediction `kind`/`subject`/`probability` tuples, and counts of
   any gap text your candidate findings rest on
 
@@ -76,7 +77,8 @@ baseline and code-delta analysis from Steps 2-3.
 
 Compare the target against the most recent comparable prior run(s) using their
 artifacts (`report.json`, `score.json`, `trace.json`, `analytics.json`,
-`normalized/*.json`, `miss-autopsy.json`, and `data/calibration/summary.json`).
+`outcomes.json`, `normalized/*.json`, `miss-autopsy.json`, and
+`data/calibration/summary.json`).
 
 Select a baseline with the same `jobType`, `assetClass`, subject, and — where
 the job type produces dated horizons — the same prediction horizon bucket.
@@ -272,6 +274,26 @@ Check these explicitly before final ranking:
   distinguish a degraded run from a defective one. Check
   `providerEndpointAvailability` before attributing thin evidence to synthesis,
   and `forecastPersistence` before reporting a missing-forecast defect.
+- Subsystem Outcomes: the coded ledger at `outcomes.json`, rolled up text-free
+  into `analytics.json:subsystemOutcomes` (`byExpectation` / `byOutcome` /
+  `byCode` / `expectedEmptyCount`). Read it before writing any "no telemetry for
+  X" finding — this ledger is the mechanism, and recommending it be built is the
+  error this skill's cause-verification rule exists to prevent.
+  - `expected` × `empty` is **declared silence**, the intended record of a
+    subsystem that ran and found nothing. It is not a defect. `failed` is a
+    stage failure. Conflating the two inverts the distinction the ledger exists
+    to draw.
+  - Web Gather reports `failed` / `parse-retries-exhausted` only when parse
+    retries are exhausted **and** no requests were accepted. Accepted requests
+    from an earlier round stay `produced` / `accepted-requests` with the
+    exhaustion on `detail`, which the rollup drops — so a partially-exhausted
+    run is visible only in `outcomes.json`, never in `analytics.json` or
+    Provider Health. That blind spot is a real finding; read the sidecar before
+    calling such a run clean.
+  - A Failed Run Artifact (`failure.json`) carries `outcomes.json` but no
+    `analytics.json` or `report.json`, so the ledger is the only structured
+    telemetry it has. Alpha-search writes no `outcomes.json`; its absence there
+    is not a gap.
 - Coverage constraints: separate local config/provider-plan gaps from synthesis
   or model behavior.
 - Artifact-set drift: the persisted `normalized/` set changes over time (deep

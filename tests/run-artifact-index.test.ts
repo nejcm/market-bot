@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -236,6 +236,51 @@ describe("run artifact index", () => {
         outcomes: replacement.map((outcome) => ({ runId: "run-a", ...outcome })),
       },
     ]);
+  });
+
+  test("does not observe a write-through that commits after freshness on the same connection", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", {
+      outcomes: [
+        {
+          subsystem: "web-gather",
+          expectation: "optional",
+          outcome: "produced",
+          code: "produced",
+        },
+      ],
+    });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const freshnessModule = await import("../src/run-artifact-index-freshness");
+    const originalIsFresh = freshnessModule.indexIsFresh;
+    const freshnessSpy = spyOn(freshnessModule, "indexIsFresh").mockImplementation(
+      async (dataDirArg, db, warn, diskDirNames) => {
+        const fresh = await originalIsFresh(dataDirArg, db, warn, diskDirNames);
+        if (!fresh) {
+          return false;
+        }
+        writeRun(dataDir, "run-b", {
+          outcomes: [
+            {
+              subsystem: "web-gather",
+              expectation: "optional",
+              outcome: "produced",
+              code: "produced",
+            },
+          ],
+        });
+        await writeThroughRunArtifactIndex(dataDir, [join(dataDir, "run-b")], { dbPath });
+        return true;
+      },
+    );
+
+    try {
+      const ledgers = await loadRunSubsystemOutcomesFromIndex(dataDir, ["run-a"]);
+      expect(freshnessSpy).toHaveBeenCalled();
+      expect(ledgers?.map((ledger) => ledger.runId)).toEqual(["run-a"]);
+    } finally {
+      freshnessSpy.mockRestore();
+    }
   });
 
   test("keeps absent and malformed outcome ledgers distinct", async () => {

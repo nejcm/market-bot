@@ -515,9 +515,10 @@ async function withFreshIndex<T>(
     return;
   }
   try {
-    return (await indexIsFresh(dataDir, db, warnIndexFallback, diskDirNames))
-      ? await read(db)
-      : undefined;
+    return await withReadSnapshot(db, async () => {
+      const fresh = await indexIsFresh(dataDir, db, warnIndexFallback, diskDirNames);
+      return fresh ? await read(db) : undefined;
+    });
   } catch (error: unknown) {
     warnIndexFallback(
       `index read failed (${error instanceof Error ? error.message : String(error)}), falling back to disk scan`,
@@ -525,6 +526,19 @@ async function withFreshIndex<T>(
     return undefined;
   } finally {
     db.close();
+  }
+}
+
+async function withReadSnapshot<T>(db: Database, work: () => Promise<T>): Promise<T> {
+  // Deferred so a write-through cannot land between freshness and the projection read.
+  db.exec("BEGIN");
+  try {
+    const result = await work();
+    db.exec("COMMIT");
+    return result;
+  } catch (error: unknown) {
+    db.exec("ROLLBACK");
+    throw error;
   }
 }
 

@@ -17,6 +17,8 @@ import {
   persistRunArtifactWrites,
   type ResearchRunManifestResult,
 } from "../src/run-artifact-writer";
+import type { RunResearchJobResult } from "../src/research/orchestrator";
+import type { WrittenSubsystemOutcome } from "../src/research/subsystem-outcomes";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type {
   EvidenceLanesArtifact,
@@ -290,6 +292,24 @@ function tempDir(): string {
 }
 
 describe("run artifact writer manifests", () => {
+  test("producer result contracts keep writer outcome codes", () => {
+    type WriterCode<T> = T extends readonly { readonly code: infer C }[] ? C : never;
+    type ClosedCode<C> = string extends C ? never : C;
+    const manifestCode: ClosedCode<WriterCode<ResearchRunManifestResult["outcomes"]>> =
+      "no-accepted-requests";
+    const jobCode: ClosedCode<WriterCode<RunResearchJobResult["outcomes"]>> =
+      "no-accepted-requests";
+    const outcome: WrittenSubsystemOutcome = {
+      subsystem: "web-gather",
+      expectation: "expected",
+      outcome: "empty",
+      code: manifestCode,
+    };
+    const writes = buildResearchRunManifest(equityCommand, config, result({ outcomes: [outcome] }));
+    expect(jobCode).toBe("no-accepted-requests");
+    expect(valueFor(writes, RUN_ARTIFACT_FILES.outcomes)).toEqual([outcome]);
+  });
+
   test("round-trips SourceGap attempts through the canonical report artifact", async () => {
     const attempts = {
       count: 2,

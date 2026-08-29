@@ -44,7 +44,11 @@ function auditLine(audit: NonNullable<RunAnalytics["postSynthesisAudit"]>): stri
 export function renderSubsystemOutcomeConsoleLine(
   outcomes: RunAnalytics["subsystemOutcomes"],
 ): string {
-  return `  Subsystem outcomes: ${String(outcomes.count)} recorded · ${String(outcomes.expectedEmptyCount)} expected-empty`;
+  const statusCounts = Object.entries(outcomes.byOutcome)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${status}=${String(count)}`)
+    .join(", ");
+  return `  Subsystem outcomes: ${String(outcomes.count)} recorded · ${String(outcomes.expectedEmptyCount)} expected-empty${statusCounts === "" ? "" : ` · ${statusCounts}`}`;
 }
 
 function sourceGapCauseLine(analytics: RunAnalytics): string | undefined {

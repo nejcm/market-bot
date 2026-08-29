@@ -6,7 +6,8 @@ Accepted
 
 ## Date
 
-2026-08-02
+2026-08-02 (amended 2026-08-15: per-observation reader degradation; amended 2026-08-29:
+composite statement-fact re-derivation invariant)
 
 ## Context
 
@@ -110,8 +111,12 @@ payload to its declared live version.
   sidecars; no provider or model work is added.
 - Canonical financial statements expose the uncapped facts needed to determine whether the equity
   stack is structurally provable without changing the capped public statement histories.
-- New derived financial behavior should add a live relation where exact-value goldens would be a
-  weak oracle.
+- Amendment (decision date: 2026-08-29): a canonical statement fact that is a same-period
+  composite is a derived number. Fixture goldens remain the invariance layer; they do not
+  prove the sum. `assertCompositeFactIntegrity` re-derives each composite from its stored
+  contributors (one basis per series, value equals the component sum within the identity
+  tolerance, shared period end, and source-id closure) and is a live-run invariant in the
+  A-series. Mutating a contributor without updating the fact value must fail.
 
 ## Implementation validation
 

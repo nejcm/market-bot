@@ -176,9 +176,9 @@ Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`: Research View, s
 
 ## Subsystem Outcome
 
-Coded record of what one run subsystem was expected to do and whether it produced, stayed empty,
-declined, failed, or was blocked by an unmet prerequisite. It is run telemetry, not a Diagnostic
-Gap.
+Coded record of what one run subsystem was expected to do and whether it acquired output, stayed
+empty, declined, failed, or was blocked. The code distinguishes acquired-but-unusable output and
+lane-local causes such as a missing credential. It is run telemetry, not a Diagnostic Gap.
 
 ## Failed Run Artifact
 

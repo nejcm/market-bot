@@ -2,13 +2,15 @@ import type {
   PredictionCompletionAudit,
   RunTrace,
   SourceGap,
+  SourceGapCause,
   WebGatherLoopAudit,
   WebGatherLoopFailureCode,
 } from "../domain/types";
 import { isRecord, readNumber, readString } from "../guards";
 import type { PredictionCompletionSkipCode } from "./final-synthesis";
 import type { PlaybookSelectionAudit } from "./playbooks";
-import type { EvidenceLanesArtifact, SourcePlanArtifact } from "./source-plan";
+import type { EvidenceLanesArtifactV2, SourcePlanArtifact } from "./source-plan";
+import type { CollectedSources } from "../sources/types";
 import type { SpotlightSelectionRejectionReason, SpotlightSelectionResult } from "./spotlights";
 import type { WebGatherSkipCode } from "../web-evidence/web-gather-types";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "../sources/sec-packet-dependencies";
@@ -21,7 +23,7 @@ export type ForecastDisagreementOutcomeCode =
   | "not-configured"
   | "no-predictions";
 
-export type SubsystemOutcomeCode =
+type NonSourceGapSubsystemOutcomeCode =
   | WebGatherSkipCode
   | WebGatherLoopFailureCode
   | SpotlightSelectionRejectionReason
@@ -38,6 +40,7 @@ export type SubsystemOutcomeCode =
   | "reused-profile"
   | "profile-produced"
   | "profile-empty"
+  | "not-supportable"
   | "no-spotlights-selected"
   | "spotlights-selected"
   | "no-playbooks-selected"
@@ -46,6 +49,13 @@ export type SubsystemOutcomeCode =
   | "final-synthesis-rejected"
   | "gate-code-missing"
   | "audit-complete";
+
+type SourceGapCauseCollisionGuard =
+  Extract<NonSourceGapSubsystemOutcomeCode, SourceGapCause> extends never
+    ? unknown
+    : { readonly "SourceGapCause collides with an existing subsystem outcome code": never };
+
+export type SubsystemOutcomeCode = NonSourceGapSubsystemOutcomeCode | SourceGapCause;
 
 const SUBSYSTEM_EXPECTATION_TABLE = {
   expected: true,
@@ -80,6 +90,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "reused-profile": true,
   "profile-produced": true,
   "profile-empty": true,
+  "not-supportable": true,
   "malformed-json": true,
   "malformed-selection": true,
   "unknown-symbol": true,
@@ -106,7 +117,44 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   produced: true,
   "not-configured": true,
   "no-predictions": true,
-} satisfies Record<SubsystemOutcomeCode, true>;
+  "missing-credential": true,
+  "fetch-failed": true,
+  "circuit-open": true,
+  "stale-fallback": true,
+  "reused-in-window": true,
+  "unsupported-coverage": true,
+  "repeat-fallback": true,
+  "malformed-response": true,
+  "validation-failed": true,
+  "provider-data-missing": true,
+  "suppressed-by-design": true,
+} satisfies Record<SubsystemOutcomeCode, true> & SourceGapCauseCollisionGuard;
+
+const SOURCE_GAP_CAUSE_OUTCOME_STATUS = {
+  "fetch-failed": "failed",
+  "malformed-response": "failed",
+  "validation-failed": "failed",
+  "circuit-open": "blocked",
+  "missing-credential": "blocked",
+  "suppressed-by-design": "declined",
+  "unsupported-coverage": "declined",
+  "provider-data-missing": "empty",
+  "stale-fallback": "empty",
+  "repeat-fallback": "empty",
+  "reused-in-window": "empty",
+} satisfies Record<SourceGapCause, SubsystemOutcomeStatus>;
+
+const SOURCE_GAP_CAUSE_OUTCOME_ORDER: readonly SourceGapCause[] = Object.keys(
+  SOURCE_GAP_CAUSE_OUTCOME_STATUS,
+) as SourceGapCause[];
+
+const OUTCOME_SEVERITY: Readonly<Record<SubsystemOutcomeStatus, number>> = {
+  failed: 0,
+  blocked: 1,
+  declined: 2,
+  empty: 3,
+  produced: 4,
+};
 
 const SUBSYSTEM_EXPECTATIONS: ReadonlySet<string> = new Set(
   Object.keys(SUBSYSTEM_EXPECTATION_TABLE),
@@ -140,10 +188,10 @@ export interface SubsystemOutcomeRollup {
 
 interface BuildSubsystemOutcomesInput {
   readonly sourcePlan: SourcePlanArtifact;
-  readonly evidenceLanes: EvidenceLanesArtifact;
+  readonly evidenceLanes: EvidenceLanesArtifactV2;
   readonly sourceGaps: readonly SourceGap[];
   readonly webSubjectProfilePresent: boolean;
-  readonly webSubjectProfileReused: boolean;
+  readonly webSubjectProfileReuse?: CollectedSources["webSubjectProfileReuse"];
   readonly webGatherAudit?: WebGatherLoopAudit;
   readonly webGatherSkipCode?: WebGatherSkipCode;
   readonly spotlightSelection?: SpotlightSelectionResult;
@@ -168,6 +216,20 @@ export function assertSubsystemOutcomeCode(code: string): asserts code is Subsys
   if (!SUBSYSTEM_OUTCOME_CODES.has(code)) {
     throw new Error(`Unsupported subsystem outcome code: ${JSON.stringify(code)}`);
   }
+}
+
+function winningGapCause(causes: readonly SourceGapCause[]): SourceGapCause {
+  return [...causes].toSorted((left, right) => {
+    const severity =
+      OUTCOME_SEVERITY[SOURCE_GAP_CAUSE_OUTCOME_STATUS[left]] -
+      OUTCOME_SEVERITY[SOURCE_GAP_CAUSE_OUTCOME_STATUS[right]];
+    if (severity !== 0) {
+      return severity;
+    }
+    return (
+      SOURCE_GAP_CAUSE_OUTCOME_ORDER.indexOf(left) - SOURCE_GAP_CAUSE_OUTCOME_ORDER.indexOf(right)
+    );
+  })[0]!;
 }
 
 export function isSubsystemOutcome(value: unknown): value is SubsystemOutcome {
@@ -235,6 +297,17 @@ function evidenceLaneOutcomes(
     }
     const evidence = evidenceByLane.get(planLane.lane);
     if (evidence?.status === "covered") {
+      if (evidence.supportable === false) {
+        return {
+          subsystem,
+          expectation,
+          outcome: "produced",
+          code: "not-supportable",
+          stage: "source-collection",
+          count: evidence.coveredSourceIds.length,
+          detail: { supportable: false },
+        };
+      }
       return {
         subsystem,
         expectation,
@@ -242,6 +315,20 @@ function evidenceLaneOutcomes(
         code: "covered",
         stage: "source-collection",
         count: evidence.coveredSourceIds.length,
+      };
+    }
+    const cause =
+      evidence?.gapCauses !== undefined && evidence.gapCauses.length > 0
+        ? winningGapCause(evidence.gapCauses)
+        : undefined;
+    if (cause !== undefined) {
+      return {
+        subsystem,
+        expectation,
+        outcome: SOURCE_GAP_CAUSE_OUTCOME_STATUS[cause],
+        code: cause,
+        stage: "source-collection",
+        count: evidence?.gapIds.length ?? 0,
       };
     }
     return {
@@ -305,14 +392,20 @@ function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): WrittenSu
       code: "not-applicable",
     };
   }
-  if (input.webSubjectProfileReused) {
+  if (input.webSubjectProfileReuse !== undefined) {
     return {
       subsystem: "web-subject-profile",
       expectation,
-      outcome: "blocked",
+      outcome: "produced",
       code: "reused-profile",
       stage: "web-subject-profile",
       count: 1,
+      detail: {
+        ...(input.webSubjectProfileReuse.ageDays !== undefined
+          ? { ageDays: input.webSubjectProfileReuse.ageDays }
+          : {}),
+        sourceRunDirName: input.webSubjectProfileReuse.runDirName,
+      },
     };
   }
   return {

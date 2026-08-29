@@ -288,7 +288,7 @@ describe("Web Subject Profile reuse", () => {
     expect(reuse?.gap).toMatchObject({
       message:
         "Reused web subject profile from 2026-05-01T00:00:00.000Z (2.5 days old); latest SEC filing basis 2026-04-25.",
-      cause: "stale-fallback",
+      cause: "reused-in-window",
       evidenceQualityImpact: "no-cap",
     });
     expect(classifyGap(reuse!.gap)).toBe("diagnostic");
@@ -822,6 +822,21 @@ describe("Web Subject Profile reuse", () => {
     expect(reuse).toBeUndefined();
   });
 
+  test("does not reuse or gap an over-age candidate", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-06-15T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
   test("rejects different symbols", async () => {
     const dataDir = tempRunsDir();
     await writePriorRun({ dataDir, runId: "prior-msft", symbol: "MSFT" });
@@ -866,12 +881,13 @@ describe("Web Subject Profile reuse", () => {
         profile: profile(),
         sources: [webSource],
         runDirName: "prior-aapl",
+        ageDays: 19,
         gap: {
           source: "web-subject-profile",
           message: "Reused Web Subject Profile from 2026-05-01T00:00:00.000Z (19.0 days old).",
           provider: "market-bot",
           capability: "extended-evidence",
-          cause: "stale-fallback",
+          cause: "reused-in-window",
           evidenceQualityImpact: "extended-evidence-cap",
         },
       },
@@ -881,6 +897,7 @@ describe("Web Subject Profile reuse", () => {
     expect(attached.webSubjectProfileReuse).toEqual({
       runDirName: "prior-aapl",
       generatedAt: "2026-05-01T00:00:00.000Z",
+      ageDays: 19,
     });
     expect(attached.extendedSources).toEqual([webSource]);
     expect(attached.sourceGaps).toHaveLength(1);

@@ -354,6 +354,58 @@ function assertBalanceSheetIdentity(artifact: FinancialStatementsArtifact): void
   );
 }
 
+export function assertCompositeFactIntegrity(artifact: FinancialStatementsArtifact): void {
+  for (const series of financialStatementSeries(artifact)) {
+    const facts = financialStatementFacts(series);
+    const methods = new Set(facts.map((fact) => fact.extractionMethod));
+    invariant(methods.size <= 1, "A8", `${series.key} mixes composite and direct bases`);
+    for (const fact of facts) {
+      if (fact.composite === undefined) {
+        invariant(
+          fact.extractionMethod === "sec-companyfacts",
+          "A8",
+          `${series.key} ${fact.periodKey} is derived without composite contributors`,
+        );
+        continue;
+      }
+      invariant(
+        fact.extractionMethod === "derived-sec-companyfacts",
+        "A8",
+        `${series.key} ${fact.periodKey} carries composite contributors on a direct fact`,
+      );
+      const componentScale = fact.composite.components.map((component) => ({
+        value: component.value,
+        unitScale: fact.unitScale,
+      }));
+      const tolerance = identityTolerance([
+        { value: fact.value, unitScale: fact.unitScale },
+        ...componentScale,
+      ]);
+      const sum = fact.composite.components.reduce(
+        (total, component) => total + component.value,
+        0,
+      );
+      invariant(
+        Math.abs(fact.value - sum) <= tolerance,
+        "A8",
+        `${series.key} ${fact.periodKey} composite value ${String(fact.value)} disagrees with component sum ${String(sum)}`,
+      );
+      invariant(
+        fact.composite.components.every((component) => component.periodEnd === fact.periodEnd),
+        "A8",
+        `${series.key} ${fact.periodKey} composite mixes component period ends`,
+      );
+      invariant(
+        fact.composite.components.every((component) =>
+          component.sourceIds.every((sourceId) => fact.sourceIds.includes(sourceId)),
+        ),
+        "A8",
+        `${series.key} ${fact.periodKey} sourceIds omit a composite contributor`,
+      );
+    }
+  }
+}
+
 export function assertFinancialStatementInvariants(artifact: FinancialStatementsArtifact): void {
   const series = financialStatementSeries(artifact);
   assertCapShapeIndependence(series);
@@ -367,6 +419,7 @@ export function assertFinancialStatementInvariants(artifact: FinancialStatements
     "interim cadence disagrees with observed statement facts",
   );
   assertBalanceSheetIdentity(artifact);
+  assertCompositeFactIntegrity(artifact);
   const surfaced = new Set(artifact.validationNotes.map(noteKey));
   for (const note of incompleteFinancialStatementNotes(series)) {
     invariant(

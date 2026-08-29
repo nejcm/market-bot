@@ -110,6 +110,8 @@ Interim ending 2025-07-31 (filed 2025-08-26) | 11.7B | — | 1.3B
 FY ending 2025-10-31 (filed 2025-12-02) | 10.3B | — | 1.2B
 Interim ending 2026-01-31 (filed 2026-02-24) | 8.7B | — | 1.2B
 
+- Debt is untagged in companyfacts; no direct or current/noncurrent component facts were selected.
+
 ### Bull Case
 
 - Model inference: Confirmation that the reported earnings improvement is recurring, combined with continued positive price momentum, would strengthen the constructive thesis. [extended-sec-edgar-bns-fundamentals] [verified-snapshot-BNS]

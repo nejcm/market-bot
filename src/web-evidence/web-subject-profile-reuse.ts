@@ -27,6 +27,7 @@ export interface WebSubjectProfileReuse {
   readonly sources: readonly Source[];
   readonly gap: SourceGap;
   readonly runDirName: string;
+  readonly ageDays: number;
   readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
   readonly priorUtilizationRatio?: number;
 }
@@ -135,10 +136,11 @@ export async function findReusableWebSubjectProfile(input: {
         message: `Reused web subject profile from ${profile.generatedAt} (${ageDays.toFixed(1)} days old)${filingSuffix}.`,
         provider: "market-bot",
         capability: "extended-evidence",
-        cause: "stale-fallback",
+        cause: "reused-in-window",
         evidenceQualityImpact: "no-cap",
       }),
       runDirName: artifact.runDirName,
+      ageDays,
       ...(priorUtilization !== undefined
         ? {
             priorUtilizationLevel: priorUtilization.level,
@@ -191,6 +193,7 @@ export function attachReusableWebSubjectProfile(input: {
     webSubjectProfileReuse: {
       runDirName: input.reuse.runDirName,
       generatedAt: input.reuse.profile.generatedAt,
+      ageDays: input.reuse.ageDays,
     },
     sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
   };

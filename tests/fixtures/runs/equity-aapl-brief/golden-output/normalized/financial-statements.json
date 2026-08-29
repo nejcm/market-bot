@@ -137,7 +137,13 @@
     }
   },
   "validationNotes": [],
-  "omissionNotes": [],
+  "omissionNotes": [
+    {
+      "code": "untagged-balance-sheet-series",
+      "seriesKey": "debt",
+      "message": "Debt is untagged in companyfacts; no direct or current/noncurrent component facts were selected."
+    }
+  ],
   "structuredFinancialGaps": [
     {
       "code": "no-standard-taxonomy",

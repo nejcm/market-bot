@@ -42,24 +42,24 @@
   {
     "subsystem": "evidence-lane:corporate-events",
     "expectation": "expected",
-    "outcome": "empty",
-    "code": "coverage-gap",
+    "outcome": "blocked",
+    "code": "missing-credential",
     "stage": "source-collection",
     "count": 1
   },
   {
     "subsystem": "evidence-lane:macro-indicators",
     "expectation": "expected",
-    "outcome": "empty",
-    "code": "coverage-gap",
+    "outcome": "blocked",
+    "code": "missing-credential",
     "stage": "source-collection",
     "count": 1
   },
   {
     "subsystem": "evidence-lane:derivatives-volatility",
     "expectation": "optional",
-    "outcome": "empty",
-    "code": "coverage-gap",
+    "outcome": "blocked",
+    "code": "missing-credential",
     "stage": "source-collection",
     "count": 1
   },
@@ -67,15 +67,18 @@
     "subsystem": "evidence-lane:target-valuation",
     "expectation": "expected",
     "outcome": "produced",
-    "code": "covered",
+    "code": "not-supportable",
     "stage": "source-collection",
-    "count": 2
+    "count": 2,
+    "detail": {
+      "supportable": false
+    }
   },
   {
     "subsystem": "evidence-lane:peer-valuation",
     "expectation": "optional",
-    "outcome": "empty",
-    "code": "coverage-gap",
+    "outcome": "declined",
+    "code": "unsupported-coverage",
     "stage": "source-collection",
     "count": 1
   },

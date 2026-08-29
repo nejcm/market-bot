@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import type { SourceGap } from "../src/domain/types";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
+import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
+import { researchReport } from "./support/fixtures";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
@@ -205,7 +207,100 @@ describe("equity reader projection", () => {
       dilutedShares: { value: 9, periodEnd: "2024-12-31", filedAt: "2025-03-01" },
     });
     expect(projection.defaultView.financialPosition?.debt).toBeUndefined();
+    expect(projection.defaultView.financialPosition?.notes).toBeUndefined();
     expect(projection.appendix.balanceSheetHistory).toBeUndefined();
+  });
+
+  test("keeps statement notes undefined versus an empty checked list", () => {
+    const base = amendedFilingArtifact();
+    const checked = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: { ...base, omissionNotes: [], validationNotes: [] },
+    });
+    const explained = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: {
+        ...base,
+        omissionNotes: [
+          {
+            code: "untagged-balance-sheet-series",
+            seriesKey: "debt",
+            message: "Debt is untagged in companyfacts.",
+          },
+        ],
+        validationNotes: [],
+      },
+    });
+
+    expect(
+      projectEquityReader({
+        report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+        financialStatements: base,
+      }).appendix.balanceSheetHistory?.notes,
+    ).toBeUndefined();
+    expect(checked.appendix.balanceSheetHistory?.notes).toEqual([]);
+    expect(explained.appendix.balanceSheetHistory?.notes).toEqual([
+      expect.objectContaining({ code: "untagged-balance-sheet-series" }),
+    ]);
+    expect(explained.defaultView.financialPosition?.notes).toEqual([
+      expect.objectContaining({ code: "untagged-balance-sheet-series" }),
+    ]);
+    const markdown = renderBalanceSheetAndShareCount(
+      researchReport(),
+      explained.appendix.balanceSheetHistory,
+    );
+    expect(markdown.match(/Debt is untagged in companyfacts\./gu)).toHaveLength(1);
+  });
+
+  test("projects incomplete debt composite notes to both reader surfaces", () => {
+    const base = amendedFilingArtifact();
+    const note = {
+      code: "incomplete-composite-series" as const,
+      seriesKey: "debt" as const,
+      message:
+        "Debt composite for 2024-12-31 omits LongTermDebtCurrent because no eligible fact was selected for that component slot.",
+    };
+    const projection = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: { ...base, omissionNotes: [note], validationNotes: [] },
+    });
+
+    expect(projection.appendix.balanceSheetHistory?.notes).toEqual([note]);
+    expect(projection.defaultView.financialPosition?.notes).toEqual([note]);
+  });
+
+  test("renders stale-instant-series notes below the table when the series cell still has a value", () => {
+    const cashNote = {
+      code: "stale-instant-series" as const,
+      seriesKey: "cash" as const,
+      message:
+        "Cash latest period end 2024-12-31 lags the newest balance-sheet period end 2025-03-31 by more than one reporting period.",
+    };
+    const currentAssetsNote = {
+      code: "stale-instant-series" as const,
+      seriesKey: "currentAssets" as const,
+      message:
+        "Current assets latest period end 2024-12-31 lags the newest balance-sheet period end 2025-03-31 by more than one reporting period.",
+    };
+    const explained = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: {
+        ...amendedFilingArtifact(),
+        omissionNotes: [cashNote, currentAssetsNote],
+        validationNotes: [],
+      },
+    });
+    const history = explained.appendix.balanceSheetHistory;
+    const markdown = renderBalanceSheetAndShareCount(researchReport(), history);
+
+    expect(history?.rows.some((row) => row.cash !== undefined)).toBe(true);
+    expect(history?.notes).toEqual([
+      expect.objectContaining({ code: "stale-instant-series", seriesKey: "cash" }),
+      expect.objectContaining({ code: "stale-instant-series", seriesKey: "currentAssets" }),
+    ]);
+    expect(markdown).toContain(cashNote.message);
+    expect(markdown).toContain(currentAssetsNote.message);
+    expect(markdown).toMatch(/\| 120 \|/u);
   });
 
   test("selects the latest five annual periods and appends the latest available TTM period", () => {

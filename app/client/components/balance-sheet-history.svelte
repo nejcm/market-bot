@@ -44,4 +44,9 @@
     </table>
   </div>
   {@render citeChips(history.sourceIds)}
+  {#if history.notes !== undefined && history.notes.length > 0}
+    <p class="mt-2 text-[11px] text-muted-foreground">
+      {history.notes.map((note) => note.message).join(" ")}
+    </p>
+  {/if}
 </section>

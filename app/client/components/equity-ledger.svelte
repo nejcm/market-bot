@@ -316,6 +316,11 @@
               </div>
             {/each}
           </div>
+          {#if defaultView.financialPosition.notes !== undefined && defaultView.financialPosition.notes.length > 0}
+            <p class="mt-2 font-sans text-[11px] text-muted-foreground">
+              {defaultView.financialPosition.notes.map((note) => note.message).join(" ")}
+            </p>
+          {/if}
         </section>
       {/if}
 

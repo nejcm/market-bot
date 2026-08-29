@@ -133,6 +133,13 @@ export function renderProjectedFinancialTrends(
   ].join("\n");
 }
 
+function statementSurfaceNoteLines(
+  notes: EquityReaderBalanceSheetHistory["notes"],
+): readonly string[] {
+  const lines = (notes ?? []).map((note) => `- ${note.message}`);
+  return lines.length === 0 ? [""] : ["", ...lines, ""];
+}
+
 export function renderBalanceSheetAndShareCount(
   report: ResearchReport,
   history: EquityReaderBalanceSheetHistory | undefined,
@@ -157,7 +164,7 @@ export function renderBalanceSheetAndShareCount(
     "Period | Cash | Debt | Diluted shares",
     "--- | ---: | ---: | ---:",
     ...rows,
-    "",
+    ...statementSurfaceNoteLines(history.notes),
   ].join("\n");
 }
 

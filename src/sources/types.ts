@@ -200,6 +200,7 @@ export interface CollectedSources {
   readonly webSubjectProfileReuse?: {
     readonly runDirName: string;
     readonly generatedAt: string;
+    readonly ageDays?: number;
   };
   readonly secTargetPacket?: SecTargetPacket;
   readonly tradierPacket?: TradierPacket;

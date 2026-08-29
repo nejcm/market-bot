@@ -13,10 +13,13 @@ import {
   detectFinancialStatementCadence,
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
+  financialStatementFacts,
   incompleteFinancialStatementNotes,
+  latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import {
   CANONICAL_SEC_FORMS,
+  COMPOSITE_STATEMENT_FACT_FORMULA,
   SEC_COMPANYFACTS_UNIT_SCALE,
   isAnnualReportForm,
   type CanonicalSecForm,
@@ -27,9 +30,18 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
+  type InterimCadence,
   type StructuredFinancialGap,
   type SupportedSecForm,
 } from "./financial-statements-contract";
+
+interface ParsedCompositeComponent {
+  readonly concept: string;
+  readonly value: number;
+  readonly accessionNumber: string | null;
+  readonly filedAt: string;
+  readonly periodEnd: string;
+}
 
 interface ParsedFact {
   readonly value: number;
@@ -45,6 +57,10 @@ interface ParsedFact {
   readonly taxonomy: FinancialStatementTaxonomy;
   readonly concept: string;
   readonly unit: string;
+  readonly composite?: {
+    readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
+    readonly components: readonly ParsedCompositeComponent[];
+  };
 }
 
 interface SelectedSeries {
@@ -73,6 +89,10 @@ export interface FinancialStatementsDeriveInput {
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
 const MIN_ANNUAL_DURATION_MONTHS = 10;
 const MAX_ANNUAL_DURATION_MONTHS = 14;
+const DAY_MS = 86_400_000;
+const QUARTERLY_REPORTING_PERIOD_DAYS = 120;
+const SEMIANNUAL_REPORTING_PERIOD_DAYS = 200;
+const ANNUAL_REPORTING_PERIOD_DAYS = 400;
 const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
   "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest";
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
@@ -235,6 +255,152 @@ function factsForDefinition(
           left.latest.unit.localeCompare(right.latest.unit),
       )[0]?.facts ?? []
   );
+}
+
+function sameFiscalPeriod(left: ParsedFact, right: ParsedFact): boolean {
+  return (
+    left.form === right.form &&
+    left.fiscalYear === right.fiscalYear &&
+    (left.form === "10-K" || left.fiscalPeriod === right.fiscalPeriod)
+  );
+}
+
+function fiscalPeriodKey(fact: ParsedFact): string {
+  return fact.form === "10-K"
+    ? `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}`
+    : `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}|${fact.fiscalPeriod}`;
+}
+
+function compositeFromContributors(contributors: readonly ParsedFact[]): ParsedFact {
+  const [anchor] = contributors;
+  if (anchor === undefined) {
+    throw new Error("compositeFromContributors requires at least one contributor");
+  }
+  const latestFiled = contributors.toSorted((left, right) =>
+    right.filedAt.localeCompare(left.filedAt),
+  )[0]!;
+  const accessions = new Set(contributors.map((fact) => fact.accessionNumber));
+  return {
+    value: contributors.reduce((sum, fact) => sum + fact.value, 0),
+    form: anchor.form,
+    canonicalForm: anchor.canonicalForm,
+    amendment: anchor.amendment,
+    accessionNumber: accessions.size === 1 ? anchor.accessionNumber : null,
+    filedAt: latestFiled.filedAt,
+    periodEnd: anchor.periodEnd,
+    fiscalYear: anchor.fiscalYear,
+    fiscalPeriod: anchor.fiscalPeriod,
+    taxonomy: anchor.taxonomy,
+    concept: contributors.map((fact) => fact.concept).join("+"),
+    unit: anchor.unit,
+    composite: {
+      formula: COMPOSITE_STATEMENT_FACT_FORMULA,
+      components: contributors.map((fact) => ({
+        concept: fact.concept,
+        value: fact.value,
+        accessionNumber: fact.accessionNumber,
+        filedAt: fact.filedAt,
+        periodEnd: fact.periodEnd,
+      })),
+    },
+  };
+}
+
+function factsForComposite(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  eligible: (fact: ParsedFact) => boolean,
+): readonly ParsedFact[] {
+  const slots = definition.components;
+  if (slots === undefined || slots.length === 0) {
+    return [];
+  }
+  const root = taxonomyRoot(payload, taxonomy);
+  if (root === undefined) {
+    return [];
+  }
+  const slotFacts = slots.map((slot) => {
+    for (const concept of slot[taxonomy]) {
+      const facts = unitFacts(taxonomy, root, concept);
+      if (facts.some((fact) => eligible(fact))) {
+        return facts;
+      }
+    }
+    return [];
+  });
+  const grouped = new Map<string, ParsedFact[][]>();
+  for (const [slotIndex, facts] of slotFacts.entries()) {
+    for (const fact of facts.filter((candidate) => eligible(candidate))) {
+      const key = fiscalPeriodKey(fact);
+      const slotsForKey = grouped.get(key) ?? slots.map(() => []);
+      const slotGroup = slotsForKey[slotIndex];
+      if (slotGroup === undefined) {
+        continue;
+      }
+      grouped.set(
+        key,
+        slotsForKey.map((group, index) => (index === slotIndex ? [...group, fact] : group)),
+      );
+    }
+  }
+  return [...grouped.values()].flatMap((slotGroups) => {
+    const contributors = slotGroups.flatMap((group) => {
+      const [winner] = group.toSorted(compareFinancialStatementFacts);
+      return winner === undefined ? [] : [winner];
+    });
+    if (contributors.length === 0) {
+      return [];
+    }
+    const [anchor] = contributors;
+    if (anchor === undefined || contributors.some((fact) => !sameFiscalPeriod(anchor, fact))) {
+      return [];
+    }
+    return [compositeFromContributors(contributors)];
+  });
+}
+
+function preferDirectBasis(
+  direct: readonly FinancialStatementFact[],
+  composite: readonly FinancialStatementFact[],
+): boolean {
+  const compositeLatest = latestFinancialStatementFact(composite);
+  if (compositeLatest === undefined) {
+    return true;
+  }
+  const directLatest = latestFinancialStatementFact(direct);
+  return directLatest !== undefined && directLatest.periodEnd >= compositeLatest.periodEnd;
+}
+
+function incompleteCompositeNotes(
+  definition: FinancialStatementSeriesDefinition,
+  taxonomy: FinancialStatementTaxonomy,
+  series: FinancialStatementSeries,
+): readonly FinancialStatementNote[] {
+  const slots = definition.components;
+  if (slots === undefined) {
+    return [];
+  }
+  return financialStatementFacts(series).flatMap((fact): readonly FinancialStatementNote[] => {
+    if (fact.composite === undefined) {
+      return [];
+    }
+    const selectedConcepts = new Set(
+      fact.composite.components.map((component) => component.concept),
+    );
+    const missingSlots = slots
+      .map((slot) => slot[taxonomy])
+      .filter((aliases) => aliases.every((alias) => !selectedConcepts.has(alias)));
+    return missingSlots.length === 0
+      ? []
+      : [
+          {
+            code: "incomplete-composite-series",
+            seriesKey: definition.key,
+            message: `${definition.label} composite for ${fact.periodEnd} omits ${missingSlots.map((aliases) => aliases.join("/")).join(", ")} because no eligible fact was selected for that component slot.`,
+          },
+        ];
+  });
 }
 
 function allFactsForDefinition(
@@ -406,6 +572,17 @@ function toSelectedFact(
   currency: string,
   sourceId: string,
 ): FinancialStatementFact {
+  const sourceIds = [sourceId];
+  const composite =
+    fact.composite === undefined
+      ? undefined
+      : {
+          formula: fact.composite.formula,
+          components: fact.composite.components.map((component) => ({
+            ...component,
+            sourceIds,
+          })),
+        };
   return {
     value: fact.value,
     periodKey: periodKey(fact),
@@ -424,8 +601,9 @@ function toSelectedFact(
     currency: fact.unit === "shares" ? null : currency,
     unit: fact.unit,
     unitScale: SEC_COMPANYFACTS_UNIT_SCALE,
-    extractionMethod: "sec-companyfacts",
-    sourceIds: [sourceId],
+    extractionMethod: composite === undefined ? "sec-companyfacts" : "derived-sec-companyfacts",
+    sourceIds,
+    ...(composite !== undefined ? { composite } : {}),
   };
 }
 
@@ -625,21 +803,15 @@ function chronological(left: ParsedFact, right: ParsedFact): number {
   );
 }
 
-function selectSeries(
-  payload: unknown,
-  taxonomy: FinancialStatementTaxonomy,
-  reportingCurrency: string,
+function materializeBasis(
+  raw: readonly ParsedFact[],
   definition: FinancialStatementSeriesDefinition,
-  input: FinancialStatementsDeriveInput,
+  reportingCurrency: string,
+  sourceId: string,
+  analysisAsOf: string,
+  unit: string,
 ): SelectedSeries {
-  const unit = expectedUnit(definition, reportingCurrency);
-  const raw = factsForDefinition(
-    payload,
-    taxonomy,
-    definition,
-    (fact) => isObservable(fact, input.analysisAsOf) && fact.unit === unit,
-  );
-  const observable = raw.filter((fact) => isObservable(fact, input.analysisAsOf));
+  const observable = raw.filter((fact) => isObservable(fact, analysisAsOf));
   const compatible = observable.filter((fact) => fact.unit === unit);
   const validationNotes: FinancialStatementNote[] = [];
   const omissionNotes: FinancialStatementNote[] = [];
@@ -702,14 +874,12 @@ function selectSeries(
     }
   }
 
-  const orderedAnnual = annualSelection.facts.toSorted(chronological);
-  const orderedInterim = interimSelection.facts.toSorted(chronological);
-  const annual = orderedAnnual.map((fact) =>
-    toSelectedFact(fact, definition, reportingCurrency, input.sourceId),
-  );
-  const interim = orderedInterim.map((fact) =>
-    toSelectedFact(fact, definition, reportingCurrency, input.sourceId),
-  );
+  const annual = annualSelection.facts
+    .toSorted(chronological)
+    .map((fact) => toSelectedFact(fact, definition, reportingCurrency, sourceId));
+  const interim = interimSelection.facts
+    .toSorted(chronological)
+    .map((fact) => toSelectedFact(fact, definition, reportingCurrency, sourceId));
   const ttmResult = deriveFinancialStatementTtm(definition, annual, interim, reportingCurrency);
   if (ttmResult.note !== undefined) {
     validationNotes.push(ttmResult.note);
@@ -726,6 +896,50 @@ function selectSeries(
     validationNotes,
     omissionNotes,
   };
+}
+
+function selectSeries(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  reportingCurrency: string,
+  definition: FinancialStatementSeriesDefinition,
+  input: FinancialStatementsDeriveInput,
+): SelectedSeries {
+  const unit = expectedUnit(definition, reportingCurrency);
+  const eligible = (fact: ParsedFact) =>
+    isObservable(fact, input.analysisAsOf) && fact.unit === unit;
+  const directFacts = factsForDefinition(payload, taxonomy, definition, eligible);
+  const direct = materializeBasis(
+    directFacts,
+    definition,
+    reportingCurrency,
+    input.sourceId,
+    input.analysisAsOf,
+    unit,
+  );
+  const directSelected = financialStatementFacts(direct.series).length > 0;
+  const componentSlotCount = definition.components?.length ?? 0;
+  const compositeFacts = factsForComposite(payload, taxonomy, definition, eligible).filter(
+    (fact) => !directSelected || fact.composite?.components.length === componentSlotCount,
+  );
+  const composite = materializeBasis(
+    compositeFacts,
+    definition,
+    reportingCurrency,
+    input.sourceId,
+    input.analysisAsOf,
+    unit,
+  );
+  const selected = preferDirectBasis(
+    [...direct.series.annual, ...direct.series.interim],
+    [...composite.series.annual, ...composite.series.interim],
+  )
+    ? direct
+    : composite;
+  const notes = incompleteCompositeNotes(definition, taxonomy, selected.series);
+  return notes.length === 0
+    ? selected
+    : { ...selected, omissionNotes: [...selected.omissionNotes, ...notes] };
 }
 
 function recentSubmissionSixKFilings(
@@ -843,6 +1057,89 @@ function emptySeries(definition: FinancialStatementSeriesDefinition): FinancialS
   };
 }
 
+function reportingPeriodDays(cadence: InterimCadence): number {
+  if (cadence === "semiannual") {
+    return SEMIANNUAL_REPORTING_PERIOD_DAYS;
+  }
+  if (cadence === "annual-only") {
+    return ANNUAL_REPORTING_PERIOD_DAYS;
+  }
+  return QUARTERLY_REPORTING_PERIOD_DAYS;
+}
+
+function debtAliasConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
+  if (definition === undefined) {
+    throw new Error("Financial statement definitions must include debt");
+  }
+  return [
+    ...definition.concepts[taxonomy],
+    ...(definition.components ?? []).flatMap((slot) => slot[taxonomy]),
+  ];
+}
+
+function debtAliasesTagged(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy | undefined,
+): boolean {
+  const taxonomies = taxonomy === undefined ? TAXONOMIES : [taxonomy];
+  return taxonomies.some((candidate) => {
+    const root = taxonomyRoot(payload, candidate);
+    return (
+      root !== undefined &&
+      debtAliasConcepts(candidate).some((concept) => unitFacts(candidate, root, concept).length > 0)
+    );
+  });
+}
+
+function instantSeriesOmissionNotes(
+  series: readonly FinancialStatementSeries[],
+  cadence: InterimCadence,
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy | undefined,
+): readonly FinancialStatementNote[] {
+  const balanceSheet = series.filter((item) => item.statement === "balanceSheet");
+  const newestEnd = balanceSheet
+    .flatMap((item) => financialStatementFacts(item).map((fact) => fact.periodEnd))
+    .toSorted()
+    .at(-1);
+  const notes: FinancialStatementNote[] = [];
+  const debt = series.find((item) => item.key === "debt");
+  if (debt !== undefined && !debtAliasesTagged(payload, taxonomy)) {
+    notes.push({
+      code: "untagged-balance-sheet-series",
+      seriesKey: "debt",
+      message:
+        "Debt is untagged in companyfacts; no direct or current/noncurrent component facts were selected.",
+    });
+  }
+  if (newestEnd === undefined) {
+    return notes;
+  }
+  const lagLimitMs = reportingPeriodDays(cadence) * DAY_MS;
+  for (const item of balanceSheet) {
+    const latest = latestFinancialStatementFact(financialStatementFacts(item));
+    if (latest === undefined) {
+      continue;
+    }
+    const latestMs = Date.parse(latest.periodEnd);
+    const newestMs = Date.parse(newestEnd);
+    if (
+      !Number.isFinite(latestMs) ||
+      !Number.isFinite(newestMs) ||
+      newestMs - latestMs <= lagLimitMs
+    ) {
+      continue;
+    }
+    notes.push({
+      code: "stale-instant-series",
+      seriesKey: item.key,
+      message: `${item.label} latest period end ${latest.periodEnd} lags the newest balance-sheet period end ${newestEnd} by more than one reporting period.`,
+    });
+  }
+  return notes;
+}
+
 function seriesRecord(
   series: readonly FinancialStatementSeries[],
 ): FinancialStatementsArtifact["statements"] {
@@ -909,6 +1206,7 @@ export function deriveFinancialStatements(
   const { series, notes: capNotes } = capFinancialStatementPeriods(
     selected.map((item) => item.series),
   );
+  const interimCadence = detectFinancialStatementCadence(series);
   const otherTaxonomies =
     taxonomy === undefined
       ? []
@@ -934,7 +1232,7 @@ export function deriveFinancialStatements(
     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
     ...(taxonomy !== undefined ? { taxonomy } : {}),
     ...(reportingCurrency !== undefined ? { reportingCurrency } : {}),
-    interimCadence: detectFinancialStatementCadence(series),
+    interimCadence,
     extractionMethod: "sec-companyfacts",
     ...(equityStackSelection.equityStack !== undefined
       ? { equityStack: equityStackSelection.equityStack }
@@ -946,7 +1244,11 @@ export function deriveFinancialStatements(
       ...selected.flatMap((item) => item.validationNotes),
       ...incompleteFinancialStatementNotes(series),
     ],
-    omissionNotes: [...selected.flatMap((item) => item.omissionNotes), ...capNotes],
+    omissionNotes: [
+      ...selected.flatMap((item) => item.omissionNotes),
+      ...capNotes,
+      ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
+    ],
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,
       reportingCurrency,

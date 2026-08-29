@@ -1,5 +1,6 @@
 import type {
   FinancialStatementFact,
+  FinancialStatementNote,
   FinancialStatementsArtifact,
 } from "../sources/extended-evidence/financial-statements-contract";
 import {
@@ -32,6 +33,7 @@ interface EquityReaderBalanceSheetRow {
 export interface EquityReaderBalanceSheetHistory {
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
+  readonly notes?: readonly FinancialStatementNote[];
   readonly rows: readonly EquityReaderBalanceSheetRow[];
 }
 
@@ -44,6 +46,7 @@ export interface EquityReaderFinancialPosition {
   readonly cash?: EquityReaderFinancialPositionValue;
   readonly debt?: EquityReaderFinancialPositionValue;
   readonly dilutedShares?: EquityReaderFinancialPositionValue;
+  readonly notes?: readonly FinancialStatementNote[];
 }
 
 export function periodLabel(period: LabeledPeriod): string {
@@ -69,6 +72,21 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
     unitScale: fact.unitScale,
     sourceIds: fact.sourceIds,
   };
+}
+
+function statementSurfaceNotes(
+  artifact: FinancialStatementsArtifact,
+): readonly FinancialStatementNote[] | undefined {
+  if (artifact.omissionNotes === undefined && artifact.validationNotes === undefined) {
+    return undefined;
+  }
+  return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
+    (note) =>
+      note.code === "stale-instant-series" ||
+      ((note.code === "untagged-balance-sheet-series" ||
+        note.code === "incomplete-composite-series") &&
+        note.seriesKey === "debt"),
+  );
 }
 
 function latestPositionValue(
@@ -102,6 +120,7 @@ export function financialPosition(
   if (cash === undefined && debt === undefined && dilutedShares === undefined) {
     return undefined;
   }
+  const notes = statementSurfaceNotes(artifact);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}
@@ -109,6 +128,7 @@ export function financialPosition(
     ...(cash === undefined ? {} : { cash }),
     ...(debt === undefined ? {} : { debt }),
     ...(dilutedShares === undefined ? {} : { dilutedShares }),
+    ...(notes === undefined ? {} : { notes }),
   };
 }
 
@@ -170,6 +190,7 @@ export function balanceSheetHistory(
   if (rows.length === 0) {
     return undefined;
   }
+  const notes = statementSurfaceNotes(artifact);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}
@@ -182,6 +203,7 @@ export function balanceSheetHistory(
         ...(row.dilutedShares?.sourceIds ?? []),
       ]),
     ]),
+    ...(notes === undefined ? {} : { notes }),
     rows,
   };
 }

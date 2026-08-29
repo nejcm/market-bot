@@ -31,6 +31,7 @@ import type { PlaybookSelectionAudit } from "./research/playbooks";
 import type {
   SourcePlanArtifact,
   EvidenceLanesArtifact,
+  EvidenceLanesArtifactV2,
   SourceLedgerArtifact,
 } from "./research/source-plan";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/spotlights";
@@ -86,7 +87,7 @@ interface FailedRunManifestInput {
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
   readonly sourcePlan: SourcePlanArtifact;
-  readonly evidenceLanes: EvidenceLanesArtifact;
+  readonly evidenceLanes: EvidenceLanesArtifactV2;
   readonly sourceLedger: SourceLedgerArtifact;
   readonly webGatherAudit?: RunTrace["webGatherLoop"];
   readonly webGatherSkipCode?: WebGatherSkipCode;
@@ -258,7 +259,9 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
     evidenceLanes: input.evidenceLanes,
     sourceGaps: input.collectedSources.sourceGaps,
     webSubjectProfilePresent: input.collectedSources.webSubjectProfile !== undefined,
-    webSubjectProfileReused: input.collectedSources.webSubjectProfileReuse !== undefined,
+    ...(input.collectedSources.webSubjectProfileReuse !== undefined
+      ? { webSubjectProfileReuse: input.collectedSources.webSubjectProfileReuse }
+      : {}),
     ...(input.webGatherAudit !== undefined ? { webGatherAudit: input.webGatherAudit } : {}),
     ...(input.webGatherSkipCode !== undefined
       ? { webGatherSkipCode: input.webGatherSkipCode }

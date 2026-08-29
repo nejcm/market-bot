@@ -4,6 +4,10 @@ import type {
   FinancialStatementTaxonomy,
 } from "./financial-statements-contract";
 
+type FinancialStatementConceptAliases = Readonly<
+  Record<FinancialStatementTaxonomy, readonly string[]>
+>;
+
 export interface FinancialStatementSeriesDefinition {
   readonly key: FinancialStatementSeriesKey;
   readonly label: string;
@@ -11,7 +15,8 @@ export interface FinancialStatementSeriesDefinition {
   readonly kind: "duration" | "instant";
   readonly unitKind: "monetary" | "per-share" | "shares";
   readonly deriveTtm: boolean;
-  readonly concepts: Readonly<Record<FinancialStatementTaxonomy, readonly string[]>>;
+  readonly concepts: FinancialStatementConceptAliases;
+  readonly components?: readonly FinancialStatementConceptAliases[];
 }
 
 const DAY_MS = 86_400_000;
@@ -154,6 +159,16 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
         "us-gaap": ["LongTermDebt"],
         "ifrs-full": ["Borrowings"],
       },
+      components: [
+        {
+          "us-gaap": ["LongTermDebtCurrent", "ShortTermBorrowings", "ShortTermDebt"],
+          "ifrs-full": ["CurrentBorrowings"],
+        },
+        {
+          "us-gaap": ["LongTermDebtNoncurrent"],
+          "ifrs-full": ["NoncurrentBorrowings"],
+        },
+      ],
     },
     {
       key: "operatingCashFlow",

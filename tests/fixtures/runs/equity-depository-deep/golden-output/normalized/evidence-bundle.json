@@ -9112,6 +9112,11 @@
           "code": "history-cap",
           "periodKey": "interim|instant|2023-01-31",
           "message": "Older interim instant canonical period instant|2023-01-31 omitted by the 12-period interim instant cap"
+        },
+        {
+          "code": "untagged-balance-sheet-series",
+          "seriesKey": "debt",
+          "message": "Debt is untagged in companyfacts; no direct or current/noncurrent component facts were selected."
         }
       ],
       "structuredFinancialGaps": [

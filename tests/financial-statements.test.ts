@@ -3,8 +3,17 @@ import {
   canonicalizeSecForm,
   deriveFinancialStatements,
 } from "../src/sources/extended-evidence/financial-statements";
+import { latestFinancialStatementFact } from "../src/sources/extended-evidence/financial-statement-selection";
 import type { FinancialStatementSeries } from "../src/sources/extended-evidence/financial-statements-contract";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
+import {
+  collectValuationComps,
+  MIXED_PERIOD_METRIC,
+} from "../src/sources/extended-evidence/valuation-comps";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
+import { marketSnapshot } from "./support/fixtures";
 
 interface FactInput {
   readonly value: number;
@@ -963,5 +972,574 @@ describe("canonical financial statements", () => {
     );
 
     expect(artifact.statements.balanceSheet.debt.annual).toEqual([]);
+  });
+});
+
+function amdInstant(input: {
+  readonly value: number;
+  readonly form: "10-K" | "10-Q";
+  readonly fiscalPeriod: string;
+  readonly filedAt: string;
+  readonly periodEnd: string;
+  readonly accessionNumber?: string;
+}): Record<string, unknown> {
+  return fact({
+    value: input.value,
+    form: input.form,
+    fiscalYear: Number.parseInt(input.periodEnd.slice(0, 4), 10),
+    fiscalPeriod: input.fiscalPeriod,
+    filedAt: input.filedAt,
+    periodEnd: input.periodEnd,
+    ...(input.accessionNumber !== undefined ? { accessionNumber: input.accessionNumber } : {}),
+  });
+}
+
+describe("canonical debt basis selection", () => {
+  const amdAsOf = { analysisAsOf: "2026-08-28T00:00:00.000Z" };
+  const cashCurrent = amdInstant({
+    value: 5_000_000_000,
+    form: "10-Q",
+    fiscalPeriod: "Q2",
+    filedAt: "2026-08-06",
+    periodEnd: "2026-06-27",
+  });
+  const staleDirect = amdInstant({
+    value: 1_000_000,
+    form: "10-K",
+    fiscalPeriod: "FY",
+    filedAt: "2022-02-03",
+    periodEnd: "2021-12-25",
+  });
+  const currentDebt = amdInstant({
+    value: 875_000_000,
+    form: "10-Q",
+    fiscalPeriod: "Q2",
+    filedAt: "2026-08-06",
+    periodEnd: "2026-06-27",
+    accessionNumber: "0000000000-26-000001",
+  });
+  const noncurrentDebt = amdInstant({
+    value: 2_351_000_000,
+    form: "10-Q",
+    fiscalPeriod: "Q2",
+    filedAt: "2026-08-06",
+    periodEnd: "2026-06-27",
+    accessionNumber: "0000000000-26-000001",
+  });
+
+  test("selects a composite when component instants are fresher than LongTermDebt", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { USD: [staleDirect] },
+          LongTermDebtCurrent: { USD: [currentDebt] },
+          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+    const cash = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.cash.annual,
+      ...artifact.statements.balanceSheet.cash.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 3_226_000_000,
+      periodEnd: "2026-06-27",
+      extractionMethod: "derived-sec-companyfacts",
+      concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
+      sourceIds: ["extended-sec-edgar-test-fundamentals"],
+    });
+    expect(debt?.composite?.components.map((component) => component.concept)).toEqual([
+      "LongTermDebtCurrent",
+      "LongTermDebtNoncurrent",
+    ]);
+    expect(debt?.composite?.components.map((component) => component.sourceIds)).toEqual([
+      ["extended-sec-edgar-test-fundamentals"],
+      ["extended-sec-edgar-test-fundamentals"],
+    ]);
+    expect(debt?.periodEnd).toBe(cash?.periodEnd);
+    expect(artifact.statements.balanceSheet.debt.interim).toHaveLength(1);
+  });
+
+  test("keeps a fresher direct LongTermDebt series unchanged", () => {
+    const freshDirect = amdInstant({
+      value: 4_000_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q2",
+      filedAt: "2026-08-06",
+      periodEnd: "2026-06-27",
+    });
+    const staleCurrent = amdInstant({
+      value: 875_000_000,
+      form: "10-K",
+      fiscalPeriod: "FY",
+      filedAt: "2022-02-03",
+      periodEnd: "2021-12-25",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebt: { USD: [freshDirect] },
+          LongTermDebtCurrent: { USD: [staleCurrent] },
+          LongTermDebtNoncurrent: { USD: [staleDirect] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 4_000_000_000,
+      periodEnd: "2026-06-27",
+      extractionMethod: "sec-companyfacts",
+      concept: "LongTermDebt",
+    });
+    expect(debt).not.toHaveProperty("composite");
+  });
+
+  test("breaks equal periodEnd ties in favor of the direct alias", () => {
+    const direct = amdInstant({
+      value: 4_000_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q2",
+      filedAt: "2026-07-23",
+      periodEnd: "2026-06-27",
+      accessionNumber: "0000000000-26-000000",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebt: { USD: [direct] },
+          LongTermDebtCurrent: { USD: [currentDebt] },
+          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 4_000_000_000,
+      extractionMethod: "sec-companyfacts",
+      concept: "LongTermDebt",
+    });
+  });
+
+  test("keeps a present direct basis over a fresher one-legged composite", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebt: { USD: [staleDirect] },
+          LongTermDebtCurrent: { USD: [currentDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 1_000_000,
+      periodEnd: "2021-12-25",
+      extractionMethod: "sec-companyfacts",
+      concept: "LongTermDebt",
+    });
+    expect(artifact.omissionNotes).not.toContainEqual(
+      expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
+    );
+  });
+
+  test("excludes incomplete composite history when a complete fresher basis wins", () => {
+    const priorCurrent = amdInstant({
+      value: 700_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q2",
+      filedAt: "2025-08-06",
+      periodEnd: "2025-06-28",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebt: { USD: [staleDirect] },
+          LongTermDebtCurrent: { USD: [priorCurrent, currentDebt] },
+          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 3_226_000_000,
+      periodEnd: "2026-06-27",
+      extractionMethod: "derived-sec-companyfacts",
+      concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
+    });
+    expect(artifact.statements.balanceSheet.debt.interim).toHaveLength(1);
+    expect(artifact.statements.balanceSheet.debt.interim[0]?.periodEnd).toBe("2026-06-27");
+  });
+
+  test("selects IFRS current plus noncurrent borrowings over stale Borrowings", () => {
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: { USD: [annual(100, 2025, "20-F")] },
+          Borrowings: {
+            USD: [
+              amdInstant({
+                value: 1_000_000,
+                form: "10-K",
+                fiscalPeriod: "FY",
+                filedAt: "2022-02-03",
+                periodEnd: "2021-12-25",
+              }),
+            ],
+          },
+          CurrentBorrowings: {
+            USD: [
+              amdInstant({
+                value: 100,
+                form: "10-Q",
+                fiscalPeriod: "Q2",
+                filedAt: "2026-08-06",
+                periodEnd: "2026-06-27",
+              }),
+            ],
+          },
+          NoncurrentBorrowings: {
+            USD: [
+              amdInstant({
+                value: 200,
+                form: "10-Q",
+                fiscalPeriod: "Q2",
+                filedAt: "2026-08-06",
+                periodEnd: "2026-06-27",
+              }),
+            ],
+          },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 300,
+      periodEnd: "2026-06-27",
+      extractionMethod: "derived-sec-companyfacts",
+      concept: "CurrentBorrowings+NoncurrentBorrowings",
+    });
+  });
+
+  test("records a one-legged composite when only noncurrent debt is tagged", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 2_351_000_000,
+      periodEnd: "2026-06-27",
+      extractionMethod: "derived-sec-companyfacts",
+      concept: "LongTermDebtNoncurrent",
+    });
+    expect(debt?.composite?.components).toEqual([
+      expect.objectContaining({
+        concept: "LongTermDebtNoncurrent",
+        value: 2_351_000_000,
+        periodEnd: "2026-06-27",
+      }),
+    ]);
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        seriesKey: "debt",
+        message: expect.stringContaining("LongTermDebtCurrent/ShortTermBorrowings/ShortTermDebt"),
+      }),
+    );
+  });
+
+  test("records every incomplete period when composite is the only basis", () => {
+    const priorCurrent = amdInstant({
+      value: 700_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q2",
+      filedAt: "2025-08-06",
+      periodEnd: "2025-06-28",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtCurrent: { USD: [priorCurrent, currentDebt] },
+          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        seriesKey: "debt",
+        message: expect.stringContaining("Debt composite for 2025-06-28"),
+      }),
+    );
+  });
+
+  test("records untagged-balance-sheet-series only for an empty debt series", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({ code: "untagged-balance-sheet-series", seriesKey: "debt" }),
+    );
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(true);
+    expect(artifact.omissionNotes.filter((note) => note.seriesKey === "currentAssets")).toEqual([]);
+  });
+
+  test("records untagged debt when debt aliases are absent even if no other balance-sheet series is tagged", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+        },
+      }),
+    );
+
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(true);
+  });
+
+  test("does not record untagged debt when a LongTermDebt tag exists but is past the analysis cutoff", () => {
+    const futureDirect = amdInstant({
+      value: 9_000_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q4",
+      filedAt: "2027-02-03",
+      periodEnd: "2026-12-26",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { USD: [futureDirect] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(false);
+    expect([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]).toEqual([]);
+  });
+
+  test("does not record untagged debt when a LongTermDebt tag exists in a non-reporting currency", () => {
+    const eurDebt = amdInstant({
+      value: 1_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q2",
+      filedAt: "2026-08-06",
+      periodEnd: "2026-06-27",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { EUR: [eurDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(false);
+    expect([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]).toEqual([]);
+  });
+
+  test("sums 10-K FY and Q4 current/noncurrent components that share period end, form, and fiscal year", () => {
+    const fyCurrent = amdInstant({
+      value: 40,
+      form: "10-K",
+      fiscalPeriod: "FY",
+      filedAt: "2026-02-15",
+      periodEnd: "2025-12-31",
+    });
+    const q4Noncurrent = amdInstant({
+      value: 60,
+      form: "10-K",
+      fiscalPeriod: "Q4",
+      filedAt: "2026-02-15",
+      periodEnd: "2025-12-31",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtCurrent: { USD: [fyCurrent] },
+          LongTermDebtNoncurrent: { USD: [q4Noncurrent] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 100,
+      periodEnd: "2025-12-31",
+      extractionMethod: "derived-sec-companyfacts",
+      concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
+    });
+    expect(debt?.composite?.components).toHaveLength(2);
+  });
+
+  test("records stale-instant-series when tagged debt lags cash by more than one period", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { USD: [staleDirect] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "stale-instant-series",
+        seriesKey: "debt",
+      }),
+    );
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(false);
+  });
+
+  test("agrees with summarizeSecFundamentals on composite debt value and period end", async () => {
+    const q2Revenue = fact({
+      value: 7_685_000_000,
+      form: "10-Q",
+      fiscalYear: 2026,
+      fiscalPeriod: "Q2",
+      filedAt: "2026-08-06",
+      periodStart: "2026-03-29",
+      periodEnd: "2026-06-27",
+    });
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025), q2Revenue] },
+        CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+        LongTermDebt: { USD: [staleDirect] },
+        LongTermDebtCurrent: { USD: [currentDebt] },
+        LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+      },
+    });
+    const artifact = derive(companyFacts, amdAsOf);
+    const summary = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
+    const canonical = withCanonicalFinancialLensInputs(undefined, artifact);
+    const metrics = canonical.items.find((item) => item.category === "sec-edgar")?.metrics;
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "TEST",
+      depth: "brief",
+    } as const;
+    const snapshots = [
+      marketSnapshot({
+        symbol: "TEST",
+        marketCap: 200_000_000_000,
+        observedAt: amdAsOf.analysisAsOf,
+      }),
+    ];
+    const valuation = addValuationEvidence(command, snapshots, canonical);
+    const comps = await collectValuationComps(
+      {
+        command,
+        fetchedAt: amdAsOf.analysisAsOf,
+        newsLimit: 10,
+        cryptoMoverLimit: 10,
+        request: {
+          json: async () => {
+            throw new Error("AMD-shaped valuation comps must not fetch");
+          },
+          text: async () => {
+            throw new Error("AMD-shaped valuation comps must not fetch");
+          },
+        },
+      },
+      command,
+      snapshots,
+      valuation.extendedEvidence ?? canonical,
+      { peerUniverseMappings: {} },
+    );
+
+    expect(summary?.metrics.debt).toBe(3_226_000_000);
+    expect(summary?.metrics.debtPeriodEnd).toBe("2026-06-27");
+    expect(metrics?.debt).toBe(summary?.metrics.debt);
+    expect(metrics?.debtPeriodEnd).toBe(summary?.metrics.debtPeriodEnd);
+    expect(comps.gaps.some((gap) => gap.message.includes("Mixed-period valuation inputs"))).toBe(
+      false,
+    );
+    expect(comps.artifact.target.netDebt).not.toBe(MIXED_PERIOD_METRIC);
+    expect(comps.artifact.target.usable).toBe(true);
+    expect(comps.artifact.summary.valuationSupportability).not.toBe("not-supportable");
   });
 });

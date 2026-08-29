@@ -107,7 +107,9 @@ interface EvidenceLaneCoverage {
   readonly coveredSourceIds: readonly string[];
   readonly gapIds: readonly string[];
   readonly gapText: readonly string[];
+  readonly gapCauses?: readonly SourceGapCause[];
   readonly freshnessNotes: readonly string[];
+  readonly supportable?: boolean;
 }
 
 export interface EvidenceLanesArtifact {
@@ -205,7 +207,7 @@ export interface EvidenceLaneSummaryV2 {
   readonly coverageRatio: number;
 }
 
-interface EvidenceLanesArtifactV2 {
+export interface EvidenceLanesArtifactV2 {
   readonly version: 2;
   readonly generatedAt: string;
   readonly lanes: readonly EvidenceLaneCoverageV2[];

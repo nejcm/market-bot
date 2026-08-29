@@ -84,6 +84,7 @@ interface RunWorkspaceBalanceSheetHistoryRow {
 export interface RunWorkspaceBalanceSheetHistoryView {
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
+  readonly notes?: readonly { readonly code: string; readonly message: string }[];
   readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
 }
 
@@ -97,6 +98,7 @@ interface RunWorkspaceFinancialPositionMetric {
 export interface RunWorkspaceFinancialPositionView {
   readonly reportingCurrency?: string;
   readonly metrics: readonly RunWorkspaceFinancialPositionMetric[];
+  readonly notes?: readonly { readonly code: string; readonly message: string }[];
 }
 
 interface RunWorkspaceEarningsConsensusItem {
@@ -272,6 +274,7 @@ export function balanceSheetHistoryFromProjection(
       ? {}
       : { reportingCurrency: history.reportingCurrency }),
     sourceIds: history.sourceIds,
+    ...(history.notes === undefined ? {} : { notes: history.notes }),
     rows: history.rows.map((row) => ({
       period: row.period,
       cash: statementAmount(row.cash?.value, history.reportingCurrency),
@@ -311,6 +314,7 @@ export function financialPositionFromProjection(
       ? {}
       : { reportingCurrency: position.reportingCurrency }),
     metrics,
+    ...(position.notes === undefined ? {} : { notes: position.notes }),
   };
 }
 

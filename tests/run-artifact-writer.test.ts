@@ -21,7 +21,7 @@ import type { RunResearchJobResult } from "../src/research/orchestrator";
 import type { WrittenSubsystemOutcome } from "../src/research/subsystem-outcomes";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import type {
-  EvidenceLanesArtifact,
+  EvidenceLanesArtifactV2,
   SourceLedgerArtifact,
   SourcePlanArtifact,
 } from "../src/research/source-plan";
@@ -89,14 +89,19 @@ const sourcePlan: SourcePlanArtifact = {
   lanes: [],
 };
 
-const evidenceLanes: EvidenceLanesArtifact = {
+const evidenceLanes: EvidenceLanesArtifactV2 = {
   version: 2,
   generatedAt: GENERATED_AT,
   lanes: [],
   summary: {
     plannedLaneCount: 0,
+    coreLaneCount: 0,
+    materialLaneCount: 0,
+    supplementalLaneCount: 0,
     coveredLaneCount: 0,
     gapLaneCount: 0,
+    coreGapLaneCount: 0,
+    materialGapLaneCount: 0,
     sourceCount: 0,
     gapCount: 0,
     coverageRatio: 0,

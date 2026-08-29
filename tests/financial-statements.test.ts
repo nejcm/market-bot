@@ -7,7 +7,13 @@ import { latestFinancialStatementFact } from "../src/sources/extended-evidence/f
 import type { FinancialStatementSeries } from "../src/sources/extended-evidence/financial-statements-contract";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
+import {
+  collectValuationComps,
+  MIXED_PERIOD_METRIC,
+} from "../src/sources/extended-evidence/valuation-comps";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
+import { marketSnapshot } from "./support/fixtures";
 
 interface FactInput {
   readonly value: number;
@@ -1239,7 +1245,7 @@ describe("canonical debt basis selection", () => {
     expect(artifact.omissionNotes.filter((note) => note.seriesKey === "currentAssets")).toEqual([]);
   });
 
-  test("does not record untagged debt when no balance-sheet series is tagged", () => {
+  test("records untagged debt when debt aliases are absent even if no other balance-sheet series is tagged", () => {
     const artifact = derive(
       payload({
         "us-gaap": {
@@ -1250,7 +1256,74 @@ describe("canonical debt basis selection", () => {
 
     expect(
       artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(true);
+  });
+
+  test("does not record untagged debt when a LongTermDebt tag exists but is past the analysis cutoff", () => {
+    const futureDirect = amdInstant({
+      value: 9_000_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q4",
+      filedAt: "2027-02-03",
+      periodEnd: "2026-12-26",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { USD: [futureDirect] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
     ).toBe(false);
+    expect([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]).toEqual([]);
+  });
+
+  test("sums 10-K FY and Q4 current/noncurrent components that share period end, form, and fiscal year", () => {
+    const fyCurrent = amdInstant({
+      value: 40,
+      form: "10-K",
+      fiscalPeriod: "FY",
+      filedAt: "2026-02-15",
+      periodEnd: "2025-12-31",
+    });
+    const q4Noncurrent = amdInstant({
+      value: 60,
+      form: "10-K",
+      fiscalPeriod: "Q4",
+      filedAt: "2026-02-15",
+      periodEnd: "2025-12-31",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          LongTermDebtCurrent: { USD: [fyCurrent] },
+          LongTermDebtNoncurrent: { USD: [q4Noncurrent] },
+        },
+      }),
+      amdAsOf,
+    );
+    const debt = latestFinancialStatementFact([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]);
+
+    expect(debt).toMatchObject({
+      value: 100,
+      periodEnd: "2025-12-31",
+      extractionMethod: "derived-sec-companyfacts",
+      concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
+    });
+    expect(debt?.composite?.components).toHaveLength(2);
   });
 
   test("records stale-instant-series when tagged debt lags cash by more than one period", () => {
@@ -1276,10 +1349,19 @@ describe("canonical debt basis selection", () => {
     ).toBe(false);
   });
 
-  test("agrees with summarizeSecFundamentals on composite debt value and period end", () => {
+  test("agrees with summarizeSecFundamentals on composite debt value and period end", async () => {
+    const q2Revenue = fact({
+      value: 7_685_000_000,
+      form: "10-Q",
+      fiscalYear: 2026,
+      fiscalPeriod: "Q2",
+      filedAt: "2026-08-06",
+      periodStart: "2026-03-29",
+      periodEnd: "2026-06-27",
+    });
     const companyFacts = payload({
       "us-gaap": {
-        Revenues: { USD: [annual(100, 2025)] },
+        Revenues: { USD: [annual(100, 2025), q2Revenue] },
         CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
         LongTermDebt: { USD: [staleDirect] },
         LongTermDebtCurrent: { USD: [currentDebt] },
@@ -1290,10 +1372,50 @@ describe("canonical debt basis selection", () => {
     const summary = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
     const canonical = withCanonicalFinancialLensInputs(undefined, artifact);
     const metrics = canonical.items.find((item) => item.category === "sec-edgar")?.metrics;
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "TEST",
+      depth: "brief",
+    } as const;
+    const snapshots = [
+      marketSnapshot({
+        symbol: "TEST",
+        marketCap: 200_000_000_000,
+        observedAt: amdAsOf.analysisAsOf,
+      }),
+    ];
+    const valuation = addValuationEvidence(command, snapshots, canonical);
+    const comps = await collectValuationComps(
+      {
+        command,
+        fetchedAt: amdAsOf.analysisAsOf,
+        newsLimit: 10,
+        cryptoMoverLimit: 10,
+        request: {
+          json: async () => {
+            throw new Error("AMD-shaped valuation comps must not fetch");
+          },
+          text: async () => {
+            throw new Error("AMD-shaped valuation comps must not fetch");
+          },
+        },
+      },
+      command,
+      snapshots,
+      valuation.extendedEvidence ?? canonical,
+      { peerUniverseMappings: {} },
+    );
 
     expect(summary?.metrics.debt).toBe(3_226_000_000);
     expect(summary?.metrics.debtPeriodEnd).toBe("2026-06-27");
     expect(metrics?.debt).toBe(summary?.metrics.debt);
     expect(metrics?.debtPeriodEnd).toBe(summary?.metrics.debtPeriodEnd);
+    expect(comps.gaps.some((gap) => gap.message.includes("Mixed-period valuation inputs"))).toBe(
+      false,
+    );
+    expect(comps.artifact.target.netDebt).not.toBe(MIXED_PERIOD_METRIC);
+    expect(comps.artifact.target.usable).toBe(true);
+    expect(comps.artifact.summary.valuationSupportability).not.toBe("not-supportable");
   });
 });

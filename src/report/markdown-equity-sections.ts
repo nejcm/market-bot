@@ -133,17 +133,23 @@ export function renderProjectedFinancialTrends(
   ].join("\n");
 }
 
-function formatBalanceSheetDebtAmount(
-  row: EquityReaderBalanceSheetHistory["rows"][number],
+function notesForSeries(
+  notes: EquityReaderBalanceSheetHistory["notes"],
+  seriesKey: "cash" | "debt",
+): string | undefined {
+  const matching = notes?.filter((note) => note.seriesKey === seriesKey) ?? [];
+  return matching.length === 0 ? undefined : matching.map((note) => note.message).join("; ");
+}
+
+function formatBalanceSheetCell(
+  value: number | undefined,
+  seriesKey: "cash" | "debt",
   notes: EquityReaderBalanceSheetHistory["notes"],
 ): string {
-  if (row.debt !== undefined) {
-    return formatTrendAmount(row.debt.value);
+  if (value !== undefined) {
+    return formatTrendAmount(value);
   }
-  if (notes !== undefined && notes.length > 0) {
-    return notes.map((note) => note.message).join("; ");
-  }
-  return "—";
+  return notesForSeries(notes, seriesKey) ?? "—";
 }
 
 export function renderBalanceSheetAndShareCount(
@@ -156,8 +162,8 @@ export function renderBalanceSheetAndShareCount(
   const rows = history.rows.map((row) =>
     [
       row.period,
-      formatTrendAmount(row.cash?.value),
-      formatBalanceSheetDebtAmount(row, history.notes),
+      formatBalanceSheetCell(row.cash?.value, "cash", history.notes),
+      formatBalanceSheetCell(row.debt?.value, "debt", history.notes),
       formatTrendAmount(row.dilutedShares?.value),
     ].join(" | "),
   );

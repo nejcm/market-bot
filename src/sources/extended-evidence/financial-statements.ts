@@ -266,7 +266,9 @@ function sameFiscalPeriod(left: ParsedFact, right: ParsedFact): boolean {
 }
 
 function fiscalPeriodKey(fact: ParsedFact): string {
-  return `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}|${fact.fiscalPeriod}`;
+  return fact.form === "10-K"
+    ? `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}`
+    : `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}|${fact.fiscalPeriod}`;
 }
 
 function compositeFromContributors(contributors: readonly ParsedFact[]): ParsedFact {
@@ -1026,9 +1028,36 @@ function reportingPeriodDays(cadence: InterimCadence): number {
   return QUARTERLY_REPORTING_PERIOD_DAYS;
 }
 
+function debtAliasConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
+  if (definition === undefined) {
+    throw new Error("Financial statement definitions must include debt");
+  }
+  return [
+    ...definition.concepts[taxonomy],
+    ...(definition.components ?? []).flatMap((slot) => slot[taxonomy]),
+  ];
+}
+
+function debtAliasesTagged(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy | undefined,
+): boolean {
+  const taxonomies = taxonomy === undefined ? TAXONOMIES : [taxonomy];
+  return taxonomies.some((candidate) => {
+    const root = taxonomyRoot(payload, candidate);
+    return (
+      root !== undefined &&
+      debtAliasConcepts(candidate).some((concept) => unitFacts(candidate, root, concept).length > 0)
+    );
+  });
+}
+
 function instantSeriesOmissionNotes(
   series: readonly FinancialStatementSeries[],
   cadence: InterimCadence,
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy | undefined,
 ): readonly FinancialStatementNote[] {
   const balanceSheet = series.filter((item) => item.statement === "balanceSheet");
   const newestEnd = balanceSheet
@@ -1037,14 +1066,7 @@ function instantSeriesOmissionNotes(
     .at(-1);
   const notes: FinancialStatementNote[] = [];
   const debt = series.find((item) => item.key === "debt");
-  const hasOtherBalanceSheetFacts = balanceSheet.some(
-    (item) => item.key !== "debt" && financialStatementFacts(item).length > 0,
-  );
-  if (
-    debt !== undefined &&
-    financialStatementFacts(debt).length === 0 &&
-    hasOtherBalanceSheetFacts
-  ) {
+  if (debt !== undefined && !debtAliasesTagged(payload, taxonomy)) {
     notes.push({
       code: "untagged-balance-sheet-series",
       seriesKey: "debt",
@@ -1186,7 +1208,7 @@ export function deriveFinancialStatements(
     omissionNotes: [
       ...selected.flatMap((item) => item.omissionNotes),
       ...capNotes,
-      ...instantSeriesOmissionNotes(series, interimCadence),
+      ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
     ],
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,

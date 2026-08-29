@@ -254,6 +254,14 @@ export function financialTrendFromProjection(
   };
 }
 
+function noteFallback(
+  notes: EquityReaderBalanceSheetHistory["notes"] | EquityReaderFinancialPosition["notes"],
+  seriesKey: "cash" | "debt",
+): string | undefined {
+  const matching = notes?.filter((note) => note.seriesKey === seriesKey) ?? [];
+  return matching.length === 0 ? undefined : matching.map((note) => note.message).join("; ");
+}
+
 function statementAmount(
   value: number | undefined,
   currency: string | undefined,
@@ -273,10 +281,6 @@ export function balanceSheetHistoryFromProjection(
   if (history === undefined) {
     return undefined;
   }
-  const debtFallback =
-    history.notes !== undefined && history.notes.length > 0
-      ? history.notes.map((note) => note.message).join("; ")
-      : undefined;
   return {
     ...(history.reportingCurrency === undefined
       ? {}
@@ -285,8 +289,16 @@ export function balanceSheetHistoryFromProjection(
     ...(history.notes === undefined ? {} : { notes: history.notes }),
     rows: history.rows.map((row) => ({
       period: row.period,
-      cash: statementAmount(row.cash?.value, history.reportingCurrency),
-      debt: statementAmount(row.debt?.value, history.reportingCurrency, debtFallback),
+      cash: statementAmount(
+        row.cash?.value,
+        history.reportingCurrency,
+        noteFallback(history.notes, "cash"),
+      ),
+      debt: statementAmount(
+        row.debt?.value,
+        history.reportingCurrency,
+        noteFallback(history.notes, "debt"),
+      ),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
     })),
   };
@@ -299,20 +311,20 @@ export function financialPositionFromProjection(
     return undefined;
   }
   const metrics: RunWorkspaceFinancialPositionMetric[] = [];
-  const noteText =
-    position.notes !== undefined && position.notes.length > 0
-      ? position.notes.map((note) => note.message).join("; ")
-      : undefined;
   for (const [label, item] of [
     ["Cash", position.cash],
     ["Debt", position.debt],
     ["Diluted shares", position.dilutedShares],
   ] as const) {
     if (item === undefined) {
-      if (label === "Debt" && noteText !== undefined) {
+      if (label !== "Cash" && label !== "Debt") {
+        continue;
+      }
+      const fallback = noteFallback(position.notes, label === "Cash" ? "cash" : "debt");
+      if (fallback !== undefined) {
         metrics.push({
           label,
-          value: noteText,
+          value: fallback,
           dateBasis: "no tagged current figure",
           sourceIds: [],
         });

@@ -74,7 +74,7 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
   };
 }
 
-function debtSeriesNotes(
+function statementSurfaceNotes(
   artifact: FinancialStatementsArtifact,
 ): readonly FinancialStatementNote[] | undefined {
   if (artifact.omissionNotes === undefined && artifact.validationNotes === undefined) {
@@ -82,8 +82,8 @@ function debtSeriesNotes(
   }
   return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
-      (note.code === "untagged-balance-sheet-series" || note.code === "stale-instant-series") &&
-      note.seriesKey === "debt",
+      note.code === "stale-instant-series" ||
+      (note.code === "untagged-balance-sheet-series" && note.seriesKey === "debt"),
   );
 }
 
@@ -118,7 +118,7 @@ export function financialPosition(
   if (cash === undefined && debt === undefined && dilutedShares === undefined) {
     return undefined;
   }
-  const notes = debtSeriesNotes(artifact);
+  const notes = statementSurfaceNotes(artifact);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}
@@ -188,7 +188,7 @@ export function balanceSheetHistory(
   if (rows.length === 0) {
     return undefined;
   }
-  const notes = debtSeriesNotes(artifact);
+  const notes = statementSurfaceNotes(artifact);
   return {
     ...(artifact.reportingCurrency === undefined
       ? {}

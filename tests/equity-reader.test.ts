@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { balanceSheetHistoryFromProjection } from "../app/client/run-workspace-financials";
 import type { SourceGap } from "../src/domain/types";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
+import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
+import { researchReport } from "./support/fixtures";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,
@@ -243,6 +246,48 @@ describe("equity reader projection", () => {
     expect(explained.defaultView.financialPosition?.notes).toEqual([
       expect.objectContaining({ code: "untagged-balance-sheet-series" }),
     ]);
+  });
+
+  test("keeps stale-instant-series notes for cash through Markdown and Console", () => {
+    const cashNote = {
+      code: "stale-instant-series" as const,
+      seriesKey: "cash" as const,
+      message:
+        "Cash lags the newest tagged balance-sheet period by more than one reporting period.",
+    };
+    const explained = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: {
+        ...amendedFilingArtifact(),
+        omissionNotes: [cashNote],
+        validationNotes: [],
+      },
+    });
+    const history = {
+      sourceIds: ["sec-statements"],
+      notes: [cashNote],
+      rows: [
+        {
+          period: "FY ending 2024-12-31 (filed 2025-02-01)",
+          debt: {
+            value: 80,
+            filedAt: "2025-02-01",
+            unit: "USD",
+            unitScale: 1,
+            sourceIds: ["sec"],
+          },
+        },
+      ],
+    };
+
+    expect(explained.appendix.balanceSheetHistory?.notes).toEqual([
+      expect.objectContaining({ code: "stale-instant-series", seriesKey: "cash" }),
+    ]);
+    expect(explained.defaultView.financialPosition?.notes).toEqual([
+      expect.objectContaining({ code: "stale-instant-series", seriesKey: "cash" }),
+    ]);
+    expect(renderBalanceSheetAndShareCount(researchReport(), history)).toContain(cashNote.message);
+    expect(balanceSheetHistoryFromProjection(history)?.rows[0]?.cash).toBe(cashNote.message);
   });
 
   test("selects the latest five annual periods and appends the latest available TTM period", () => {

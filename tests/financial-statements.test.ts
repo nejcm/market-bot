@@ -1216,4 +1216,61 @@ describe("canonical debt basis selection", () => {
       }),
     ]);
   });
+
+  test("records untagged-balance-sheet-series only for an empty debt series", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({ code: "untagged-balance-sheet-series", seriesKey: "debt" }),
+    );
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(true);
+    expect(artifact.omissionNotes.filter((note) => note.seriesKey === "currentAssets")).toEqual([]);
+  });
+
+  test("does not record untagged debt when no balance-sheet series is tagged", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+        },
+      }),
+    );
+
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(false);
+  });
+
+  test("records stale-instant-series when tagged debt lags cash by more than one period", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { USD: [staleDirect] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "stale-instant-series",
+        seriesKey: "debt",
+      }),
+    );
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(false);
+  });
 });

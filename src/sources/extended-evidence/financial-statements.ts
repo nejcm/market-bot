@@ -13,6 +13,7 @@ import {
   detectFinancialStatementCadence,
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
+  financialStatementFacts,
   incompleteFinancialStatementNotes,
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
@@ -29,6 +30,7 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
+  type InterimCadence,
   type StructuredFinancialGap,
   type SupportedSecForm,
 } from "./financial-statements-contract";
@@ -87,6 +89,10 @@ export interface FinancialStatementsDeriveInput {
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
 const MIN_ANNUAL_DURATION_MONTHS = 10;
 const MAX_ANNUAL_DURATION_MONTHS = 14;
+const DAY_MS = 86_400_000;
+const QUARTERLY_REPORTING_PERIOD_DAYS = 120;
+const SEMIANNUAL_REPORTING_PERIOD_DAYS = 200;
+const ANNUAL_REPORTING_PERIOD_DAYS = 400;
 const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
   "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest";
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
@@ -1010,6 +1016,69 @@ function emptySeries(definition: FinancialStatementSeriesDefinition): FinancialS
   };
 }
 
+function reportingPeriodDays(cadence: InterimCadence): number {
+  if (cadence === "semiannual") {
+    return SEMIANNUAL_REPORTING_PERIOD_DAYS;
+  }
+  if (cadence === "annual-only") {
+    return ANNUAL_REPORTING_PERIOD_DAYS;
+  }
+  return QUARTERLY_REPORTING_PERIOD_DAYS;
+}
+
+function instantSeriesOmissionNotes(
+  series: readonly FinancialStatementSeries[],
+  cadence: InterimCadence,
+): readonly FinancialStatementNote[] {
+  const balanceSheet = series.filter((item) => item.statement === "balanceSheet");
+  const newestEnd = balanceSheet
+    .flatMap((item) => financialStatementFacts(item).map((fact) => fact.periodEnd))
+    .toSorted()
+    .at(-1);
+  const notes: FinancialStatementNote[] = [];
+  const debt = series.find((item) => item.key === "debt");
+  const hasOtherBalanceSheetFacts = balanceSheet.some(
+    (item) => item.key !== "debt" && financialStatementFacts(item).length > 0,
+  );
+  if (
+    debt !== undefined &&
+    financialStatementFacts(debt).length === 0 &&
+    hasOtherBalanceSheetFacts
+  ) {
+    notes.push({
+      code: "untagged-balance-sheet-series",
+      seriesKey: "debt",
+      message:
+        "Debt is untagged in companyfacts; no direct or current/noncurrent component facts were selected.",
+    });
+  }
+  if (newestEnd === undefined) {
+    return notes;
+  }
+  const lagLimitMs = reportingPeriodDays(cadence) * DAY_MS;
+  for (const item of balanceSheet) {
+    const latest = latestFinancialStatementFact(financialStatementFacts(item));
+    if (latest === undefined) {
+      continue;
+    }
+    const latestMs = Date.parse(latest.periodEnd);
+    const newestMs = Date.parse(newestEnd);
+    if (
+      !Number.isFinite(latestMs) ||
+      !Number.isFinite(newestMs) ||
+      newestMs - latestMs <= lagLimitMs
+    ) {
+      continue;
+    }
+    notes.push({
+      code: "stale-instant-series",
+      seriesKey: item.key,
+      message: `${item.label} latest period end ${latest.periodEnd} lags the newest balance-sheet period end ${newestEnd} by more than one reporting period.`,
+    });
+  }
+  return notes;
+}
+
 function seriesRecord(
   series: readonly FinancialStatementSeries[],
 ): FinancialStatementsArtifact["statements"] {
@@ -1076,6 +1145,7 @@ export function deriveFinancialStatements(
   const { series, notes: capNotes } = capFinancialStatementPeriods(
     selected.map((item) => item.series),
   );
+  const interimCadence = detectFinancialStatementCadence(series);
   const otherTaxonomies =
     taxonomy === undefined
       ? []
@@ -1101,7 +1171,7 @@ export function deriveFinancialStatements(
     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
     ...(taxonomy !== undefined ? { taxonomy } : {}),
     ...(reportingCurrency !== undefined ? { reportingCurrency } : {}),
-    interimCadence: detectFinancialStatementCadence(series),
+    interimCadence,
     extractionMethod: "sec-companyfacts",
     ...(equityStackSelection.equityStack !== undefined
       ? { equityStack: equityStackSelection.equityStack }
@@ -1113,7 +1183,11 @@ export function deriveFinancialStatements(
       ...selected.flatMap((item) => item.validationNotes),
       ...incompleteFinancialStatementNotes(series),
     ],
-    omissionNotes: [...selected.flatMap((item) => item.omissionNotes), ...capNotes],
+    omissionNotes: [
+      ...selected.flatMap((item) => item.omissionNotes),
+      ...capNotes,
+      ...instantSeriesOmissionNotes(series, interimCadence),
+    ],
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,
       reportingCurrency,

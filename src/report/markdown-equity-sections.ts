@@ -133,6 +133,19 @@ export function renderProjectedFinancialTrends(
   ].join("\n");
 }
 
+function formatBalanceSheetDebtAmount(
+  row: EquityReaderBalanceSheetHistory["rows"][number],
+  notes: EquityReaderBalanceSheetHistory["notes"],
+): string {
+  if (row.debt !== undefined) {
+    return formatTrendAmount(row.debt.value);
+  }
+  if (notes !== undefined && notes.length > 0) {
+    return notes.map((note) => note.message).join("; ");
+  }
+  return "—";
+}
+
 export function renderBalanceSheetAndShareCount(
   report: ResearchReport,
   history: EquityReaderBalanceSheetHistory | undefined,
@@ -144,7 +157,7 @@ export function renderBalanceSheetAndShareCount(
     [
       row.period,
       formatTrendAmount(row.cash?.value),
-      formatTrendAmount(row.debt?.value),
+      formatBalanceSheetDebtAmount(row, history.notes),
       formatTrendAmount(row.dilutedShares?.value),
     ].join(" | "),
   );

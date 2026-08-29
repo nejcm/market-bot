@@ -205,7 +205,44 @@ describe("equity reader projection", () => {
       dilutedShares: { value: 9, periodEnd: "2024-12-31", filedAt: "2025-03-01" },
     });
     expect(projection.defaultView.financialPosition?.debt).toBeUndefined();
+    expect(projection.defaultView.financialPosition?.notes).toBeUndefined();
     expect(projection.appendix.balanceSheetHistory).toBeUndefined();
+  });
+
+  test("keeps statement notes undefined versus an empty checked list", () => {
+    const base = amendedFilingArtifact();
+    const checked = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: { ...base, omissionNotes: [], validationNotes: [] },
+    });
+    const explained = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: {
+        ...base,
+        omissionNotes: [
+          {
+            code: "untagged-balance-sheet-series",
+            seriesKey: "debt",
+            message: "Debt is untagged in companyfacts.",
+          },
+        ],
+        validationNotes: [],
+      },
+    });
+
+    expect(
+      projectEquityReader({
+        report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+        financialStatements: base,
+      }).appendix.balanceSheetHistory?.notes,
+    ).toBeUndefined();
+    expect(checked.appendix.balanceSheetHistory?.notes).toEqual([]);
+    expect(explained.appendix.balanceSheetHistory?.notes).toEqual([
+      expect.objectContaining({ code: "untagged-balance-sheet-series" }),
+    ]);
+    expect(explained.defaultView.financialPosition?.notes).toEqual([
+      expect.objectContaining({ code: "untagged-balance-sheet-series" }),
+    ]);
   });
 
   test("selects the latest five annual periods and appends the latest available TTM period", () => {

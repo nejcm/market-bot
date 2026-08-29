@@ -84,6 +84,7 @@ interface RunWorkspaceBalanceSheetHistoryRow {
 export interface RunWorkspaceBalanceSheetHistoryView {
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
+  readonly notes?: readonly { readonly code: string; readonly message: string }[];
   readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
 }
 
@@ -97,6 +98,7 @@ interface RunWorkspaceFinancialPositionMetric {
 export interface RunWorkspaceFinancialPositionView {
   readonly reportingCurrency?: string;
   readonly metrics: readonly RunWorkspaceFinancialPositionMetric[];
+  readonly notes?: readonly { readonly code: string; readonly message: string }[];
 }
 
 interface RunWorkspaceEarningsConsensusItem {
@@ -252,9 +254,13 @@ export function financialTrendFromProjection(
   };
 }
 
-function statementAmount(value: number | undefined, currency: string | undefined): string {
+function statementAmount(
+  value: number | undefined,
+  currency: string | undefined,
+  fallback?: string,
+): string {
   if (value === undefined) {
-    return "—";
+    return fallback ?? "—";
   }
   return currency === undefined
     ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)
@@ -267,15 +273,20 @@ export function balanceSheetHistoryFromProjection(
   if (history === undefined) {
     return undefined;
   }
+  const debtFallback =
+    history.notes !== undefined && history.notes.length > 0
+      ? history.notes.map((note) => note.message).join("; ")
+      : undefined;
   return {
     ...(history.reportingCurrency === undefined
       ? {}
       : { reportingCurrency: history.reportingCurrency }),
     sourceIds: history.sourceIds,
+    ...(history.notes === undefined ? {} : { notes: history.notes }),
     rows: history.rows.map((row) => ({
       period: row.period,
       cash: statementAmount(row.cash?.value, history.reportingCurrency),
-      debt: statementAmount(row.debt?.value, history.reportingCurrency),
+      debt: statementAmount(row.debt?.value, history.reportingCurrency, debtFallback),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
     })),
   };
@@ -288,12 +299,24 @@ export function financialPositionFromProjection(
     return undefined;
   }
   const metrics: RunWorkspaceFinancialPositionMetric[] = [];
+  const noteText =
+    position.notes !== undefined && position.notes.length > 0
+      ? position.notes.map((note) => note.message).join("; ")
+      : undefined;
   for (const [label, item] of [
     ["Cash", position.cash],
     ["Debt", position.debt],
     ["Diluted shares", position.dilutedShares],
   ] as const) {
     if (item === undefined) {
+      if (label === "Debt" && noteText !== undefined) {
+        metrics.push({
+          label,
+          value: noteText,
+          dateBasis: "no tagged current figure",
+          sourceIds: [],
+        });
+      }
       continue;
     }
     metrics.push({
@@ -311,6 +334,7 @@ export function financialPositionFromProjection(
       ? {}
       : { reportingCurrency: position.reportingCurrency }),
     metrics,
+    ...(position.notes === undefined ? {} : { notes: position.notes }),
   };
 }
 

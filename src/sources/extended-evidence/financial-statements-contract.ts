@@ -156,7 +156,9 @@ export interface FinancialStatementNote {
     | "incomplete-metadata"
     | "history-cap"
     | "incomplete-statement"
-    | "unreconciled-ttm";
+    | "unreconciled-ttm"
+    | "untagged-balance-sheet-series"
+    | "stale-instant-series";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;

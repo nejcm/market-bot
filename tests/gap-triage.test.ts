@@ -55,6 +55,15 @@ describe("gap triage", () => {
         evidenceQualityImpact: "no-cap",
       } satisfies SourceGap,
     ],
+    [
+      "in-window profile reuse without an evidence cap",
+      {
+        source: "web-subject-profile",
+        message: "Reused an in-window web subject profile",
+        cause: "reused-in-window",
+        evidenceQualityImpact: "no-cap",
+      } satisfies SourceGap,
+    ],
     ["missing FRED credential", "fred-macro: MARKET_BOT_FRED_API_KEY is not set"],
     [
       "feature-named optional-provider credential absence",

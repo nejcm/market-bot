@@ -17,6 +17,7 @@ const SOURCE_GAP_CAUSE_TABLE = {
   "fetch-failed": true,
   "circuit-open": true,
   "stale-fallback": true,
+  "reused-in-window": true,
   "unsupported-coverage": true,
   "repeat-fallback": true,
   "malformed-response": true,
@@ -309,7 +310,9 @@ export function isRepeatFallbackGap(gap: SourceGap): boolean {
 export function isIntendedFallbackGap(gap: SourceGap): boolean {
   // Impact alone also marks material non-fallback gaps, so the cause check is load-bearing.
   return (
-    (gap.cause === "repeat-fallback" || gap.cause === "stale-fallback") &&
+    (gap.cause === "repeat-fallback" ||
+      gap.cause === "stale-fallback" ||
+      gap.cause === "reused-in-window") &&
     gap.evidenceQualityImpact === "no-cap"
   );
 }

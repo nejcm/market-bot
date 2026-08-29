@@ -227,6 +227,7 @@ export type SourceGapCause =
   | "fetch-failed"
   | "circuit-open"
   | "stale-fallback"
+  | "reused-in-window"
   | "unsupported-coverage"
   | "repeat-fallback"
   | "malformed-response"

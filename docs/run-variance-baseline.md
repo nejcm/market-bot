@@ -62,6 +62,7 @@ trajectory, not a distribution. A genuinely independent baseline would reset
 | `sourceFunnel.sourceGapsByCause.missing-credential`          | 1           | 1                 | 1           | stable at 1                   |
 | `sourceFunnel.sourceGapsByCause.provider-data-missing`       | 5           | 5                 | 5           | stable at 5                   |
 | `sourceFunnel.sourceGapsByCause.stale-fallback`              | 1           | 1                 | 1           | stable at 1                   |
+| `sourceFunnel.sourceGapsByCause.reused-in-window`            | absent      | absent            | absent      | absent in all three artifacts |
 | `sourceFunnel.sourceGapsByCause.circuit-open`                | absent      | 1                 | 1           | absent–1                      |
 | `report.json:equityAnalysisCompleteness.financialCoreStatus` | complete    | complete          | complete    | stable at `complete`          |
 | `report.json:equityAnalysisCompleteness.coverageLevel`       | substantial | substantial       | substantial | stable at `substantial`       |

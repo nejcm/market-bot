@@ -206,7 +206,7 @@ export interface EvidenceLaneSummaryV2 {
   readonly coverageRatio: number;
 }
 
-interface EvidenceLanesArtifactV2 {
+export interface EvidenceLanesArtifactV2 {
   readonly version: 2;
   readonly generatedAt: string;
   readonly lanes: readonly EvidenceLaneCoverageV2[];

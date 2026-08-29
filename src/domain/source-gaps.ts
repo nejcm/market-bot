@@ -12,7 +12,7 @@ type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circ
 // Exhaustive membership tables keyed by every union member.
 // The `satisfies Record<Union, true>` constraint fails typecheck if a member is missing.
 // Runtime guards below therefore cannot silently drift behind the type.
-const SOURCE_GAP_CAUSE_TABLE = {
+export const SOURCE_GAP_CAUSE_TABLE = {
   "missing-credential": true,
   "fetch-failed": true,
   "circuit-open": true,

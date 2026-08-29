@@ -50,8 +50,8 @@
   {
     "subsystem": "evidence-lane:macro-indicators",
     "expectation": "expected",
-    "outcome": "empty",
-    "code": "coverage-gap",
+    "outcome": "blocked",
+    "code": "missing-credential",
     "stage": "source-collection",
     "count": 1
   },

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { WebGatherLoopAudit } from "../src/domain/types";
+import { SOURCE_GAP_CAUSE_TABLE } from "../src/domain/source-gaps";
+import type { SourceGapCause, WebGatherLoopAudit } from "../src/domain/types";
 import {
   assertSubsystemOutcomeCode,
   buildSubsystemOutcomes,
@@ -11,7 +12,7 @@ import {
   type WrittenSubsystemOutcome,
 } from "../src/research/subsystem-outcomes";
 import { runSubsystemOutcomesFromSidecar } from "../src/run-artifact-projection";
-import type { EvidenceLanesArtifact, SourcePlanArtifact } from "../src/research/source-plan";
+import type { EvidenceLanesArtifactV2, SourcePlanArtifact } from "../src/research/source-plan";
 import type { SpotlightSelectionRejectionReason } from "../src/research/spotlights";
 
 const generatedAt = "2026-08-28T00:00:00.000Z";
@@ -37,7 +38,7 @@ const sourcePlan: SourcePlanArtifact = {
   ],
 };
 
-const evidenceLanes: EvidenceLanesArtifact = {
+const evidenceLanes: EvidenceLanesArtifactV2 = {
   version: 2,
   generatedAt,
   lanes: [
@@ -62,8 +63,13 @@ const evidenceLanes: EvidenceLanesArtifact = {
   ],
   summary: {
     plannedLaneCount: 2,
+    coreLaneCount: 0,
+    materialLaneCount: 1,
+    supplementalLaneCount: 1,
     coveredLaneCount: 1,
     gapLaneCount: 1,
+    coreGapLaneCount: 0,
+    materialGapLaneCount: 1,
     sourceCount: 1,
     gapCount: 1,
     coverageRatio: 0.5,
@@ -104,6 +110,43 @@ const baseWebGatherInput = {
   },
   forecastDisagreementCode: "not-configured",
 } satisfies Parameters<typeof buildSubsystemOutcomes>[0];
+
+function newsLaneOutcome(gapCauses: readonly SourceGapCause[]): WrittenSubsystemOutcome {
+  const outcomes = buildSubsystemOutcomes({
+    ...baseWebGatherInput,
+    sourcePlan: {
+      ...sourcePlan,
+      lanes: [
+        {
+          lane: "news",
+          evidenceClass: "material",
+          appliesToRun: true,
+          capability: "news",
+        },
+      ],
+    },
+    evidenceLanes: {
+      ...evidenceLanes,
+      lanes: [
+        {
+          lane: "news",
+          evidenceClass: "material",
+          status: "gap",
+          coveredSourceIds: [],
+          gapIds: gapCauses.map((_, index) => `gap-news-${String(index)}`),
+          gapText: [...gapCauses],
+          ...(gapCauses.length > 0 ? { gapCauses } : {}),
+          freshnessNotes: [],
+        },
+      ],
+    },
+  });
+  const lane = outcomes.find((item) => item.subsystem === "evidence-lane:news");
+  if (lane === undefined) {
+    throw new Error("expected evidence-lane:news outcome");
+  }
+  return lane;
+}
 
 describe("Subsystem Outcomes", () => {
   test("rejects a non-union code at write time", () => {
@@ -407,5 +450,168 @@ describe("Subsystem Outcomes", () => {
       "evidence-lane:peer-valuation",
       "deep-equity:valuation",
     ]);
+  });
+
+  test("maps missing-credential to blocked", () => {
+    expect(newsLaneOutcome(["missing-credential"])).toMatchObject({
+      outcome: "blocked",
+      code: "missing-credential",
+    });
+  });
+
+  test("maps fetch-failed to failed", () => {
+    expect(newsLaneOutcome(["fetch-failed"])).toMatchObject({
+      outcome: "failed",
+      code: "fetch-failed",
+    });
+  });
+
+  test("maps provider-data-missing to empty", () => {
+    expect(newsLaneOutcome(["provider-data-missing"])).toMatchObject({
+      outcome: "empty",
+      code: "provider-data-missing",
+    });
+  });
+
+  test("maps unsupported-coverage to declined", () => {
+    expect(newsLaneOutcome(["unsupported-coverage"])).toMatchObject({
+      outcome: "declined",
+      code: "unsupported-coverage",
+    });
+  });
+
+  test("picks failed over blocked when a lane has both causes", () => {
+    expect(newsLaneOutcome(["missing-credential", "fetch-failed"])).toMatchObject({
+      outcome: "failed",
+      code: "fetch-failed",
+    });
+  });
+
+  test("keeps coverage-gap when an uncovered lane has no causes", () => {
+    expect(newsLaneOutcome([])).toMatchObject({
+      outcome: "empty",
+      code: "coverage-gap",
+    });
+  });
+
+  test("keeps audit-missing when the lane is absent from the audit", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      sourcePlan: {
+        ...sourcePlan,
+        lanes: [
+          {
+            lane: "news",
+            evidenceClass: "material",
+            appliesToRun: true,
+            capability: "news",
+          },
+        ],
+      },
+      evidenceLanes: { ...evidenceLanes, lanes: [] },
+    });
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "evidence-lane:news",
+        outcome: "empty",
+        code: "audit-missing",
+      }),
+    );
+  });
+
+  test("records a covered but unsupportable lane as produced with not-supportable", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      sourcePlan: {
+        ...sourcePlan,
+        lanes: [
+          {
+            lane: "target-valuation",
+            evidenceClass: "material",
+            appliesToRun: true,
+            capability: "target-valuation",
+          },
+        ],
+      },
+      evidenceLanes: {
+        ...evidenceLanes,
+        lanes: [
+          {
+            lane: "target-valuation",
+            evidenceClass: "material",
+            status: "covered",
+            coveredSourceIds: ["valuation-1"],
+            gapIds: [],
+            gapText: [],
+            freshnessNotes: [],
+            supportable: false,
+          },
+        ],
+      },
+    });
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "evidence-lane:target-valuation",
+        outcome: "produced",
+        code: "not-supportable",
+        count: 1,
+        detail: { supportable: false },
+      }),
+    );
+  });
+
+  test("keeps SEC-blocked ahead of a lane-local cause", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      sourcePlan: {
+        ...sourcePlan,
+        lanes: [
+          {
+            lane: "target-valuation",
+            evidenceClass: "material",
+            appliesToRun: true,
+            capability: "target-valuation",
+          },
+        ],
+      },
+      evidenceLanes: {
+        ...evidenceLanes,
+        lanes: [
+          {
+            lane: "target-valuation",
+            evidenceClass: "material",
+            status: "gap",
+            coveredSourceIds: [],
+            gapIds: ["gap-target-valuation-0"],
+            gapText: ["target valuation unavailable"],
+            gapCauses: ["fetch-failed"],
+            freshnessNotes: [],
+          },
+        ],
+      },
+      sourceGaps: [
+        {
+          source: "sec-target-packet:valuation",
+          message: "valuation suppressed: target SEC packet is unavailable",
+          capability: "extended-evidence",
+          cause: "provider-data-missing",
+        },
+      ],
+    });
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "evidence-lane:target-valuation",
+        outcome: "blocked",
+        code: "sec-base-packet-unavailable",
+      }),
+    );
+  });
+
+  test("maps every Source Gap cause onto a subsystem outcome status", () => {
+    const causes = Object.keys(SOURCE_GAP_CAUSE_TABLE) as SourceGapCause[];
+    expect(causes.length).toBeGreaterThan(0);
+    for (const cause of causes) {
+      expect(newsLaneOutcome([cause]).code).toBe(cause);
+    }
   });
 });

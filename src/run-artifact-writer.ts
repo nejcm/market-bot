@@ -31,6 +31,7 @@ import type { PlaybookSelectionAudit } from "./research/playbooks";
 import type {
   SourcePlanArtifact,
   EvidenceLanesArtifact,
+  EvidenceLanesArtifactV2,
   SourceLedgerArtifact,
 } from "./research/source-plan";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "./research/spotlights";
@@ -86,7 +87,7 @@ interface FailedRunManifestInput {
   readonly collectedSources: CollectedSources;
   readonly historicalContext: HistoricalResearchContext;
   readonly sourcePlan: SourcePlanArtifact;
-  readonly evidenceLanes: EvidenceLanesArtifact;
+  readonly evidenceLanes: EvidenceLanesArtifactV2;
   readonly sourceLedger: SourceLedgerArtifact;
   readonly webGatherAudit?: RunTrace["webGatherLoop"];
   readonly webGatherSkipCode?: WebGatherSkipCode;

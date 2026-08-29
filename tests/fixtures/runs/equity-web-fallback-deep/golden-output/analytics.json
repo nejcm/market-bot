@@ -246,7 +246,7 @@
   },
   "subsystemOutcomes": {
     "count": 18,
-    "expectedEmptyCount": 2,
+    "expectedEmptyCount": 1,
     "byExpectation": {
       "expected": 11,
       "optional": 5,
@@ -254,17 +254,18 @@
     },
     "byOutcome": {
       "produced": 13,
-      "empty": 3,
+      "empty": 2,
       "declined": 2,
       "failed": 0,
-      "blocked": 0
+      "blocked": 1
     },
     "byCode": {
       "accepted-requests": 1,
       "audit-complete": 1,
-      "coverage-gap": 2,
+      "coverage-gap": 1,
       "covered": 9,
       "declined-empty": 1,
+      "missing-credential": 1,
       "not-applicable": 1,
       "not-configured": 1,
       "playbooks-selected": 1,

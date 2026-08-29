@@ -108,6 +108,7 @@ interface EvidenceLaneCoverage {
   readonly gapIds: readonly string[];
   readonly gapText: readonly string[];
   readonly freshnessNotes: readonly string[];
+  readonly supportable?: boolean;
 }
 
 export interface EvidenceLanesArtifact {

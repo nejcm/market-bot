@@ -39,6 +39,7 @@ export type SubsystemOutcomeCode =
   | "reused-profile"
   | "profile-produced"
   | "profile-empty"
+  | "not-supportable"
   | "no-spotlights-selected"
   | "spotlights-selected"
   | "no-playbooks-selected"
@@ -81,6 +82,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "reused-profile": true,
   "profile-produced": true,
   "profile-empty": true,
+  "not-supportable": true,
   "malformed-json": true,
   "malformed-selection": true,
   "unknown-symbol": true,

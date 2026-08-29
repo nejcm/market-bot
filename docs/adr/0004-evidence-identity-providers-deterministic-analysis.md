@@ -233,11 +233,12 @@ without pretending the project has a global security master.
   unit scale, extraction method, and source IDs. A series definition may name ordered component
   slots; when those tagged facts are strictly fresher than the direct alias, the selected fact is a
   deterministic same-period sum (`extractionMethod: derived-sec-companyfacts`) that carries every
-  contributor. One basis is used for the whole series so year-over-year comparisons stay on one
-  measurement. A one-legged composite is still a composite: the missing slot is recorded by
-  absence in `composite.components`, not by silently substituting another concept. Direct facts
-  remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays
-  `sec-companyfacts`.
+  contributor. Only a complete composite can displace a present direct basis, and it does so only
+  when its period end is strictly fresher. One basis is used for the whole series so year-over-year
+  comparisons stay on one measurement. When no direct basis exists, a one-legged composite remains
+  available: the missing slot is recorded by absence in `composite.components` and an omission note,
+  not by silently substituting another concept. Direct facts remain `sec-companyfacts` without a
+  `composite` field. The artifact-level extraction method stays `sec-companyfacts`.
 - The artifact retains a shared roster of at most ten annual and twelve interim exact start/end
   period keys and projects every series onto that roster, detects
   `quarterly`, `semiannual`, `irregular`, `annual-only`, or `unknown` cadence, and derives TTM only

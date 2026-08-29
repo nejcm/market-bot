@@ -158,6 +158,7 @@ export interface FinancialStatementNote {
     | "incomplete-statement"
     | "unreconciled-ttm"
     | "untagged-balance-sheet-series"
+    | "incomplete-composite-series"
     | "stale-instant-series";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
@@ -181,7 +182,7 @@ export interface FinancialStatementsArtifact {
   readonly taxonomy?: FinancialStatementTaxonomy;
   readonly reportingCurrency?: string;
   readonly interimCadence: InterimCadence;
-  readonly extractionMethod: FinancialStatementExtractionMethod;
+  readonly extractionMethod: "sec-companyfacts";
   readonly equityStack?: FinancialStatementEquityStack;
   readonly statements: {
     readonly incomeStatement: Readonly<

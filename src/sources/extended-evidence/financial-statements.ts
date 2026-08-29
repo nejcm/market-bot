@@ -369,9 +369,38 @@ function preferDirectBasis(
     return true;
   }
   const directLatest = latestFinancialStatementFact(direct);
-  return (
-    directLatest !== undefined && compareFinancialStatementFacts(directLatest, compositeLatest) <= 0
-  );
+  return directLatest !== undefined && directLatest.periodEnd >= compositeLatest.periodEnd;
+}
+
+function incompleteCompositeNotes(
+  definition: FinancialStatementSeriesDefinition,
+  taxonomy: FinancialStatementTaxonomy,
+  series: FinancialStatementSeries,
+): readonly FinancialStatementNote[] {
+  const slots = definition.components;
+  if (slots === undefined) {
+    return [];
+  }
+  return financialStatementFacts(series).flatMap((fact): readonly FinancialStatementNote[] => {
+    if (fact.composite === undefined) {
+      return [];
+    }
+    const selectedConcepts = new Set(
+      fact.composite.components.map((component) => component.concept),
+    );
+    const missingSlots = slots
+      .map((slot) => slot[taxonomy])
+      .filter((aliases) => aliases.every((alias) => !selectedConcepts.has(alias)));
+    return missingSlots.length === 0
+      ? []
+      : [
+          {
+            code: "incomplete-composite-series",
+            seriesKey: definition.key,
+            message: `${definition.label} composite for ${fact.periodEnd} omits ${missingSlots.map((aliases) => aliases.join("/")).join(", ")} because no eligible fact was selected for that component slot.`,
+          },
+        ];
+  });
 }
 
 function allFactsForDefinition(
@@ -879,28 +908,38 @@ function selectSeries(
   const unit = expectedUnit(definition, reportingCurrency);
   const eligible = (fact: ParsedFact) =>
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
+  const directFacts = factsForDefinition(payload, taxonomy, definition, eligible);
   const direct = materializeBasis(
-    factsForDefinition(payload, taxonomy, definition, eligible),
+    directFacts,
     definition,
     reportingCurrency,
     input.sourceId,
     input.analysisAsOf,
     unit,
+  );
+  const directSelected = financialStatementFacts(direct.series).length > 0;
+  const componentSlotCount = definition.components?.length ?? 0;
+  const compositeFacts = factsForComposite(payload, taxonomy, definition, eligible).filter(
+    (fact) => !directSelected || fact.composite?.components.length === componentSlotCount,
   );
   const composite = materializeBasis(
-    factsForComposite(payload, taxonomy, definition, eligible),
+    compositeFacts,
     definition,
     reportingCurrency,
     input.sourceId,
     input.analysisAsOf,
     unit,
   );
-  return preferDirectBasis(
+  const selected = preferDirectBasis(
     [...direct.series.annual, ...direct.series.interim],
     [...composite.series.annual, ...composite.series.interim],
   )
     ? direct
     : composite;
+  const notes = incompleteCompositeNotes(definition, taxonomy, selected.series);
+  return notes.length === 0
+    ? selected
+    : { ...selected, omissionNotes: [...selected.omissionNotes, ...notes] };
 }
 
 function recentSubmissionSixKFilings(

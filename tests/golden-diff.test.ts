@@ -110,6 +110,32 @@ describe("golden diff negative controls", () => {
     expect(diff.escalated[0]?.escalationReasons).toContain("numeric sign flip");
   });
 
+  test("identity-matches an outcomes status change without cascading successors", () => {
+    const news = {
+      subsystem: "evidence-lane:news",
+      expectation: "expected",
+      outcome: "empty",
+      code: "coverage-gap",
+    };
+    const macro = {
+      subsystem: "evidence-lane:macro-indicators",
+      expectation: "optional",
+      outcome: "empty",
+      code: "coverage-gap",
+    };
+    const diff = diffGolden(
+      { outcomes: [news, macro] },
+      { outcomes: [news, { ...macro, outcome: "blocked", code: "missing-credential" }] },
+    );
+
+    expect(diff.summary).toEqual({ changed: 2, added: 0, removed: 0 });
+    expect(diff.findings.map((finding) => finding.path)).toEqual([
+      'outcomes[subsystem="evidence-lane:macro-indicators"].code',
+      'outcomes[subsystem="evidence-lane:macro-indicators"].outcome',
+    ]);
+    expect(diff.positionalFallbacks).toEqual([]);
+  });
+
   test("identity-matches a statement insertion without shifting 200 successors", () => {
     const facts = Array.from({ length: 200 }, (_, index) => statementFact(1800 + index, index));
     const diff = diffGolden(
@@ -521,6 +547,7 @@ describe("golden diff reporting", () => {
       prediction: true,
       stage: true,
       string: true,
+      subsystem: true,
       text: true,
     };
     expect(new Set(GOLDEN_ARRAY_IDENTITIES.map((rule) => rule.strategy))).toEqual(

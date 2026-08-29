@@ -19,6 +19,7 @@ export type GoldenArrayIdentityStrategy =
   | "prediction"
   | "stage"
   | "string"
+  | "subsystem"
   | "text";
 
 export interface GoldenArrayIdentityRule {
@@ -75,6 +76,11 @@ export const GOLDEN_ARRAY_IDENTITIES: readonly GoldenArrayIdentityRule[] = [
     label: "history notes",
     path: /\.fundamentalHistory\.series\.[^.]+\.notes$/u,
     strategy: "string",
+  },
+  {
+    label: "subsystem",
+    path: /^outcomes$/u,
+    strategy: "subsystem",
   },
 ];
 
@@ -180,6 +186,9 @@ export function identityFor(
     const periodKey = stringField(value, "periodKey");
     const seriesKey = stringField(value, "seriesKey");
     return code === undefined ? undefined : `${code}|${periodKey ?? ""}|${seriesKey ?? ""}`;
+  }
+  if (strategy === "subsystem") {
+    return stringField(value, "subsystem");
   }
   const periodKey = stringField(value, "periodKey");
   if (periodKey !== undefined) {

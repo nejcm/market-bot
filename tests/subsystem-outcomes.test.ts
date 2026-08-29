@@ -487,6 +487,42 @@ describe("Subsystem Outcomes", () => {
     });
   });
 
+  test.each([
+    {
+      name: "failed over blocked",
+      causes: ["missing-credential", "fetch-failed"] as const satisfies readonly SourceGapCause[],
+      outcome: "failed" as const satisfies SubsystemOutcomeStatus,
+      code: "fetch-failed",
+    },
+    {
+      name: "blocked over declined",
+      causes: ["unsupported-coverage", "circuit-open"] as const satisfies readonly SourceGapCause[],
+      outcome: "blocked" as const satisfies SubsystemOutcomeStatus,
+      code: "circuit-open",
+    },
+    {
+      name: "declined over empty",
+      causes: [
+        "reused-in-window",
+        "unsupported-coverage",
+      ] as const satisfies readonly SourceGapCause[],
+      outcome: "declined" as const satisfies SubsystemOutcomeStatus,
+      code: "unsupported-coverage",
+    },
+    {
+      name: "same-tier declaration order",
+      causes: [
+        "validation-failed",
+        "malformed-response",
+        "fetch-failed",
+      ] as const satisfies readonly SourceGapCause[],
+      outcome: "failed" as const satisfies SubsystemOutcomeStatus,
+      code: "fetch-failed",
+    },
+  ])("picks $name when a lane has multiple causes", ({ causes, outcome, code }) => {
+    expect(newsLaneOutcome(causes)).toMatchObject({ outcome, code });
+  });
+
   test("keeps coverage-gap when an uncovered lane has no causes", () => {
     expect(newsLaneOutcome([])).toMatchObject({
       outcome: "empty",

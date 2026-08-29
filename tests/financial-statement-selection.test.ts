@@ -357,6 +357,16 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: false,
         concepts: { "us-gaap": ["LongTermDebt"], "ifrs-full": ["Borrowings"] },
+        components: [
+          {
+            "us-gaap": ["LongTermDebtCurrent", "ShortTermBorrowings", "ShortTermDebt"],
+            "ifrs-full": ["CurrentBorrowings"],
+          },
+          {
+            "us-gaap": ["LongTermDebtNoncurrent"],
+            "ifrs-full": ["NoncurrentBorrowings"],
+          },
+        ],
       },
       {
         key: "operatingCashFlow",

@@ -31,7 +31,8 @@ statement parity retirement; amended 2026-08-03: interchangeable-alias offline d
 2026-08-03: parsed-artifact authority for Research Console snapshot rendering; amended 2026-08-10:
 current-report selection and Evidence Quality / Equity Analysis Completeness boundary; amended
 2026-08-15: depository-issuer valuation applicability; amended 2026-08-26: supplemental Evidence
-Quality advisory reasons)
+Quality advisory reasons; amended 2026-08-29: canonical statement facts may be deterministic
+same-period composites)
 
 ## Context
 
@@ -229,7 +230,14 @@ without pretending the project has a global security master.
   totals. Matching period keys resolve by filed date, amendment status, and accession number; a
   later valid amendment supersedes only its matching period. Selected facts preserve form,
   canonical form, accession, filing and period metadata, fiscal identifiers, taxonomy, unit/currency,
-  unit scale, extraction method, and source IDs.
+  unit scale, extraction method, and source IDs. A series definition may name ordered component
+  slots; when those tagged facts are strictly fresher than the direct alias, the selected fact is a
+  deterministic same-period sum (`extractionMethod: derived-sec-companyfacts`) that carries every
+  contributor. One basis is used for the whole series so year-over-year comparisons stay on one
+  measurement. A one-legged composite is still a composite: the missing slot is recorded by
+  absence in `composite.components`, not by silently substituting another concept. Direct facts
+  remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays
+  `sec-companyfacts`.
 - The artifact retains a shared roster of at most ten annual and twelve interim exact start/end
   period keys and projects every series onto that roster, detects
   `quarterly`, `semiannual`, `irregular`, `annual-only`, or `unknown` cadence, and derives TTM only

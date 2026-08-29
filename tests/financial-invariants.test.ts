@@ -1,10 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
-import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";
+import {
+  financialStatementFacts,
+  latestFinancialStatementFact,
+} from "../src/sources/extended-evidence/financial-statement-selection";
 import { identityTolerance } from "../src/sources/extended-evidence/untagged-financial-table-validation";
 import { runFixture, type RunFixtureResult } from "./support/run-fixtures";
 import {
   assertBalanceSheetFactIdentity,
+  assertCompositeFactIntegrity,
   assertFundamentalHistoryInvariants,
   assertRetainedDurationFactsIdentical,
   assertSourceIdClosure,
@@ -26,6 +31,24 @@ function fixtureResult(results: readonly RunFixtureResult[], index: number): Run
     throw new Error(`Fixture result ${String(index)} is unavailable`);
   }
   return result;
+}
+
+function companyfactsInstant(
+  value: number,
+  periodEnd: string,
+  form: "10-K" | "10-Q",
+  fiscalPeriod: string,
+  filedAt: string,
+): Record<string, unknown> {
+  return {
+    val: value,
+    form,
+    fy: Number.parseInt(periodEnd.slice(0, 4), 10),
+    fp: fiscalPeriod,
+    filed: filedAt,
+    end: periodEnd,
+    accn: `${filedAt.replaceAll("-", "")}-${form}`,
+  };
 }
 
 describe("live financial invariant negative controls", () => {
@@ -159,5 +182,94 @@ describe("live financial invariant negative controls", () => {
     const knownSourceIds = new Set(result.report.sources.map((source) => source.id));
 
     expect(() => assertSourceIdClosure(injected, knownSourceIds)).toThrow(/\[C12\]/u);
+  });
+});
+
+describe("composite statement fact integrity", () => {
+  test("A8 fires when a composite component value is mutated", () => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: {
+              units: {
+                USD: [
+                  {
+                    val: 100,
+                    form: "10-K",
+                    fy: 2025,
+                    fp: "FY",
+                    filed: "2026-02-15",
+                    start: "2025-01-01",
+                    end: "2025-12-31",
+                    accn: "rev-2025",
+                  },
+                ],
+              },
+            },
+            LongTermDebtCurrent: {
+              units: {
+                USD: [companyfactsInstant(875_000_000, "2026-06-27", "10-Q", "Q2", "2026-08-06")],
+              },
+            },
+            LongTermDebtNoncurrent: {
+              units: {
+                USD: [companyfactsInstant(2_351_000_000, "2026-06-27", "10-Q", "Q2", "2026-08-06")],
+              },
+            },
+          },
+        },
+      },
+      {
+        symbol: "TEST",
+        generatedAt: "2026-08-28T00:00:00.000Z",
+        analysisAsOf: "2026-08-28T00:00:00.000Z",
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      },
+    );
+    const debtSeries = artifact.statements.balanceSheet.debt;
+    const debt = latestFinancialStatementFact([...debtSeries.annual, ...debtSeries.interim]);
+    if (debt?.composite === undefined) {
+      throw new Error("expected a composite debt fact");
+    }
+    expect(() => assertCompositeFactIntegrity(artifact)).not.toThrow();
+    const [first] = debt.composite.components;
+    if (first === undefined) {
+      throw new Error("expected composite contributors");
+    }
+    const tolerance = identityTolerance([
+      { value: debt.value, unitScale: debt.unitScale },
+      ...debt.composite.components.map((component) => ({
+        value: component.value,
+        unitScale: debt.unitScale,
+      })),
+    ]);
+    const mutated = {
+      ...debt,
+      composite: {
+        ...debt.composite,
+        components: [
+          { ...first, value: first.value + tolerance * 2 },
+          ...debt.composite.components.slice(1),
+        ],
+      },
+    };
+    const injected = {
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        balanceSheet: {
+          ...artifact.statements.balanceSheet,
+          debt: {
+            ...debtSeries,
+            [debt.periodType]: debtSeries[debt.periodType].map((fact) =>
+              fact === debt ? mutated : fact,
+            ),
+          },
+        },
+      },
+    };
+
+    expect(() => assertCompositeFactIntegrity(injected)).toThrow(/\[A8\]/u);
   });
 });

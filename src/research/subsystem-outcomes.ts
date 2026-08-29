@@ -6,7 +6,6 @@ import type {
   WebGatherLoopAudit,
   WebGatherLoopFailureCode,
 } from "../domain/types";
-import { SOURCE_GAP_CAUSE_TABLE } from "../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../guards";
 import type { PredictionCompletionSkipCode } from "./final-synthesis";
 import type { PlaybookSelectionAudit } from "./playbooks";
@@ -24,7 +23,7 @@ export type ForecastDisagreementOutcomeCode =
   | "not-configured"
   | "no-predictions";
 
-export type SubsystemOutcomeCode =
+type NonSourceGapSubsystemOutcomeCode =
   | WebGatherSkipCode
   | WebGatherLoopFailureCode
   | SpotlightSelectionRejectionReason
@@ -49,8 +48,14 @@ export type SubsystemOutcomeCode =
   | "selection-rejected"
   | "final-synthesis-rejected"
   | "gate-code-missing"
-  | "audit-complete"
-  | SourceGapCause;
+  | "audit-complete";
+
+type SourceGapCauseCollisionGuard =
+  Extract<NonSourceGapSubsystemOutcomeCode, SourceGapCause> extends never
+    ? unknown
+    : { readonly "SourceGapCause collides with an existing subsystem outcome code": never };
+
+export type SubsystemOutcomeCode = NonSourceGapSubsystemOutcomeCode | SourceGapCause;
 
 const SUBSYSTEM_EXPECTATION_TABLE = {
   expected: true,
@@ -123,7 +128,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "validation-failed": true,
   "provider-data-missing": true,
   "suppressed-by-design": true,
-} satisfies Record<SubsystemOutcomeCode, true>;
+} satisfies Record<SubsystemOutcomeCode, true> & SourceGapCauseCollisionGuard;
 
 const SOURCE_GAP_CAUSE_OUTCOME_STATUS = {
   "fetch-failed": "failed",
@@ -211,10 +216,6 @@ export function assertSubsystemOutcomeCode(code: string): asserts code is Subsys
   if (!SUBSYSTEM_OUTCOME_CODES.has(code)) {
     throw new Error(`Unsupported subsystem outcome code: ${JSON.stringify(code)}`);
   }
-}
-
-for (const cause of Object.keys(SOURCE_GAP_CAUSE_TABLE)) {
-  assertSubsystemOutcomeCode(cause);
 }
 
 function winningGapCause(causes: readonly SourceGapCause[]): SourceGapCause {

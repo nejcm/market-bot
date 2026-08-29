@@ -125,6 +125,7 @@ describe("run analytics console", () => {
         ...analytics.subsystemOutcomes,
         count: 4,
         expectedEmptyCount: 1,
+        byOutcome: { produced: 1, empty: 1, declined: 0, failed: 1, blocked: 1 },
       },
       predictions: {
         ...analytics.predictions,
@@ -141,7 +142,7 @@ describe("run analytics console", () => {
     expect(output).toContain(
       [
         "  Completion: improved · 2 accepted, 1 rejected",
-        "  Subsystem outcomes: 4 recorded · 1 expected-empty",
+        "  Subsystem outcomes: 4 recorded · 1 expected-empty · produced=1, empty=1, failed=1, blocked=1",
       ].join("\n"),
     );
   });

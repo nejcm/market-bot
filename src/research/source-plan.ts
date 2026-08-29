@@ -107,6 +107,7 @@ interface EvidenceLaneCoverage {
   readonly coveredSourceIds: readonly string[];
   readonly gapIds: readonly string[];
   readonly gapText: readonly string[];
+  readonly gapCauses?: readonly SourceGapCause[];
   readonly freshnessNotes: readonly string[];
   readonly supportable?: boolean;
 }

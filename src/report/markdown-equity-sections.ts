@@ -133,11 +133,11 @@ export function renderProjectedFinancialTrends(
   ].join("\n");
 }
 
-function notesForSeries(
-  notes: EquityReaderBalanceSheetHistory["notes"],
-  seriesKey: "cash" | "debt",
-): string | undefined {
-  const matching = notes?.filter((note) => note.seriesKey === seriesKey) ?? [];
+function untaggedDebtFallback(notes: EquityReaderBalanceSheetHistory["notes"]): string | undefined {
+  const matching =
+    notes?.filter(
+      (note) => note.code === "untagged-balance-sheet-series" && note.seriesKey === "debt",
+    ) ?? [];
   return matching.length === 0 ? undefined : matching.map((note) => note.message).join("; ");
 }
 
@@ -149,7 +149,19 @@ function formatBalanceSheetCell(
   if (value !== undefined) {
     return formatTrendAmount(value);
   }
-  return notesForSeries(notes, seriesKey) ?? "—";
+  if (seriesKey === "debt") {
+    return untaggedDebtFallback(notes) ?? "—";
+  }
+  return "—";
+}
+
+function staleInstantSeriesLines(
+  notes: EquityReaderBalanceSheetHistory["notes"],
+): readonly string[] {
+  const lines = (notes ?? [])
+    .filter((note) => note.code === "stale-instant-series")
+    .map((note) => `- ${note.message}`);
+  return lines.length === 0 ? [""] : ["", ...lines, ""];
 }
 
 export function renderBalanceSheetAndShareCount(
@@ -176,7 +188,7 @@ export function renderBalanceSheetAndShareCount(
     "Period | Cash | Debt | Diluted shares",
     "--- | ---: | ---: | ---:",
     ...rows,
-    "",
+    ...staleInstantSeriesLines(history.notes),
   ].join("\n");
 }
 

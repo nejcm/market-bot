@@ -1287,6 +1287,34 @@ describe("canonical debt basis selection", () => {
     ]).toEqual([]);
   });
 
+  test("does not record untagged debt when a LongTermDebt tag exists in a non-reporting currency", () => {
+    const eurDebt = amdInstant({
+      value: 1_000_000,
+      form: "10-Q",
+      fiscalPeriod: "Q2",
+      filedAt: "2026-08-06",
+      periodEnd: "2026-06-27",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(100, 2025)] },
+          CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+          LongTermDebt: { EUR: [eurDebt] },
+        },
+      }),
+      amdAsOf,
+    );
+
+    expect(
+      artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
+    ).toBe(false);
+    expect([
+      ...artifact.statements.balanceSheet.debt.annual,
+      ...artifact.statements.balanceSheet.debt.interim,
+    ]).toEqual([]);
+  });
+
   test("sums 10-K FY and Q4 current/noncurrent components that share period end, form, and fiscal year", () => {
     const fyCurrent = amdInstant({
       value: 40,

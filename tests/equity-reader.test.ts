@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { balanceSheetHistoryFromProjection } from "../app/client/run-workspace-financials";
 import type { SourceGap } from "../src/domain/types";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
@@ -248,46 +247,38 @@ describe("equity reader projection", () => {
     ]);
   });
 
-  test("keeps stale-instant-series notes for cash through Markdown and Console", () => {
+  test("renders stale-instant-series notes below the table when the series cell still has a value", () => {
     const cashNote = {
       code: "stale-instant-series" as const,
       seriesKey: "cash" as const,
       message:
-        "Cash lags the newest tagged balance-sheet period by more than one reporting period.",
+        "Cash latest period end 2024-12-31 lags the newest balance-sheet period end 2025-03-31 by more than one reporting period.",
+    };
+    const currentAssetsNote = {
+      code: "stale-instant-series" as const,
+      seriesKey: "currentAssets" as const,
+      message:
+        "Current assets latest period end 2024-12-31 lags the newest balance-sheet period end 2025-03-31 by more than one reporting period.",
     };
     const explained = projectEquityReader({
       report: { generatedAt: "2025-04-01T12:00:00.000Z" },
       financialStatements: {
         ...amendedFilingArtifact(),
-        omissionNotes: [cashNote],
+        omissionNotes: [cashNote, currentAssetsNote],
         validationNotes: [],
       },
     });
-    const history = {
-      sourceIds: ["sec-statements"],
-      notes: [cashNote],
-      rows: [
-        {
-          period: "FY ending 2024-12-31 (filed 2025-02-01)",
-          debt: {
-            value: 80,
-            filedAt: "2025-02-01",
-            unit: "USD",
-            unitScale: 1,
-            sourceIds: ["sec"],
-          },
-        },
-      ],
-    };
+    const history = explained.appendix.balanceSheetHistory;
+    const markdown = renderBalanceSheetAndShareCount(researchReport(), history);
 
-    expect(explained.appendix.balanceSheetHistory?.notes).toEqual([
+    expect(history?.rows.some((row) => row.cash !== undefined)).toBe(true);
+    expect(history?.notes).toEqual([
       expect.objectContaining({ code: "stale-instant-series", seriesKey: "cash" }),
+      expect.objectContaining({ code: "stale-instant-series", seriesKey: "currentAssets" }),
     ]);
-    expect(explained.defaultView.financialPosition?.notes).toEqual([
-      expect.objectContaining({ code: "stale-instant-series", seriesKey: "cash" }),
-    ]);
-    expect(renderBalanceSheetAndShareCount(researchReport(), history)).toContain(cashNote.message);
-    expect(balanceSheetHistoryFromProjection(history)?.rows[0]?.cash).toBe(cashNote.message);
+    expect(markdown).toContain(cashNote.message);
+    expect(markdown).toContain(currentAssetsNote.message);
+    expect(markdown).toMatch(/\| 120 \|/u);
   });
 
   test("selects the latest five annual periods and appends the latest available TTM period", () => {

@@ -245,6 +245,28 @@ describe("equity reader projection", () => {
     expect(explained.defaultView.financialPosition?.notes).toEqual([
       expect.objectContaining({ code: "untagged-balance-sheet-series" }),
     ]);
+    const markdown = renderBalanceSheetAndShareCount(
+      researchReport(),
+      explained.appendix.balanceSheetHistory,
+    );
+    expect(markdown.match(/Debt is untagged in companyfacts\./gu)).toHaveLength(1);
+  });
+
+  test("projects incomplete debt composite notes to both reader surfaces", () => {
+    const base = amendedFilingArtifact();
+    const note = {
+      code: "incomplete-composite-series" as const,
+      seriesKey: "debt" as const,
+      message:
+        "Debt composite for 2024-12-31 omits LongTermDebtCurrent because no eligible fact was selected for that component slot.",
+    };
+    const projection = projectEquityReader({
+      report: { generatedAt: "2025-04-01T12:00:00.000Z" },
+      financialStatements: { ...base, omissionNotes: [note], validationNotes: [] },
+    });
+
+    expect(projection.appendix.balanceSheetHistory?.notes).toEqual([note]);
+    expect(projection.defaultView.financialPosition?.notes).toEqual([note]);
   });
 
   test("renders stale-instant-series notes below the table when the series cell still has a value", () => {

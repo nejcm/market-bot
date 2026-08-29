@@ -14,6 +14,10 @@ import {
   type RunWorkspaceSectionKey,
   type RunWorkspaceView,
 } from "../app/client/run-workspace-view";
+import {
+  balanceSheetHistoryFromProjection,
+  financialPositionFromProjection,
+} from "../app/client/run-workspace-financials";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
 import type { MarketSnapshot, ResearchReport, VerifiedMarketSnapshot } from "../src/domain/types";
 import {
@@ -608,6 +612,49 @@ function htmlText(html: string): string {
 }
 
 describe("run workspace view", () => {
+  test("keeps stale instant-series notes out of current statement values", () => {
+    const note = {
+      code: "stale-instant-series" as const,
+      seriesKey: "debt" as const,
+      message:
+        "Debt latest period end 2024-12-31 lags the newest balance-sheet period end 2026-06-27 by more than one reporting period.",
+    };
+    const history = balanceSheetHistoryFromProjection({
+      reportingCurrency: "USD",
+      sourceIds: ["sec"],
+      notes: [note],
+      rows: [
+        {
+          period: "Interim ending 2026-06-27 (filed 2026-08-06)",
+          cash: {
+            value: 2_000_000_000,
+            filedAt: "2026-08-06",
+            unit: "USD",
+            unitScale: 1,
+            sourceIds: ["sec"],
+          },
+        },
+      ],
+    });
+    const position = financialPositionFromProjection({
+      reportingCurrency: "USD",
+      cash: {
+        value: 2_000_000_000,
+        periodEnd: "2026-06-27",
+        filedAt: "2026-08-06",
+        unit: "USD",
+        unitScale: 1,
+        sourceIds: ["sec"],
+      },
+      notes: [note],
+    });
+
+    expect(history?.rows[0]?.debt).toBe("—");
+    expect(history?.notes).toEqual([note]);
+    expect(position?.metrics.some((metric) => metric.label === "Debt")).toBe(false);
+    expect(position?.notes).toEqual([note]);
+  });
+
   test("renders Failed Run Artifact diagnostics", async () => {
     const detail = failedDetail();
 

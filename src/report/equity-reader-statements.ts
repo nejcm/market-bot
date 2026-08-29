@@ -83,7 +83,9 @@ function statementSurfaceNotes(
   return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
-      (note.code === "untagged-balance-sheet-series" && note.seriesKey === "debt"),
+      ((note.code === "untagged-balance-sheet-series" ||
+        note.code === "incomplete-composite-series") &&
+        note.seriesKey === "debt"),
   );
 }
 

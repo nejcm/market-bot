@@ -254,21 +254,9 @@ export function financialTrendFromProjection(
   };
 }
 
-function noteFallback(
-  notes: EquityReaderBalanceSheetHistory["notes"] | EquityReaderFinancialPosition["notes"],
-  seriesKey: "cash" | "debt",
-): string | undefined {
-  const matching = notes?.filter((note) => note.seriesKey === seriesKey) ?? [];
-  return matching.length === 0 ? undefined : matching.map((note) => note.message).join("; ");
-}
-
-function statementAmount(
-  value: number | undefined,
-  currency: string | undefined,
-  fallback?: string,
-): string {
+function statementAmount(value: number | undefined, currency: string | undefined): string {
   if (value === undefined) {
-    return fallback ?? "—";
+    return "—";
   }
   return currency === undefined
     ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)
@@ -289,16 +277,8 @@ export function balanceSheetHistoryFromProjection(
     ...(history.notes === undefined ? {} : { notes: history.notes }),
     rows: history.rows.map((row) => ({
       period: row.period,
-      cash: statementAmount(
-        row.cash?.value,
-        history.reportingCurrency,
-        noteFallback(history.notes, "cash"),
-      ),
-      debt: statementAmount(
-        row.debt?.value,
-        history.reportingCurrency,
-        noteFallback(history.notes, "debt"),
-      ),
+      cash: statementAmount(row.cash?.value, history.reportingCurrency),
+      debt: statementAmount(row.debt?.value, history.reportingCurrency),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
     })),
   };
@@ -317,18 +297,6 @@ export function financialPositionFromProjection(
     ["Diluted shares", position.dilutedShares],
   ] as const) {
     if (item === undefined) {
-      if (label !== "Cash" && label !== "Debt") {
-        continue;
-      }
-      const fallback = noteFallback(position.notes, label === "Cash" ? "cash" : "debt");
-      if (fallback !== undefined) {
-        metrics.push({
-          label,
-          value: fallback,
-          dateBasis: "no tagged current figure",
-          sourceIds: [],
-        });
-      }
       continue;
     }
     metrics.push({

@@ -9,6 +9,7 @@ import { isRecord, readNumber, readString } from "../guards";
 import type { PredictionCompletionSkipCode } from "./final-synthesis";
 import type { PlaybookSelectionAudit } from "./playbooks";
 import type { EvidenceLanesArtifact, SourcePlanArtifact } from "./source-plan";
+import type { CollectedSources } from "../sources/types";
 import type { SpotlightSelectionRejectionReason, SpotlightSelectionResult } from "./spotlights";
 import type { WebGatherSkipCode } from "../web-evidence/web-gather-types";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "../sources/sec-packet-dependencies";
@@ -143,7 +144,7 @@ interface BuildSubsystemOutcomesInput {
   readonly evidenceLanes: EvidenceLanesArtifact;
   readonly sourceGaps: readonly SourceGap[];
   readonly webSubjectProfilePresent: boolean;
-  readonly webSubjectProfileReused: boolean;
+  readonly webSubjectProfileReuse?: CollectedSources["webSubjectProfileReuse"];
   readonly webGatherAudit?: WebGatherLoopAudit;
   readonly webGatherSkipCode?: WebGatherSkipCode;
   readonly spotlightSelection?: SpotlightSelectionResult;
@@ -305,14 +306,20 @@ function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): WrittenSu
       code: "not-applicable",
     };
   }
-  if (input.webSubjectProfileReused) {
+  if (input.webSubjectProfileReuse !== undefined) {
     return {
       subsystem: "web-subject-profile",
       expectation,
-      outcome: "blocked",
+      outcome: "produced",
       code: "reused-profile",
       stage: "web-subject-profile",
       count: 1,
+      detail: {
+        ...(input.webSubjectProfileReuse.ageDays !== undefined
+          ? { ageDays: input.webSubjectProfileReuse.ageDays }
+          : {}),
+        sourceRunDirName: input.webSubjectProfileReuse.runDirName,
+      },
     };
   }
   return {

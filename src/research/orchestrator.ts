@@ -955,7 +955,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     evidenceLanes: sourcePlanning.evidenceLanes,
     sourceGaps: collectedSources.sourceGaps,
     webSubjectProfilePresent: collectedSources.webSubjectProfile !== undefined,
-    webSubjectProfileReused: collectedSources.webSubjectProfileReuse !== undefined,
+    ...(collectedSources.webSubjectProfileReuse !== undefined
+      ? { webSubjectProfileReuse: collectedSources.webSubjectProfileReuse }
+      : {}),
     ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
     ...(webGatherLoop.skipCode !== undefined ? { webGatherSkipCode: webGatherLoop.skipCode } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),

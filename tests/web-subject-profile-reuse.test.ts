@@ -881,6 +881,7 @@ describe("Web Subject Profile reuse", () => {
         profile: profile(),
         sources: [webSource],
         runDirName: "prior-aapl",
+        ageDays: 19,
         gap: {
           source: "web-subject-profile",
           message: "Reused Web Subject Profile from 2026-05-01T00:00:00.000Z (19.0 days old).",
@@ -896,6 +897,7 @@ describe("Web Subject Profile reuse", () => {
     expect(attached.webSubjectProfileReuse).toEqual({
       runDirName: "prior-aapl",
       generatedAt: "2026-05-01T00:00:00.000Z",
+      ageDays: 19,
     });
     expect(attached.extendedSources).toEqual([webSource]);
     expect(attached.sourceGaps).toHaveLength(1);

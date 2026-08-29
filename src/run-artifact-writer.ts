@@ -258,7 +258,9 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
     evidenceLanes: input.evidenceLanes,
     sourceGaps: input.collectedSources.sourceGaps,
     webSubjectProfilePresent: input.collectedSources.webSubjectProfile !== undefined,
-    webSubjectProfileReused: input.collectedSources.webSubjectProfileReuse !== undefined,
+    ...(input.collectedSources.webSubjectProfileReuse !== undefined
+      ? { webSubjectProfileReuse: input.collectedSources.webSubjectProfileReuse }
+      : {}),
     ...(input.webGatherAudit !== undefined ? { webGatherAudit: input.webGatherAudit } : {}),
     ...(input.webGatherSkipCode !== undefined
       ? { webGatherSkipCode: input.webGatherSkipCode }

@@ -5,6 +5,8 @@ import {
 } from "../src/sources/extended-evidence/financial-statements";
 import { latestFinancialStatementFact } from "../src/sources/extended-evidence/financial-statement-selection";
 import type { FinancialStatementSeries } from "../src/sources/extended-evidence/financial-statements-contract";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 
 interface FactInput {
@@ -1272,5 +1274,26 @@ describe("canonical debt basis selection", () => {
     expect(
       artifact.omissionNotes.some((note) => note.code === "untagged-balance-sheet-series"),
     ).toBe(false);
+  });
+
+  test("agrees with summarizeSecFundamentals on composite debt value and period end", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        CashAndCashEquivalentsAtCarryingValue: { USD: [cashCurrent] },
+        LongTermDebt: { USD: [staleDirect] },
+        LongTermDebtCurrent: { USD: [currentDebt] },
+        LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+      },
+    });
+    const artifact = derive(companyFacts, amdAsOf);
+    const summary = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
+    const canonical = withCanonicalFinancialLensInputs(undefined, artifact);
+    const metrics = canonical.items.find((item) => item.category === "sec-edgar")?.metrics;
+
+    expect(summary?.metrics.debt).toBe(3_226_000_000);
+    expect(summary?.metrics.debtPeriodEnd).toBe("2026-06-27");
+    expect(metrics?.debt).toBe(summary?.metrics.debt);
+    expect(metrics?.debtPeriodEnd).toBe(summary?.metrics.debtPeriodEnd);
   });
 });

@@ -17,9 +17,12 @@ import {
 } from "../src/web-evidence/web-subject-profile";
 import { classifyGap } from "../src/report/gap-triage";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
-import { collectedSources, deepEquityEvidenceBundle } from "./support/fixtures";
+import { collectedSources, deepEquityEvidenceBundle, researchReport } from "./support/fixtures";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { executeEvidenceRequestTool } from "../src/sources/evidence-request-tools";
+import { buildDeepEquityEvidenceBundle } from "../src/deep-equity/evidence";
+import { prepareRunArtifacts } from "../src/artifacts";
+import { persistRunArtifactWrites } from "../src/run-artifact-writer";
 
 const tmpDirs: string[] = [];
 
@@ -1003,15 +1006,51 @@ describe("Web Subject Profile reuse", () => {
       generatedAt: "2026-05-01T00:00:00.000Z",
       artifact: originProfile,
     });
-    await writePriorRun({
+    const reuseForB = await findReusableWebSubjectProfile({
       dataDir,
-      runId: "B",
-      symbol: "AAPL",
-      generatedAt: "2026-05-10T00:00:00.000Z",
-      artifact: originProfile,
+      command,
+      now: new Date("2026-05-10T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
     });
 
-    const reuse = await findReusableWebSubjectProfile({
+    const collectedForB = attachReusableWebSubjectProfile({
+      command,
+      collectedSources: collectedSources(),
+      reuse: reuseForB!,
+    });
+    const base = deepEquityEvidenceBundle();
+    const evidenceBundleForB = buildDeepEquityEvidenceBundle({
+      symbol: "AAPL",
+      analysisAsOf: "2026-05-10T00:00:00.000Z",
+      collectedSources: collectedForB,
+      historicalContext: base.context.historicalContext,
+      sourcePlan: base.governance.sourcePlan,
+      evidenceLanes: base.governance.evidenceLanes,
+      sourceLedger: base.governance.sourceLedger,
+    });
+    const artifactsForB = await prepareRunArtifacts(dataDir, "B");
+    await writeJson(
+      join(artifactsForB.runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "B",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-10T00:00:00.000Z",
+        sources: [webSource],
+        extras: { depth: "deep" },
+      }),
+    );
+    await persistRunArtifactWrites(artifactsForB, [
+      {
+        file: RUN_ARTIFACT_FILES.evidenceBundle,
+        kind: "json",
+        value: evidenceBundleForB,
+      },
+    ]);
+
+    const reuseForC = await findReusableWebSubjectProfile({
       dataDir,
       command,
       now: new Date("2026-05-20T00:00:00.000Z"),
@@ -1019,17 +1058,17 @@ describe("Web Subject Profile reuse", () => {
       currentSecFilingDate: "2026-04-25",
     });
 
-    expect(reuse?.runDirName).toBe("B");
-    expect(reuse?.originRunDirName).toBe("A");
+    expect(reuseForC?.runDirName).toBe("B");
+    expect(reuseForC?.originRunDirName).toBe("A");
     const attached = attachReusableWebSubjectProfile({
       command,
       collectedSources: collectedSources(),
-      reuse: reuse!,
+      reuse: reuseForC!,
     });
     expect(attached.webSubjectProfileReuse).toEqual({
       runDirName: "B",
       generatedAt: "2026-05-01T00:00:00.000Z",
-      ageDays: reuse!.ageDays,
+      ageDays: reuseForC!.ageDays,
       originRunDirName: "A",
     });
     expect(attached.webSubjectProfile?.originRunDirName).toBe("A");

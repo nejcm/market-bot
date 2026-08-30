@@ -24,6 +24,14 @@ export const EVIDENCE_POSTURE_LABELS = [
 ] as const;
 const WEAK_POSTURE_CLAIM_PATTERN =
   /\b(?:assum(?:e|es|ed|ing|ption)|infer(?:s|red|ence)?|model-inferred|stale|conflict(?:s|ing|ed)?|unsupported|unverified|uncited|missing source|source gap|data gap)\b/iu;
+const SELF_DECLARING_WEAK_POSTURES = [
+  "unverified",
+  "unsupported",
+  "uncited",
+  "low-trust",
+  "inferred",
+] as const;
+const CANONICAL_POSTURE_REQUIRED_PATTERN = /\b(?:missing source|source gap|data gap)\b/iu;
 const HISTORICAL_OUTCOME_CONTEXT_PATTERN = /\b(?:prior|previous|historical|past|resolved)\b/iu;
 const FORECAST_OUTCOME_PATTERN =
   /\b(?:forecast|prediction|miss(?:es|ed)?|hit(?:s)?|resolved|outcome)\b/iu;
@@ -98,7 +106,8 @@ function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
     hasNoSupportingSource(claim.sourceIds)
       ? [unsupportedNumericWarning(claim)]
       : []),
-    ...(shouldCarryPostureLabel(claim.text, claim.sourceIds) && !hasPostureLabel(claim.text)
+    ...(shouldCarryPostureLabel(claim.text, claim.sourceIds) &&
+    !hasPostureLabel(claim.text, claim.sourceIds)
       ? [missingPostureWarning(claim)]
       : []),
   ];
@@ -132,9 +141,19 @@ export function shouldCarryPostureLabel(text: string, sourceIds: readonly string
   return hasNoSupportingSource(sourceIds) || WEAK_POSTURE_CLAIM_PATTERN.test(text);
 }
 
-export function hasPostureLabel(text: string): boolean {
+// Self-declaring weak terms satisfy posture only for claims with a current source and no
+// Explicit gap phrase. Empty or history-only citations and explicit gap phrases still
+// Require a canonical posture label.
+export function hasPostureLabel(text: string, sourceIds: readonly string[]): boolean {
   const normalized = text.toLowerCase();
-  return EVIDENCE_POSTURE_LABELS.some((label) => normalized.includes(label));
+  if (EVIDENCE_POSTURE_LABELS.some((label) => normalized.includes(label))) {
+    return true;
+  }
+  return (
+    !hasNoSupportingSource(sourceIds) &&
+    !CANONICAL_POSTURE_REQUIRED_PATTERN.test(text) &&
+    SELF_DECLARING_WEAK_POSTURES.some((posture) => normalized.includes(posture))
+  );
 }
 
 function citedGapShapedClaimWarning(claim: AuditClaim): PostSynthesisAuditWarning {

@@ -195,6 +195,35 @@ describe("auditPostSynthesisReport", () => {
     expect(warnings).toEqual([]);
   });
 
+  test.each([
+    ["unverified", "Utilization remains unverified."],
+    ["unsupported", "The conclusion remains unsupported."],
+    ["uncited", "The claim is uncited."],
+    ["low-trust", "Low-trust web context assumes utilization improves."],
+    ["inferred", "The relationship is inferred from current evidence."],
+    ["model-inferred", "The relationship is model-inferred from current evidence."],
+  ] as const)("accepts a current-source %s posture", (_posture, text) => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({ bearCase: [{ text, sourceIds: ["market-aapl"] }] }),
+    );
+
+    expect(warnings.some((warning) => warning.code === "weak-evidence-posture-missing")).toBe(
+      false,
+    );
+  });
+
+  test.each([
+    ["history-only", "Utilization remains unverified.", ["history-report-prior"]],
+    ["empty-source", "Utilization remains unverified.", []],
+    ["data gap", "A data gap leaves utilization unverified.", ["market-aapl"]],
+    ["source gap", "A source gap leaves utilization unverified.", ["market-aapl"]],
+    ["missing source", "A missing source leaves utilization unverified.", ["market-aapl"]],
+  ] as const)("requires a canonical posture for %s claims", (_case, text, sourceIds) => {
+    const warnings = auditPostSynthesisReport(reportWith({ bearCase: [{ text, sourceIds }] }));
+
+    expect(warnings.some((warning) => warning.code === "weak-evidence-posture-missing")).toBe(true);
+  });
+
   test("audits scenarios and predictions", () => {
     const warnings = auditPostSynthesisReport(
       reportWith({

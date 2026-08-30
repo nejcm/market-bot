@@ -188,7 +188,8 @@ function postureAdvisories(report: ResearchReport): readonly ReportIntegrityAdvi
   return claims
     .filter(
       (claim) =>
-        shouldCarryPostureLabel(claim.text, claim.sourceIds) && !hasPostureLabel(claim.text),
+        shouldCarryPostureLabel(claim.text, claim.sourceIds) &&
+        !hasPostureLabel(claim.text, claim.sourceIds),
     )
     .map((claim) => ({
       code: "weak-evidence-posture-missing" as const,

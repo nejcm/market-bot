@@ -50,7 +50,7 @@ function massiveSnapshot(symbol: string): Record<string, unknown> {
   };
 }
 
-function chartPayload(symbol: string): unknown {
+function chartPayload(symbol: string, nullLatestClose = false): unknown {
   const start = Date.parse("2026-04-01T00:00:00.000Z") / 1000;
   const timestamps = Array.from({ length: 70 }, (_, index) => start + index * 86_400);
   return {
@@ -65,7 +65,9 @@ function chartPayload(symbol: string): unknown {
                 open: timestamps.map((_, index) => 90 + index),
                 high: timestamps.map((_, index) => 92 + index),
                 low: timestamps.map((_, index) => 89 + index),
-                close: timestamps.map((_, index) => 91 + index),
+                close: timestamps.map((_, index) =>
+                  nullLatestClose && index === timestamps.length - 1 ? null : 91 + index,
+                ),
                 volume: timestamps.map(() => 1_000_000),
               },
             ],
@@ -218,6 +220,44 @@ describe("representative snapshot collection", () => {
     expect(
       result.rawSnapshots.filter((snapshot) => snapshot.adapter === "yahoo-verified-chart"),
     ).toHaveLength(4);
+    expect(result.sourceGaps.filter((gap) => gap.source === "yahoo-verified-chart")).toEqual([]);
+  });
+
+  test("preserves gaps from successful representative snapshots", async () => {
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return Response.json(yahooPayload(requestedSymbols(url)));
+      }
+      if (url.includes("/v8/finance/chart/")) {
+        const symbol = decodeURIComponent(new URL(url).pathname.split("/").at(-1) ?? "");
+        return Response.json(chartPayload(symbol, symbol.toUpperCase() === "GILD"));
+      }
+      return Response.json({ news: [] });
+    };
+
+    const result = await collectSources(command, sourceOptions, {
+      now: new Date(generatedAt),
+      fetchImpl,
+      retryDelaysMs: [],
+      resolvedSubject: resolvedBiotech(),
+    });
+
+    expect(
+      result.verifiedRepresentativeSnapshots?.map((snapshot) => snapshot.symbol).toSorted(),
+    ).toEqual(["AMGN", "GILD", "VRTX", "XBI"]);
+    expect(result.sourceGaps.filter((gap) => gap.source === "yahoo-verified-chart")).toEqual([
+      {
+        source: "yahoo-verified-chart",
+        message:
+          "Yahoo chart bar 2026-06-09 has missing or non-numeric fields: close; latest usable session is 2026-06-08",
+        symbol: "GILD",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      },
+    ]);
   });
 
   test("downgrades representative verified snapshot failures to no-cap gaps", async () => {

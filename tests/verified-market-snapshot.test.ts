@@ -126,15 +126,18 @@ describe("verified-snapshot contract", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseYahooChartOhlcv", () => {
-  test("returns empty array for non-object payload", () => {
-    expect(parseYahooChartOhlcv(null)).toEqual([]);
-    expect(parseYahooChartOhlcv("string")).toEqual([]);
-    expect(parseYahooChartOhlcv(42)).toEqual([]);
+  test("returns empty bars and dropped bars for non-object payload", () => {
+    expect(parseYahooChartOhlcv(null)).toEqual({ bars: [], droppedBars: [] });
+    expect(parseYahooChartOhlcv("string")).toEqual({ bars: [], droppedBars: [] });
+    expect(parseYahooChartOhlcv(42)).toEqual({ bars: [], droppedBars: [] });
   });
 
-  test("returns empty array when chart result is missing", () => {
-    expect(parseYahooChartOhlcv({ chart: {} })).toEqual([]);
-    expect(parseYahooChartOhlcv({ chart: { result: [] } })).toEqual([]);
+  test("returns empty bars and dropped bars when chart result is missing", () => {
+    expect(parseYahooChartOhlcv({ chart: {} })).toEqual({ bars: [], droppedBars: [] });
+    expect(parseYahooChartOhlcv({ chart: { result: [] } })).toEqual({
+      bars: [],
+      droppedBars: [],
+    });
   });
 
   test("parses valid bars", () => {
@@ -146,10 +149,11 @@ describe("parseYahooChartOhlcv", () => {
       close: [103, 104, 105],
       volume: [1_000_000, 1_200_000, 900_000],
     });
-    const bars = parseYahooChartOhlcv(payload);
+    const { bars, droppedBars } = parseYahooChartOhlcv(payload);
     expect(bars).toHaveLength(3);
     expect(bars[0]).toMatchObject({ open: 100, high: 105, low: 98, close: 103, volume: 1_000_000 });
     expect(bars[2]).toMatchObject({ close: 105 });
+    expect(droppedBars).toEqual([]);
   });
 
   test("skips bars with any null OHLCV slot (interior null policy)", () => {
@@ -161,11 +165,15 @@ describe("parseYahooChartOhlcv", () => {
       close: [103, 104, 105, 106],
       volume: [1_000_000, 1_200_000, 900_000, 800_000],
     });
-    const bars = parseYahooChartOhlcv(payload);
+    const { bars, droppedBars } = parseYahooChartOhlcv(payload);
     // Bar 1 (null open) and bar 2 (null high) should be skipped
     expect(bars).toHaveLength(2);
     expect(bars[0]?.close).toBe(103);
     expect(bars[1]?.close).toBe(106);
+    expect(droppedBars).toEqual([
+      { date: "2024-01-02", missingFields: ["open"] },
+      { date: "2024-01-03", missingFields: ["high"] },
+    ]);
   });
 
   test("skips bars with null close", () => {
@@ -173,10 +181,11 @@ describe("parseYahooChartOhlcv", () => {
     const payload = yahooChartPayload(timestamps, {
       close: [100, null, 102],
     });
-    const bars = parseYahooChartOhlcv(payload);
+    const { bars, droppedBars } = parseYahooChartOhlcv(payload);
     expect(bars).toHaveLength(2);
     expect(bars[0]?.close).toBe(100);
     expect(bars[1]?.close).toBe(102);
+    expect(droppedBars).toEqual([{ date: "2024-01-02", missingFields: ["close"] }]);
   });
 
   test("filters bars beyond analysisDate", () => {
@@ -188,15 +197,18 @@ describe("parseYahooChartOhlcv", () => {
     const payload = yahooChartPayload(timestamps, {
       close: [100, 200, 300],
     });
-    const bars = parseYahooChartOhlcv(payload, "2024-06-15");
+    const { bars, droppedBars } = parseYahooChartOhlcv(payload, "2024-06-15");
     expect(bars).toHaveLength(2);
     expect(bars.at(-1)?.date).toBe("2024-06-15");
+    expect(droppedBars).toEqual([]);
   });
 
   test("returns all bars when analysisDate is undefined", () => {
     const timestamps = tsRange(5);
     const payload = yahooChartPayload(timestamps, {});
-    expect(parseYahooChartOhlcv(payload)).toHaveLength(5);
+    const { bars, droppedBars } = parseYahooChartOhlcv(payload);
+    expect(bars).toHaveLength(5);
+    expect(droppedBars).toEqual([]);
   });
 });
 
@@ -219,22 +231,46 @@ describe("collectVerifiedMarketSnapshot", () => {
     return context;
   }
 
-  function chartPayloadWith80Bars(): unknown {
+  function chartPayloadWith80Bars(nullLatestClose = false): unknown {
     const timestamps = Array.from({ length: 80 }, (_, i) => {
       const d = new Date("2024-01-01");
       d.setDate(d.getDate() + i);
       return Math.floor(d.getTime() / 1000);
     });
-    return yahooChartPayload(timestamps, {});
+    return yahooChartPayload(timestamps, {
+      close: timestamps.map((_, index) =>
+        nullLatestClose && index === timestamps.length - 1 ? null : 100 + index,
+      ),
+    });
   }
 
   test("returns snapshot when Yahoo returns >= 60 valid bars", async () => {
     const ctx = makeCtx(async () => jsonResponse(chartPayloadWith80Bars()));
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
     expect(result.snapshot).toBeDefined();
-    expect(result.sourceGaps).toHaveLength(0);
+    expect(result.sourceGaps).toEqual([]);
     expect(result.snapshot?.symbol).toBe("AAPL");
     expect(result.snapshot?.assetClass).toBe("equity");
+    expect(result.snapshot?.latestSessionDate).toBe("2024-03-20");
+  });
+
+  test("declares a newer dropped Yahoo bar without replacing the latest usable session", async () => {
+    const ctx = makeCtx(async () => jsonResponse(chartPayloadWith80Bars(true)));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
+
+    expect(result.snapshot?.latestSessionDate).toBe("2024-03-19");
+    expect(result.sourceGaps).toEqual([
+      {
+        source: "yahoo-verified-chart",
+        message:
+          "Yahoo chart bar 2024-03-20 has missing or non-numeric fields: close; latest usable session is 2024-03-19",
+        symbol: "AAPL",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      },
+    ]);
   });
 
   test("returns SourceGap when fetch fails — no Massive fallback attempted", async () => {

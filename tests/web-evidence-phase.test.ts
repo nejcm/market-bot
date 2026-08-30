@@ -188,6 +188,7 @@ describe("Web Evidence phase", () => {
       }),
       context,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "current-run",
       now: new Date("2026-05-19T00:00:00.000Z"),
       generateStage: async (stage, _sources, stageContext) => {
         expect(stage).toBe("web-gather");
@@ -310,6 +311,7 @@ describe("Web Evidence phase", () => {
       }),
       context,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "current-run",
       now: new Date("2026-05-19T00:00:00.000Z"),
       generateStage: async (stage, _sources, stageContext) => {
         expect(stage).toBe("web-gather");
@@ -364,6 +366,7 @@ describe("Web Evidence phase", () => {
       collectedSources: collectedSources({ extendedSources: [metadataOnlySecSource] }),
       context,
       generatedAt: "2026-08-06T00:00:00.000Z",
+      runId: "current-run",
       now: new Date("2026-08-06T00:00:00.000Z"),
       generateStage: async (stage) => {
         generateStageCalls += 1;

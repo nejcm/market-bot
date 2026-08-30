@@ -39,6 +39,7 @@ interface WebEvidencePhaseInput {
   readonly collectedSources: CollectedSources;
   readonly context: ResearchContext;
   readonly generatedAt: string;
+  readonly runId: string;
   readonly now: Date;
   readonly fetchImpl?: FetchLike;
   readonly retryDelaysMs?: readonly number[];
@@ -87,6 +88,7 @@ async function runWebSubjectProfileExtraction(input: {
       command: profileCommand,
       subject,
       generatedAt: input.phaseInput.generatedAt,
+      runId: input.phaseInput.runId,
       modelContent: output.content,
       webSources: allowedSources,
       extendedEvidence: input.collectedSources.extendedEvidence,
@@ -111,6 +113,7 @@ async function runWebSubjectProfileExtraction(input: {
       command: profileCommand,
       subject,
       generatedAt: input.phaseInput.generatedAt,
+      runId: input.phaseInput.runId,
       message: `Web Subject Profile stage failed (${message})`,
       cause: "malformed-response",
       extendedEvidence: input.collectedSources.extendedEvidence,

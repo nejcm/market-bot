@@ -73,6 +73,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: profilePayload(),
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -83,6 +84,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       version: 3,
       subjectKind: "company",
       companyName: "Apple Inc.",
+      originRunDirName: "test-run",
     });
     expect(result.artifact?.sourceIds).toEqual([webSource.id]);
     expect(result.extendedEvidence?.items).toEqual([
@@ -138,6 +140,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource, secTenK, secTenQ],
       extendedEvidence: undefined,
@@ -152,12 +155,14 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: profilePayload("missing-source"),
       webSources: [webSource],
       extendedEvidence: undefined,
     });
 
     expect(result.artifact?.sourceIds).toEqual([]);
+    expect(result.artifact?.originRunDirName).toBe("test-run");
     expect(result.artifact?.factLedger).toEqual([]);
     expect(result.sourceGaps).toEqual([
       expect.objectContaining({
@@ -173,6 +178,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: "not-json",
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -204,6 +210,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
       subject: cryptoSubject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: JSON.stringify({
         subjectLabel: "Bitcoin",
         subjectSummary: answer,
@@ -268,6 +275,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -324,6 +332,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -386,6 +395,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -454,6 +464,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -492,6 +503,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -526,6 +538,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -556,6 +569,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -604,6 +618,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -645,6 +660,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -680,6 +696,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -722,6 +739,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,
@@ -735,6 +753,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: JSON.stringify({
         ...JSON.parse(profilePayload()),
         subjectSummary: { answer: "Uncited summary.", sourceIds: [] },
@@ -757,6 +776,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: JSON.stringify({
         ...JSON.parse(profilePayload()),
         subjectSummary: {
@@ -787,6 +807,7 @@ describe("buildWebSubjectProfileEvidence", () => {
       command,
       subject,
       generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
       modelContent: JSON.stringify({
         ...JSON.parse(profilePayload()),
         subjectSummary: {

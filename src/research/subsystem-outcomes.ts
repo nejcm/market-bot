@@ -405,6 +405,9 @@ function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): WrittenSu
           ? { ageDays: input.webSubjectProfileReuse.ageDays }
           : {}),
         sourceRunDirName: input.webSubjectProfileReuse.runDirName,
+        ...(input.webSubjectProfileReuse.originRunDirName !== undefined
+          ? { originRunDirName: input.webSubjectProfileReuse.originRunDirName }
+          : {}),
       },
     };
   }

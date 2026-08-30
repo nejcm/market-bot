@@ -646,6 +646,7 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     collectedSources,
     context,
     generatedAt,
+    runId,
     now,
     ...(input.sourceFetchImpl !== undefined ? { fetchImpl: input.sourceFetchImpl } : {}),
     ...(input.sourceRetryDelaysMs !== undefined

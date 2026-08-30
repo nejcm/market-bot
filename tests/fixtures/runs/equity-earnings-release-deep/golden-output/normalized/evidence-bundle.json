@@ -752,6 +752,7 @@
     "webSubjectProfile": {
       "version": 3,
       "generatedAt": "<generatedAt>",
+      "originRunDirName": "<run-id>",
       "subjectKind": "company",
       "subjectId": "AAPL",
       "subjectLabel": "Apple Inc. (AAPL)",

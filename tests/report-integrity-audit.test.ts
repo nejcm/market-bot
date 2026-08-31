@@ -194,6 +194,33 @@ describe("auditReportIntegrity", () => {
     expect(result.advisoryWarningCount).toBe(result.advisories.length);
   });
 
+  test("accepts a current-source self-declaring posture", () => {
+    const result = auditReportIntegrity(
+      researchReport({ keyFindings: [citedFinding("Utilization remains unverified.")] }),
+    );
+
+    expect(result.advisories).not.toContainEqual({
+      code: "weak-evidence-posture-missing",
+      location: "keyFindings[0]",
+    });
+  });
+
+  test.each([
+    ["bare weak term", citedFinding("Assume utilization improves.")],
+    [
+      "history-only unverified",
+      { text: "Utilization remains unverified.", sourceIds: ["history-report-prior"] },
+    ],
+    ["explicit gap", citedFinding("A data gap leaves utilization unverified.")],
+  ] as const)("advises for a %s claim", (_case, finding) => {
+    const result = auditReportIntegrity(researchReport({ keyFindings: [finding] }));
+
+    expect(result.advisories).toContainEqual({
+      code: "weak-evidence-posture-missing",
+      location: "keyFindings[0]",
+    });
+  });
+
   test("pruning that empties a required analytical section grades low", () => {
     const report = researchReport({
       keyFindings: [uncitedFinding("Only finding cites nothing but claims 30% upside.")],

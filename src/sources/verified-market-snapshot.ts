@@ -77,7 +77,7 @@ export async function collectVerifiedMarketSnapshot(
     };
   }
 
-  const bars = parseYahooChartOhlcv(fetched.payload, analysisDate);
+  const { bars, droppedBars } = parseYahooChartOhlcv(fetched.payload, analysisDate);
 
   if (bars.length < MIN_BARS_FOR_SNAPSHOT) {
     return {
@@ -98,6 +98,19 @@ export async function collectVerifiedMarketSnapshot(
   const indicators = computeIndicators(bars);
   const latestBar = bars.at(-1)!;
   const recentCloses = buildRecentCloses(bars, RECENT_CLOSES_COUNT);
+  const sourceGaps = droppedBars
+    .filter((dropped) => dropped.date > latestBar.date)
+    .map((dropped) =>
+      sourceGap({
+        source: ADAPTER_ID,
+        message: `Yahoo chart bar ${dropped.date} has missing or non-numeric fields: ${dropped.missingFields.join(", ")}; latest usable session is ${latestBar.date}`,
+        symbol,
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
 
   const snapshot: VerifiedMarketSnapshot = {
     symbol,
@@ -114,7 +127,7 @@ export async function collectVerifiedMarketSnapshot(
     snapshot,
     priceHistory: bars.map(({ date, close }) => ({ date, close })),
     rawSnapshot: fetched.rawSnapshot,
-    sourceGaps: [],
+    sourceGaps,
   };
 }
 

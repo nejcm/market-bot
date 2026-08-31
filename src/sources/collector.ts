@@ -445,7 +445,7 @@ export async function collectSources(
   );
   const representativeVerifiedGaps = representativeVerifiedSnapshotResults.flatMap((entry) =>
     entry.result.snapshot !== undefined
-      ? []
+      ? entry.result.sourceGaps
       : entry.result.sourceGaps.map((gap) => ({
           ...gap,
           message: `${gap.message} for research representative ${entry.symbol}`,

@@ -72,6 +72,8 @@ Failed final-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-rep
 
 The recurring defect is a change that lands only on the path you tested (see `684e454`). Walk the chain end to end.
 
+**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the golden fixtures (`tests/**/__golden__` / `--check-golden` replays) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "reran goldens, no diff expected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
+
 **A new evidence field or report section:**
 
 1. Collector — `src/sources/extended-evidence/<provider>.ts` and its contract file.

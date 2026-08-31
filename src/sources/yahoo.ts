@@ -646,14 +646,26 @@ function observationsFromYahooChartPayload(
   });
 }
 
+type YahooOhlcvField = "open" | "high" | "low" | "close" | "volume";
+
+interface YahooChartOhlcvParseResult {
+  readonly bars: readonly OhlcvBar[];
+  readonly droppedBars: readonly {
+    readonly date: string;
+    readonly missingFields: readonly YahooOhlcvField[];
+  }[];
+}
+
 // Parse full OHLCV daily bars from a Yahoo chart API payload.
-// Skips bars with any null OHLCV slot (Yahoo halts / sparse names).
 // Filters to bars with date <= analysisDate when provided.
 // Returns bars sorted oldest -> newest.
-export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): readonly OhlcvBar[] {
+export function parseYahooChartOhlcv(
+  payload: unknown,
+  analysisDate?: string,
+): YahooChartOhlcvParseResult {
   const chart = readYahooChartQuote(payload);
   if (chart === undefined) {
-    return [];
+    return { bars: [], droppedBars: [] };
   }
   const { timestamps, quote } = chart;
   const opens: readonly unknown[] = Array.isArray(quote.open) ? quote.open : [];
@@ -663,6 +675,10 @@ export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): r
   const volumes: readonly unknown[] = Array.isArray(quote.volume) ? quote.volume : [];
 
   const bars: OhlcvBar[] = [];
+  const droppedBars: {
+    readonly date: string;
+    readonly missingFields: readonly YahooOhlcvField[];
+  }[] = [];
   for (let i = 0; i < timestamps.length; i++) {
     const date = dateFromUnixSeconds(timestamps[i]);
     if (date === undefined) {
@@ -683,7 +699,23 @@ export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): r
       typeof rawClose !== "number" ||
       typeof rawVolume !== "number"
     ) {
-      // Yahoo emits null slots on halts; skip to keep arrays aligned
+      const missingFields: YahooOhlcvField[] = [];
+      if (typeof rawOpen !== "number") {
+        missingFields.push("open");
+      }
+      if (typeof rawHigh !== "number") {
+        missingFields.push("high");
+      }
+      if (typeof rawLow !== "number") {
+        missingFields.push("low");
+      }
+      if (typeof rawClose !== "number") {
+        missingFields.push("close");
+      }
+      if (typeof rawVolume !== "number") {
+        missingFields.push("volume");
+      }
+      droppedBars.push({ date, missingFields });
       continue;
     }
     bars.push({
@@ -695,7 +727,7 @@ export function parseYahooChartOhlcv(payload: unknown, analysisDate?: string): r
       volume: rawVolume,
     });
   }
-  return bars;
+  return { bars, droppedBars };
 }
 
 /**

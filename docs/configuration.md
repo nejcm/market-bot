@@ -89,6 +89,8 @@ Historical Research Context reads only `MARKET_BOT_DATA_DIR` run artifacts. The 
 
 ## Free provider setup
 
+The [External services](../README.md#external-services) table in the README lists every provider, its cost, and what a run loses without it. The tuning notes below assume that overview.
+
 For a free, high-value Extended Evidence setup, set `MARKET_BOT_FRED_API_KEY` and `MARKET_BOT_SEC_USER_AGENT`. FRED is also the provider-health v2 baseline macro expectation. Add `MARKET_BOT_TRADIER_API_TOKEN` only when you need equity options/IV evidence and have suitable Tradier API access. Leave `MARKET_BOT_GLASSNODE_API_KEY` blank unless you already pay for Glassnode API access.
 
 ## Research runs (recommended codex setup)

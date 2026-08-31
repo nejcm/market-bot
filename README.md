@@ -27,7 +27,7 @@
 
 ## Quick start
 
-**Requirements:** [Bun](https://bun.sh) ≥ 1.1 (tested with 1.3.x), an LLM provider key (or [Codex](#codex-chatgpt-subscription-no-api-key-required) login), and optionally free [FRED](https://fred.stlouisfed.org/) + [SEC EDGAR](https://www.sec.gov/edgar/search/) credentials for richer evidence.
+**Requirements:** [Bun](https://bun.sh) ≥ 1.1 (tested with 1.3.x) and an LLM provider key (or a [Codex](#codex-chatgpt-subscription-no-api-key-required) login). Nothing else is required — market data from Yahoo Finance, CoinGecko, ApeWisdom, and SEC EDGAR needs no keys. Free [FRED](https://fred.stlouisfed.org/) and SEC credentials add macro and filing evidence; see [External services](#external-services).
 
 ```sh
 git clone https://github.com/nejcm/market-bot.git
@@ -44,7 +44,16 @@ export OPENAI_API_KEY=sk-...
 bun run src/cli.ts market-overview --asset equity
 ```
 
+No API key? A ChatGPT subscription works instead — sign in to the [Codex](#codex-chatgpt-subscription-no-api-key-required) CLI and route the pipeline through it:
+
+```sh
+codex login
+MARKET_BOT_PROVIDER=codex bun run src/cli.ts market-overview --asset equity
+```
+
 Artifacts land under `data/runs/<run-id>/` (`report.json`, `report.md`, normalized snapshots, and more). See [Data output layout](#data-output-layout).
+
+A run costs real provider tokens and takes minutes — a deep equity run is roughly 12 minutes. Start with the default brief depth before reaching for `--deep`.
 
 ## What it does
 
@@ -135,11 +144,15 @@ Defaults: `claude-sonnet-4-6` (quick), `claude-opus-4-8` (synthesis / `--deep`).
 
 ### Codex (ChatGPT subscription, no API key required)
 
+Run the whole pipeline on an existing ChatGPT plan instead of paying per token:
+
 ```sh
 npm i -g @openai/codex   # requires Node ≥ 22
 codex login
 MARKET_BOT_PROVIDER=codex bun run src/cli.ts market-overview --asset equity
 ```
+
+The provider applies to every run type — there is no per-command routing. Override models with `MARKET_BOT_CODEX_QUICK_MODEL` and `MARKET_BOT_CODEX_SYNTHESIS_MODEL`; both fall back to the shared model defaults. This is the recommended setup for `research <subject>` runs (see [docs/configuration.md](./docs/configuration.md)).
 
 ### OpenAI-compatible endpoint
 
@@ -162,21 +175,64 @@ bun run src/cli.ts market-overview --asset equity
 | Alpha search pages          | Brief limit       | Deep page limit                                             |
 | Thematic research forecasts | n/a — always deep | Proxy-only, if resolved, with a higher non-direction mix    |
 
+## External services
+
+market-bot runs with **one LLM provider and nothing else** — an API key, or a ChatGPT subscription via the [Codex](#codex-chatgpt-subscription-no-api-key-required) CLI. Every data provider below is optional; a
+missing key never aborts a run — the affected evidence is disclosed in the report as a **Source
+Gap** rather than silently dropped, so you can always tell what a run did and did not see.
+
+**Keyless, always on:** Yahoo Finance (quotes, OHLCV, screeners, news), CoinGecko (crypto market
+data), ApeWisdom (social momentum for `alpha-search`), and SEC EDGAR (filings — no key, just a
+User-Agent).
+
+### Recommended setup
+
+| Tier                   | Set these                                              | Why                                                                                     |
+| ---------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| **Minimum**            | one LLM provider key, or a `codex login`               | Everything runs; evidence is Yahoo/CoinGecko + SEC only                                 |
+| **Recommended (free)** | `MARKET_BOT_SEC_USER_AGENT`, `MARKET_BOT_FRED_API_KEY` | Live SEC access plus macro context, macro Extended Evidence, and macro forecast scoring |
+| **Web evidence**       | `MARKET_BOT_EXA_API_KEY`                               | Web Gather — required for useful `research <subject>` runs                              |
+| **As needed**          | Tradier, Finnhub, MarketAux, Massive, Glassnode        | Options/IV, richer news, supplemental equity data, crypto on-chain                      |
+
+### Services
+
+| Service                                                    | Env var                          | Cost                                                | Unlocks                                                                          | Without it                                                                                                                                                                                                                     |
+| ---------------------------------------------------------- | -------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [SEC EDGAR](https://www.sec.gov/os/accessing-edgar-data)   | `MARKET_BOT_SEC_USER_AGENT`      | Free (no key — needs app name + real contact email) | Filings, financial statements, ownership, `alpha-search` discovery               | The built-in placeholder UA is fine for fixtures, but SEC's fair-access policy expects a real contact for live use and may throttle or block otherwise. US-centric — non-US listings emit an `unsupported-coverage` Source Gap |
+| [FRED](https://fred.stlouisfed.org/docs/api/api_key.html)  | `MARKET_BOT_FRED_API_KEY`        | Free                                                | Macro Market Context, macro Extended Evidence, macro forecast scoring            | Macro Source Gaps; `provider-health` reports degraded macro coverage                                                                                                                                                           |
+| [Exa](https://exa.ai)                                      | `MARKET_BOT_EXA_API_KEY`         | Paid                                                | Web Gather — dated, sanitized web evidence for instrument and thematic runs      | Web gather is skipped; eligible runs emit a `search-unavailable` Source Gap                                                                                                                                                    |
+| [Firecrawl](https://firecrawl.dev)                         | `MARKET_BOT_FIRECRAWL_API_KEY`   | Paid                                                | Fallback for Web Gather when a configured Exa call fails or returns thin results | No fallback. This never substitutes for a missing Exa key                                                                                                                                                                      |
+| [Tradier](https://developer.tradier.com)                   | `MARKET_BOT_TRADIER_API_TOKEN`   | Free/delayed tier depends on account                | Options chains, IV term structure, IV forecast scoring                           | Options/IV Source Gaps. US equities only                                                                                                                                                                                       |
+| [Finnhub](https://finnhub.io)                              | `MARKET_BOT_FINNHUB_API_TOKEN`   | Free tier                                           | Extra news plus company events (earnings dates)                                  | News Source Gap; Yahoo news still runs                                                                                                                                                                                         |
+| [MarketAux](https://www.marketaux.com)                     | `MARKET_BOT_MARKETAUX_API_TOKEN` | Free tier                                           | Extra news coverage                                                              | News Source Gap; Yahoo news still runs                                                                                                                                                                                         |
+| [Massive](https://massive.com/docs/) (formerly Polygon.io) | `MARKET_BOT_MASSIVE_API_KEY`     | Paid tiers                                          | Supplemental equity snapshots and news; fallback for failed Yahoo quotes         | Silently disabled — it is supplemental only                                                                                                                                                                                    |
+| [Glassnode](https://glassnode.com)                         | `MARKET_BOT_GLASSNODE_API_KEY`   | Paid                                                | Crypto on-chain Extended Evidence                                                | On-chain Source Gaps on crypto runs                                                                                                                                                                                            |
+
+`MARKET_BOT_POLYGON_API_KEY` is still accepted as a legacy alias for `MARKET_BOT_MASSIVE_API_KEY`.
+
+Keys are read from the environment only, never from artifacts, cache, or committed fixtures. Put
+them in `.env`, keep it out of git, and see [docs/configuration.md](./docs/configuration.md) for the
+per-variable behavior and gap semantics.
+
 ## Configuration
 
-Copy [`.env.example`](./.env.example) to `.env` and set the variables you need. Each entry is commented there with defaults and purpose. For provider behavior, gaps, and tuning notes, see [docs/configuration.md](./docs/configuration.md).
+Copy [`.env.example`](./.env.example) to `.env` and set the variables you need. Each entry is commented there with defaults and purpose. Beyond the provider keys in [External services](#external-services), the variables cover model selection and timeouts, data and cache directories, Research Console port and Run Chat, news and mover limits, web-gather budgets, alpha-search filters, and cross-run history windows. For per-variable behavior, gap semantics, and tuning notes, see [docs/configuration.md](./docs/configuration.md).
 
 ## Data output layout
 
 ```
 data/
-  runs/<run-id>/          report.json, report.md, score.json, analytics.json, stages.json, trace.json, normalized/, raw/
+  runs/<run-id>/          report.json, report.md, score.json, analytics.json, outcomes.json, stages.json, trace.json, normalized/, raw/
   calibration/            summary.json, summary.md
   index.sqlite            derived Run Artifact Index (optional, rebuildable)
   history/                derived search index + instrument timelines
   cache/                  raw source + close caches
   news-seen.json          suppresses repeat news URLs (30 days)
 ```
+
+A run whose final synthesis fails still leaves a complete directory — `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`, but no `report.json` or `report.md`. `failure.json` is written last, so its presence means the run finished writing.
+
+Everything outside `runs/` is derived and rebuildable (`index rebuild`, `history rebuild`), but rebuilding costs provider calls — prefer keeping it.
 
 ## Development
 

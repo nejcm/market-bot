@@ -149,9 +149,11 @@ not read this divergence as config drift.
 `sourceFunnel.sourceGapsByCause.provider-data-missing` is 7 in all three band
 runs, 6 in the seed, and 5 in the 2026-08-11 baseline. Absolute levels are not
 comparable across baselines. `05cad67` (`feat(market-data): declare sessions
-dropped for a missing close`) changed collection and is the most likely cause of
-the seed-to-band move from 6 to 7: the dropped-bar Source Gap. That commit was
-not examined for this recording and needs separate evaluation.
+dropped for a missing close`) fully explains the seed-to-band move from 6 to 7.
+In `src/sources/verified-market-snapshot.ts` it maps `droppedBars`, Yahoo chart
+bars with missing or non-numeric fields newer than the latest usable bar, into
+a `provider-data-missing` Source Gap (`Yahoo chart bar <date> has missing or
+non-numeric fields: <fields>; latest usable session is <date>`).
 
 These runs are accepted-but-uncited, not a gather failure. Web Gather succeeded
 in all three (4–5 accepted each). The 2026-08-11 Run 2 that the recording plan
@@ -182,24 +184,27 @@ prose. Quoted source text is exempt ([ADR 0001](./adr/0001-research-only-boundar
 so citing such a source is not impossible, but prose built on it is hard to
 frame within the gate. Implication: web utilization is sensitive to what Exa
 returns that day, and rating-heavy result sets appear to depress it. Not
-established. It is a testable follow-up. It also does not rest on a cleared
-code delta. One post-seed collection change remains unexamined, below.
+established. It is a testable follow-up. All three post-seed code-changing
+commits have now been examined, so this finding no longer has an unexamined
+code confounder. It remains a hypothesis: n=3, AMD-specific, the Exa
+result-mix mechanism is unproven and untested.
 
 Three code-changing commits separate the seed's code state from the band
 commit. The seed commit `4af2fcd` sits on a separate branch, but its tree is
 byte-identical to squash commit `b07e624` (both tree `43f1213788ff`), so the
 lineage is checkable: `05cad67`, `7b8e426`, `e88769d`, then docs-only
-`87aa497`. `7b8e426` (`fix(audit): let a claim clear posture by declaring it
-unverified`) was examined and ruled out: it touches only
+`87aa497`. All three have been examined. `7b8e426` (`fix(audit): let a claim
+clear posture by declaring it unverified`) is ruled out: it touches only
 `post-synthesis-audit.ts` / `report-integrity-audit.ts`, which run after
 citation. `e88769d` (`feat(web-evidence): stamp profile origin across reuse
-hops`) was examined and ruled out: purely additive provenance, and it
-explicitly leaves `webGatherAcceptancePolicyForReuse` untouched. `05cad67`
-also changed collection (`src/sources/collector.ts`,
-`verified-market-snapshot.ts`, `yahoo.ts`) and therefore Source Gaps. It was
-not examined. It remains a possible confounder and requires separate
-evaluation. Do not read this utilization hypothesis as if every post-seed
-code change has been excluded.
+hops`) is ruled out: purely additive provenance, and it explicitly leaves
+`webGatherAcceptancePolicyForReuse` untouched. `05cad67` changes only
+`src/sources/collector.ts`, `src/sources/verified-market-snapshot.ts`,
+`src/sources/yahoo.ts`, plus two test files, `.gitignore`, `AGENTS.md`, and a
+deleted `plans/improvements-1.md`. It touches no Web Gather, synthesis,
+research, or citation file, so it is not a plausible cause of the web
+utilization collapse. A weak indirect channel cannot be formally excluded: a
+changed declared Source Gap set could in principle shift what synthesis cites.
 
 Consequence for the AMD 0.40 that prompted this recording: 0.40 is above this
 controlled band's 0.00–0.25. It is not a low outlier against 0.75. Do not

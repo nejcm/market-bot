@@ -32,7 +32,8 @@ statement parity retirement; amended 2026-08-03: interchangeable-alias offline d
 current-report selection and Evidence Quality / Equity Analysis Completeness boundary; amended
 2026-08-15: depository-issuer valuation applicability; amended 2026-08-26: supplemental Evidence
 Quality advisory reasons; amended 2026-08-29: canonical statement facts may be deterministic
-same-period composites)
+same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured-registry and
+expectations entitlement completeness status)
 
 ## Context
 
@@ -282,10 +283,11 @@ without pretending the project has a global security master.
 - Amendment: a completeness dimension is `not-assessed` when it cannot be evaluated because its
   inputs were never configured or available to the deployment, including an unconfigured
   operating-KPI registry or a missing optional provider credential or entitlement, such as Finnhub
-  403 responses for estimates, price-targets, or ownership endpoints. `not-assessed` dimensions
-  never count as complete, and never upgrade a tier or raise the headline grade relative to
-  counting the same dimension as `partial`. This supersedes earlier `partial` wording for those
-  cases. `partial` means the dimension was assessed and its data was incomplete.
+  403 responses for estimate endpoints whose dimension inputs were never assessed.
+  `not-assessed` dimensions never count as complete, and never upgrade a tier or raise the
+  headline grade relative to counting the same dimension as `partial`. This supersedes
+  earlier `partial` wording for those cases. `partial` means the dimension was assessed and its
+  data was incomplete.
 - Primary-financial completeness requires a usable current annual basis, three comparable annual
   periods, one reporting currency, applicable per-share evidence, and either a reconciled TTM or an
   annual-as-current state before the next cadence-specific interim is due. Quarterly, semiannual,
@@ -321,11 +323,12 @@ without pretending the project has a global security master.
   targets may appear only as attributed external context.
 - Slice C1 observes Finnhub analyst-estimate and price-target entitlement per endpoint at runtime.
   A `200` response is consumed without a code or configuration change; a `403` response or missing
-  credential does not fail the run and makes `expectations` `partial` with an entitlement or
-  credential reason code, never `not-applicable`. EPS and revenue consensus can complete the
-  dimension, while the existing earnings-calendar EPS and revenue values remain a complete
-  fallback. Provider price-target values remain structured, attributed external context and never
-  drive completeness or market-bot-authored valuation.
+  credential does not fail the run. `expectations` is `not-assessed` when no expectations inputs
+  were assessed, and `partial` with `expectations-inputs-incomplete` when some were assessed and
+  remain incomplete, with an entitlement or credential reason code, never `not-applicable`.
+  EPS and revenue consensus can complete the dimension, while the existing earnings-calendar EPS
+  and revenue values remain a complete fallback. Provider price-target values remain structured,
+  attributed external context and never drive completeness or market-bot-authored valuation.
 - Slice C2 observes Finnhub institutional-ownership and insider-transaction entitlement per
   endpoint at runtime. A `200` response is consumed by the same code and appends supplementary,
   attributed numeric context plus `ownership-external-context-available`; a `403` response or
@@ -335,9 +338,10 @@ without pretending the project has a global security master.
   its own, or produce `not-applicable`.
 - The operating-KPI completeness dimension is driven by the checked-in per-issuer registry in
   `src/sources/extended-evidence/operating-kpi-registry.ts`, initially covering ASTS and NBIS.
-  Issuers absent from the registry remain `partial` with
-  `operating-kpi-registry-unconfigured`; generic income-statement facts never make the dimension
-  `complete`. `not-applicable` requires an explicit registry declaration whose referenced evidence
+  Issuers absent from the registry are `not-assessed` with
+  `operating-kpi-registry-unconfigured`. The 2026-07-30 amendment superseded earlier `partial`
+  wording for this case. Generic income-statement facts never make the dimension `complete`.
+  `not-applicable` requires an explicit registry declaration whose referenced evidence
   categories resolve to run-present Sources, and credential or entitlement absence never
   qualifies. KPI-value verification and the `complete` path are deferred to a later extraction
   slice; registry concept aliases and source-section rules remain declarative until then.

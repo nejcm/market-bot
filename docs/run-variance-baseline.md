@@ -160,14 +160,22 @@ in all three (4–5 accepted each). The 2026-08-11 Run 2 that the recording plan
 says to exclude had 0 accepted. That is a different phenomenon. Keep every row
 in this band. A future run
 with zero accepted web sources should still be triaged, never excused by this
-band. Runs 1 and 2 raised audit warning `fresh-web-unused:1`. Run 1's analytics
-carries `webSources.usageWarning` "Accepted web-source usage is
-disproportionately low; review gather relevance and synthesis citations."
+band. Runs 1 and 2 raised audit warning `fresh-web-unused:1`, and **both** runs'
+analytics carry `webSources.usageWarning` "Accepted web-source usage is
+disproportionately low; review gather relevance and synthesis citations." Run 3
+(ratio 0.25) carries neither. The warning is not band-specific: historical
+artifact `a0ac583` (ratio 0.20) in `data/runs/` carries the same string.
 
 The reused Web Subject Profile's 3 firecrawl sources were cited 3/3 in every
 run, including the seed (`reusedProfileWebSources = {accepted:3, reportCited:3}`
 throughout). Profile sources did not crowd out fresh ones. Fresh-source citation
 specifically collapsed.
+
+That observation does not on its own isolate _fresh gather_ as the variable.
+All three profile sources are firecrawl and all three are business-and-strategy
+content (TensorWave, the KeyBanc forum, the Q2 results release), so provider and
+content type move together across the profile/fresh split. Separating them needs
+per-source attribution, not the aggregate counts.
 
 ## Utilization finding (hypothesis)
 

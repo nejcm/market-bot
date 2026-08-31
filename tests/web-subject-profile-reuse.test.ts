@@ -9,6 +9,7 @@ import {
   latestSecFilingDate,
   webGatherAcceptancePolicyForReuse,
 } from "../src/web-evidence/web-subject-profile-reuse";
+import { readWebSubjectProfileArtifact } from "../src/run-artifact-evidence-reader";
 import {
   buildWebSubjectProfileEvidence,
   normalizedSubjectId,
@@ -16,9 +17,12 @@ import {
 } from "../src/web-evidence/web-subject-profile";
 import { classifyGap } from "../src/report/gap-triage";
 import type { ExtendedEvidence, Source } from "../src/domain/types";
-import { collectedSources, deepEquityEvidenceBundle } from "./support/fixtures";
+import { collectedSources, deepEquityEvidenceBundle, researchReport } from "./support/fixtures";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { executeEvidenceRequestTool } from "../src/sources/evidence-request-tools";
+import { buildDeepEquityEvidenceBundle } from "../src/deep-equity/evidence";
+import { prepareRunArtifacts } from "../src/artifacts";
+import { persistRunArtifactWrites } from "../src/run-artifact-writer";
 
 const tmpDirs: string[] = [];
 
@@ -77,6 +81,7 @@ function profile(
     readonly subjectKind?: "company" | "crypto-asset" | "theme";
     readonly sourceIds?: readonly string[];
     readonly generatedAt?: string;
+    readonly originRunDirName?: string;
     readonly version?: 2 | 3;
   } = {},
 ): WebSubjectProfileArtifact {
@@ -84,10 +89,13 @@ function profile(
   const subjectKind = input.subjectKind ?? "company";
   const sourceIds = input.sourceIds ?? [webSource.id];
   const answer = { answer: `${symbol} sells devices and services.`, sourceIds };
+  const origin =
+    input.originRunDirName !== undefined ? { originRunDirName: input.originRunDirName } : {};
   if (subjectKind === "crypto-asset") {
     return {
       version: 2,
       generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
+      ...origin,
       subjectKind,
       subjectId: symbol,
       subjectLabel: symbol,
@@ -112,6 +120,7 @@ function profile(
     return {
       version: 2,
       generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
+      ...origin,
       subjectKind,
       subjectId: symbol,
       subjectLabel: "AI infrastructure",
@@ -133,6 +142,7 @@ function profile(
   return {
     version: input.version ?? 3,
     generatedAt: input.generatedAt ?? "2026-05-01T00:00:00.000Z",
+    ...origin,
     subjectKind: "company",
     subjectId: symbol,
     subjectLabel: `${symbol} Inc.`,
@@ -306,6 +316,7 @@ describe("Web Subject Profile reuse", () => {
         assetClass: "equity",
       },
       generatedAt: "2026-05-01T00:00:00.000Z",
+      runId: "prior-aapl",
       modelContent: JSON.stringify({
         ...profile(),
         subjectSummary: { answer: "", sourceIds: [] },
@@ -959,5 +970,229 @@ describe("Web Subject Profile reuse", () => {
       evidence.items.map((item) => latestSecFilingDate({ ...evidence, items: [item] })),
     ).toEqual(["2026-04-01", "2026-05-10", undefined]);
     expect(latestSecFilingDate(evidence)).toBe("2026-05-10");
+  });
+
+  test("first-hop reuse names the generating run as both copied-from and origin", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "A",
+      symbol: "AAPL",
+      artifact: profile({ originRunDirName: "A" }),
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.runDirName).toBe("A");
+    expect(reuse?.originRunDirName).toBe("A");
+  });
+
+  test("chained reuse keeps origin A when C scans B", async () => {
+    const dataDir = tempRunsDir();
+    const originProfile = profile({
+      originRunDirName: "A",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+    });
+    await writePriorRun({
+      dataDir,
+      runId: "A",
+      symbol: "AAPL",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      artifact: originProfile,
+    });
+    const reuseForB = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-10T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    const collectedForB = attachReusableWebSubjectProfile({
+      command,
+      collectedSources: collectedSources(),
+      reuse: reuseForB!,
+    });
+    const base = deepEquityEvidenceBundle();
+    const evidenceBundleForB = buildDeepEquityEvidenceBundle({
+      symbol: "AAPL",
+      analysisAsOf: "2026-05-10T00:00:00.000Z",
+      collectedSources: collectedForB,
+      historicalContext: base.context.historicalContext,
+      sourcePlan: base.governance.sourcePlan,
+      evidenceLanes: base.governance.evidenceLanes,
+      sourceLedger: base.governance.sourceLedger,
+    });
+    const artifactsForB = await prepareRunArtifacts(dataDir, "B");
+    await writeJson(
+      join(artifactsForB.runDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "B",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-05-10T00:00:00.000Z",
+        sources: [webSource],
+        extras: { depth: "deep" },
+      }),
+    );
+    await persistRunArtifactWrites(artifactsForB, [
+      {
+        file: RUN_ARTIFACT_FILES.evidenceBundle,
+        kind: "json",
+        value: evidenceBundleForB,
+      },
+    ]);
+
+    const reuseForC = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuseForC?.runDirName).toBe("B");
+    expect(reuseForC?.originRunDirName).toBe("A");
+    const attached = attachReusableWebSubjectProfile({
+      command,
+      collectedSources: collectedSources(),
+      reuse: reuseForC!,
+    });
+    expect(attached.webSubjectProfileReuse).toEqual({
+      runDirName: "B",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      ageDays: reuseForC!.ageDays,
+      originRunDirName: "A",
+    });
+    expect(attached.webSubjectProfile?.originRunDirName).toBe("A");
+  });
+
+  test("old profiles without origin still reuse and leave origin undefined", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({ dataDir, runId: "prior-aapl", symbol: "AAPL" });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.profile).toMatchObject({ subjectId: "AAPL", version: 3 });
+    expect(reuse?.runDirName).toBe("prior-aapl");
+    expect(reuse?.originRunDirName).toBeUndefined();
+    expect("originRunDirName" in (reuse?.profile ?? {})).toBe(false);
+  });
+
+  test("acceptance policy stays on copied-from utilization when origin would be medium", async () => {
+    const dataDir = tempRunsDir();
+    const originProfile = profile({ originRunDirName: "origin-run" });
+    await writePriorRun({
+      dataDir,
+      runId: "origin-run",
+      symbol: "AAPL",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      artifact: originProfile,
+      analytics: {
+        version: 2,
+        runId: "origin-run",
+        webEvidenceUtilization: {
+          version: 1,
+          acceptedCurrentRun: 10,
+          usedCurrentRun: 3,
+          profileUsed: 3,
+          primaryReportCited: 3,
+          structuredExtraCited: 1,
+          unusedCurrentRun: 7,
+          ratio: 0.3,
+          level: "medium",
+        },
+      },
+    });
+    await writePriorRun({
+      dataDir,
+      runId: "copied-from",
+      symbol: "AAPL",
+      generatedAt: "2026-05-10T00:00:00.000Z",
+      artifact: originProfile,
+      analytics: {
+        version: 2,
+        runId: "copied-from",
+        webEvidenceUtilization: {
+          version: 1,
+          acceptedCurrentRun: 5,
+          usedCurrentRun: 1,
+          profileUsed: 0,
+          primaryReportCited: 1,
+          structuredExtraCited: 0,
+          unusedCurrentRun: 4,
+          ratio: 0.2,
+          level: "low",
+        },
+      },
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.runDirName).toBe("copied-from");
+    expect(reuse?.originRunDirName).toBe("origin-run");
+    expect(webGatherAcceptancePolicyForReuse(reuse!)).toEqual({
+      version: 1,
+      mode: "reused-profile-after-low-utilization",
+      sourceRunDirName: "copied-from",
+      priorUtilizationLevel: "low",
+      priorUtilizationRatio: 0.2,
+      implicitPerQueryAcceptanceCap: 2,
+    });
+  });
+
+  test("origin on an empty profile does not make it reusable", async () => {
+    const dataDir = tempRunsDir();
+    await writePriorRun({
+      dataDir,
+      runId: "empty-origin",
+      symbol: "AAPL",
+      artifact: profile({ sourceIds: [], originRunDirName: "empty-origin" }),
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-20T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
+  test("sidecar reader keeps origin when present and omits it when absent", () => {
+    const withOrigin = profile({ originRunDirName: "origin-a" });
+    expect(readWebSubjectProfileArtifact(withOrigin)?.originRunDirName).toBe("origin-a");
+    expect(readWebSubjectProfileArtifact(structuredClone(withOrigin))?.originRunDirName).toBe(
+      "origin-a",
+    );
+
+    const withoutOrigin = profile();
+    const roundTrip = readWebSubjectProfileArtifact(structuredClone(withoutOrigin));
+    expect(roundTrip).toMatchObject({ subjectId: "AAPL", version: 3 });
+    expect(roundTrip?.originRunDirName).toBeUndefined();
+    expect(
+      readWebSubjectProfileArtifact({ ...withoutOrigin, extraField: "ignored" })?.originRunDirName,
+    ).toBeUndefined();
   });
 });

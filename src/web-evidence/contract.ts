@@ -70,6 +70,7 @@ export interface WebSubjectProfileFact {
 interface WebSubjectProfileBase {
   readonly version: 2 | 3;
   readonly generatedAt: string;
+  readonly originRunDirName?: string;
   readonly subjectKind: SubjectKind;
   readonly subjectId: string;
   readonly subjectLabel?: string;

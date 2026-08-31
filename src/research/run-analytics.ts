@@ -250,6 +250,7 @@ export interface RunAnalytics {
     readonly generatedAt: string;
     readonly ageDays: number;
     readonly runDirName: string;
+    readonly originRunDirName?: string;
   };
   readonly webEvidenceUtilization?: WebEvidenceUtilization;
   readonly webGatherAcceptancePolicy?: WebGatherAcceptancePolicy;
@@ -572,6 +573,9 @@ function webSourceRoles(
             generatedAt: reuse.generatedAt,
             ageDays: reusedProfileAgeDays,
             runDirName: reuse.runDirName,
+            ...(reuse.originRunDirName !== undefined
+              ? { originRunDirName: reuse.originRunDirName }
+              : {}),
           },
         }
       : {}),

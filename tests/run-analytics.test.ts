@@ -1101,6 +1101,41 @@ describe("web source roles accounting", () => {
     });
   });
 
+  test("surfaces origin beside copied-from on reused profile web sources", () => {
+    const report = researchReport({
+      generatedAt: "2026-06-30T13:12:00.000Z",
+      sources: [webSource("web-1"), webSource("web-2"), webSource("web-3")],
+      keyFindings: [{ text: "Finding", sourceIds: ["web-1"] }],
+      predictions: [prediction({ sourceIds: ["web-2"] })],
+    });
+    const collected = collectedSourceBundle({
+      webSubjectProfile: webProfile,
+      webSubjectProfileReuse: {
+        runDirName: "2026-06-28-aapl",
+        generatedAt: "2026-06-28T00:00:00.000Z",
+        originRunDirName: "2026-06-26-origin",
+      },
+    });
+
+    const analytics = buildRunAnalytics({
+      report,
+      trace: webGatherAttemptedTrace,
+      collectedSources: collected,
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.reusedProfileWebSources).toEqual({
+      accepted: 3,
+      reportCited: 2,
+      generatedAt: "2026-06-28T00:00:00.000Z",
+      ageDays: 2.5,
+      runDirName: "2026-06-28-aapl",
+      originRunDirName: "2026-06-26-origin",
+    });
+  });
+
   test("omits reused profile web source telemetry when no reused profile sources are accepted", () => {
     const report = researchReport({
       generatedAt: "2026-07-01T00:00:00.000Z",

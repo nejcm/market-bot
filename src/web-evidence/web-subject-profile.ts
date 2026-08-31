@@ -124,6 +124,7 @@ export function buildWebSubjectProfileEvidence(input: {
   readonly command: ResearchCommand;
   readonly subject: WebSubjectProfileSubject;
   readonly generatedAt: string;
+  readonly runId: string;
   readonly modelContent: string;
   readonly webSources: readonly Source[];
   readonly extendedEvidence: ExtendedEvidence | undefined;
@@ -135,6 +136,7 @@ export function buildWebSubjectProfileEvidence(input: {
     const artifact = emptyArtifact(
       input.subject,
       input.generatedAt,
+      input.runId,
       message,
       input.secFilingBasisDate,
     );
@@ -148,6 +150,7 @@ export function buildWebSubjectProfileEvidence(input: {
     const artifact = emptyArtifact(
       input.subject,
       input.generatedAt,
+      input.runId,
       message,
       input.secFilingBasisDate,
     );
@@ -184,6 +187,7 @@ export function buildWebSubjectProfileEvidence(input: {
   const artifact = profileArtifact({
     subject: input.subject,
     generatedAt: input.generatedAt,
+    originRunDirName: input.runId,
     profile: profileForArtifact,
     sourceIds,
     ...(input.secFilingBasisDate !== undefined
@@ -204,6 +208,7 @@ export function buildWebSubjectProfileFailureEvidence(input: {
   readonly command: ResearchCommand;
   readonly subject: WebSubjectProfileSubject;
   readonly generatedAt: string;
+  readonly runId: string;
   readonly message: string;
   readonly cause: NonNullable<SourceGap["cause"]>;
   readonly extendedEvidence: ExtendedEvidence | undefined;
@@ -212,6 +217,7 @@ export function buildWebSubjectProfileFailureEvidence(input: {
   const artifact = emptyArtifact(
     input.subject,
     input.generatedAt,
+    input.runId,
     input.message,
     input.secFilingBasisDate,
   );
@@ -461,12 +467,14 @@ function emptyQuestions(
 function emptyArtifact(
   subject: WebSubjectProfileSubject,
   generatedAt: string,
+  originRunDirName: string,
   gap: string,
   secFilingBasisDate?: string,
 ): WebSubjectProfileArtifact {
   const base = {
     version: 3 as const,
     generatedAt,
+    originRunDirName,
     subjectKind: subject.subjectKind,
     subjectId: subject.subjectId,
     ...(subject.subjectLabel !== undefined ? { subjectLabel: subject.subjectLabel } : {}),
@@ -509,6 +517,7 @@ function emptyArtifact(
 function profileArtifact(input: {
   readonly subject: WebSubjectProfileSubject;
   readonly generatedAt: string;
+  readonly originRunDirName: string;
   readonly profile: ParsedProfile;
   readonly sourceIds: readonly string[];
   readonly secFilingBasisDate?: string;
@@ -517,6 +526,7 @@ function profileArtifact(input: {
   const base = {
     version: 3 as const,
     generatedAt: input.generatedAt,
+    originRunDirName: input.originRunDirName,
     subjectKind: input.subject.subjectKind,
     subjectId: input.subject.subjectId,
     ...(subjectLabel !== undefined ? { subjectLabel } : {}),

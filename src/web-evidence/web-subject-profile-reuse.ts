@@ -28,6 +28,7 @@ export interface WebSubjectProfileReuse {
   readonly gap: SourceGap;
   readonly runDirName: string;
   readonly ageDays: number;
+  readonly originRunDirName?: string;
   readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
   readonly priorUtilizationRatio?: number;
 }
@@ -141,6 +142,9 @@ export async function findReusableWebSubjectProfile(input: {
       }),
       runDirName: artifact.runDirName,
       ageDays,
+      ...(profile.originRunDirName !== undefined
+        ? { originRunDirName: profile.originRunDirName }
+        : {}),
       ...(priorUtilization !== undefined
         ? {
             priorUtilizationLevel: priorUtilization.level,
@@ -194,6 +198,9 @@ export function attachReusableWebSubjectProfile(input: {
       runDirName: input.reuse.runDirName,
       generatedAt: input.reuse.profile.generatedAt,
       ageDays: input.reuse.ageDays,
+      ...(input.reuse.originRunDirName !== undefined
+        ? { originRunDirName: input.reuse.originRunDirName }
+        : {}),
     },
     sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
   };

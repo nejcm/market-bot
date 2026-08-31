@@ -285,6 +285,34 @@ describe("Subsystem Outcomes", () => {
     );
   });
 
+  test("records origin beside copied-from source run on reused-profile outcomes", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webSubjectProfilePresent: true,
+      webSubjectProfileReuse: {
+        runDirName: "prior-aapl",
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        ageDays: 2.2,
+        originRunDirName: "origin-aapl",
+      },
+    });
+
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "web-subject-profile",
+        expectation: "optional",
+        outcome: "produced",
+        code: "reused-profile",
+        count: 1,
+        detail: {
+          ageDays: 2.2,
+          sourceRunDirName: "prior-aapl",
+          originRunDirName: "origin-aapl",
+        },
+      }),
+    );
+  });
+
   test("derives coded outcomes and a text-free rollup from persisted audits", () => {
     const outcomes = buildSubsystemOutcomes({
       sourcePlan,

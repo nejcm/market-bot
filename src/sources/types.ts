@@ -201,6 +201,7 @@ export interface CollectedSources {
     readonly runDirName: string;
     readonly generatedAt: string;
     readonly ageDays?: number;
+    readonly originRunDirName?: string;
   };
   readonly secTargetPacket?: SecTargetPacket;
   readonly tradierPacket?: TradierPacket;

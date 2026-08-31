@@ -254,6 +254,7 @@ describe("source plan", () => {
         symbol: "AAPL",
       },
       generatedAt,
+      runId: "source-plan-run",
       modelContent,
       webSources: [webSource],
       extendedEvidence: undefined,

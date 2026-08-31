@@ -519,6 +519,7 @@ export function readWebSubjectProfileArtifact(
   }
   const version = value.version as 2 | 3;
   const generatedAt = readString(value, "generatedAt");
+  const originRunDirName = readString(value, "originRunDirName");
   const subjectKind = readSubjectKind(value.subjectKind);
   const subjectId = readString(value, "subjectId");
   if (subjectKind === undefined || subjectId === undefined) {
@@ -549,6 +550,7 @@ export function readWebSubjectProfileArtifact(
   const base = {
     version,
     generatedAt,
+    ...(originRunDirName !== undefined ? { originRunDirName } : {}),
     subjectKind,
     subjectId,
     ...(subjectLabel !== undefined ? { subjectLabel } : {}),

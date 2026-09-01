@@ -336,6 +336,19 @@ export function frameworkGaps(
   );
 }
 
+const FRAMEWORK_GAP_CODE_RE = /^Business Framework partial for [^:]+: (?<code>[a-z-]+): /u;
+
+// Reads back the gap code that frameworkGaps encodes into the message. SourceGap
+// Carries no code field, so this parser and frameworkGaps are one contract; the
+// Round-trip test fails if either side moves.
+export function frameworkGapCode(gap: SourceGap): BusinessFrameworkGapCode | undefined {
+  if (gap.source !== "business-framework") {
+    return undefined;
+  }
+  const code = FRAMEWORK_GAP_CODE_RE.exec(gap.message)?.groups?.code;
+  return code !== undefined && isBusinessFrameworkGapCode(code) ? code : undefined;
+}
+
 export function addBusinessFrameworkEvidence(
   command: ResearchCommand,
   marketSnapshots: readonly MarketSnapshot[],

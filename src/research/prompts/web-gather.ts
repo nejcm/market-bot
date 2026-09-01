@@ -38,7 +38,11 @@ export function buildWebGatherStagePrompt(input: StageInput): string {
     stageGoal: loaded.goal,
     depthProfile: context.depthProfile,
     evidence: buildEvidencePayload(
-      { includePriorCalibration: false, webSourceText: "metadata" },
+      {
+        includePriorCalibration: false,
+        sourceGapView: "web-gather",
+        webSourceText: "metadata",
+      },
       command,
       collectedSources,
       config,

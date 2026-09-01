@@ -324,6 +324,8 @@ Optional citeable provider that does not drive mover ranking, regime labels, or 
 
 Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
 
+Every Source Gap stays declared in the report, analytics, sidecar, and Console. Only the Web Gather stage prompt sees a narrower view that omits gaps no web search can close.
+
 ## Not-Assessed
 
 Completeness status for a dimension that could not be evaluated because its inputs were never

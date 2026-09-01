@@ -30,7 +30,7 @@ export function buildEvidenceRequestStagePrompt(input: StageInput): string {
     stageGoal: loaded.goal,
     depthProfile: context.depthProfile,
     evidence: buildEvidencePayload(
-      { includePriorCalibration: false, webSourceText: "metadata" },
+      { includePriorCalibration: false, sourceGapView: "all", webSourceText: "metadata" },
       command,
       collectedSources,
       config,

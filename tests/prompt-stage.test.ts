@@ -515,14 +515,14 @@ describe("buildStagePrompt", () => {
     const context = contextWithHistory(command);
 
     const profileGuidance = buildEvidencePayload(
-      { includePriorCalibration: false, webSourceText: "profile" },
+      { includePriorCalibration: false, sourceGapView: "all", webSourceText: "profile" },
       command,
       sources,
       config,
       context,
     ).deterministicCitationGuidance as string;
     const finalSynthesisGuidance = buildEvidencePayload(
-      { includePriorCalibration: true, webSourceText: "fresh-only" },
+      { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
       command,
       sources,
       config,

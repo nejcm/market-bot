@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { dedupeSourceGaps, sourceGapScopedReportText } from "../src/domain/source-gaps";
+import { dedupeSourceGaps, sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/types";
 import { classifyGap } from "../src/report/gap-triage";
 import {
   addBusinessFrameworkEvidence,
   classifyBusinessLifecyclePhase,
+  frameworkGapCode,
   frameworkGaps,
   QUALITATIVE_GAPS,
 } from "../src/sources/extended-evidence/business-framework";
@@ -89,9 +90,28 @@ describe("frameworkGaps", () => {
   });
 
   test("renders one object-shaped gap with the golden-stable message", () => {
+    // This exact producer format is parsed by frameworkGapCode.
     expect(frameworkGaps("AAPL", [analystConsensus])[0]?.message).toBe(
       "Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
     );
+  });
+
+  test("round-trips structured gap codes without interpreting legacy or unrelated gaps", () => {
+    for (const expected of QUALITATIVE_GAPS) {
+      expect(frameworkGapCode(frameworkGaps("AAPL", [expected])[0]!)).toBe(expected.code);
+    }
+    expect(frameworkGapCode(sourceGap({ source: "sec-edgar", message: "unavailable" }))).toBe(
+      undefined,
+    );
+    expect(
+      frameworkGapCode(
+        sourceGap({
+          source: "business-framework",
+          message: "Business Framework partial for AAPL: not-a-code: text",
+        }),
+      ),
+    ).toBe(undefined);
+    expect(frameworkGapCode(frameworkGaps("AAPL", ["legacy qualitative gap"])[0]!)).toBe(undefined);
   });
 
   test("renders multiple object-shaped gaps separately in input order", () => {

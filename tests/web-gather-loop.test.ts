@@ -1658,6 +1658,242 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.rejectedRequests).toEqual([]);
   });
 
+  test("rejects a current-subject search that duplicates SEC-covered filing sections", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "AAPL Apple business model overview",
+                searchType: "current-subject",
+              },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        reason: expect.stringContaining("sec-covered-durable-profile"),
+      }),
+    ]);
+  });
+
+  test("accepts a current-subject SEC-covered search when the rationale states a gap", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "AAPL Apple business model overview",
+                searchType: "current-subject",
+              },
+              rationale: "the filing is missing a recent update to the business model",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("keeps news searches exempt from SEC coverage rejection", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model overview", searchType: "news" },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("keeps market searches exempt from SEC coverage rejection", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple business model overview", searchType: "market" },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("keeps reused-profile coverage background-only for current-subject searches", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple revenue model", searchType: "current-subject" },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search" }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
+  test("emits a Source Gap for a rejected current-subject SEC-covered search", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        extendedSources: [secFilingSource()],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "AAPL Apple business model overview",
+                searchType: "current-subject",
+              },
+              rationale: "durable company profile evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(result.collectedSources.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "web-gather",
+        message: expect.stringContaining("sec-covered-durable-profile"),
+      }),
+    );
+  });
+
+  test("does not derive SEC coverage for a thematic current-subject list search", async () => {
+    const prompts: ResearchContext[] = [];
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 8 } },
+      collectedSources: collectedSources({ extendedSources: [secFilingSource()] }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async (_sources, roundContext) => {
+        prompts.push(roundContext);
+        return stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "Top-10 list of promising biotech stocks business model overview",
+                searchType: "current-subject",
+              },
+              rationale: "candidate list evidence",
+            },
+          ],
+        });
+      },
+    });
+
+    expect(prompts[0]?.webGather?.secFilingCoverage).toBeUndefined();
+    expect(result.audit?.acceptedRequests).toEqual([
+      expect.objectContaining({
+        tool: "web_search",
+        args: expect.objectContaining({ numResults: 8 }),
+      }),
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([]);
+  });
+
   test("rejects a background search that duplicates reused profile coverage", async () => {
     const result = await runWebGatherLoop({
       command,

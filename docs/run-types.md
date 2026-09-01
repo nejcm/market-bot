@@ -283,10 +283,10 @@ Exa is the primary web-gather provider. When a configured Exa search/fetch
 hard-fails or returns empty/thin results, a configured Firecrawl fallback may
 serve the same request (fallback-only — it never substitutes for a missing Exa
 key). The web-gather audit records attempted providers, the served provider,
-and the fallback reason. Stage-1 gather also rejects background searches that
-duplicate business-profile sections already covered by the deterministic SEC
-10-K/10-Q packet unless a recency, corroboration, or explicit-gap rationale is
-given (see [ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)).
+and the fallback reason. Stage-1 gather also rejects `background` and `current-subject` searches
+that duplicate business-profile sections already covered by the deterministic SEC 10-K/10-Q
+packet unless a recency, corroboration, or explicit-gap rationale is given; `news` and `market`
+searches are exempt (see [ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)).
 
 ### Model Stages
 

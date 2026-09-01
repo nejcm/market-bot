@@ -16,7 +16,7 @@ const SEC_FILING_SECTION_MARKERS = [
   "Segments",
   "Notes",
 ] as const;
-// Keyword signals tying a background web_search query to a durable-profile area the SEC packet already covers. Deliberately conservative: only queries matching these topics are eligible for rejection, so genuinely uncovered background research is never blocked.
+// Keyword signals tying a background or current-subject web_search query to a durable-profile area the SEC packet already covers. Deliberately conservative: only queries matching these topics are eligible for rejection, so genuinely uncovered background or current-subject research is never blocked.
 const SEC_COVERED_TOPIC_PATTERNS: Readonly<
   Record<(typeof SEC_FILING_SECTION_MARKERS)[number], RegExp>
 > = {
@@ -27,7 +27,7 @@ const SEC_COVERED_TOPIC_PATTERNS: Readonly<
   Segments: /segments?|segment revenue|geographic (revenue|breakdown|mix)|geography/iu,
   Notes: /notes to (the )?financial statements|financial statement notes/iu,
 };
-// Rationale/query language that signals a background search is not merely duplicating filed facts (recency, corroboration, or an explicit gap the filing does not cover).
+// Rationale/query language that signals a background or current-subject search is not merely duplicating filed facts (recency, corroboration, or an explicit gap the filing does not cover).
 const SEC_COVERAGE_ESCAPE_RE =
   /recent|latest|current|update|corroborat|verify|confirm|\bgap\b|not covered|uncovered|missing/iu;
 const REUSED_PROFILE_TOPIC_PATTERNS: Readonly<Record<string, RegExp>> = {
@@ -115,14 +115,14 @@ export function secFilingCoverageFromSources(
   return { present: true, sections: [...sections].toSorted() };
 }
 
-// Rejects a background web_search that targets a durable-profile topic the SEC filing packet already covers and whose rationale gives no recency, corroboration, or explicit gap justification. Returns undefined (accept) for every other case, including when no coverage was derived, non-background searches, and off-topic background searches.
+// Rejects a `background` or `current-subject` web_search that targets a durable-profile topic the SEC filing packet already covers and whose rationale gives no recency, corroboration, or explicit gap justification. `news` and `market` are exempt because both are recency-seeking by definition. Returns undefined (accept) for every other case, including when no coverage was derived (non-company subjects never derive it), exempt search types, and off-topic searches.
 export function secCoverageRejectionReason(
   parsedArgs: { readonly query: string; readonly searchType: WebSearchType },
   rationale: string,
   coverage: WebGatherContext["secFilingCoverage"],
 ): string | undefined {
   if (
-    parsedArgs.searchType !== "background" ||
+    (parsedArgs.searchType !== "background" && parsedArgs.searchType !== "current-subject") ||
     coverage === undefined ||
     !coverage.present ||
     coverage.sections.length === 0
@@ -137,9 +137,10 @@ export function secCoverageRejectionReason(
   if (!targetsCoveredTopic || SEC_COVERAGE_ESCAPE_RE.test(rationale)) {
     return undefined;
   }
-  return "web_search duplicates SEC filing coverage (sec-covered-durable-profile); add a recency, corroboration, or explicit gap rationale for background queries";
+  return "web_search duplicates SEC filing coverage (sec-covered-durable-profile); add a recency, corroboration, or explicit gap rationale for background and current-subject queries";
 }
 
+// Deliberately narrower than `secCoverageRejectionReason`: reused-profile coverage is supplied for `theme` subjects, so applying it to `current-subject` could reject a widened thematic list search (`isThematicListSearch`, below) before it widens. SEC coverage is company-only and cannot reach that path.
 export function reusedProfileCoverageRejectionReason(
   parsedArgs: { readonly query: string; readonly searchType: WebSearchType },
   rationale: string,

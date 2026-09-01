@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { dedupeSourceGaps, sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";
 import type { ExtendedEvidence } from "../src/domain/types";
+import { classifyGap } from "../src/report/gap-triage";
 import {
   addBusinessFrameworkEvidence,
   classifyBusinessLifecyclePhase,
+  frameworkGapCode,
+  frameworkGaps,
+  QUALITATIVE_GAPS,
 } from "../src/sources/extended-evidence/business-framework";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
@@ -76,6 +81,105 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
   };
 }
 
+describe("frameworkGaps", () => {
+  const analystConsensus = QUALITATIVE_GAPS.find((gap) => gap.code === "analyst-consensus")!;
+  const segmentMix = QUALITATIVE_GAPS.find((gap) => gap.code === "segment-mix")!;
+
+  test("returns an empty list for no Business Framework gaps", () => {
+    expect(frameworkGaps("AAPL", [])).toEqual([]);
+  });
+
+  test("renders one object-shaped gap with the golden-stable message", () => {
+    // This exact producer format is parsed by frameworkGapCode.
+    expect(frameworkGaps("AAPL", [analystConsensus])[0]?.message).toBe(
+      "Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
+    );
+  });
+
+  test("round-trips structured gap codes without interpreting legacy or unrelated gaps", () => {
+    for (const expected of QUALITATIVE_GAPS) {
+      expect(frameworkGapCode(frameworkGaps("AAPL", [expected])[0]!)).toBe(expected.code);
+    }
+    expect(frameworkGapCode(sourceGap({ source: "sec-edgar", message: "unavailable" }))).toBe(
+      undefined,
+    );
+    expect(
+      frameworkGapCode(
+        sourceGap({
+          source: "business-framework",
+          message: "Business Framework partial for AAPL: not-a-code: text",
+        }),
+      ),
+    ).toBe(undefined);
+    expect(frameworkGapCode(frameworkGaps("AAPL", ["legacy qualitative gap"])[0]!)).toBe(undefined);
+  });
+
+  test("renders multiple object-shaped gaps separately in input order", () => {
+    const gaps = frameworkGaps("AAPL", [segmentMix, analystConsensus]);
+
+    expect(gaps.map((gap) => gap.message)).toEqual([
+      "Business Framework partial for AAPL: segment-mix: Segment mix is not available from current normalized sources",
+      "Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
+    ]);
+    expect(gaps.every((gap) => !gap.message.includes("; "))).toBe(true);
+  });
+
+  test("renders a legacy string-shaped gap without a code prefix", () => {
+    expect(frameworkGaps("AAPL", ["legacy qualitative gap"])[0]?.message).toBe(
+      "Business Framework partial for AAPL: legacy qualitative gap",
+    );
+  });
+
+  test("renders mixed string and object-shaped gaps independently", () => {
+    expect(
+      frameworkGaps("AAPL", ["legacy qualitative gap", segmentMix]).map((gap) => gap.message),
+    ).toEqual([
+      "Business Framework partial for AAPL: legacy qualitative gap",
+      "Business Framework partial for AAPL: segment-mix: Segment mix is not available from current normalized sources",
+    ]);
+  });
+
+  test("keeps Source Gap context identical across split gaps", () => {
+    for (const gap of frameworkGaps("AAPL", [segmentMix, analystConsensus])) {
+      expect(gap).toMatchObject({
+        source: "business-framework",
+        provider: "market-bot",
+        capability: "extended-evidence",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      });
+      expect(gap).not.toHaveProperty("symbol");
+      expect(gap).not.toHaveProperty("triage");
+      expect(gap).not.toHaveProperty("attempts");
+    }
+  });
+
+  test("adds no Source Gaps for an out-of-scope fully populated evidence set", () => {
+    const existing = evidence();
+    const result = addBusinessFrameworkEvidence(
+      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+      [],
+      existing,
+      undefined,
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(result.sourceGaps).toEqual([]);
+    expect(result.extendedEvidence?.gaps).toEqual([]);
+  });
+
+  test("keeps all twelve Business Framework gaps after dedupe", () => {
+    expect(dedupeSourceGaps(frameworkGaps("AAPL", QUALITATIVE_GAPS))).toHaveLength(12);
+  });
+
+  test("keeps structured and report-text triage material", () => {
+    const gap = frameworkGaps("AAPL", [analystConsensus])[0]!;
+
+    expect(classifyGap(gap)).toBe("material");
+    expect(classifyGap(sourceGapScopedReportText(gap))).toBe("material");
+  });
+});
+
 describe("business framework evidence", () => {
   const phaseCases = [
     {
@@ -148,12 +252,13 @@ describe("business framework evidence", () => {
     expect(result.artifact?.sections.find((section) => section.name === "Phase")?.summary).toBe(
       "Phase classification (Phase capital-return, Revenue YoY 6.0%, Share repurchases $10)",
     );
-    expect(result.sourceGaps).toEqual([
+    expect(result.sourceGaps).toHaveLength(12);
+    expect(result.sourceGaps[0]).toEqual(
       expect.objectContaining({
         source: "business-framework",
         evidenceQualityImpact: "no-cap",
       }),
-    ]);
+    );
   });
 
   test("uses persisted common-period margins when standalone flow facts diverge", () => {

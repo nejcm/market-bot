@@ -248,6 +248,17 @@ describe("loadStagePrompt — real prompt files", () => {
     expect(result.instruction).toContain("`numResults`: 8");
   });
 
+  test("real web-gather prompt scopes the redundancy policy by search type", async () => {
+    const result = await loadStagePrompt("web-gather", dailyEquityCommand);
+
+    expect(result.instruction).toContain(
+      "do not spend a `background` or `current-subject` web search",
+    );
+    expect(result.instruction).toContain(
+      "`news` and `market` searches are not restricted this way",
+    );
+  });
+
   test("real company profile prompt anchors KPIs on the latest filing", async () => {
     const result = await loadStagePrompt("web-subject-profile", dailyEquityCommand);
     expect(result.instruction).toContain(

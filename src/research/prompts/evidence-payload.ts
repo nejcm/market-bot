@@ -19,6 +19,7 @@ import { buildCalibrationBlock } from "../calibration-context";
 import type { SpotlightSelectionResult } from "../spotlights";
 import { deterministicSourceGaps } from "../deterministic-gaps";
 import { moverLimitFor } from "../depth-profile";
+import { collectedSourcesForGapView, type SourceGapView } from "./source-gap-view";
 import { isFreshWebSource, userSteeringField } from "./steering";
 
 function normalizedSymbol(symbol: string): string {
@@ -39,6 +40,9 @@ export function resolveAnalysisAsOf(context: ResearchContext): string {
 export interface EvidencePayloadOptions {
   // Final-synthesis attaches the prior-calibration block.
   readonly includePriorCalibration: boolean;
+  // Which Source Gaps the stage may see. "web-gather" drops gaps no web search
+  // Can close; only buildWebGatherStagePrompt sets it. Everything else: "all".
+  readonly sourceGapView: SourceGapView;
   // Which web-source text projection applies: the profile stage carries summary+snippet
   // (and company SEC filing text); final-synthesis surfaces text for fresh web sources
   // Only; every other stage projects bare metadata.
@@ -206,10 +210,14 @@ function citationGuidanceFor(options: EvidencePayloadOptions): string {
 export function buildEvidencePayload(
   options: EvidencePayloadOptions,
   command: ResearchCommand,
-  collectedSources: CollectedSources,
+  allCollectedSources: CollectedSources,
   config: AppConfig,
   context: ResearchContext,
 ): Record<string, unknown> {
+  // Single narrowing point: every projector below and the sourceGaps field at
+  // The bottom read the stage's view, so new gap-bearing projectors are narrowed
+  // By construction rather than by remembering to filter them.
+  const collectedSources = collectedSourcesForGapView(options.sourceGapView, allCollectedSources);
   const { historicalContext } = context;
   // Movers embed the whole snapshot, so they need the same prompt projection.
   const movers = rankMovers(

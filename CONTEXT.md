@@ -34,7 +34,7 @@ Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Co
 
 Bounded deep-run loop for on-subject `web_search` and allowlisted `web_fetch` through the cached Source Provider seam. Exa is primary; configured Firecrawl is fallback-only for failed or thin Exa responses, never a substitute for a missing `MARKET_BOT_EXA_API_KEY`. It persists Sources, gaps, and audit sidecars.
 
-For company subjects, SEC 10-K/10-Q profile coverage prevents redundant searches; reused profiles narrow implicit per-query ingestion from 5 to 3 results. `web-gather` is Source-Gap taxonomy, not an Evidence Lane.
+For company subjects, SEC 10-K/10-Q profile coverage rejects redundant `background` and `current-subject` searches that give no recency, corroboration, or explicit-gap rationale; reused-profile coverage rejects `background` searches on the same terms only, and `news` and `market` searches are exempt from both. Reused profiles narrow implicit per-query ingestion from 5 to 3 results. `web-gather` is Source-Gap taxonomy, not an Evidence Lane.
 
 ## Web Evidence
 
@@ -323,6 +323,8 @@ Optional citeable provider that does not drive mover ranking, regime labels, or 
 ## Source Gap
 
 Disclosed missing, weak, failed, or stale provider evidence. Persisted research telemetry deduplicates normalized `source: message` text; `web-gather` and compatibility `evidence-request` gaps remain separate because their acquisition paths differ, while both flow through Source Plan lanes.
+
+Every Source Gap stays declared in the report, analytics, sidecar, and Console. Only the Web Gather stage prompt sees a narrower view that omits gaps no web search can close.
 
 ## Not-Assessed
 

@@ -320,18 +320,33 @@ function section(
   };
 }
 
-export function frameworkGap(
+export function frameworkGaps(
   symbol: string,
   gaps: readonly BusinessFrameworkGapValue[],
-): SourceGap {
-  return sourceGap({
-    source: "business-framework",
-    message: `Business Framework partial for ${symbol}: ${gaps.map((gap) => (typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`)).join("; ")}`,
-    provider: "market-bot",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
+): readonly SourceGap[] {
+  return gaps.map((gap) =>
+    sourceGap({
+      source: "business-framework",
+      message: `Business Framework partial for ${symbol}: ${typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`}`,
+      provider: "market-bot",
+      capability: "extended-evidence",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "no-cap",
+    }),
+  );
+}
+
+const FRAMEWORK_GAP_CODE_RE = /^Business Framework partial for [^:]+: (?<code>[a-z-]+): /u;
+
+// Reads back the gap code that frameworkGaps encodes into the message. SourceGap
+// Carries no code field, so this parser and frameworkGaps are one contract; the
+// Round-trip test fails if either side moves.
+export function frameworkGapCode(gap: SourceGap): BusinessFrameworkGapCode | undefined {
+  if (gap.source !== "business-framework") {
+    return undefined;
+  }
+  const code = FRAMEWORK_GAP_CODE_RE.exec(gap.message)?.groups?.code;
+  return code !== undefined && isBusinessFrameworkGapCode(code) ? code : undefined;
 }
 
 export function addBusinessFrameworkEvidence(
@@ -658,7 +673,7 @@ export function addBusinessFrameworkEvidence(
     sourceIds,
     gaps,
   };
-  const sourceGaps = gaps.length === 0 ? [] : [frameworkGap(command.symbol, gaps)];
+  const sourceGaps = frameworkGaps(command.symbol, gaps);
   const mergedEvidence: ExtendedEvidence = {
     instrument: extendedEvidence?.instrument ?? {
       symbol: command.symbol,

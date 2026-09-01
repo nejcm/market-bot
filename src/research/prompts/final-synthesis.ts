@@ -742,7 +742,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     evidence:
       completionContext === undefined
         ? buildEvidencePayload(
-            { includePriorCalibration: true, webSourceText: "fresh-only" },
+            { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
             command,
             collectedSources,
             config,

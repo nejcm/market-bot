@@ -1,6 +1,6 @@
 import type { SourceGap } from "../../domain/types";
 import {
-  frameworkGap,
+  frameworkGaps,
   type BusinessFrameworkArtifact,
   type BusinessFrameworkGapCode,
   type BusinessFrameworkGapValue,
@@ -31,7 +31,7 @@ const PROFILE_GAP_QUESTIONS: readonly {
 
 export interface ReconciliationResult {
   readonly artifact: BusinessFrameworkArtifact;
-  readonly sourceGap: SourceGap | undefined;
+  readonly sourceGaps: readonly SourceGap[];
 }
 
 function gapCode(gap: BusinessFrameworkGapValue): BusinessFrameworkGapCode | undefined {
@@ -105,14 +105,13 @@ export function reconcileBusinessFramework(
   };
   return {
     artifact,
-    sourceGap: gaps.length === 0 ? undefined : frameworkGap(framework.symbol, gaps),
+    sourceGaps: frameworkGaps(framework.symbol, gaps),
   };
 }
 
 function unchanged(framework: BusinessFrameworkArtifact): ReconciliationResult {
   return {
     artifact: framework,
-    sourceGap:
-      framework.gaps.length === 0 ? undefined : frameworkGap(framework.symbol, framework.gaps),
+    sourceGaps: frameworkGaps(framework.symbol, framework.gaps),
   };
 }

@@ -19,7 +19,7 @@ export function buildWebSubjectProfileStagePrompt(input: StageInput): string {
     stageGoal: loaded.goal,
     depthProfile: context.depthProfile,
     evidence: buildEvidencePayload(
-      { includePriorCalibration: false, webSourceText: "profile" },
+      { includePriorCalibration: false, sourceGapView: "all", webSourceText: "profile" },
       command,
       collectedSources,
       config,

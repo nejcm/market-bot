@@ -127,7 +127,8 @@ describe("reconcileBusinessFramework", () => {
       "segment",
       "web-1",
     ]);
-    expect(result.sourceGap?.message).toContain("Analyst consensus");
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps[0]?.message).toContain("Analyst consensus");
   });
 
   test("an uncited answer leaves only its matching gap unresolved", () => {
@@ -188,7 +189,7 @@ describe("reconcileBusinessFramework", () => {
     );
 
     expect(result.artifact.gaps).toEqual([]);
-    expect(result.sourceGap).toBeUndefined();
+    expect(result.sourceGaps).toEqual([]);
   });
 
   test("does not reconcile legacy framework or company profile versions", () => {

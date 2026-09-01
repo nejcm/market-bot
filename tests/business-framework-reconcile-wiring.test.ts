@@ -4,7 +4,7 @@ import type { WebSubjectProfileAnswer, WebSubjectProfileArtifact } from "../src/
 // Internal seam: reconciliation wiring is not part of the package manifest.
 import { reconcileBusinessFrameworkEvidence } from "../src/web-evidence/web-evidence-phase";
 import {
-  frameworkGap,
+  frameworkGaps,
   QUALITATIVE_GAPS,
   type BusinessFrameworkArtifact,
   type BusinessFrameworkGapCode,
@@ -75,17 +75,21 @@ function framework(gaps: readonly BusinessFrameworkGapValue[]): BusinessFramewor
   };
 }
 
-function bundle(artifact: BusinessFrameworkArtifact, staleGap: SourceGap, webProfile = profile()) {
+function bundle(
+  artifact: BusinessFrameworkArtifact,
+  staleGaps: readonly SourceGap[],
+  webProfile = profile(),
+) {
   const extendedEvidence: ExtendedEvidence = {
     instrument: { symbol: "AAPL", assetClass: "equity" },
     items: [],
-    gaps: [staleGap],
+    gaps: [...staleGaps],
   };
   return collectedSourceBundle({
     businessFramework: artifact,
     webSubjectProfile: webProfile,
     extendedEvidence,
-    sourceGaps: [staleGap],
+    sourceGaps: [...staleGaps],
   });
 }
 
@@ -93,7 +97,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
   test("replaces the stale gap in source and extended evidence collections", () => {
     const artifact = framework([gap("segment-mix"), gap("analyst-consensus")]);
     const result = reconcileBusinessFrameworkEvidence(
-      bundle(artifact, frameworkGap("AAPL", artifact.gaps)),
+      bundle(artifact, frameworkGaps("AAPL", artifact.gaps)),
     );
 
     expect(result.businessFramework?.gaps).toEqual([gap("analyst-consensus")]);
@@ -109,7 +113,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
   test("removes the gap from both collections when all present codes resolve", () => {
     const artifact = framework([gap("segment-mix")]);
     const result = reconcileBusinessFrameworkEvidence(
-      bundle(artifact, frameworkGap("AAPL", artifact.gaps)),
+      bundle(artifact, frameworkGaps("AAPL", artifact.gaps)),
     );
 
     expect(result.sourceGaps.filter((entry) => entry.source === "business-framework")).toEqual([]);
@@ -130,7 +134,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
     };
     const artifact = framework([gap("segment-mix"), gap("analyst-consensus")]);
     const result = reconcileBusinessFrameworkEvidence(
-      bundle(artifact, frameworkGap("AAPL", artifact.gaps), partialProfile),
+      bundle(artifact, frameworkGaps("AAPL", artifact.gaps), partialProfile),
     );
 
     expect(result.businessFramework?.gaps).toEqual([gap("analyst-consensus")]);
@@ -138,31 +142,38 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
 
   test("returns the original collection when no present code resolves", () => {
     const artifact = framework([gap("customer-concentration")]);
-    const staleGap = frameworkGap("AAPL", artifact.gaps);
-    const collected = bundle(artifact, staleGap, profile({ answer: "Consumers", sourceIds: [] }));
+    const staleGaps = frameworkGaps("AAPL", artifact.gaps);
+    const collected = bundle(artifact, staleGaps, profile({ answer: "Consumers", sourceIds: [] }));
 
     expect(reconcileBusinessFrameworkEvidence(collected)).toBe(collected);
   });
 
   test("preserves unrelated gaps", () => {
-    const artifact = framework([gap("segment-mix"), gap("analyst-consensus")]);
-    const staleGap = frameworkGap("AAPL", artifact.gaps);
+    const artifact = framework([
+      gap("segment-mix"),
+      gap("customer-concentration"),
+      gap("analyst-consensus"),
+    ]);
+    const staleGaps = frameworkGaps("AAPL", artifact.gaps);
     const otherGap: SourceGap = {
       source: "web-subject-profile",
       message: "profile freshness gap",
       capability: "extended-evidence",
     };
     const collected = collectedSourceBundle({
-      ...bundle(artifact, staleGap),
-      sourceGaps: [staleGap, otherGap],
+      ...bundle(artifact, staleGaps, profile({ answer: "Consumers", sourceIds: [] })),
+      sourceGaps: [...staleGaps, otherGap],
       extendedEvidence: {
         instrument: { symbol: "AAPL", assetClass: "equity" },
         items: [],
-        gaps: [staleGap, otherGap],
+        gaps: [...staleGaps, otherGap],
       },
     });
 
     const result = reconcileBusinessFrameworkEvidence(collected);
+    expect(result.sourceGaps.filter((entry) => entry.source === "business-framework")).toHaveLength(
+      2,
+    );
     expect(result.sourceGaps).toContainEqual(otherGap);
     expect(result.extendedEvidence?.gaps).toContainEqual(otherGap);
   });

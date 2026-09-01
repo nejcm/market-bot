@@ -33,7 +33,8 @@ current-report selection and Evidence Quality / Equity Analysis Completeness bou
 2026-08-15: depository-issuer valuation applicability; amended 2026-08-26: supplemental Evidence
 Quality advisory reasons; amended 2026-08-29: canonical statement facts may be deterministic
 same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured-registry and
-expectations entitlement completeness status)
+expectations entitlement completeness status; amended 2026-09-01: web-gather SEC coverage
+guard extended to current-subject searches)
 
 ## Context
 
@@ -132,8 +133,10 @@ without pretending the project has a global security master.
   pricing evidence. Audits record attempted/serving providers, fallback reason, and returned paid
   credits.
 - For company subjects, Stage-1 gather derives durable sections already covered by the SEC 10-K/Q
-  packet and rejects duplicate background searches without a recency, corroboration, or explicit-gap
-  rationale.
+  packet and rejects duplicate `background` and `current-subject` searches without a recency,
+  corroboration, or explicit-gap rationale; `news` and `market` remain exempt. Reused Web Subject
+  Profile coverage applies the same test to `background` searches only, because it is also supplied
+  for `theme` subjects, where it could otherwise reject a widened thematic list search.
 - Deep US-equity filing evidence includes the latest 10-K, a newer current 10-Q when present, and up
   to two 8-K current reports within 120 days of collection. Routine 8-Ks must postdate the newest
   periodic filing; the newest Item 2.02 within the window gets one slot regardless of that floor.

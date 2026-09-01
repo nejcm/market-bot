@@ -230,25 +230,25 @@
       }
     },
     "sourceGaps": {
-      "total": 16,
+      "total": 27,
       "bySource": {
         "marketaux-news": 1,
         "sec-edgar": 12,
         "fred-macro": 1,
         "valuation-peers": 1,
-        "business-framework": 1
+        "business-framework": 12
       },
       "byTriage": {
         "diagnostic": 13,
-        "material": 3
+        "material": 14
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 2,
-      "provider-data-missing": 14
+      "provider-data-missing": 25
     },
     "dataGaps": {
-      "total": 18
+      "total": 29
     }
   },
   "providerEndpointAvailability": {
@@ -457,10 +457,10 @@
         "subject-profile: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 18,
+    "dataGapCount": 29,
     "extendedEvidence": {
       "itemCount": 13,
-      "gapCount": 15,
+      "gapCount": 26,
       "itemsByCategory": {
         "sec-edgar": 1,
         "equity-events": 1,
@@ -477,7 +477,7 @@
         "sec-edgar": 12,
         "fred-macro": 1,
         "valuation-peers": 1,
-        "business-framework": 1
+        "business-framework": 12
       }
     },
     "marketContext": {

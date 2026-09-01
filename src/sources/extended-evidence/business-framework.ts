@@ -320,18 +320,20 @@ function section(
   };
 }
 
-export function frameworkGap(
+export function frameworkGaps(
   symbol: string,
   gaps: readonly BusinessFrameworkGapValue[],
-): SourceGap {
-  return sourceGap({
-    source: "business-framework",
-    message: `Business Framework partial for ${symbol}: ${gaps.map((gap) => (typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`)).join("; ")}`,
-    provider: "market-bot",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
+): readonly SourceGap[] {
+  return gaps.map((gap) =>
+    sourceGap({
+      source: "business-framework",
+      message: `Business Framework partial for ${symbol}: ${typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`}`,
+      provider: "market-bot",
+      capability: "extended-evidence",
+      cause: "provider-data-missing",
+      evidenceQualityImpact: "no-cap",
+    }),
+  );
 }
 
 export function addBusinessFrameworkEvidence(
@@ -658,7 +660,7 @@ export function addBusinessFrameworkEvidence(
     sourceIds,
     gaps,
   };
-  const sourceGaps = gaps.length === 0 ? [] : [frameworkGap(command.symbol, gaps)];
+  const sourceGaps = frameworkGaps(command.symbol, gaps);
   const mergedEvidence: ExtendedEvidence = {
     instrument: extendedEvidence?.instrument ?? {
       symbol: command.symbol,

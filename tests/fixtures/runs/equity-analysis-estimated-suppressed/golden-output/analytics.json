@@ -224,7 +224,7 @@
       }
     },
     "sourceGaps": {
-      "total": 22,
+      "total": 33,
       "bySource": {
         "marketaux-news": 1,
         "sec-edgar": 12,
@@ -236,20 +236,20 @@
         "finnhub-insider-transactions": 1,
         "fred-macro": 1,
         "valuation-peers": 1,
-        "business-framework": 1
+        "business-framework": 12
       },
       "byTriage": {
         "diagnostic": 19,
-        "material": 3
+        "material": 14
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 2,
-      "provider-data-missing": 14,
+      "provider-data-missing": 25,
       "unsupported-coverage": 6
     },
     "dataGaps": {
-      "total": 25
+      "total": 36
     }
   },
   "providerEndpointAvailability": {
@@ -464,10 +464,10 @@
         "subject-profile: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 25,
+    "dataGapCount": 36,
     "extendedEvidence": {
       "itemCount": 7,
-      "gapCount": 21,
+      "gapCount": 32,
       "itemsByCategory": {
         "sec-edgar": 1,
         "equity-events": 1,
@@ -487,7 +487,7 @@
         "finnhub-insider-transactions": 1,
         "fred-macro": 1,
         "valuation-peers": 1,
-        "business-framework": 1
+        "business-framework": 12
       }
     },
     "marketContext": {

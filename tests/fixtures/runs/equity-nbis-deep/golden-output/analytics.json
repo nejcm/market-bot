@@ -204,7 +204,7 @@
       }
     },
     "sourceGaps": {
-      "total": 19,
+      "total": 30,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -220,23 +220,23 @@
         "tradier-options": 1,
         "valuation-peers": 1,
         "valuation": 1,
-        "business-framework": 1,
+        "business-framework": 12,
         "sec-untagged-financials": 1,
         "equity-analysis-completeness": 2
       },
       "byTriage": {
         "diagnostic": 12,
-        "material": 7
+        "material": 18
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
-      "provider-data-missing": 4,
+      "provider-data-missing": 15,
       "unsupported-coverage": 2,
       "suppressed-by-design": 2
     },
     "dataGaps": {
-      "total": 21
+      "total": 32
     }
   },
   "providerEndpointAvailability": {
@@ -461,10 +461,10 @@
         "subject-profile: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 21,
+    "dataGapCount": 32,
     "extendedEvidence": {
       "itemCount": 8,
-      "gapCount": 14,
+      "gapCount": 25,
       "itemsByCategory": {
         "sec-edgar": 4,
         "valuation": 1,
@@ -485,7 +485,7 @@
         "tradier-options": 1,
         "valuation-peers": 1,
         "valuation": 1,
-        "business-framework": 1
+        "business-framework": 12
       }
     },
     "marketContext": {

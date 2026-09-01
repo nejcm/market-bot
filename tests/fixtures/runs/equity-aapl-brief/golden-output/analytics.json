@@ -173,7 +173,7 @@
       }
     },
     "sourceGaps": {
-      "total": 9,
+      "total": 20,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -183,19 +183,19 @@
         "tradier-options": 1,
         "valuation": 1,
         "financial-lens": 1,
-        "business-framework": 1
+        "business-framework": 12
       },
       "byTriage": {
         "diagnostic": 5,
-        "material": 4
+        "material": 15
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 5,
-      "provider-data-missing": 4
+      "provider-data-missing": 15
     },
     "dataGaps": {
-      "total": 11
+      "total": 22
     }
   },
   "providerEndpointAvailability": {
@@ -401,10 +401,10 @@
         "derivatives-volatility: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 11,
+    "dataGapCount": 22,
     "extendedEvidence": {
       "itemCount": 4,
-      "gapCount": 7,
+      "gapCount": 18,
       "itemsByCategory": {
         "sec-edgar": 1,
         "yahoo-fundamentals": 1,
@@ -418,7 +418,7 @@
         "tradier-options": 1,
         "valuation": 1,
         "financial-lens": 1,
-        "business-framework": 1
+        "business-framework": 12
       }
     },
     "marketContext": {

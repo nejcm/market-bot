@@ -148,7 +148,7 @@ export function reconcileBusinessFrameworkEvidence(
   }
   const replaceGap = (gaps: readonly SourceGap[]): readonly SourceGap[] => {
     const kept = gaps.filter((gap) => gap.source !== "business-framework");
-    return result.sourceGap !== undefined ? [...kept, result.sourceGap] : kept;
+    return [...kept, ...result.sourceGaps];
   };
   const extendedEvidence =
     collectedSources.extendedEvidence === undefined

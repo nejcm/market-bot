@@ -18,7 +18,10 @@ The orchestration skills (`improve-market-runs`, `run-review`) are heavy on purp
 2. **Predictions must be observable.** Resolvable from public price data ([ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md)).
 3. **No secrets in code, tests, or fixtures.** Env vars only.
 4. **Bun + oxc only.** No Node, Prettier, ESLint, or Biome ([ADR 0002](./docs/adr/0002-typescript-bun-orchestration.md)).
-5. **No unsolicited planning docs.** `plans/` was deliberately purged.
+5. **No unsolicited planning docs, and never commit one.** `plans/` is gitignored in
+   full — write there only when I ask for a document, and never `git add -f` it,
+   move it under `docs/`, or reproduce it in a commit message or PR body. A
+   requested plan or run review is a working artifact for me, not a repo record.
 
 Research-only is regex-enforced in `src/domain/research-language.ts`; the line is narrower than it looks:
 

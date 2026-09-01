@@ -35,7 +35,7 @@ scripts/              Coverage floor, fixture record/replay, and provider probe 
 tests/                Bun test suites
 app/                  Local Svelte + Bun Research Console App
 docs/adr/             Architecture decision records
-plans/                Curated planning docs (humans only)
+plans/                Requested planning docs, humans only (gitignored, never committed)
 data/                 Run artifacts and calibration output (gitignored)
 ```
 

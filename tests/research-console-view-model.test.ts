@@ -3,6 +3,7 @@ import { reportSearchCandidates } from "../app/report-artifact-view";
 import {
   calibrationAutopsyCauses,
   calibrationHeadline,
+  calibrationMetricNote,
   calibrationSampleWarning,
   calibrationSlices,
   alphaCohortHeadline,
@@ -53,6 +54,7 @@ import {
   instrumentPath,
   isFailedRun,
 } from "../app/client/view-model";
+import { MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 
 describe("research console app view model", () => {
   test("round-trips instrument routes with normalized symbols", () => {
@@ -650,6 +652,25 @@ describe("research console app view model", () => {
   });
 });
 
+function sliceRowsForCount(count: unknown) {
+  return calibrationSlices(
+    { summary: { byKind: { direction: { brierScore: 0.25, count } } } },
+    "byKind",
+  );
+}
+
+function binsForCounts(hitCount: unknown, totalCount: unknown) {
+  return reliabilityBins({
+    summary: {
+      bins: [{ pLow: 0.6, pHigh: 0.7, label: "0.6-0.7", hitRate: 0, hitCount, totalCount }],
+    },
+  });
+}
+
+function autopsyRowsForCount(count: unknown) {
+  return calibrationAutopsyCauses({ summary: { byMissAutopsyCause: { source_gap: count } } });
+}
+
 describe("calibration view model", () => {
   const detail = {
     summary: {
@@ -694,10 +715,122 @@ describe("calibration view model", () => {
       resolvedCount: 13,
       generatedAt: "2026-06-10T05:53:20.310Z",
     });
-    expect(calibrationHeadline({})).toEqual({ resolvedCount: 0 });
-    expect(calibrationHeadline({ summary: { brierScore: Number.NaN } })).toEqual({
-      resolvedCount: 0,
+    // An unknown resolved count stays unknown: collapsing it into 0 would assert
+    // An empty Calibration corpus that the summary never claimed.
+    expect(calibrationHeadline({})).toEqual({});
+    expect(calibrationHeadline({ summary: { brierScore: Number.NaN } })).toEqual({});
+    expect(calibrationHeadline({ summary: { resolvedCount: "many", hitRate: 0 } })).toEqual({
+      hitRate: 0,
     });
+  });
+
+  test("drops a Brier score outside the achievable [0, 1] range", () => {
+    // A binary Brier score is a squared error against a 0/1 outcome, so 1.5 is
+    // Not a worse score — it is not a score. Same rule the hit rate already had.
+    for (const brierScore of [1.5, -0.1]) {
+      expect(calibrationHeadline({ summary: { resolvedCount: 13, brierScore } })).toEqual({
+        resolvedCount: 13,
+      });
+    }
+    expect(
+      calibrationHeadline({ summary: { resolvedCount: 13, brierScore: 1, hitRate: 0 } }),
+    ).toEqual({ resolvedCount: 13, brierScore: 1, hitRate: 0 });
+
+    // The slice rows share the bound with the headline.
+    expect(
+      calibrationSlices(
+        { summary: { byKind: { direction: { brierScore: 1.5, count: 4 } } } },
+        "byKind",
+      ),
+    ).toEqual([]);
+  });
+
+  test("keeps the two count rules distinguishable", () => {
+    // A slice sample size is >= 1: the producer only keys a metric where a pair
+    // Landed, so 0 is impossible rather than small.
+    for (const count of [-1, 0, 1.5]) {
+      expect(sliceRowsForCount(count)).toEqual([]);
+    }
+    expect(sliceRowsForCount(1)).toEqual([{ key: "direction", brierScore: 0.25, count: 1 }]);
+
+    // A bin total obeys the same >= 1 rule, but its hit count may be a real 0.
+    expect(binsForCounts(0, 4)).toEqual([
+      { label: "0.6-0.7", pLow: 0.6, pHigh: 0.7, hitRate: 0, hitCount: 0, totalCount: 4 },
+    ]);
+    expect(binsForCounts(-1, 4)).toEqual([]);
+    expect(binsForCounts(0, 0)).toEqual([]);
+
+    // Autopsy causes are plain occurrence counts, so 0 is valid and -1 is not.
+    expect(autopsyRowsForCount(0)).toEqual([{ cause: "source_gap", count: 0 }]);
+    expect(autopsyRowsForCount(-1)).toEqual([]);
+    expect(autopsyRowsForCount(2.5)).toEqual([]);
+  });
+
+  test("treats a finite but impossible resolved count as unknown", () => {
+    // A negative or fractional count is not a smaller corpus; it is a summary
+    // That does not say, so it must never render as "-1 resolved forecasts".
+    for (const resolvedCount of [-1, 1.5, Number.POSITIVE_INFINITY]) {
+      const headline = calibrationHeadline({ summary: { resolvedCount, hitRate: 0 } });
+      expect(headline).toEqual({ hitRate: 0 });
+      expect(calibrationSampleWarning(headline)).toEqual({
+        show: false,
+        minimum: MIN_CALIBRATION_SAMPLE,
+      });
+      // Unknown is not an empty corpus, so the caption must not claim one.
+      expect(calibrationMetricNote(headline, undefined, "measured")).toBe(
+        "metric unavailable in this summary",
+      );
+    }
+  });
+
+  test("withholds the small-sample warning when the resolved count is unknown", () => {
+    expect(calibrationSampleWarning(calibrationHeadline({}))).toEqual({
+      show: false,
+      minimum: MIN_CALIBRATION_SAMPLE,
+    });
+    expect(calibrationSampleWarning({ resolvedCount: 0 })).toEqual({
+      show: true,
+      resolvedCount: 0,
+      minimum: MIN_CALIBRATION_SAMPLE,
+    });
+    expect(calibrationSampleWarning({ resolvedCount: MIN_CALIBRATION_SAMPLE })).toEqual({
+      show: false,
+      minimum: MIN_CALIBRATION_SAMPLE,
+    });
+  });
+
+  test("captions a missing headline metric by why it is missing", () => {
+    const measured = "0 = perfect · 0.25 = always 0.5";
+
+    // Present metric: the explanatory caption, whatever the count says.
+    expect(calibrationMetricNote({ resolvedCount: 1 }, 0, measured)).toBe(measured);
+    expect(calibrationMetricNote({ resolvedCount: 0 }, 0.64, measured)).toBe(measured);
+
+    // Explicit zero resolutions: nothing has been measured yet.
+    expect(calibrationMetricNote({ resolvedCount: 0 }, undefined, measured)).toBe(
+      "no resolved forecasts yet",
+    );
+
+    // Forecasts resolved, or the count is unknown: a defective summary, not an
+    // Empty corpus. It must not claim nothing has resolved.
+    expect(calibrationMetricNote({ resolvedCount: 13 }, undefined, measured)).toBe(
+      "metric unavailable in this summary",
+    );
+    expect(calibrationMetricNote({}, undefined, measured)).toBe(
+      "metric unavailable in this summary",
+    );
+  });
+
+  test("drops zero headline metrics from a zero-resolution summary", () => {
+    expect(
+      calibrationHeadline({ summary: { resolvedCount: 0, hitRate: 0, brierScore: 0 } }),
+    ).toEqual({ resolvedCount: 0 });
+  });
+
+  test("keeps a measured zero hit rate once a single prediction has resolved", () => {
+    expect(
+      calibrationHeadline({ summary: { resolvedCount: 1, hitRate: 0, brierScore: 0.64 } }),
+    ).toEqual({ resolvedCount: 1, hitRate: 0, brierScore: 0.64 });
   });
 
   test("filters and sorts sparse reliability bins", () => {
@@ -735,9 +868,9 @@ describe("calibration view model", () => {
       resolvedCount: 3,
       minimum: 5,
     });
+    // A hidden warning carries no count: there is nothing to render it into.
     expect(calibrationSampleWarning({ resolvedCount: 5 })).toEqual({
       show: false,
-      resolvedCount: 5,
       minimum: 5,
     });
   });

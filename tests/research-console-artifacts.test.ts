@@ -525,6 +525,95 @@ describe("research console app artifacts", () => {
     });
   });
 
+  test("strips zero headline metrics from a calibration summary stored before the invariant", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const calibrationDir = join(rootDir, "calibration");
+    mkdirSync(dataDir);
+    mkdirSync(calibrationDir);
+    writeJson(join(calibrationDir, "summary.json"), {
+      generatedAt: "2026-09-01T00:00:00.000Z",
+      resolvedCount: 0,
+      hitRate: 0,
+      brierScore: 0,
+      brierSkillScore: 1,
+      bins: [],
+      missAutopsyCount: 0,
+    });
+    writeFileSync(
+      join(calibrationDir, "summary.md"),
+      [
+        "# Calibration Summary",
+        "",
+        "Resolved predictions: 0",
+        "",
+        "Overall Brier score: 0.0000",
+        "",
+        "Overall hit rate: 0.0%",
+        "",
+        "Brier skill vs always-0.5 baseline: 1.0000 (0 = no edge, 1 = perfect, <0 = worse than a coin flip)",
+        "",
+        "_No populated bins yet._",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const detail = await readCalibrationSummary(dataDir);
+
+    expect(detail.summary).toEqual({
+      generatedAt: "2026-09-01T00:00:00.000Z",
+      resolvedCount: 0,
+      bins: [],
+      missAutopsyCount: 0,
+    });
+    // The stale rendering must not serve 0.0000 beside a normalized summary.
+    expect(detail.markdown).toContain(
+      "Overall Brier score: not yet measured (no resolved Predictions)",
+    );
+    expect(detail.markdown).toContain(
+      "Overall hit rate: not yet measured (no resolved Predictions)",
+    );
+    expect(detail.markdown).toContain(
+      "Brier skill vs always-0.5 baseline: not yet measured (no resolved Predictions)",
+    );
+    expect(detail.markdown).not.toContain("0.0000");
+    expect(detail.markdown).not.toContain("0.0%");
+    // The legacy legend goes with the number: "1 = perfect" is the misleading half.
+    expect(detail.markdown).not.toContain("1 = perfect");
+    expect(detail.markdown).not.toContain("1.0000");
+    // Everything outside the two headline lines survives verbatim.
+    expect(detail.markdown).toContain("Resolved predictions: 0");
+    expect(detail.markdown).toContain("_No populated bins yet._");
+  });
+
+  test("keeps a measured zero hit rate when predictions have resolved", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
+    const dataDir = join(rootDir, "runs");
+    const calibrationDir = join(rootDir, "calibration");
+    mkdirSync(dataDir);
+    mkdirSync(calibrationDir);
+    writeJson(join(calibrationDir, "summary.json"), {
+      resolvedCount: 1,
+      hitRate: 0,
+      brierScore: 0.64,
+      brierSkillScore: -1.56,
+    });
+    const markdown = [
+      "Overall Brier score: 0.6400",
+      "",
+      "Overall hit rate: 0.0%",
+      "",
+      "Brier skill vs always-0.5 baseline: -1.5600 (0 = no edge, 1 = perfect, <0 = worse than a coin flip)",
+    ].join("\n");
+    writeFileSync(join(calibrationDir, "summary.md"), markdown, "utf8");
+
+    // A forecaster measured once and right zero times keeps every stored value.
+    await expect(readCalibrationSummary(dataDir)).resolves.toEqual({
+      summary: { resolvedCount: 1, hitRate: 0, brierScore: 0.64, brierSkillScore: -1.56 },
+      markdown,
+    });
+  });
+
   test("reads alpha cohort sibling artifacts", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "research-console-data-"));
     const dataDir = join(rootDir, "runs");

@@ -6,6 +6,7 @@ import {
   renderCalibrationConsole,
   MIN_CALIBRATION_SAMPLE,
 } from "../src/scoring/calibration-console";
+import { NO_RESOLVED_METRIC_TEXT } from "../src/scoring/calibration-invariant";
 import { buildMissAutopsyFile, forecastErrorDirection } from "../src/scoring/miss-autopsy";
 import type { MarketRegimeLabel, Prediction, ResearchReport } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
@@ -851,11 +852,67 @@ describe("buildCalibrationSummary", () => {
     expect(summary.brierScore).toBe(1);
   });
 
-  test("returns zero for empty input", () => {
+  test("omits hit rate and Brier score entirely for an empty corpus", () => {
     const summary = buildCalibrationSummary([], new Date("2026-05-19T00:00:00.000Z"));
     expect(summary.resolvedCount).toBe(0);
-    expect(summary.brierScore).toBe(0);
     expect(summary.bins).toHaveLength(0);
+    expect(summary.brierScore).toBeUndefined();
+    expect(summary.hitRate).toBeUndefined();
+    // Absence must survive serialization as absence: a `null` here would coerce
+    // Back to 0 in any downstream comparison or average.
+    const serialized = JSON.stringify(summary);
+    expect(serialized).not.toContain("brierScore");
+    expect(serialized).not.toContain("hitRate");
+  });
+
+  // A measured 0 is not an absent metric. Pinned on every surface so a future
+  // Truthiness check (`if (summary.hitRate)`) cannot silently reclassify a
+  // Forecaster that was right zero times out of one as one never measured.
+  test("renders a genuine zero hit rate on every surface", () => {
+    const summary = buildCalibrationSummary(
+      [
+        {
+          prediction: { ...basePrediction, probability: 0.8 },
+          score: makeScore("miss"),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+        },
+      ],
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
+
+    expect(summary.resolvedCount).toBe(1);
+    expect(summary.hitRate).toBe(0);
+    expect(summary.brierScore).toBeCloseTo(0.64, 10);
+
+    const markdown = renderCalibrationMarkdown(summary);
+    expect(markdown).toContain("Overall Brier score: 0.6400");
+    expect(markdown).toContain("Overall hit rate: 0.0%");
+    expect(markdown).not.toContain(NO_RESOLVED_METRIC_TEXT);
+
+    const consoleOutput = renderCalibrationConsole(summary);
+    expect(consoleOutput).toContain("Hit rate:    0.0%");
+    expect(consoleOutput).toContain("Brier score: 0.6400");
+    expect(consoleOutput).not.toContain(NO_RESOLVED_METRIC_TEXT);
+  });
+
+  test("omits both metrics when every resolved pair is legacy policy-v2", () => {
+    const summary = buildCalibrationSummary(
+      [
+        {
+          prediction: basePrediction,
+          score: makeScore("hit", { scoringVersion: 2 }),
+          assetClass: "equity" as const,
+          jobType: "daily" as const,
+          runId: "r1",
+        },
+      ],
+      new Date("2026-05-19T00:00:00.000Z"),
+    );
+    expect(summary.resolvedCount).toBe(0);
+    expect(summary.brierScore).toBeUndefined();
+    expect(summary.hitRate).toBeUndefined();
   });
 
   test("reports hit rate and omits the legacy baseline-skill field", () => {
@@ -1108,6 +1165,22 @@ describe("buildCalibrationSummary", () => {
     expect(renderCalibrationMarkdown(summary)).toContain(
       "_No resolved market-update predictions yet._",
     );
+  });
+
+  test("names the absence instead of printing zeros for an empty corpus", () => {
+    const summary = buildCalibrationSummary([], new Date("2026-05-19T00:00:00.000Z"));
+
+    const markdown = renderCalibrationMarkdown(summary);
+    expect(markdown).toContain(`Overall Brier score: ${NO_RESOLVED_METRIC_TEXT}`);
+    expect(markdown).toContain(`Overall hit rate: ${NO_RESOLVED_METRIC_TEXT}`);
+    expect(markdown).not.toContain("0.0000");
+    expect(markdown).not.toContain("0.0%");
+
+    const consoleOutput = renderCalibrationConsole(summary);
+    expect(consoleOutput).toContain(`Brier score: ${NO_RESOLVED_METRIC_TEXT}`);
+    expect(consoleOutput).toContain(`Hit rate:    ${NO_RESOLVED_METRIC_TEXT}`);
+    expect(consoleOutput).not.toContain("0.0000");
+    expect(consoleOutput).toContain("Small sample (0 of 5 minimum)");
   });
 
   test("renders hit rate and omits baseline skill in the markdown summary", () => {

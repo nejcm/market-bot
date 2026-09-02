@@ -1,4 +1,5 @@
 import { MIN_CALIBRATION_SAMPLE } from "./calibration";
+import { NO_RESOLVED_METRIC_TEXT } from "./calibration-invariant";
 import type { CalibrationMetric, CalibrationSummary } from "./types";
 
 export { MIN_CALIBRATION_SAMPLE } from "./calibration";
@@ -26,8 +27,8 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
     `Calibration dashboard — ${summary.generatedAt}`,
     "",
     `  Resolved:    ${String(summary.resolvedCount)} predictions`,
-    `  Hit rate:    ${fmtRate(summary.hitRate)}`,
-    `  Brier score: ${fmtBrier(summary.brierScore)}`,
+    `  Hit rate:    ${summary.hitRate === undefined ? NO_RESOLVED_METRIC_TEXT : fmtRate(summary.hitRate)}`,
+    `  Brier score: ${summary.brierScore === undefined ? NO_RESOLVED_METRIC_TEXT : fmtBrier(summary.brierScore)}`,
     `  Conditional: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
   ];
 

@@ -608,13 +608,16 @@ describe("run artifact index", () => {
     const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
 
     expect(summary?.resolvedCount).toBe(0);
-    expect(summary?.hitRate).toBe(0);
+    expect(summary?.hitRate).toBeUndefined();
     expect(summary).not.toHaveProperty("brierSkillScore");
     const persisted = JSON.parse(
       await Bun.file(join(calibrationDir, "summary.json")).text(),
     ) as Record<string, unknown>;
     expect(persisted.resolvedCount).toBe(0);
     expect(persisted).not.toHaveProperty("brierSkillScore");
+    // The legacy 0.1 Brier must not be replaced by a 0 that reads as perfect.
+    expect(persisted).not.toHaveProperty("brierScore");
+    expect(persisted).not.toHaveProperty("hitRate");
   });
 
   test("falls back to disk for calibration when the index is still schema v9", async () => {

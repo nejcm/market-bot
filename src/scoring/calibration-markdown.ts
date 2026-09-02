@@ -1,4 +1,5 @@
 import { MIN_CALIBRATION_SAMPLE, UNKNOWN_REGIME_BUCKET } from "./calibration";
+import { NO_RESOLVED_METRIC_TEXT } from "./calibration-invariant";
 import type { CalibrationMetric, CalibrationSummary } from "./types";
 
 function formatBrier(value: number): string {
@@ -94,9 +95,9 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
   }
 
   lines.push(
-    `Overall Brier score: ${formatBrier(summary.brierScore)}`,
+    `Overall Brier score: ${summary.brierScore === undefined ? NO_RESOLVED_METRIC_TEXT : formatBrier(summary.brierScore)}`,
     "",
-    `Overall hit rate: ${formatRate(summary.hitRate)}%`,
+    `Overall hit rate: ${summary.hitRate === undefined ? NO_RESOLVED_METRIC_TEXT : `${formatRate(summary.hitRate)}%`}`,
     "",
     `Conditional Predictions: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,
     "",

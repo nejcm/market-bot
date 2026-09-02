@@ -228,6 +228,48 @@ describe("parseCalibrationContext", () => {
     expect(parseCalibrationContext([{ brierScore: 0.25 }])).toBeUndefined();
   });
 
+  test("drops zero headline metrics from a summary that resolved nothing", () => {
+    // Summaries written before the zero-resolution invariant still hold these
+    // Zeros; a stored Brier of 0 must not reach synthesis as perfect calibration.
+    const parsed = parseCalibrationContext({
+      generatedAt: "2026-09-01T00:00:00.000Z",
+      resolvedCount: 0,
+      hitRate: 0,
+      brierScore: 0,
+      brierSkillScore: 1,
+      missAutopsyCount: 0,
+    });
+
+    expect(parsed).toEqual({
+      generatedAt: "2026-09-01T00:00:00.000Z",
+      resolvedCount: 0,
+      missAutopsyCount: 0,
+    });
+  });
+
+  test("drops a finite but impossible resolved count", () => {
+    // Shares the Console boundary's definition: a count is a non-negative integer.
+    for (const resolvedCount of [-1, 1.5]) {
+      expect(parseCalibrationContext({ resolvedCount, missAutopsyCount: 2 })).toEqual({
+        missAutopsyCount: 2,
+      });
+    }
+    // A count that is neither valid nor 0 is unknown, so it does not strip metrics.
+    expect(parseCalibrationContext({ resolvedCount: -1, brierScore: 0.25 })).toEqual({
+      brierScore: 0.25,
+    });
+  });
+
+  test("keeps a measured zero hit rate once a prediction has resolved", () => {
+    const parsed = parseCalibrationContext({
+      resolvedCount: 1,
+      hitRate: 0,
+      brierScore: 0.64,
+    });
+
+    expect(parsed).toEqual({ resolvedCount: 1, hitRate: 0, brierScore: 0.64 });
+  });
+
   test("passes a well-formed summary through intact", () => {
     const summary = validSummary();
 

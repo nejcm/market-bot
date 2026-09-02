@@ -467,7 +467,8 @@ describe("runCli", () => {
 
     const output = await runCli(["calibration"]);
     expect(output).toContain("Resolved:    0 predictions");
-    expect(output).toContain("Hit rate:    0.0%");
+    expect(output).toContain("Hit rate:    not yet measured (no resolved Predictions)");
+    expect(output).toContain("Brier score: not yet measured (no resolved Predictions)");
     expect(output).toContain("Small sample (0 of 5 minimum)");
   });
 

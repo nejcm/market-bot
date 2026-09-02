@@ -150,14 +150,19 @@ function routeHasCause(route: ProviderRouteHealth, cause: SourceGapCause): boole
 }
 
 /*
- * True when `cause` is the only gap cause the route recorded at all.
+ * True when EVERY gap the route aggregated carried `cause`.
+ *
+ * Reconciled against `total`, not read off `causes`. `causes` counts only gaps that declared one
+ * (provider-health.ts increments it under `gap.cause !== undefined`), while `total` counts them
+ * all — so a cause-less gap lands in `total` and in one of the class counters and leaves no trace
+ * in `causes`. Inspecting `causes` alone therefore called a route "sole cause" while a genuine
+ * cause-less HTTP failure sat beside the routine one, downgrading a broken route to informational.
  *
  * Sole-cause is the whole point: a routine outcome stops being routine the moment it appears
  * alongside a real defect, and a mixed route must keep its blocking classification.
  */
 function routeSoleCause(route: ProviderRouteHealth, cause: SourceGapCause): boolean {
-  const observed = Object.entries(route.causes).filter(([, count]) => count > 0);
-  return observed.length === 1 && observed[0]?.[0] === cause;
+  return route.total > 0 && (route.causes[cause] ?? 0) === route.total;
 }
 
 function routeRunIds(
@@ -191,7 +196,15 @@ function classifyRoute(
       reason: "FRED macro coverage is baseline-required.",
     };
   }
-  if (provider === "yahoo" && (route.yahooAuth > 0 || routeHasCause(route, "fetch-failed"))) {
+  /*
+   * The fetchFailed counter records cause-less HTTP failures too, which routeHasCause cannot see.
+   * CoinGecko below has always checked its counter; Yahoo did not, so a cause-less transport
+   * failure on the primary equity source reached the generic fallback instead of this rule.
+   */
+  if (
+    provider === "yahoo" &&
+    (route.yahooAuth > 0 || route.fetchFailed > 0 || routeHasCause(route, "fetch-failed"))
+  ) {
     return {
       ...base,
       classification: "blocking",

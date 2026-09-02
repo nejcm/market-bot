@@ -71,6 +71,7 @@ describe("buildValidation route classification", () => {
         route({
           route: "yahoo-verified-chart",
           provider: "yahoo",
+          total: 1,
           causes: { "session-in-progress": 1 },
         }),
       ],
@@ -89,6 +90,7 @@ describe("buildValidation route classification", () => {
         route({
           route: "yahoo-verified-chart",
           provider: "yahoo",
+          total: 2,
           causes: { "session-in-progress": 1, "malformed-response": 1 },
         }),
       ],
@@ -98,6 +100,86 @@ describe("buildValidation route classification", () => {
     expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe("blocking");
   });
 
+  /*
+   * The counters and the cause table disagree by design: `causes` records only gaps that declared
+   * a cause, `total` records every gap. This route aggregates a routine trim with a cause-less
+   * HTTP failure, so `causes` sees one clean entry while a real provider failure sits beside it.
+   * Reading `causes` alone called this sole-cause and downgraded a broken route to informational.
+   */
+  test("keeps a route blocking when a cause-less gap sits beside the trimmed session", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          total: 2,
+          causes: { "session-in-progress": 1 },
+          fetchFailed: 1,
+        }),
+      ],
+      true,
+      NOW,
+    );
+    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe("blocking");
+  });
+
+  test("keeps a non-Yahoo route blocking when a cause-less gap joins the trimmed session", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "provider-chart",
+          provider: "provider-1",
+          total: 2,
+          causes: { "session-in-progress": 1 },
+          other: 1,
+        }),
+      ],
+      true,
+      NOW,
+    );
+    expect(classificationFor(summary, "provider-chart")?.classification).toBe("blocking");
+  });
+
+  test("still treats an all-trim route as informational when several runs aggregate", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          total: 3,
+          causes: { "session-in-progress": 3 },
+          other: 3,
+        }),
+      ],
+      true,
+      NOW,
+    );
+    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe(
+      "informational",
+    );
+  });
+
+  /*
+   * Yahoo is the primary equity source but was the only primary-source rule not reading its own
+   * fetchFailed counter (CoinGecko below always has). A cause-less transport failure still blocked,
+   * via the generic fallback, but was reported as an unclassified gap rather than as the primary
+   * market-data source failing.
+   */
+  test("attributes a cause-less Yahoo transport failure to the primary-source rule", () => {
+    const summary = buildValidation(
+      [],
+      [route({ route: "yahoo-chart", provider: "yahoo", total: 1, fetchFailed: 1 })],
+      true,
+      NOW,
+    );
+    const classification = classificationFor(summary, "yahoo-chart");
+    expect(classification?.classification).toBe("blocking");
+    expect(classification?.reason).toBe("Yahoo is the primary equity market-data source.");
+  });
+
   test("keeps a fetch-failed Yahoo route blocking even beside a trimmed session", () => {
     const summary = buildValidation(
       [],
@@ -105,6 +187,7 @@ describe("buildValidation route classification", () => {
         route({
           route: "yahoo-verified-chart",
           provider: "yahoo",
+          total: 2,
           causes: { "session-in-progress": 1, "fetch-failed": 1 },
         }),
       ],

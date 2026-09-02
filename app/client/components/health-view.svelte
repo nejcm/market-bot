@@ -31,8 +31,9 @@
       </span>
       <span class="flex-1 text-[12.5px] leading-normal text-[#4a4334]">
         {degradedCount}
-        provider {degradedCount === 1 ? "route is" : "routes are"} reporting gaps. Affected runs record
-        each miss as a data gap rather than hiding it.
+        provider {degradedCount === 1 ? "route is" : "routes are"} degraded. Affected runs record each
+        miss as a data gap, or — when a fallback provider covered the request — as a degraded endpoint
+        rather than hiding it.
       </span>
       <button
         class="px-0.5 text-sm text-[#8a7a52] transition hover:text-[#4a4334] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8a6116]"

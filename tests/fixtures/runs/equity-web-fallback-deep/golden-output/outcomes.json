@@ -96,6 +96,25 @@
     "count": 3
   },
   {
+    "subsystem": "web-search-provider",
+    "expectation": "expected",
+    "outcome": "failed",
+    "code": "primary-provider-degraded",
+    "stage": "web-gather",
+    "count": 1,
+    "detail": {
+      "requestCount": 1,
+      "exaFallbackCount": 1,
+      "exaHardFailureCount": 0,
+      "firecrawlAttemptCount": 1,
+      "firecrawlServedCount": 1,
+      "firecrawlKeyMissing": false,
+      "fetchRequestCount": 2,
+      "fetchExaFallbackCount": 0,
+      "fetchFirecrawlServedCount": 0
+    }
+  },
+  {
     "subsystem": "web-subject-profile",
     "expectation": "optional",
     "outcome": "produced",

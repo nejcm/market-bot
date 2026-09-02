@@ -321,6 +321,16 @@
       "status": "missing-credential",
       "evidence": ["marketaux-news"],
       "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+    },
+    "exaSearch": {
+      "status": "unmeasured",
+      "evidence": [],
+      "reason": "Web Gather did not run for this run"
+    },
+    "firecrawlSearch": {
+      "status": "unmeasured",
+      "evidence": [],
+      "reason": "Web Gather did not run for this run"
     }
   },
   "newsDedupe": {

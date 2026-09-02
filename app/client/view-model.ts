@@ -105,6 +105,9 @@ export interface ProviderHealthRow {
   readonly degraded: boolean;
   readonly total: number;
   readonly gaps: number;
+  /** Runs where the endpoint reported `degraded` in analytics. A covered web-search fallback
+   *  raises this without raising `gaps`: it deliberately emits no Source Gap. */
+  readonly degradedRuns: number;
   readonly note: string;
 }
 
@@ -228,6 +231,7 @@ export function providerHealthRows(detail: ProviderHealthDetail): readonly Provi
     )
     .map((route) => {
       const gaps = PROVIDER_GAP_KEYS.reduce((sum, key) => sum + readCount(route, key), 0);
+      const degradedRuns = readCount(route, "degraded");
       const { sampleMessages } = route;
       const note =
         Array.isArray(sampleMessages) && typeof sampleMessages[0] === "string"
@@ -237,9 +241,10 @@ export function providerHealthRows(detail: ProviderHealthDetail): readonly Provi
       return {
         provider: typeof route.provider === "string" ? route.provider : "unknown",
         route: typeof route.route === "string" ? route.route : "",
-        degraded: gaps > 0,
+        degraded: gaps > 0 || degradedRuns > 0,
         total: readCount(route, "total"),
         gaps,
+        degradedRuns,
         note,
       };
     });

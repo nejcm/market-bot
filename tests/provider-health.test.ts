@@ -4,7 +4,15 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Database } from "bun:sqlite";
-import type { AssetClass, JobType, Source, SourceGap } from "../src/domain/types";
+import type {
+  AssetClass,
+  JobType,
+  Source,
+  SourceGap,
+  WebGatherLoopAudit,
+} from "../src/domain/types";
+
+type WebGatherAuditEntry = WebGatherLoopAudit["acceptedRequests"][number];
 import {
   buildProviderHealthSummary,
   parseSourceGap,
@@ -12,7 +20,7 @@ import {
 } from "../src/health/provider-health";
 import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
-import { deepEquityEvidenceBundle } from "./support/fixtures";
+import { deepEquityEvidenceBundle, failedRunOutcomesArtifact } from "./support/fixtures";
 
 let tmpDir = "";
 let dataDir = "";
@@ -31,6 +39,7 @@ interface RunFixture {
   readonly relevantRepeatKeptCount?: number;
   readonly predictions?: readonly { readonly horizonTradingDays: number }[];
   readonly scores?: readonly { readonly resolved: boolean }[];
+  readonly endpointAvailability?: Record<string, unknown>;
 }
 
 beforeEach(() => {
@@ -45,6 +54,52 @@ afterEach(() => {
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, undefined, 2)}\n`, "utf8");
+}
+
+function searchFallback(servedProvider?: "firecrawl"): WebGatherAuditEntry {
+  return {
+    round: 1,
+    tool: "web_search",
+    status: "accepted",
+    fallback: {
+      attemptedProviders: ["exa", "firecrawl"],
+      ...(servedProvider !== undefined ? { servedProvider } : {}),
+      fallbackReason: "hard-failure",
+    },
+  };
+}
+
+async function writeFailedRun(
+  runId: string,
+  generatedAt: string,
+  acceptedRequests: readonly WebGatherAuditEntry[],
+): Promise<void> {
+  await writeJson(join(dataDir, runId, RUN_ARTIFACT_FILES.failure), {
+    runId,
+    generatedAt,
+    jobType: "equity",
+    assetClass: "equity",
+  });
+  await writeJson(
+    join(dataDir, runId, RUN_ARTIFACT_FILES.outcomes),
+    failedRunOutcomesArtifact({
+      rounds: 1,
+      acceptedRequests,
+      rejectedRequests: [],
+      sourceUnitsUsed: 2 * acceptedRequests.length,
+      executedTools: acceptedRequests.map(() => "web_search" as const),
+      emittedGaps: [],
+      sanitizer: {
+        sourceCount: 0,
+        sanitizedSourceCount: 0,
+        emptyAfterSanitizeCount: 0,
+        inputCharCount: 0,
+        outputCharCount: 0,
+        removedInstructionSpanCount: 0,
+        removedChromeHtmlCount: 0,
+      },
+    }),
+  );
 }
 
 function newsSource(id: string): Partial<Source> {
@@ -134,6 +189,9 @@ async function writeRun(fixture: RunFixture): Promise<void> {
         gapCount: 0,
       },
     },
+    ...(fixture.endpointAvailability !== undefined
+      ? { providerEndpointAvailability: fixture.endpointAvailability }
+      : {}),
   });
   await writeJson(join(dataDir, fixture.runId, "score.json"), {
     scores: fixture.scores ?? [],
@@ -768,5 +826,247 @@ describe("provider health", () => {
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
       String.raw`provider returned a \| separated message`,
     );
+  });
+
+  test("projects a covered web-search degradation into its own route without touching gap counts", async () => {
+    const degraded = {
+      exaSearch: {
+        status: "degraded",
+        evidence: ["exa-search"],
+        reason: "Exa search was unusable for 1 of 3 web search request(s)",
+      },
+      firecrawlSearch: { status: "available", evidence: ["firecrawl-search"] },
+    };
+    await writeRun({
+      runId: "covered-fallback",
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+      endpointAvailability: degraded,
+    });
+    await writeRun({
+      runId: "covered-fallback-and-gap",
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+      endpointAvailability: degraded,
+      gaps: [
+        {
+          source: "exa",
+          provider: "exa",
+          cause: "circuit-open",
+          message: "exa-search circuit open for api.exa.ai",
+        },
+      ],
+    });
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    // One increment per affected run, however many requests fell back inside that run.
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({
+        route: "exaSearch",
+        provider: "exa",
+        total: 2,
+        degraded: 2,
+        missingCredential: 0,
+        fetchFailed: 0,
+        yahooAuth: 0,
+        other: 0,
+      }),
+    );
+    // An uncovered Exa failure still lands on its own gap-derived route; the two never merge.
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({
+        route: "exa",
+        provider: "exa",
+        total: 1,
+        degraded: 0,
+        fetchFailed: 1,
+      }),
+    );
+    // An `available` endpoint contributes no route at all.
+    expect(summary.routes.map((route) => route.route)).not.toContain("firecrawlSearch");
+    // The projection is invisible to the Source Gap totals: every unit counted in `gapOverview`
+    // Comes from a route with no degradation counter, and the degraded routes add nothing to it.
+    expect(
+      summary.routes.filter((route) => route.degraded > 0).map((route) => route.route),
+    ).toEqual(["exaSearch"]);
+    expect(summary.routes.find((route) => route.route === "exaSearch")?.degradedCovered).toBe(2);
+    expect(summary.validation.routeClassifications).toContainEqual(
+      expect.objectContaining({
+        route: "exaSearch",
+        classification: "expected",
+        reason: "The primary web-search provider degraded and a fallback provider served the run.",
+      }),
+    );
+    expect(summary.gapOverview.total).toBe(
+      summary.routes
+        .filter((route) => route.degraded === 0)
+        .reduce((total, route) => total + route.total, 0),
+    );
+  });
+
+  test("blocks readiness when the fallback itself failed and no Source Gap route survives", async () => {
+    // No `normalized/source-gaps.json`: the reader supplies no gaps, so nothing but the analytics
+    // Projection can report this run. The fallback ran and served nothing, so neither endpoint may
+    // Be classified as covered.
+    await writeJson(join(dataDir, "failed-fallback", "report.json"), {
+      runId: "failed-fallback",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+      sources: [],
+      predictions: [],
+    });
+    await writeJson(join(dataDir, "failed-fallback", "analytics.json"), {
+      providerEndpointAvailability: {
+        exaSearch: {
+          status: "degraded",
+          evidence: [],
+          reason: "Exa search was unusable for 1 of 1 web search request(s)",
+        },
+        firecrawlSearch: {
+          status: "degraded",
+          evidence: [],
+          reason:
+            "Firecrawl search fallback ran for 1 web search request(s) without serving a usable result",
+        },
+      },
+    });
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.gapOverview.total).toBe(0);
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "exaSearch", degraded: 1, degradedCovered: 0 }),
+    );
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "firecrawlSearch", degraded: 1, degradedCovered: 0 }),
+    );
+    for (const route of ["exaSearch", "firecrawlSearch"]) {
+      expect(summary.validation.routeClassifications).toContainEqual(
+        expect.objectContaining({
+          route,
+          classification: "blocking",
+          reason:
+            "A web-search provider degraded with no fallback coverage on 1 of 1 affected run(s).",
+        }),
+      );
+    }
+  });
+
+  test("keeps a partially covered run uncovered end to end", async () => {
+    await writeRun({
+      runId: "partial-coverage",
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      depth: "deep",
+      endpointAvailability: {
+        exaSearch: {
+          status: "degraded",
+          evidence: ["exa-search"],
+          reason: "Exa search was unusable for 2 of 2 web search request(s)",
+        },
+        firecrawlSearch: {
+          status: "degraded",
+          evidence: ["firecrawl-search"],
+          reason: "Firecrawl search served only 1 of 2 fallback web search request(s)",
+        },
+      },
+    });
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "exaSearch", degraded: 1, degradedCovered: 0 }),
+    );
+    expect(summary.validation.routeClassifications).toContainEqual(
+      expect.objectContaining({ route: "exaSearch", classification: "blocking" }),
+    );
+  });
+
+  test("reports a web-search degradation recorded only on a Failed Run Artifact", async () => {
+    // No report.json, no analytics.json, no source-gaps.json: outcomes.json is the only record, and
+    // It is produced by the real writer so a producer-side rename cannot leave this test green.
+    await writeFailedRun("failed-covered", "2026-06-01T01:00:00.000Z", [
+      searchFallback("firecrawl"),
+      { round: 1, tool: "web_search", status: "accepted" },
+    ]);
+    await writeFailedRun("failed-uncovered", "2026-06-01T02:00:00.000Z", [
+      searchFallback("firecrawl"),
+      searchFallback(),
+    ]);
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    // Two failed runs degraded Exa; only the run whose every fallback was served counts as covered.
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "exaSearch", degraded: 2, degradedCovered: 1 }),
+    );
+    // The partially served run also degrades Firecrawl itself, which can never be covered.
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "firecrawlSearch", degraded: 1, degradedCovered: 0 }),
+    );
+    expect(summary.gapOverview.total).toBe(0);
+    expect(summary.validation.routeClassifications).toContainEqual(
+      expect.objectContaining({
+        route: "exaSearch",
+        classification: "blocking",
+        reason:
+          "A web-search provider degraded with no fallback coverage on 1 of 2 affected run(s).",
+      }),
+    );
+  });
+
+  test("reports no web-search route for a failed run whose outcome row carries no detail", async () => {
+    // The writer emits `no-accepted-requests` without a detail block when the stage accepted
+    // Nothing. There are no counts to read, so the reader must contribute no route rather than
+    // Inventing a zeroed one.
+    await writeFailedRun("failed-no-detail", "2026-06-01T01:00:00.000Z", []);
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(
+      summary.routes.map((route) => route.route).filter((route) => route.endsWith("Search")),
+    ).toEqual([]);
+  });
+
+  test("reports no web-search route when a detail count the reader needs is absent", async () => {
+    // Deliberately hand-written: it stands in for producer drift (a renamed or dropped count) that
+    // The writer cannot currently emit. The reader must fail closed rather than read a partial row.
+    await writeJson(join(dataDir, "failed-partial-detail", RUN_ARTIFACT_FILES.failure), {
+      runId: "failed-partial-detail",
+      generatedAt: "2026-06-01T01:00:00.000Z",
+      jobType: "equity",
+      assetClass: "equity",
+    });
+    await writeJson(join(dataDir, "failed-partial-detail", RUN_ARTIFACT_FILES.outcomes), [
+      {
+        subsystem: "web-search-provider",
+        expectation: "expected",
+        outcome: "failed",
+        code: "primary-provider-degraded",
+        stage: "web-gather",
+        count: 1,
+        detail: {
+          requestCount: 1,
+          exaFallbackCount: 1,
+          exaHardFailureCount: 1,
+          firecrawlAttemptCount: 1,
+        },
+      },
+    ]);
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(
+      summary.routes.map((route) => route.route).filter((route) => route.endsWith("Search")),
+    ).toEqual([]);
   });
 });

@@ -172,6 +172,10 @@ function routeRunIds(
   return route.runIds.filter((runId) => runsById.has(runId));
 }
 
+function gapClassTotal(route: ProviderRouteHealth): number {
+  return route.missingCredential + route.fetchFailed + route.yahooAuth + route.other;
+}
+
 function classifyRoute(
   route: ProviderRouteHealth,
   runsById: ReadonlyMap<string, RunHealth>,
@@ -293,6 +297,30 @@ function classifyRoute(
       ...base,
       classification: "expected",
       reason: "Missing optional provider credentials are disclosed as coverage gaps.",
+    };
+  }
+  /*
+   * Web-search degradation routes come from `analytics.json`, not Source Gaps, so they carry no gap
+   * class and would otherwise fall through to "unclassified". Warn requires verified coverage on
+   * every affected run — `degradedCovered === degraded` — because `degraded` alone only says a
+   * fallback was entered. A degraded `firecrawlSearch` route means the mitigation itself returned
+   * nothing usable, so it can never reach the warn branch. Anything short of full coverage stays
+   * blocking: an uncovered web-search failure must not read as a healthy fallback, and the run's
+   * own Source Gap routes cannot be relied on to catch it (a missing or malformed source-gaps.json
+   * yields no gaps at all).
+   */
+  if (route.degraded > 0 && gapClassTotal(route) === 0) {
+    if (route.degradedCovered === route.degraded) {
+      return {
+        ...base,
+        classification: "expected",
+        reason: "The primary web-search provider degraded and a fallback provider served the run.",
+      };
+    }
+    return {
+      ...base,
+      classification: "blocking",
+      reason: `A web-search provider degraded with no fallback coverage on ${String(route.degraded - route.degradedCovered)} of ${String(route.degraded)} affected run(s).`,
     };
   }
   return {

@@ -138,6 +138,38 @@ describe("research console app view model", () => {
     expect(filterRuns(runs, "daily", "aapl")).toEqual([]);
   });
 
+  test("marks a web-search route degraded from the analytics projection, with no gaps", () => {
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [
+            {
+              provider: "exa",
+              route: "exaSearch",
+              total: 2,
+              degraded: 2,
+              missingCredential: 0,
+              fetchFailed: 0,
+              yahooAuth: 0,
+              other: 0,
+              sampleMessages: ["Exa search was unusable for 1 of 3 web search request(s)"],
+            },
+          ],
+        },
+      }),
+    ).toEqual([
+      {
+        provider: "exa",
+        route: "exaSearch",
+        degraded: true,
+        total: 2,
+        gaps: 0,
+        degradedRuns: 2,
+        note: "Exa search was unusable for 1 of 3 web search request(s)",
+      },
+    ]);
+  });
+
   test("derives provider health rows from route gap counts", () => {
     expect(providerHealthRows({})).toEqual([]);
     expect(providerHealthRows({ summary: { routes: "broken" } })).toEqual([]);
@@ -167,6 +199,7 @@ describe("research console app view model", () => {
         degraded: true,
         total: 12,
         gaps: 3,
+        degradedRuns: 0,
         note: "auth expired",
       },
       {
@@ -175,6 +208,7 @@ describe("research console app view model", () => {
         degraded: false,
         total: 8,
         gaps: 0,
+        degradedRuns: 0,
         note: "",
       },
       {
@@ -183,6 +217,7 @@ describe("research console app view model", () => {
         degraded: false,
         total: 0,
         gaps: 0,
+        degradedRuns: 0,
         note: "",
       },
     ]);

@@ -146,6 +146,15 @@ not read this divergence as config drift.
 | `operatingKpis.status`                                    | not-assessed                        | not-assessed                        | not-assessed                        | stable at `not-assessed`     |
 | Estimated tokens (`trace.json:tokenEstimate`)             | 322,692                             | 332,889                             | 363,527                             | 322,692–363,527              |
 
+The `subsystemOutcomes.byOutcome.failed` band above was recorded before the
+`web-search-provider` Subsystem Outcome existed. That row records
+`primary-provider-degraded` as `failed` when the primary web-search provider was
+unusable for at least one `web_search` request, including when the Firecrawl
+fallback covered it, so a future run with a covered fallback reads 1 here
+without being a defective run. The historical band stays as recorded; read a 1
+against the run's `providerEndpointAvailability.exaSearch` row before treating it
+as drift.
+
 `sourceFunnel.sourceGapsByCause.provider-data-missing` is 7 in all three band
 runs, 6 in the seed, and 5 in the 2026-08-11 baseline. Absolute levels are not
 comparable across baselines. `05cad67` (`feat(market-data): declare sessions

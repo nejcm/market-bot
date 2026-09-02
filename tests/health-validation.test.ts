@@ -22,6 +22,8 @@ function route(overrides: Partial<ProviderRouteHealth> = {}): ProviderRouteHealt
     route: "route-1",
     provider: "provider-1",
     total: 1,
+    degraded: 0,
+    degradedCovered: 0,
     missingCredential: 0,
     fetchFailed: 0,
     yahooAuth: 0,
@@ -350,5 +352,64 @@ describe("buildValidation synthetic issues", () => {
     const classes = summary.routeClassifications.map((item) => item.classification);
     // "blocking" sorts before "expected".
     expect(classes.indexOf("blocking")).toBeLessThan(classes.lastIndexOf("expected"));
+  });
+
+  test("warns only when every degraded web-search run was actually covered by the fallback", () => {
+    const summary = buildValidation(
+      [run({ runId: "run-1" })],
+      [
+        route({
+          route: "exaSearch",
+          provider: "exa",
+          total: 2,
+          degraded: 2,
+          degradedCovered: 2,
+          other: 0,
+        }),
+      ],
+      true,
+      NOW,
+    );
+
+    expect(classificationFor(summary, "exaSearch")).toMatchObject({
+      classification: "expected",
+      reason: "The primary web-search provider degraded and a fallback provider served the run.",
+    });
+  });
+
+  test("blocks a degraded web-search route whose fallback served nothing", () => {
+    const summary = buildValidation(
+      [run({ runId: "run-1" })],
+      [
+        route({
+          route: "exaSearch",
+          provider: "exa",
+          total: 2,
+          degraded: 2,
+          degradedCovered: 1,
+          other: 0,
+        }),
+        route({
+          route: "firecrawlSearch",
+          provider: "firecrawl",
+          total: 1,
+          degraded: 1,
+          degradedCovered: 0,
+          other: 0,
+        }),
+      ],
+      true,
+      NOW,
+    );
+
+    expect(classificationFor(summary, "exaSearch")).toMatchObject({
+      classification: "blocking",
+      reason: "A web-search provider degraded with no fallback coverage on 1 of 2 affected run(s).",
+    });
+    expect(classificationFor(summary, "firecrawlSearch")).toMatchObject({
+      classification: "blocking",
+      reason: "A web-search provider degraded with no fallback coverage on 1 of 1 affected run(s).",
+    });
+    expect(summary.status).toBe("fail");
   });
 });

@@ -235,6 +235,16 @@
       "status": "missing-credential",
       "evidence": ["marketaux-news"],
       "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+    },
+    "exaSearch": {
+      "status": "missing-credential",
+      "evidence": ["web-gather"],
+      "reason": "search-unavailable: MARKET_BOT_EXA_API_KEY is not set; web gather skipped"
+    },
+    "firecrawlSearch": {
+      "status": "unmeasured",
+      "evidence": [],
+      "reason": "Web Gather did not run for this run"
     }
   },
   "newsDedupe": {

@@ -246,7 +246,7 @@
   },
   "subsystemOutcomes": {
     "count": 19,
-    "expectedEmptyCount": 1,
+    "expectedEmptyCount": 0,
     "byExpectation": {
       "expected": 12,
       "optional": 5,
@@ -254,8 +254,8 @@
     },
     "byOutcome": {
       "produced": 13,
-      "empty": 2,
-      "declined": 2,
+      "empty": 1,
+      "declined": 3,
       "failed": 1,
       "blocked": 1
     },

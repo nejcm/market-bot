@@ -155,6 +155,17 @@ without being a defective run. The historical band stays as recorded; read a 1
 against the run's `providerEndpointAvailability.exaSearch` row before treating it
 as drift.
 
+The `byOutcome.empty` / `byOutcome.declined` / `expectedEmptyCount` bands above
+were recorded while a `declined-empty` prediction-completion pass was filed as
+`empty`. It is now filed as `declined`: a completion pass that parsed and
+returned no candidates ran and refused, and reading it as `empty` under
+`expectation: "expected"` said nothing was attempted. Run 3 is the affected run
+in this band — it is the `predictions.count` 4 run, and the row that made its
+`expectedEmptyCount` 1. Reclassified, run 3 reads empty 1, declined 4,
+`expectedEmptyCount` 0, which collapses all three bands to the stable values of
+runs 1 and 2. The historical numbers stay as recorded; compare new runs against
+the reclassified reading, not the table.
+
 `sourceFunnel.sourceGapsByCause.provider-data-missing` is 7 in all three band
 runs, 6 in the seed, and 5 in the 2026-08-11 baseline. Absolute levels are not
 comparable across baselines. `05cad67` (`feat(market-data): declare sessions
@@ -239,7 +250,9 @@ mechanism is unproven.
 - Source Gap totals were stable at 18, with the same by-cause mix in every run.
   Evidence Lane coverage was stable at 0.7272727272727273.
 - Subsystem outcomes were stable on produced (12), failed (0), and blocked (1).
-  empty was 1–2 and declined was 3–4; `expectedEmptyCount` was 0, 0, 1.
+  empty was 1–2 and declined was 3–4; `expectedEmptyCount` was 0, 0, 1. Run 3's
+  extra empty was a `declined-empty` prediction completion, now filed as
+  `declined` — see the reclassification note above.
 - Equity Analysis Completeness `coverageLevel` stayed at `substantial`.
   `operatingKpis.status` stayed at `not-assessed`.
 - Estimated tokens ranged 322,692–363,527.

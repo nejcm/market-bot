@@ -522,7 +522,7 @@ describe("Subsystem Outcomes", () => {
     });
 
     const expected: SubsystemExpectation = "expected";
-    const empty: SubsystemOutcomeStatus = "empty";
+    const declined: SubsystemOutcomeStatus = "declined";
     const written: readonly WrittenSubsystemOutcome[] = outcomes;
     expect(written.every((outcome) => isSubsystemOutcome(outcome))).toBe(true);
     expect(() => {
@@ -555,15 +555,57 @@ describe("Subsystem Outcomes", () => {
       expect.objectContaining({
         subsystem: "prediction-completion",
         expectation: expected,
-        outcome: empty,
+        outcome: declined,
         code: "declined-empty",
       }),
     );
-    expect(rollupSubsystemOutcomes(outcomes)).toMatchObject({
+    // A parseable empty completion response is a refusal, not silence: it must not land in
+    // `expectedEmptyCount`, and it must still be counted somewhere rather than dropping out.
+    const rollup = rollupSubsystemOutcomes(outcomes);
+    expect(rollup).toMatchObject({
       count: outcomes.length,
-      expectedEmptyCount: 1,
+      expectedEmptyCount: 0,
       byCode: { "declined-empty": 1, "reused-profile": 1 },
     });
+    expect(rollup.byOutcome.failed).toBe(0);
+    expect(Object.values(rollup.byOutcome).reduce((total, count) => total + count, 0)).toBe(
+      outcomes.length,
+    );
+  });
+
+  test("keeps unparseable and rejected completion passes empty rather than declined", () => {
+    for (const completionOutcome of [
+      "no-parsable-candidates",
+      "all-candidates-rejected",
+    ] as const) {
+      const outcomes = buildSubsystemOutcomes({
+        sourcePlan,
+        evidenceLanes,
+        sourceGaps: [],
+        webSubjectProfilePresent: true,
+        webGatherAudit,
+        playbookAudit: { selected: [], rationale: "None fit.", rejected: [] },
+        predictionCompletion: {
+          attempted: true,
+          initialCount: 1,
+          targetCount: 2,
+          acceptedPredictionIds: [],
+          rejectedCandidateCount: 0,
+          rejectionReasons: [],
+          outcome: completionOutcome,
+        },
+        forecastDisagreementCode: "not-configured",
+      });
+      expect(outcomes).toContainEqual(
+        expect.objectContaining({
+          subsystem: "prediction-completion",
+          expectation: "expected",
+          outcome: "empty",
+          code: completionOutcome,
+        }),
+      );
+      expect(rollupSubsystemOutcomes(outcomes).expectedEmptyCount).toBeGreaterThan(0);
+    }
   });
 
   test("marks SEC-dependent deep-equity work blocked", () => {

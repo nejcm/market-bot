@@ -102,7 +102,7 @@
   {
     "subsystem": "prediction-completion",
     "expectation": "expected",
-    "outcome": "empty",
+    "outcome": "declined",
     "code": "declined-empty",
     "stage": "prediction-completion",
     "count": 0

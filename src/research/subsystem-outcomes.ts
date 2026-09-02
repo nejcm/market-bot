@@ -569,11 +569,21 @@ function predictionCompletionOutcome(input: BuildSubsystemOutcomesInput): Writte
   }
   const audit = input.predictionCompletion;
   if (audit !== undefined) {
+    // `declined-empty` means the completion pass ran, parsed, and returned an empty `predictions`
+    // Array — a successful refusal to offer candidates, not silence. Filing it as `empty` under
+    // `expectation: "expected"` read as "nothing was attempted" and rolled into
+    // `expectedEmptyCount`; `declined` is the status that already carries "ran and offered
+    // Nothing". It stays out of `failed`: a valid empty response is not a subsystem failure, and
+    // The resulting Prediction Shortfall is reported structurally in `analytics.json`.
+    // `no-parsable-candidates` and `all-candidates-rejected` keep `empty` — neither is a clean
+    // Refusal.
     let outcome: SubsystemOutcomeStatus = "empty";
     if (audit.outcome === "improved") {
       outcome = "produced";
     } else if (audit.outcome === "failed") {
       outcome = "failed";
+    } else if (audit.outcome === "declined-empty") {
+      outcome = "declined";
     }
     return {
       subsystem: "prediction-completion",

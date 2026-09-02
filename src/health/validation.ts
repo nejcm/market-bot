@@ -149,6 +149,17 @@ function routeHasCause(route: ProviderRouteHealth, cause: SourceGapCause): boole
   return (route.causes[cause] ?? 0) > 0;
 }
 
+/*
+ * True when `cause` is the only gap cause the route recorded at all.
+ *
+ * Sole-cause is the whole point: a routine outcome stops being routine the moment it appears
+ * alongside a real defect, and a mixed route must keep its blocking classification.
+ */
+function routeSoleCause(route: ProviderRouteHealth, cause: SourceGapCause): boolean {
+  const observed = Object.entries(route.causes).filter(([, count]) => count > 0);
+  return observed.length === 1 && observed[0]?.[0] === cause;
+}
+
 function routeRunIds(
   route: ProviderRouteHealth,
   runsById: ReadonlyMap<string, RunHealth>,
@@ -192,6 +203,20 @@ function classifyRoute(
       ...base,
       classification: "blocking",
       reason: "CoinGecko is the primary crypto market-data source.",
+    };
+  }
+  /*
+   * Trimming an in-progress bar is the market-data collector succeeding, not a provider failing:
+   * the partial session is dropped and the prior completed session is published. Left unclassified
+   * this routine outcome fell through to "Unclassified provider gap requires review" and registered
+   * as a blocking provider defect on every intraday run.
+   */
+  if (routeSoleCause(route, "session-in-progress")) {
+    return {
+      ...base,
+      classification: "informational",
+      reason:
+        "An in-progress session bar was trimmed before indicators; the snapshot is anchored on the last completed session.",
     };
   }
   if (provider === "marketaux" || provider === "finnhub") {

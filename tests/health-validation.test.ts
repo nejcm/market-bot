@@ -59,6 +59,61 @@ describe("buildValidation route classification", () => {
     expect(classificationFor(summary, "yahoo-quote")?.classification).toBe("blocking");
   });
 
+  /*
+   * The successful path of the in-progress-bar trim: the collector dropped a partial session and
+   * published the prior one. Before this classification it fell through to "Unclassified provider
+   * gap requires review" and every routine intraday run registered a blocking provider defect.
+   */
+  test("treats a sole session-in-progress cause as informational, not blocking", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          causes: { "session-in-progress": 1 },
+        }),
+      ],
+      true,
+      NOW,
+    );
+    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe(
+      "informational",
+    );
+  });
+
+  test("keeps a route blocking when session-in-progress is mixed with another cause", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          causes: { "session-in-progress": 1, "malformed-response": 1 },
+        }),
+      ],
+      true,
+      NOW,
+    );
+    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe("blocking");
+  });
+
+  test("keeps a fetch-failed Yahoo route blocking even beside a trimmed session", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          causes: { "session-in-progress": 1, "fetch-failed": 1 },
+        }),
+      ],
+      true,
+      NOW,
+    );
+    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe("blocking");
+  });
+
   test("treats CoinGecko fetch failures as blocking", () => {
     const summary = buildValidation(
       [],

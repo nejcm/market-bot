@@ -127,6 +127,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "malformed-response": true,
   "validation-failed": true,
   "provider-data-missing": true,
+  "session-in-progress": true,
   "suppressed-by-design": true,
 } satisfies Record<SubsystemOutcomeCode, true> & SourceGapCauseCollisionGuard;
 
@@ -139,6 +140,7 @@ const SOURCE_GAP_CAUSE_OUTCOME_STATUS = {
   "suppressed-by-design": "declined",
   "unsupported-coverage": "declined",
   "provider-data-missing": "empty",
+  "session-in-progress": "empty",
   "stale-fallback": "empty",
   "repeat-fallback": "empty",
   "reused-in-window": "empty",

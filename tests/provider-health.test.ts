@@ -11,8 +11,6 @@ import type {
   SourceGap,
   WebGatherLoopAudit,
 } from "../src/domain/types";
-
-type WebGatherAuditEntry = WebGatherLoopAudit["acceptedRequests"][number];
 import {
   buildProviderHealthSummary,
   parseSourceGap,
@@ -21,6 +19,8 @@ import {
 import { INDEX_SCHEMA_VERSION } from "../src/run-artifact-index";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { deepEquityEvidenceBundle, failedRunOutcomesArtifact } from "./support/fixtures";
+
+type WebGatherAuditEntry = WebGatherLoopAudit["acceptedRequests"][number];
 
 let tmpDir = "";
 let dataDir = "";

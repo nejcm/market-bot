@@ -113,7 +113,67 @@ function analyticsFor(reportIntegrityTrace: RunTrace): ReturnType<typeof buildRu
   });
 }
 
+function attemptedWebGatherAudit(): NonNullable<RunTrace["webGatherLoop"]> {
+  const audit = webGatherAttemptedTrace.webGatherLoop;
+  if (audit === undefined) {
+    throw new Error("expected a web gather audit on the attempted trace");
+  }
+  return audit;
+}
+
 describe("run analytics", () => {
+  test.each([
+    { jobType: "crypto" as const, assetClass: "crypto" as const },
+    { jobType: "research" as const, assetClass: "equity" as const },
+  ])(
+    "records the web search endpoints for a $jobType run, which has no other endpoint roster",
+    ({ jobType, assetClass }) => {
+      const analytics = buildRunAnalytics({
+        report: researchReport({ jobType, assetClass }),
+        trace: {
+          ...webGatherAttemptedTrace,
+          webGatherLoop: {
+            ...attemptedWebGatherAudit(),
+            acceptedRequests: [
+              {
+                round: 1,
+                tool: "web_search",
+                status: "accepted",
+                fallback: {
+                  attemptedProviders: ["exa", "firecrawl"],
+                  servedProvider: "firecrawl",
+                  fallbackReason: "hard-failure",
+                },
+              },
+            ],
+            executedTools: ["web_search"],
+          },
+        },
+        collectedSources: collectedSourceBundle(),
+        stageOutputs: [],
+        targetPredictions: 0,
+        outcomes: [],
+      });
+
+      expect(analytics.providerEndpointAvailability?.exaSearch?.status).toBe("degraded");
+      expect(analytics.providerEndpointAvailability?.firecrawlSearch?.status).toBe("available");
+      expect(analytics.providerEndpointAvailability?.yahooQuote).toBeUndefined();
+    },
+  );
+
+  test("omits the endpoint roster entirely for a run type without Web Gather", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport({ jobType: "daily" }),
+      trace: webGatherAttemptedTrace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.providerEndpointAvailability).toBeUndefined();
+  });
+
   test("summarizes deterministic source, evidence, news, prediction, and run metrics", () => {
     const collectedSources: CollectedSources = collectedSourceBundle({
       rawSnapshots: [

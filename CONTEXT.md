@@ -32,7 +32,7 @@ Ephemeral, per-Run Artifact Q&A in the Console. It is not persisted; when the Co
 
 ## Web Gather
 
-Bounded deep-run loop for on-subject `web_search` and allowlisted `web_fetch` through the cached Source Provider seam. Exa is primary; configured Firecrawl is fallback-only for failed or thin Exa responses, never a substitute for a missing `MARKET_BOT_EXA_API_KEY`. It persists Sources, gaps, and audit sidecars.
+Bounded deep-run loop for on-subject `web_search` and allowlisted `web_fetch` through the cached Source Provider seam. Exa is primary; configured Firecrawl is fallback-only for failed or thin Exa responses, never a substitute for a missing `MARKET_BOT_EXA_API_KEY`. It persists Sources, gaps, and audit sidecars. A fallback that covers a failed, empty, or thin Exa `web_search` response closes the Exa Source Gap but never erases the incident: the run still reports a non-available web-search row in Provider Health and a `web-search-provider` Subsystem Outcome. `web_fetch` fallbacks have no endpoint row of their own and are recorded in that outcome's detail counts.
 
 For company subjects, SEC 10-K/10-Q profile coverage rejects redundant `background` and `current-subject` searches that give no recency, corroboration, or explicit-gap rationale; reused-profile coverage rejects `background` searches on the same terms only, and `news` and `market` searches are exempt from both. Reused profiles narrow implicit per-query ingestion from 5 to 3 results. `web-gather` is Source-Gap taxonomy, not an Evidence Lane.
 
@@ -177,8 +177,23 @@ Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`: Research View, s
 ## Subsystem Outcome
 
 Coded record of what one run subsystem was expected to do and whether it acquired output, stayed
-empty, declined, failed, or was blocked. The code distinguishes acquired-but-unusable output and
-lane-local causes such as a missing credential. It is run telemetry, not a Diagnostic Gap.
+empty, declined, failed, or was blocked. `empty` means no output was accepted as the subsystem's
+result: nothing came back, or what came back was not accepted, as when every prediction completion
+candidate is rejected. Output that is accepted but carries a usability posture stays `produced`
+under a code saying so, so an unsupportable Evidence Lane is not `empty`. `declined` means the
+subsystem yielded no result and its producer did not treat that as a failure or a blockage: out of
+scope for the run, never enabled by scope, configuration, budget, or credentials, suppressed by
+design, unsupported for the subject, or run and cleanly refused — as a prediction completion pass
+does when it parses and returns no candidates.
+
+The five statuses are not a clean taxonomy and will mislead if read as one. Each records how that
+subsystem's own producer classified its situation, so the same condition can map differently across
+subsystems: a Domain Playbook selector returning malformed JSON is `declined` under
+`selection-rejected` rather than `failed`, and a missing Exa credential skips Web Gather as
+`declined` while a lane-local missing credential is `blocked`. The code beside the status is the
+specific part — it distinguishes acquired-but-unusable output and lane-local causes. Reading
+`empty` as nothing accepted is what keeps `expectedEmptyCount` an accurate name for every row it
+counts. It is run telemetry, not a Diagnostic Gap.
 
 ## Failed Run Artifact
 

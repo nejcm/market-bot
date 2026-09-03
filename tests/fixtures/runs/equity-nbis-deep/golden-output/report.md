@@ -147,12 +147,12 @@ No prior run artifacts matched this research scope.
 
 ### Diagnostic Data Gaps
 
-- 12 diagnostic data gaps; see the Research Console Advanced view or report.json for details.
+- 13 diagnostic data gaps; see the Research Console Advanced view or report.json for details.
 
 ### Sources
 
 - [market-yahoo-equity-nbis] NBIS market snapshot
-- [verified-snapshot-NBIS] NBIS verified market snapshot \(OHLCV + indicators, 2026-07-22\)
+- [verified-snapshot-NBIS] NBIS verified market snapshot \(OHLCV + indicators, 2026-07-21\)
 - [extended-sec-edgar-nbis-20f] NBIS SEC 20-F
 - [extended-sec-edgar-nbis-6k-0001104659-26-084452] NBIS SEC 6-K
 - [extended-sec-edgar-nbis-6k-0001104659-26-074352] NBIS SEC 6-K

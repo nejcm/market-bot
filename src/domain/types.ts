@@ -233,6 +233,9 @@ export type SourceGapCause =
   | "malformed-response"
   | "validation-failed"
   | "provider-data-missing"
+  // The provider returned a bar for a session that had not closed yet at fetch time.
+  // Distinct from `provider-data-missing`: the fields were present, the session was not over.
+  | "session-in-progress"
   | "suppressed-by-design";
 
 export type SourceGapEvidenceQualityImpact = "core-cap" | "extended-evidence-cap" | "no-cap";

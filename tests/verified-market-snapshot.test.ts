@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
-import { parseYahooChartOhlcv } from "../src/sources/yahoo";
+import { parseYahooChartOhlcv, readYahooRegularSession } from "../src/sources/yahoo";
+import { computeIndicators, MIN_BARS_FOR_SNAPSHOT } from "../src/sources/indicators";
 import { collectVerifiedMarketSnapshot } from "../src/sources/verified-market-snapshot";
 import {
   INDICATOR_KEYS,
@@ -37,12 +38,14 @@ function yahooChartPayload(
     close?: (number | null)[];
     volume?: (number | null)[];
   },
+  meta?: unknown,
 ): unknown {
   return {
     chart: {
       result: [
         {
           timestamp: timestamps,
+          ...(meta === undefined ? {} : { meta }),
           indicators: {
             quote: [
               {
@@ -65,12 +68,42 @@ function ts(dayOffset: number): number {
   return Math.floor(new Date(`2024-01-${String(dayOffset + 1).padStart(2, "0")}`).getTime() / 1000);
 }
 
+function sessionEpoch(iso: string): number {
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
+
 function tsRange(count: number): number[] {
   return Array.from({ length: count }, (_, i) => ts(i));
 }
 
 function jsonResponse(payload: unknown): Response {
   return Response.json(payload);
+}
+
+function makeCtxAt(now: string, fetchImpl: (url: string) => Promise<Response>) {
+  resetSourceResilienceForTests();
+  const { context } = createCollectContext(
+    { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 5000 },
+    new Date(now),
+    async (input: string | URL | Request) => fetchImpl(String(input)),
+    [],
+  );
+  return context;
+}
+
+// Daily bars ending on 2024-03-20, optionally carrying trading-period metadata.
+function sessionChartPayload(regular?: unknown, barCount = 80): unknown {
+  const timestamps = Array.from({ length: barCount }, (_, i) => {
+    const d = new Date("2024-03-20");
+    d.setDate(d.getDate() - (barCount - 1 - i));
+    return Math.floor(d.getTime() / 1000);
+  });
+  return yahooChartPayload(
+    timestamps,
+    { close: timestamps.map((_, index) => 100 + index) },
+    regular === undefined ? undefined : { currentTradingPeriod: { regular } },
+  );
 }
 
 const NULL_INDICATORS: Record<keyof IndicatorMap, null> = {
@@ -213,6 +246,169 @@ describe("parseYahooChartOhlcv", () => {
 });
 
 // ---------------------------------------------------------------------------
+// ReadYahooRegularSessionWindow — the only exchange-schedule metadata in a chart payload
+// ---------------------------------------------------------------------------
+
+/*
+ * An absurd bar timestamp reaches the shared date conversion, which the session-window range check
+ * never guards: `new Date(1e300 * 1000)` is Invalid Date and its toISOString() throws RangeError.
+ * Parsing must drop the bar instead of exploding the whole collector.
+ */
+describe("parseYahooChartOhlcv date conversion", () => {
+  test("drops a bar whose timestamp cannot convert to a calendar date", () => {
+    const payload = yahooChartPayload([ts(0), 1e300, ts(1)], {
+      open: [1, 2, 3],
+      high: [1, 2, 3],
+      low: [1, 2, 3],
+      close: [1, 2, 3],
+      volume: [1, 2, 3],
+    });
+    expect(() => parseYahooChartOhlcv(payload)).not.toThrow();
+    expect(parseYahooChartOhlcv(payload).bars.map((bar) => bar.date)).toEqual([
+      "2024-01-01",
+      "2024-01-02",
+    ]);
+  });
+
+  test("drops a bar with a non-finite timestamp", () => {
+    const payload = yahooChartPayload([Number.NaN, ts(0)], {
+      open: [1, 2],
+      high: [1, 2],
+      low: [1, 2],
+      close: [1, 2],
+      volume: [1, 2],
+    });
+    expect(parseYahooChartOhlcv(payload).bars.map((bar) => bar.date)).toEqual(["2024-01-01"]);
+  });
+});
+
+describe("readYahooRegularSession", () => {
+  function periodPayload(regular: unknown): unknown {
+    return yahooChartPayload(tsRange(2), {}, { currentTradingPeriod: { regular } });
+  }
+
+  test("reads the current regular trading period", () => {
+    expect(
+      readYahooRegularSession(
+        periodPayload({
+          start: sessionEpoch("2024-03-20T13:30:00Z"),
+          end: sessionEpoch("2024-03-20T20:00:00Z"),
+        }),
+      ),
+    ).toEqual({
+      status: "ok",
+      window: {
+        startDate: "2024-03-20",
+        endSeconds: sessionEpoch("2024-03-20T20:00:00Z"),
+        endsAt: "2024-03-20T20:00:00.000Z",
+      },
+    });
+  });
+
+  test("reports absent only when the schedule properties are genuinely missing", () => {
+    expect(readYahooRegularSession(yahooChartPayload(tsRange(2), {}))).toEqual({
+      status: "absent",
+    });
+    expect(
+      readYahooRegularSession(yahooChartPayload(tsRange(2), {}, { currentTradingPeriod: {} })),
+    ).toEqual({ status: "absent" });
+    expect(readYahooRegularSession(yahooChartPayload(tsRange(2), {}, {}))).toEqual({
+      status: "absent",
+    });
+    expect(readYahooRegularSession(null)).toEqual({ status: "absent" });
+  });
+
+  /*
+   * A present-but-corrupt container is a provider defect, not an absence. Routing it to `absent`
+   * handed it to the age heuristic, which suppresses the gap entirely for an older bar.
+   */
+  test("reports unusable for a present but malformed schedule container", () => {
+    expect(readYahooRegularSession(yahooChartPayload(tsRange(2), {}, "corrupt"))).toMatchObject({
+      status: "unusable",
+      detail: expect.stringContaining("meta"),
+    });
+    expect(
+      readYahooRegularSession(
+        yahooChartPayload(tsRange(2), {}, { currentTradingPeriod: "corrupt" }),
+      ),
+    ).toMatchObject({
+      status: "unusable",
+      detail: expect.stringContaining("currentTradingPeriod"),
+    });
+    expect(readYahooRegularSession(periodPayload(null))).toMatchObject({
+      status: "unusable",
+      detail: expect.stringContaining("regular is null"),
+    });
+    expect(readYahooRegularSession(periodPayload([1, 2]))).toMatchObject({ status: "unusable" });
+  });
+
+  /*
+   * Absence says nothing about the provider; an implausible value is a provider defect, and the
+   * two must not collapse — the caller declares one and may stay silent on the other.
+   */
+  test("reports unusable, not absent, for wrong types and non-finite bounds", () => {
+    expect(
+      readYahooRegularSession(periodPayload({ start: "1710941400", end: null })),
+    ).toMatchObject({ status: "unusable" });
+    expect(
+      readYahooRegularSession(periodPayload({ start: Number.POSITIVE_INFINITY, end: Number.NaN })),
+    ).toMatchObject({ status: "unusable" });
+  });
+
+  /*
+   * The defect that motivated the range check: milliseconds are finite, convert to a year ~58000,
+   * and produce a startDate that can never match a bar date — silently classifying an open session
+   * as complete.
+   */
+  test("rejects a millisecond epoch", () => {
+    const read = readYahooRegularSession(
+      periodPayload({
+        start: sessionEpoch("2024-03-20T13:30:00Z") * 1000,
+        end: sessionEpoch("2024-03-20T20:00:00Z") * 1000,
+      }),
+    );
+    expect(read.status).toBe("unusable");
+    expect(read).toMatchObject({ detail: expect.stringContaining("plausible epoch seconds") });
+  });
+
+  test("rejects bounds outside the plausible epoch-seconds range", () => {
+    expect(readYahooRegularSession(periodPayload({ start: 0, end: 3600 }))).toMatchObject({
+      status: "unusable",
+    });
+    expect(readYahooRegularSession(periodPayload({ start: -1, end: -1 }))).toMatchObject({
+      status: "unusable",
+    });
+    expect(
+      readYahooRegularSession(periodPayload({ start: 1e18, end: Number.MAX_SAFE_INTEGER })),
+    ).toMatchObject({ status: "unusable" });
+  });
+
+  test("rejects a non-increasing session", () => {
+    const open = sessionEpoch("2024-03-20T13:30:00Z");
+    expect(readYahooRegularSession(periodPayload({ start: open, end: open }))).toMatchObject({
+      status: "unusable",
+      detail: expect.stringContaining("duration"),
+    });
+    expect(
+      readYahooRegularSession(
+        periodPayload({ start: open, end: sessionEpoch("2024-03-20T09:00:00Z") }),
+      ),
+    ).toMatchObject({ status: "unusable", detail: expect.stringContaining("duration") });
+  });
+
+  test("rejects an implausible session duration in either direction", () => {
+    const open = sessionEpoch("2024-03-20T13:30:00Z");
+    expect(readYahooRegularSession(periodPayload({ start: open, end: open + 60 }))).toMatchObject({
+      status: "unusable",
+      detail: expect.stringContaining("duration"),
+    });
+    expect(
+      readYahooRegularSession(periodPayload({ start: open, end: open + 86_401 })),
+    ).toMatchObject({ status: "unusable", detail: expect.stringContaining("duration") });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CollectVerifiedMarketSnapshot
 // ---------------------------------------------------------------------------
 
@@ -328,6 +524,203 @@ describe("collectVerifiedMarketSnapshot", () => {
     const ctx = makeCtx(async () => jsonResponse(chartPayloadWith80Bars()));
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
     expect(result.snapshot?.fetchedAt).toBe(ctx.fetchedAt);
+  });
+
+  // -------------------------------------------------------------------------
+  // Session completeness — a bar whose regular session has not closed is not a close
+  // -------------------------------------------------------------------------
+
+  const SESSION_DATE = "2024-03-20";
+  const SESSION_OPEN = sessionEpoch(`${SESSION_DATE}T13:30:00Z`);
+  const SESSION_CLOSE = sessionEpoch(`${SESSION_DATE}T20:00:00Z`);
+
+  test("drops the latest bar when its regular session has not ended at fetch time", async () => {
+    const payload = sessionChartPayload({ start: SESSION_OPEN, end: SESSION_CLOSE });
+    const ctx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    expect(result.snapshot?.latestSessionDate).toBe("2024-03-19");
+    expect(result.snapshot?.ohlcv.date).toBe("2024-03-19");
+    expect(result.priceHistory?.at(-1)?.date).toBe("2024-03-19");
+    expect(result.snapshot?.recentCloses.at(-1)?.date).toBe("2024-03-19");
+    expect(result.sourceGaps).toEqual([
+      {
+        source: "yahoo-verified-chart",
+        message:
+          "Yahoo chart bar 2024-03-20 was an in-progress session at fetch time " +
+          `${ctx.fetchedAt} (regular session closes 2024-03-20T20:00:00.000Z); it was dropped ` +
+          "before indicators and the snapshot is anchored on the last completed session 2024-03-19",
+        symbol: "AAPL",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "session-in-progress",
+        evidenceQualityImpact: "no-cap",
+        triage: "diagnostic",
+      },
+    ]);
+  });
+
+  test("recomputes indicators after the in-progress bar is removed, not before", async () => {
+    const payload = sessionChartPayload({ start: SESSION_OPEN, end: SESSION_CLOSE });
+    const ctx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    const { bars } = parseYahooChartOhlcv(payload, SESSION_DATE);
+    expect(result.snapshot?.indicators).toEqual(computeIndicators(bars.slice(0, -1)));
+    expect(result.snapshot?.indicators).not.toEqual(computeIndicators(bars));
+  });
+
+  test("keeps the latest bar once its regular session has closed", async () => {
+    const payload = sessionChartPayload({ start: SESSION_OPEN, end: SESSION_CLOSE });
+    const ctx = makeCtxAt(`${SESSION_DATE}T21:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  /*
+   * The pre-open case, and the counterpart to the stale-schedule check below: a schedule NEWER
+   * than the newest bar is legitimate — the exchange has rolled to the next session while the last
+   * bar is the previous, provably closed one. It must stay silent, not be read as stale.
+   */
+  test("keeps the latest bar when the open session is a later one it does not belong to", async () => {
+    const payload = sessionChartPayload({
+      start: sessionEpoch("2024-03-21T13:30:00Z"),
+      end: sessionEpoch("2024-03-21T20:00:00Z"),
+    });
+    const ctx = makeCtxAt("2024-03-21T12:00:00Z", async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", "2024-03-21");
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  test("keeps and declares the latest bar when the payload carries no session schedule", async () => {
+    const payload = sessionChartPayload();
+    const ctx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps).toEqual([
+      {
+        source: "yahoo-verified-chart",
+        message:
+          `Yahoo chart bar ${SESSION_DATE} could not be verified as a completed session at ` +
+          `fetch time ${ctx.fetchedAt} (the payload carried no regular trading-period ` +
+          "schedule); the bar is retained and may be an in-progress session",
+        symbol: "AAPL",
+        provider: "yahoo",
+        capability: "market-data",
+        cause: "malformed-response",
+        evidenceQualityImpact: "no-cap",
+      },
+    ]);
+  });
+
+  test("stays silent without a schedule once the latest bar predates the fetch window", async () => {
+    const payload = sessionChartPayload();
+    const ctx = makeCtxAt("2024-03-25T15:00:00Z", async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", "2024-03-25");
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps).toEqual([]);
+  });
+
+  /*
+   * A schedule that fails validation must reach the DECLARED path. Before validation a millisecond
+   * epoch produced a startDate no bar could match, so this bar was kept as a completed session
+   * with no Source Gap at all — the defect the drop exists to prevent.
+   */
+  test("declares, rather than silently accepts, a bar behind an implausible schedule", async () => {
+    const payload = sessionChartPayload({ start: SESSION_OPEN * 1000, end: SESSION_CLOSE * 1000 });
+    const ctx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps?.[0]).toMatchObject({
+      source: "yahoo-verified-chart",
+      cause: "malformed-response",
+      symbol: "AAPL",
+    });
+    expect(result.sourceGaps?.[0]?.message).toContain("could not be verified as a completed");
+    expect(result.sourceGaps?.[0]?.message).toContain("schedule was implausible");
+  });
+
+  test("declares an out-of-order schedule even for a bar the age heuristic would clear", async () => {
+    const payload = sessionChartPayload({ start: SESSION_CLOSE, end: SESSION_OPEN });
+    const ctx = makeCtxAt("2024-03-25T15:00:00Z", async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", "2024-03-25");
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps?.[0]?.message).toContain("duration");
+    expect(result.sourceGaps?.[0]?.cause).toBe("malformed-response");
+  });
+
+  /*
+   * The minimum-bar check runs AFTER the drop, so with exactly MIN_BARS_FOR_SNAPSHOT parsed bars
+   * there is no snapshot to anchor. The gap prose has to say that instead of claiming an anchor.
+   */
+  test("says no snapshot was produced when the drop leaves too few bars", async () => {
+    const payload = sessionChartPayload(
+      { start: SESSION_OPEN, end: SESSION_CLOSE },
+      MIN_BARS_FOR_SNAPSHOT,
+    );
+    const ctx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    expect(result.snapshot).toBeUndefined();
+    const sessionGap = result.sourceGaps?.find((gap) => gap.cause === "session-in-progress");
+    expect(sessionGap?.message).toContain(
+      `leaving ${String(MIN_BARS_FOR_SNAPSHOT - 1)} completed bars`,
+    );
+    expect(sessionGap?.message).toContain("no snapshot was produced");
+    expect(sessionGap?.message).not.toContain("anchored");
+    expect(result.sourceGaps?.some((gap) => gap.cause === "validation-failed")).toBe(true);
+  });
+
+  /*
+   * A stale schedule is structurally valid but describes an EARLIER session than the newest bar,
+   * so it proves nothing about that bar. Comparing dates for equality alone read this as complete
+   * and emitted no gap — the same silent acceptance a malformed window would have caused.
+   */
+  test("declares a bar newer than the schedule instead of accepting it as complete", async () => {
+    const payload = sessionChartPayload({
+      start: sessionEpoch("2024-03-19T13:30:00Z"),
+      end: sessionEpoch("2024-03-19T20:00:00Z"),
+    });
+    const ctx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () => jsonResponse(payload));
+    const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
+
+    expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps?.[0]?.cause).toBe("malformed-response");
+    expect(result.sourceGaps?.[0]?.message).toContain("schedule is stale");
+    expect(result.sourceGaps?.[0]?.message).toContain("older than the newest bar 2024-03-20");
+  });
+
+  /*
+   * An anchored trim is the collector succeeding. Without an explicit triage it defaulted to
+   * Material and put a routine intraday run in the Default View.
+   */
+  test("marks an anchored trim Diagnostic and the no-snapshot trim Material", async () => {
+    const window = { start: SESSION_OPEN, end: SESSION_CLOSE };
+    const anchoredCtx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () =>
+      jsonResponse(sessionChartPayload(window)),
+    );
+    const anchored = await collectVerifiedMarketSnapshot(anchoredCtx, "AAPL", SESSION_DATE);
+    expect(anchored.snapshot).toBeDefined();
+    expect(anchored.sourceGaps?.[0]?.triage).toBe("diagnostic");
+
+    const shortCtx = makeCtxAt(`${SESSION_DATE}T15:00:00Z`, async () =>
+      jsonResponse(sessionChartPayload(window, MIN_BARS_FOR_SNAPSHOT)),
+    );
+    const short = await collectVerifiedMarketSnapshot(shortCtx, "AAPL", SESSION_DATE);
+    expect(short.snapshot).toBeUndefined();
+    expect(
+      short.sourceGaps?.find((gap) => gap.cause === "session-in-progress")?.triage,
+    ).toBeUndefined();
   });
 
   test("snapshot preserves the raw snapshot fetchedAt when served from cache", async () => {

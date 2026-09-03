@@ -1,4 +1,5 @@
 import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 
 export {
@@ -39,6 +40,7 @@ export {
   alphaStaleLeadRows,
   calibrationAutopsyCauses,
   calibrationHeadline,
+  calibrationMetricNote,
   calibrationSampleWarning,
   calibrationSlices,
   historicalContextAuditView,
@@ -99,12 +101,17 @@ export interface DashboardMetrics {
   readonly averageConfidence: string;
 }
 
+export type ProviderHealthRowStatus = "operational" | "informational" | "degraded";
+
 export interface ProviderHealthRow {
   readonly provider: string;
   readonly route: string;
-  readonly degraded: boolean;
+  readonly status: ProviderHealthRowStatus;
   readonly total: number;
   readonly gaps: number;
+  /** Runs where the endpoint reported `degraded` in analytics. A covered web-search fallback
+   *  raises this without raising `gaps`: it deliberately emits no Source Gap. */
+  readonly degradedRuns: number;
   readonly note: string;
 }
 
@@ -221,28 +228,72 @@ export function providerHealthRows(detail: ProviderHealthDetail): readonly Provi
     return [];
   }
 
+  const statusByRoute = routeClassificationByName(detail.summary);
+
   return routes
-    .filter(
-      (route): route is Record<string, unknown> =>
-        typeof route === "object" && route !== null && !Array.isArray(route),
-    )
+    .filter((route): route is Record<string, unknown> => isRecord(route))
     .map((route) => {
       const gaps = PROVIDER_GAP_KEYS.reduce((sum, key) => sum + readCount(route, key), 0);
+      const degradedRuns = readCount(route, "degraded");
       const { sampleMessages } = route;
       const note =
         Array.isArray(sampleMessages) && typeof sampleMessages[0] === "string"
           ? sampleMessages[0]
           : "";
+      const total = readCount(route, "total");
+      const routeName = typeof route.route === "string" ? route.route : "";
 
       return {
         provider: typeof route.provider === "string" ? route.provider : "unknown",
-        route: typeof route.route === "string" ? route.route : "",
-        degraded: gaps > 0,
-        total: readCount(route, "total"),
+        route: routeName,
+        status: providerHealthRowStatus(statusByRoute.get(routeName), gaps, degradedRuns, total),
+        total,
         gaps,
+        degradedRuns,
         note,
       };
     });
+}
+
+function routeClassificationByName(
+  summary: Record<string, unknown> | undefined,
+): ReadonlyMap<string, string> {
+  if (summary === undefined) {
+    return new Map();
+  }
+  const { validation } = summary;
+  if (!isRecord(validation) || !Array.isArray(validation.routeClassifications)) {
+    return new Map();
+  }
+
+  const byRoute = new Map<string, string>();
+  for (const item of validation.routeClassifications) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    if (typeof item.route === "string" && typeof item.classification === "string") {
+      byRoute.set(item.route, item.classification);
+    }
+  }
+  return byRoute;
+}
+
+function providerHealthRowStatus(
+  classification: string | undefined,
+  gaps: number,
+  degradedRuns: number,
+  total: number,
+): ProviderHealthRowStatus {
+  if (classification === "informational") {
+    return "informational";
+  }
+  if (classification === "blocking" || classification === "expected") {
+    return "degraded";
+  }
+  if (gaps > 0 || degradedRuns > 0 || total > 0) {
+    return "degraded";
+  }
+  return "operational";
 }
 
 function readCount(record: Record<string, unknown>, key: string): number {

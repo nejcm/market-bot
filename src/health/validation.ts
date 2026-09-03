@@ -149,11 +149,31 @@ function routeHasCause(route: ProviderRouteHealth, cause: SourceGapCause): boole
   return (route.causes[cause] ?? 0) > 0;
 }
 
+/*
+ * True when EVERY gap the route aggregated carried `cause`.
+ *
+ * Reconciled against `total`, not read off `causes`. `causes` counts only gaps that declared one
+ * (provider-health.ts increments it under `gap.cause !== undefined`), while `total` counts them
+ * all — so a cause-less gap lands in `total` and in one of the class counters and leaves no trace
+ * in `causes`. Inspecting `causes` alone therefore called a route "sole cause" while a genuine
+ * cause-less HTTP failure sat beside the routine one, downgrading a broken route to informational.
+ *
+ * Sole-cause is the whole point: a routine outcome stops being routine the moment it appears
+ * alongside a real defect, and a mixed route must keep its blocking classification.
+ */
+function routeSoleCause(route: ProviderRouteHealth, cause: SourceGapCause): boolean {
+  return route.total > 0 && (route.causes[cause] ?? 0) === route.total;
+}
+
 function routeRunIds(
   route: ProviderRouteHealth,
   runsById: ReadonlyMap<string, RunHealth>,
 ): readonly string[] {
   return route.runIds.filter((runId) => runsById.has(runId));
+}
+
+function gapClassTotal(route: ProviderRouteHealth): number {
+  return route.missingCredential + route.fetchFailed + route.yahooAuth + route.other;
 }
 
 function classifyRoute(
@@ -180,7 +200,15 @@ function classifyRoute(
       reason: "FRED macro coverage is baseline-required.",
     };
   }
-  if (provider === "yahoo" && (route.yahooAuth > 0 || routeHasCause(route, "fetch-failed"))) {
+  /*
+   * The fetchFailed counter records cause-less HTTP failures too, which routeHasCause cannot see.
+   * CoinGecko below has always checked its counter; Yahoo did not, so a cause-less transport
+   * failure on the primary equity source reached the generic fallback instead of this rule.
+   */
+  if (
+    provider === "yahoo" &&
+    (route.yahooAuth > 0 || route.fetchFailed > 0 || routeHasCause(route, "fetch-failed"))
+  ) {
     return {
       ...base,
       classification: "blocking",
@@ -192,6 +220,20 @@ function classifyRoute(
       ...base,
       classification: "blocking",
       reason: "CoinGecko is the primary crypto market-data source.",
+    };
+  }
+  /*
+   * Trimming an in-progress bar is the market-data collector succeeding, not a provider failing:
+   * the partial session is dropped and the prior completed session is published. Left unclassified
+   * this routine outcome fell through to "Unclassified provider gap requires review" and registered
+   * as a blocking provider defect on every intraday run.
+   */
+  if (routeSoleCause(route, "session-in-progress")) {
+    return {
+      ...base,
+      classification: "informational",
+      reason:
+        "An in-progress session bar was trimmed before indicators; the snapshot is anchored on the last completed session.",
     };
   }
   if (provider === "marketaux" || provider === "finnhub") {
@@ -255,6 +297,30 @@ function classifyRoute(
       ...base,
       classification: "expected",
       reason: "Missing optional provider credentials are disclosed as coverage gaps.",
+    };
+  }
+  /*
+   * Web-search degradation routes come from `analytics.json`, not Source Gaps, so they carry no gap
+   * class and would otherwise fall through to "unclassified". Warn requires verified coverage on
+   * every affected run — `degradedCovered === degraded` — because `degraded` alone only says a
+   * fallback was entered. A degraded `firecrawlSearch` route means the mitigation itself returned
+   * nothing usable, so it can never reach the warn branch. Anything short of full coverage stays
+   * blocking: an uncovered web-search failure must not read as a healthy fallback, and the run's
+   * own Source Gap routes cannot be relied on to catch it (a missing or malformed source-gaps.json
+   * yields no gaps at all).
+   */
+  if (route.degraded > 0 && gapClassTotal(route) === 0) {
+    if (route.degradedCovered === route.degraded) {
+      return {
+        ...base,
+        classification: "expected",
+        reason: "The primary web-search provider degraded and a fallback provider served the run.",
+      };
+    }
+    return {
+      ...base,
+      classification: "blocking",
+      reason: `A web-search provider degraded with no fallback coverage on ${String(route.degraded - route.degradedCovered)} of ${String(route.degraded)} affected run(s).`,
     };
   }
   return {

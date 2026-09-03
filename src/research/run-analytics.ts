@@ -44,8 +44,14 @@ import {
 } from "../report/prediction-shortfall";
 import {
   deriveProviderEndpointAvailability,
+  deriveWebSearchEndpointAvailability,
   type ProviderEndpointAvailability,
 } from "../sources/provider-endpoint-availability";
+import { runTypeSupportsWebGather } from "../domain/run-types";
+import {
+  deriveWebGatherProviderTelemetry,
+  type WebGatherProviderCounts,
+} from "../sources/web-search-telemetry";
 import {
   rollupSubsystemOutcomes,
   type SubsystemOutcome,
@@ -616,9 +622,44 @@ function webFallbackSummary(
   };
 }
 
+// Equity keeps the full HTTP-endpoint roster. Every other Web Gather-capable run type (crypto,
+// Research) still gets the two web-search rows at any depth: those runs fall back the same way, and
+// The degradation has to land in analytics wherever the matching Subsystem Outcome lands. A run that
+// Never reaches Web Gather reads `unmeasured`, which is the honest answer, not an omission.
+function providerEndpointAvailabilityBlock(
+  input: BuildRunAnalyticsInput,
+  gaps: readonly SourceGap[],
+  webSearch: WebGatherProviderCounts | undefined,
+): Pick<RunAnalytics, "providerEndpointAvailability"> | Record<string, never> {
+  const { collectedSources, report } = input;
+  if (report.jobType === "equity") {
+    return {
+      providerEndpointAvailability: deriveProviderEndpointAvailability(
+        collectedSources.rawSnapshots,
+        gaps,
+        {
+          hasTradierEarningsImpliedMove: collectedSources.earningsSetup?.impliedMove !== undefined,
+          ...(webSearch !== undefined ? { webSearch } : {}),
+        },
+      ),
+    };
+  }
+  if (!runTypeSupportsWebGather(report.jobType)) {
+    return {};
+  }
+  return {
+    providerEndpointAvailability: deriveWebSearchEndpointAvailability(
+      collectedSources.rawSnapshots,
+      gaps,
+      webSearch,
+    ),
+  };
+}
+
 export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   const { collectedSources, report, sourcePlanSummary, trace } = input;
   const gaps = sourceGaps(collectedSources);
+  const webGatherTelemetry = deriveWebGatherProviderTelemetry(trace.webGatherLoop);
   const { extendedEvidence, marketContext } = collectedSources;
   const runDurationMs = durationMs(trace);
   const citedCount = input.report.predictions.filter(
@@ -733,15 +774,7 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
         total: dataGapCount,
       },
     },
-    ...(report.jobType === "equity"
-      ? {
-          providerEndpointAvailability: deriveProviderEndpointAvailability(
-            collectedSources.rawSnapshots,
-            gaps,
-            collectedSources.earningsSetup?.impliedMove !== undefined,
-          ),
-        }
-      : {}),
+    ...providerEndpointAvailabilityBlock(input, gaps, webGatherTelemetry?.search),
     newsDedupe: newsDedupe(input),
     evidenceQuality: {
       label: researchReportEvidenceQuality(report),

@@ -3,6 +3,7 @@
   import {
     calibrationAutopsyCauses,
     calibrationHeadline,
+    calibrationMetricNote,
     calibrationSampleWarning,
     calibrationSlices,
     formatDateMinute,
@@ -48,6 +49,7 @@
   function formatRate(value: number | undefined): string {
     return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
   }
+
 </script>
 
 <div class="mx-auto max-w-230" data-screen-label="Calibration">
@@ -96,7 +98,9 @@
         <div class="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
           Brier score
         </div>
-        <div class="mt-1.5 text-xs text-[#5c6066]">0 = perfect · 0.25 = always 0.5</div>
+        <div class="mt-1.5 text-xs text-[#5c6066]">
+          {calibrationMetricNote(headline, headline.brierScore, "0 = perfect · 0.25 = always 0.5")}
+        </div>
       </div>
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="font-mono text-2xl font-medium text-foreground">
@@ -105,11 +109,13 @@
         <div class="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
           Hit rate
         </div>
-        <div class="mt-1.5 text-xs text-[#5c6066]">resolved outcomes graded as hits</div>
+        <div class="mt-1.5 text-xs text-[#5c6066]">
+          {calibrationMetricNote(headline, headline.hitRate, "resolved outcomes graded as hits")}
+        </div>
       </div>
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="font-mono text-2xl font-medium text-foreground">
-          {headline.resolvedCount}
+          {headline.resolvedCount ?? "—"}
         </div>
         <div class="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
           Resolved forecasts

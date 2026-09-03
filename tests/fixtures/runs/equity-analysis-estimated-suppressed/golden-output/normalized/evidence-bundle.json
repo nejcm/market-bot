@@ -1145,13 +1145,13 @@
             "pcfRatioPeriodEnd": "2026-03-31",
             "momentumPosture": "criteria-supported",
             "latestClose": 216.6,
-            "latestClosePeriodEnd": "2026-06-15T14:30:00.000Z",
+            "latestClosePeriodEnd": "2026-05-01",
             "sma50": 212.5128,
-            "sma50PeriodEnd": "2026-06-15T14:30:00.000Z",
+            "sma50PeriodEnd": "2026-05-01",
             "rsi14": 52.73342335536868,
-            "rsi14PeriodEnd": "2026-06-15T14:30:00.000Z",
+            "rsi14PeriodEnd": "2026-05-01",
             "macdHistogram": 0.07721083702343323,
-            "macdHistogramPeriodEnd": "2026-06-15T14:30:00.000Z",
+            "macdHistogramPeriodEnd": "2026-05-01",
             "interimCadence": "quarterly",
             "latestReportedPeriodEnd": "2026-03-31",
             "expectedDuePeriodEnd": "2026-03-31"
@@ -4191,7 +4191,7 @@
               "unit": "currency",
               "sourceIds": ["verified-snapshot-AAPL"],
               "currency": "USD",
-              "periodEnd": "2026-06-15T14:30:00.000Z"
+              "periodEnd": "2026-05-01"
             },
             {
               "key": "sma50",
@@ -4199,7 +4199,7 @@
               "value": 212.5128,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-06-15T14:30:00.000Z"
+              "periodEnd": "2026-05-01"
             },
             {
               "key": "rsi14",
@@ -4207,7 +4207,7 @@
               "value": 52.73342335536868,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-06-15T14:30:00.000Z"
+              "periodEnd": "2026-05-01"
             },
             {
               "key": "macdHistogram",
@@ -4215,7 +4215,7 @@
               "value": 0.07721083702343323,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-06-15T14:30:00.000Z"
+              "periodEnd": "2026-05-01"
             }
           ],
           "sourceIds": ["verified-snapshot-AAPL"]

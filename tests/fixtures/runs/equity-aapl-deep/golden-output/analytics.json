@@ -120,7 +120,7 @@
   },
   "subsystemOutcomes": {
     "count": 18,
-    "expectedEmptyCount": 1,
+    "expectedEmptyCount": 0,
     "byExpectation": {
       "expected": 10,
       "optional": 6,
@@ -128,8 +128,8 @@
     },
     "byOutcome": {
       "produced": 8,
-      "empty": 4,
-      "declined": 3,
+      "empty": 3,
+      "declined": 4,
       "failed": 0,
       "blocked": 3
     },
@@ -284,6 +284,16 @@
       "status": "missing-credential",
       "evidence": ["marketaux-news"],
       "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+    },
+    "exaSearch": {
+      "status": "unmeasured",
+      "evidence": [],
+      "reason": "Web Gather did not run for this run"
+    },
+    "firecrawlSearch": {
+      "status": "unmeasured",
+      "evidence": [],
+      "reason": "Web Gather did not run for this run"
     }
   },
   "newsDedupe": {

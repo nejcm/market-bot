@@ -199,6 +199,167 @@ describe("Subsystem Outcomes", () => {
     );
   });
 
+  test("records a covered primary web-search failure as a degraded provider outcome", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherAudit: {
+        ...webGatherAudit,
+        acceptedRequests: [
+          {
+            round: 1,
+            tool: "web_search",
+            status: "accepted",
+            fallback: {
+              attemptedProviders: ["exa", "firecrawl"],
+              servedProvider: "firecrawl",
+              fallbackReason: "hard-failure",
+            },
+          },
+          { round: 1, tool: "web_search", status: "accepted" },
+        ],
+      },
+    });
+
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({
+        subsystem: "web-gather",
+        outcome: "produced",
+        code: "accepted-requests",
+      }),
+    );
+    expect(outcomes).toContainEqual({
+      subsystem: "web-search-provider",
+      expectation: "expected",
+      outcome: "failed",
+      code: "primary-provider-degraded",
+      stage: "web-gather",
+      count: 2,
+      detail: {
+        requestCount: 2,
+        exaFallbackCount: 1,
+        exaHardFailureCount: 1,
+        firecrawlAttemptCount: 1,
+        firecrawlServedCount: 1,
+        firecrawlKeyMissing: false,
+        fetchRequestCount: 0,
+        fetchExaFallbackCount: 0,
+        fetchFirecrawlServedCount: 0,
+      },
+    });
+  });
+
+  test("records the primary web-search provider as serving when no request fell back", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherAudit,
+    });
+
+    expect(outcomes).toContainEqual({
+      subsystem: "web-search-provider",
+      expectation: "expected",
+      outcome: "produced",
+      code: "primary-provider-served",
+      stage: "web-gather",
+      count: 1,
+      detail: {
+        requestCount: 1,
+        exaFallbackCount: 0,
+        exaHardFailureCount: 0,
+        firecrawlAttemptCount: 0,
+        firecrawlServedCount: 0,
+        firecrawlKeyMissing: false,
+        fetchRequestCount: 0,
+        fetchExaFallbackCount: 0,
+        fetchFirecrawlServedCount: 0,
+      },
+    });
+  });
+
+  test.each([
+    { skipCode: "disabled-by-config" as const },
+    { skipCode: "missing-exa-credential" as const },
+    { skipCode: "run-not-applicable" as const },
+    { skipCode: "round-budget-zero" as const },
+    { skipCode: "tool-call-budget-zero" as const },
+    { skipCode: "source-budget-zero" as const },
+  ])(
+    "omits the web-search provider outcome when Web Gather is skipped ($skipCode)",
+    ({ skipCode }) => {
+      const outcomes = buildSubsystemOutcomes({
+        ...baseWebGatherInput,
+        webGatherSkipCode: skipCode,
+      });
+
+      expect(outcomes.filter((item) => item.subsystem === "web-search-provider")).toEqual([]);
+      expect(outcomes).toContainEqual(
+        expect.objectContaining({ subsystem: "web-gather", outcome: "declined", code: skipCode }),
+      );
+    },
+  );
+
+  test("keeps the provider row served when only a web_fetch request fell back", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherAudit: {
+        ...webGatherAudit,
+        acceptedRequests: [
+          { round: 1, tool: "web_search", status: "accepted" },
+          {
+            round: 1,
+            tool: "web_fetch",
+            status: "accepted",
+            fallback: {
+              attemptedProviders: ["exa", "firecrawl"],
+              servedProvider: "firecrawl",
+              fallbackReason: "hard-failure",
+            },
+          },
+        ],
+      },
+    });
+
+    expect(outcomes).toContainEqual({
+      subsystem: "web-search-provider",
+      expectation: "expected",
+      outcome: "produced",
+      code: "primary-provider-served",
+      stage: "web-gather",
+      count: 1,
+      detail: {
+        requestCount: 1,
+        exaFallbackCount: 0,
+        exaHardFailureCount: 0,
+        firecrawlAttemptCount: 0,
+        firecrawlServedCount: 0,
+        firecrawlKeyMissing: false,
+        fetchRequestCount: 1,
+        fetchExaFallbackCount: 1,
+        fetchFirecrawlServedCount: 1,
+      },
+    });
+  });
+
+  test("reports an executed Web Gather with no accepted request as an empty provider row", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherAudit: {
+        ...webGatherAudit,
+        acceptedRequests: [],
+        sourceUnitsUsed: 0,
+        executedTools: [],
+      },
+    });
+
+    expect(outcomes).toContainEqual({
+      subsystem: "web-search-provider",
+      expectation: "expected",
+      outcome: "empty",
+      code: "no-accepted-requests",
+      stage: "web-gather",
+      count: 0,
+    });
+  });
+
   test("maps exhausted Web Gather parse retries to failed", () => {
     const outcomes = buildSubsystemOutcomes({
       ...baseWebGatherInput,
@@ -361,7 +522,7 @@ describe("Subsystem Outcomes", () => {
     });
 
     const expected: SubsystemExpectation = "expected";
-    const empty: SubsystemOutcomeStatus = "empty";
+    const declined: SubsystemOutcomeStatus = "declined";
     const written: readonly WrittenSubsystemOutcome[] = outcomes;
     expect(written.every((outcome) => isSubsystemOutcome(outcome))).toBe(true);
     expect(() => {
@@ -394,15 +555,57 @@ describe("Subsystem Outcomes", () => {
       expect.objectContaining({
         subsystem: "prediction-completion",
         expectation: expected,
-        outcome: empty,
+        outcome: declined,
         code: "declined-empty",
       }),
     );
-    expect(rollupSubsystemOutcomes(outcomes)).toMatchObject({
+    // A parseable empty completion response is a refusal, not silence: it must not land in
+    // `expectedEmptyCount`, and it must still be counted somewhere rather than dropping out.
+    const rollup = rollupSubsystemOutcomes(outcomes);
+    expect(rollup).toMatchObject({
       count: outcomes.length,
-      expectedEmptyCount: 1,
+      expectedEmptyCount: 0,
       byCode: { "declined-empty": 1, "reused-profile": 1 },
     });
+    expect(rollup.byOutcome.failed).toBe(0);
+    expect(Object.values(rollup.byOutcome).reduce((total, count) => total + count, 0)).toBe(
+      outcomes.length,
+    );
+  });
+
+  test("keeps unparseable and rejected completion passes empty rather than declined", () => {
+    for (const completionOutcome of [
+      "no-parsable-candidates",
+      "all-candidates-rejected",
+    ] as const) {
+      const outcomes = buildSubsystemOutcomes({
+        sourcePlan,
+        evidenceLanes,
+        sourceGaps: [],
+        webSubjectProfilePresent: true,
+        webGatherAudit,
+        playbookAudit: { selected: [], rationale: "None fit.", rejected: [] },
+        predictionCompletion: {
+          attempted: true,
+          initialCount: 1,
+          targetCount: 2,
+          acceptedPredictionIds: [],
+          rejectedCandidateCount: 0,
+          rejectionReasons: [],
+          outcome: completionOutcome,
+        },
+        forecastDisagreementCode: "not-configured",
+      });
+      expect(outcomes).toContainEqual(
+        expect.objectContaining({
+          subsystem: "prediction-completion",
+          expectation: "expected",
+          outcome: "empty",
+          code: completionOutcome,
+        }),
+      );
+      expect(rollupSubsystemOutcomes(outcomes).expectedEmptyCount).toBeGreaterThan(0);
+    }
   });
 
   test("marks SEC-dependent deep-equity work blocked", () => {

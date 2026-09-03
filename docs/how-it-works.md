@@ -455,8 +455,10 @@ data/calibration/summary.md
 The summary includes:
 
 - resolved prediction count;
-- overall Brier score;
-- overall Brier skill vs the always-0.5 baseline (`1 - brier / 0.25`; 0 = no edge, 1 = perfect);
+- overall Brier score and overall hit rate, both omitted entirely when the resolved count is 0 (a
+  Brier score of 0 would read as a perfect forecaster rather than as an unmeasured one);
+- no overall Brier skill headline: current summaries do not emit `brierSkillScore`, and readers
+  drop it from historical summaries whose resolved count is 0;
 - reliability bins by stated probability;
 - metrics by prediction kind;
 - metrics by asset class;
@@ -464,12 +466,16 @@ The summary includes:
 - metrics by market overview horizon bucket;
 - metrics by horizon bucket.
 
-When no resolved pairs exist, calibration does not write a new summary.
+When no resolved pairs exist, calibration still writes a summary, but it carries only the counts and
+the empty slices: `hitRate` and `brierScore` keys are absent, and both renderers print
+"not yet measured (no resolved Predictions)" in their place. Summaries written before that rule
+existed still hold zeros on disk, so every reader re-applies it — see
+`src/scoring/calibration-invariant.ts`.
 
 Running `calibration` (or the non-blocking side effect after research/score) also prints a stdout
 dashboard via `renderCalibrationConsole` in `src/scoring/calibration-console.ts`. Below five resolved
-predictions it shows counts and overall Brier metrics with a small-sample warning; at or above the
-threshold it adds reliability bins and per-kind / per-horizon Brier skill slices.
+predictions it shows counts and whatever overall Brier metrics exist, with a small-sample warning; at
+or above the threshold it adds reliability bins and per-kind / per-horizon Brier skill slices.
 
 ## Adding or changing behavior
 

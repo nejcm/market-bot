@@ -438,7 +438,7 @@ function webSearchProviderOutcome(
         outcome: "failed",
         code: "primary-provider-degraded",
         stage: "web-gather",
-        count: search.exaFallbackCount,
+        count: search.requestCount,
         detail,
       },
     ];

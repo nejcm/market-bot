@@ -140,7 +140,7 @@ describe("research console app view model", () => {
     expect(filterRuns(runs, "daily", "aapl")).toEqual([]);
   });
 
-  test("marks a web-search route degraded from the analytics projection, with no gaps", () => {
+  test("marks a covered web-search route degraded from its validation classification, with no gaps", () => {
     expect(
       providerHealthRows({
         summary: {
@@ -157,19 +157,140 @@ describe("research console app view model", () => {
               sampleMessages: ["Exa search was unusable for 1 of 3 web search request(s)"],
             },
           ],
+          validation: {
+            routeClassifications: [{ route: "exaSearch", classification: "expected" }],
+          },
         },
       }),
     ).toEqual([
       {
         provider: "exa",
         route: "exaSearch",
-        degraded: true,
+        status: "degraded",
         total: 2,
         gaps: 0,
         degradedRuns: 2,
         note: "Exa search was unusable for 1 of 3 web search request(s)",
       },
     ]);
+  });
+
+  test("keeps a sole session-in-progress route informational even though it has a gap", () => {
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [
+            {
+              provider: "yahoo",
+              route: "yahoo-verified-chart",
+              total: 1,
+              other: 1,
+              sampleMessages: [
+                "Dropped in-progress Yahoo session 2026-09-01; latest usable session is 2026-08-31",
+              ],
+            },
+          ],
+          validation: {
+            routeClassifications: [
+              { route: "yahoo-verified-chart", classification: "informational" },
+            ],
+          },
+        },
+      }),
+    ).toEqual([
+      {
+        provider: "yahoo",
+        route: "yahoo-verified-chart",
+        status: "informational",
+        total: 1,
+        gaps: 1,
+        degradedRuns: 0,
+        note: "Dropped in-progress Yahoo session 2026-09-01; latest usable session is 2026-08-31",
+      },
+    ]);
+  });
+
+  test("warns when a gapped or degraded route has no classification", () => {
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [
+            {
+              provider: "yahoo",
+              route: "yahoo-verified-chart",
+              total: 1,
+              other: 1,
+            },
+            {
+              provider: "exa",
+              route: "exaSearch",
+              total: 1,
+              degraded: 1,
+            },
+          ],
+        },
+      }),
+    ).toEqual([
+      {
+        provider: "yahoo",
+        route: "yahoo-verified-chart",
+        status: "degraded",
+        total: 1,
+        gaps: 1,
+        degradedRuns: 0,
+        note: "",
+      },
+      {
+        provider: "exa",
+        route: "exaSearch",
+        status: "degraded",
+        total: 1,
+        gaps: 0,
+        degradedRuns: 1,
+        note: "",
+      },
+    ]);
+  });
+
+  test("warns when a route has a total but no class counters and no classification", () => {
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [{ provider: "yahoo", route: "valuation", total: 19 }],
+        },
+      }),
+    ).toEqual([
+      {
+        provider: "yahoo",
+        route: "valuation",
+        status: "degraded",
+        total: 19,
+        gaps: 0,
+        degradedRuns: 0,
+        note: "",
+      },
+    ]);
+  });
+
+  test("falls back when routeClassifications is not an array or the class is unrecognised", () => {
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [{ provider: "yahoo", route: "quote/daily", total: 1, other: 1 }],
+          validation: { routeClassifications: "broken" },
+        },
+      })[0]?.status,
+    ).toBe("degraded");
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [{ provider: "yahoo", route: "quote/daily", total: 1, other: 1 }],
+          validation: {
+            routeClassifications: [{ route: "quote/daily", classification: "mystery" }],
+          },
+        },
+      })[0]?.status,
+    ).toBe("degraded");
   });
 
   test("derives provider health rows from route gap counts", () => {
@@ -192,13 +313,16 @@ describe("research console app view model", () => {
             "malformed",
             { route: 42, total: "many", sampleMessages: [7] },
           ],
+          validation: {
+            routeClassifications: [{ route: "quote/daily", classification: "blocking" }],
+          },
         },
       }),
     ).toEqual([
       {
         provider: "yahoo",
         route: "quote/daily",
-        degraded: true,
+        status: "degraded",
         total: 12,
         gaps: 3,
         degradedRuns: 0,
@@ -207,7 +331,7 @@ describe("research console app view model", () => {
       {
         provider: "stooq",
         route: "eod",
-        degraded: false,
+        status: "degraded",
         total: 8,
         gaps: 0,
         degradedRuns: 0,
@@ -216,7 +340,7 @@ describe("research console app view model", () => {
       {
         provider: "unknown",
         route: "",
-        degraded: false,
+        status: "operational",
         total: 0,
         gaps: 0,
         degradedRuns: 0,

@@ -155,6 +155,35 @@ without being a defective run. The historical band stays as recorded; read a 1
 against the run's `providerEndpointAvailability.exaSearch` row before treating it
 as drift.
 
+The `subsystemOutcomes.byOutcome.produced` band, and the implied outcome-count
+total (sum of `byOutcome` = 18 in every recorded run; `subsystemOutcomes.count`
+in analytics), were recorded before that same row existed. All three band runs
+executed Web Gather, so a rerun now emits the row on whichever of the three branches below applies. These are
+arithmetic reclassifications, not re-measurements; the historical 12 / 18 stay
+as recorded.
+
+- Primary served (`primary-provider-served` as `produced`): produced reads 13
+  and count reads 19.
+- Primary degraded (`primary-provider-degraded` as `failed`, including a covered
+  Firecrawl fallback): produced stays 12, failed reads 1, and count reads 19.
+  Same failed-band note as above.
+- Web Gather ran but accepted no `web_search` (`no-accepted-requests` as
+  `empty`, expectation `expected`): produced stays 12, empty reads +1,
+  `expectedEmptyCount` reads +1, and count reads 19. The three band runs all
+  accepted 4–5 web sources, so this branch did not fire. A reused-profile rerun
+  that executes Web Gather and accepts no search hits it.
+
+The `sourceFunnel.sourceGaps.total` band was recorded before the collector
+declared a `session-in-progress` Source Gap for an in-progress Yahoo bar. These
+three runs executed after the US regular session closed, so that gap did not
+fire and the recorded 18 is still the after-close reading. A rerun during
+regular hours adds one `session-in-progress` gap: `sourceGaps.total` reads 19
+and `sourceGapsByCause.session-in-progress` reads 1. The unrecorded siblings
+`dataGaps.total` and `evidenceLanes.gapCount` move +1 in lockstep (nbis golden:
+30→31, 32→33, 12→13). `evidenceLanes.coverageRatio` is unchanged because the
+prior completed session is still published. Treat a daytime +1 as that
+reclassification, not drift.
+
 The `byOutcome.empty` / `byOutcome.declined` / `expectedEmptyCount` bands above
 were recorded while a `declined-empty` prediction-completion pass was filed as
 `empty`. It is now filed as `declined`: a completion pass that parsed and
@@ -164,7 +193,9 @@ in this band — it is the `predictions.count` 4 run, and the row that made its
 `expectedEmptyCount` 1. Reclassified, run 3 reads empty 1, declined 4,
 `expectedEmptyCount` 0, which collapses all three bands to the stable values of
 runs 1 and 2. The historical numbers stay as recorded; compare new runs against
-the reclassified reading, not the table.
+the reclassified reading, not the table. That collapse does not cover the
+`no-accepted-requests` web-search-provider row above. Reclassified empty 1 /
+`expectedEmptyCount` 0 plus that row reads empty 2 / `expectedEmptyCount` 1.
 
 `sourceFunnel.sourceGapsByCause.provider-data-missing` is 7 in all three band
 runs, 6 in the seed, and 5 in the 2026-08-11 baseline. Absolute levels are not
@@ -248,11 +279,16 @@ mechanism is unproven.
   stable (1 and 3). Direction was present in runs 1 and 2 and absent in run 3.
   Every horizon span was 5 / 20 trading days. Uncited count was 0 in all three.
 - Source Gap totals were stable at 18, with the same by-cause mix in every run.
-  Evidence Lane coverage was stable at 0.7272727272727273.
+  Evidence Lane coverage was stable at 0.7272727272727273. Reclassified, a
+  daytime rerun reads sourceGaps.total 19 with a `session-in-progress` cause —
+  see the note above.
 - Subsystem outcomes were stable on produced (12), failed (0), and blocked (1).
   empty was 1–2 and declined was 3–4; `expectedEmptyCount` was 0, 0, 1. Run 3's
   extra empty was a `declined-empty` prediction completion, now filed as
-  `declined` — see the reclassification note above.
+  `declined` — see the reclassification note above. Reclassified, a Web Gather
+  rerun reads produced 13 and count 19 when Exa served, produced 12 / failed 1 /
+  count 19 when Exa degraded, or produced 12 / empty +1 / expectedEmptyCount +1 /
+  count 19 when Web Gather ran and accepted no web_search.
 - Equity Analysis Completeness `coverageLevel` stayed at `substantial`.
   `operatingKpis.status` stayed at `not-assessed`.
 - Estimated tokens ranged 322,692–363,527.

@@ -233,7 +233,7 @@ describe("Subsystem Outcomes", () => {
       outcome: "failed",
       code: "primary-provider-degraded",
       stage: "web-gather",
-      count: 1,
+      count: 2,
       detail: {
         requestCount: 2,
         exaFallbackCount: 1,

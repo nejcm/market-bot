@@ -282,19 +282,16 @@ describe("Subsystem Outcomes", () => {
     { skipCode: "round-budget-zero" as const },
     { skipCode: "tool-call-budget-zero" as const },
     { skipCode: "source-budget-zero" as const },
-  ])(
-    "omits the web-search provider outcome when Web Gather is skipped ($skipCode)",
-    ({ skipCode }) => {
-      const outcomes = buildSubsystemOutcomes({
-        ...baseWebGatherInput,
-        webGatherSkipCode: skipCode,
-      });
+  ])("declines the Web Gather outcome with its skip code ($skipCode)", ({ skipCode }) => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      webGatherSkipCode: skipCode,
+    });
 
-      expect(outcomes).toContainEqual(
-        expect.objectContaining({ subsystem: "web-gather", outcome: "declined", code: skipCode }),
-      );
-    },
-  );
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({ subsystem: "web-gather", outcome: "declined", code: skipCode }),
+    );
+  });
 
   /*
    * The suppression contract behind the skip cases above: the provider row is derived solely from

@@ -43,8 +43,9 @@
       </span>
       <span class="flex-1 text-[12.5px] leading-normal text-[#4a3330]">
         {blockingCount}
-        provider {blockingCount === 1 ? "route is" : "routes are"} blocking. Affected runs lost coverage no
-        fallback replaced; each route's classification reason is listed below.
+        provider {blockingCount === 1 ? "route is" : "routes are"} blocking. Baseline-required coverage
+        failed or could not be verified on the affected runs; each route's classification reason is
+        listed below.
       </span>
       <button
         class="px-0.5 text-sm text-[#8a6255] transition hover:text-[#4a3330] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9c3a2c]"

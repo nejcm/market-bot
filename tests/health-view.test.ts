@@ -50,6 +50,7 @@ describe("provider health console view", () => {
     expect(html).toContain("informational");
     expect(html).toContain('style="color: #8a8f96"');
     expect(html).not.toContain("WARN");
+    expect(html).not.toContain("FAIL");
     expect(html).not.toMatch(/>\s*degraded\s*</u);
     expect(columnMarkup(html, "gaps")).toContain(">1");
     expect(columnMarkup(html, "gaps")).toContain("#5c6066");
@@ -76,6 +77,7 @@ describe("provider health console view", () => {
     });
 
     expect(html).toContain("WARN");
+    expect(html).not.toContain("FAIL");
     expect(html).toContain("provider route is degraded");
     expect(html).toContain("TOTAL");
     expect(html).not.toContain("SOURCES");
@@ -85,6 +87,32 @@ describe("provider health console view", () => {
     expect(columnMarkup(html, "gaps")).toContain(">0");
     expect(columnMarkup(html, "degraded-runs")).toContain(">2");
     expect(columnMarkup(html, "degraded-runs")).toContain("#8a6116");
+  });
+
+  test("renders a blocking route as FAIL, distinct from a degraded expected route", async () => {
+    const html = await renderHealthView({
+      summary: {
+        routes: [
+          { provider: "yahoo", route: "yahoo-verified-chart", total: 1, fetchFailed: 1 },
+          { provider: "tradier", route: "tradier-options", total: 1, missingCredential: 1 },
+        ],
+        validation: {
+          routeClassifications: [
+            { route: "yahoo-verified-chart", classification: "blocking" },
+            { route: "tradier-options", classification: "expected" },
+          ],
+        },
+      },
+    });
+
+    expect(html).toContain("FAIL");
+    expect(html).toContain("provider route is blocking");
+    expect(html).toContain("WARN");
+    expect(html).toContain("provider route is degraded");
+    expect(html).toMatch(/>\s*blocking\s*</u);
+    expect(html).toMatch(/>\s*degraded\s*</u);
+    expect(html).toContain('style="color: #9c3a2c"');
+    expect(html).toContain('style="color: #8a6116"');
   });
 
   test("shows zero in the degraded-runs column on a gap-only route", async () => {
@@ -109,7 +137,7 @@ describe("provider health console view", () => {
     expect(html).toContain("DEGRADED RUNS");
     expect(columnMarkup(html, "total")).toContain(">12");
     expect(columnMarkup(html, "gaps")).toContain(">3");
-    expect(columnMarkup(html, "gaps")).toContain("#8a6116");
+    expect(columnMarkup(html, "gaps")).toContain("#9c3a2c");
     expect(columnMarkup(html, "degraded-runs")).toContain(">0");
     expect(columnMarkup(html, "degraded-runs")).not.toContain("#8a6116");
   });

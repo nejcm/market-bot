@@ -8,10 +8,12 @@
 
   let { providerHealth }: Props = $props();
 
-  let bannerDismissed = $state(false);
+  let blockingBannerDismissed = $state(false);
+  let warningBannerDismissed = $state(false);
 
   const providerRows = $derived(providerHealthRows(providerHealth));
   const warningCount = $derived(providerRows.filter((row) => row.status === "degraded").length);
+  const blockingCount = $derived(providerRows.filter((row) => row.status === "blocking").length);
 
   const STATUS_STYLE: Record<
     ProviderHealthRowStatus,
@@ -20,6 +22,7 @@
     operational: { dot: "#4ba3b2", fg: "#166e7d", label: "operational" },
     informational: { dot: "#9aa1a8", fg: "#8a8f96", label: "informational" },
     degraded: { dot: "#c4942e", fg: "#8a6116", label: "degraded" },
+    blocking: { dot: "#c25f52", fg: "#9c3a2c", label: "blocking" },
   };
 </script>
 
@@ -29,7 +32,32 @@
     Upstream data providers, as observed by the last fetch cycle.
   </div>
 
-  {#if warningCount > 0 && !bannerDismissed}
+  {#if blockingCount > 0 && !blockingBannerDismissed}
+    <div
+      class="mt-4.5 flex items-start gap-3 rounded-lg border border-[#e0b3aa] bg-[#fbefec] px-4 py-3"
+    >
+      <span
+        class="mt-px shrink-0 rounded border border-[#e0b3aa] bg-[#f6ddd6] px-1.5 py-px font-mono text-[10px] text-[#9c3a2c]"
+      >
+        FAIL
+      </span>
+      <span class="flex-1 text-[12.5px] leading-normal text-[#4a3330]">
+        {blockingCount}
+        provider {blockingCount === 1 ? "route is" : "routes are"} blocking. Affected runs lost coverage no
+        fallback replaced; each route's classification reason is listed below.
+      </span>
+      <button
+        class="px-0.5 text-sm text-[#8a6255] transition hover:text-[#4a3330] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9c3a2c]"
+        type="button"
+        aria-label="Dismiss blocking warning"
+        onclick={() => (blockingBannerDismissed = true)}
+      >
+        ✕
+      </button>
+    </div>
+  {/if}
+
+  {#if warningCount > 0 && !warningBannerDismissed}
     <div
       class="mt-4.5 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
     >
@@ -48,7 +76,7 @@
         class="px-0.5 text-sm text-[#8a7a52] transition hover:text-[#4a4334] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8a6116]"
         type="button"
         aria-label="Dismiss warning"
-        onclick={() => (bannerDismissed = true)}
+        onclick={() => (warningBannerDismissed = true)}
       >
         ✕
       </button>
@@ -71,7 +99,9 @@
         {#each providerRows as row}
           {@const tone = STATUS_STYLE[row.status]}
           {@const gapColor =
-            row.status === "degraded" && row.gaps > 0 ? "#8a6116" : "#5c6066"}
+            (row.status === "degraded" || row.status === "blocking") && row.gaps > 0
+              ? tone.fg
+              : "#5c6066"}
           {@const degradedRunColor = row.degradedRuns > 0 ? "#8a6116" : "#5c6066"}
           <div
             class="grid grid-cols-[130px_minmax(0,1fr)_130px_64px_64px_120px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-3 last:border-b-0"

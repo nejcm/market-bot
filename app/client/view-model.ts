@@ -101,7 +101,7 @@ export interface DashboardMetrics {
   readonly averageConfidence: string;
 }
 
-export type ProviderHealthRowStatus = "operational" | "informational" | "degraded";
+export type ProviderHealthRowStatus = "operational" | "informational" | "degraded" | "blocking";
 
 export interface ProviderHealthRow {
   readonly provider: string;
@@ -287,9 +287,17 @@ function providerHealthRowStatus(
   if (classification === "informational") {
     return "informational";
   }
-  if (classification === "blocking" || classification === "expected") {
+  if (classification === "blocking") {
+    return "blocking";
+  }
+  if (classification === "expected") {
     return "degraded";
   }
+  /*
+   * Console records may carry no validation summary, or a classification this build does not know.
+   * Such a route is still shown as degraded rather than dropped: an incomplete summary is a reason
+   * to surface the route, not to hide it.
+   */
   if (gaps > 0 || degradedRuns > 0 || total > 0) {
     return "degraded";
   }

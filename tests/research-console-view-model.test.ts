@@ -175,6 +175,25 @@ describe("research console app view model", () => {
     ]);
   });
 
+  test("separates a blocking route from an expected one in the status column", () => {
+    expect(
+      providerHealthRows({
+        summary: {
+          routes: [
+            { provider: "yahoo", route: "yahoo-verified-chart", total: 1, fetchFailed: 1 },
+            { provider: "tradier", route: "tradier-options", total: 1, missingCredential: 1 },
+          ],
+          validation: {
+            routeClassifications: [
+              { route: "yahoo-verified-chart", classification: "blocking" },
+              { route: "tradier-options", classification: "expected" },
+            ],
+          },
+        },
+      }).map((row) => row.status),
+    ).toEqual(["blocking", "degraded"]);
+  });
+
   test("keeps a sole session-in-progress route informational even though it has a gap", () => {
     expect(
       providerHealthRows({
@@ -322,7 +341,7 @@ describe("research console app view model", () => {
       {
         provider: "yahoo",
         route: "quote/daily",
-        status: "degraded",
+        status: "blocking",
         total: 12,
         gaps: 3,
         degradedRuns: 0,

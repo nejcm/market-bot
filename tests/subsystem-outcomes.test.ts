@@ -290,12 +290,23 @@ describe("Subsystem Outcomes", () => {
         webGatherSkipCode: skipCode,
       });
 
-      expect(outcomes.filter((item) => item.subsystem === "web-search-provider")).toEqual([]);
       expect(outcomes).toContainEqual(
         expect.objectContaining({ subsystem: "web-gather", outcome: "declined", code: skipCode }),
       );
     },
   );
+
+  /*
+   * The suppression contract behind the skip cases above: the provider row is derived solely from
+   * the Web Gather audit, and a skipped stage returns without one (pinned producer-side in
+   * tests/web-gather-loop.test.ts). No audit, no provider row.
+   */
+  test("emits no web-search provider outcome when there is no Web Gather audit", () => {
+    const outcomes = buildSubsystemOutcomes(baseWebGatherInput);
+
+    expect(baseWebGatherInput).not.toHaveProperty("webGatherAudit");
+    expect(outcomes.filter((item) => item.subsystem === "web-search-provider")).toEqual([]);
+  });
 
   test("keeps the provider row served when only a web_fetch request fell back", () => {
     const outcomes = buildSubsystemOutcomes({

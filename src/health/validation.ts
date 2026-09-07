@@ -236,6 +236,21 @@ function classifyRoute(
         "An in-progress session bar was trimmed before indicators; the snapshot is anchored on the last completed session.",
     };
   }
+  /*
+   * The unsuccessful path of the same verification: the session verdict itself was unreadable, so
+   * the latest bar was kept without ever being confirmed complete. That stays blocking — an
+   * unverified bar may be a partial session feeding indicators — but it is an understood outcome,
+   * not the catch-all "unclassified" one. Sole-cause only: mixed with any other gap the route keeps
+   * the generic blocking classification.
+   */
+  if (routeName === "yahoo-verified-chart" && routeSoleCause(route, "malformed-response")) {
+    return {
+      ...base,
+      classification: "blocking",
+      reason:
+        "A Yahoo chart bar could not be verified as a completed session; the unverified bar is retained and may be an in-progress session.",
+    };
+  }
   if (provider === "marketaux" || provider === "finnhub") {
     return {
       ...base,

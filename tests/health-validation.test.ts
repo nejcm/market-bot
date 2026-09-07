@@ -85,6 +85,31 @@ describe("buildValidation route classification", () => {
     );
   });
 
+  /*
+   * The failed verification path: the bar was retained without being confirmed complete. Blocking
+   * is correct — an unverified bar may still be a partial session — but the reason must name it.
+   */
+  test("names the retained unverified bar on a sole malformed-response chart route", () => {
+    const summary = buildValidation(
+      [],
+      [
+        route({
+          route: "yahoo-verified-chart",
+          provider: "yahoo",
+          total: 1,
+          causes: { "malformed-response": 1 },
+        }),
+      ],
+      true,
+      NOW,
+    );
+    const classification = classificationFor(summary, "yahoo-verified-chart");
+    expect(classification?.classification).toBe("blocking");
+    expect(classification?.reason).toBe(
+      "A Yahoo chart bar could not be verified as a completed session; the unverified bar is retained and may be an in-progress session.",
+    );
+  });
+
   test("keeps a route blocking when session-in-progress is mixed with another cause", () => {
     const summary = buildValidation(
       [],
@@ -99,7 +124,9 @@ describe("buildValidation route classification", () => {
       true,
       NOW,
     );
-    expect(classificationFor(summary, "yahoo-verified-chart")?.classification).toBe("blocking");
+    const classification = classificationFor(summary, "yahoo-verified-chart");
+    expect(classification?.classification).toBe("blocking");
+    expect(classification?.reason).toBe("Unclassified provider gap requires review.");
   });
 
   /*

@@ -356,6 +356,59 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([]);
   });
 
+  test("fails fast when a collected profile question answer carries unrepairable wording", async () => {
+    let finalCalls = 0;
+    const cleanReport = modelReport("SPY");
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+        return { content: cleanReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: {
+            ...cleanWebSubjectProfile,
+            questions: {
+              ...cleanWebSubjectProfile.questions,
+              whatItDoes: {
+                answer: "Customers buy AI accelerators from the company.",
+                sourceIds: ["market-aapl"],
+              },
+            },
+          },
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(FinalSynthesisRejectedError);
+    const rejected = rejection as FinalSynthesisRejectedError;
+    expect(finalCalls).toBe(1);
+    expect(rejected.totalCalls).toBe(1);
+    expect(rejected.reportRepairReprompts).toBe(0);
+    expect(rejected.message).toContain("repair stopped early");
+    expect(rejected.message).toContain("extras.webSubjectProfile.questions.whatItDoes.answer");
+    expect(rejected.message).toContain("buy AI");
+    expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([]);
+  });
+
   test("still repairs when the model draft carries the violation alongside a clean profile", async () => {
     let finalCalls = 0;
     const violatingReport = JSON.stringify({

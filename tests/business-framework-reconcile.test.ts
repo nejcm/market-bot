@@ -8,6 +8,7 @@ import {
   type BusinessFrameworkSection,
 } from "../src/sources/extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact, WebSubjectProfileAnswer } from "../src/web-evidence";
+import { WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE } from "../src/web-evidence/contract";
 
 function answer(text: string, sourceIds: readonly string[] = ["web-1"]): WebSubjectProfileAnswer {
   return { answer: text, sourceIds: [...sourceIds] };
@@ -171,6 +172,23 @@ describe("reconcileBusinessFramework", () => {
     expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("customers");
     expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("geo");
     // Substantive answers still clear their own gaps.
+    expect(result.artifact.reconciliation?.resolvedGaps).toContain("purchase-recurrence");
+  });
+
+  test("a withheld research-only answer does not clear its Business Framework gap", () => {
+    const profile = companyProfile({
+      riskFactors: {
+        answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+        sourceIds: ["risks"],
+      },
+    });
+    const result = reconcileBusinessFramework(framework(), profile);
+
+    expect(result.artifact.gaps).toEqual([gap("risk-factors"), gap("analyst-consensus")]);
+    expect(result.artifact.reconciliation?.resolvedGaps).not.toContain("risk-factors");
+    expect(result.artifact.reconciliation?.profileSourceIds).not.toContain("risks");
+    expect(result.sourceGaps).toHaveLength(2);
+    expect(result.sourceGaps.some((entry) => entry.message.includes("risk-factors"))).toBe(true);
     expect(result.artifact.reconciliation?.resolvedGaps).toContain("purchase-recurrence");
   });
 

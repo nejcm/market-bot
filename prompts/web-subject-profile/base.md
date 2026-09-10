@@ -20,7 +20,7 @@ Where the filing discloses the figures, format `howItMakesMoney` as cited bullet
 
 Write every answer in plain English a smart 8th grader could follow: define or avoid jargon, and keep claims concrete.
 
-Write each `openGaps` entry as a plain statement of what the supplied evidence does not contain, naming the missing item neutrally (`analyst estimate coverage`, `options data`, `dividend history`). Do not use the phrases `price target`, `target price`, `fair value`, `intrinsic value`, `margin of safety`, `undervalued`, or `overvalued` anywhere in the profile, including when saying such data is missing. A gap entry that uses them is dropped, and the gap is reported only as a withheld count.
+Write each `openGaps` entry as a plain statement of what the supplied evidence does not contain, naming the missing item neutrally (`analyst estimate coverage`, `options data`, `dividend history`). Do not use the phrases `price target`, `target price`, `fair value`, `intrinsic value`, `margin of safety`, `undervalued`, or `overvalued` anywhere in the profile, including when saying such data is missing. Do not write `buy`, `sell`, `hold`, or `accumulate` followed by a ticker or other 1-5 letter uppercase token (`buy AI`, `hold BTC`, `buy LNG`), and do not address the reader with `you should` or `you need to`, including when restating issuer risk-factor text. Wording that uses them is dropped or replaced, and the withheld count is reported as a gap.
 
 ## goal
 

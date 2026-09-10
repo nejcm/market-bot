@@ -9,6 +9,10 @@ import {
   latestSecFilingDate,
   webGatherAcceptancePolicyForReuse,
 } from "../src/web-evidence/web-subject-profile-reuse";
+import {
+  WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+  WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+} from "../src/web-evidence/contract";
 import { readWebSubjectProfileArtifact } from "../src/run-artifact-evidence-reader";
 import {
   buildWebSubjectProfileEvidence,
@@ -302,6 +306,121 @@ describe("Web Subject Profile reuse", () => {
       evidenceQualityImpact: "no-cap",
     });
     expect(classifyGap(reuse!.gap)).toBe("diagnostic");
+  });
+
+  test("does not reuse a profile whose required answers are all withheld notices", async () => {
+    const dataDir = tempRunsDir();
+    const base = profile();
+    if (base.subjectKind !== "company") {
+      throw new Error("expected company profile");
+    }
+    const notice = {
+      answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+      sourceIds: [webSource.id],
+    };
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      artifact: {
+        ...base,
+        subjectSummary: {
+          answer: WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+          sourceIds: [webSource.id],
+        },
+        questions: Object.fromEntries(
+          Object.keys(base.questions).map((key) => [key, notice]),
+        ) as unknown as typeof base.questions,
+      },
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-03T13:12:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse).toBeUndefined();
+  });
+
+  test("continues past an all-withheld profile to an older same-window candidate", async () => {
+    const dataDir = tempRunsDir();
+    const newer = profile({ generatedAt: "2026-05-08T00:00:00.000Z" });
+    if (newer.subjectKind !== "company") {
+      throw new Error("expected company profile");
+    }
+    const notice = {
+      answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+      sourceIds: [webSource.id],
+    };
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl-newer-withheld",
+      symbol: "AAPL",
+      generatedAt: "2026-05-08T00:00:00.000Z",
+      artifact: {
+        ...newer,
+        subjectSummary: {
+          answer: WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+          sourceIds: [webSource.id],
+        },
+        questions: Object.fromEntries(
+          Object.keys(newer.questions).map((key) => [key, notice]),
+        ) as unknown as typeof newer.questions,
+      },
+    });
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl-older-substance",
+      symbol: "AAPL",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-10T00:00:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.runDirName).toBe("prior-aapl-older-substance");
+    expect(reuse?.profile.generatedAt).toBe("2026-05-01T00:00:00.000Z");
+  });
+
+  test("reuses a notice-bearing profile that still has a substantive required answer", async () => {
+    const dataDir = tempRunsDir();
+    const base = profile();
+    if (base.subjectKind !== "company") {
+      throw new Error("expected company profile");
+    }
+    await writePriorRun({
+      dataDir,
+      runId: "prior-aapl",
+      symbol: "AAPL",
+      artifact: {
+        ...base,
+        questions: {
+          ...base.questions,
+          riskFactors: {
+            answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+            sourceIds: [webSource.id],
+          },
+        },
+      },
+    });
+
+    const reuse = await findReusableWebSubjectProfile({
+      dataDir,
+      command,
+      now: new Date("2026-05-03T13:12:00.000Z"),
+      reuseDaysBySubjectKind,
+      currentSecFilingDate: "2026-04-25",
+    });
+
+    expect(reuse?.profile.subjectKind).toBe("company");
   });
 
   test("offers the normalizer's degraded FPI profile for reuse", async () => {

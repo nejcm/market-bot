@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence, SourceGap } from "../src/domain/types";
 import type { WebSubjectProfileAnswer, WebSubjectProfileArtifact } from "../src/web-evidence";
+import { WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE } from "../src/web-evidence/contract";
 // Internal seam: reconciliation wiring is not part of the package manifest.
 import { reconcileBusinessFrameworkEvidence } from "../src/web-evidence/web-evidence-phase";
 import {
@@ -138,6 +139,38 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
     );
 
     expect(result.businessFramework?.gaps).toEqual([gap("analyst-consensus")]);
+  });
+
+  test("a withheld profile answer leaves the mapped gap in Source Gaps", () => {
+    const artifact = framework([gap("risk-factors")]);
+    const staleGaps = frameworkGaps("AAPL", artifact.gaps);
+    const base = profile();
+    if (base.subjectKind !== "company") {
+      throw new Error("expected company profile");
+    }
+    const webProfile: WebSubjectProfileArtifact = {
+      ...base,
+      questions: {
+        ...base.questions,
+        riskFactors: {
+          answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+          sourceIds: ["web-1"],
+        },
+      },
+    };
+    const collected = bundle(artifact, staleGaps, webProfile);
+    const result = reconcileBusinessFrameworkEvidence(collected);
+
+    expect(result).toBe(collected);
+    expect(result.businessFramework?.gaps).toEqual([gap("risk-factors")]);
+    expect(result.businessFramework?.reconciliation).toBeUndefined();
+    const sourceGap = result.sourceGaps.filter((entry) => entry.source === "business-framework");
+    const evidenceGap = result.extendedEvidence?.gaps.filter(
+      (entry) => entry.source === "business-framework",
+    );
+    expect(sourceGap).toHaveLength(1);
+    expect(sourceGap[0]?.message).toContain("risk-factors");
+    expect(evidenceGap).toEqual(sourceGap);
   });
 
   test("returns the original collection when no present code resolves", () => {

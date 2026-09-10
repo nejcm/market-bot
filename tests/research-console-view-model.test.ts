@@ -29,6 +29,7 @@ import {
   historicalContextAuditView,
   matchesQuery,
   predictions,
+  providerHealthIssueCounts,
   providerHealthRows,
   recentRunSummaries,
   reliabilityBins,
@@ -192,6 +193,95 @@ describe("research console app view model", () => {
         },
       }).map((row) => row.status),
     ).toEqual(["blocking", "degraded"]);
+  });
+
+  test("counts blocking issues that have no provider route row", () => {
+    const detail = {
+      summary: {
+        routes: [{ provider: "yahoo", route: "yahoo-verified-chart", total: 1, fetchFailed: 1 }],
+        validation: {
+          routeClassifications: [
+            { route: "yahoo-verified-chart", classification: "blocking" },
+            { route: "coverage:equity-deep", classification: "blocking" },
+            { route: "coverage:market-update", classification: "blocking" },
+            { route: "run-artifact-index", classification: "blocking" },
+          ],
+        },
+      },
+    };
+
+    expect(providerHealthIssueCounts(detail, providerHealthRows(detail))).toEqual({
+      blocking: 4,
+      warning: 0,
+      offTableBlocking: 3,
+      offTableWarning: 0,
+    });
+  });
+
+  test("counts an expected calibration issue that has no provider route row", () => {
+    const detail = {
+      summary: {
+        routes: [{ provider: "tradier", route: "tradier-options", total: 1, missingCredential: 1 }],
+        validation: {
+          routeClassifications: [
+            { route: "tradier-options", classification: "expected" },
+            { route: "calibration", classification: "expected" },
+          ],
+        },
+      },
+    };
+
+    expect(providerHealthIssueCounts(detail, providerHealthRows(detail))).toEqual({
+      blocking: 0,
+      warning: 2,
+      offTableBlocking: 0,
+      offTableWarning: 1,
+    });
+  });
+
+  test("still counts a degraded row the validation summary never classified", () => {
+    const detail = {
+      summary: {
+        routes: [{ provider: "stooq", route: "eod", total: 3, fetchFailed: 1 }],
+      },
+    };
+
+    expect(providerHealthIssueCounts(detail, providerHealthRows(detail))).toEqual({
+      blocking: 0,
+      warning: 1,
+      offTableBlocking: 0,
+      offTableWarning: 0,
+    });
+  });
+
+  test("counts no issues when routeClassifications is absent, empty, or malformed", () => {
+    expect(providerHealthIssueCounts({}, [])).toEqual({
+      blocking: 0,
+      warning: 0,
+      offTableBlocking: 0,
+      offTableWarning: 0,
+    });
+    expect(providerHealthIssueCounts({ summary: { validation: {} } }, [])).toEqual({
+      blocking: 0,
+      warning: 0,
+      offTableBlocking: 0,
+      offTableWarning: 0,
+    });
+    expect(
+      providerHealthIssueCounts({ summary: { validation: { routeClassifications: [] } } }, []),
+    ).toEqual({ blocking: 0, warning: 0, offTableBlocking: 0, offTableWarning: 0 });
+    expect(
+      providerHealthIssueCounts(
+        {
+          summary: {
+            validation: {
+              routeClassifications: [null, { route: 7 }, { classification: "blocking" }],
+            },
+          },
+        },
+        [],
+      ),
+    ).toEqual({ blocking: 0, warning: 0, offTableBlocking: 0, offTableWarning: 0 });
   });
 
   test("keeps a sole session-in-progress route informational even though it has a gap", () => {

@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { ProviderHealthDetail } from "../../types";
-  import { jsonBlock, providerHealthRows, type ProviderHealthRowStatus } from "../view-model";
+  import {
+    jsonBlock,
+    providerHealthIssueCounts,
+    providerHealthRows,
+    type ProviderHealthRowStatus,
+  } from "../view-model";
 
   interface Props {
     readonly providerHealth: ProviderHealthDetail;
@@ -12,8 +17,13 @@
   let warningBannerDismissed = $state(false);
 
   const providerRows = $derived(providerHealthRows(providerHealth));
-  const warningCount = $derived(providerRows.filter((row) => row.status === "degraded").length);
-  const blockingCount = $derived(providerRows.filter((row) => row.status === "blocking").length);
+  /* Counted from `validation.routeClassifications`, not from table rows: the synthetic
+   * classifications (required coverage, news, scoring, Calibration, Run Artifact Index) have no
+   * provider route, and counting rows made the banner contradict the health report below it. */
+  const issueCounts = $derived(providerHealthIssueCounts(providerHealth, providerRows));
+  const warningCount = $derived(issueCounts.warning);
+  const blockingCount = $derived(issueCounts.blocking);
+  const hasHealthReport = $derived(providerHealth.markdown !== undefined);
 
   const STATUS_STYLE: Record<
     ProviderHealthRowStatus,
@@ -43,9 +53,18 @@
       </span>
       <span class="flex-1 text-[12.5px] leading-normal text-[#4a3330]">
         {blockingCount}
-        provider {blockingCount === 1 ? "route is" : "routes are"} blocking. Baseline-required coverage
-        failed or could not be verified on the affected runs; each route's classification reason is
-        listed below.
+        blocking {blockingCount === 1 ? "issue" : "issues"} in the last validation pass.
+        {#if issueCounts.offTableBlocking > 0}
+          Of these, {issueCounts.offTableBlocking}
+          {issueCounts.offTableBlocking === 1
+            ? "is a validation check, not a provider route"
+            : "are validation checks, not provider routes"} — required coverage, news, scoring or the
+          Run Artifact Index — with no row in the provider table.
+        {/if}
+        {#if hasHealthReport}
+          Every issue and its reason is listed in the Route classifications table of the health report
+          below.
+        {/if}
       </span>
       <button
         class="px-0.5 text-sm text-[#8a6255] transition hover:text-[#4a3330] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9c3a2c]"
@@ -69,9 +88,20 @@
       </span>
       <span class="flex-1 text-[12.5px] leading-normal text-[#4a4334]">
         {warningCount}
-        provider {warningCount === 1 ? "route is" : "routes are"} degraded. Affected runs record each
-        miss as a data gap, or — when a fallback provider covered the request — as a degraded endpoint
-        rather than hiding it.
+        warning {warningCount === 1 ? "issue" : "issues"} in the last validation pass. Affected runs
+        record each miss as a Source Gap, or — when a fallback provider covered the request — as a
+        degraded endpoint rather than hiding it.
+        {#if issueCounts.offTableWarning > 0}
+          Of these, {issueCounts.offTableWarning}
+          {issueCounts.offTableWarning === 1
+            ? "is a validation check, not a provider route"
+            : "are validation checks, not provider routes"} — pending Calibration, for example — with no
+          row in the provider table.
+        {/if}
+        {#if hasHealthReport}
+          Every issue and its reason is listed in the Route classifications table of the health report
+          below.
+        {/if}
       </span>
       <button
         class="px-0.5 text-sm text-[#8a7a52] transition hover:text-[#4a4334] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8a6116]"

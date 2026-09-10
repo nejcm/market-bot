@@ -255,27 +255,86 @@ export function providerHealthRows(detail: ProviderHealthDetail): readonly Provi
     });
 }
 
-function routeClassificationByName(
+export interface ProviderHealthIssueCounts {
+  /** Every `blocking` entry in `validation.routeClassifications`, so the banner matches the
+   *  "Blocking issues" figure the health report renders on the same screen. */
+  readonly blocking: number;
+  /** Every `expected` entry, plus any table row shown as degraded that no classification covers —
+   *  an unclassified route is still amber in the table, so the banner must not undercount it. */
+  readonly warning: number;
+  /** Counted issues with no row in the provider table: the synthetic classifications for required
+   *  coverage, news, scoring, Calibration and the Run Artifact Index. Banner copy names these so a
+   *  reader does not hunt the table for routes that were never provider routes. */
+  readonly offTableBlocking: number;
+  readonly offTableWarning: number;
+}
+
+export function providerHealthIssueCounts(
+  detail: ProviderHealthDetail,
+  rows: readonly ProviderHealthRow[],
+): ProviderHealthIssueCounts {
+  const entries = routeClassificationEntries(detail.summary);
+  const classificationByRoute = new Map(
+    entries.map((entry) => [entry.route, entry.classification] as const),
+  );
+  const tableRoutes = new Set(rows.map((row) => row.route));
+
+  let blocking = 0;
+  let warning = 0;
+  let offTableBlocking = 0;
+  let offTableWarning = 0;
+  for (const entry of entries) {
+    const offTable = !tableRoutes.has(entry.route);
+    if (entry.classification === "blocking") {
+      blocking += 1;
+      offTableBlocking += offTable ? 1 : 0;
+    } else if (entry.classification === "expected") {
+      warning += 1;
+      offTableWarning += offTable ? 1 : 0;
+    }
+  }
+
+  warning += rows.filter(
+    (row) => row.status === "degraded" && classificationByRoute.get(row.route) !== "expected",
+  ).length;
+
+  return { blocking, warning, offTableBlocking, offTableWarning };
+}
+
+interface RouteClassificationEntry {
+  readonly route: string;
+  readonly classification: string;
+}
+
+function routeClassificationEntries(
   summary: Record<string, unknown> | undefined,
-): ReadonlyMap<string, string> {
+): readonly RouteClassificationEntry[] {
   if (summary === undefined) {
-    return new Map();
+    return [];
   }
   const { validation } = summary;
   if (!isRecord(validation) || !Array.isArray(validation.routeClassifications)) {
-    return new Map();
+    return [];
   }
 
-  const byRoute = new Map<string, string>();
+  const entries: RouteClassificationEntry[] = [];
   for (const item of validation.routeClassifications) {
     if (!isRecord(item)) {
       continue;
     }
     if (typeof item.route === "string" && typeof item.classification === "string") {
-      byRoute.set(item.route, item.classification);
+      entries.push({ route: item.route, classification: item.classification });
     }
   }
-  return byRoute;
+  return entries;
+}
+
+function routeClassificationByName(
+  summary: Record<string, unknown> | undefined,
+): ReadonlyMap<string, string> {
+  return new Map(
+    routeClassificationEntries(summary).map((entry) => [entry.route, entry.classification]),
+  );
 }
 
 function providerHealthRowStatus(

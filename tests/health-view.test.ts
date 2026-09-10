@@ -78,7 +78,8 @@ describe("provider health console view", () => {
 
     expect(html).toContain("WARN");
     expect(html).not.toContain("FAIL");
-    expect(html).toContain("provider route is degraded");
+    expect(html).toMatch(/1\s+warning issue in the last validation pass/u);
+    expect(html).not.toContain("validation checks, not provider routes");
     expect(html).toContain("TOTAL");
     expect(html).not.toContain("SOURCES");
     expect(html).toContain("DEGRADED RUNS");
@@ -106,13 +107,60 @@ describe("provider health console view", () => {
     });
 
     expect(html).toContain("FAIL");
-    expect(html).toContain("provider route is blocking");
+    expect(html).toMatch(/1\s+blocking issue in the last validation pass/u);
     expect(html).toContain("WARN");
-    expect(html).toContain("provider route is degraded");
+    expect(html).toMatch(/1\s+warning issue in the last validation pass/u);
+    expect(html).not.toContain("validation checks, not provider routes");
     expect(html).toMatch(/>\s*blocking\s*</u);
     expect(html).toMatch(/>\s*degraded\s*</u);
     expect(html).toContain('style="color: #9c3a2c"');
     expect(html).toContain('style="color: #8a6116"');
+  });
+
+  test("counts blocking classifications with no route row and says they are not in the table", async () => {
+    const html = await renderHealthView({
+      summary: {
+        routes: [{ provider: "yahoo", route: "quote/daily", total: 2, fetchFailed: 1 }],
+        validation: {
+          routeClassifications: [
+            { route: "quote/daily", classification: "blocking" },
+            { route: "coverage:equity-deep", classification: "blocking" },
+            { route: "coverage:market-update", classification: "blocking" },
+            { route: "run-artifact-index", classification: "blocking" },
+          ],
+        },
+      },
+      markdown: "# Provider Health",
+    });
+
+    expect(html).toContain("FAIL");
+    expect(html).toMatch(/4\s+blocking issues in the last validation pass/u);
+    expect(html).toMatch(/Of these,\s+3\s+are validation checks, not provider routes/u);
+    expect(html).toContain("with no row in the provider table");
+    expect(html).toContain("Route classifications table of the health report");
+    expect(html).not.toContain("WARN");
+  });
+
+  test("counts an expected calibration classification with no route row in the WARN banner", async () => {
+    const html = await renderHealthView({
+      summary: {
+        routes: [{ provider: "tradier", route: "tradier-options", total: 1, missingCredential: 1 }],
+        validation: {
+          routeClassifications: [
+            { route: "tradier-options", classification: "expected" },
+            { route: "calibration", classification: "expected" },
+          ],
+        },
+      },
+    });
+
+    expect(html).toContain("WARN");
+    expect(html).not.toContain("FAIL");
+    expect(html).toMatch(/2\s+warning issues in the last validation pass/u);
+    expect(html).toMatch(/Of these,\s+1\s+is a validation check, not a provider route/u);
+    expect(html).toContain("pending Calibration");
+    // No health report rendered, so the banner must not point at one.
+    expect(html).not.toContain("Route classifications table of the health report");
   });
 
   test("shows zero in the degraded-runs column on a gap-only route", async () => {

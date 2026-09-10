@@ -159,16 +159,16 @@ export const CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS: ReadonlySet<string> = 
 /*
  * The subset of CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS this run actually collected. A
  * codeAssembledDigest projector that produces nothing -- the Web Subject Profile was disabled,
- * Its key was missing, or the collector timed out -- leaves its key out of the projection, and
+ * its key was missing, or the collector timed out -- leaves its key out of the projection, and
  * `assembleResearchReport` spreads the projection over the model extras, so the report then keeps
  * `extras.<key>` straight from the model draft: editable prose, not a code-assembled digest.
  * Classification alone therefore cannot tell the two apart; only running the projector can. That
- * Distinction is what the fail-fast guard in final-synthesis.ts keys off, and getting it wrong
- * Stops repairs on wording the next draft could have fixed ("Absence is a finding", AGENTS.md).
+ * distinction is what the fail-fast guard in final-synthesis.ts keys off, and getting it wrong
+ * stops repairs on wording the next draft could have fixed ("Absence is a finding", AGENTS.md).
  *
  * Projected with empty model extras deliberately: a codeAssembledDigest projector ignores model
- * Extras by definition, so this asks the narrower question the guard needs -- does the code
- * Assemble a value for this key no matter what the draft says?
+ * extras by definition, so this asks the narrower question the guard needs -- does the code
+ * assemble a value for this key no matter what the draft says?
  */
 export function collectedCodeAssembledExtraKeys(
   collectedSources: CollectedSources,

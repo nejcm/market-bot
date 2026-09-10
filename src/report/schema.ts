@@ -246,8 +246,10 @@ function modelAuthoredExtraSegments(
   ];
 }
 
-// Both the selection rationale and each item rationale are model-authored: they are read
-// Out of parsed model output in research/spotlights.ts and merged in report-assembly.ts.
+/*
+ * Both the selection rationale and each item rationale are model-authored: they are read
+ * out of parsed model output in research/spotlights.ts and merged in report-assembly.ts.
+ */
 function spotlightsSegments(extra: unknown): readonly ModelAuthoredSegment[] {
   if (!isRecord(extra)) {
     return [];
@@ -787,8 +789,10 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
     throw new Error("Research report evidenceQuality conflicts with legacy confidence");
   }
   assertEvidenceQuality(evidenceQuality);
-  // Report Integrity / Research Quality are optional at tolerant read
-  // Boundaries (historical reports predate them) but must be valid when set.
+  /*
+   * Report Integrity / Research Quality are optional at tolerant read
+   * boundaries (historical reports predate them) but must be valid when set.
+   */
   for (const [field, value] of [
     ["reportIntegrity", report.reportIntegrity],
     ["researchQuality", report.researchQuality],

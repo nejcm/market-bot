@@ -28,7 +28,7 @@ export { type WebSubjectProfileArtifact } from "./contract";
 
 export interface WebSubjectProfileResult {
   readonly extendedEvidence?: ExtendedEvidence;
-  readonly artifact?: WebSubjectProfileArtifact;
+  readonly artifact: WebSubjectProfileArtifact;
   readonly sourceGaps: readonly SourceGap[];
 }
 

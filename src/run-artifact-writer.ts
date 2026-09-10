@@ -355,8 +355,11 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
         predictionErrors: input.predictionErrors,
         totalCalls: input.totalCalls,
         reportRepairReprompts: input.reportRepairReprompts,
-        // ReportValidationErrors is authoritative; see model-payload-language.ts for what an empty
-        // List means and why the same helper backs the fail-fast guard in final synthesis.
+        /*
+         * `reportValidationErrors` is authoritative; see model-payload-language.ts for what an empty
+         * list means. This helper is a failed-run diagnostic only; final synthesis decides
+         * repairability from the rejected field's own path, not from this scan.
+         */
         languageViolations: modelPayloadLanguageViolations(input.payload),
         evidenceQuality: input.evidenceQuality,
         cost: {

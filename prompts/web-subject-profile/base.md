@@ -20,6 +20,8 @@ Where the filing discloses the figures, format `howItMakesMoney` as cited bullet
 
 Write every answer in plain English a smart 8th grader could follow: define or avoid jargon, and keep claims concrete.
 
+Write each `openGaps` entry as a plain statement of what the supplied evidence does not contain, naming the missing item neutrally (`analyst estimate coverage`, `options data`, `dividend history`). Do not use the phrases `price target`, `target price`, `fair value`, `intrinsic value`, `margin of safety`, `undervalued`, or `overvalued` anywhere in the profile, including when saying such data is missing. A gap entry that uses them is dropped, and the gap is reported only as a withheld count.
+
 ## goal
 
 Emit an optional `subjectLabel`, cited `subjectSummary`, kind-appropriate cited answers, recent material events, a cited fact ledger, and open gaps using the required JSON shape.

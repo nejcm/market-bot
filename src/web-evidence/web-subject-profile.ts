@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { violatesResearchOnly } from "../domain/research-language";
 import { sourceGap } from "../domain/source-gaps";
 import type {
   ExtendedEvidence,
@@ -120,6 +121,96 @@ export function webSubjectProfileRequiredShape(subjectKind: SubjectKind): Record
   };
 }
 
+/*
+ * Research-only screen for `openGaps`.
+ *
+ * `openGaps` is the one Web Subject Profile field that declares absence, and
+ * `webSubjectProfileExtra` projects it as a `codeAssembledDigest`: the artifact always wins over
+ * the model's own extras, so the text reaches `assertSafeReportLanguage` (schema.ts:366) with no
+ * draft that any repair reprompt could rewrite. A deep AAPL run
+ * (`2026-09-07T09-51-24-783Z-a23bf02b`) died on the gate's `price targets` branch over a sentence
+ * the profile stage wrote hours earlier.
+ *
+ * The screen runs at the source instead of in the gate. Deciding, from wording alone, whether
+ * `price targets` names a declared absence or an authored assertion is exactly what a narrowed
+ * pattern could not do: an assertion sits on either side of the term, or inside the subject
+ * enumeration, and three separate attempts each left a hole. So a tripping entry is dropped
+ * rather than reworded, and its absence is declared instead of laundered.
+ *
+ * Origin decides the disposition, which is why the screen is applied per call site rather than to
+ * the merged array:
+ * - model-authored entries (and entries read back off disk, whose origin is no longer knowable)
+ *   are dropped and replaced by one code-generated notice naming the count, plus a matching
+ *   SourceGap. The original wording stays in the run's raw `stages.json` stage output.
+ * - the code-generated summaries below are asserted, not dropped: wording the generator produced
+ *   is a bug in the generator, and laundering it would hide that.
+ * - externally-derived failure detail interpolated into an empty artifact is replaced wholesale
+ *   (see `emptyArtifact`); a provider error string is neither ours to assert on nor safe to keep.
+ */
+function screenModelOpenGaps(gaps: readonly string[]): {
+  readonly kept: readonly string[];
+  readonly withheldCount: number;
+} {
+  const kept = gaps.filter((gap) => violatesResearchOnly(gap) === null);
+  return { kept, withheldCount: gaps.length - kept.length };
+}
+
+function withheldOpenGapsSummary(withheldCount: number, totalCount: number): string {
+  return (
+    `Web Subject Profile: ${withheldCount} of ${totalCount} declared open gaps withheld for ` +
+    `research-only wording; the original wording stays in the run's raw stage output.`
+  );
+}
+
+function assertCodeAssembledOpenGap(text: string, origin: string): string {
+  const violation = violatesResearchOnly(text);
+  if (violation !== null) {
+    throw new Error(
+      `Web Subject Profile ${origin} is code-assembled and must not carry research-only wording: "${violation.match}"`,
+    );
+  }
+  return text;
+}
+
+// A failure message can interpolate a provider or model error string, which is external text. It
+// Is neither code-assembled enough to assert on nor safe to publish, so a tripping message is
+// Replaced entirely; the unscreened detail survives on the transient SourceGap, which is outside
+// The report-language scan (ADR 0001).
+const WITHHELD_FAILURE_GAP =
+  "Web Subject Profile unavailable; the stage failure detail was withheld for research-only wording.";
+
+function screenedFailureOpenGap(gap: string): string {
+  return violatesResearchOnly(gap) === null ? gap : WITHHELD_FAILURE_GAP;
+}
+
+/*
+ * Reuse reads an artifact persisted by an earlier run, possibly one written before this screen
+ * existed, and by then a code-generated entry is indistinguishable from a model-authored one. The
+ * drop rule is therefore the only safe one here.
+ */
+function screenReusedArtifact(artifact: WebSubjectProfileArtifact): {
+  readonly artifact: WebSubjectProfileArtifact;
+  readonly withheldGap: SourceGap | undefined;
+} {
+  const screened = screenModelOpenGaps(artifact.openGaps);
+  if (screened.withheldCount === 0) {
+    return { artifact, withheldGap: undefined };
+  }
+  const summary = assertCodeAssembledOpenGap(
+    withheldOpenGapsSummary(screened.withheldCount, artifact.openGaps.length),
+    "withheld-gaps summary",
+  );
+  const openGaps = [...screened.kept, summary];
+  const withheldGap = profileGap(summary, "validation-failed");
+  if (artifact.subjectKind === "company") {
+    return { artifact: { ...artifact, openGaps }, withheldGap };
+  }
+  if (artifact.subjectKind === "crypto-asset") {
+    return { artifact: { ...artifact, openGaps }, withheldGap };
+  }
+  return { artifact: { ...artifact, openGaps }, withheldGap };
+}
+
 export function buildWebSubjectProfileEvidence(input: {
   readonly command: ResearchCommand;
   readonly subject: WebSubjectProfileSubject;
@@ -161,10 +252,13 @@ export function buildWebSubjectProfileEvidence(input: {
   const sourceIds = profileSourceIds(parsed.profile);
   const rejectionSummary =
     parsed.rejections.length > 0
-      ? sanitizedPartialRejectionSummary(
-          parsed.profile,
-          input.subject.subjectKind,
-          parsed.rejections,
+      ? assertCodeAssembledOpenGap(
+          sanitizedPartialRejectionSummary(
+            parsed.profile,
+            input.subject.subjectKind,
+            parsed.rejections,
+          ),
+          "partial-rejection summary",
         )
       : undefined;
   const rejectionGap =
@@ -175,15 +269,27 @@ export function buildWebSubjectProfileEvidence(input: {
           "validation-failed",
           partialAcceptanceImpact(parsed.profile, input.subject.subjectKind),
         );
+  // Model-authored gap prose is screened here, at the only point where its origin is still known.
+  const screened = screenModelOpenGaps(parsed.profile.openGaps);
+  const withheldSummary =
+    screened.withheldCount === 0
+      ? undefined
+      : assertCodeAssembledOpenGap(
+          withheldOpenGapsSummary(screened.withheldCount, parsed.profile.openGaps.length),
+          "withheld-gaps summary",
+        );
+  const withheldGap =
+    withheldSummary === undefined ? undefined : profileGap(withheldSummary, "validation-failed");
   // The sanitized summary survives into the reusable artifact and the transient SourceGap.
   // Both paths can reach prompts or persisted report text, so neither may contain model text.
-  const profileForArtifact =
-    rejectionSummary === undefined
-      ? parsed.profile
-      : {
-          ...parsed.profile,
-          openGaps: [...parsed.profile.openGaps, rejectionSummary],
-        };
+  const profileForArtifact = {
+    ...parsed.profile,
+    openGaps: [
+      ...screened.kept,
+      ...(withheldSummary === undefined ? [] : [withheldSummary]),
+      ...(rejectionSummary === undefined ? [] : [rejectionSummary]),
+    ],
+  };
   const artifact = profileArtifact({
     subject: input.subject,
     generatedAt: input.generatedAt,
@@ -194,14 +300,10 @@ export function buildWebSubjectProfileEvidence(input: {
       ? { secFilingBasisDate: input.secFilingBasisDate }
       : {}),
   });
-  return profileResult(
-    input.command,
-    input.extendedEvidence,
-    input.subject,
-    artifact,
-    sourceIds,
-    rejectionGap === undefined ? [] : [rejectionGap],
-  );
+  return profileResult(input.command, input.extendedEvidence, input.subject, artifact, sourceIds, [
+    ...(rejectionGap === undefined ? [] : [rejectionGap]),
+    ...(withheldGap === undefined ? [] : [withheldGap]),
+  ]);
 }
 
 export function buildWebSubjectProfileFailureEvidence(input: {
@@ -232,13 +334,14 @@ export function buildWebSubjectProfileReuseEvidence(input: {
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly freshnessGap: SourceGap;
 }): WebSubjectProfileResult {
+  const screened = screenReusedArtifact(input.artifact);
   return profileResult(
     input.command,
     input.extendedEvidence,
     input.subject,
-    input.artifact,
-    input.artifact.sourceIds,
-    [input.freshnessGap],
+    screened.artifact,
+    screened.artifact.sourceIds,
+    [input.freshnessGap, ...(screened.withheldGap === undefined ? [] : [screened.withheldGap])],
   );
 }
 
@@ -481,7 +584,7 @@ function emptyArtifact(
     subjectSummary: EMPTY_ANSWER,
     recentMaterialEvents: [],
     factLedger: [],
-    openGaps: [gap],
+    openGaps: [screenedFailureOpenGap(gap)],
     sourceIds: [],
   };
   if (subject.subjectKind === "company") {

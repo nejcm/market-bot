@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildWebSubjectProfileEvidence,
+  buildWebSubjectProfileFailureEvidence,
+  buildWebSubjectProfileReuseEvidence,
   isCompanyProfileSecSource,
   normalizedSubjectId,
 } from "../src/web-evidence/web-subject-profile";
+import { assertSafeReportLanguage, ReportLanguageViolationError } from "../src/report/schema";
+import { sourceGap } from "../src/domain/source-gaps";
+import { researchReport } from "./support/fixtures";
 import type { Source } from "../src/domain/types";
 import { violatesResearchOnly } from "../src/domain/research-language";
 
@@ -869,5 +874,239 @@ describe("isCompanyProfileSecSource", () => {
     expect(isCompanyProfileSecSource(secSource({ provider: "yahoo", snippet: "text" }))).toBe(
       false,
     );
+  });
+});
+
+/*
+ * F3: the profile stage's own gap prose reaches `assertSafeReportLanguage` through the
+ * `codeAssembledDigest` projection, where no synthesis draft can rewrite it. Deep AAPL run
+ * 2026-09-07T09-51-24-783Z-a23bf02b died that way. The screen runs where the wording is produced.
+ */
+describe("Web Subject Profile openGaps research-only screen", () => {
+  // The exact sentence the live run wrote into openGaps[4].
+  const LIVE_GAP_SENTENCE =
+    "Analyst consensus, price targets, options data, dividend history, and split history are not available in the supplied web sources.";
+
+  const COMPANY_QUESTION_KEYS = [
+    "whatItDoes",
+    "howItMakesMoney",
+    "customers",
+    "geography",
+    "purchaseRecurrence",
+    "pricingPower",
+    "recessionCyclicality",
+    "managementTrackRecord",
+    "capitalAllocation",
+    "companyKpis",
+    "riskFactors",
+  ] as const;
+
+  function payloadWithGaps(openGaps: readonly string[], sourceId = webSource.id): string {
+    const answer = { answer: "Apple sells devices and services.", sourceIds: [sourceId] };
+    return JSON.stringify({
+      companyName: "Apple Inc.",
+      subjectSummary: answer,
+      questions: Object.fromEntries(COMPANY_QUESTION_KEYS.map((key) => [key, answer])),
+      recentMaterialEvents: [],
+      factLedger: [{ claim: "Apple sells iPhone, Mac, and services.", sourceIds: [sourceId] }],
+      openGaps,
+    });
+  }
+
+  function buildWithGaps(openGaps: readonly string[]) {
+    return buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      modelContent: payloadWithGaps(openGaps),
+      webSources: [webSource],
+      extendedEvidence: undefined,
+    });
+  }
+
+  test("withholds the live gap sentence and declares the withholding", () => {
+    const result = buildWithGaps([
+      "The supplied excerpts do not provide region-by-region revenue percentages.",
+      LIVE_GAP_SENTENCE,
+    ]);
+
+    const gaps = result.artifact?.openGaps ?? [];
+    expect(gaps).not.toContain(LIVE_GAP_SENTENCE);
+    expect(gaps).toContain(
+      "The supplied excerpts do not provide region-by-region revenue percentages.",
+    );
+    // Absence is a finding: the withholding is declared in the artifact and as a Source Gap.
+    expect(gaps.at(-1)).toContain("1 of 2 declared open gaps withheld");
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps[0]?.source).toBe("web-subject-profile");
+    expect(result.sourceGaps[0]?.message).toContain("1 of 2 declared open gaps withheld");
+  });
+
+  test("leaves the assembled report clean where the unscreened artifact would fail the gate", () => {
+    const screened = buildWithGaps([LIVE_GAP_SENTENCE]).artifact;
+    expect(screened).toBeDefined();
+    expect(() =>
+      assertSafeReportLanguage(researchReport({ extras: { webSubjectProfile: screened } })),
+    ).not.toThrow();
+    // Negative control: the same artifact with the original wording is exactly what killed the run.
+    expect(() =>
+      assertSafeReportLanguage(
+        researchReport({
+          extras: { webSubjectProfile: { ...screened, openGaps: [LIVE_GAP_SENTENCE] } },
+        }),
+      ),
+    ).toThrow(ReportLanguageViolationError);
+  });
+
+  test("drops an asserted price target instead of laundering it into the report", () => {
+    const asserted = "Our price target is 240 USD, well above spot.";
+    const result = buildWithGaps([asserted]);
+
+    const gaps = result.artifact?.openGaps ?? [];
+    expect(gaps).not.toContain(asserted);
+    // Not reworded, not partially retained: no fragment of the assertion survives.
+    expect(gaps.join("\n")).not.toContain("240");
+    expect(gaps).toEqual([
+      expect.stringContaining("1 of 1 declared open gaps withheld"),
+    ] as unknown as string[]);
+    expect(() =>
+      assertSafeReportLanguage(researchReport({ extras: { webSubjectProfile: result.artifact } })),
+    ).not.toThrow();
+  });
+
+  test("keeps the code-generated rejection summary beside a withheld model entry", () => {
+    const answer = { answer: "Apple sells devices and services.", sourceIds: [webSource.id] };
+    const modelContent = JSON.stringify({
+      companyName: "Apple Inc.",
+      subjectSummary: answer,
+      questions: Object.fromEntries(COMPANY_QUESTION_KEYS.map((key) => [key, answer])),
+      recentMaterialEvents: [],
+      factLedger: [
+        { claim: "Apple sells iPhone, Mac, and services.", sourceIds: [webSource.id] },
+        { claim: "Uncited claim.", sourceIds: ["unknown-source-id"] },
+      ],
+      openGaps: [LIVE_GAP_SENTENCE],
+    });
+    const result = buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      modelContent,
+      webSources: [webSource],
+      extendedEvidence: undefined,
+    });
+
+    const gaps = result.artifact?.openGaps ?? [];
+    // Model entry withheld; the code-generated entry (the mixed array's other origin) survives.
+    expect(gaps).not.toContain(LIVE_GAP_SENTENCE);
+    expect(gaps.some((gap) => gap.includes("rejected for source-citation errors"))).toBe(true);
+    expect(gaps.some((gap) => gap.includes("1 of 1 declared open gaps withheld"))).toBe(true);
+    expect(result.sourceGaps).toHaveLength(2);
+    for (const gap of gaps) {
+      expect(violatesResearchOnly(gap)).toBeNull();
+    }
+  });
+
+  test("leaves a clean profile untouched and keeps an empty array empty", () => {
+    const clean = ["The supplied excerpts do not provide customer concentration."];
+    const kept = buildWithGaps(clean);
+    expect(kept.artifact?.openGaps).toEqual(clean);
+    expect(kept.sourceGaps).toEqual([]);
+
+    // `undefined` and `[]` are different: an absent gap list must not grow a withheld notice.
+    const empty = buildWithGaps([]);
+    expect(empty.artifact?.openGaps).toEqual([]);
+    expect(empty.sourceGaps).toEqual([]);
+  });
+
+  test("replaces failure detail that trips the gate, keeping the detail on the Source Gap", () => {
+    const message = 'Web Subject Profile stage failed (model returned "price target" text)';
+    const result = buildWebSubjectProfileFailureEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      message,
+      cause: "malformed-response",
+      extendedEvidence: undefined,
+    });
+
+    expect(result.artifact?.openGaps).toEqual([
+      "Web Subject Profile unavailable; the stage failure detail was withheld for research-only wording.",
+    ]);
+    // The SourceGap is outside the report-language scan, so the diagnostic detail is not lost.
+    expect(result.sourceGaps[0]?.message).toBe(message);
+  });
+
+  test("keeps a clean failure message verbatim", () => {
+    const message = "Web Subject Profile stage failed (request timed out)";
+    const result = buildWebSubjectProfileFailureEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      message,
+      cause: "malformed-response",
+      extendedEvidence: undefined,
+    });
+    expect(result.artifact?.openGaps).toEqual([message]);
+  });
+
+  test("screens a reused artifact persisted before the screen existed", () => {
+    const origin = buildWithGaps([
+      "The supplied excerpts do not provide customer concentration.",
+    ]).artifact;
+    expect(origin).toBeDefined();
+    const legacy = {
+      ...origin,
+      openGaps: [...(origin?.openGaps ?? []), LIVE_GAP_SENTENCE],
+    } as NonNullable<typeof origin>;
+
+    const freshnessGap = sourceGap({
+      source: "web-subject-profile",
+      message: "Reused Web Subject Profile is 3 days old.",
+      provider: "market-bot",
+      capability: "extended-evidence",
+      cause: "reused-in-window",
+    });
+    const result = buildWebSubjectProfileReuseEvidence({
+      command,
+      subject,
+      artifact: legacy,
+      extendedEvidence: undefined,
+      freshnessGap,
+    });
+
+    expect(result.artifact?.openGaps).not.toContain(LIVE_GAP_SENTENCE);
+    expect(result.artifact?.openGaps.at(-1)).toContain("1 of 2 declared open gaps withheld");
+    expect(result.sourceGaps).toHaveLength(2);
+    expect(() =>
+      assertSafeReportLanguage(researchReport({ extras: { webSubjectProfile: result.artifact } })),
+    ).not.toThrow();
+  });
+
+  test("keeps a clean reused artifact byte-identical", () => {
+    const origin = buildWithGaps([
+      "The supplied excerpts do not provide customer concentration.",
+    ]).artifact;
+    expect(origin).toBeDefined();
+    const freshnessGap = sourceGap({
+      source: "web-subject-profile",
+      message: "Reused Web Subject Profile is 3 days old.",
+      provider: "market-bot",
+      capability: "extended-evidence",
+      cause: "reused-in-window",
+    });
+    const result = buildWebSubjectProfileReuseEvidence({
+      command,
+      subject,
+      artifact: origin as NonNullable<typeof origin>,
+      extendedEvidence: undefined,
+      freshnessGap,
+    });
+    expect(result.artifact).toEqual(origin as NonNullable<typeof origin>);
+    expect(result.sourceGaps).toEqual([freshnessGap]);
   });
 });

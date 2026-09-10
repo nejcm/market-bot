@@ -64,6 +64,13 @@ Separate web accounting prevents volume being mistaken for coverage: current-run
 
 Deterministic, citation-checked sidecar answering a fixed Subject-Kind question set from Web Evidence. Company profiles may use issuer 10-K/10-Q text first and require a current SEC basis for reuse; reuse skips extraction, not fresh Web Gather.
 
+Its `openGaps` array is mixed-origin and reaches report prose as a code-assembled digest, so it is
+screened against the research-only patterns where it is written, not where it is read. A
+model-authored or read-back entry that trips the screen is dropped and replaced by a code-generated
+withheld-count entry plus a matching Source Gap; the original wording stays in the run's raw stage
+output. Code-generated entries are asserted rather than dropped, because wording the generator
+produced is a generator defect.
+
 ## Subject Kind
 
 Web Subject Profile question set and reuse rule: `company` for equity, `crypto-asset` for crypto, and `theme` for research runs.

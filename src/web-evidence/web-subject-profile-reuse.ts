@@ -193,7 +193,9 @@ export function attachReusableWebSubjectProfile(input: {
     ...input.collectedSources,
     extendedSources: mergeSources(input.collectedSources.extendedSources, input.reuse.sources),
     ...(result.extendedEvidence !== undefined ? { extendedEvidence: result.extendedEvidence } : {}),
-    webSubjectProfile: input.reuse.profile,
+    // The screened artifact, not `input.reuse.profile`: a profile persisted before the openGaps
+    // Research-only screen existed must not re-enter assembly with its original wording.
+    webSubjectProfile: result.artifact ?? input.reuse.profile,
     webSubjectProfileReuse: {
       runDirName: input.reuse.runDirName,
       generatedAt: input.reuse.profile.generatedAt,

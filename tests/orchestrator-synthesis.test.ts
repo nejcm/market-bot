@@ -6,6 +6,7 @@ import { readNewsSeenEntries } from "../src/sources/news-seen";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import { collectedSources as collectedSourceBundle, newsSource } from "./support/fixtures";
 import { providerReturning } from "./support/mocks";
+import { modelPayloadLanguageViolations } from "../src/research/model-payload-language";
 import { readerDirectedAdviceClauses } from "./support/research-language-prompt";
 import {
   config,
@@ -20,6 +21,39 @@ import { join } from "node:path";
 import type { ModelProvider } from "../src/model/types";
 
 const { dataDirs, cleanupDataDirs, tempDataDir } = createDataDirRegistry();
+
+const baseWebSubjectProfile = {
+  version: 2 as const,
+  generatedAt: "2026-05-18T00:00:00.000Z",
+  subjectKind: "company" as const,
+  subjectId: "AAPL",
+  symbol: "AAPL",
+  subjectSummary: { answer: "Apple sells devices.", sourceIds: ["market-aapl"] },
+  questions: {
+    whatItDoes: { answer: "Consumer electronics.", sourceIds: ["market-aapl"] },
+    howItMakesMoney: { answer: "Hardware and services.", sourceIds: ["market-aapl"] },
+    customers: { answer: "Global consumers.", sourceIds: ["market-aapl"] },
+    geography: { answer: "Worldwide.", sourceIds: ["market-aapl"] },
+    purchaseRecurrence: { answer: "High.", sourceIds: ["market-aapl"] },
+    pricingPower: { answer: "Premium.", sourceIds: ["market-aapl"] },
+    recessionCyclicality: { answer: "Moderate.", sourceIds: ["market-aapl"] },
+  },
+  recentMaterialEvents: [{ claim: "Launched a device.", sourceIds: ["market-aapl"] }],
+  factLedger: [{ claim: "Revenue grew.", sourceIds: ["market-aapl"] }],
+  sourceIds: ["market-aapl"],
+};
+
+// The wording that failed deep AAPL run 2026-09-07T09-51-24-783Z-a23bf02b: an absence declaration
+// The profile stage wrote, which no final-synthesis draft can rewrite.
+const poisonedWebSubjectProfile = {
+  ...baseWebSubjectProfile,
+  openGaps: ["Analyst consensus and price targets are not available in the supplied web sources."],
+};
+
+const cleanWebSubjectProfile = {
+  ...baseWebSubjectProfile,
+  openGaps: ["No segment split is disclosed."],
+};
 
 afterEach(cleanupDataDirs);
 
@@ -219,6 +253,380 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(rejected.payload).toEqual(JSON.parse(violatingReport));
     // Initial synthesis + one report-validation reprompt + two bounded repair reprompts.
     expect(finalCalls).toBe(4);
+  });
+
+  test("fails fast, spending no repair reprompt, when the wording is not in the model draft", async () => {
+    let finalCalls = 0;
+    const cleanReport = modelReport("SPY");
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+        return { content: cleanReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: poisonedWebSubjectProfile,
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(FinalSynthesisRejectedError);
+    const rejected = rejection as FinalSynthesisRejectedError;
+    // One final-synthesis call, zero repair reprompts: the doomed signature is recognized at the
+    // Point the first reprompt would have been sent.
+    expect(finalCalls).toBe(1);
+    expect(rejected.totalCalls).toBe(1);
+    expect(rejected.reportRepairReprompts).toBe(0);
+    expect(rejected.message).toContain("repair stopped early");
+    expect(rejected.message).toContain('"price targets"');
+    expect(rejected.message).toContain("extras.webSubjectProfile.openGaps[0]");
+    expect(rejected.reportValidationErrors[0]).toContain("trade-action language");
+    // The draft itself is clean, which is exactly what failure.json records as languageViolations.
+    expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([]);
+  });
+
+  /*
+   * The sentence-initial pattern eats the boundary character before the verb, so the joined scan
+   * returns ".\nBuy" here while the openGaps field alone returns "Buy" -- factLedger's
+   * "Revenue grew." is the segment immediately before it. Attribution has to see through that
+   * consumed delimiter, or the digest field goes unnamed and the run burns its whole repair
+   * budget on profile wording no draft can reach.
+   */
+  test("fails fast when a trade verb opens the digest field right after a field ending in a period", async () => {
+    let finalCalls = 0;
+    const cleanReport = modelReport("SPY");
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+        return { content: cleanReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: {
+            ...baseWebSubjectProfile,
+            openGaps: ["Buy the dip is the only framing the supplied sources offer."],
+          },
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(FinalSynthesisRejectedError);
+    const rejected = rejection as FinalSynthesisRejectedError;
+    expect(finalCalls).toBe(1);
+    expect(rejected.totalCalls).toBe(1);
+    expect(rejected.reportRepairReprompts).toBe(0);
+    expect(rejected.message).toContain("repair stopped early");
+    expect(rejected.message).toContain("extras.webSubjectProfile.openGaps[0]");
+    expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([]);
+  });
+
+  test("still repairs when the model draft carries the violation alongside a clean profile", async () => {
+    let finalCalls = 0;
+    const violatingReport = JSON.stringify({
+      summary: "Evidence is sourced and investors should accumulate exposure here.",
+      keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+      bullCase: [{ text: "Breadth is supported.", sourceIds: ["market-aapl"] }],
+      bearCase: [{ text: "Breadth is limited.", sourceIds: ["market-aapl"] }],
+      risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+      catalysts: [{ text: "Demand is visible.", sourceIds: ["market-aapl"] }],
+      scenarios: [{ name: "Base", description: "Momentum continues.", sourceIds: ["market-aapl"] }],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: mockPredictions(2),
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          return { content: violatingReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: cleanWebSubjectProfile,
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    const rejected = rejection as FinalSynthesisRejectedError;
+    expect(rejected.message).not.toContain("repair stopped early");
+    expect(rejected.reportRepairReprompts).toBe(3);
+    // Initial synthesis + one report-validation reprompt + two bounded repair reprompts.
+    expect(finalCalls).toBe(4);
+  });
+
+  test("keeps the full repair budget when the failure is not a language violation", async () => {
+    let finalCalls = 0;
+    const uncitedReport = JSON.stringify({
+      summary: "Evidence is sourced.",
+      keyFindings: [{ text: "AAPL moved.", sourceIds: [] }],
+      bullCase: [{ text: "Breadth is supported.", sourceIds: [] }],
+      bearCase: [{ text: "Breadth is limited.", sourceIds: [] }],
+      risks: [{ text: "Breadth can reverse.", sourceIds: [] }],
+      catalysts: [{ text: "Demand is visible.", sourceIds: [] }],
+      scenarios: [{ name: "Base", description: "Momentum continues.", sourceIds: [] }],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: mockPredictions(2),
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          return { content: uncitedReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: poisonedWebSubjectProfile,
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    const rejected = rejection as FinalSynthesisRejectedError;
+    // Source-ID errors are raised before the language gate, so the doomed profile wording never
+    // Surfaces and the fail-fast guard stays out of the way: the repairable failure keeps its
+    // Whole budget.
+    expect(rejected.message).not.toContain("repair stopped early");
+    expect(rejected.reportValidationErrors[0]).toContain("must reference at least one source ID");
+    expect(rejected.reportRepairReprompts).toBe(3);
+    expect(finalCalls).toBe(4);
+  });
+
+  // The sentence-initial shape the payload scan used to miss (AGENTS.md: keep the newline
+  // Delimiter). The wording is the draft's own, so it is repairable and must keep every reprompt.
+  test("keeps the full repair budget when the draft's own prose opens with a trade verb", async () => {
+    let finalCalls = 0;
+    const buyTheDipReport = JSON.stringify({
+      summary: "Buy the dip while breadth is still supported.",
+      keyFindings: [{ text: "AAPL moved.", sourceIds: ["market-aapl"] }],
+      bullCase: [{ text: "Breadth is supported.", sourceIds: ["market-aapl"] }],
+      bearCase: [{ text: "Breadth is limited.", sourceIds: ["market-aapl"] }],
+      risks: [{ text: "Breadth can reverse.", sourceIds: ["market-aapl"] }],
+      catalysts: [{ text: "Demand is visible.", sourceIds: ["market-aapl"] }],
+      scenarios: [{ name: "Base", description: "Momentum continues.", sourceIds: ["market-aapl"] }],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: mockPredictions(2),
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          return { content: buyTheDipReport, tokenEstimate: 100, costEstimateUsd: 0.01 };
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: cleanWebSubjectProfile,
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    const rejected = rejection as FinalSynthesisRejectedError;
+    expect(rejected.message).not.toContain("repair stopped early");
+    expect(rejected.reportRepairReprompts).toBe(3);
+    expect(finalCalls).toBe(4);
+    // The diagnostic sees the same wording the report gate did, so failure.json cannot claim the
+    // Draft was clean.
+    expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([
+      { field: "summary", match: "Buy" },
+    ]);
+  });
+
+  // Assembly text a draft can replace is repairable: mergeSpotlightsExtra lets the synthesis draft
+  // Overwrite the selection rationale, so a violating selector rationale keeps the full budget even
+  // Though the current draft omits spotlights entirely.
+  test("keeps the full repair budget when the wording is in draft-overridable assembly text", async () => {
+    let finalCalls = 0;
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "spotlight-selection") {
+          return {
+            content: JSON.stringify({
+              rationale: "Ranked on where the peer price target spread is widest.",
+              selections: [
+                {
+                  symbol: "AAPL",
+                  rationale: "Liquid positive mover with current market evidence.",
+                  sourceIds: ["market-aapl"],
+                },
+              ],
+            }),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    let rejection: unknown;
+    try {
+      await runResearchJob({
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        config,
+        provider,
+        collectedSources: collectedSourceBundle({
+          rawSnapshots: [],
+          marketSnapshots,
+          newsSources,
+          sourceGaps: [],
+          webSubjectProfile: cleanWebSubjectProfile,
+        }),
+        now: new Date("2026-05-19T00:00:00.000Z"),
+      });
+    } catch (error: unknown) {
+      rejection = error;
+    }
+
+    const rejected = rejection as FinalSynthesisRejectedError;
+    expect(rejected.reportValidationErrors[0]).toContain("price target");
+    expect(rejected.message).not.toContain("repair stopped early");
+    expect(rejected.reportRepairReprompts).toBe(3);
+    expect(finalCalls).toBe(4);
+    // The draft never carried the wording, and that alone is not grounds to stop repairing.
+    expect(modelPayloadLanguageViolations(rejected.payload)).toEqual([]);
+  });
+
+  /*
+   * No Web Subject Profile was collected, so projectExtendedEvidenceReportExtras omits the key and
+   * Assembly keeps `extras.webSubjectProfile` straight from the draft -- the model's own prose,
+   * Which the next draft can simply not write. Classifying the key as code-assembled without
+   * Checking that a digest was actually collected stopped the repair here after one call
+   * ("Absence is a finding, not a no-op", AGENTS.md).
+   */
+  test("keeps the full repair budget when the draft authored a profile the run never collected", async () => {
+    let finalCalls = 0;
+    const draftAuthoredProfileReport = JSON.stringify({
+      ...(JSON.parse(modelReport("SPY")) as Record<string, unknown>),
+      extras: { webSubjectProfile: { openGaps: ["No price targets available."] } },
+    });
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "final-synthesis") {
+          finalCalls += 1;
+          return {
+            content: finalCalls === 1 ? draftAuthoredProfileReport : modelReport("SPY"),
+            tokenEstimate: 100,
+            costEstimateUsd: 0.01,
+          };
+        }
+        return { content: modelReport("SPY"), tokenEstimate: 100, costEstimateUsd: 0.01 };
+      },
+    };
+
+    const result = await runResearchJob({
+      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+      config,
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    // One repair reprompt spent and the run completes: the rejection was repairable after all.
+    expect(finalCalls).toBe(2);
+    expect(result.trace.reportValidationRetryErrors?.join(" ")).toContain("trade-action language");
+    expect(result.report.extras?.webSubjectProfile).toBeUndefined();
   });
 
   test("discloses absent Tradier options as a data gap without source-id retry", async () => {

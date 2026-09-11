@@ -3,6 +3,10 @@ import type { SourceGap } from "../src/domain/types";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
 import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
+import {
+  WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+  WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+} from "../src/web-evidence/contract";
 import { researchReport } from "./support/fixtures";
 import type {
   FinancialStatementFact,
@@ -682,6 +686,44 @@ describe("equity reader company description", () => {
       sourceIds: ["question-source"],
     });
     expect(frameworkDescription).toEqual({
+      status: "available",
+      text: "Builds satellite communications networks.",
+      sourceIds: ["framework-source"],
+    });
+  });
+
+  test("falls through a withheld profile answer to the framework description", () => {
+    const description = projectEquityReader({
+      report: {
+        sources: [{ id: "framework-source" }],
+        extras: {
+          webSubjectProfile: {
+            subjectSummary: {
+              answer: WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
+              sourceIds: ["framework-source"],
+            },
+            questions: {
+              whatItDoes: {
+                answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+                sourceIds: ["framework-source"],
+              },
+            },
+          },
+          businessFramework: {
+            sections: [
+              {
+                name: "Business",
+                posture: "supported",
+                text: "Business supported Builds satellite communications networks.",
+                sourceIds: ["framework-source"],
+              },
+            ],
+          },
+        },
+      },
+    }).defaultView.companyDescription;
+
+    expect(description).toEqual({
       status: "available",
       text: "Builds satellite communications networks.",
       sourceIds: ["framework-source"],

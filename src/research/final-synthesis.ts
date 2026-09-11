@@ -17,6 +17,8 @@ import {
 } from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
 import type { PredictionCompletionPrompt } from "./prompts";
+import { ReportLanguageViolationError } from "../report/schema";
+import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
 import type { ResearchContext } from "./research-context-types";
 import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
@@ -79,7 +81,7 @@ interface SynthesisProgress {
 }
 
 // Survivor guidance tells the model to re-emit a forecast unchanged, so it must only ever name
-// Forecasts that can actually persist. ReadPredictions validates the observable grammar, but
+// Forecasts that can actually persist. readPredictions validates the observable grammar, but
 // AssembleResearchReport applies deterministic report-level policy on top and can still drop one:
 // An earnings forecast for a provider-estimated event is removed by applyEarningsForecastPolicy.
 // Reuse that policy here — with the same "confirmed-only" argument report assembly passes — rather
@@ -294,6 +296,16 @@ async function validateBaseReport(
     };
   } catch (error: unknown) {
     reportValidationErrors = [errorMessage(error)];
+    const unrepairable = unrepairableLanguageRejection(
+      error,
+      input,
+      progress,
+      reportValidationErrors,
+      callCounts(),
+    );
+    if (unrepairable !== undefined) {
+      throw unrepairable;
+    }
   }
 
   const reportRetryPredictionErrors = progress.state.predResult.errors;
@@ -347,6 +359,67 @@ async function validateBaseReport(
   );
 }
 
+/*
+ * A research-only rejection is unrepairable only when the rejected wording sits in a report field
+ * the next draft cannot change. assertSafeReportLanguage scans model-authored prose that assembly
+ * merges in from earlier stages (ADR 0001), and most of it a draft can still overwrite: a
+ * synthesis draft replaces the spotlight selection rationale and each item rationale
+ * (mergeSpotlightsExtra), the Business Framework section text, and the Earnings Setup bullets, so
+ * those keep the full repair budget even when the current draft is clean. What a draft cannot
+ * touch is a code-assembled digest -- projectExtendedEvidenceReportExtras ignores model extras for
+ * every codeAssembledDigest projector, today the Web Subject Profile -- and there every repair
+ * reprompt asks the model to rewrite text it never wrote and cannot reach: deep AAPL run
+ * 2026-09-07T09-51-24-783Z-a23bf02b burned three of them on a "price targets" phrase the profile
+ * stage wrote into openGaps. (Deep AMD run 2026-08-26T10-22-14-230Z-52aac308 burned three the same
+ * way on a quoted 10-Q risk factor; that origin is now exempt from the gate under ADR 0001 rather
+ * than stopped here.) Stop at the first such rejection and record where the wording came from, so
+ * the next action is fixing the producing stage or the gate rather than the synthesis prompt.
+ * Re-running the producing stage is deliberately not attempted here. An unattributed rejection (`path === undefined`, the match straddles two scanned fields)
+ * is not proof of anything, so it keeps repairing.
+ *
+ * Classification of the key is not enough on its own. A codeAssembledDigest projector that
+ * collected nothing omits its key, and assembly spreads the projection over the model extras, so
+ * `extras.webSubjectProfile` then holds the draft's own prose -- editable, and repairable. The
+ * question is therefore whether this run collected the digest, which is what
+ * `collectedCodeAssembledExtraKeys` answers. This is not the draft-absence test: what the current
+ * draft happens to contain still decides nothing.
+ */
+function codeAssembledExtraKey(
+  path: string | undefined,
+  collectedSources: CollectedSources,
+): string | undefined {
+  const key = path === undefined ? undefined : /^extras\.([^.[]+)/u.exec(path)?.[1];
+  return key !== undefined && collectedCodeAssembledExtraKeys(collectedSources).has(key)
+    ? key
+    : undefined;
+}
+
+function unrepairableLanguageRejection(
+  error: unknown,
+  input: SynthesizeReportUntilValidInput,
+  progress: SynthesisProgress,
+  accumulatedErrors: readonly string[],
+  counts: SynthesisCallCounts,
+): FinalSynthesisRejectedError | undefined {
+  if (!(error instanceof ReportLanguageViolationError)) {
+    return undefined;
+  }
+  const digestKey = codeAssembledExtraKey(error.path, input.collectedSources);
+  if (digestKey === undefined) {
+    return undefined;
+  }
+  return new FinalSynthesisRejectedError({
+    message: `Report failed validation after ${String(counts.totalCalls)} final-synthesis call(s) (${String(counts.reportRepairReprompts)} report-repair reprompt(s)); repair stopped early because the rejected wording "${error.match}" was assembled into ${error.path}, a code-assembled ${digestKey} digest the model's draft cannot override, leaving nothing a repair reprompt can rewrite. Fix the stage that produced the wording, or the gate. Accumulated errors: ${accumulatedErrors.join("; ")}`,
+    cause: error,
+    reportValidationErrors: accumulatedErrors,
+    predictionErrors: progress.state.predResult.errors,
+    stageOutputs: progress.stageOutputs,
+    payload: progress.state.payload,
+    totalCalls: counts.totalCalls,
+    reportRepairReprompts: counts.reportRepairReprompts,
+  });
+}
+
 interface RepairedReport {
   readonly progress: SynthesisProgress;
   readonly report: ResearchReport;
@@ -378,6 +451,18 @@ async function buildReportWithRepair(
   } catch (error: unknown) {
     const message = errorMessage(error);
     const accumulatedErrors = accumulateReportValidationErrors([...seenErrors, message]);
+    // Before the budget check, not after: a doomed rejection reached here through some other
+    // Validation failure must still cost zero further reprompts.
+    const unrepairable = unrepairableLanguageRejection(
+      error,
+      input,
+      progress,
+      accumulatedErrors,
+      callCounts(),
+    );
+    if (unrepairable !== undefined) {
+      throw unrepairable;
+    }
     if (attemptsLeft <= 0) {
       const counts = callCounts();
       throw new FinalSynthesisRejectedError({

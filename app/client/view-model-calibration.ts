@@ -1,18 +1,31 @@
 import type { AlphaCohortDetail, CalibrationDetail, RunDetail } from "../types";
 import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
+import {
+  hasNoResolvedPredictions,
+  isCalibrationCount,
+  isPositiveCalibrationCount,
+  isUnitInterval,
+} from "../../src/scoring/calibration-invariant";
 import { numberAt, readStringVerbatim } from "../../src/guards";
 import { formatDateMinute, readFiniteNumber, readRecord, runLabel } from "./view-model-format";
 
 export interface CalibrationHeadline {
   readonly brierScore?: number;
   readonly hitRate?: number;
-  readonly resolvedCount: number;
+  /**
+   * Absent when the stored summary states no usable resolved count. An explicit
+   * 0 and an unknown count are different findings — the first is an empty
+   * Calibration corpus, the second a malformed summary — so unknown is never
+   * Collapsed into 0.
+   */
+  readonly resolvedCount?: number;
   readonly generatedAt?: string;
 }
 
 export interface CalibrationSampleWarning {
   readonly show: boolean;
-  readonly resolvedCount: number;
+  /** Present only when `show` is true, which requires a known count. */
+  readonly resolvedCount?: number;
   readonly minimum: number;
 }
 
@@ -97,23 +110,56 @@ const HORIZON_BUCKET_ORDER = ["1d", "2-5d", "6-10d", "11-15d", "16-20d"];
 
 export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadline {
   const summary = detail.summary ?? {};
-  const brierScore = readFiniteNumber(summary.brierScore);
-  const hitRate = readFiniteNumber(summary.hitRate);
+  // Zero-resolution invariant, enforced again here: this view model also reads
+  // Summaries the server did not normalize, and 0 must never render as a metric.
+  const unmeasured = hasNoResolvedPredictions(summary.resolvedCount);
+  // Both headline metrics are bounded to [0, 1], so both take the same guard:
+  // A finite 1.5 is no more a Brier score than it is a hit rate.
+  const brierScore =
+    unmeasured || !isUnitInterval(summary.brierScore) ? undefined : summary.brierScore;
+  const hitRate = unmeasured || !isUnitInterval(summary.hitRate) ? undefined : summary.hitRate;
   const generatedAt = typeof summary.generatedAt === "string" ? summary.generatedAt : undefined;
+  // Shares one definition of a valid count with the other read boundaries. A
+  // Finite-but-impossible count (negative, fractional) is not a smaller corpus;
+  // It is a summary that does not say, so it takes the same path as a missing one.
+  const resolvedCount = isCalibrationCount(summary.resolvedCount)
+    ? summary.resolvedCount
+    : undefined;
   return {
     ...(brierScore !== undefined ? { brierScore } : {}),
-    ...(hitRate !== undefined && hitRate >= 0 && hitRate <= 1 ? { hitRate } : {}),
-    resolvedCount: readFiniteNumber(summary.resolvedCount) ?? 0,
+    ...(hitRate !== undefined ? { hitRate } : {}),
+    ...(resolvedCount !== undefined ? { resolvedCount } : {}),
     ...(generatedAt !== undefined ? { generatedAt } : {}),
   };
 }
 
 export function calibrationSampleWarning(headline: CalibrationHeadline): CalibrationSampleWarning {
-  return {
-    show: headline.resolvedCount < MIN_CALIBRATION_SAMPLE,
-    resolvedCount: headline.resolvedCount,
-    minimum: MIN_CALIBRATION_SAMPLE,
-  };
+  // An unknown resolved count cannot support a sample claim in either direction,
+  // So it withholds the warning rather than asserting a zero-sample corpus.
+  const { resolvedCount } = headline;
+  if (resolvedCount === undefined || resolvedCount >= MIN_CALIBRATION_SAMPLE) {
+    return { show: false, minimum: MIN_CALIBRATION_SAMPLE };
+  }
+  return { show: true, resolvedCount, minimum: MIN_CALIBRATION_SAMPLE };
+}
+
+// Captions under a headline metric card.
+const NOT_MEASURED_NOTE = "no resolved forecasts yet";
+const METRIC_UNAVAILABLE_NOTE = "metric unavailable in this summary";
+
+// Explains a missing headline metric. Only an explicit zero resolved count
+// Supports "nothing has resolved yet"; a metric missing while forecasts have
+// Resolved — or while the count itself is unknown — is a defective summary and
+// Must not claim an empty corpus.
+export function calibrationMetricNote(
+  headline: CalibrationHeadline,
+  metric: number | undefined,
+  measuredNote: string,
+): string {
+  if (metric !== undefined) {
+    return measuredNote;
+  }
+  return headline.resolvedCount === 0 ? NOT_MEASURED_NOTE : METRIC_UNAVAILABLE_NOTE;
 }
 
 export function reliabilityBins(detail: CalibrationDetail): readonly ReliabilityBin[] {
@@ -128,11 +174,13 @@ export function reliabilityBins(detail: CalibrationDetail): readonly Reliability
         typeof bin === "object" && bin !== null && !Array.isArray(bin),
     )
     .flatMap((bin) => {
-      const pLow = readFiniteNumber(bin.pLow);
-      const pHigh = readFiniteNumber(bin.pHigh);
-      const hitRate = readFiniteNumber(bin.hitRate);
-      const hitCount = readFiniteNumber(bin.hitCount);
-      const totalCount = readFiniteNumber(bin.totalCount);
+      const pLow = isUnitInterval(bin.pLow) ? bin.pLow : undefined;
+      const pHigh = isUnitInterval(bin.pHigh) ? bin.pHigh : undefined;
+      const hitRate = isUnitInterval(bin.hitRate) ? bin.hitRate : undefined;
+      // A bin exists only where a pair landed, so its total is >= 1 while its
+      // Hit count may legitimately be 0. The two rules stay distinct.
+      const hitCount = isCalibrationCount(bin.hitCount) ? bin.hitCount : undefined;
+      const totalCount = isPositiveCalibrationCount(bin.totalCount) ? bin.totalCount : undefined;
       const label = typeof bin.label === "string" ? bin.label : undefined;
       return pLow === undefined ||
         pHigh === undefined ||
@@ -161,8 +209,8 @@ export function calibrationSlices(
     }
 
     const record = metric as Record<string, unknown>;
-    const brierScore = readFiniteNumber(record.brierScore);
-    const count = readFiniteNumber(record.count);
+    const brierScore = isUnitInterval(record.brierScore) ? record.brierScore : undefined;
+    const count = isPositiveCalibrationCount(record.count) ? record.count : undefined;
     return brierScore === undefined || count === undefined ? [] : [{ key, brierScore, count }];
   });
 
@@ -180,7 +228,7 @@ export function calibrationAutopsyCauses(
   }
   return Object.entries(counts)
     .flatMap(([cause, value]) => {
-      const count = readFiniteNumber(value);
+      const count = isCalibrationCount(value) ? value : undefined;
       return count === undefined ? [] : [{ cause, count }];
     })
     .toSorted((left, right) => right.count - left.count || left.cause.localeCompare(right.cause));

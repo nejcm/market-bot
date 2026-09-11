@@ -23,6 +23,7 @@ export const SOURCE_GAP_CAUSE_TABLE = {
   "malformed-response": true,
   "validation-failed": true,
   "provider-data-missing": true,
+  "session-in-progress": true,
   "suppressed-by-design": true,
 } satisfies Record<SourceGapCause, true>;
 

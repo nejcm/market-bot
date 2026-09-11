@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SourceGap } from "../src/domain/types";
+import { sourceGapScopedReportText } from "../src/domain/source-gaps";
 import { classifyGap, readGapTriage } from "../src/report/gap-triage";
 
 describe("gap triage", () => {
@@ -261,5 +262,34 @@ describe("gap triage", () => {
     const text = "news-seen: Persistent news dedupe kept one relevant repeat fallback";
 
     expect(readGapTriage(text, [legacyGap])).toBe("diagnostic");
+  });
+});
+
+/*
+ * Report assembly stamps a triage on every gap. It used to overwrite unconditionally, discarding a
+ * collector's declared triage before the report ever saw it — which is why the anchored
+ * session-in-progress trim rendered Material despite being marked Diagnostic at the source.
+ */
+describe("declared triage precedence", () => {
+  const declared: SourceGap = {
+    source: "yahoo-verified-chart",
+    message:
+      "Yahoo chart bar 2026-07-22 was an in-progress session at fetch time 2026-07-22T16:16:13.510Z; it was dropped before indicators and the snapshot is anchored on the last completed session 2026-07-21",
+    symbol: "NBIS",
+    provider: "yahoo",
+    capability: "market-data",
+    cause: "session-in-progress",
+    evidenceQualityImpact: "no-cap",
+    triage: "diagnostic",
+  };
+
+  test("a declared triage outranks the text heuristic", () => {
+    expect(classifyGap(declared)).toBe("material");
+    expect(readGapTriage(sourceGapScopedReportText(declared), [declared])).toBe("diagnostic");
+  });
+
+  test("an undeclared gap still falls back to the heuristic", () => {
+    const { triage: _omitted, ...undeclared } = declared;
+    expect(readGapTriage(sourceGapScopedReportText(undeclared), [undeclared])).toBe("material");
   });
 });

@@ -102,7 +102,7 @@ async function runWebSubjectProfileExtraction(input: {
         ...(result.extendedEvidence !== undefined
           ? { extendedEvidence: result.extendedEvidence }
           : {}),
-        ...(result.artifact !== undefined ? { webSubjectProfile: result.artifact } : {}),
+        webSubjectProfile: result.artifact,
         sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
       },
       output,
@@ -127,7 +127,7 @@ async function runWebSubjectProfileExtraction(input: {
         ...(result.extendedEvidence !== undefined
           ? { extendedEvidence: result.extendedEvidence }
           : {}),
-        ...(result.artifact !== undefined ? { webSubjectProfile: result.artifact } : {}),
+        webSubjectProfile: result.artifact,
         sourceGaps: [...input.collectedSources.sourceGaps, ...result.sourceGaps],
       },
     };

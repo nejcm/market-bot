@@ -13,6 +13,7 @@ import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import type { SecFilingForm } from "../sources/evidence-request-tools";
 import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements";
+import { isWebSubjectProfileWithheldAnswer } from "./contract";
 import {
   buildWebSubjectProfileReuseEvidence,
   type WebSubjectProfileArtifact,
@@ -193,7 +194,11 @@ export function attachReusableWebSubjectProfile(input: {
     ...input.collectedSources,
     extendedSources: mergeSources(input.collectedSources.extendedSources, input.reuse.sources),
     ...(result.extendedEvidence !== undefined ? { extendedEvidence: result.extendedEvidence } : {}),
-    webSubjectProfile: input.reuse.profile,
+    /*
+     * The screened artifact, not `input.reuse.profile`: a profile persisted before the
+     * research-only screen existed must not re-enter assembly with its original wording.
+     */
+    webSubjectProfile: result.artifact,
     webSubjectProfileReuse: {
       runDirName: input.reuse.runDirName,
       generatedAt: input.reuse.profile.generatedAt,
@@ -221,6 +226,9 @@ function isReusableProfile(
   ) {
     return false;
   }
+  if (requiredAnswersAreAllWithheld(profile)) {
+    return false;
+  }
   if (
     profile.subjectKind === "company" &&
     (profile.version !== 3 ||
@@ -237,6 +245,16 @@ function isReusableProfile(
     return false;
   }
   return nowMs - generatedAtMs <= input.reuseDays * DAY_MS;
+}
+
+function requiredAnswersAreAllWithheld(profile: WebSubjectProfileArtifact): boolean {
+  const answers = [profile.subjectSummary, ...Object.values(profile.questions)];
+  if (!answers.some((answer) => isWebSubjectProfileWithheldAnswer(answer.answer))) {
+    return false;
+  }
+  return answers.every(
+    (answer) => answer.answer === "" || isWebSubjectProfileWithheldAnswer(answer.answer),
+  );
 }
 
 function resolvedProfileSources(

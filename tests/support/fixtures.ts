@@ -2,9 +2,12 @@ import type {
   MarketSnapshot,
   Prediction,
   ResearchReport,
+  RunTrace,
   Source,
   VerifiedMarketSnapshot,
 } from "../../src/domain/types";
+import { buildFailedRunManifest } from "../../src/run-artifact-writer";
+import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import type { PredictionScore } from "../../src/scoring/types";
 import type { CollectedSources } from "../../src/sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "../../src/deep-equity/types";
@@ -364,4 +367,93 @@ export function predictionScore(
     evidence: {},
     ...overrides,
   };
+}
+
+// Writer-produced `outcomes.json` value for a Failed Run Artifact.
+//
+// Provider Health reads the `web-search-provider` outcome detail to report web-search degradation
+// On runs that never wrote `analytics.json`. Hand-writing that shape in a reader test would let the
+// Producer rename or drop a count without failing anything, so consumers build it through
+// `buildFailedRunManifest` instead and the seam stays pinned.
+export function failedRunOutcomesArtifact(
+  webGatherAudit: NonNullable<RunTrace["webGatherLoop"]>,
+): unknown {
+  const generatedAt = DEFAULT_OBSERVED_AT;
+  const { writes } = buildFailedRunManifest({
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+    runId: "failed-run",
+    generatedAt,
+    failedAt: generatedAt,
+    message: "Report failed validation",
+    reportValidationErrors: ["Report failed validation"],
+    predictionErrors: [],
+    totalCalls: 1,
+    reportRepairReprompts: 0,
+    stageOutputs: [],
+    payload: {},
+    collectedSources: collectedSources(),
+    historicalContext: {
+      generatedAt,
+      recentDays: 90,
+      anchorMonths: [],
+      runs: [],
+      sources: [],
+      gaps: [],
+      artifactDeltas: [],
+      audit: {
+        scannedRunCount: 0,
+        malformedRunCount: 0,
+        malformedScoreCount: 0,
+        candidateRunCount: 0,
+        selectedRunCount: 0,
+        recentSelectedCount: 0,
+        anchorSelectedCount: 0,
+        sameSymbolSelectedCount: 0,
+        spotlightSymbolSelectedCount: 0,
+        sameSubjectSelectedCount: 0,
+        sameHorizonSelectedCount: 0,
+        crossHorizonSelectedCount: 0,
+        resolvedMissRunCount: 0,
+        missCorrectionSelectedCount: 0,
+        gapCount: 0,
+      },
+    },
+    sourcePlan: {
+      version: 2,
+      generatedAt,
+      run: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      lanes: [],
+    },
+    evidenceLanes: {
+      version: 2,
+      generatedAt,
+      lanes: [],
+      summary: {
+        plannedLaneCount: 0,
+        coreLaneCount: 0,
+        materialLaneCount: 0,
+        supplementalLaneCount: 0,
+        coveredLaneCount: 0,
+        gapLaneCount: 0,
+        coreGapLaneCount: 0,
+        materialGapLaneCount: 0,
+        sourceCount: 0,
+        gapCount: 0,
+        coverageRatio: 0,
+      },
+    },
+    sourceLedger: { version: 2, generatedAt, sources: [] },
+    webGatherAudit,
+    playbookAudit: { selected: [], rejected: [] },
+    evidenceQuality: {
+      version: 1,
+      rubricVersion: 3,
+      label: "low",
+      checks: [],
+      limitingReasons: [],
+      advisoryReasons: [],
+    },
+    codeVersion: { dirty: false },
+  });
+  return writes.find((write) => write.file === RUN_ARTIFACT_FILES.outcomes)?.value;
 }

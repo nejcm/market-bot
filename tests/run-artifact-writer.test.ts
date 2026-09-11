@@ -17,6 +17,7 @@ import {
   persistRunArtifactWrites,
   type ResearchRunManifestResult,
 } from "../src/run-artifact-writer";
+import { modelPayloadLanguageViolations } from "../src/research/model-payload-language";
 import type { RunResearchJobResult } from "../src/research/orchestrator";
 import type { WrittenSubsystemOutcome } from "../src/research/subsystem-outcomes";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
@@ -846,6 +847,27 @@ describe("failed run manifest", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).not.toContain(RUN_ARTIFACT_FILES.failure);
     expect(calls[1]).toEqual([RUN_ARTIFACT_FILES.failure]);
+  });
+
+  // The payload scan has to use the same newline delimiter assertSafeReportLanguage uses. Under a
+  // JSON.stringify blob the opening quote sat where the sentence-initial pattern needs `^` or one
+  // Of `.!?;:\n`, so a draft opening "Buy the dip" was reported as clean.
+  test.each([
+    ["a sentence-initial verb opening a field", { summary: "Buy the dip on any weakness." }],
+    [
+      "a sentence-initial verb opening a nested finding",
+      { keyFindings: [{ text: "Sell into strength.", sourceIds: ["market-aapl"] }] },
+    ],
+  ])("reports %s as a draft language violation", (_label, payload) => {
+    expect(modelPayloadLanguageViolations(payload)).toHaveLength(1);
+  });
+
+  test("keeps descriptive lowercase prose out of the draft language violations", () => {
+    expect(
+      modelPayloadLanguageViolations({
+        summary: "Customers buy devices and the company sells services.",
+      }),
+    ).toEqual([]);
   });
 });
 

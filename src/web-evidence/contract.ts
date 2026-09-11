@@ -67,6 +67,17 @@ export interface WebSubjectProfileFact {
   readonly sourceIds: readonly string[];
 }
 
+// Detection keys off this marker, not the surrounding prose, so a later wording
+// Tweak cannot make already-persisted notices look like substantive answers.
+export const WEB_SUBJECT_PROFILE_WITHHELD_MARKER = "withheld for research-only wording";
+
+export const WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE = `Web Subject Profile: this answer ${WEB_SUBJECT_PROFILE_WITHHELD_MARKER}; the original wording stays in the run's raw stage output.`;
+export const WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE = `Web Subject Profile: subject summary ${WEB_SUBJECT_PROFILE_WITHHELD_MARKER}; the original wording stays in the run's raw stage output.`;
+
+export function isWebSubjectProfileWithheldAnswer(answer: string): boolean {
+  return answer.includes(WEB_SUBJECT_PROFILE_WITHHELD_MARKER);
+}
+
 interface WebSubjectProfileBase {
   readonly version: 2 | 3;
   readonly generatedAt: string;

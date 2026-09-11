@@ -466,15 +466,15 @@
             "valuePosture": "insufficient-data",
             "momentumPosture": "criteria-mixed",
             "latestClose": 313.3299865722656,
-            "latestClosePeriodEnd": "2026-08-10T08:38:33.859Z",
+            "latestClosePeriodEnd": "2026-08-07",
             "sma50": 309.785400390625,
-            "sma50PeriodEnd": "2026-08-10T08:38:33.859Z",
+            "sma50PeriodEnd": "2026-08-07",
             "sma200": 279.41274948120116,
-            "sma200PeriodEnd": "2026-08-10T08:38:33.859Z",
+            "sma200PeriodEnd": "2026-08-07",
             "rsi14": 47.58361935754647,
-            "rsi14PeriodEnd": "2026-08-10T08:38:33.859Z",
+            "rsi14PeriodEnd": "2026-08-07",
             "macdHistogram": -3.1807348785580256,
-            "macdHistogramPeriodEnd": "2026-08-10T08:38:33.859Z",
+            "macdHistogramPeriodEnd": "2026-08-07",
             "interimCadence": "quarterly",
             "latestReportedPeriodEnd": "2026-06-27",
             "expectedDuePeriodEnd": "2026-03-27"
@@ -18054,7 +18054,7 @@
               "unit": "currency",
               "sourceIds": ["verified-snapshot-AAPL"],
               "currency": "USD",
-              "periodEnd": "2026-08-10T08:38:33.859Z"
+              "periodEnd": "2026-08-07"
             },
             {
               "key": "sma50",
@@ -18062,7 +18062,7 @@
               "value": 309.785400390625,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-08-10T08:38:33.859Z"
+              "periodEnd": "2026-08-07"
             },
             {
               "key": "sma200",
@@ -18070,7 +18070,7 @@
               "value": 279.41274948120116,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-08-10T08:38:33.859Z"
+              "periodEnd": "2026-08-07"
             },
             {
               "key": "rsi14",
@@ -18078,7 +18078,7 @@
               "value": 47.58361935754647,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-08-10T08:38:33.859Z"
+              "periodEnd": "2026-08-07"
             },
             {
               "key": "macdHistogram",
@@ -18086,7 +18086,7 @@
               "value": -3.1807348785580256,
               "unit": "number",
               "sourceIds": ["verified-snapshot-AAPL"],
-              "periodEnd": "2026-08-10T08:38:33.859Z"
+              "periodEnd": "2026-08-07"
             }
           ],
           "sourceIds": ["verified-snapshot-AAPL"]

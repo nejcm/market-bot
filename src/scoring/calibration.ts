@@ -45,26 +45,27 @@ function makeBinLabel(lo: number, hi: number): string {
   return `${String(lo.toFixed(1))}-${String(hi.toFixed(1))}`;
 }
 
-function brierScore(pairs: readonly ResolvedPair[]): number {
-  if (pairs.length === 0) {
-    return 0;
-  }
-  const sum = pairs.reduce((total, { prediction, score }) => {
-    const outcome = score.outcome === "hit" ? 1 : 0;
-    const diff = prediction.probability - outcome;
-    return total + diff * diff;
-  }, 0);
-  return sum / pairs.length;
-}
-
 function brierLoss({ prediction, score }: ResolvedPair): number {
   const outcome = score.outcome === "hit" ? 1 : 0;
   const diff = prediction.probability - outcome;
   return diff * diff;
 }
 
+// Mean Brier loss. Every caller reaches this with a non-empty group, because
+// Slice maps only ever key groups that have at least one resolved pair.
+function meanBrierLoss(pairs: readonly ResolvedPair[]): number {
+  return pairs.reduce((total, pair) => total + brierLoss(pair), 0) / pairs.length;
+}
+
+// Overall Brier for the corpus. Undefined when nothing has resolved: a Brier of
+// 0 means a perfect forecaster, so publishing it for an empty corpus would
+// Assert exactly the opposite of what is known. See src/scoring/types.ts.
+function overallBrierScore(pairs: readonly ResolvedPair[]): number | undefined {
+  return pairs.length === 0 ? undefined : meanBrierLoss(pairs);
+}
+
 function calibrationMetric(pairs: readonly ResolvedPair[]): CalibrationMetric {
-  const mean = brierScore(pairs);
+  const mean = meanBrierLoss(pairs);
   const clusterSums = new Map<string, number>();
   for (const pair of pairs) {
     clusterSums.set(pair.runId, (clusterSums.get(pair.runId) ?? 0) + (brierLoss(pair) - mean));
@@ -202,14 +203,15 @@ export function buildCalibrationSummary(
     conditionalPredictions.activatedCount +
     currentPairs.filter(({ prediction }) => prediction.kind === "conditional").length;
   const hitCount = currentPairs.filter(({ score }) => score.outcome === "hit").length;
-  const overallBrier = brierScore(currentPairs);
+  const overallBrier = overallBrierScore(currentPairs);
   return {
     generatedAt: now.toISOString(),
     resolvedCount: currentPairs.length,
-    hitRate: currentPairs.length === 0 ? 0 : hitCount / currentPairs.length,
+    // Omitted, never 0, when nothing has resolved — see CalibrationSummary.
+    ...(currentPairs.length === 0 ? {} : { hitRate: hitCount / currentPairs.length }),
     missAutopsyCount: currentPairs.filter(({ missAutopsyCause }) => missAutopsyCause !== undefined)
       .length,
-    brierScore: overallBrier,
+    ...(overallBrier === undefined ? {} : { brierScore: overallBrier }),
     bins: buildBins(currentPairs),
     byKind: groupMetrics(currentPairs, ({ prediction }) => prediction.kind),
     byAssetClass: groupMetrics(currentPairs, ({ assetClass }) => assetClass),

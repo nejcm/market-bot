@@ -115,9 +115,9 @@ function validateScenarios(
 /*
  * Research-only validation covers model-authored report prose only (ADR 0001,
  * 2026-08-26 amendment). Collector-derived and deterministic assembly text is out of
- * Scope: the boundary governs what market-bot asserts, not what its sources say, and a
- * Violation the model never wrote is unfixable by a repair reprompt. Deliberately not
- * Scanned, with the producer that proves each classification:
+ * scope: the boundary governs what market-bot asserts, not what its sources say, and a
+ * violation the model never wrote is unfixable by a repair reprompt. Deliberately not
+ * scanned, with the producer that proves each classification:
  *   extendedEvidence         collector-derived filing/news text
  *   researchQualityDriver    deterministic (research/quality-driver.ts)
  *   extras.historicalContext code-built in research/report-assembly.ts:historicalContextExtra;
@@ -127,129 +127,248 @@ function validateScenarios(
  *                            collector titles, prediction labels are code templates
  *   extras.*.gaps            Source Gap strings emitted by code, never by the model
  * One model-authored surface stays unscanned, unchanged by this scoping: report.dataGaps,
- * Which merges model payload.dataGaps with deterministic text (report-assembly.ts:761).
+ * which merges model payload.dataGaps with deterministic text (report-assembly.ts:761).
  * Predictions need no scan -- claim is rendered from the parsed expression
  * (observable-candidates.ts:172) and measurableAs is DSL, not prose.
  */
-export function assertSafeReportLanguage(report: ResearchReport): void {
-  /*
-   * Joined with newlines rather than JSON.stringify: the sentence-initial pattern needs
-   * `^` or one of `.!?;:\n` before the verb, and a JSON blob puts a quote there instead,
-   * So a field opening with "Buy the dip ..." went undetected. JSON.stringify also escapes
-   * Real newlines to a literal backslash-n, which defeats that branch a second time. The
-   * Delimiter matters, so keep this a newline join.
-   */
-  const violation = violatesResearchOnly(modelAuthoredReportText(report).join("\n"));
-  if (violation !== null) {
-    throw new Error(`Report contains trade-action language: "${violation.match}"`);
+/** Thrown by {@link assertSafeReportLanguage} so callers can tell a research-only rejection apart
+ *  from every other report validation error without matching on message text. `path` names the
+ *  model-authored field the wording was found in; it is undefined when no single field reproduces
+ *  the match, because the scan runs over the newline-joined text and a match can straddle two
+ *  fields. Undefined means "not attributable", never "not from the report". */
+export class ReportLanguageViolationError extends Error {
+  readonly match: string;
+  readonly path: string | undefined;
+
+  constructor(match: string, path: string | undefined) {
+    super(`Report contains trade-action language: "${match}"`);
+    this.name = "ReportLanguageViolationError";
+    this.match = match;
+    this.path = path;
   }
 }
 
-function modelAuthoredReportText(report: ResearchReport): readonly string[] {
+export function assertSafeReportLanguage(report: ResearchReport): void {
+  const segments = modelAuthoredReportSegments(report);
+  /*
+   * Joined with newlines rather than JSON.stringify: the sentence-initial pattern needs
+   * `^` or one of `.!?;:\n` before the verb, and a JSON blob puts a quote there instead,
+   * so a field opening with "Buy the dip ..." went undetected. JSON.stringify also escapes
+   * real newlines to a literal backslash-n, which defeats that branch a second time. The
+   * delimiter matters, so keep this a newline join.
+   */
+  const violation = violatesResearchOnly(segments.map((segment) => segment.text).join("\n"));
+  if (violation !== null) {
+    throw new ReportLanguageViolationError(
+      violation.match,
+      attributeLanguageViolation(segments, violation.match),
+    );
+  }
+}
+
+interface ModelAuthoredSegment {
+  readonly path: string;
+  readonly text: string;
+}
+
+/*
+ * The sentence-initial pattern matches the boundary character before the verb, so a match taken
+ * from the joined text can open with the delimiter the previous field contributed: two adjacent
+ * fields "Revenue grew." and "Buy the dip" yield ".\nBuy" joined but "Buy" when the second field
+ * is scanned alone. Stripping that consumed prefix from both sides is what lets the two line up.
+ * Only leading boundary punctuation and bullet whitespace come off, which no pattern can match
+ * beyond its first character, so a phrase that genuinely spans two fields ("... you" + "should
+ * ...") still lines up with nothing and stays unattributed.
+ */
+function withoutConsumedBoundary(match: string): string {
+  return match.replace(/^[\s.!?;:*•-]+/u, "").toLowerCase();
+}
+
+/*
+ * Attribution is a read-only hint derived after the fact; the joined scan above stays the
+ * authority on whether the report is rejected, so nothing here can widen or narrow the gate.
+ * Prefer a field whose own scan reproduces the same match, then a field that merely contains the
+ * wording -- a sanctioned disclaimer stripped mid-field can hide a match from the per-field scan.
+ * When neither holds, the match straddles a field boundary, and undefined says so rather than
+ * naming an arbitrary field.
+ */
+function attributeLanguageViolation(
+  segments: readonly ModelAuthoredSegment[],
+  match: string,
+): string | undefined {
+  const wanted = withoutConsumedBoundary(match);
+  const rescanned = segments.find((segment) => {
+    const found = violatesResearchOnly(segment.text);
+    return found !== null && withoutConsumedBoundary(found.match) === wanted;
+  });
+  if (rescanned !== undefined) {
+    return rescanned.path;
+  }
+  return segments.find((segment) => segment.text.toLowerCase().includes(wanted))?.path;
+}
+
+function modelAuthoredReportSegments(report: ResearchReport): readonly ModelAuthoredSegment[] {
   return [
-    report.summary,
-    ...[
-      report.keyFindings,
-      report.bullCase,
-      report.bearCase,
-      report.risks,
-      report.catalysts,
-    ].flatMap((findings) => findings.map((finding) => finding.text)),
-    ...report.scenarios.flatMap((scenario) => [scenario.name, scenario.description]),
-    ...modelAuthoredExtraText(report.extras),
+    { path: "summary", text: report.summary },
+    ...(
+      [
+        ["keyFindings", report.keyFindings],
+        ["bullCase", report.bullCase],
+        ["bearCase", report.bearCase],
+        ["risks", report.risks],
+        ["catalysts", report.catalysts],
+      ] as const
+    ).flatMap(([section, findings]) =>
+      findings.map((finding, index) => ({
+        path: `${section}[${String(index)}]`,
+        text: finding.text,
+      })),
+    ),
+    ...report.scenarios.flatMap((scenario, index) => [
+      { path: `scenarios[${String(index)}].name`, text: scenario.name },
+      { path: `scenarios[${String(index)}].description`, text: scenario.description },
+    ]),
+    ...modelAuthoredExtraSegments(report.extras),
   ];
 }
 
-function modelAuthoredExtraText(extras: ResearchReport["extras"]): readonly string[] {
+function modelAuthoredExtraSegments(
+  extras: ResearchReport["extras"],
+): readonly ModelAuthoredSegment[] {
   if (extras === undefined) {
     return [];
   }
   return [
-    ...spotlightsText(extras.spotlights),
-    ...earningsSetupText(extras.earningsSetup),
-    ...businessFrameworkText(extras.businessFramework),
-    ...webSubjectProfileText(extras.webSubjectProfile),
+    ...spotlightsSegments(extras.spotlights),
+    ...earningsSetupSegments(extras.earningsSetup),
+    ...businessFrameworkSegments(extras.businessFramework),
+    ...webSubjectProfileSegments(extras.webSubjectProfile),
   ];
 }
 
-// Both the selection rationale and each item rationale are model-authored: they are read
-// Out of parsed model output in research/spotlights.ts and merged in report-assembly.ts.
-function spotlightsText(extra: unknown): readonly string[] {
+/*
+ * Both the selection rationale and each item rationale are model-authored: they are read
+ * out of parsed model output in research/spotlights.ts and merged in report-assembly.ts.
+ */
+function spotlightsSegments(extra: unknown): readonly ModelAuthoredSegment[] {
   if (!isRecord(extra)) {
     return [];
   }
-  const selectionRationale = typeof extra.rationale === "string" ? [extra.rationale] : [];
+  const selectionRationale =
+    typeof extra.rationale === "string"
+      ? [{ path: "extras.spotlights.rationale", text: extra.rationale }]
+      : [];
   if (!Array.isArray(extra.items)) {
     return selectionRationale;
   }
   return [
     ...selectionRationale,
-    ...extra.items.flatMap((item) => {
+    ...extra.items.flatMap((item, index) => {
       if (!isRecord(item)) {
         return [];
       }
       if (typeof item.rationale === "string") {
-        return [item.rationale];
+        return [
+          {
+            path: `extras.spotlights.items[${String(index)}].rationale`,
+            text: item.rationale,
+          },
+        ];
       }
-      return typeof item.text === "string" ? [item.text] : [];
+      return typeof item.text === "string"
+        ? [{ path: `extras.spotlights.items[${String(index)}].text`, text: item.text }]
+        : [];
     }),
   ];
 }
 
-function earningsSetupText(extra: unknown): readonly string[] {
+function earningsSetupSegments(extra: unknown): readonly ModelAuthoredSegment[] {
   if (!isRecord(extra)) {
     return [];
   }
-  const texts: string[] = [];
+  const segments: ModelAuthoredSegment[] = [];
   for (const key of ["expectationBar", "qualityLandmines", "guidanceCredibility"] as const) {
     const bullets = extra[key];
     if (Array.isArray(bullets)) {
-      for (const bullet of bullets) {
+      for (const [index, bullet] of bullets.entries()) {
         if (isRecord(bullet) && typeof bullet.text === "string") {
-          texts.push(bullet.text);
+          segments.push({
+            path: `extras.earningsSetup.${key}[${String(index)}].text`,
+            text: bullet.text,
+          });
         }
       }
     }
   }
-  return texts;
+  return segments;
 }
 
-function businessFrameworkText(extra: unknown): readonly string[] {
+function businessFrameworkSegments(extra: unknown): readonly ModelAuthoredSegment[] {
   if (!isRecord(extra)) {
     return [];
   }
   return Array.isArray(extra.sections)
-    ? extra.sections.flatMap((section) =>
-        isRecord(section) && typeof section.text === "string" ? [section.text] : [],
+    ? extra.sections.flatMap((section, index) =>
+        isRecord(section) && typeof section.text === "string"
+          ? [
+              {
+                path: `extras.businessFramework.sections[${String(index)}].text`,
+                text: section.text,
+              },
+            ]
+          : [],
       )
     : [];
 }
 
-function webSubjectProfileFactTexts(value: unknown): readonly string[] {
+function webSubjectProfileFactSegments(
+  path: string,
+  value: unknown,
+): readonly ModelAuthoredSegment[] {
   return Array.isArray(value)
-    ? value.flatMap((fact) =>
-        isRecord(fact) && typeof fact.claim === "string" ? [fact.claim] : [],
+    ? value.flatMap((fact, index) =>
+        isRecord(fact) && typeof fact.claim === "string"
+          ? [{ path: `${path}[${String(index)}].claim`, text: fact.claim }]
+          : [],
       )
     : [];
 }
 
-function webSubjectProfileText(extra: unknown): readonly string[] {
+function webSubjectProfileSegments(extra: unknown): readonly ModelAuthoredSegment[] {
   if (!isRecord(extra)) {
     return [];
   }
-  const questionTexts = isRecord(extra.questions)
-    ? Object.values(extra.questions).flatMap((question) =>
-        isRecord(question) && typeof question.answer === "string" ? [question.answer] : [],
+  const questionSegments = isRecord(extra.questions)
+    ? Object.entries(extra.questions).flatMap(([key, question]) =>
+        isRecord(question) && typeof question.answer === "string"
+          ? [
+              {
+                path: `extras.webSubjectProfile.questions.${key}.answer`,
+                text: question.answer,
+              },
+            ]
+          : [],
       )
     : [];
   return [
     ...(isRecord(extra.subjectSummary) && typeof extra.subjectSummary.answer === "string"
-      ? [extra.subjectSummary.answer]
+      ? [
+          {
+            path: "extras.webSubjectProfile.subjectSummary.answer",
+            text: extra.subjectSummary.answer,
+          },
+        ]
       : []),
-    ...questionTexts,
-    ...webSubjectProfileFactTexts(extra.recentMaterialEvents),
-    ...webSubjectProfileFactTexts(extra.factLedger),
-    ...readStringArray(extra.openGaps),
+    ...questionSegments,
+    ...webSubjectProfileFactSegments(
+      "extras.webSubjectProfile.recentMaterialEvents",
+      extra.recentMaterialEvents,
+    ),
+    ...webSubjectProfileFactSegments("extras.webSubjectProfile.factLedger", extra.factLedger),
+    ...readStringArray(extra.openGaps).map((text, index) => ({
+      path: `extras.webSubjectProfile.openGaps[${String(index)}]`,
+      text,
+    })),
   ];
 }
 
@@ -670,8 +789,10 @@ export function validateResearchReport(report: ResearchReport): ResearchReport {
     throw new Error("Research report evidenceQuality conflicts with legacy confidence");
   }
   assertEvidenceQuality(evidenceQuality);
-  // Report Integrity / Research Quality are optional at tolerant read
-  // Boundaries (historical reports predate them) but must be valid when set.
+  /*
+   * Report Integrity / Research Quality are optional at tolerant read
+   * boundaries (historical reports predate them) but must be valid when set.
+   */
   for (const [field, value] of [
     ["reportIntegrity", report.reportIntegrity],
     ["researchQuality", report.researchQuality],

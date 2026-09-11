@@ -13,7 +13,8 @@ amended 2026-07-12: Near-Base-Rate band widened to the inclusive 0.40-0.60 range
 resolved cohort scored below the always-0.5 baseline with every probability inside 0.42-0.58;
 consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility;
 amended 2026-08-05: structured Prediction shortfall disclosure;
-amended 2026-08-11: conditional-activation calibration guidance)
+amended 2026-08-11: conditional-activation calibration guidance;
+amended 2026-09-03: zero-resolution Calibration headline omission, enforced on read)
 
 ## Context
 
@@ -67,6 +68,27 @@ be mistaken for current market evidence.
   count, hit rate, Brier score, reliability, and explicit small-sample warnings. They do not emit
   an always-0.5 baseline-skill headline. Historical summaries containing that legacy field remain
   readable.
+- Hit rate and Brier score are conditional on measurement. A summary whose resolved count is 0
+  omits both fields rather than publishing 0, because a Brier score of 0 asserts a perfect
+  forecaster and is the opposite of what an empty corpus supports. They are omitted rather than
+  serialized as `null`: `null` coerces to 0 in arithmetic and comparisons, so it would reproduce
+  the same misreading one consumer downstream. The resolved count, the reliability bins, the
+  slice maps, and the small-sample warning still render, so an empty corpus is disclosed as an
+  empty corpus rather than as a missing artifact. Every rendering surface — the persisted
+  Markdown summary, the `calibration` stdout dashboard, and the Research Console — names the
+  absence instead of printing a number or a blank.
+- The invariant binds readers as well as the producer. Summaries persisted before it existed still
+  hold zeros, so each disk boundary — the prompt-path parser, the Research Console artifact read,
+  and the Console view model — drops those fields when the stored resolved count is 0. It also
+  drops the legacy always-0.5 `brierSkillScore`, which is derived from the Brier score and so is
+  unfounded for the same reason. The Research Console read additionally rewrites the corresponding
+  headline lines of the stored Markdown summary, including the legacy Brier-skill line and its
+  "1 = perfect" legend, since that rendering is what a human actually reads. Reading normalizes;
+  it never trusts the stored value.
+- A missing or malformed resolved count is not evidence of an empty corpus. It never triggers
+  normalization, and it is never collapsed into 0 by a reader: "no Prediction has resolved" and
+  "this summary does not say" are distinct findings, and only the first may be presented as an
+  empty corpus.
 - Empirical baseline skill remains deferred until there are at least 100 resolved policy-v3
   forecasts overall and at least one event-kind × horizon stratum contains 30 resolved forecasts.
   Reaching both thresholds triggers a separate baseline-design review rather than an automatic

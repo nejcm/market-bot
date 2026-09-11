@@ -602,8 +602,17 @@ function yahooScoringWindowUrl(symbol: string, from: Date, to: Date): string {
   return url.toString();
 }
 
+/*
+ * A Yahoo epoch-seconds value that is finite but absurd (a millisecond epoch, a float overflow)
+ * produces an Invalid Date, whose toISOString() throws RangeError rather than returning a date.
+ * Every caller treats an unreadable timestamp as "no date", so the check belongs in one place.
+ */
 function dateFromUnixSeconds(value: unknown): string | undefined {
-  return typeof value === "number" ? new Date(value * 1000).toISOString().slice(0, 10) : undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const date = new Date(value * 1000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
 }
 
 interface YahooChartQuote {
@@ -644,6 +653,145 @@ function observationsFromYahooChartPayload(
       ? [{ subject: symbol, date, value }]
       : [];
   });
+}
+
+/**
+ * The exchange's current regular trading session, read from
+ * `chart.result[0].meta.currentTradingPeriod.regular`.
+ *
+ * This is the only exchange-schedule metadata a Yahoo chart payload carries, and the only way to
+ * tell an in-progress session apart from a completed one: OHLCV fields populate as soon as the
+ * session opens, so a field-presence test cannot distinguish "no data yet" from "data so far
+ * today".
+ */
+interface YahooRegularSessionWindow {
+  /** UTC date the session's daily bar is stamped with (Yahoo timestamps a bar at its open). */
+  readonly startDate: string;
+  /** Epoch seconds at which the regular session closes. */
+  readonly endSeconds: number;
+  /** ISO timestamp of the regular close, for gap prose. */
+  readonly endsAt: string;
+}
+
+/**
+ * Outcome of reading the regular trading period.
+ *
+ * `absent` and `unusable` are deliberately distinct. Absence is expected (older cassettes, a
+ * truncated payload, a non-Yahoo shape) and says nothing about the provider. An unusable value is
+ * a provider defect, and the caller must declare it rather than fall back to any heuristic that
+ * could silently accept an in-progress bar as a completed session.
+ */
+export type YahooRegularSessionRead =
+  | { readonly status: "ok"; readonly window: YahooRegularSessionWindow }
+  | { readonly status: "absent" }
+  | { readonly status: "unusable"; readonly detail: string };
+
+/** Epoch seconds for 2000-01-01; anything earlier is not a session this collector can see. */
+const MIN_PLAUSIBLE_SESSION_SECONDS = 946_684_800;
+/** Epoch seconds for 2100-01-01. A millisecond epoch for any real date lands far above this. */
+const MAX_PLAUSIBLE_SESSION_SECONDS = 4_102_444_800;
+/** No exchange runs a regular session shorter than five minutes... */
+const MIN_SESSION_DURATION_SECONDS = 300;
+/** ...nor one longer than a day (a 24h crypto period is the ceiling). */
+const MAX_SESSION_DURATION_SECONDS = 86_400;
+
+function plausibleSessionSeconds(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= MIN_PLAUSIBLE_SESSION_SECONDS &&
+    value <= MAX_PLAUSIBLE_SESSION_SECONDS
+    ? value
+    : undefined;
+}
+
+/*
+ * Reads the current regular trading period from a Yahoo chart payload.
+ *
+ * Callers must treat anything other than `ok` as "completeness unknown", never as "session
+ * complete": a schedule that fails validation is exactly as uninformative as a missing one, and
+ * trusting it would readmit the in-progress bar this reader exists to catch.
+ */
+export function readYahooRegularSession(payload: unknown): YahooRegularSessionRead {
+  const chart = readYahooChartQuote(payload);
+  if (chart === undefined) {
+    return { status: "absent" };
+  }
+  const meta = readScheduleContainer(chart.result, "meta");
+  if (meta.status !== "ok") {
+    return meta;
+  }
+  const period = readScheduleContainer(meta.container, "currentTradingPeriod");
+  if (period.status !== "ok") {
+    return period;
+  }
+  const regular = readScheduleContainer(period.container, "regular");
+  if (regular.status !== "ok") {
+    return regular;
+  }
+  const start = plausibleSessionSeconds(regular.container.start);
+  const end = plausibleSessionSeconds(regular.container.end);
+  if (start === undefined || end === undefined) {
+    return {
+      status: "unusable",
+      detail: `start/end are not plausible epoch seconds (start ${describeSessionBound(regular.container.start)}, end ${describeSessionBound(regular.container.end)})`,
+    };
+  }
+  const durationSeconds = end - start;
+  if (
+    durationSeconds < MIN_SESSION_DURATION_SECONDS ||
+    durationSeconds > MAX_SESSION_DURATION_SECONDS
+  ) {
+    return {
+      status: "unusable",
+      detail: `session duration ${String(durationSeconds)}s is outside ${String(MIN_SESSION_DURATION_SECONDS)}–${String(MAX_SESSION_DURATION_SECONDS)}s`,
+    };
+  }
+  const startDate = dateFromUnixSeconds(start);
+  const endsAt = isoTimestampFromUnixSeconds(end);
+  if (startDate === undefined || endsAt === undefined) {
+    return { status: "unusable", detail: "start/end do not convert to a calendar date" };
+  }
+  return { status: "ok", window: { startDate, endSeconds: end, endsAt } };
+}
+
+/*
+ * Walks one step into the schedule metadata, keeping absence and corruption apart.
+ *
+ * A genuinely missing property is `absent` — expected of older cassettes and truncated payloads,
+ * and it says nothing about the provider. A property that is PRESENT but the wrong shape
+ * (`currentTradingPeriod: "corrupt"`, `regular: null`) is a provider defect and must be declared,
+ * not folded into absence where the age heuristic would suppress it.
+ */
+function readScheduleContainer(
+  parent: Record<string, unknown>,
+  key: string,
+):
+  | { readonly status: "ok"; readonly container: Record<string, unknown> }
+  | { readonly status: "absent" }
+  | { readonly status: "unusable"; readonly detail: string } {
+  const value = parent[key];
+  if (value === undefined) {
+    return { status: "absent" };
+  }
+  if (!isRecord(value)) {
+    return {
+      status: "unusable",
+      detail: `${key} is ${describeSessionBound(value)}, not an object`,
+    };
+  }
+  return { status: "ok", container: value };
+}
+
+function isoTimestampFromUnixSeconds(value: number): string | undefined {
+  const date = new Date(value * 1000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function describeSessionBound(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  return typeof value === "number" ? String(value) : typeof value;
 }
 
 type YahooOhlcvField = "open" | "high" | "low" | "close" | "volume";

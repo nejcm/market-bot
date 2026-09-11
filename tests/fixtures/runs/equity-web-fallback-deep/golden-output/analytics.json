@@ -245,18 +245,18 @@
     "flaggedByProvider": {}
   },
   "subsystemOutcomes": {
-    "count": 18,
-    "expectedEmptyCount": 1,
+    "count": 19,
+    "expectedEmptyCount": 0,
     "byExpectation": {
-      "expected": 11,
+      "expected": 12,
       "optional": 5,
       "not-applicable": 2
     },
     "byOutcome": {
       "produced": 13,
-      "empty": 2,
-      "declined": 2,
-      "failed": 0,
+      "empty": 1,
+      "declined": 3,
+      "failed": 1,
       "blocked": 1
     },
     "byCode": {
@@ -269,6 +269,7 @@
       "not-applicable": 1,
       "not-configured": 1,
       "playbooks-selected": 1,
+      "primary-provider-degraded": 1,
       "profile-produced": 1
     }
   },
@@ -412,6 +413,15 @@
       "status": "missing-credential",
       "evidence": ["marketaux-news"],
       "reason": "missing MARKET_BOT_MARKETAUX_API_TOKEN"
+    },
+    "exaSearch": {
+      "status": "degraded",
+      "evidence": ["exa-search"],
+      "reason": "Exa search was unusable for 1 of 1 web search request(s) (0 without any Exa response); Firecrawl served 1"
+    },
+    "firecrawlSearch": {
+      "status": "available",
+      "evidence": ["firecrawl-search"]
     }
   },
   "newsDedupe": {

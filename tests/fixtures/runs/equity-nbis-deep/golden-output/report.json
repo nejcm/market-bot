@@ -98,6 +98,7 @@
     "business-framework: Business Framework partial for NBIS: capital-allocation: Capital allocation commentary is not available from current normalized sources",
     "business-framework: Business Framework partial for NBIS: risk-factors: Disclosed risk-factor evidence is not available from current normalized sources",
     "business-framework: Business Framework partial for NBIS: cyclicality: Recession cyclicality evidence is not available from current normalized sources",
+    "yahoo-verified-chart: Yahoo chart bar 2026-07-22 was an in-progress session at fetch time 2026-07-22T16:16:13.510Z (regular session closes 2026-07-22T20:00:00.000Z); it was dropped before indicators and the snapshot is anchored on the last completed session 2026-07-21 [NBIS]",
     "sec-untagged-financials: Untagged 6-K facts were not validated for NBIS because the capability is gated; they remain outside canonical financial-core completeness",
     "equity-analysis-completeness: cadence-unestablished: NBIS reporting surface is not current (interim cadence annual-only; latest reported period end 2025-12-31)",
     "equity-analysis-completeness: untagged-interim-evidence: NBIS reporting surface is not current (interim cadence annual-only; latest reported period end 2025-12-31)"
@@ -253,7 +254,7 @@
     },
     {
       "id": "verified-snapshot-NBIS",
-      "title": "NBIS verified market snapshot (OHLCV + indicators, 2026-07-22)",
+      "title": "NBIS verified market snapshot (OHLCV + indicators, 2026-07-21)",
       "fetchedAt": "2026-07-22T16:16:13.510Z",
       "kind": "market-data",
       "assetClass": "equity",
@@ -659,7 +660,7 @@
       {
         "category": "financial-lens",
         "title": "NBIS Financial Lens Evidence",
-        "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
+        "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $217, SMA50 225.23, SMA200 138.71, RSI14 50.25).",
         "sourceIds": [
           "extended-sec-edgar-nbis-fundamentals",
           "market-yahoo-equity-nbis",
@@ -734,16 +735,16 @@
           "pcfRatio": 148.65712432432431,
           "pcfRatioPeriodEnd": "2025-12-31",
           "momentumPosture": "criteria-mixed",
-          "latestClose": 225.3000030517578,
-          "latestClosePeriodEnd": "2026-07-22T16:16:13.510Z",
-          "sma50": 226.1901998901367,
-          "sma50PeriodEnd": "2026-07-22T16:16:13.510Z",
-          "sma200": 139.21002544403075,
-          "sma200PeriodEnd": "2026-07-22T16:16:13.510Z",
-          "rsi14": 52.48462346452554,
-          "rsi14PeriodEnd": "2026-07-22T16:16:13.510Z",
-          "macdHistogram": -0.9599467569226885,
-          "macdHistogramPeriodEnd": "2026-07-22T16:16:13.510Z",
+          "latestClose": 216.9199981689453,
+          "latestClosePeriodEnd": "2026-07-21",
+          "sma50": 225.2251998901367,
+          "sma50PeriodEnd": "2026-07-21",
+          "sma200": 138.7128754425049,
+          "sma200PeriodEnd": "2026-07-21",
+          "rsi14": 50.25227968443142,
+          "rsi14PeriodEnd": "2026-07-21",
+          "macdHistogram": -3.721822614489847,
+          "macdHistogramPeriodEnd": "2026-07-21",
           "interimCadence": "annual-only",
           "latestReportedPeriodEnd": "2025-12-31"
         }

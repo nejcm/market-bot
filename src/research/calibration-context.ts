@@ -4,6 +4,12 @@ import type { ResearchCommand } from "../cli/args";
 import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
 import { isRecord, readNumber, readString } from "../guards";
 import { brierSkillScore } from "../scoring/calibration";
+import {
+  hasNoResolvedPredictions,
+  isCalibrationCount,
+  isPositiveCalibrationCount,
+  isUnitInterval,
+} from "../scoring/calibration-invariant";
 import { buildAndWriteCalibration } from "../scoring/index";
 import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
 import { applicableCalibrationSlices, applicableKindSlices } from "./calibration-guidance";
@@ -36,17 +42,8 @@ export async function refreshCalibrationContext(
 // Domain invariants the producer guarantees (see src/scoring/calibration.ts).
 // These are enforced at the untrusted disk boundary, not assumed.
 // Finite-but-impossible values like hitRate 1.5 or negative counts are dropped.
-function isProbability(value: number): boolean {
-  return value >= 0 && value <= 1;
-}
-
-function isCount(value: number): boolean {
-  return Number.isInteger(value) && value >= 0;
-}
-
-function isPositiveCount(value: number): boolean {
-  return Number.isInteger(value) && value >= 1;
-}
+// The shared predicates live in src/scoring/calibration-invariant.ts so this
+// Parser and the Console projector cannot disagree about what is valid.
 
 // Brier skill vs the always-0.5 baseline. Binary Brier in [0, 1] bounds the skill to [-3, 1].
 // Values outside that range are impossible and dropped.
@@ -71,11 +68,17 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
     return undefined;
   }
   const generatedAt = readString(value, "generatedAt");
-  const resolvedCount = readNumberWhere(value, "resolvedCount", isCount);
-  const missAutopsyCount = readNumberWhere(value, "missAutopsyCount", isCount);
-  const brierScore = readNumberWhere(value, "brierScore", isProbability);
-  const hitRate = readNumberWhere(value, "hitRate", isProbability);
-  const brierSkill = readNumberWhere(value, "brierSkillScore", isBrierSkill);
+  const resolvedCount = readNumberWhere(value, "resolvedCount", isCalibrationCount);
+  const missAutopsyCount = readNumberWhere(value, "missAutopsyCount", isCalibrationCount);
+  // Zero-resolution invariant, enforced at the disk boundary rather than assumed:
+  // Summaries written before the producer omitted these still hold zeros, and a
+  // Stored Brier of 0 would reach synthesis as perfect calibration.
+  const unmeasured = hasNoResolvedPredictions(resolvedCount);
+  const brierScore = unmeasured ? undefined : readNumberWhere(value, "brierScore", isUnitInterval);
+  const hitRate = unmeasured ? undefined : readNumberWhere(value, "hitRate", isUnitInterval);
+  const brierSkill = unmeasured
+    ? undefined
+    : readNumberWhere(value, "brierSkillScore", isBrierSkill);
   const bins = Array.isArray(value.bins)
     ? value.bins.flatMap((bin) => {
         const parsed = parseCalibrationBin(bin);
@@ -119,8 +122,8 @@ function parseConditionalCalibrationSummary(
   if (!isRecord(value)) {
     return undefined;
   }
-  const activatedCount = readNumberWhere(value, "activatedCount", isCount);
-  const voidedCount = readNumberWhere(value, "voidedCount", isCount);
+  const activatedCount = readNumberWhere(value, "activatedCount", isCalibrationCount);
+  const voidedCount = readNumberWhere(value, "voidedCount", isCalibrationCount);
   if (activatedCount === undefined || voidedCount === undefined) {
     return undefined;
   }
@@ -131,12 +134,12 @@ function parseCalibrationBin(value: unknown): CalibrationBin | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
-  const pLow = readNumberWhere(value, "pLow", isProbability);
-  const pHigh = readNumberWhere(value, "pHigh", isProbability);
+  const pLow = readNumberWhere(value, "pLow", isUnitInterval);
+  const pHigh = readNumberWhere(value, "pHigh", isUnitInterval);
   const label = readString(value, "label");
-  const hitCount = readNumberWhere(value, "hitCount", isCount);
-  const totalCount = readNumberWhere(value, "totalCount", isPositiveCount);
-  const hitRate = readNumberWhere(value, "hitRate", isProbability);
+  const hitCount = readNumberWhere(value, "hitCount", isCalibrationCount);
+  const totalCount = readNumberWhere(value, "totalCount", isPositiveCalibrationCount);
+  const hitRate = readNumberWhere(value, "hitRate", isUnitInterval);
   if (
     pLow === undefined ||
     pHigh === undefined ||
@@ -156,12 +159,12 @@ function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
-  const brierScore = readNumberWhere(value, "brierScore", isProbability);
-  const count = readNumberWhere(value, "count", isPositiveCount);
+  const brierScore = readNumberWhere(value, "brierScore", isUnitInterval);
+  const count = readNumberWhere(value, "count", isPositiveCalibrationCount);
   if (brierScore === undefined || count === undefined) {
     return undefined;
   }
-  const runCount = readNumberWhere(value, "runCount", isPositiveCount);
+  const runCount = readNumberWhere(value, "runCount", isPositiveCalibrationCount);
   const brierStandardError = readNumberWhere(
     value,
     "brierStandardError",
@@ -205,7 +208,7 @@ function parseMarketRegimeCoverage(value: unknown): Record<string, number> | und
     return undefined;
   }
   const entries = Object.entries(value).flatMap(([key, raw]) =>
-    (isMarketRegimeLabel(key) || key === "unknown") && typeof raw === "number" && isCount(raw)
+    (isMarketRegimeLabel(key) || key === "unknown") && isCalibrationCount(raw)
       ? [[key, raw] as const]
       : [],
   );
@@ -217,7 +220,7 @@ function parseCountMap(value: unknown): Record<string, number> | undefined {
     return undefined;
   }
   const entries = Object.entries(value).flatMap(([key, raw]) =>
-    typeof raw === "number" && isCount(raw) ? [[key, raw] as const] : [],
+    isCalibrationCount(raw) ? [[key, raw] as const] : [],
   );
   return Object.fromEntries(entries);
 }

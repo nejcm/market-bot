@@ -63,7 +63,7 @@
           "unit": "currency",
           "sourceIds": ["verified-snapshot-AAPL"],
           "currency": "USD",
-          "periodEnd": "2026-06-15T14:30:00.000Z"
+          "periodEnd": "2026-05-01"
         },
         {
           "key": "sma50",
@@ -71,7 +71,7 @@
           "value": 212.5128,
           "unit": "number",
           "sourceIds": ["verified-snapshot-AAPL"],
-          "periodEnd": "2026-06-15T14:30:00.000Z"
+          "periodEnd": "2026-05-01"
         },
         {
           "key": "rsi14",
@@ -79,7 +79,7 @@
           "value": 52.73342335536868,
           "unit": "number",
           "sourceIds": ["verified-snapshot-AAPL"],
-          "periodEnd": "2026-06-15T14:30:00.000Z"
+          "periodEnd": "2026-05-01"
         },
         {
           "key": "macdHistogram",
@@ -87,7 +87,7 @@
           "value": 0.07721083702343323,
           "unit": "number",
           "sourceIds": ["verified-snapshot-AAPL"],
-          "periodEnd": "2026-06-15T14:30:00.000Z"
+          "periodEnd": "2026-05-01"
         }
       ],
       "sourceIds": ["verified-snapshot-AAPL"]

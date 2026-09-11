@@ -261,29 +261,33 @@
       "assetClass": "equity",
       "analysisDate": "2026-07-22",
       "fetchedAt": "2026-07-22T16:16:13.510Z",
-      "latestSessionDate": "2026-07-22",
+      "latestSessionDate": "2026-07-21",
       "ohlcv": {
-        "date": "2026-07-22",
-        "open": 211,
-        "high": 227.25999450683594,
-        "low": 209.5399932861328,
-        "close": 225.3000030517578,
-        "volume": 9044136
+        "date": "2026-07-21",
+        "open": 193.0500030517578,
+        "high": 217.6199951171875,
+        "low": 192.1199951171875,
+        "close": 216.9199981689453,
+        "volume": 25547400
       },
       "indicators": {
-        "ema10": 205.8603388713086,
-        "sma50": 226.1901998901367,
-        "sma200": 139.21002544403075,
-        "rsi14": 52.48462346452554,
-        "macd": -8.931096202106858,
-        "macdSignal": -7.971149445184169,
-        "macdHistogram": -0.9599467569226885,
-        "bollUpper": 274.8760679556251,
-        "bollMiddle": 218.88399963378907,
-        "bollLower": 162.89193131195307,
-        "atr14": 24.295351611667233
+        "ema10": 201.54041349787545,
+        "sma50": 225.2251998901367,
+        "sma200": 138.7128754425049,
+        "rsi14": 50.25227968443142,
+        "macd": -11.452985370443344,
+        "macdSignal": -7.731162755953497,
+        "macdHistogram": -3.721822614489847,
+        "bollUpper": 282.51540065306096,
+        "bollMiddle": 221.38149948120116,
+        "bollLower": 160.24759830934138,
+        "atr14": 24.80114779558755
       },
       "recentCloses": [
+        {
+          "date": "2026-06-08",
+          "close": 218
+        },
         {
           "date": "2026-06-09",
           "close": 220.1199951171875
@@ -399,10 +403,6 @@
         {
           "date": "2026-07-21",
           "close": 216.9199981689453
-        },
-        {
-          "date": "2026-07-22",
-          "close": 225.3000030517578
         }
       ]
     },
@@ -789,7 +789,7 @@
         {
           "category": "financial-lens",
           "title": "NBIS Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $225, SMA50 226.19, SMA200 139.21, RSI14 52.48).",
+          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $217, SMA50 225.23, SMA200 138.71, RSI14 50.25).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -864,16 +864,16 @@
             "pcfRatio": 148.65712432432431,
             "pcfRatioPeriodEnd": "2025-12-31",
             "momentumPosture": "criteria-mixed",
-            "latestClose": 225.3000030517578,
-            "latestClosePeriodEnd": "2026-07-22T16:16:13.510Z",
-            "sma50": 226.1901998901367,
-            "sma50PeriodEnd": "2026-07-22T16:16:13.510Z",
-            "sma200": 139.21002544403075,
-            "sma200PeriodEnd": "2026-07-22T16:16:13.510Z",
-            "rsi14": 52.48462346452554,
-            "rsi14PeriodEnd": "2026-07-22T16:16:13.510Z",
-            "macdHistogram": -0.9599467569226885,
-            "macdHistogramPeriodEnd": "2026-07-22T16:16:13.510Z",
+            "latestClose": 216.9199981689453,
+            "latestClosePeriodEnd": "2026-07-21",
+            "sma50": 225.2251998901367,
+            "sma50PeriodEnd": "2026-07-21",
+            "sma200": 138.7128754425049,
+            "sma200PeriodEnd": "2026-07-21",
+            "rsi14": 50.25227968443142,
+            "rsi14PeriodEnd": "2026-07-21",
+            "macdHistogram": -3.721822614489847,
+            "macdHistogramPeriodEnd": "2026-07-21",
             "interimCadence": "annual-only",
             "latestReportedPeriodEnd": "2025-12-31"
           }
@@ -7270,43 +7270,43 @@
             {
               "key": "latestClose",
               "label": "Latest close",
-              "value": 225.3000030517578,
+              "value": 216.9199981689453,
               "unit": "currency",
               "sourceIds": ["verified-snapshot-NBIS"],
               "currency": "USD",
-              "periodEnd": "2026-07-22T16:16:13.510Z"
+              "periodEnd": "2026-07-21"
             },
             {
               "key": "sma50",
               "label": "SMA50",
-              "value": 226.1901998901367,
+              "value": 225.2251998901367,
               "unit": "number",
               "sourceIds": ["verified-snapshot-NBIS"],
-              "periodEnd": "2026-07-22T16:16:13.510Z"
+              "periodEnd": "2026-07-21"
             },
             {
               "key": "sma200",
               "label": "SMA200",
-              "value": 139.21002544403075,
+              "value": 138.7128754425049,
               "unit": "number",
               "sourceIds": ["verified-snapshot-NBIS"],
-              "periodEnd": "2026-07-22T16:16:13.510Z"
+              "periodEnd": "2026-07-21"
             },
             {
               "key": "rsi14",
               "label": "RSI14",
-              "value": 52.48462346452554,
+              "value": 50.25227968443142,
               "unit": "number",
               "sourceIds": ["verified-snapshot-NBIS"],
-              "periodEnd": "2026-07-22T16:16:13.510Z"
+              "periodEnd": "2026-07-21"
             },
             {
               "key": "macdHistogram",
               "label": "MACD histogram",
-              "value": -0.9599467569226885,
+              "value": -3.721822614489847,
               "unit": "number",
               "sourceIds": ["verified-snapshot-NBIS"],
-              "periodEnd": "2026-07-22T16:16:13.510Z"
+              "periodEnd": "2026-07-21"
             }
           ],
           "sourceIds": ["verified-snapshot-NBIS"]
@@ -9316,6 +9316,16 @@
         "triage": "material"
       },
       {
+        "source": "yahoo-verified-chart",
+        "message": "Yahoo chart bar 2026-07-22 was an in-progress session at fetch time 2026-07-22T16:16:13.510Z (regular session closes 2026-07-22T20:00:00.000Z); it was dropped before indicators and the snapshot is anchored on the last completed session 2026-07-21",
+        "symbol": "NBIS",
+        "provider": "yahoo",
+        "capability": "market-data",
+        "cause": "session-in-progress",
+        "evidenceQualityImpact": "no-cap",
+        "triage": "diagnostic"
+      },
+      {
         "source": "sec-edgar",
         "message": "NBIS files as a foreign private issuer (20-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
         "provider": "sec-edgar",
@@ -9492,8 +9502,11 @@
           "evidenceClass": "core",
           "status": "covered",
           "coveredSourceIds": ["verified-snapshot-NBIS"],
-          "gapIds": [],
-          "gapText": [],
+          "gapIds": ["verified-price-history:gap:1"],
+          "gapText": [
+            "yahoo-verified-chart: Yahoo chart bar 2026-07-22 was an in-progress session at fetch time 2026-07-22T16:16:13.510Z (regular session closes 2026-07-22T20:00:00.000Z); it was dropped before indicators and the snapshot is anchored on the last completed session 2026-07-21"
+          ],
+          "gapCauses": ["session-in-progress"],
           "freshnessNotes": ["latest evidence timestamp 2026-07-22T16:16:13.510Z"]
         },
         {
@@ -9596,7 +9609,7 @@
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 2,
         "sourceCount": 22,
-        "gapCount": 12,
+        "gapCount": 13,
         "coverageRatio": 0.45454545454545453
       }
     },
@@ -9746,7 +9759,7 @@
           "observedAt": "2026-07-22T16:16:13.510Z",
           "lane": "verified-price-history",
           "posture": "covered",
-          "relatedGapIds": []
+          "relatedGapIds": ["verified-price-history:gap:1"]
         },
         {
           "id": "extended-sec-edgar-nbis-fundamentals",

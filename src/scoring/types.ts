@@ -75,9 +75,20 @@ export interface ConditionalCalibrationSummary {
 export interface CalibrationSummary {
   readonly generatedAt: string;
   readonly resolvedCount: number;
-  readonly hitRate: number;
+  /**
+   * Absent whenever `resolvedCount` is 0. There is no hit rate over zero
+   * Resolved Predictions, and 0 would read as "never right" rather than
+   * "nothing measured yet".
+   */
+  readonly hitRate?: number;
   readonly missAutopsyCount: number;
-  readonly brierScore: number;
+  /**
+   * Absent whenever `resolvedCount` is 0. A Brier score of 0 is a perfect
+   * Forecaster, so publishing it for an empty Calibration corpus would assert
+   * The opposite of what is known. Omitted rather than null: `null` coerces to
+   * 0 in arithmetic and comparisons, `undefined` does not.
+   */
+  readonly brierScore?: number;
   /** Present only in historical summaries generated before policy-v3 calibration. */
   readonly brierSkillScore?: number;
   readonly bins: readonly CalibrationBin[];

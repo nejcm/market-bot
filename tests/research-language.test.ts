@@ -223,3 +223,81 @@ describe("violatesResearchOnly", () => {
     });
   }
 });
+
+/*
+ * The price-target branch matches unconditionally, and F3 is fixed by screening the wording at
+ * the source (`src/web-evidence/web-subject-profile.ts`) rather than by narrowing the gate. This
+ * corpus pins that: it is the set of shapes an abandoned absence-exemption attempt had to spare or
+ * catch, and three independent review rounds each found a different assertion that slipped through
+ * a clause predicate. Under an unconditional match every one of them is rejected, including the
+ * absence declarations — those never reach the gate now, because they are screened upstream.
+ */
+describe("price-target wording is rejected unconditionally", () => {
+  const rejected = [
+    // The live deep-AAPL gap sentence, and other absence declarations. Route 2 screens these at
+    // The source; the gate itself is not asked to tell an absence from an assertion.
+    "Analyst consensus, price targets, options data, dividend history, and split history are not available in the supplied web sources.",
+    "Price targets are not available.",
+    "Price targets were not available in the supplied web sources.",
+    "Price targets are not disclosed by the issuer.",
+    "Price targets not provided in the supplied sources.",
+    "Target prices were not published in the filing.",
+    "Analyst price targets and options data are not available",
+    "Price targets, options data, and dividend history are not reported.",
+    "Consensus estimates, price targets or analyst notes are not present in the supplied sources.",
+    // Bare terms.
+    "price target",
+    "price targets",
+    "target price",
+    "target prices",
+    "The consensus price target is 240 USD.",
+    // A numeric assertion riding along beside an absence.
+    "Price targets are not available, but peers imply $214.",
+    "Price targets are not available at 214 USD.",
+    "Price targets are not available and the % gap is wide.",
+    "Price targets are not available; the peer-implied price is 214 USD.",
+    "Price targets are not available. The model states a fair value of 125 USD.",
+    "Price targets are not currently available.",
+    "Price targets are not the focus of this section.",
+    // Review round 1: an assertion before the term, an unrelated absence after it.
+    "Our price target is above spot, but analyst coverage is not available.",
+    "Analyst coverage is not available, but our price target is above spot.",
+    "Our price target, well above spot, is not disclosed.",
+    "Price targets are not available, and they sit above spot.",
+    "Our price target stands, but analyst coverage is not available.",
+    "Our price target, but analyst coverage, is not available.",
+    "Our price target exceeds peer levels, options data are not available.",
+    "The consensus price target is above spot.",
+    "Management price target is well supported by peers.",
+    // Review round 2: a numeric assertion before the term.
+    "We maintain our $240 price target, and estimates are not available.",
+    "We maintain our price target, and estimates are not available.",
+    "We reiterate the price target, and guidance is not disclosed.",
+    "I set a price target, and guidance is not disclosed.",
+    "Our price target, and guidance, is not disclosed.",
+    "We raised the price target, though guidance is not disclosed.",
+    "The desk raised the price target, guidance is not disclosed.",
+    "Analysts publish a price target, options data are not available.",
+    // Review round 3: a short affirmative "subject" that a clause predicate read as an enumeration.
+    "Price target stands, guidance is not disclosed.",
+    "Price targets are not available. The consensus price target is 240 USD.",
+    "Price targets are not available. Peer multiples imply a fair value of $214.",
+    "Estimates are not available; the price target stands.",
+    "Options data are not available for our price target.",
+    "Price targets exceeding spot are not available.",
+    "Price targets, which imply upside, are not available.",
+    "Price targets are not available above 200 USD.",
+    "Price targets are not available, implying upside.",
+    "A 240 USD price target and options data are not available.",
+    // Scanned report text is newline-joined, so a newline must not license the next line.
+    "Analyst coverage is not available.\nThe price target is 240 USD.",
+    "Price targets\nare not available.",
+    "Price targets are not available.\nThe consensus price target is 240 USD.",
+  ];
+
+  for (const text of rejected) {
+    test(`rejects: ${JSON.stringify(text)}`, () => {
+      expect(violatesResearchOnly(text)).not.toBeNull();
+    });
+  }
+});

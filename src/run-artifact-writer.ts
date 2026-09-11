@@ -4,7 +4,6 @@ import type { AppConfig } from "./config";
 import { isInstrumentCommand, type ResearchCommand } from "./cli/args";
 import { writeJson, type RunArtifactPaths } from "./artifacts";
 import { compactUnmappedSecFilingGaps } from "./domain/source-gaps";
-import { violatesResearchOnly } from "./domain/research-language";
 import {
   type CodeVersion,
   type EvidenceQualityAssessment,
@@ -44,6 +43,7 @@ import { isRecord } from "./guards";
 import type { CollectedSources, RawSourceSnapshot } from "./sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "./deep-equity/types";
 import { sumKnownCosts } from "./model/pricing";
+import { modelPayloadLanguageViolations } from "./research/model-payload-language";
 import type { ModelReportPayload } from "./research/report-assembly";
 import type { WebGatherSkipCode } from "./web-evidence/web-gather-types";
 
@@ -235,20 +235,6 @@ function catalystCalendarItems(report: ResearchReport): readonly unknown[] {
   return isRecord(calendar) && Array.isArray(calendar.items) ? calendar.items : [];
 }
 
-function languageViolations(payload: ModelReportPayload): readonly {
-  readonly field: string;
-  readonly match: string;
-}[] {
-  return Object.entries(payload).flatMap(([field, value]) => {
-    const text = JSON.stringify(value);
-    if (text === undefined) {
-      return [];
-    }
-    const violation = violatesResearchOnly(text);
-    return violation === null ? [] : [{ field, match: violation.match }];
-  });
-}
-
 export function buildFailedRunManifest(input: FailedRunManifestInput): {
   readonly writes: readonly RunArtifactWrite[];
   readonly failure: RunArtifactWrite;
@@ -369,13 +355,12 @@ export function buildFailedRunManifest(input: FailedRunManifestInput): {
         predictionErrors: input.predictionErrors,
         totalCalls: input.totalCalls,
         reportRepairReprompts: input.reportRepairReprompts,
-        // Field attribution is a hint: JSON delimiters can create cross-element matches, phrases
-        // Spanning nested fields are missed, and only the first match per top-level field is kept.
-        // ReportValidationErrors is authoritative; [] means this draft had no detected match, so the
-        // Rejected wording came from somewhere else -- since assertSafeReportLanguage scans only
-        // Model-authored prose (ADR 0001, 2026-08-26), that is prose from an earlier model stage
-        // Merged during assembly, such as the Web Subject Profile.
-        languageViolations: languageViolations(input.payload),
+        /*
+         * `reportValidationErrors` is authoritative; see model-payload-language.ts for what an empty
+         * list means. This helper is a failed-run diagnostic only; final synthesis decides
+         * repairability from the rejected field's own path, not from this scan.
+         */
+        languageViolations: modelPayloadLanguageViolations(input.payload),
         evidenceQuality: input.evidenceQuality,
         cost: {
           tokenEstimate: input.stageOutputs.reduce(

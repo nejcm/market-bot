@@ -37,7 +37,9 @@ import {
   rollupSubsystemOutcomes,
   type SubsystemOutcomeRollup,
 } from "../research/subsystem-outcomes";
-import { isRecord, numberAt } from "../guards";
+import { isRecord, numberAt, readNumber } from "../guards";
+import { deriveWebSearchEndpointAvailability } from "../sources/provider-endpoint-availability";
+import type { RunSubsystemOutcome, RunSubsystemOutcomeLedger } from "../run-artifact-projection";
 import {
   buildValidation,
   type ProviderValidationSummary,
@@ -81,6 +83,13 @@ export interface ProviderRouteHealth {
   readonly route: string;
   readonly provider: string;
   readonly total: number;
+  /** Runs whose `analytics.json` reported this endpoint `degraded`. Never sourced from Source
+   *  Gaps: a covered web-search fallback deliberately emits none. */
+  readonly degraded: number;
+  /** Subset of `degraded` where a fallback provider actually served that run. Coverage is read
+   *  from the run's own `firecrawlSearch` row, never inferred from the fact of degradation: a
+   *  degraded `firecrawlSearch` row means the mitigation itself failed, so it never counts here. */
+  readonly degradedCovered: number;
   readonly missingCredential: number;
   readonly fetchFailed: number;
   readonly yahooAuth: number;
@@ -451,6 +460,8 @@ function emptyRoute(route: string, provider: string): ProviderRouteHealth {
     route,
     provider,
     total: 0,
+    degraded: 0,
+    degradedCovered: 0,
     missingCredential: 0,
     fetchFailed: 0,
     yahooAuth: 0,
@@ -462,7 +473,129 @@ function emptyRoute(route: string, provider: string): ProviderRouteHealth {
   };
 }
 
-function routeHealth(runs: readonly RunHealth[]): readonly ProviderRouteHealth[] {
+// Provider Health builds its routes from Source Gaps, and a successful Firecrawl fallback closes
+// Exa's gap by design, so a covered degradation reaches this page through `analytics.json` instead.
+// Each endpoint contributes its own route key, which no `SourceGap.source` can collide with
+// (Gap sources are provider ids such as `exa` or `web-gather`, never these camelCase endpoint
+// Names), and each run contributes at most one increment per endpoint because the analytics row is
+// One run-level status however many requests fell back. Gap-derived counters stay at zero here, so
+// `gapOverview` and the gap classes are untouched.
+const WEB_SEARCH_PROVIDER_SUBSYSTEM = "web-search-provider";
+const WEB_SEARCH_ENDPOINT_PROVIDERS: Readonly<Record<string, string>> = {
+  exaSearch: "exa",
+  firecrawlSearch: "firecrawl",
+};
+const FIRECRAWL_SEARCH_ENDPOINT = "firecrawlSearch";
+
+function endpointStatus(analytics: Record<string, unknown>, endpoint: string): string | undefined {
+  const availability = analytics.providerEndpointAvailability;
+  if (!isRecord(availability)) {
+    return undefined;
+  }
+  const row = availability[endpoint];
+  return isRecord(row) && typeof row.status === "string" ? row.status : undefined;
+}
+
+// A degradation is covered only when the fallback provider actually served this run. `degraded` on
+// Its own says a fallback was entered, not that anything came back: Exa reads `degraded` the moment
+// It is unusable, and Firecrawl reads `degraded` precisely when it served nothing. Only an
+// `available` Firecrawl search row is evidence that the run still got its web search results.
+function fallbackCoveredRun(analytics: Record<string, unknown>): boolean {
+  return endpointStatus(analytics, FIRECRAWL_SEARCH_ENDPOINT) === "available";
+}
+
+function degradedEndpointReason(
+  analytics: Record<string, unknown>,
+  endpoint: string,
+): string | undefined {
+  if (endpointStatus(analytics, endpoint) !== "degraded") {
+    return undefined;
+  }
+  const availability = analytics.providerEndpointAvailability;
+  const row = isRecord(availability) ? availability[endpoint] : undefined;
+  return isRecord(row) && typeof row.reason === "string" ? row.reason : "degraded";
+}
+
+// A Failed Run Artifact has no `analytics.json`, but the `web-search-provider` Subsystem Outcome is
+// Written for failed and successful runs alike, and its detail carries the same per-request counts
+// The analytics rows were derived from. Rebuilding the endpoint rows from that detail keeps a
+// Degradation on a failed run visible here — the Source Gap is closed on the covered path and gone
+// Altogether when `source-gaps.json` is absent or malformed, so nothing else would report it.
+function endpointAvailabilityFromLedger(
+  outcomes: readonly RunSubsystemOutcome[] | undefined,
+  sourceGaps: readonly SourceGap[],
+): Record<string, unknown> | undefined {
+  const outcome = outcomes?.find((item) => item.subsystem === WEB_SEARCH_PROVIDER_SUBSYSTEM);
+  const { detail } = outcome ?? {};
+  if (detail === undefined) {
+    return undefined;
+  }
+  const counts = {
+    requestCount: readNumber(detail, "requestCount"),
+    exaFallbackCount: readNumber(detail, "exaFallbackCount"),
+    exaHardFailureCount: readNumber(detail, "exaHardFailureCount"),
+    firecrawlAttemptCount: readNumber(detail, "firecrawlAttemptCount"),
+    firecrawlServedCount: readNumber(detail, "firecrawlServedCount"),
+  };
+  if (Object.values(counts).some((count) => count === undefined)) {
+    return undefined;
+  }
+  return {
+    providerEndpointAvailability: deriveWebSearchEndpointAvailability([], sourceGaps, {
+      requestCount: counts.requestCount ?? 0,
+      exaFallbackCount: counts.exaFallbackCount ?? 0,
+      exaHardFailureCount: counts.exaHardFailureCount ?? 0,
+      firecrawlAttemptCount: counts.firecrawlAttemptCount ?? 0,
+      firecrawlServedCount: counts.firecrawlServedCount ?? 0,
+      firecrawlKeyMissing: detail.firecrawlKeyMissing === true,
+    }),
+  };
+}
+
+function webSearchDegradationRoutes(
+  runs: readonly RunHealth[],
+  outcomeLedgers: readonly RunSubsystemOutcomeLedger[],
+): readonly ProviderRouteHealth[] {
+  const routes = new Map<string, ProviderRouteHealth>();
+  const outcomesByRunId = new Map(outcomeLedgers.map((ledger) => [ledger.runId, ledger.outcomes]));
+
+  for (const run of runs) {
+    // Analytics is authoritative when present; the ledger covers Failed Run Artifacts, which have
+    // No analytics at all.
+    const availability =
+      run.analytics ??
+      endpointAvailabilityFromLedger(outcomesByRunId.get(run.runId), run.sourceGaps);
+    if (availability === undefined) {
+      continue;
+    }
+    for (const [endpoint, provider] of Object.entries(WEB_SEARCH_ENDPOINT_PROVIDERS)) {
+      const reason = degradedEndpointReason(availability, endpoint);
+      if (reason === undefined) {
+        continue;
+      }
+      const current = routes.get(endpoint) ?? emptyRoute(endpoint, provider);
+      routes.set(endpoint, {
+        ...current,
+        total: current.total + 1,
+        degraded: current.degraded + 1,
+        degradedCovered: current.degradedCovered + (fallbackCoveredRun(availability) ? 1 : 0),
+        runIds: current.runIds.includes(run.runId)
+          ? current.runIds
+          : [...current.runIds, run.runId],
+        sampleMessages: current.sampleMessages.includes(reason)
+          ? current.sampleMessages
+          : [...current.sampleMessages, reason].slice(0, SAMPLE_MESSAGE_LIMIT),
+      });
+    }
+  }
+
+  return [...routes.values()];
+}
+
+function routeHealth(
+  runs: readonly RunHealth[],
+  outcomeLedgers: readonly RunSubsystemOutcomeLedger[],
+): readonly ProviderRouteHealth[] {
   const routes = new Map<string, ProviderRouteHealth>();
 
   for (const run of runs) {
@@ -500,7 +633,7 @@ function routeHealth(runs: readonly RunHealth[]): readonly ProviderRouteHealth[]
     }
   }
 
-  return [...routes.values()].toSorted(
+  return [...routes.values(), ...webSearchDegradationRoutes(runs, outcomeLedgers)].toSorted(
     (a, b) => b.total - a.total || a.route.localeCompare(b.route),
   );
 }
@@ -572,10 +705,15 @@ function validationSummary(
   };
 }
 
+// `total` sums the four gap classes rather than `route.total`. Every Source Gap increments exactly
+// One class, so this is identical to the old sum for gap-derived routes, and it keeps the
+// Analytics-projected degradation routes — whose `total` counts affected runs, not gaps — out of the
+// Gap headline.
 function gapOverview(routes: readonly ProviderRouteHealth[]): ProviderHealthSummary["gapOverview"] {
   return routes.reduce(
     (total, route) => ({
-      total: total.total + route.total,
+      total:
+        total.total + route.missingCredential + route.fetchFailed + route.yahooAuth + route.other,
       missingCredential: total.missingCredential + route.missingCredential,
       fetchFailed: total.fetchFailed + route.fetchFailed,
       yahooAuth: total.yahooAuth + route.yahooAuth,
@@ -658,7 +796,7 @@ export async function buildProviderHealthSummary(
   );
   const successfulRuns = runs.filter((run) => !run.failed);
   const dates = generatedDates(runs);
-  const routes = routeHealth(runs);
+  const routes = routeHealth(runs, outcomeLedgers);
   const calibrationPresent = await hasCalibration(runsDir);
   const runArtifactIndex = readRunArtifactIndexStatus(runsDir);
   const validation = validationWithIndexStatus(
@@ -809,13 +947,14 @@ function renderProviderHealthMarkdown(summary: ProviderHealthSummary): string {
     "",
     "## Routes",
     "",
-    tableRow(["Route", "Provider", "Total", "Status", "Cause", "Sample"]),
-    tableRow(["---", "---", "---", "---", "---", "---"]),
+    tableRow(["Route", "Provider", "Total", "Degraded", "Status", "Cause", "Sample"]),
+    tableRow(["---", "---", "---", "---", "---", "---", "---"]),
     ...summary.routes.map((route) =>
       tableRow([
         route.route,
         route.provider,
         String(route.total),
+        String(route.degraded),
         formatCounts(route.statuses),
         formatCounts(route.causes),
         route.sampleMessages[0] ?? "-",

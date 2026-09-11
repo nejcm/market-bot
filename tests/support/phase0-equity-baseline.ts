@@ -154,7 +154,7 @@ function measureFixtureResult(fixture: string, result: RunFixtureResult): Fixtur
   const providerEndpointAvailability = deriveProviderEndpointAvailability(
     result.collectedSources.rawSnapshots,
     result.collectedSources.sourceGaps,
-    setup?.impliedMove !== undefined,
+    { hasTradierEarningsImpliedMove: setup?.impliedMove !== undefined },
   );
   for (const endpoint of [...ANALYST_EXPECTATION_ENDPOINT_KEYS, ...OWNERSHIP_ENDPOINT_KEYS]) {
     if (providerEndpointAvailability[endpoint] === undefined) {

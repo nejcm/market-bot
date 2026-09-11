@@ -4,7 +4,11 @@ import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../s
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
+import {
+  assertSafeReportLanguage,
+  ReportLanguageViolationError,
+  validateResearchReport,
+} from "../src/report/schema";
 import {
   assembleResearchReport,
   assembleResearchReportWithRelocations,
@@ -57,6 +61,18 @@ const report: ResearchReport = {
 
 const AMD_RISK_FACTOR_SENTENCE =
   "In addition, you should consider the interrelationship and compounding effects of two or more risks occurring simultaneously.";
+
+function languageRejection(candidate: ResearchReport): ReportLanguageViolationError {
+  try {
+    assertSafeReportLanguage(candidate);
+  } catch (error: unknown) {
+    if (error instanceof ReportLanguageViolationError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error("expected a research-only rejection");
+}
 
 function validationErrorMessage(candidate: ResearchReport): string {
   try {
@@ -3385,6 +3401,48 @@ describe("report schema and rendering", () => {
       );
     },
   );
+
+  test("attributes the rejection to the model-authored field the wording sits in", () => {
+    const rejection = languageRejection({
+      ...report,
+      extras: {
+        webSubjectProfile: { openGaps: ["No segment split.", AMD_RISK_FACTOR_SENTENCE] },
+      },
+    });
+
+    expect(rejection.path).toBe("extras.webSubjectProfile.openGaps[1]");
+    expect(rejection.message).toContain(`trade-action language: "${rejection.match}"`);
+  });
+
+  /*
+   * The joined scan returns ".\nBuy" here, because the sentence-initial pattern consumes the
+   * newline delimiter and the period the previous field ended on, while the offending field
+   * scanned alone returns "Buy". Attribution has to discount that consumed prefix.
+   */
+  test("attributes a trade verb opening a field right after one that ends in a period", () => {
+    const rejection = languageRejection({
+      ...report,
+      extras: {
+        webSubjectProfile: {
+          factLedger: [{ claim: "Revenue grew." }],
+          openGaps: ["Buy the dip is the only framing the sources offer."],
+        },
+      },
+    });
+
+    expect(rejection.match).toBe(".\nBuy");
+    expect(rejection.path).toBe("extras.webSubjectProfile.openGaps[0]");
+  });
+
+  test("reports no attribution when the match straddles two scanned fields", () => {
+    const rejection = languageRejection({
+      ...report,
+      summary: "Breadth is mixed. In addition, you",
+      keyFindings: [{ text: "should consider the compounding effects.", sourceIds: ["source-1"] }],
+    });
+
+    expect(rejection.path).toBeUndefined();
+  });
 
   test.each([
     [

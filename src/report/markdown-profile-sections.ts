@@ -8,7 +8,10 @@ import {
   type WebSubjectProfileExtraValue,
   type WebSubjectProfileFactValue,
 } from "./report-extras-contract";
-import type { WebSubjectProfileQuestionKey } from "../web-evidence/contract";
+import {
+  isWebSubjectProfileWithheldAnswer,
+  type WebSubjectProfileQuestionKey,
+} from "../web-evidence/contract";
 import { citedSourceIds, markdownText, readStringArray, sourceRefs } from "./markdown-primitives";
 
 export function renderBusinessFramework(report: ResearchReport): string {
@@ -117,7 +120,12 @@ function substantiveAnswerSourceIds(
   value: WebSubjectProfileAnswerValue | undefined,
 ): readonly string[] {
   const answer = value?.answer?.trim() ?? "";
-  if (answer === "" || PROFILE_NON_ANSWER_RE.test(answer) || value?.sourceIdsComplete !== true) {
+  if (
+    answer === "" ||
+    PROFILE_NON_ANSWER_RE.test(answer) ||
+    isWebSubjectProfileWithheldAnswer(answer) ||
+    value?.sourceIdsComplete !== true
+  ) {
     return [];
   }
   return value.sourceIds;

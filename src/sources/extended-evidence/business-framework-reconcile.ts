@@ -7,9 +7,10 @@ import {
   type BusinessFrameworkReconciliation,
   type BusinessFrameworkSection,
 } from "./business-framework";
-import type {
-  WebSubjectProfileArtifact,
-  WebSubjectProfileCompanyQuestionKey,
+import {
+  isWebSubjectProfileWithheldAnswer,
+  type WebSubjectProfileArtifact,
+  type WebSubjectProfileCompanyQuestionKey,
 } from "../../web-evidence/contract";
 
 const PROFILE_GAP_QUESTIONS: readonly {
@@ -56,7 +57,12 @@ function citedAnswer(
     return [];
   }
   const answer = profile.questions[question];
-  if (answer === undefined || answer.answer === "" || isNonAnswer(answer.answer)) {
+  if (
+    answer === undefined ||
+    answer.answer === "" ||
+    isNonAnswer(answer.answer) ||
+    isWebSubjectProfileWithheldAnswer(answer.answer)
+  ) {
     return [];
   }
   return answer.sourceIds;

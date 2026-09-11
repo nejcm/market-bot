@@ -14,6 +14,7 @@ import type { CollectedSources } from "../sources/types";
 import type { SpotlightSelectionRejectionReason, SpotlightSelectionResult } from "./spotlights";
 import type { WebGatherSkipCode } from "../web-evidence/web-gather-types";
 import { SEC_PACKET_DEPENDENCY_LANES_BY_DERIVATION } from "../sources/sec-packet-dependencies";
+import { deriveWebGatherProviderTelemetry } from "../sources/web-search-telemetry";
 
 export type SubsystemExpectation = "expected" | "optional" | "not-applicable";
 export type SubsystemOutcomeStatus = "produced" | "empty" | "declined" | "failed" | "blocked";
@@ -37,6 +38,8 @@ type NonSourceGapSubsystemOutcomeCode =
   | "coverage-gap"
   | "accepted-requests"
   | "no-accepted-requests"
+  | "primary-provider-served"
+  | "primary-provider-degraded"
   | "reused-profile"
   | "profile-produced"
   | "profile-empty"
@@ -87,6 +90,8 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "parse-retries-exhausted": true,
   "accepted-requests": true,
   "no-accepted-requests": true,
+  "primary-provider-served": true,
+  "primary-provider-degraded": true,
   "reused-profile": true,
   "profile-produced": true,
   "profile-empty": true,
@@ -127,6 +132,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "malformed-response": true,
   "validation-failed": true,
   "provider-data-missing": true,
+  "session-in-progress": true,
   "suppressed-by-design": true,
 } satisfies Record<SubsystemOutcomeCode, true> & SourceGapCauseCollisionGuard;
 
@@ -139,6 +145,7 @@ const SOURCE_GAP_CAUSE_OUTCOME_STATUS = {
   "suppressed-by-design": "declined",
   "unsupported-coverage": "declined",
   "provider-data-missing": "empty",
+  "session-in-progress": "empty",
   "stale-fallback": "empty",
   "repeat-fallback": "empty",
   "reused-in-window": "empty",
@@ -380,6 +387,75 @@ function webGatherOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemO
   };
 }
 
+// Provider-level companion to the `web-gather` outcome. `web-gather` reports whether the stage
+// Acquired anything; it cannot distinguish "Exa served every request" from "Exa was unusable and
+// Firecrawl covered it", because a covered fallback drops Exa's Source Gap and still yields
+// Accepted requests. This row keeps that degradation on the record.
+//
+// Emitted only when the stage actually executed: a run that skipped Web Gather (disabled, missing
+// Exa credential, out of scope, zero budget) reports that on the `web-gather` row and must not be
+// Read as having a degraded web-search provider.
+function webSearchProviderOutcome(
+  input: BuildSubsystemOutcomesInput,
+): readonly WrittenSubsystemOutcome[] {
+  const telemetry = deriveWebGatherProviderTelemetry(input.webGatherAudit);
+  if (telemetry === undefined) {
+    return [];
+  }
+  const subsystem = "web-search-provider";
+  const { search } = telemetry;
+  if (search.requestCount === 0) {
+    return [
+      {
+        subsystem,
+        expectation: "expected",
+        outcome: "empty",
+        code: "no-accepted-requests",
+        stage: "web-gather",
+        count: 0,
+      },
+    ];
+  }
+  // Status tracks `web_search` only, so this row and the `exaSearch` / `firecrawlSearch` Provider
+  // Health rows can never disagree. `web_fetch` fallbacks are recorded here rather than folded into
+  // The status: they belong to the Exa contents and Firecrawl scrape endpoints, which have no row.
+  const detail = {
+    requestCount: search.requestCount,
+    exaFallbackCount: search.exaFallbackCount,
+    exaHardFailureCount: search.exaHardFailureCount,
+    firecrawlAttemptCount: search.firecrawlAttemptCount,
+    firecrawlServedCount: search.firecrawlServedCount,
+    firecrawlKeyMissing: search.firecrawlKeyMissing,
+    fetchRequestCount: telemetry.fetch.requestCount,
+    fetchExaFallbackCount: telemetry.fetch.exaFallbackCount,
+    fetchFirecrawlServedCount: telemetry.fetch.firecrawlServedCount,
+  };
+  if (search.exaFallbackCount > 0) {
+    return [
+      {
+        subsystem,
+        expectation: "expected",
+        outcome: "failed",
+        code: "primary-provider-degraded",
+        stage: "web-gather",
+        count: search.requestCount,
+        detail,
+      },
+    ];
+  }
+  return [
+    {
+      subsystem,
+      expectation: "expected",
+      outcome: "produced",
+      code: "primary-provider-served",
+      stage: "web-gather",
+      count: search.requestCount,
+      detail,
+    },
+  ];
+}
+
 function webSubjectProfileOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   const expectation = expectationForLane(
     input.sourcePlan.lanes.find((lane) => lane.lane === "subject-profile"),
@@ -493,11 +569,21 @@ function predictionCompletionOutcome(input: BuildSubsystemOutcomesInput): Writte
   }
   const audit = input.predictionCompletion;
   if (audit !== undefined) {
+    // `declined-empty` means the completion pass ran, parsed, and returned an empty `predictions`
+    // Array — a successful refusal to offer candidates, not silence. Filing it as `empty` under
+    // `expectation: "expected"` read as "nothing was attempted" and rolled into
+    // `expectedEmptyCount`; `declined` is the status that already carries "ran and offered
+    // Nothing". It stays out of `failed`: a valid empty response is not a subsystem failure, and
+    // The resulting Prediction Shortfall is reported structurally in `analytics.json`.
+    // `no-parsable-candidates` and `all-candidates-rejected` keep `empty` — neither is a clean
+    // Refusal.
     let outcome: SubsystemOutcomeStatus = "empty";
     if (audit.outcome === "improved") {
       outcome = "produced";
     } else if (audit.outcome === "failed") {
       outcome = "failed";
+    } else if (audit.outcome === "declined-empty") {
+      outcome = "declined";
     }
     return {
       subsystem: "prediction-completion",
@@ -605,6 +691,7 @@ export function buildSubsystemOutcomes(
   const outcomes = [
     ...evidenceLaneOutcomes(input),
     webGatherOutcome(input),
+    ...webSearchProviderOutcome(input),
     webSubjectProfileOutcome(input),
     spotlightOutcome(input),
     playbookOutcome(input),

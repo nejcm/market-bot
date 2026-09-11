@@ -605,6 +605,13 @@ export function momentumLens(
   const rsi14 = indicators?.rsi14 ?? undefined;
   const macdHistogram = indicators?.macdHistogram ?? undefined;
   const close = snapshot?.ohlcv.close;
+  /*
+   * Every momentum metric describes the last COMPLETED session, not the moment the payload was
+   * fetched. `fetchedAt` is collection time and stays that on the snapshot; stamping it here would
+   * date the close and its indicators to the day of a session that may never have closed — the
+   * exact misread the in-progress-bar drop in verified-market-snapshot.ts exists to prevent.
+   */
+  const sessionPeriod = observedPeriod(snapshot?.latestSessionDate);
   return {
     name: "Momentum",
     posture: postureFrom([
@@ -616,39 +623,18 @@ export function momentumLens(
     metrics: [
       ...metric("latestClose", "Latest close", close, "currency", sourceIds, {
         currency: quoteCurrency,
-        ...observedPeriod(snapshot?.fetchedAt),
+        ...sessionPeriod,
       }),
-      ...metric(
-        "sma50",
-        "SMA50",
-        sma50 ?? undefined,
-        "number",
-        sourceIds,
-        observedPeriod(snapshot?.fetchedAt),
-      ),
-      ...metric(
-        "sma200",
-        "SMA200",
-        sma200 ?? undefined,
-        "number",
-        sourceIds,
-        observedPeriod(snapshot?.fetchedAt),
-      ),
-      ...metric(
-        "rsi14",
-        "RSI14",
-        rsi14 ?? undefined,
-        "number",
-        sourceIds,
-        observedPeriod(snapshot?.fetchedAt),
-      ),
+      ...metric("sma50", "SMA50", sma50 ?? undefined, "number", sourceIds, sessionPeriod),
+      ...metric("sma200", "SMA200", sma200 ?? undefined, "number", sourceIds, sessionPeriod),
+      ...metric("rsi14", "RSI14", rsi14 ?? undefined, "number", sourceIds, sessionPeriod),
       ...metric(
         "macdHistogram",
         "MACD histogram",
         macdHistogram ?? undefined,
         "number",
         sourceIds,
-        observedPeriod(snapshot?.fetchedAt),
+        sessionPeriod,
       ),
     ],
     sourceIds,

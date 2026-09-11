@@ -13,7 +13,7 @@ import {
   EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,
   resolveCoverageLevel,
 } from "../../../src/domain/equity-analysis-completeness";
-import { classifyGap } from "../../../src/report/gap-triage";
+import { readGapTriage } from "../../../src/report/gap-triage";
 import type { FinancialLensArtifact } from "../../../src/sources/extended-evidence/financial-lens";
 import type {
   FinancialStatementFact,
@@ -610,9 +610,16 @@ function assertGapTriage(result: RunFixtureResult): void {
   const reader = (
     appendixIndex === -1 ? result.markdown : result.markdown.slice(0, appendixIndex)
   ).replaceAll("\\", "");
+  /*
+   * Mirror what the renderer actually does (markdown-primitives.renderGap): read the structured
+   * triage first and fall back to the text heuristic. Re-deriving from text alone made this a
+   * parallel classifier that disagreed with the report whenever a collector declared a triage.
+   */
   for (const gap of result.report.dataGaps) {
     const inReader = reader.includes(gap);
-    if (classifyGap(gap, result.report.symbol) === "material") {
+    if (
+      readGapTriage(gap, result.collectedSources.sourceGaps, result.report.symbol) === "material"
+    ) {
       invariant(inReader, "C13", `material gap missing from reader block: ${gap}`);
     } else {
       invariant(!inReader, "C13", `diagnostic gap leaked into reader block: ${gap}`);

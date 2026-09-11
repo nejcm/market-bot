@@ -268,5 +268,7 @@ describe("loadStagePrompt — real prompt files", () => {
     expect(result.instruction).toContain(
       "use an older filing only for facts the newer filing does not restate",
     );
+    expect(result.instruction).toContain("buy AI");
+    expect(result.instruction).toContain("you should");
   });
 });

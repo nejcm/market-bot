@@ -793,15 +793,15 @@
             "pcfRatioPeriodEnd": "2026-01-31",
             "momentumPosture": "criteria-supported",
             "latestClose": 91.54000091552734,
-            "latestClosePeriodEnd": "2026-08-15T05:02:29.864Z",
+            "latestClosePeriodEnd": "2026-08-14",
             "sma50": 86.71099960327149,
-            "sma50PeriodEnd": "2026-08-15T05:02:29.864Z",
+            "sma50PeriodEnd": "2026-08-14",
             "sma200": 76.49139976501465,
-            "sma200PeriodEnd": "2026-08-15T05:02:29.864Z",
+            "sma200PeriodEnd": "2026-08-14",
             "rsi14": 66.28072661880364,
-            "rsi14PeriodEnd": "2026-08-15T05:02:29.864Z",
+            "rsi14PeriodEnd": "2026-08-14",
             "macdHistogram": 0.23433599415176576,
-            "macdHistogramPeriodEnd": "2026-08-15T05:02:29.864Z",
+            "macdHistogramPeriodEnd": "2026-08-14",
             "interimCadence": "quarterly",
             "latestReportedPeriodEnd": "2026-01-31",
             "expectedDuePeriodEnd": "2026-04-30"
@@ -10173,7 +10173,7 @@
               "unit": "currency",
               "sourceIds": ["verified-snapshot-BNS"],
               "currency": "USD",
-              "periodEnd": "2026-08-15T05:02:29.864Z"
+              "periodEnd": "2026-08-14"
             },
             {
               "key": "sma50",
@@ -10181,7 +10181,7 @@
               "value": 86.71099960327149,
               "unit": "number",
               "sourceIds": ["verified-snapshot-BNS"],
-              "periodEnd": "2026-08-15T05:02:29.864Z"
+              "periodEnd": "2026-08-14"
             },
             {
               "key": "sma200",
@@ -10189,7 +10189,7 @@
               "value": 76.49139976501465,
               "unit": "number",
               "sourceIds": ["verified-snapshot-BNS"],
-              "periodEnd": "2026-08-15T05:02:29.864Z"
+              "periodEnd": "2026-08-14"
             },
             {
               "key": "rsi14",
@@ -10197,7 +10197,7 @@
               "value": 66.28072661880364,
               "unit": "number",
               "sourceIds": ["verified-snapshot-BNS"],
-              "periodEnd": "2026-08-15T05:02:29.864Z"
+              "periodEnd": "2026-08-14"
             },
             {
               "key": "macdHistogram",
@@ -10205,7 +10205,7 @@
               "value": 0.23433599415176576,
               "unit": "number",
               "sourceIds": ["verified-snapshot-BNS"],
-              "periodEnd": "2026-08-15T05:02:29.864Z"
+              "periodEnd": "2026-08-14"
             }
           ],
           "sourceIds": ["verified-snapshot-BNS"]

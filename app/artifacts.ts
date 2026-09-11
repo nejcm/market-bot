@@ -14,6 +14,10 @@ import type {
 } from "./types";
 import { reportSearchCandidates } from "./report-artifact-view";
 import {
+  withoutUnmeasuredMarkdownMetrics,
+  withoutUnmeasuredMetrics,
+} from "../src/scoring/calibration-invariant";
+import {
   listRunSummariesFromIndex,
   readRunSummaryFromIndex,
   searchRunReportsFromIndex,
@@ -471,7 +475,20 @@ export async function readProviderHealth(dataDir: string): Promise<ProviderHealt
 }
 
 export async function readCalibrationSummary(dataDir: string): Promise<CalibrationDetail> {
-  return readSummaryArtifacts(dataDir, CALIBRATION_DIR);
+  const { summary, markdown } = await readSummaryArtifacts(dataDir, CALIBRATION_DIR);
+  if (summary === undefined) {
+    return markdown === undefined ? {} : { markdown };
+  }
+  // Zero-resolution invariant, enforced on read: a summary stored before the
+  // Producer omitted these still serves hitRate 0 and brierScore 0, and its
+  // Markdown still prints 0.0000 / 0.0%. Neither reaches the Console.
+  const normalized = withoutUnmeasuredMetrics(summary);
+  return {
+    summary: normalized,
+    ...(markdown === undefined
+      ? {}
+      : { markdown: withoutUnmeasuredMarkdownMetrics(markdown, summary.resolvedCount) }),
+  };
 }
 
 export async function readAlphaLeadCohorts(dataDir: string): Promise<AlphaCohortDetail> {

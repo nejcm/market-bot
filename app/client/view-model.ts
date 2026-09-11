@@ -1,4 +1,5 @@
 import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
+import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 
 export {
@@ -39,6 +40,7 @@ export {
   alphaStaleLeadRows,
   calibrationAutopsyCauses,
   calibrationHeadline,
+  calibrationMetricNote,
   calibrationSampleWarning,
   calibrationSlices,
   historicalContextAuditView,
@@ -99,12 +101,17 @@ export interface DashboardMetrics {
   readonly averageConfidence: string;
 }
 
+export type ProviderHealthRowStatus = "operational" | "informational" | "degraded" | "blocking";
+
 export interface ProviderHealthRow {
   readonly provider: string;
   readonly route: string;
-  readonly degraded: boolean;
+  readonly status: ProviderHealthRowStatus;
   readonly total: number;
   readonly gaps: number;
+  /** Runs where the endpoint reported `degraded` in analytics. A covered web-search fallback
+   *  raises this without raising `gaps`: it deliberately emits no Source Gap. */
+  readonly degradedRuns: number;
   readonly note: string;
 }
 
@@ -221,28 +228,139 @@ export function providerHealthRows(detail: ProviderHealthDetail): readonly Provi
     return [];
   }
 
+  const statusByRoute = routeClassificationByName(detail.summary);
+
   return routes
-    .filter(
-      (route): route is Record<string, unknown> =>
-        typeof route === "object" && route !== null && !Array.isArray(route),
-    )
+    .filter((route): route is Record<string, unknown> => isRecord(route))
     .map((route) => {
       const gaps = PROVIDER_GAP_KEYS.reduce((sum, key) => sum + readCount(route, key), 0);
+      const degradedRuns = readCount(route, "degraded");
       const { sampleMessages } = route;
       const note =
         Array.isArray(sampleMessages) && typeof sampleMessages[0] === "string"
           ? sampleMessages[0]
           : "";
+      const total = readCount(route, "total");
+      const routeName = typeof route.route === "string" ? route.route : "";
 
       return {
         provider: typeof route.provider === "string" ? route.provider : "unknown",
-        route: typeof route.route === "string" ? route.route : "",
-        degraded: gaps > 0,
-        total: readCount(route, "total"),
+        route: routeName,
+        status: providerHealthRowStatus(statusByRoute.get(routeName), gaps, degradedRuns, total),
+        total,
         gaps,
+        degradedRuns,
         note,
       };
     });
+}
+
+export interface ProviderHealthIssueCounts {
+  /** Every `blocking` entry in `validation.routeClassifications`, so the banner matches the
+   *  "Blocking issues" figure the health report renders on the same screen. */
+  readonly blocking: number;
+  /** Every `expected` entry, plus any table row shown as degraded that no classification covers —
+   *  an unclassified route is still amber in the table, so the banner must not undercount it. */
+  readonly warning: number;
+  /** Counted issues with no row in the provider table: the synthetic classifications for required
+   *  coverage, news, scoring, Calibration and the Run Artifact Index. Banner copy names these so a
+   *  reader does not hunt the table for routes that were never provider routes. */
+  readonly offTableBlocking: number;
+  readonly offTableWarning: number;
+}
+
+export function providerHealthIssueCounts(
+  detail: ProviderHealthDetail,
+  rows: readonly ProviderHealthRow[],
+): ProviderHealthIssueCounts {
+  const entries = routeClassificationEntries(detail.summary);
+  const classificationByRoute = new Map(
+    entries.map((entry) => [entry.route, entry.classification] as const),
+  );
+  const tableRoutes = new Set(rows.map((row) => row.route));
+
+  let blocking = 0;
+  let warning = 0;
+  let offTableBlocking = 0;
+  let offTableWarning = 0;
+  for (const entry of entries) {
+    const offTable = !tableRoutes.has(entry.route);
+    if (entry.classification === "blocking") {
+      blocking += 1;
+      offTableBlocking += offTable ? 1 : 0;
+    } else if (entry.classification === "expected") {
+      warning += 1;
+      offTableWarning += offTable ? 1 : 0;
+    }
+  }
+
+  warning += rows.filter(
+    (row) => row.status === "degraded" && classificationByRoute.get(row.route) !== "expected",
+  ).length;
+
+  return { blocking, warning, offTableBlocking, offTableWarning };
+}
+
+interface RouteClassificationEntry {
+  readonly route: string;
+  readonly classification: string;
+}
+
+function routeClassificationEntries(
+  summary: Record<string, unknown> | undefined,
+): readonly RouteClassificationEntry[] {
+  if (summary === undefined) {
+    return [];
+  }
+  const { validation } = summary;
+  if (!isRecord(validation) || !Array.isArray(validation.routeClassifications)) {
+    return [];
+  }
+
+  const entries: RouteClassificationEntry[] = [];
+  for (const item of validation.routeClassifications) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    if (typeof item.route === "string" && typeof item.classification === "string") {
+      entries.push({ route: item.route, classification: item.classification });
+    }
+  }
+  return entries;
+}
+
+function routeClassificationByName(
+  summary: Record<string, unknown> | undefined,
+): ReadonlyMap<string, string> {
+  return new Map(
+    routeClassificationEntries(summary).map((entry) => [entry.route, entry.classification]),
+  );
+}
+
+function providerHealthRowStatus(
+  classification: string | undefined,
+  gaps: number,
+  degradedRuns: number,
+  total: number,
+): ProviderHealthRowStatus {
+  if (classification === "informational") {
+    return "informational";
+  }
+  if (classification === "blocking") {
+    return "blocking";
+  }
+  if (classification === "expected") {
+    return "degraded";
+  }
+  /*
+   * Console records may carry no validation summary, or a classification this build does not know.
+   * Such a route is still shown as degraded rather than dropped: an incomplete summary is a reason
+   * to surface the route, not to hide it.
+   */
+  if (gaps > 0 || degradedRuns > 0 || total > 0) {
+    return "degraded";
+  }
+  return "operational";
 }
 
 function readCount(record: Record<string, unknown>, key: string): number {

@@ -722,9 +722,15 @@ export function assembleResearchReportWithRelocations(
     suppressedEarningsPredictionCountOffset = 0,
   } = input;
   const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
+  /*
+   * `classifyGap` is a heuristic over a gap's source, provider and prose. A collector that already
+   * knows structurally how its gap should be read outranks that heuristic, so a declared triage is
+   * preserved rather than re-derived — otherwise the stamp is silently discarded here and the
+   * collector's intent never reaches the report.
+   */
   const sourceGaps = collectedSources.sourceGaps.map((gap) => ({
     ...gap,
-    triage: classifyGap(gap, reportSymbol),
+    triage: gap.triage ?? classifyGap(gap, reportSymbol),
   }));
 
   const earningsGatedPredictions = applyEarningsForecastPolicy({

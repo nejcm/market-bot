@@ -11,6 +11,7 @@ import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fu
 import { depositoryIssuerSic } from "../sources/extended-evidence/industry-classification";
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
+import { isWebSubjectProfileWithheldAnswer } from "../web-evidence/contract";
 import {
   balanceSheetHistory,
   financialPosition,
@@ -506,7 +507,12 @@ function companyDescription(report: CompanyDescriptionReport): EquityReaderCompa
       isRecord(profile.questions) ? profile.questions.whatItDoes : undefined,
     ];
     for (const candidate of candidates) {
-      if (!isRecord(candidate) || typeof candidate.answer !== "string" || candidate.answer === "") {
+      if (
+        !isRecord(candidate) ||
+        typeof candidate.answer !== "string" ||
+        candidate.answer === "" ||
+        isWebSubjectProfileWithheldAnswer(candidate.answer)
+      ) {
         continue;
       }
       return {

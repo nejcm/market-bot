@@ -303,6 +303,11 @@ describe("runWebGatherLoop", () => {
     resetSourceResilienceForTests();
   });
 
+  /*
+   * A skipped stage returns a skip code and no audit. Subsystem outcomes rely on that: the
+   * `web-search-provider` row is derived from the audit alone, so a skipped run cannot report a
+   * degraded web-search provider (see tests/subsystem-outcomes.test.ts).
+   */
   test("skips outside enabled deep web-gather scope", async () => {
     const result = await runWebGatherLoop({
       command: { ...command, depth: "brief" },
@@ -314,8 +319,24 @@ describe("runWebGatherLoop", () => {
     });
 
     expect(result.stageOutputs).toEqual([]);
+    expect(result.skipCode).toBe("run-not-applicable");
     expect(result.audit).toBeUndefined();
     expect(result.collectedSources.sourceGaps).toEqual([]);
+  });
+
+  test("skips without an audit when web gather is disabled by config", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherDisabled: true },
+      collectedSources: collectedSources(),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      generateRound: async () => stage({ requests: [] }),
+    });
+
+    expect(result.skipCode).toBe("disabled-by-config");
+    expect(result.audit).toBeUndefined();
+    expect(result.stageOutputs).toEqual([]);
   });
 
   test("runs web gather for thematic list research", async () => {

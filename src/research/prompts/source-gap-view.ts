@@ -1,4 +1,5 @@
 import type { SourceGap } from "../../domain/types";
+import { ANALYST_EXPECTATION_ADAPTERS } from "../../sources/extended-evidence/analyst-expectations";
 import { frameworkGapCode } from "../../sources/extended-evidence/business-framework";
 import type { CollectedSources } from "../../sources/types";
 
@@ -7,7 +8,8 @@ export type SourceGapView = "all" | "web-gather";
 // Gaps the Web Gather stage prompt must not see. Each entry is argued from its
 // Producer, not read off SourceGapCause; cause is not a closability axis.
 function isWebGatherVisibleGap(gap: SourceGap): boolean {
-  if (gap.source === "finnhub-analyst-range") {
+  // Only Finnhub HTTP snapshots from collectAnalystExpectations close these; a web page cannot.
+  if (ANALYST_EXPECTATION_ADAPTERS.has(gap.source)) {
     return false;
   }
   if (frameworkGapCode(gap) === "analyst-consensus") {

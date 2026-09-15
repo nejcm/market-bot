@@ -786,6 +786,36 @@ describe("research console app view model", () => {
     ]);
   });
 
+  test("labels an unverified latest session on the compare card", () => {
+    const [card] = runCompareCards([
+      {
+        summary: {
+          runId: "run-unverified",
+          generatedAt: "2026-06-12T10:00:00Z",
+          jobType: "equity",
+          assetClass: "equity",
+          symbol: "AAPL",
+          findingCount: 0,
+          predictionCount: 0,
+          sourceCount: 1,
+          dataGapCount: 1,
+          hasScore: false,
+          availableFiles: [],
+        },
+        analytics: {
+          predictions: { count: 0, targetCount: 0, targetMet: true },
+          verifiedMarketSnapshot: {
+            symbol: "AAPL",
+            latestSessionAgeDays: 1,
+            latestSessionStatus: "unverified",
+          },
+        },
+      },
+    ]);
+
+    expect(card?.snapshotFreshness).toBe("unverified AAPL 1d");
+  });
+
   test("parses historical-context audit trace fields", () => {
     expect(
       historicalContextAuditView({

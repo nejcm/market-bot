@@ -36,9 +36,18 @@ export function effectiveConfigHash(config: unknown): string {
   return sha256(JSON.stringify(nonSecretValue(config)));
 }
 
+// A caller invoked from inside a git hook inherits GIT_DIR/GIT_WORK_TREE from the
+// Enclosing git process, which would silently redirect these commands at that repo
+// Instead of `cwd`. Strip them so the hash always reflects the repo at `cwd`.
+function gitEnv(): Record<string, string | undefined> {
+  const { GIT_DIR: _gitDir, GIT_WORK_TREE: _gitWorkTree, ...rest } = Bun.env;
+  return rest;
+}
+
 function gitOutput(args: readonly string[], cwd: string): string | undefined {
   const result = Bun.spawnSync(["git", ...args], {
     cwd,
+    env: gitEnv(),
     stdout: "pipe",
     stderr: "pipe",
   });

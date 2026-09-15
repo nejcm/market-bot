@@ -254,6 +254,11 @@ export interface JsonToolLoopAuditEntry {
   readonly status: "accepted" | "rejected";
   readonly reason?: string;
   readonly sourceUnits?: number;
+  readonly numResultsOverride?: {
+    readonly kind: "narrowing" | "thematic-exemption" | "thematic-widening";
+    readonly requested?: number;
+    readonly effectiveNumResults: number;
+  };
 }
 
 export interface JsonToolLoopAudit<TTool extends string = string, TAudit = JsonToolLoopAuditEntry> {
@@ -296,12 +301,13 @@ export interface WebEvidenceUtilization {
 }
 
 export interface WebGatherAcceptancePolicy {
-  readonly version: 1;
+  readonly version: 2;
   readonly mode: "reused-profile-default" | "reused-profile-after-low-utilization";
   readonly sourceRunDirName: string;
   readonly priorUtilizationLevel?: WebEvidenceUtilizationLevel;
   readonly priorUtilizationRatio?: number;
   readonly implicitPerQueryAcceptanceCap: 2 | 3;
+  readonly explicitPerQueryAcceptanceCap?: 6;
 }
 
 export type ModelInputSanitizerProfile =

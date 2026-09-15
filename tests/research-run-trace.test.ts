@@ -473,12 +473,13 @@ describe("run trace builder", () => {
 
   test("preserves the reused-profile acceptance policy from the gather audit", () => {
     const acceptancePolicy = {
-      version: 1,
+      version: 2,
       mode: "reused-profile-after-low-utilization",
       sourceRunDirName: "prior-aapl",
       priorUtilizationLevel: "low",
       priorUtilizationRatio: 0.2,
       implicitPerQueryAcceptanceCap: 2,
+      explicitPerQueryAcceptanceCap: 6,
     } as const;
     const trace = traceFor(
       {

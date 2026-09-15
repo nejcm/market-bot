@@ -748,12 +748,13 @@ describe("runResearchJob web subject profile", () => {
       sourceIds: [priorWebSource.id],
     });
     const expectedAcceptancePolicy = {
-      version: 1,
+      version: 2,
       mode: "reused-profile-after-low-utilization",
       sourceRunDirName: "prior-aapl",
       priorUtilizationLevel: "low",
       priorUtilizationRatio: 0.2,
       implicitPerQueryAcceptanceCap: 2,
+      explicitPerQueryAcceptanceCap: 6,
     } as const;
     expect(result.trace.webGatherLoop?.acceptancePolicy).toEqual(expectedAcceptancePolicy);
     expect(result.analytics.webGatherAcceptancePolicy).toEqual(expectedAcceptancePolicy);

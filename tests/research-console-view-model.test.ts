@@ -1177,7 +1177,7 @@ describe("alpha cohort view model", () => {
 });
 
 describe("verified market snapshot view model", () => {
-  const snapshotJson = JSON.stringify({
+  const snapshot = {
     symbol: "AAPL",
     assetClass: "equity",
     analysisDate: "2026-06-11",
@@ -1202,7 +1202,8 @@ describe("verified market snapshot view model", () => {
       { date: "2026-05-27", close: 197.4 },
       { date: "2026-05-28", close: 200.3 },
     ],
-  });
+  };
+  const snapshotJson = JSON.stringify(snapshot);
 
   test("parses a valid snapshot and drops null indicators", () => {
     expect(verifiedSnapshotView(snapshotJson)).toEqual({
@@ -1226,6 +1227,14 @@ describe("verified market snapshot view model", () => {
         { date: "2026-05-28", close: 200.3 },
       ],
     });
+    expect(verifiedSnapshotView(snapshotJson)?.latestSessionStatus).toBeUndefined();
+  });
+
+  test("parses an unverified latest-session marker", () => {
+    expect(
+      verifiedSnapshotView(JSON.stringify({ ...snapshot, latestSessionStatus: "unverified" }))
+        ?.latestSessionStatus,
+    ).toBe("unverified");
   });
 
   test("rejects null, malformed, and close-poor payloads", () => {

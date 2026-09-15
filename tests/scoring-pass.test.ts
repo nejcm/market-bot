@@ -11,7 +11,8 @@ import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-stat
 import type { AlphaLeadCohortSummary } from "../src/alpha-search/cohorts";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
-import { researchReport } from "./support/fixtures";
+import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { researchReport, verifiedMarketSnapshot } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 
 let tmpDir = "";
@@ -364,6 +365,60 @@ describe("runScorePass Observation scoring", () => {
     const [score] = await readScores(runDir);
     expect(score?.outcome).toBe("hit");
     expect(score?.evidence).toMatchObject({ close0: 100, closeN: 102 });
+  });
+
+  test("persists an unverified-origin quarantine in score evidence", async () => {
+    const source = verifiedSnapshotSource(
+      verifiedMarketSnapshot({
+        symbol: "SPY",
+        latestSessionDate: "2026-05-01",
+        latestSessionStatus: "unverified",
+      }),
+    );
+    const runDir = await writeRun(
+      "run-quarantined-origin",
+      report(
+        [
+          {
+            id: "pred-quarantined-origin",
+            claim: "SPY closes higher over 2 trading days.",
+            kind: "direction",
+            subject: "SPY",
+            measurableAs: "close(SPY, +2) > close(SPY, 0)",
+            horizonTradingDays: 2,
+            probability: 0.6,
+            sourceIds: [],
+            scoringPolicyVersion: 3,
+          },
+        ],
+        { sources: [source] },
+      ),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-04-30", value: 98 },
+        { subject, date: "2026-05-01", value: 100 },
+        { subject, date: "2026-05-04", value: 102 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-11T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      status: "resolved",
+      evidence: {
+        close0: 98,
+        closeN: 102,
+        originAnchorQuarantine: {
+          unverifiedSessions: [{ subject: "SPY", date: "2026-05-01" }],
+          replacementOriginDate: "2026-04-30",
+        },
+      },
+    });
   });
 
   test("persists voided conditional scores when the antecedent is false", async () => {

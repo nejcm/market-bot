@@ -57,6 +57,7 @@ function isVerifiedMarketSnapshot(value: unknown): boolean {
     isNonEmptyString(value.analysisDate) &&
     isNonEmptyString(value.fetchedAt) &&
     isNonEmptyString(value.latestSessionDate) &&
+    (value.latestSessionStatus === undefined || value.latestSessionStatus === "unverified") &&
     isRecord(value.ohlcv) &&
     isRecord(value.indicators) &&
     Array.isArray(value.recentCloses)

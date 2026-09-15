@@ -19,7 +19,8 @@ import {
   type EarningsEvent,
 } from "../src/sources/extended-evidence/earnings-setup";
 import type { CollectContext } from "../src/sources/types";
-import { prediction, researchReport } from "./support/fixtures";
+import { prediction, researchReport, verifiedMarketSnapshot } from "./support/fixtures";
+import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -452,6 +453,39 @@ describe("resolveOutcome — earnings scoring", () => {
       expect(result).toMatchObject({ status: "resolved", outcome: "miss" });
     });
 
+    test("excludes an unverified event-date close from a v3 AMC origin anchor", async () => {
+      const source = verifiedSnapshotSource(
+        verifiedMarketSnapshot({
+          symbol: "AAPL",
+          latestSessionDate: earningsDate,
+          latestSessionStatus: "unverified",
+        }),
+      );
+      const result = await resolveOutcome(
+        { ...pred, scoringPolicyVersion: 3 },
+        { ...report, sources: [source] },
+        observationRepository([
+          { subject: "AAPL", date: "2026-05-14", value: 180 },
+          { subject: "AAPL", date: earningsDate, value: 190 },
+          { subject: "AAPL", date: "2026-05-18", value: 200 },
+        ]),
+        now,
+      );
+
+      expect(result).toMatchObject({
+        status: "resolved",
+        outcome: "hit",
+        evidence: {
+          close0: 180,
+          closeN: 200,
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "AAPL", date: earningsDate }],
+            replacementOriginDate: "2026-05-14",
+          },
+        },
+      });
+    });
+
     test("keeps horizon unresolved over the weekend before the Monday session", async () => {
       // Now is Saturday May 16: the +1 trading-day horizon is Monday May 18,
       // Which has not elapsed. A naive calendar-day horizon would wrongly resolve.
@@ -589,6 +623,53 @@ describe("resolveOutcome — earnings scoring", () => {
         status: "unresolved",
         reason: "horizon-not-elapsed",
         scoreStatus: "pending-condition",
+      });
+    });
+
+    test("quarantines an unverified AMC origin inside a conditional", async () => {
+      const eventDate = "2026-05-15";
+      const source = verifiedSnapshotSource(
+        verifiedMarketSnapshot({
+          symbol: "AAPL",
+          latestSessionDate: eventDate,
+          latestSessionStatus: "unverified",
+        }),
+      );
+      const report = {
+        ...earningsReport("amc", eventDate),
+        generatedAt: `${eventDate}T00:00:00.000Z`,
+        sources: [source],
+      };
+      const pred = prediction({
+        id: "pred-cond-unverified-earnings",
+        kind: "conditional",
+        subject: "AAPL",
+        measurableAs:
+          "if (earningsReturn(AAPL, 2026-05-15, +1) > 0) then (close(AAPL, +5) > close(AAPL, 0))",
+        claim: "conditional earnings antecedent",
+        horizonTradingDays: 5,
+        scoringPolicyVersion: 3,
+      });
+
+      const result = await resolveOutcome(
+        pred,
+        report,
+        observationRepository([
+          { subject: "AAPL", date: eventDate, value: 210 },
+          { subject: "AAPL", date: "2026-05-18", value: 200 },
+        ]),
+        now,
+      );
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "observation-unavailable",
+        scoreStatus: "pending-condition",
+        evidence: {
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "AAPL", date: eventDate }],
+          },
+        },
       });
     });
   });

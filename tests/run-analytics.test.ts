@@ -10,6 +10,7 @@ import {
   newsSource,
   prediction,
   researchReport,
+  verifiedMarketSnapshot,
 } from "./support/fixtures";
 
 const emptySourceTextAudit = {
@@ -464,6 +465,7 @@ describe("run analytics", () => {
       fetchedAt: "2026-05-19T00:00:00.000Z",
       latestSessionAgeDays: 2,
     });
+    expect(analytics.verifiedMarketSnapshot?.latestSessionStatus).toBeUndefined();
     expect(analytics.sourcePlan).toEqual({
       plannedLaneCount: 5,
       coreLaneCount: 2,
@@ -497,6 +499,21 @@ describe("run analytics", () => {
       executedTools: ["sec_latest_filing"],
       emittedGapCount: 0,
     });
+  });
+
+  test("projects an unverified latest-session marker", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ latestSessionStatus: "unverified" }),
+      }),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.verifiedMarketSnapshot?.latestSessionStatus).toBe("unverified");
   });
 
   test.each([

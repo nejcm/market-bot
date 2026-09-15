@@ -17,6 +17,7 @@ export interface SnapshotView {
   readonly symbol: string;
   readonly analysisDate?: string;
   readonly latestSessionDate?: string;
+  readonly latestSessionStatus?: "unverified";
   readonly ohlcv?: SnapshotOhlcv;
   readonly indicators: Readonly<Record<string, number>>;
   readonly recentCloses: readonly SnapshotClose[];
@@ -53,6 +54,9 @@ export function verifiedSnapshotValue(value: unknown): SnapshotView | undefined 
     symbol,
     ...(analysisDate !== undefined ? { analysisDate } : {}),
     ...(latestSessionDate !== undefined ? { latestSessionDate } : {}),
+    ...(record.latestSessionStatus === "unverified"
+      ? { latestSessionStatus: "unverified" as const }
+      : {}),
     ...(ohlcv !== undefined ? { ohlcv } : {}),
     indicators: snapshotIndicators(record.indicators),
     recentCloses,

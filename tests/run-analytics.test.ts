@@ -1388,6 +1388,53 @@ describe("web source roles accounting", () => {
         failedExaRequests: 1,
       },
     });
+    expect(analytics.webSources?.firecrawlCreditsUsed).toBeUndefined();
+  });
+
+  test("sums Firecrawl credit spend separately from accepted web sources", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace: {
+        ...trace,
+        webGatherLoop: {
+          ...attemptedWebGatherAudit(),
+          acceptedRequests: [
+            {
+              round: 1,
+              tool: "web_search",
+              status: "accepted",
+              fallback: {
+                attemptedProviders: ["exa", "firecrawl"],
+                servedProvider: "firecrawl",
+                fallbackReason: "thin",
+                firecrawlCreditsUsed: 4,
+              },
+            },
+            {
+              round: 1,
+              tool: "web_search",
+              status: "accepted",
+              fallback: {
+                attemptedProviders: ["exa", "firecrawl"],
+                servedProvider: "firecrawl",
+                fallbackReason: "empty",
+                firecrawlCreditsUsed: 1,
+              },
+            },
+          ],
+          executedTools: ["web_search", "web_search"],
+        },
+      },
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.webSources).toMatchObject({
+      accepted: 0,
+      firecrawlCreditsUsed: 5,
+    });
   });
 
   test("all web sources unused when no profile and no report citations", () => {

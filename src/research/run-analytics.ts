@@ -234,6 +234,7 @@ export interface RunAnalytics {
   };
   readonly webSources?: {
     readonly accepted: number;
+    readonly firecrawlCreditsUsed?: number;
     readonly profileUsed: number;
     readonly reportCited: number;
     /** Current-run web sources cited only in authored extras (e.g. earningsSetup), not in
@@ -529,6 +530,16 @@ function webSourceRoles(
   const reuse = collectedSources.webSubjectProfileReuse;
   const usage = computeWebSourceUsage(report, collectedSources);
   const fallback = webFallbackSummary(trace);
+  const firecrawlCredits =
+    trace.webGatherLoop?.acceptedRequests.flatMap((entry) =>
+      entry.fallback?.firecrawlCreditsUsed === undefined
+        ? []
+        : [entry.fallback.firecrawlCreditsUsed],
+    ) ?? [];
+  const firecrawlCreditsUsed =
+    firecrawlCredits.length === 0
+      ? undefined
+      : firecrawlCredits.reduce((total, credits) => total + credits, 0);
   const gatherAttempted = trace.webGatherLoop !== undefined;
   const { currentRunIds, reusedProfileIds, profileUsedIds, reportCitedIds, currentRunUsedIds } =
     usage;
@@ -556,6 +567,7 @@ function webSourceRoles(
       ? {
           webSources: {
             accepted: currentRunIds.size,
+            ...(firecrawlCreditsUsed !== undefined ? { firecrawlCreditsUsed } : {}),
             profileUsed: profileUsedIds.size,
             reportCited: currentRunReportCitedIds.size,
             extrasCited: currentRunExtrasCitedIds.size,

@@ -709,6 +709,7 @@
   },
   "webSources": {
     "accepted": 2,
+    "firecrawlCreditsUsed": 3,
     "profileUsed": 2,
     "reportCited": 0,
     "extrasCited": 0,

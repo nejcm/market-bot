@@ -13,7 +13,7 @@ import {
 import { isExchangeTradingDay, resolutionDate } from "./exchange-calendar";
 import type { ObservationRepository } from "./observations";
 import { scoringPolicyFor, type ScoringPolicy } from "./policy";
-import type { ScoreOutcome } from "./types";
+import { ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY, type ScoreOutcome } from "./types";
 import { isRecord } from "../guards";
 import { verifiedSnapshotSourceId } from "../research/verified-snapshot-contract";
 
@@ -491,7 +491,9 @@ function quarantineEvidence(
   evidence: Record<string, unknown>,
   quarantine: OriginAnchorQuarantine | undefined,
 ): Record<string, unknown> {
-  return quarantine === undefined ? evidence : { ...evidence, originAnchorQuarantine: quarantine };
+  return quarantine === undefined
+    ? evidence
+    : { ...evidence, [ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY]: quarantine };
 }
 
 // Earnings expressions stay event-anchored even when nested in a conditional.
@@ -621,7 +623,9 @@ export async function resolveOutcome(
           reason: "conditional consequent observation unavailable",
           antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
           ...(consequentSelection.quarantine !== undefined
-            ? { originAnchorQuarantine: consequentSelection.quarantine }
+            ? {
+                [ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY]: consequentSelection.quarantine,
+              }
             : {}),
         },
       };

@@ -257,7 +257,7 @@ Analysis-date-anchored, citeable OHLCV and technical-indicator block for an equi
 
 ## Origin Anchor Quarantine
 
-Score evidence that prevents a retained-unverified Verified Market Snapshot session from silently becoming a Prediction's origin Observation. It walks backward within the scoring window to the latest verified session at or before the report origin, or leaves the Observation unavailable, and records the decision at `score.json:evidence.originAnchorQuarantine`.
+Score evidence that prevents a retained-unverified Verified Market Snapshot session from silently becoming a Prediction's origin Observation. It walks backward within the scoring window to the latest verified session at or before the report origin, or leaves the Observation unavailable; the full decision is recorded at `score.json:evidence.originAnchorQuarantine` and a compact summary at `miss-autopsy.json:autopsies[].evidence.originAnchorQuarantine`.
 
 `latestSessionStatus` is a closed set. A new status must update both the strict deep-equity bundle validator and the tolerant sidecar reader.
 

@@ -1,10 +1,12 @@
 import type { Prediction, ResearchReport } from "../domain/types";
-import type {
-  ForecastErrorDirection,
-  MissAutopsyCause,
-  MissAutopsyEntry,
-  MissAutopsyFile,
-  PredictionScore,
+import { isRecord, readString } from "../guards";
+import {
+  ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY,
+  type ForecastErrorDirection,
+  type MissAutopsyCause,
+  type MissAutopsyEntry,
+  type MissAutopsyFile,
+  type PredictionScore,
 } from "./types";
 
 const OVERPREDICTED_THRESHOLD = 0.6;
@@ -12,6 +14,7 @@ const UNDERPREDICTED_THRESHOLD = 0.4;
 const EXTREME_OVERCONFIDENCE_THRESHOLD = 0.75;
 const EXTREME_UNDERCONFIDENCE_THRESHOLD = 0.25;
 const EVIDENCE_KEY_LIMIT = 8;
+const CONDITIONAL_EVIDENCE_BRANCHES = ["antecedent", "consequent"] as const;
 
 const SOURCE_GAP_PATTERN =
   /\b(source|provider|credential|coverage|fetch|stale|fallback|unavailable|missing|unsupported|no-cap|gap)\b/iu;
@@ -31,9 +34,56 @@ export function forecastErrorDirection(
   }
 }
 
+function compactOriginAnchorQuarantine(value: unknown): string | undefined {
+  if (!isRecord(value) || !Array.isArray(value.unverifiedSessions)) {
+    return undefined;
+  }
+  const sessions = value.unverifiedSessions.flatMap((entry): readonly string[] => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+    const subject = readString(entry, "subject");
+    const date = readString(entry, "date");
+    return subject === undefined || date === undefined ? [] : [`${subject} ${date}`];
+  });
+  if (sessions.length === 0) {
+    return undefined;
+  }
+  const replacement = readString(value, "replacementOriginDate");
+  if (replacement === undefined) {
+    // Resolved score quarantines derive this from observations[0]; absence means malformed evidence.
+    return undefined;
+  }
+  return `unverified ${sessions.length === 1 ? "session" : "sessions"} ${sessions.join(", ")}; replacement origin ${replacement}`;
+}
+
+function compactOriginAnchorQuarantines(evidence: Record<string, unknown>): string | undefined {
+  const direct = compactOriginAnchorQuarantine(evidence[ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY]);
+  const nested = CONDITIONAL_EVIDENCE_BRANCHES.flatMap((branch): readonly string[] => {
+    const branchEvidence = evidence[branch];
+    if (!isRecord(branchEvidence)) {
+      return [];
+    }
+    const quarantine = compactOriginAnchorQuarantine(
+      branchEvidence[ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY],
+    );
+    return quarantine === undefined ? [] : [`${branch}: ${quarantine}`];
+  });
+  const quarantines = direct === undefined ? nested : [direct, ...nested];
+  return quarantines.length === 0 ? undefined : quarantines.join(" | ");
+}
+
 function compactEvidence(evidence: Record<string, unknown>): Record<string, number | string> {
   const result: Record<string, number | string> = {};
+  const quarantine = compactOriginAnchorQuarantines(evidence);
+  // Anchor re-selection outranks shape metrics when evidence reaches the compact limit.
+  if (quarantine !== undefined) {
+    result[ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY] = quarantine;
+  }
   for (const [key, value] of Object.entries(evidence)) {
+    if (key === ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY) {
+      continue;
+    }
     if (Object.keys(result).length >= EVIDENCE_KEY_LIMIT) {
       break;
     }

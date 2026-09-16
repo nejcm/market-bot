@@ -36,9 +36,30 @@ export function effectiveConfigHash(config: unknown): string {
   return sha256(JSON.stringify(nonSecretValue(config)));
 }
 
+// A git hook exports these to its children, and they override cwd; the fingerprint must
+// Describe the repository at cwd, not whichever repository invoked the hook.
+const GIT_LOCATION_ENV_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+] as const;
+
+function gitEnv(): Record<string, string | undefined> {
+  const env = { ...Bun.env };
+  for (const name of GIT_LOCATION_ENV_VARS) {
+    delete env[name];
+  }
+  return env;
+}
+
 function gitOutput(args: readonly string[], cwd: string): string | undefined {
   const result = Bun.spawnSync(["git", ...args], {
     cwd,
+    env: gitEnv(),
     stdout: "pipe",
     stderr: "pipe",
   });

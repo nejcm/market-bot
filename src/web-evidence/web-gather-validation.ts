@@ -66,13 +66,18 @@ export function validateRequests(
       const sourceUnits = WEB_GATHER_TOOL_UNITS[result.request.tool];
       accepted.push({
         request: result.request,
-        audit: acceptedJsonToolAuditEntry(
-          state.round,
-          result.request.tool,
-          result.request.args,
-          result.request.rationale,
-          sourceUnits,
-        ),
+        audit: {
+          ...acceptedJsonToolAuditEntry(
+            state.round,
+            result.request.tool,
+            result.request.args,
+            result.request.rationale,
+            sourceUnits,
+          ),
+          ...(result.numResultsOverride !== undefined
+            ? { numResultsOverride: result.numResultsOverride }
+            : {}),
+        },
         sourceUnits,
         tool: result.request.tool,
       });
@@ -94,7 +99,10 @@ function validateRequest(
   sourceUnitsUsed: number,
   toolCallsUsed: number,
 ):
-  | { readonly request: ModelWebGatherRequest }
+  | {
+      readonly request: ModelWebGatherRequest;
+      readonly numResultsOverride?: NonNullable<JsonToolLoopAuditEntry["numResultsOverride"]>;
+    }
   | { readonly audit: JsonToolLoopAuditEntry; readonly gap: SourceGap } {
   if (!isRecord(raw)) {
     return reject(state.round, "unknown", undefined, undefined, "request must be an object");
@@ -157,6 +165,38 @@ function validateRequest(
       isThematicListSearch(state.command, parsedArgs)
     ) {
       state.thematicListSearchWidened.value = true;
+    }
+    if (!("request" in acceptedRequest) || requestArgs.numResults === undefined) {
+      return acceptedRequest;
+    }
+    const implicitCap = state.acceptancePolicy?.implicitPerQueryAcceptanceCap;
+    const requested = parsedArgs.numResults;
+    const effective = requestArgs.numResults;
+    if (implicitCap === undefined || (requested ?? effective) <= implicitCap) {
+      return acceptedRequest;
+    }
+    const explicitCap = state.acceptancePolicy?.explicitPerQueryAcceptanceCap;
+    if (requested === undefined) {
+      return {
+        ...acceptedRequest,
+        numResultsOverride: { kind: "thematic-widening", effectiveNumResults: effective },
+      };
+    }
+    if (effective < requested) {
+      return {
+        ...acceptedRequest,
+        numResultsOverride: { kind: "narrowing", requested, effectiveNumResults: effective },
+      };
+    }
+    if (explicitCap !== undefined && requested > explicitCap) {
+      return {
+        ...acceptedRequest,
+        numResultsOverride: {
+          kind: "thematic-exemption",
+          requested,
+          effectiveNumResults: effective,
+        },
+      };
     }
     return acceptedRequest;
   }

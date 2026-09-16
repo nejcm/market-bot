@@ -35,6 +35,8 @@ export interface WebSubjectProfileReuse {
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
+// Preserve the existing six-result explicit allowance; only larger requests are corrective over-gather.
+const LOW_UTILIZATION_EXPLICIT_SEARCH_RESULTS_CAP = 6;
 const REUSE_BASIS_FORMS = [
   "10-K",
   "10-Q",
@@ -161,7 +163,7 @@ export function webGatherAcceptancePolicyForReuse(
 ): WebGatherAcceptancePolicy {
   const afterLowUtilization = reuse.priorUtilizationLevel === "low";
   return {
-    version: 1,
+    version: 2,
     mode: afterLowUtilization ? "reused-profile-after-low-utilization" : "reused-profile-default",
     sourceRunDirName: reuse.runDirName,
     ...(reuse.priorUtilizationLevel !== undefined
@@ -171,6 +173,9 @@ export function webGatherAcceptancePolicyForReuse(
       ? { priorUtilizationRatio: reuse.priorUtilizationRatio }
       : {}),
     implicitPerQueryAcceptanceCap: afterLowUtilization ? 2 : 3,
+    ...(afterLowUtilization
+      ? { explicitPerQueryAcceptanceCap: LOW_UTILIZATION_EXPLICIT_SEARCH_RESULTS_CAP }
+      : {}),
   };
 }
 

@@ -163,7 +163,7 @@ export function reusedProfileCoverageRejectionReason(
     : undefined;
 }
 
-// Sets effective per-query ingestion when the model leaves numResults to the default. Thematic list screens widen one search surface because a later provider call can fail and leave the run with only one result page. Reused profiles stay narrow for the remaining recency/corroboration/gap-fill searches.
+// Sets implicit defaults and the low-utilization explicit cap; one thematic list screen stays wide.
 export function withDefaultSearchNumResults(
   parsedArgs: {
     readonly query: string;
@@ -176,7 +176,14 @@ export function withDefaultSearchNumResults(
   thematicListSearchWidened: boolean,
 ): { readonly query: string; readonly searchType: WebSearchType; readonly numResults?: number } {
   if (parsedArgs.numResults !== undefined) {
-    return parsedArgs;
+    const explicitCap = acceptancePolicy?.explicitPerQueryAcceptanceCap;
+    const isUnspentThematicListSearch =
+      !thematicListSearchWidened && isThematicListSearch(command, parsedArgs);
+    return explicitCap !== undefined &&
+      parsedArgs.numResults > explicitCap &&
+      !isUnspentThematicListSearch
+      ? { ...parsedArgs, numResults: explicitCap }
+      : parsedArgs;
   }
   if (!thematicListSearchWidened && isThematicListSearch(command, parsedArgs)) {
     return { ...parsedArgs, numResults: MAX_WEB_GATHER_SEARCH_RESULTS };

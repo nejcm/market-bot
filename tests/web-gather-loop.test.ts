@@ -17,16 +17,17 @@ const command: ResearchCommand = {
 };
 
 const lowPriorAcceptancePolicy = {
-  version: 1,
+  version: 2,
   mode: "reused-profile-after-low-utilization",
   sourceRunDirName: "prior-aapl",
   priorUtilizationLevel: "low",
   priorUtilizationRatio: 0.2,
   implicitPerQueryAcceptanceCap: 2,
+  explicitPerQueryAcceptanceCap: 6,
 } as const;
 
 const defaultReuseAcceptancePolicy = {
-  version: 1,
+  version: 2,
   mode: "reused-profile-default",
   sourceRunDirName: "prior-aapl",
   implicitPerQueryAcceptanceCap: 3,
@@ -647,6 +648,102 @@ describe("runWebGatherLoop", () => {
       }),
     ]);
     expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
+  });
+
+  test("exempts and spends an explicit thematic list widening", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 3, sourceBudget: 6 } },
+      collectedSources: collectedSources(),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+                numResults: 8,
+              },
+              rationale: "current sourced candidate evidence",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech best stocks analyst upside",
+                searchType: "current-subject",
+              },
+              rationale: "corroborate current list evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([8, 2]);
+    expect(result.audit?.acceptedRequests[0]?.numResultsOverride).toEqual({
+      kind: "thematic-exemption",
+      requested: 8,
+      effectiveNumResults: 8,
+    });
+    expect(result.audit?.acceptedRequests[1]?.numResultsOverride).toBeUndefined();
+  });
+
+  test.each([
+    ["low-utilization", lowPriorAcceptancePolicy],
+    ["default", defaultReuseAcceptancePolicy],
+  ] as const)("marks an implicit thematic list widening under the %s policy", async (_, policy) => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources(),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: policy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+              },
+              rationale: "current sourced candidate evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([8]);
+    expect(result.audit?.acceptedRequests[0]?.numResultsOverride).toEqual({
+      kind: "thematic-widening",
+      effectiveNumResults: 8,
+    });
   });
 
   test("widens thematic list research without explicit equity words", async () => {
@@ -2136,6 +2233,108 @@ describe("runWebGatherLoop", () => {
       }),
     ]);
     expect(result.audit?.acceptancePolicy).toEqual(lowPriorAcceptancePolicy);
+  });
+
+  test("narrows and marks an explicit request after low prior utilization", async () => {
+    const recording = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recording.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent product news", searchType: "news", numResults: 6 },
+              rationale: "recent material developments",
+            },
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent earnings news", searchType: "news", numResults: 8 },
+              rationale: "recent earnings developments",
+            },
+          ],
+        }),
+    });
+
+    expect(recording.searchNumResults).toEqual([6, 6]);
+    expect(result.audit?.acceptedRequests[0]?.numResultsOverride).toBeUndefined();
+    expect(result.audit?.acceptedRequests[1]).toMatchObject({
+      args: expect.objectContaining({ numResults: 6 }),
+      numResultsOverride: { kind: "narrowing", requested: 8, effectiveNumResults: 6 },
+    });
+  });
+
+  test("does not mark a default-policy explicit request", async () => {
+    const recording = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      acceptancePolicy: defaultReuseAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recording.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent product news", searchType: "news", numResults: 6 },
+              rationale: "recent material developments",
+            },
+          ],
+        }),
+    });
+
+    expect(recording.searchNumResults).toEqual([6]);
+    expect(result.audit?.acceptedRequests[0]).toMatchObject({
+      args: expect.objectContaining({ numResults: 6 }),
+    });
+    expect(result.audit?.acceptedRequests[0]?.numResultsOverride).toBeUndefined();
+  });
+
+  test("does not mark an explicit request within the implicit cap", async () => {
+    const recording = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 2, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["howItMakesMoney"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recording.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: { query: "AAPL Apple recent product news", searchType: "news", numResults: 2 },
+              rationale: "recent material developments",
+            },
+          ],
+        }),
+    });
+
+    expect(recording.searchNumResults).toEqual([2]);
+    expect(result.audit?.acceptedRequests[0]?.numResultsOverride).toBeUndefined();
   });
 
   test("leaves the default ingestion at 5 without reused profile coverage", async () => {

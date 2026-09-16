@@ -125,7 +125,10 @@
               <span class="truncate font-mono text-[10.5px] text-[#5c6066]"
                 >{card.calibration}</span
               >
-              <span class="truncate font-mono text-[10.5px] text-[#5c6066]">
+              <span
+                class="truncate font-mono text-[10.5px] text-[#5c6066]"
+                title={card.snapshotFreshness}
+              >
                 {card.snapshotFreshness}
               </span>
             </button>

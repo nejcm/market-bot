@@ -148,6 +148,8 @@ export interface Source {
   readonly snippet?: string;
   readonly providerAliases?: readonly SourceProviderAlias[];
   readonly identity?: InstrumentIdentity;
+  readonly latestSessionDate?: string;
+  readonly latestSessionStatus?: "unverified";
 }
 
 export interface SourceProviderAlias {
@@ -614,6 +616,7 @@ export interface VerifiedMarketSnapshot {
   readonly fetchedAt: string;
   /** Date of last bar used */
   readonly latestSessionDate: string;
+  readonly latestSessionStatus?: "unverified";
   /** Latest session bar */
   readonly ohlcv: OhlcvBar;
   readonly indicators: IndicatorMap;

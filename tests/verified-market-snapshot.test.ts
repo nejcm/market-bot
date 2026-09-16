@@ -455,6 +455,7 @@ describe("collectVerifiedMarketSnapshot", () => {
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", analysisDate);
 
     expect(result.snapshot?.latestSessionDate).toBe("2024-03-19");
+    expect(result.snapshot?.latestSessionStatus).toBeUndefined();
     expect(result.sourceGaps).toEqual([
       {
         source: "yahoo-verified-chart",
@@ -540,6 +541,7 @@ describe("collectVerifiedMarketSnapshot", () => {
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
 
     expect(result.snapshot?.latestSessionDate).toBe("2024-03-19");
+    expect(result.snapshot?.latestSessionStatus).toBeUndefined();
     expect(result.snapshot?.ohlcv.date).toBe("2024-03-19");
     expect(result.priceHistory?.at(-1)?.date).toBe("2024-03-19");
     expect(result.snapshot?.recentCloses.at(-1)?.date).toBe("2024-03-19");
@@ -576,6 +578,7 @@ describe("collectVerifiedMarketSnapshot", () => {
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
 
     expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.snapshot?.latestSessionStatus).toBeUndefined();
     expect(result.sourceGaps).toEqual([]);
   });
 
@@ -593,6 +596,7 @@ describe("collectVerifiedMarketSnapshot", () => {
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", "2024-03-21");
 
     expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.snapshot?.latestSessionStatus).toBeUndefined();
     expect(result.sourceGaps).toEqual([]);
   });
 
@@ -602,6 +606,7 @@ describe("collectVerifiedMarketSnapshot", () => {
     const result = await collectVerifiedMarketSnapshot(ctx, "AAPL", SESSION_DATE);
 
     expect(result.snapshot?.latestSessionDate).toBe(SESSION_DATE);
+    expect(result.snapshot?.latestSessionStatus).toBe("unverified");
     expect(result.sourceGaps).toEqual([
       {
         source: "yahoo-verified-chart",
@@ -907,6 +912,27 @@ describe("buildSourceList — verified snapshot source", () => {
     const snapshotSource = list.find((s) => s.id === verifiedSnapshotSourceId("AAPL"));
     expect(snapshotSource).toBeDefined();
     expect(snapshotSource?.fetchedAt).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  test("labels an unverified latest session in the source title and metadata", () => {
+    const list = buildSourceList(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      collectedSources({
+        ...sources,
+        verifiedMarketSnapshot: {
+          ...snapshot,
+          latestSessionStatus: "unverified",
+        },
+      }),
+    );
+
+    const snapshotSource = list.find((source) => source.id === verifiedSnapshotSourceId("AAPL"));
+    expect(snapshotSource?.title).toContain("unverified latest session");
+    expect(snapshotSource?.title).not.toContain("verified market snapshot");
+    expect(snapshotSource).toMatchObject({
+      latestSessionDate: snapshot.latestSessionDate,
+      latestSessionStatus: "unverified",
+    });
   });
 });
 

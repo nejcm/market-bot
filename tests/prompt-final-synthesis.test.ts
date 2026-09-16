@@ -15,6 +15,7 @@ import {
   newsSource,
   prediction,
   researchReport,
+  verifiedMarketSnapshot,
 } from "./support/fixtures";
 import { config, stagePromptFromArgs } from "./support/research-context-helpers";
 
@@ -526,6 +527,39 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     expect(parsed.evidence.marketSnapshots).toBeDefined();
     expect(parsed.reportDraft).toBeUndefined();
     expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
+  });
+
+  test("marks an unverified latest close in completion evidence", () => {
+    const prompt = stagePromptFromArgs(
+      "final-synthesis",
+      command,
+      collectedSources({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({
+          symbol: "AAPL",
+          latestSessionDate: "2026-05-01",
+          latestSessionStatus: "unverified",
+        }),
+      }),
+      config,
+      context,
+      loaded,
+      priorStages,
+      [],
+      [],
+      allowedSourceIds,
+      {
+        requestedCount: 2,
+        existingPredictions: reportDraft.predictions,
+        reportDraft,
+      },
+    );
+    const parsed = JSON.parse(prompt) as {
+      readonly evidence: {
+        readonly latestClose?: { readonly latestSessionStatus?: string };
+      };
+    };
+
+    expect(parsed.evidence.latestClose?.latestSessionStatus).toBe("unverified");
   });
 
   test("completion steering requires evidence-backed probability differentiation", () => {

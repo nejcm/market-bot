@@ -10,7 +10,13 @@ import { NO_RESOLVED_METRIC_TEXT } from "../src/scoring/calibration-invariant";
 import { buildMissAutopsyFile, forecastErrorDirection } from "../src/scoring/miss-autopsy";
 import type { MarketRegimeLabel, Prediction, ResearchReport } from "../src/domain/types";
 import type { ObservationRepository } from "../src/scoring/observations";
-import { prediction, predictionScore, researchReport } from "./support/fixtures";
+import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import {
+  prediction,
+  predictionScore,
+  researchReport,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 
 const basePrediction: Prediction = prediction();
 const report = researchReport({ generatedAt: "2026-05-01T00:00:00.000Z" });
@@ -136,6 +142,45 @@ describe("resolveOutcome", () => {
         { subject: "SPY", date: "2026-05-08", value: 505 },
       ]);
       expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
+    });
+
+    test("keeps relative subjects on the same backward-reanchored sessions", async () => {
+      const source = verifiedSnapshotSource(
+        verifiedMarketSnapshot({
+          symbol: "BNS",
+          latestSessionDate: "2026-05-01",
+          latestSessionStatus: "unverified",
+        }),
+      );
+      const result = await resolveOutcome(
+        {
+          ...relPrediction,
+          subject: "BNS:AAPL",
+          measurableAs: "close(BNS, +5) / close(BNS, 0) > close(AAPL, +5) / close(AAPL, 0)",
+          scoringPolicyVersion: 3,
+        },
+        researchReport({ generatedAt: "2026-05-01T00:00:00.000Z", sources: [source] }),
+        observationRepository([
+          { subject: "BNS", date: "2026-04-30", value: 100 },
+          ...closeWindow("BNS", [100, 100, 100, 100, 100, 100, 130]),
+          { subject: "AAPL", date: "2026-04-30", value: 100 },
+          ...closeWindow("AAPL", [100, 101, 102, 103, 104, 105, 106]),
+        ]),
+        now,
+      );
+
+      expect(result).toMatchObject({
+        status: "resolved",
+        outcome: "miss",
+        evidence: {
+          returnA: 1,
+          returnB: 1.04,
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "BNS", date: "2026-05-01" }],
+            replacementOriginDate: "2026-04-30",
+          },
+        },
+      });
     });
 
     test("returns miss when SPY outperforms QQQ", async () => {
@@ -394,6 +439,88 @@ describe("resolveOutcome", () => {
         { subject: "SPY", date: "2026-05-05", value: 508 },
         { subject: "SPY", date: "2026-05-08", value: 510 },
       ]);
+      expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
+    });
+
+    test("excludes a retained unverified session from the v3 equity origin anchor", async () => {
+      const source = verifiedSnapshotSource(
+        verifiedMarketSnapshot({
+          symbol: "SPY",
+          latestSessionDate: "2026-05-01",
+          latestSessionStatus: "unverified",
+        }),
+      );
+      const result = await resolveOutcome(
+        { ...basePrediction, scoringPolicyVersion: 3 },
+        researchReport({ generatedAt: "2026-05-01T00:00:00.000Z", sources: [source] }),
+        observationRepository([
+          { subject: "SPY", date: "2026-04-30", value: 498 },
+          ...closeWindow("SPY", [500, 502, 504, 506, 508, 510]),
+        ]),
+        now,
+      );
+
+      expect(result).toMatchObject({
+        status: "resolved",
+        outcome: "hit",
+        evidence: {
+          close0: 498,
+          closeN: 508,
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "SPY", date: "2026-05-01" }],
+            replacementOriginDate: "2026-04-30",
+          },
+        },
+      });
+    });
+
+    test("leaves a quarantined v3 origin unavailable without a prior verified session", async () => {
+      const source = verifiedSnapshotSource(
+        verifiedMarketSnapshot({
+          symbol: "SPY",
+          latestSessionDate: "2026-05-01",
+          latestSessionStatus: "unverified",
+        }),
+      );
+      const result = await resolveOutcome(
+        { ...basePrediction, scoringPolicyVersion: 3 },
+        researchReport({ generatedAt: "2026-05-01T00:00:00.000Z", sources: [source] }),
+        observationRepository(closeWindow("SPY", [500, 502, 504, 506, 508, 510])),
+        now,
+      );
+
+      expect(result).toMatchObject({
+        status: "unresolved",
+        reason: "observation-unavailable",
+        evidence: {
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "SPY", date: "2026-05-01" }],
+          },
+        },
+      });
+    });
+
+    test("ignores an unverified marker on a non-snapshot source", async () => {
+      const result = await resolveOutcome(
+        { ...basePrediction, scoringPolicyVersion: 3 },
+        researchReport({
+          generatedAt: "2026-05-01T00:00:00.000Z",
+          sources: [
+            {
+              id: "unrelated-market-source",
+              title: "Unrelated market source",
+              fetchedAt: report.generatedAt,
+              kind: "market-data",
+              symbol: "SPY",
+              latestSessionDate: "2026-05-01",
+              latestSessionStatus: "unverified",
+            },
+          ],
+        }),
+        observationRepository(closeWindow("SPY", [500, 502, 504, 506, 508, 510])),
+        now,
+      );
+
       expect(result).toMatchObject({ status: "resolved", outcome: "hit" });
     });
 

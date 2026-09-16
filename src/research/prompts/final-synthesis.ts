@@ -377,6 +377,9 @@ function completionLatestClose(
       close: snapshot.ohlcv.close,
       sessionDate: snapshot.latestSessionDate,
       sourceId: verifiedSnapshotSourceId(snapshot.symbol),
+      ...(snapshot.latestSessionStatus !== undefined
+        ? { latestSessionStatus: snapshot.latestSessionStatus }
+        : {}),
     };
   }
 

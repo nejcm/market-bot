@@ -29,7 +29,7 @@
       <span>
         artifact closes{snapshot.latestSessionDate === undefined
           ? ""
-          : ` · last session ${snapshot.latestSessionDate}`}
+          : ` · ${snapshot.latestSessionStatus === "unverified" ? "unverified latest session" : "last session"} ${snapshot.latestSessionDate}`}
       </span>
       {#if snapshotTradingViewUrl !== undefined}
         <a

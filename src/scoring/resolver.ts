@@ -13,8 +13,9 @@ import {
 import { isExchangeTradingDay, resolutionDate } from "./exchange-calendar";
 import type { ObservationRepository } from "./observations";
 import { scoringPolicyFor, type ScoringPolicy } from "./policy";
-import type { ScoreOutcome } from "./types";
+import { ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY, type ScoreOutcome } from "./types";
 import { isRecord } from "../guards";
+import { verifiedSnapshotSourceId } from "../research/verified-snapshot-contract";
 
 export type { Observation };
 
@@ -44,6 +45,16 @@ export type ResolveOutcomeResult =
   | ResolveOutcomeVoided
   | ResolveOutcomeUnresolved;
 
+interface UnverifiedSession {
+  readonly subject: string;
+  readonly date: string;
+}
+
+interface OriginAnchorQuarantine {
+  readonly unverifiedSessions: readonly UnverifiedSession[];
+  readonly replacementOriginDate?: string;
+}
+
 function ymd(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -62,6 +73,51 @@ function startsWithinProviderAnchorTolerance(
   return delay >= 0 && delay <= PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS * UTC_DAY_MS;
 }
 
+function unverifiedSession(report: ResearchReport, subject: string): UnverifiedSession | undefined {
+  const source = report.sources.find(
+    (candidate) => candidate.id === verifiedSnapshotSourceId(subject),
+  );
+  return source?.latestSessionStatus === "unverified" &&
+    typeof source.latestSessionDate === "string"
+    ? { subject, date: source.latestSessionDate }
+    : undefined;
+}
+
+function unverifiedSessions(
+  report: ResearchReport,
+  subjects: readonly string[],
+  policy: ScoringPolicy,
+): readonly UnverifiedSession[] {
+  if (policy.version !== 3 || report.assetClass !== "equity") {
+    return [];
+  }
+  return subjects
+    .map((subject) => unverifiedSession(report, subject))
+    .filter((session): session is UnverifiedSession => session !== undefined);
+}
+
+function alignedCloseWindows(
+  windows: readonly { readonly subject: string; readonly observations: readonly Observation[] }[],
+  originDate: string,
+  required: number,
+): readonly Observation[] {
+  const selected = windows.map(({ observations }) =>
+    observations.filter((observation) => observation.date >= originDate).slice(0, required),
+  );
+  const dates = selected[0]?.map((observation) => observation.date);
+  if (
+    dates === undefined ||
+    selected.some(
+      (window) =>
+        window.length !== required ||
+        window.some((observation, index) => observation.date !== dates[index]),
+    )
+  ) {
+    return [];
+  }
+  return selected.flat();
+}
+
 async function closeObservations(
   report: ResearchReport,
   now: Date,
@@ -70,12 +126,21 @@ async function closeObservations(
   horizonTradingDays: number,
   policy: ScoringPolicy,
 ): Promise<readonly Observation[]> {
+  const anchor = new Date(report.generatedAt);
+  const quarantined = unverifiedSessions(report, subjects, policy).filter(
+    (session) => session.date <= ymd(anchor),
+  );
+  const fetchFrom =
+    quarantined.length === 0
+      ? anchor
+      : shiftCalendarDay(anchor, -PROVIDER_SESSION_ANCHOR_TOLERANCE_DAYS);
   const windows = await Promise.all(
-    subjects.map((subject) =>
-      repo.window(subject, report.assetClass, new Date(report.generatedAt), now, {
+    subjects.map(async (subject) => ({
+      subject,
+      observations: await repo.window(subject, report.assetClass, fetchFrom, now, {
         scoringPolicyVersion: policy.version,
       }),
-    ),
+    })),
   );
 
   // Crypto under policy v3 resolves on the target UTC calendar date: the
@@ -90,8 +155,8 @@ async function closeObservations(
   if (cryptoTargetDate !== undefined) {
     const originYmd = ymd(new Date(report.generatedAt));
     const targetYmd = ymd(cryptoTargetDate);
-    const selected = windows.map((window) => {
-      const inRange = window.filter(
+    const selected = windows.map(({ observations }) => {
+      const inRange = observations.filter(
         (observation) => observation.date >= originYmd && observation.date <= targetYmd,
       );
       const hasOrigin = inRange.some((observation) => observation.date === originYmd);
@@ -102,20 +167,36 @@ async function closeObservations(
   }
 
   const required = horizonTradingDays + 1;
-  const anchor = new Date(report.generatedAt);
+  if (quarantined.length > 0) {
+    const cutoff = quarantined
+      .map((session) => session.date)
+      .toSorted()
+      .at(0);
+    const originDate = windows[0]?.observations.findLast(
+      (observation) =>
+        cutoff !== undefined &&
+        observation.date < cutoff &&
+        observation.date <= ymd(anchor) &&
+        windows.every(({ observations }) =>
+          observations.some((candidate) => candidate.date === observation.date),
+        ),
+    )?.date;
+    return originDate === undefined ? [] : alignedCloseWindows(windows, originDate, required);
+  }
+
   const enough = windows.every(
-    (window) =>
-      window.length >= required &&
+    ({ observations }) =>
+      observations.length >= required &&
       (report.assetClass !== "equity" ||
         policy.version !== 3 ||
-        startsWithinProviderAnchorTolerance(window, anchor)),
+        startsWithinProviderAnchorTolerance(observations, anchor)),
   );
 
   if (!enough) {
     return [];
   }
 
-  return windows.flatMap((window) => window.slice(0, required));
+  return windows.flatMap(({ observations }) => observations.slice(0, required));
 }
 
 // Published observation nearest `date`, walking by `stepDays` up to the
@@ -244,9 +325,12 @@ function providerEarningsObservations(
   eventDate: string,
   timing: EarningsEventTiming,
   horizonTradingDays: number,
+  unverifiedDate?: string,
 ): readonly Observation[] {
-  const origin = window.findLast((observation) =>
-    timing === "amc" ? observation.date <= eventDate : observation.date < eventDate,
+  const origin = window.findLast(
+    (observation) =>
+      observation.date !== unverifiedDate &&
+      (timing === "amc" ? observation.date <= eventDate : observation.date < eventDate),
   );
   const horizon = window
     .filter((observation) =>
@@ -254,6 +338,21 @@ function providerEarningsObservations(
     )
     .at(horizonTradingDays - 1);
   return origin === undefined || horizon === undefined ? [] : [origin, horizon];
+}
+
+function earningsAnchorUnverifiedSession(
+  report: ResearchReport,
+  subject: string,
+  eventDate: string,
+  timing: EarningsEventTiming,
+  policy: ScoringPolicy,
+): UnverifiedSession | undefined {
+  const [session] = unverifiedSessions(report, [subject], policy);
+  if (session === undefined) {
+    return undefined;
+  }
+  const couldAnchor = timing === "amc" ? session.date <= eventDate : session.date < eventDate;
+  return couldAnchor ? session : undefined;
 }
 
 async function earningsCloseObservations(
@@ -281,7 +380,14 @@ async function earningsCloseObservations(
     scoringPolicyVersion: policy.version,
   });
   if (policy.version === 3) {
-    return providerEarningsObservations(window, eventDate, timing, horizonTradingDays);
+    const quarantined = earningsAnchorUnverifiedSession(report, subject, eventDate, timing, policy);
+    return providerEarningsObservations(
+      window,
+      eventDate,
+      timing,
+      horizonTradingDays,
+      quarantined?.date,
+    );
   }
 
   // Count how many trading days we need from origin to horizon.
@@ -350,6 +456,46 @@ async function observationsForStrategy(
   return nested.flat();
 }
 
+function originAnchorQuarantine(
+  strategy: ObservationStrategy,
+  report: ResearchReport,
+  observations: readonly Observation[],
+  policy: ScoringPolicy,
+): OriginAnchorQuarantine | undefined {
+  let sessions: readonly UnverifiedSession[] = [];
+  if (strategy.mode === "close-window") {
+    sessions = unverifiedSessions(report, strategy.subjects, policy).filter(
+      (session) => session.date <= ymd(new Date(report.generatedAt)),
+    );
+  } else if (strategy.mode === "earnings-close-window") {
+    const session = earningsAnchorUnverifiedSession(
+      report,
+      strategy.subject,
+      strategy.eventDate,
+      readEarningsEventTiming(report),
+      policy,
+    );
+    sessions = session === undefined ? [] : [session];
+  }
+  if (sessions.length === 0) {
+    return undefined;
+  }
+  const replacementOriginDate = observations[0]?.date;
+  return {
+    unverifiedSessions: sessions,
+    ...(replacementOriginDate !== undefined ? { replacementOriginDate } : {}),
+  };
+}
+
+function quarantineEvidence(
+  evidence: Record<string, unknown>,
+  quarantine: OriginAnchorQuarantine | undefined,
+): Record<string, unknown> {
+  return quarantine === undefined
+    ? evidence
+    : { ...evidence, [ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY]: quarantine };
+}
+
 // Earnings expressions stay event-anchored even when nested in a conditional.
 // All other base expressions use the policy clock for their forecast family.
 function baseExpressionDueDate(
@@ -385,15 +531,17 @@ async function resolveBaseExpression(
   repo: ObservationRepository,
   now: Date,
   policy: ScoringPolicy,
-): Promise<ReturnType<typeof resolveObservableExpression>> {
-  const observations = await observationsForStrategy(
-    observationStrategyForExpression(expression),
-    report,
-    now,
-    repo,
-    policy,
-  );
-  return resolveObservableExpression(expression, observations);
+): Promise<{
+  readonly resolution: ReturnType<typeof resolveObservableExpression>;
+  readonly quarantine?: OriginAnchorQuarantine;
+}> {
+  const strategy = observationStrategyForExpression(expression);
+  const observations = await observationsForStrategy(strategy, report, now, repo, policy);
+  const quarantine = originAnchorQuarantine(strategy, report, observations, policy);
+  return {
+    resolution: resolveObservableExpression(expression, observations),
+    ...(quarantine !== undefined ? { quarantine } : {}),
+  };
 }
 
 export async function resolveOutcome(
@@ -417,13 +565,17 @@ export async function resolveOutcome(
       };
     }
 
-    const antecedentResult = await resolveBaseExpression(antecedent, report, repo, now, policy);
+    const antecedentSelection = await resolveBaseExpression(antecedent, report, repo, now, policy);
+    const antecedentResult = antecedentSelection.resolution;
     if (antecedentResult.status === "unresolved") {
       return {
         status: "unresolved",
         reason: "observation-unavailable",
         scoreStatus: "pending-condition",
-        evidence: { reason: "conditional antecedent observation unavailable" },
+        evidence: quarantineEvidence(
+          { reason: "conditional antecedent observation unavailable" },
+          antecedentSelection.quarantine,
+        ),
       };
     }
     // Base expressions cannot currently void; keep this defensive branch so a
@@ -433,7 +585,7 @@ export async function resolveOutcome(
         status: "voided",
         evidence: {
           reason: "conditional antecedent did not occur",
-          antecedent: antecedentResult.evidence,
+          antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
         },
       };
     }
@@ -442,7 +594,7 @@ export async function resolveOutcome(
         status: "voided",
         evidence: {
           reason: "conditional antecedent did not occur",
-          antecedent: antecedentResult.evidence,
+          antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
         },
       };
     }
@@ -455,12 +607,13 @@ export async function resolveOutcome(
         scoreStatus: "active-pending",
         evidence: {
           reason: "conditional antecedent occurred; consequent horizon not yet elapsed",
-          antecedent: antecedentResult.evidence,
+          antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
         },
       };
     }
 
-    const consequentResult = await resolveBaseExpression(consequent, report, repo, now, policy);
+    const consequentSelection = await resolveBaseExpression(consequent, report, repo, now, policy);
+    const consequentResult = consequentSelection.resolution;
     if (consequentResult.status !== "resolved") {
       return {
         status: "unresolved",
@@ -468,7 +621,12 @@ export async function resolveOutcome(
         scoreStatus: "active-pending",
         evidence: {
           reason: "conditional consequent observation unavailable",
-          antecedent: antecedentResult.evidence,
+          antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
+          ...(consequentSelection.quarantine !== undefined
+            ? {
+                [ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY]: consequentSelection.quarantine,
+              }
+            : {}),
         },
       };
     }
@@ -476,8 +634,8 @@ export async function resolveOutcome(
       status: "resolved",
       outcome: consequentResult.outcome,
       evidence: {
-        antecedent: antecedentResult.evidence,
-        consequent: consequentResult.evidence,
+        antecedent: quarantineEvidence(antecedentResult.evidence, antecedentSelection.quarantine),
+        consequent: quarantineEvidence(consequentResult.evidence, consequentSelection.quarantine),
       },
     };
   }
@@ -507,17 +665,22 @@ export async function resolveOutcome(
   }
 
   const observations = await observationsForStrategy(strategy, report, now, repo, policy);
+  const quarantine = originAnchorQuarantine(strategy, report, observations, policy);
 
   const result = resolveObservableForecast(forecast, observations);
   if (result.status === "unresolved") {
     return {
       status: "unresolved",
       reason: "observation-unavailable",
-      evidence: { reason: "observation unavailable" },
+      evidence: quarantineEvidence({ reason: "observation unavailable" }, quarantine),
     };
   }
   if (result.status === "voided") {
-    return { status: "voided", evidence: result.evidence };
+    return { status: "voided", evidence: quarantineEvidence(result.evidence, quarantine) };
   }
-  return { status: "resolved", outcome: result.outcome, evidence: result.evidence };
+  return {
+    status: "resolved",
+    outcome: result.outcome,
+    evidence: quarantineEvidence(result.evidence, quarantine),
+  };
 }

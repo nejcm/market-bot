@@ -150,6 +150,9 @@ export async function collectVerifiedMarketSnapshot(
     analysisDate,
     fetchedAt,
     latestSessionDate: latestBar.date,
+    ...(latestSession.status === "unverified"
+      ? { latestSessionStatus: "unverified" as const }
+      : {}),
     ohlcv: latestBar,
     indicators,
     recentCloses,

@@ -105,6 +105,9 @@ export function readVerifiedMarketSnapshot(value: unknown): VerifiedMarketSnapsh
         analysisDate,
         fetchedAt,
         latestSessionDate,
+        ...(value.latestSessionStatus === "unverified"
+          ? { latestSessionStatus: "unverified" as const }
+          : {}),
         ohlcv,
         indicators,
         recentCloses,

@@ -11,7 +11,8 @@ import type { AlphaCandidateWatchlist } from "../src/alpha-search/candidate-stat
 import type { AlphaLeadCohortSummary } from "../src/alpha-search/cohorts";
 import type { AlphaFeatureAttribution } from "../src/alpha-search/feature-attribution";
 import type { AlphaValidationFile, AlphaValidationSummary } from "../src/alpha-search/validation";
-import { researchReport } from "./support/fixtures";
+import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
+import { researchReport, verifiedMarketSnapshot } from "./support/fixtures";
 import { recordingFetch } from "./support/mocks";
 
 let tmpDir = "";
@@ -366,6 +367,190 @@ describe("runScorePass Observation scoring", () => {
     expect(score?.evidence).toMatchObject({ close0: 100, closeN: 102 });
   });
 
+  test("persists an unverified-origin quarantine in score and Miss Autopsy evidence", async () => {
+    const source = verifiedSnapshotSource(
+      verifiedMarketSnapshot({
+        symbol: "SPY",
+        latestSessionDate: "2026-05-01",
+        latestSessionStatus: "unverified",
+      }),
+    );
+    const runDir = await writeRun(
+      "run-quarantined-origin",
+      report(
+        [
+          {
+            id: "pred-quarantined-origin",
+            claim: "SPY closes higher over 2 trading days.",
+            kind: "direction",
+            subject: "SPY",
+            measurableAs: "close(SPY, +2) > close(SPY, 0)",
+            horizonTradingDays: 2,
+            probability: 0.6,
+            sourceIds: [],
+            scoringPolicyVersion: 3,
+          },
+        ],
+        { sources: [source] },
+      ),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-04-30", value: 102 },
+        { subject, date: "2026-05-01", value: 100 },
+        { subject, date: "2026-05-04", value: 98 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-11T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      status: "resolved",
+      evidence: {
+        close0: 102,
+        closeN: 98,
+        originAnchorQuarantine: {
+          unverifiedSessions: [{ subject: "SPY", date: "2026-05-01" }],
+          replacementOriginDate: "2026-04-30",
+        },
+      },
+    });
+    const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies[0]?.evidence).toEqual({
+      close0: 102,
+      closeN: 98,
+      originAnchorQuarantine: "unverified session SPY 2026-05-01; replacement origin 2026-04-30",
+    });
+  });
+
+  test("persists conditional origin quarantines in Miss Autopsy evidence", async () => {
+    const source = verifiedSnapshotSource(
+      verifiedMarketSnapshot({
+        symbol: "SPY",
+        latestSessionDate: "2026-05-01",
+        latestSessionStatus: "unverified",
+      }),
+    );
+    const runDir = await writeRun(
+      "run-quarantined-conditional",
+      report(
+        [
+          {
+            id: "pred-quarantined-conditional",
+            claim: "SPY rises after first closing higher.",
+            kind: "conditional",
+            subject: "SPY",
+            measurableAs:
+              "if (close(SPY, +1) > close(SPY, 0)) then (close(SPY, +2) > close(SPY, 0))",
+            horizonTradingDays: 2,
+            probability: 0.6,
+            sourceIds: [],
+            scoringPolicyVersion: 3,
+          },
+        ],
+        { sources: [source] },
+      ),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-04-30", value: 100 },
+        { subject, date: "2026-05-01", value: 110 },
+        { subject, date: "2026-05-04", value: 90 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-11T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({
+      status: "resolved",
+      outcome: "miss",
+      evidence: {
+        antecedent: {
+          close0: 100,
+          closeN: 110,
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "SPY", date: "2026-05-01" }],
+            replacementOriginDate: "2026-04-30",
+          },
+        },
+        consequent: {
+          close0: 100,
+          closeN: 90,
+          originAnchorQuarantine: {
+            unverifiedSessions: [{ subject: "SPY", date: "2026-05-01" }],
+            replacementOriginDate: "2026-04-30",
+          },
+        },
+      },
+    });
+    const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies[0]?.evidence).toEqual({
+      originAnchorQuarantine:
+        "antecedent: unverified session SPY 2026-05-01; replacement origin 2026-04-30 | consequent: unverified session SPY 2026-05-01; replacement origin 2026-04-30",
+    });
+  });
+
+  test("pluralizes multiple quarantined origin sessions in Miss Autopsy evidence", async () => {
+    const sources = ["BNS", "AAPL"].map((symbol) =>
+      verifiedSnapshotSource(
+        verifiedMarketSnapshot({
+          symbol,
+          latestSessionDate: "2026-05-01",
+          latestSessionStatus: "unverified",
+        }),
+      ),
+    );
+    const runDir = await writeRun(
+      "run-quarantined-relative",
+      report(
+        [
+          {
+            id: "pred-quarantined-relative",
+            claim: "BNS outperforms AAPL over two trading days.",
+            kind: "relative",
+            subject: "BNS:AAPL",
+            measurableAs: "close(BNS, +2) / close(BNS, 0) > close(AAPL, +2) / close(AAPL, 0)",
+            horizonTradingDays: 2,
+            probability: 0.6,
+            sourceIds: [],
+            scoringPolicyVersion: 3,
+          },
+        ],
+        { sources },
+      ),
+    );
+    const repo: ObservationRepository = {
+      point: noObservation,
+      window: async (subject) => [
+        { subject, date: "2026-04-30", value: 100 },
+        { subject, date: "2026-05-01", value: 100 },
+        { subject, date: "2026-05-04", value: subject === "BNS" ? 90 : 110 },
+      ],
+    };
+
+    await runScorePass(tmpDir, new Date("2026-05-11T00:00:00.000Z"), {
+      observationRepository: repo,
+    });
+
+    const [score] = await readScores(runDir);
+    expect(score).toMatchObject({ status: "resolved", outcome: "miss" });
+    const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies[0]?.evidence).toEqual({
+      returnA: 0.9,
+      returnB: 1.1,
+      originAnchorQuarantine:
+        "unverified sessions BNS 2026-05-01, AAPL 2026-05-01; replacement origin 2026-04-30",
+    });
+  });
+
   test("persists voided conditional scores when the antecedent is false", async () => {
     const runDir = await writeRun(
       "run-conditional",
@@ -444,6 +629,7 @@ describe("runScorePass Observation scoring", () => {
     });
 
     const autopsy = await readMissAutopsy(runDir);
+    expect(autopsy.autopsies[0]?.evidence.originAnchorQuarantine).toBeUndefined();
     expect(autopsy.autopsies).toEqual([
       {
         predictionId: "pred-dir",

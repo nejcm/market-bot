@@ -231,6 +231,7 @@ export interface RunAnalytics {
     readonly latestSessionDate: string;
     readonly fetchedAt: string;
     readonly latestSessionAgeDays: number;
+    readonly latestSessionStatus?: "unverified";
   };
   readonly webSources?: {
     readonly accepted: number;
@@ -518,6 +519,9 @@ function verifiedMarketSnapshotFreshness(
         latestSessionDate: snapshot.latestSessionDate,
         fetchedAt: snapshot.fetchedAt,
         latestSessionAgeDays,
+        ...(snapshot.latestSessionStatus === "unverified"
+          ? { latestSessionStatus: "unverified" as const }
+          : {}),
       };
 }
 

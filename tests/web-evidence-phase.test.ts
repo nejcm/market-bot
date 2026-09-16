@@ -222,12 +222,13 @@ describe("Web Evidence phase", () => {
     });
     expect(result.collectedSources.extendedSources).toContainEqual(source);
     expect(result.webGatherLoop.audit?.acceptancePolicy).toEqual({
-      version: 1,
+      version: 2,
       mode: "reused-profile-after-low-utilization",
       sourceRunDirName: "prior-btc",
       priorUtilizationLevel: "low",
       priorUtilizationRatio: 0.2,
       implicitPerQueryAcceptanceCap: 2,
+      explicitPerQueryAcceptanceCap: 6,
     });
   });
 
@@ -335,7 +336,7 @@ describe("Web Evidence phase", () => {
     });
     expect(result.collectedSources.extendedSources).toContainEqual(source);
     expect(result.webGatherLoop.audit?.acceptancePolicy).toEqual({
-      version: 1,
+      version: 2,
       mode: "reused-profile-default",
       sourceRunDirName: "prior-biotech",
       implicitPerQueryAcceptanceCap: 3,

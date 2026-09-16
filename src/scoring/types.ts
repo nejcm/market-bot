@@ -1,5 +1,7 @@
 export type ScoreOutcome = "hit" | "miss";
 
+export const ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY = "originAnchorQuarantine" as const;
+
 export type PredictionScoreStatus =
   | "pending"
   | "pending-condition"

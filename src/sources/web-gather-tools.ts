@@ -513,7 +513,8 @@ function resolveFirecrawlFallback(
   }
   const rawSnapshots = [...exa.rawSnapshots, firecrawlFetch.rawSnapshot];
   const parsed = spec.parse(firecrawlFetch.payload);
-  const { creditsUsed } = parsed;
+  // Cache hits stamp cacheStatus; the stored payload still carries creditsUsed.
+  const creditsUsed = firecrawlFetch.rawSnapshot.cacheStatus === undefined ? parsed.creditsUsed : 0;
   const withCredits = creditsUsed !== undefined ? { creditsUsed } : {};
   if (parsed.malformed) {
     return {

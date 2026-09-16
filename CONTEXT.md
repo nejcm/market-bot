@@ -253,7 +253,13 @@ Deterministic Market Overview summary of changes from the comparable previous ov
 
 ## Verified Market Snapshot
 
-Analysis-date-anchored, citeable OHLCV and technical-indicator block for an equity Instrument. V1 uses Yahoo daily bars with a ≥400-day lookback; it is supplemental evidence, not a scoring Observation. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Analysis-date-anchored, citeable OHLCV and technical-indicator block for an equity Instrument. V1 uses Yahoo daily bars with a ≥400-day lookback; it retains a latest session that provider metadata cannot prove closed, marks it `latestSessionStatus: "unverified"`, and stops describing that session as verified. It is supplemental evidence, not a scoring Observation. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+
+## Origin Anchor Quarantine
+
+Score evidence that prevents a retained-unverified Verified Market Snapshot session from silently becoming a Prediction's origin Observation. It walks backward within the scoring window to the latest verified session at or before the report origin, or leaves the Observation unavailable; the full decision is recorded at `score.json:evidence.originAnchorQuarantine` and a compact summary at `miss-autopsy.json:autopsies[].evidence.originAnchorQuarantine`.
+
+`latestSessionStatus` is a closed set. A new status must update both the strict deep-equity bundle validator and the tolerant sidecar reader.
 
 ## Instrument Accountability Timeline
 

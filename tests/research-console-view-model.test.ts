@@ -786,6 +786,36 @@ describe("research console app view model", () => {
     ]);
   });
 
+  test("labels an unverified latest session on the compare card", () => {
+    const [card] = runCompareCards([
+      {
+        summary: {
+          runId: "run-unverified",
+          generatedAt: "2026-06-12T10:00:00Z",
+          jobType: "equity",
+          assetClass: "equity",
+          symbol: "AAPL",
+          findingCount: 0,
+          predictionCount: 0,
+          sourceCount: 1,
+          dataGapCount: 1,
+          hasScore: false,
+          availableFiles: [],
+        },
+        analytics: {
+          predictions: { count: 0, targetCount: 0, targetMet: true },
+          verifiedMarketSnapshot: {
+            symbol: "AAPL",
+            latestSessionAgeDays: 1,
+            latestSessionStatus: "unverified",
+          },
+        },
+      },
+    ]);
+
+    expect(card?.snapshotFreshness).toBe("unverified AAPL 1d");
+  });
+
   test("parses historical-context audit trace fields", () => {
     expect(
       historicalContextAuditView({
@@ -1177,7 +1207,7 @@ describe("alpha cohort view model", () => {
 });
 
 describe("verified market snapshot view model", () => {
-  const snapshotJson = JSON.stringify({
+  const snapshot = {
     symbol: "AAPL",
     assetClass: "equity",
     analysisDate: "2026-06-11",
@@ -1202,7 +1232,8 @@ describe("verified market snapshot view model", () => {
       { date: "2026-05-27", close: 197.4 },
       { date: "2026-05-28", close: 200.3 },
     ],
-  });
+  };
+  const snapshotJson = JSON.stringify(snapshot);
 
   test("parses a valid snapshot and drops null indicators", () => {
     expect(verifiedSnapshotView(snapshotJson)).toEqual({
@@ -1226,6 +1257,14 @@ describe("verified market snapshot view model", () => {
         { date: "2026-05-28", close: 200.3 },
       ],
     });
+    expect(verifiedSnapshotView(snapshotJson)?.latestSessionStatus).toBeUndefined();
+  });
+
+  test("parses an unverified latest-session marker", () => {
+    expect(
+      verifiedSnapshotView(JSON.stringify({ ...snapshot, latestSessionStatus: "unverified" }))
+        ?.latestSessionStatus,
+    ).toBe("unverified");
   });
 
   test("rejects null, malformed, and close-poor payloads", () => {

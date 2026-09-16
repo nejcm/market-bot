@@ -4,13 +4,17 @@ import { sourceGap } from "../src/domain/source-gaps";
 import type { SourceGap } from "../src/domain/types";
 import { deterministicSourceGapEntries } from "../src/research/deterministic-gaps";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
-import type { SourceGapView } from "../src/research/prompts/source-gap-view";
+import {
+  collectedSourcesForGapView,
+  type SourceGapView,
+} from "../src/research/prompts/source-gap-view";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
+import { collectAnalystExpectations } from "../src/sources/extended-evidence/analyst-expectations";
 import {
   frameworkGaps,
   QUALITATIVE_GAPS,
 } from "../src/sources/extended-evidence/business-framework";
-import type { CollectedSources } from "../src/sources/types";
+import type { CollectContext, CollectedSources, SourceRequestExecutor } from "../src/sources/types";
 import {
   collectedSources,
   marketSnapshot,
@@ -53,11 +57,33 @@ const segmentMix = frameworkGaps(
   "AAPL",
   QUALITATIVE_GAPS.filter((gap) => gap.code === "segment-mix"),
 )[0]!;
-const epsEstimate = sourceGap({
+const unsupportedEpsEstimate = sourceGap({
   source: "finnhub-eps-estimate",
-  message: "Forward EPS estimate unavailable",
+  message: "Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+  cause: "unsupported-coverage",
   capability: "extended-evidence",
-  cause: "provider-data-missing",
+  evidenceQualityImpact: "extended-evidence-cap",
+});
+const missingCredentialEpsEstimate = sourceGap({
+  source: "finnhub-eps-estimate",
+  message: "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+  cause: "missing-credential",
+  capability: "extended-evidence",
+  evidenceQualityImpact: "extended-evidence-cap",
+});
+const unsupportedRevenueEstimate = sourceGap({
+  source: "finnhub-revenue-estimate",
+  message: "Finnhub revenue estimate endpoint is unavailable for the configured token (status 403)",
+  cause: "unsupported-coverage",
+  capability: "extended-evidence",
+  evidenceQualityImpact: "extended-evidence-cap",
+});
+const missingCredentialRevenueEstimate = sourceGap({
+  source: "finnhub-revenue-estimate",
+  message: "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
+  cause: "missing-credential",
+  capability: "extended-evidence",
+  evidenceQualityImpact: "extended-evidence-cap",
 });
 const secCompanyFacts = sourceGap({
   source: "sec-edgar",
@@ -72,11 +98,17 @@ const marketauxNews = sourceGap({
   cause: "fetch-failed",
 });
 
-const droppedGaps = [unsupportedAnalystRange, analystConsensus] as const;
+const droppedGaps = [
+  unsupportedAnalystRange,
+  analystConsensus,
+  unsupportedEpsEstimate,
+  unsupportedRevenueEstimate,
+] as const;
 const allGaps = [
   segmentMix,
   unsupportedAnalystRange,
-  epsEstimate,
+  unsupportedEpsEstimate,
+  unsupportedRevenueEstimate,
   analystConsensus,
   secCompanyFacts,
   marketauxNews,
@@ -109,6 +141,27 @@ function sourceGapTexts(value: Record<string, unknown>): readonly string[] {
   return value.sourceGaps as readonly string[];
 }
 
+function analystCollectContext(input: {
+  readonly token?: string;
+  readonly request?: SourceRequestExecutor;
+}): CollectContext {
+  return {
+    command,
+    fetchedAt: generatedAt,
+    newsLimit: 1,
+    cryptoMoverLimit: 1,
+    ...(input.token !== undefined ? { finnhubApiToken: input.token } : {}),
+    request: input.request ?? {
+      json: async () => {
+        throw new Error("unexpected request");
+      },
+      text: async () => {
+        throw new Error("unexpected text request");
+      },
+    },
+  };
+}
+
 describe("Web Gather Source Gap view", () => {
   test("drops every finnhub analyst-range variant from sourceGaps", () => {
     const texts = sourceGapTexts(
@@ -131,13 +184,36 @@ describe("Web Gather Source Gap view", () => {
     expect(texts.some((text) => text.includes("segment-mix"))).toBe(true);
   });
 
+  test("drops every finnhub eps-estimate variant from sourceGaps", () => {
+    const texts = sourceGapTexts(
+      payload(
+        "web-gather",
+        sourcesWithGaps([unsupportedEpsEstimate, missingCredentialEpsEstimate, segmentMix]),
+      ),
+    );
+
+    expect(texts.some((text) => text.includes("finnhub-eps-estimate"))).toBe(false);
+    expect(texts.some((text) => text.includes("segment-mix"))).toBe(true);
+  });
+
+  test("drops every finnhub revenue-estimate variant from sourceGaps", () => {
+    const texts = sourceGapTexts(
+      payload(
+        "web-gather",
+        sourcesWithGaps([unsupportedRevenueEstimate, missingCredentialRevenueEstimate, segmentMix]),
+      ),
+    );
+
+    expect(texts.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(false);
+    expect(texts.some((text) => text.includes("segment-mix"))).toBe(true);
+  });
+
   test("keeps web-closable gaps", () => {
     const texts = sourceGapTexts(
       payload(
         "web-gather",
         sourcesWithGaps([
           ...frameworkGaps("AAPL", QUALITATIVE_GAPS),
-          epsEstimate,
           secCompanyFacts,
           marketauxNews,
         ]),
@@ -147,7 +223,7 @@ describe("Web Gather Source Gap view", () => {
     for (const { code } of QUALITATIVE_GAPS) {
       expect(texts.some((text) => text.includes(code))).toBe(code !== "analyst-consensus");
     }
-    for (const expected of ["finnhub-eps-estimate", "sec-edgar", "marketaux-news"]) {
+    for (const expected of ["sec-edgar", "marketaux-news"]) {
       expect(texts.some((text) => text.includes(expected))).toBe(true);
     }
   });
@@ -166,7 +242,7 @@ describe("Web Gather Source Gap view", () => {
       ).extendedEvidence as { readonly gaps: readonly SourceGap[] }
     ).gaps;
 
-    expect(extendedGaps).toEqual([segmentMix, epsEstimate, secCompanyFacts, marketauxNews]);
+    expect(extendedGaps).toEqual([segmentMix, secCompanyFacts, marketauxNews]);
   });
 
   test("narrows marketContext gaps", () => {
@@ -221,7 +297,7 @@ describe("Web Gather Source Gap view", () => {
     expect(gatherOpenGaps).toBe(openGaps);
   });
 
-  test("keeps both dropped gaps visible to every other prompt stage", () => {
+  test("keeps dropped gaps visible to every other prompt stage", () => {
     const sources = sourcesWithGaps(droppedGaps, {
       extendedEvidence: {
         instrument: { symbol: "AAPL", assetClass: "equity" },
@@ -252,6 +328,12 @@ describe("Web Gather Source Gap view", () => {
       expect(
         parsed.evidence.sourceGaps.some((text) => text.includes("finnhub-analyst-range")),
       ).toBe(true);
+      expect(parsed.evidence.sourceGaps.some((text) => text.includes("finnhub-eps-estimate"))).toBe(
+        true,
+      );
+      expect(
+        parsed.evidence.sourceGaps.some((text) => text.includes("finnhub-revenue-estimate")),
+      ).toBe(true);
       expect(parsed.evidence.sourceGaps.some((text) => text.includes("analyst-consensus"))).toBe(
         true,
       );
@@ -267,9 +349,11 @@ describe("Web Gather Source Gap view", () => {
 
     const reportGaps = deterministicSourceGapEntries(command, sources).map((gap) => gap.text);
     expect(reportGaps.some((text) => text.includes("finnhub-analyst-range"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-eps-estimate"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(true);
     expect(reportGaps.some((text) => text.includes("analyst-consensus"))).toBe(true);
     expect(sources.sourceGaps).toBe(sourceGaps);
-    expect(sources.sourceGaps).toHaveLength(2);
+    expect(sources.sourceGaps).toHaveLength(droppedGaps.length);
   });
 
   test("keeps an empty sourceGaps key under both views", () => {
@@ -280,10 +364,14 @@ describe("Web Gather Source Gap view", () => {
     }
   });
 
-  test("drops both gaps from web-gather while the all view keeps them", () => {
+  test("drops every unclosable gap from web-gather while the all view keeps them", () => {
     const sources = sourcesWithGaps([
       unsupportedAnalystRange,
       missingCredentialAnalystRange,
+      unsupportedEpsEstimate,
+      missingCredentialEpsEstimate,
+      unsupportedRevenueEstimate,
+      missingCredentialRevenueEstimate,
       analystConsensus,
     ]);
     const gather = payload("web-gather", sources);
@@ -291,9 +379,11 @@ describe("Web Gather Source Gap view", () => {
     const allTexts = sourceGapTexts(all);
 
     expect(gather).toHaveProperty("sourceGaps", []);
-    expect(allTexts).toHaveLength(3);
+    expect(allTexts).toHaveLength(7);
     expect(allTexts.some((text) => text.includes("request failed with status 403"))).toBe(true);
     expect(allTexts.some((text) => text.includes("missing Finnhub credential"))).toBe(true);
+    expect(allTexts.some((text) => text.includes("finnhub-eps-estimate"))).toBe(true);
+    expect(allTexts.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(true);
     expect(allTexts.some((text) => text.includes("analyst-consensus"))).toBe(true);
   });
 
@@ -305,5 +395,117 @@ describe("Web Gather Source Gap view", () => {
     for (const gap of droppedGaps) {
       expect(laneGapText.some((text) => text.includes(gap.message))).toBe(false);
     }
+  });
+
+  test("does not hide a 403 gap from a different producer", () => {
+    const lookalike = sourceGap({
+      source: "sec-edgar",
+      message: "request failed with status 403",
+      cause: "unsupported-coverage",
+      capability: "extended-evidence",
+    });
+    const texts = sourceGapTexts(payload("web-gather", sourcesWithGaps([lookalike, segmentMix])));
+
+    expect(texts.some((text) => text.includes("sec-edgar"))).toBe(true);
+    expect(texts.some((text) => text.includes("segment-mix"))).toBe(true);
+  });
+
+  test("omits extendedEvidence when the producer omitted it, and keeps empty gaps as []", () => {
+    const omitted = sourcesWithGaps(droppedGaps);
+    expect(omitted.extendedEvidence).toBeUndefined();
+    expect(collectedSourcesForGapView("web-gather", omitted).extendedEvidence).toBeUndefined();
+    expect(payload("web-gather", omitted).extendedEvidence).toBeUndefined();
+    expect(payload("all", omitted).extendedEvidence).toBeUndefined();
+
+    const emptyGaps = sourcesWithGaps([], {
+      extendedEvidence: {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [],
+        gaps: [],
+      },
+    });
+    const filteredEmpty = collectedSourcesForGapView("web-gather", emptyGaps).extendedEvidence;
+    expect(filteredEmpty).toEqual({
+      instrument: { symbol: "AAPL", assetClass: "equity" },
+      items: [],
+      gaps: [],
+    });
+    expect(
+      (payload("web-gather", emptyGaps).extendedEvidence as { readonly gaps: readonly SourceGap[] })
+        .gaps,
+    ).toEqual([]);
+  });
+
+  test("keeps extendedEvidence.gaps as [] when every row is dropped, rather than omitting the section", () => {
+    const sources = sourcesWithGaps(droppedGaps, {
+      extendedEvidence: {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [],
+        gaps: droppedGaps,
+      },
+    });
+    const gather = payload("web-gather", sources);
+
+    expect(gather).toHaveProperty("extendedEvidence");
+    expect((gather.extendedEvidence as { readonly gaps: readonly SourceGap[] }).gaps).toEqual([]);
+    expect(
+      (payload("all", sources).extendedEvidence as { readonly gaps: readonly SourceGap[] }).gaps,
+    ).toEqual(droppedGaps);
+  });
+
+  test("hides collectAnalystExpectations 403 estimate gaps from web-gather and keeps them on persisted surfaces", async () => {
+    const result = await collectAnalystExpectations(
+      analystCollectContext({
+        token: "fixture-token",
+        request: {
+          json: async ({ adapter }) =>
+            sourceGap({
+              source: adapter,
+              message: `${adapter} source request failed with status 403`,
+              cause: "fetch-failed",
+            }),
+          text: async () => {
+            throw new Error("unexpected text request");
+          },
+        },
+      }),
+    );
+    const producerGaps = result.gaps;
+    const sources = sourcesWithGaps(producerGaps);
+
+    const gatherTexts = sourceGapTexts(payload("web-gather", sources));
+    const allTexts = sourceGapTexts(payload("all", sources));
+    const reportGaps = deterministicSourceGapEntries(command, sources).map((gap) => gap.text);
+
+    expect(producerGaps.some((gap) => gap.source === "finnhub-eps-estimate")).toBe(true);
+    expect(producerGaps.some((gap) => gap.source === "finnhub-revenue-estimate")).toBe(true);
+    expect(producerGaps.some((gap) => gap.source === "finnhub-ebitda-estimate")).toBe(true);
+    expect(gatherTexts.some((text) => text.includes("finnhub-eps-estimate"))).toBe(false);
+    expect(gatherTexts.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(false);
+    expect(gatherTexts.some((text) => text.includes("finnhub-ebitda-estimate"))).toBe(false);
+    expect(allTexts.some((text) => text.includes("finnhub-eps-estimate"))).toBe(true);
+    expect(allTexts.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(true);
+    expect(allTexts.some((text) => text.includes("finnhub-ebitda-estimate"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-eps-estimate"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-ebitda-estimate"))).toBe(true);
+    expect(collectedSourcesForGapView("all", sources)).toBe(sources);
+    expect(sources.sourceGaps).toBe(producerGaps);
+  });
+
+  test("hides collectAnalystExpectations missing-credential estimate gaps from web-gather", async () => {
+    const result = await collectAnalystExpectations(analystCollectContext({}));
+    const producerGaps = result.gaps;
+    const sources = sourcesWithGaps(producerGaps);
+    const gatherTexts = sourceGapTexts(payload("web-gather", sources));
+    const reportGaps = deterministicSourceGapEntries(command, sources).map((gap) => gap.text);
+
+    expect(producerGaps.every((gap) => gap.cause === "missing-credential")).toBe(true);
+    expect(gatherTexts.some((text) => text.includes("finnhub-eps-estimate"))).toBe(false);
+    expect(gatherTexts.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(false);
+    expect(gatherTexts.some((text) => text.includes("finnhub-ebitda-estimate"))).toBe(false);
+    expect(reportGaps.some((text) => text.includes("finnhub-eps-estimate"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-revenue-estimate"))).toBe(true);
+    expect(reportGaps.some((text) => text.includes("finnhub-ebitda-estimate"))).toBe(true);
   });
 });

@@ -66,13 +66,18 @@ export function validateRequests(
       const sourceUnits = WEB_GATHER_TOOL_UNITS[result.request.tool];
       accepted.push({
         request: result.request,
-        audit: acceptedJsonToolAuditEntry(
-          state.round,
-          result.request.tool,
-          result.request.args,
-          result.request.rationale,
-          sourceUnits,
-        ),
+        audit: {
+          ...acceptedJsonToolAuditEntry(
+            state.round,
+            result.request.tool,
+            result.request.args,
+            result.request.rationale,
+            sourceUnits,
+          ),
+          ...(result.numResultsOverride !== undefined
+            ? { numResultsOverride: result.numResultsOverride }
+            : {}),
+        },
         sourceUnits,
         tool: result.request.tool,
       });
@@ -94,7 +99,10 @@ function validateRequest(
   sourceUnitsUsed: number,
   toolCallsUsed: number,
 ):
-  | { readonly request: ModelWebGatherRequest }
+  | {
+      readonly request: ModelWebGatherRequest;
+      readonly numResultsOverride?: NonNullable<JsonToolLoopAuditEntry["numResultsOverride"]>;
+    }
   | { readonly audit: JsonToolLoopAuditEntry; readonly gap: SourceGap } {
   if (!isRecord(raw)) {
     return reject(state.round, "unknown", undefined, undefined, "request must be an object");
@@ -153,10 +161,41 @@ function validateRequest(
     );
     if (
       "request" in acceptedRequest &&
-      requestArgs.numResults === MAX_WEB_GATHER_SEARCH_RESULTS &&
-      isThematicListSearch(state.command, parsedArgs)
+      usedThematicListSearchAllowance(parsedArgs, requestArgs, state)
     ) {
       state.thematicListSearchWidened.value = true;
+    }
+    if (!("request" in acceptedRequest) || requestArgs.numResults === undefined) {
+      return acceptedRequest;
+    }
+    const implicitCap = state.acceptancePolicy?.implicitPerQueryAcceptanceCap;
+    const requested = parsedArgs.numResults;
+    const effective = requestArgs.numResults;
+    if (implicitCap === undefined || (requested ?? effective) <= implicitCap) {
+      return acceptedRequest;
+    }
+    const explicitCap = state.acceptancePolicy?.explicitPerQueryAcceptanceCap;
+    if (requested === undefined) {
+      return {
+        ...acceptedRequest,
+        numResultsOverride: { kind: "thematic-widening", effectiveNumResults: effective },
+      };
+    }
+    if (effective < requested) {
+      return {
+        ...acceptedRequest,
+        numResultsOverride: { kind: "narrowing", requested, effectiveNumResults: effective },
+      };
+    }
+    if (explicitCap !== undefined && requested > explicitCap) {
+      return {
+        ...acceptedRequest,
+        numResultsOverride: {
+          kind: "thematic-exemption",
+          requested,
+          effectiveNumResults: effective,
+        },
+      };
     }
     return acceptedRequest;
   }
@@ -174,6 +213,25 @@ function validateRequest(
     toolCallsUsed,
     args,
   );
+}
+
+function usedThematicListSearchAllowance(
+  parsedArgs: {
+    readonly query: string;
+    readonly searchType: WebSearchType;
+    readonly numResults?: number;
+  },
+  requestArgs: { readonly numResults?: number },
+  state: ValidationState,
+): boolean {
+  if (!isThematicListSearch(state.command, parsedArgs)) {
+    return false;
+  }
+  if (parsedArgs.numResults === undefined) {
+    return requestArgs.numResults === MAX_WEB_GATHER_SEARCH_RESULTS;
+  }
+  const explicitCap = state.acceptancePolicy?.explicitPerQueryAcceptanceCap;
+  return explicitCap !== undefined && parsedArgs.numResults > explicitCap;
 }
 
 function validateAcceptedRequest(

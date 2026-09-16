@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
-import type { RunTrace, Source } from "../src/domain/types";
-import type { CollectedSources } from "../src/sources/types";
+import type { RunTrace, Source, WebGatherFallbackAudit } from "../src/domain/types";
+import { executeWebGatherTool } from "../src/sources/web-gather-tools";
+import type {
+  CollectedSources,
+  FetchJsonResult,
+  SourceRequestExecutor,
+} from "../src/sources/types";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
 import {
   collectedSources as collectedSourceBundle,
@@ -10,6 +15,7 @@ import {
   newsSource,
   prediction,
   researchReport,
+  verifiedMarketSnapshot,
 } from "./support/fixtures";
 
 const emptySourceTextAudit = {
@@ -119,6 +125,90 @@ function attemptedWebGatherAudit(): NonNullable<RunTrace["webGatherLoop"]> {
     throw new Error("expected a web gather audit on the attempted trace");
   }
   return audit;
+}
+
+async function firecrawlFallbackFromProducer(options: {
+  readonly creditsUsed: number;
+  readonly cacheStatus?: NonNullable<FetchJsonResult["rawSnapshot"]["cacheStatus"]>;
+}): Promise<WebGatherFallbackAudit> {
+  const fetchedAt = "2026-05-01T00:00:00.000Z";
+  const request: SourceRequestExecutor = {
+    json: async ({ adapter }) => {
+      if (adapter === "exa-search") {
+        return { source: "exa-search", message: "status 500", cause: "fetch-failed" };
+      }
+      const payload = {
+        success: true,
+        creditsUsed: options.creditsUsed,
+        data: {
+          web: [
+            {
+              url: "https://firecrawl.example/aapl-1",
+              title: "Apple overview",
+              description: "Apple designs devices.",
+              markdown: "Apple designs devices and services.",
+            },
+          ],
+        },
+      };
+      return {
+        rawSnapshot: {
+          id: `raw-${adapter}`,
+          adapter,
+          fetchedAt,
+          payload,
+          ...(options.cacheStatus !== undefined ? { cacheStatus: options.cacheStatus } : {}),
+        },
+        payload,
+      };
+    },
+    text: async () => {
+      throw new Error("unexpected text fetch");
+    },
+  };
+  const result = await executeWebGatherTool(
+    "web_search",
+    { query: "AAPL business model", searchType: "background" },
+    {
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      fetchedAt,
+      newsLimit: 2,
+      cryptoMoverLimit: 2,
+      exaApiKey: "exa-key",
+      firecrawlApiKey: "firecrawl-key",
+      request,
+    },
+    new Set(),
+  );
+  if (result.fallback === undefined) {
+    throw new Error("expected a Firecrawl fallback audit from the producer");
+  }
+  return result.fallback;
+}
+
+function analyticsFromWebFallback(fallback: WebGatherFallbackAudit) {
+  return buildRunAnalytics({
+    report: researchReport(),
+    trace: {
+      ...webGatherAttemptedTrace,
+      webGatherLoop: {
+        ...attemptedWebGatherAudit(),
+        acceptedRequests: [
+          {
+            round: 1,
+            tool: "web_search",
+            status: "accepted",
+            fallback,
+          },
+        ],
+        executedTools: ["web_search"],
+      },
+    },
+    collectedSources: collectedSourceBundle(),
+    stageOutputs: [],
+    targetPredictions: 0,
+    outcomes: [],
+  });
 }
 
 describe("run analytics", () => {
@@ -464,6 +554,7 @@ describe("run analytics", () => {
       fetchedAt: "2026-05-19T00:00:00.000Z",
       latestSessionAgeDays: 2,
     });
+    expect(analytics.verifiedMarketSnapshot?.latestSessionStatus).toBeUndefined();
     expect(analytics.sourcePlan).toEqual({
       plannedLaneCount: 5,
       coreLaneCount: 2,
@@ -497,6 +588,21 @@ describe("run analytics", () => {
       executedTools: ["sec_latest_filing"],
       emittedGapCount: 0,
     });
+  });
+
+  test("projects an unverified latest-session marker", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle({
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ latestSessionStatus: "unverified" }),
+      }),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.verifiedMarketSnapshot?.latestSessionStatus).toBe("unverified");
   });
 
   test.each([
@@ -1388,6 +1494,72 @@ describe("web source roles accounting", () => {
         failedExaRequests: 1,
       },
     });
+    expect(analytics.webSources?.firecrawlCreditsUsed).toBeUndefined();
+  });
+
+  test("sums Firecrawl credit spend separately from accepted web sources", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace: {
+        ...trace,
+        webGatherLoop: {
+          ...attemptedWebGatherAudit(),
+          acceptedRequests: [
+            {
+              round: 1,
+              tool: "web_search",
+              status: "accepted",
+              fallback: {
+                attemptedProviders: ["exa", "firecrawl"],
+                servedProvider: "firecrawl",
+                fallbackReason: "thin",
+                firecrawlCreditsUsed: 4,
+              },
+            },
+            {
+              round: 1,
+              tool: "web_search",
+              status: "accepted",
+              fallback: {
+                attemptedProviders: ["exa", "firecrawl"],
+                servedProvider: "firecrawl",
+                fallbackReason: "empty",
+                firecrawlCreditsUsed: 1,
+              },
+            },
+          ],
+          executedTools: ["web_search", "web_search"],
+        },
+      },
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+    });
+
+    expect(analytics.webSources).toMatchObject({
+      accepted: 0,
+      firecrawlCreditsUsed: 5,
+    });
+  });
+
+  test("does not count cached Firecrawl credits as current-run spend", async () => {
+    const fallback = await firecrawlFallbackFromProducer({
+      creditsUsed: 3,
+      cacheStatus: "current",
+    });
+    const analytics = analyticsFromWebFallback(fallback);
+
+    expect(fallback.firecrawlCreditsUsed).toBe(0);
+    expect(analytics.webSources?.firecrawlCreditsUsed).toBe(0);
+  });
+
+  test("keeps a recorded Firecrawl zero as current-run spend", async () => {
+    const fallback = await firecrawlFallbackFromProducer({ creditsUsed: 0 });
+    const analytics = analyticsFromWebFallback(fallback);
+
+    expect(fallback.firecrawlCreditsUsed).toBe(0);
+    expect(analytics.webSources?.firecrawlCreditsUsed).toBe(0);
   });
 
   test("all web sources unused when no profile and no report citations", () => {

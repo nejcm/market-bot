@@ -75,21 +75,30 @@ export const INDICATOR_KEYS = [
 ] as const satisfies readonly (keyof IndicatorMap)[];
 
 // Single construction point for the citeable report Source ID. Used by the
-// Report source list, the evidence payload, and (later) Phase A.2 verification.
+// Report source list, evidence payload, and scoring anchor quarantine.
 export function verifiedSnapshotSourceId(symbol: string): string {
   return verifiedMarketSnapshotSourceId(symbol);
 }
 
 // Citeable report Source for exact numeric technical claims.
 export function verifiedSnapshotSource(snapshot: VerifiedMarketSnapshot): Source {
+  const latestSessionUnverified = snapshot.latestSessionStatus === "unverified";
   return {
     id: verifiedSnapshotSourceId(snapshot.symbol),
-    title: `${snapshot.symbol} verified market snapshot (OHLCV + indicators, ${snapshot.latestSessionDate})`,
+    title: latestSessionUnverified
+      ? `${snapshot.symbol} market snapshot (OHLCV + indicators, unverified latest session ${snapshot.latestSessionDate})`
+      : `${snapshot.symbol} verified market snapshot (OHLCV + indicators, ${snapshot.latestSessionDate})`,
     fetchedAt: snapshot.fetchedAt,
     kind: "market-data",
     assetClass: "equity",
     symbol: snapshot.symbol,
     provider: "yahoo",
+    ...(latestSessionUnverified
+      ? {
+          latestSessionDate: snapshot.latestSessionDate,
+          latestSessionStatus: "unverified" as const,
+        }
+      : {}),
   };
 }
 

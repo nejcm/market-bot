@@ -273,6 +273,14 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
     const snapshot = readRecord(analytics.verifiedMarketSnapshot);
     const snapshotAge = readFiniteNumber(snapshot?.latestSessionAgeDays);
     const snapshotSymbol = readStringVerbatim(snapshot, "symbol");
+    const snapshotStatus = readStringVerbatim(snapshot, "latestSessionStatus");
+    let snapshotFreshness = "snapshot n/a";
+    if (snapshotAge !== undefined && snapshotSymbol !== undefined) {
+      snapshotFreshness =
+        snapshotStatus === "unverified"
+          ? `unverified ${snapshotSymbol} ${String(snapshotAge)}d`
+          : `${snapshotSymbol} snapshot ${String(snapshotAge)}d`;
+    }
 
     return [
       {
@@ -286,10 +294,7 @@ export function runCompareCards(details: readonly RunDetail[]): readonly RunComp
             ? "none"
             : `${String(numberAt(shortfall, ["missingCount"]))} missing`,
         calibration: formatSkill(readFiniteNumber(calibration?.brierSkillScore)),
-        snapshotFreshness:
-          snapshotAge === undefined || snapshotSymbol === undefined
-            ? "snapshot n/a"
-            : `${snapshotSymbol} snapshot ${String(snapshotAge)}d`,
+        snapshotFreshness,
       },
     ];
   });

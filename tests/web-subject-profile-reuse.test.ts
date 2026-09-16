@@ -598,12 +598,13 @@ describe("Web Subject Profile reuse", () => {
       priorUtilizationRatio: 0.2,
     });
     expect(webGatherAcceptancePolicyForReuse(reuse!)).toEqual({
-      version: 1,
+      version: 2,
       mode: "reused-profile-after-low-utilization",
       sourceRunDirName: "prior-aapl",
       priorUtilizationLevel: "low",
       priorUtilizationRatio: 0.2,
       implicitPerQueryAcceptanceCap: 2,
+      explicitPerQueryAcceptanceCap: 6,
     });
     await expect(
       Promise.all([
@@ -639,7 +640,10 @@ describe("Web Subject Profile reuse", () => {
       priorUtilizationLevel: "low",
       priorUtilizationRatio: 0.2,
     });
-    expect(webGatherAcceptancePolicyForReuse(reuse!).implicitPerQueryAcceptanceCap).toBe(2);
+    expect(webGatherAcceptancePolicyForReuse(reuse!)).toMatchObject({
+      implicitPerQueryAcceptanceCap: 2,
+      explicitPerQueryAcceptanceCap: 6,
+    });
   });
 
   test("does not reduce the cap for an insufficient legacy sample", async () => {
@@ -668,6 +672,7 @@ describe("Web Subject Profile reuse", () => {
       mode: "reused-profile-default",
       implicitPerQueryAcceptanceCap: 3,
     });
+    expect(webGatherAcceptancePolicyForReuse(reuse!).explicitPerQueryAcceptanceCap).toBeUndefined();
   });
 
   test.each([
@@ -733,7 +738,7 @@ describe("Web Subject Profile reuse", () => {
 
     expect(reuse?.priorUtilizationLevel).toBeUndefined();
     expect(webGatherAcceptancePolicyForReuse(reuse!)).toEqual({
-      version: 1,
+      version: 2,
       mode: "reused-profile-default",
       sourceRunDirName: "prior-aapl",
       implicitPerQueryAcceptanceCap: 3,
@@ -1270,12 +1275,13 @@ describe("Web Subject Profile reuse", () => {
     expect(reuse?.runDirName).toBe("copied-from");
     expect(reuse?.originRunDirName).toBe("origin-run");
     expect(webGatherAcceptancePolicyForReuse(reuse!)).toEqual({
-      version: 1,
+      version: 2,
       mode: "reused-profile-after-low-utilization",
       sourceRunDirName: "copied-from",
       priorUtilizationLevel: "low",
       priorUtilizationRatio: 0.2,
       implicitPerQueryAcceptanceCap: 2,
+      explicitPerQueryAcceptanceCap: 6,
     });
   });
 

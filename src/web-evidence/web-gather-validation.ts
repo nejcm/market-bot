@@ -161,8 +161,7 @@ function validateRequest(
     );
     if (
       "request" in acceptedRequest &&
-      requestArgs.numResults === MAX_WEB_GATHER_SEARCH_RESULTS &&
-      isThematicListSearch(state.command, parsedArgs)
+      usedThematicListSearchAllowance(parsedArgs, requestArgs, state)
     ) {
       state.thematicListSearchWidened.value = true;
     }
@@ -214,6 +213,25 @@ function validateRequest(
     toolCallsUsed,
     args,
   );
+}
+
+function usedThematicListSearchAllowance(
+  parsedArgs: {
+    readonly query: string;
+    readonly searchType: WebSearchType;
+    readonly numResults?: number;
+  },
+  requestArgs: { readonly numResults?: number },
+  state: ValidationState,
+): boolean {
+  if (!isThematicListSearch(state.command, parsedArgs)) {
+    return false;
+  }
+  if (parsedArgs.numResults === undefined) {
+    return requestArgs.numResults === MAX_WEB_GATHER_SEARCH_RESULTS;
+  }
+  const explicitCap = state.acceptancePolicy?.explicitPerQueryAcceptanceCap;
+  return explicitCap !== undefined && parsedArgs.numResults > explicitCap;
 }
 
 function validateAcceptedRequest(

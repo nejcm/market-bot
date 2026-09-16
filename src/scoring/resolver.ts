@@ -52,6 +52,7 @@ interface UnverifiedSession {
 
 interface OriginAnchorQuarantine {
   readonly unverifiedSessions: readonly UnverifiedSession[];
+  // Origin used after excluding unverified sessions from the candidate window, not proof of reselection.
   readonly replacementOriginDate?: string;
 }
 

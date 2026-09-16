@@ -702,6 +702,119 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.acceptedRequests[1]?.numResultsOverride).toBeUndefined();
   });
 
+  test("spends the thematic exemption on an explicit request below eight results", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 3, sourceBudget: 6 } },
+      collectedSources: collectedSources(),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+                numResults: 7,
+              },
+              rationale: "current sourced candidate evidence",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech best stocks analyst upside",
+                searchType: "current-subject",
+                numResults: 7,
+              },
+              rationale: "corroborate current list evidence",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech ranking stocks screen",
+                searchType: "current-subject",
+                numResults: 7,
+              },
+              rationale: "third sourced candidate list",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([7, 6, 6]);
+    expect(result.audit?.acceptedRequests.map((entry) => entry.numResultsOverride?.kind)).toEqual([
+      "thematic-exemption",
+      "narrowing",
+      "narrowing",
+    ]);
+  });
+
+  test("spends a below-eight thematic exemption before implicit narrowing", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 3, sourceBudget: 6 } },
+      collectedSources: collectedSources(),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+                numResults: 7,
+              },
+              rationale: "current sourced candidate evidence",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech best stocks analyst upside",
+                searchType: "current-subject",
+              },
+              rationale: "corroborate current list evidence",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([7, 2]);
+    expect(result.audit?.acceptedRequests[0]?.numResultsOverride).toEqual({
+      kind: "thematic-exemption",
+      requested: 7,
+      effectiveNumResults: 7,
+    });
+    expect(result.audit?.acceptedRequests[1]?.numResultsOverride).toBeUndefined();
+  });
+
   test.each([
     ["low-utilization", lowPriorAcceptancePolicy],
     ["default", defaultReuseAcceptancePolicy],

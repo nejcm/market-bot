@@ -92,6 +92,10 @@ const CONTEXT_ROUTE: RouteDefinition = {
 };
 const ROUTES: readonly RouteDefinition[] = [EPS_ROUTE, REVENUE_ROUTE, EBITDA_ROUTE, CONTEXT_ROUTE];
 
+export const ANALYST_EXPECTATION_ADAPTERS: ReadonlySet<string> = new Set(
+  ROUTES.map((route) => route.adapter),
+);
+
 const ESTIMATE_ADAPTERS = new Set(
   ROUTES.flatMap((route) => (route.kind === undefined ? [] : [route.adapter])),
 );

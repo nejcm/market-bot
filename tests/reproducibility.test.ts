@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { dirtySourceHash, effectiveConfigHash } from "../src/reproducibility";
 
 function git(cwd: string, ...args: string[]): void {
-  const result = Bun.spawnSync(["git", ...args], { cwd, stdout: "ignore", stderr: "pipe" });
+  const { GIT_DIR: _gitDir, GIT_WORK_TREE: _gitWorkTree, ...env } = Bun.env;
+  const result = Bun.spawnSync(["git", ...args], { cwd, env, stdout: "ignore", stderr: "pipe" });
   if (result.exitCode !== 0) {
     throw new Error(new TextDecoder().decode(result.stderr));
   }

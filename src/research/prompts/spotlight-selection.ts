@@ -43,7 +43,7 @@ export function buildSpotlightSelectionPrompt(
       historicalContext:
         context.historicalContext === undefined
           ? undefined
-          : compactHistoricalContext(context.historicalContext),
+          : compactHistoricalContext(context.historicalContext, "all"),
       evidenceCategories: evidenceCategories(collectedSources, context),
       sourceGaps: deterministicSourceGaps(command, collectedSources),
       requiredShape: spotlightSelectionShape(),

@@ -54,15 +54,42 @@ export interface ReportIntegrityAuditResult {
 // Token attached to a price or percentage ("$2050", "2026%") stays numeric.
 // This exemption is deliberately broader than the warn-only audit's horizon
 // Pattern: pruning is destructive, so ambiguity favors keeping the claim.
-// Both patterns carry /g for replaceAll and must not be reused with .test().
+// YEAR, horizon, and ISO-date matchers carry /g for replaceAll and must not be reused with .test();
+// The unit patterns omit /g because they are .test()ed.
 const YEAR_TOKEN_PATTERN = /(?<![$\d.])\b(?:19|20)\d{2}\b(?!\s*%|\.\d)/gu;
 const HORIZON_TOKEN_PATTERN = /(?<![$])\b\d+\s*(?:-| )?(?:trading|calendar)?\s*-?\s*days?\b/giu;
+// Strip calendar-valid ISO dates first; year-stripping otherwise leaves "-MM-DD" as a numeric claim.
+// Symbol-adjacent currency/percent/multiple units stay numeric; whitespace-separated unit words are out of scope.
+// Must stay capture-group-free: a capture would steal replaceAll's offset and fail the unit guard open.
+const ISO_CALENDAR_DATE_PATTERN = /(?<![\d.])\b\d{4}-\d{2}-\d{2}\b/gu;
+// 8 covers Sc + grouping/minus/whitespace; unbounded prefix slice was O(n^2) per date.
+const ISO_DATE_UNIT_WINDOW = 8;
+const ISO_DATE_CURRENCY_PREFIX_PATTERN = /\p{Sc}[\s()[\]{}-]*$/u;
+const ISO_DATE_UNIT_SUFFIX_PATTERN = /^\s*(?:[%‰‱]|[x×X⨯*]|\p{Sc})/u;
+
+function isUtcRoundTripIsoDate(isoDate: string): boolean {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === isoDate;
+}
+
+function hasAttachedFinancialUnit(text: string, start: number, end: number): boolean {
+  const prefix = text.slice(Math.max(0, start - ISO_DATE_UNIT_WINDOW), start);
+  const suffix = text.slice(end, end + ISO_DATE_UNIT_WINDOW);
+  return ISO_DATE_CURRENCY_PREFIX_PATTERN.test(prefix) || ISO_DATE_UNIT_SUFFIX_PATTERN.test(suffix);
+}
 
 function isBlockingNumericOrTechnical(text: string): boolean {
   if (isTechnicalClaim(text)) {
     return true;
   }
-  const stripped = text.replaceAll(YEAR_TOKEN_PATTERN, " ").replaceAll(HORIZON_TOKEN_PATTERN, " ");
+  const stripped = text
+    .replaceAll(ISO_CALENDAR_DATE_PATTERN, (span, offset: number) =>
+      isUtcRoundTripIsoDate(span) && !hasAttachedFinancialUnit(text, offset, offset + span.length)
+        ? " "
+        : span,
+    )
+    .replaceAll(YEAR_TOKEN_PATTERN, " ")
+    .replaceAll(HORIZON_TOKEN_PATTERN, " ");
   return isNumericClaim(stripped);
 }
 

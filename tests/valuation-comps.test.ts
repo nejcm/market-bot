@@ -17,6 +17,7 @@ import {
 } from "../src/sources/extended-evidence/sec-edgar";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 import type { PeerUniverse } from "../src/research/peer-universe";
+import { isRecord } from "../src/guards";
 import { marketSnapshot } from "./support/fixtures";
 
 const generatedAt = "2026-07-15T00:00:00.000Z";
@@ -74,7 +75,11 @@ function secFact(
   };
 }
 
-function secFactUnits(current: number, prior = current - 1): { units: { USD: unknown[] } } {
+function secFactUnits(
+  current: number,
+  prior = current - 1,
+  latestOverrides: Record<string, number | string> = {},
+): { units: { USD: unknown[] } } {
   return {
     units: {
       USD: [
@@ -84,10 +89,14 @@ function secFactUnits(current: number, prior = current - 1): { units: { USD: unk
           start: "2025-04-01",
           end: "2025-06-29",
         }),
-        secFact(current),
+        secFact(current, latestOverrides),
       ],
     },
   };
+}
+
+function omitFactEnd(fact: Record<string, number | string>): Record<string, number | string> {
+  return Object.fromEntries(Object.entries(fact).filter(([key]) => key !== "end"));
 }
 
 function secPayload(
@@ -96,12 +105,25 @@ function secPayload(
     readonly cash?: number;
     readonly debt?: number;
     readonly end?: string;
+    readonly cashEnd?: string;
+    readonly debtEnd?: string;
+    readonly omitDebtEnd?: boolean;
   } = {},
 ): unknown {
   const revenue = overrides.revenue ?? 100;
   const cash = overrides.cash ?? 10;
   const debt = overrides.debt ?? 20;
   const end = overrides.end ?? "2026-06-29";
+  const cashFacts =
+    overrides.cashEnd === undefined
+      ? secFactUnits(cash, cash - 1)
+      : { units: { USD: [secFact(cash, { end: overrides.cashEnd })] } };
+  let debtFacts: { units: { USD: unknown[] } } = secFactUnits(debt, debt - 1);
+  if (overrides.omitDebtEnd) {
+    debtFacts = { units: { USD: [omitFactEnd(secFact(debt))] } };
+  } else if (overrides.debtEnd !== undefined) {
+    debtFacts = { units: { USD: [secFact(debt, { end: overrides.debtEnd })] } };
+  }
   return {
     facts: {
       "us-gaap": {
@@ -112,8 +134,8 @@ function secPayload(
         EarningsPerShareDiluted: {
           units: { "USD/shares": [secFact(2), secFact(1.8, { fy: 2025 })] },
         },
-        CashAndCashEquivalentsAtCarryingValue: secFactUnits(cash, cash - 1),
-        LongTermDebt: secFactUnits(debt, debt - 1),
+        CashAndCashEquivalentsAtCarryingValue: cashFacts,
+        LongTermDebt: debtFacts,
         NetCashProvidedByUsedInOperatingActivities: secFactUnits(28, 22),
         PaymentsToAcquirePropertyPlantAndEquipment: secFactUnits(6, 5),
         WeightedAverageNumberOfDilutedSharesOutstanding: {
@@ -260,6 +282,10 @@ function requestExecutor(
           readonly cash?: number;
           readonly debt?: number;
           readonly end?: string;
+          readonly cashEnd?: string;
+          readonly debtEnd?: string;
+          readonly omitDebtEnd?: boolean;
+          readonly payload?: unknown;
         }
       >
     >;
@@ -299,7 +325,8 @@ function requestExecutor(
       if (adapter === "sec-companyfacts") {
         const cik = url.match(/CIK(?<cik>\d+)\.json/u)?.groups?.cik ?? "";
         const symbol = symbolByCik[cik] ?? "AMD";
-        return rawJson(adapter, secPayload(options.secOverrides?.[symbol]));
+        const override = options.secOverrides?.[symbol];
+        return rawJson(adapter, override?.payload ?? secPayload(override));
       }
       throw new Error(`unexpected adapter ${adapter}`);
     },
@@ -377,6 +404,76 @@ function collectContext(
     newsLimit: 10,
     cryptoMoverLimit: 10,
     request,
+  };
+}
+
+function collectNvdaWithAmdPeriodEnds(overrides: {
+  readonly cashEnd?: string;
+  readonly debtEnd?: string;
+}): ReturnType<typeof collectValuationComps> {
+  return collectValuationComps(
+    collectContext(requestExecutor({ secOverrides: { AMD: overrides } })),
+    command,
+    [
+      marketSnapshot({
+        sourceId: "market-yahoo-equity-nvda",
+        symbol: "NVDA",
+        marketCap: 1000,
+        observedAt: generatedAt,
+      }),
+    ],
+    valuationEvidence(),
+  );
+}
+
+function collectNvdaWithAmdDebtEnd(debtEnd: string): ReturnType<typeof collectValuationComps> {
+  return collectNvdaWithAmdPeriodEnds({ debtEnd });
+}
+
+function collectNvdaWithAmdPayload(payload: unknown): ReturnType<typeof collectValuationComps> {
+  return collectValuationComps(
+    collectContext(requestExecutor({ secOverrides: { AMD: { payload } } })),
+    command,
+    [
+      marketSnapshot({
+        sourceId: "market-yahoo-equity-nvda",
+        symbol: "NVDA",
+        marketCap: 1000,
+        observedAt: generatedAt,
+      }),
+    ],
+    valuationEvidence(),
+  );
+}
+
+function secPayloadWithGaap(gaap: Record<string, unknown>): unknown {
+  const payload = secPayload();
+  if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
+    throw new Error("expected us-gaap sec payload");
+  }
+  return {
+    facts: {
+      "us-gaap": {
+        ...payload.facts["us-gaap"],
+        ...gaap,
+      },
+    },
+  };
+}
+
+function secPayloadWithoutLongTermDebt(gaap: Record<string, unknown>): unknown {
+  const payload = secPayload();
+  if (!isRecord(payload) || !isRecord(payload.facts) || !isRecord(payload.facts["us-gaap"])) {
+    throw new Error("expected us-gaap sec payload");
+  }
+  const { LongTermDebt: _omitted, ...rest } = payload.facts["us-gaap"];
+  return {
+    facts: {
+      "us-gaap": {
+        ...rest,
+        ...gaap,
+      },
+    },
   };
 }
 
@@ -486,6 +583,16 @@ describe("collectValuationComps", () => {
       },
     });
     expect(result.artifact.excludedPeers).toEqual([]);
+    expect(result.artifact.peers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          symbol: "AMD",
+          cashPeriodEnd: "2026-06-29",
+          debtPeriodEnd: "2026-06-29",
+          usable: true,
+        }),
+      ]),
+    );
     expect(
       result.extendedEvidence.items.find((item) => item.category === "valuation")?.metrics,
     ).toMatchObject({
@@ -591,6 +698,434 @@ describe("collectValuationComps", () => {
           "Mixed-period valuation inputs for NVDA: cash period end 2026-06-29 and debt period end 2026-03-01 diverge by 120 days; enterprise value and net debt flagged as mixed-period",
       }),
     );
+  });
+
+  test("guards a peer whose cash and debt period ends diverge beyond 92 days", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          secOverrides: {
+            AMD: { debtEnd: "2026-03-01" },
+          },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      debtPeriodEnd: "2026-03-01",
+      enterpriseValue: MIXED_PERIOD_METRIC,
+      netDebt: MIXED_PERIOD_METRIC,
+      usable: false,
+    });
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(amd?.sourceIds.length).toBeGreaterThan(0);
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason:
+          "cash period end 2026-06-29 and debt period end 2026-03-01 diverge by 120 days; enterprise value flagged as mixed-period",
+      }),
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message:
+          "Peer AMD excluded from valuation comps: cash period end 2026-06-29 and debt period end 2026-03-01 diverge by 120 days; enterprise value flagged as mixed-period",
+      }),
+    );
+  });
+
+  test("guards a peer whose debt period end is missing", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          secOverrides: {
+            AMD: { omitDebtEnd: true },
+          },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      usable: false,
+    });
+    expect(amd?.debtPeriodEnd).toBeUndefined();
+    expect(amd?.enterpriseValue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(amd?.usable).toBe(false);
+    expect(result.artifact.peers.some((peer) => peer.symbol === "AMD" && peer.usable)).toBe(false);
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "SEC cash/debt period ends unavailable (cash 2026-06-29; debt missing)",
+      }),
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message:
+          "Peer AMD excluded from valuation comps: SEC cash/debt period ends unavailable (cash 2026-06-29; debt missing)",
+      }),
+    );
+  });
+
+  test("guards a peer whose debt period end is present but unparseable", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          secOverrides: {
+            AMD: { debtEnd: "2026-06-xx" },
+          },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      debtPeriodEnd: "2026-06-xx",
+      usable: false,
+    });
+    expect(amd?.enterpriseValue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(result.artifact.peers.some((peer) => peer.symbol === "AMD" && peer.usable)).toBe(false);
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason:
+          "SEC cash/debt period ends unavailable (cash 2026-06-29; debt 2026-06-xx unparseable)",
+      }),
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message:
+          "Peer AMD excluded from valuation comps: SEC cash/debt period ends unavailable (cash 2026-06-29; debt 2026-06-xx unparseable)",
+      }),
+    );
+  });
+
+  test("guards a peer whose debt period end is an invalid calendar date", async () => {
+    const result = await collectNvdaWithAmdDebtEnd("2026-06-31");
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      debtPeriodEnd: "2026-06-31",
+      usable: false,
+    });
+    expect(amd?.enterpriseValue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason:
+          "SEC cash/debt period ends unavailable (cash 2026-06-29; debt 2026-06-31 unparseable)",
+      }),
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message:
+          "Peer AMD excluded from valuation comps: SEC cash/debt period ends unavailable (cash 2026-06-29; debt 2026-06-31 unparseable)",
+      }),
+    );
+  });
+
+  test("guards a peer whose debt period end is not ISO YYYY-MM-DD", async () => {
+    const cases = [
+      { debtEnd: "06/29/2026", debtLabel: "06/29/2026 unparseable" },
+      { debtEnd: "2026-06", debtLabel: "2026-06 unparseable" },
+      { debtEnd: "2026-06-29 ", debtLabel: "2026-06-29  unparseable" },
+    ] as const;
+    for (const { debtEnd, debtLabel } of cases) {
+      const result = await collectNvdaWithAmdDebtEnd(debtEnd);
+      const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+      expect(amd?.debtPeriodEnd).toBe(debtEnd);
+      expect(amd?.usable).toBe(false);
+      expect(amd?.enterpriseValue).toBeUndefined();
+      expect(result.artifact.excludedPeers).toContainEqual(
+        expect.objectContaining({
+          symbol: "AMD",
+          reason: `SEC cash/debt period ends unavailable (cash 2026-06-29; debt ${debtLabel})`,
+        }),
+      );
+    }
+  });
+
+  test("does not treat a 9999-06-29 peer debt period end as a usable row", async () => {
+    const result = await collectNvdaWithAmdDebtEnd("9999-06-29");
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd?.usable).toBe(false);
+    expect(amd?.debtPeriodEnd).not.toBe("9999-06-29");
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(result.artifact.peers.some((peer) => peer.symbol === "AMD" && peer.usable)).toBe(false);
+  });
+
+  test("guards a peer whose cash and debt period ends are both stale", async () => {
+    const result = await collectNvdaWithAmdPeriodEnds({
+      cashEnd: "2011-06-29",
+      debtEnd: "2011-06-29",
+    });
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2011-06-29",
+      debtPeriodEnd: "2011-06-29",
+      usable: false,
+    });
+    expect(amd?.enterpriseValue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(amd?.sourceIds.length).toBeGreaterThan(0);
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason: "SEC cash/debt period ends stale (cash 2011-06-29; debt 2011-06-29)",
+      }),
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message:
+          "Peer AMD excluded from valuation comps: SEC cash/debt period ends stale (cash 2011-06-29; debt 2011-06-29)",
+      }),
+    );
+  });
+
+  test("guards a peer whose fresh debt is a zero-valued component standing in for total debt", async () => {
+    const result = await collectNvdaWithAmdPayload(
+      secPayloadWithGaap({
+        CashAndCashEquivalentsAtCarryingValue: {
+          units: { USD: [secFact(10, { end: "2026-06-30" })] },
+        },
+        LongTermDebt: {
+          units: {
+            USD: [
+              secFact(64_503_000_000, {
+                form: "10-K",
+                fp: "FY",
+                fy: 2025,
+                filed: "2026-02-20",
+                end: "2025-12-31",
+              }),
+            ],
+          },
+        },
+        ShortTermBorrowings: {
+          units: { USD: [secFact(0, { end: "2026-06-30" })] },
+        },
+      }),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 0,
+      cashPeriodEnd: "2026-06-30",
+      debtPeriodEnd: "2026-06-30",
+      usable: false,
+    });
+    expect(amd?.enterpriseValue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(amd?.sourceIds.length).toBeGreaterThan(0);
+    const reason =
+      "incomplete SEC debt basis: Debt composite for 2026-06-30 omits LongTermDebtNoncurrent because no eligible fact was selected for that component slot.";
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason,
+      }),
+    );
+    expect(reason).not.toContain("unparseable");
+    expect(reason).not.toContain("mixed-period");
+    expect(reason).not.toContain("stale");
+    expect(reason).not.toContain("unavailable");
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message: `Peer AMD excluded from valuation comps: ${reason}`,
+      }),
+    );
+  });
+
+  test("guards a peer whose debt composite is missing a component leg", async () => {
+    const result = await collectNvdaWithAmdPayload(
+      secPayloadWithoutLongTermDebt({
+        LongTermDebtNoncurrent: secFactUnits(20, 19),
+      }),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      debtPeriodEnd: "2026-06-29",
+      usable: false,
+    });
+    expect(amd?.enterpriseValue).toBeUndefined();
+    expect(amd?.evToAnnualizedRevenue).toBeUndefined();
+    expect(amd?.sourceIds.length).toBeGreaterThan(0);
+    const reason =
+      "incomplete SEC debt basis: Debt composite for 2026-06-29 omits LongTermDebtCurrent/ShortTermBorrowings/ShortTermDebt because no eligible fact was selected for that component slot.";
+    expect(result.artifact.excludedPeers).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        reason,
+      }),
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        source: "valuation-peers",
+        symbol: "AMD",
+        message: `Peer AMD excluded from valuation comps: ${reason}`,
+      }),
+    );
+  });
+
+  test("still treats a peer with a complete fresh debt composite as usable", async () => {
+    const result = await collectNvdaWithAmdPayload(
+      secPayloadWithoutLongTermDebt({
+        LongTermDebtCurrent: secFactUnits(5, 4),
+        LongTermDebtNoncurrent: secFactUnits(15, 14),
+      }),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      symbol: "AMD",
+      cash: 10,
+      debt: 20,
+      cashPeriodEnd: "2026-06-29",
+      debtPeriodEnd: "2026-06-29",
+      usable: true,
+    });
+    expect(amd?.enterpriseValue).toBe(400);
+    expect(amd?.evToAnnualizedRevenue).toBeDefined();
+    expect(result.artifact.excludedPeers.some((peer) => peer.symbol === "AMD")).toBe(false);
+  });
+
+  test("does not treat a 2011-09-30 peer debt period end as a usable row", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          secOverrides: {
+            AMD: { debtEnd: "2011-09-30" },
+          },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd?.debtPeriodEnd).toBe("2011-09-30");
+    expect(amd?.cashPeriodEnd).toBe("2026-06-29");
+    expect(amd?.usable).toBe(false);
+    expect(amd?.enterpriseValue).toBe(MIXED_PERIOD_METRIC);
+    expect(
+      result.artifact.peers.filter((peer) => peer.usable).map((peer) => peer.debtPeriodEnd),
+    ).not.toContain("2011-09-30");
+    expect(result.artifact.excludedPeers.some((peer) => peer.symbol === "AMD")).toBe(true);
+    expect(result.artifact.excludedPeers.find((peer) => peer.symbol === "AMD")?.reason).toContain(
+      "2011-09-30",
+    );
+    expect(result.artifact.excludedPeers.find((peer) => peer.symbol === "AMD")?.reason).toContain(
+      "2026-06-29",
+    );
+  });
+
+  test("mixed-period peer exclusion can drop comps to screening-only", async () => {
+    const result = await collectValuationComps(
+      collectContext(
+        requestExecutor({
+          secOverrides: {
+            AMD: { debtEnd: "2026-03-01" },
+          },
+        }),
+      ),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+      threePeerOptions,
+    );
+
+    expect(result.artifact.summary.usablePeerCount).toBe(2);
+    expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
+    expect(result.artifact.impliedPriceRange?.status).toBe("suppressed");
   });
 
   test("re-tags a peer SEC gap with the peer symbol when it lacks one", async () => {

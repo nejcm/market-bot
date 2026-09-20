@@ -4,12 +4,15 @@ import { sourceGap } from "../../domain/source-gaps";
 import type { ExtendedEvidence, ExtendedEvidenceItem, Source, SourceGap } from "../../domain/types";
 import { evidenceSource } from "./common";
 import {
+  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
+  MIXED_PERIOD_METRIC,
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
   SUPPORTABILITY_SUPPRESSION_CAUSE,
   SUPPRESSION_CAUSE,
   type PeerPacket,
   type ValuationCompsArtifact,
 } from "./valuation-comps-contract";
+import { readStringMetric } from "./utils";
 
 export function enrichValuationItem(
   item: ExtendedEvidenceItem,
@@ -187,4 +190,61 @@ export function peerImpliedRangeSuppressionGaps(
 
 export function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
+}
+
+export interface BalanceSheetPeriodDivergence {
+  readonly cashPeriodEnd: string;
+  readonly debtPeriodEnd: string;
+  readonly divergenceDays: number;
+}
+
+export function balanceSheetPeriodDivergence(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+): BalanceSheetPeriodDivergence | undefined {
+  const cashPeriodEnd = readStringMetric(metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(metrics, "debtPeriodEnd");
+  if (cashPeriodEnd === undefined || debtPeriodEnd === undefined) {
+    return undefined;
+  }
+  const cashPeriodMs = Date.parse(cashPeriodEnd);
+  const debtPeriodMs = Date.parse(debtPeriodEnd);
+  if (!Number.isFinite(cashPeriodMs) || !Number.isFinite(debtPeriodMs)) {
+    return undefined;
+  }
+  const divergenceDays = Math.abs(cashPeriodMs - debtPeriodMs) / DAY_MS;
+  return divergenceDays > MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+    ? { cashPeriodEnd, debtPeriodEnd, divergenceDays }
+    : undefined;
+}
+
+export function mixedPeriodMetrics(
+  metrics: Readonly<Record<string, number | string>> | undefined,
+  divergence: BalanceSheetPeriodDivergence,
+): Record<string, number | string> {
+  const retainedMetrics = Object.fromEntries(
+    Object.entries(metrics ?? {}).filter(
+      ([key]) => key !== "evToAnnualizedRevenue" && key !== "netDebtToMarketCap",
+    ),
+  );
+  return {
+    ...retainedMetrics,
+    cashPeriodEnd: divergence.cashPeriodEnd,
+    debtPeriodEnd: divergence.debtPeriodEnd,
+    netDebt: MIXED_PERIOD_METRIC,
+    enterpriseValue: MIXED_PERIOD_METRIC,
+  };
+}
+
+export function guardMixedPeriodValuationItem(
+  item: ExtendedEvidenceItem,
+  divergence: BalanceSheetPeriodDivergence | undefined,
+): ExtendedEvidenceItem {
+  if (divergence === undefined) {
+    return item;
+  }
+  return {
+    ...item,
+    summary: `Valuation Evidence: cash period end ${divergence.cashPeriodEnd} and debt period end ${divergence.debtPeriodEnd} diverge by ${String(divergence.divergenceDays)} days; enterprise value and net debt are mixed-period. Raw market cap, cash, debt, and revenue metrics are retained.`,
+    metrics: mixedPeriodMetrics(item.metrics, divergence),
+  };
 }

@@ -171,7 +171,8 @@ export type RunSearchSection =
   | "predictions"
   | "sources"
   | "dataGaps"
-  | "extendedEvidence";
+  | "extendedEvidence"
+  | "scenarios";
 
 export type ConsoleJobState = "queued" | "running" | "succeeded" | "failed";
 

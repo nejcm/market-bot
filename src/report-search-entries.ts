@@ -17,6 +17,7 @@ export const REPORT_SEARCH_SECTIONS = [
   "predictions",
   "sources",
   "extendedEvidence",
+  "scenarios",
   "openQuestions",
 ] as const;
 
@@ -77,7 +78,8 @@ type ReportSearchInputKey =
   | "dataGaps"
   | "predictions"
   | "sources"
-  | "extendedEvidence";
+  | "extendedEvidence"
+  | "scenarios";
 type ReportSearchInput = Partial<Readonly<Record<ReportSearchInputKey, unknown>>>;
 
 export function predictionClaim(prediction: Prediction): string {
@@ -350,6 +352,32 @@ function extendedEvidenceCandidates(report: ReportSearchInput): readonly ReportS
   }));
 }
 
+function scenarioCandidates(report: ReportSearchInput): readonly ReportSearchCandidate[] {
+  const value = report.scenarios;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => isRecord(item))
+    .flatMap((item, index) => {
+      const name = readStringVerbatim(item, "name");
+      const description = readStringVerbatim(item, "description");
+      if (name === undefined && description === undefined) {
+        return [];
+      }
+
+      return [
+        {
+          section: "scenarios" as const,
+          label: name === undefined || name === "" ? `Scenario ${String(index + 1)}` : name,
+          text: [name, description].filter((part) => part !== undefined && part !== "").join(" "),
+          sourceIds: readSourceIds(item),
+        },
+      ];
+    });
+}
+
 function extrasRecord(report: ReportSearchInput): Record<string, unknown> | undefined {
   const value = (report as Readonly<Record<string, unknown>>).extras;
   return isRecord(value) ? value : undefined;
@@ -471,6 +499,9 @@ export function reportSearchCandidates(
       pushCandidate(out, candidate);
     }
     for (const candidate of extendedEvidenceCandidates(report)) {
+      pushCandidate(out, candidate);
+    }
+    for (const candidate of scenarioCandidates(report)) {
       pushCandidate(out, candidate);
     }
   }

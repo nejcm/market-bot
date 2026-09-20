@@ -14,6 +14,10 @@ import {
   scanRunSubsystemOutcomesFromDisk,
 } from "../src/run-artifact-index";
 import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
+import { prepareRunArtifacts } from "../src/artifacts";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { persistRunArtifactWrites } from "../src/run-artifact-writer";
+import { loadRunArtifact } from "../src/run-artifacts";
 import { prediction, researchReport } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -179,6 +183,45 @@ function writeFixtureRun(dataDir: string, runDirName: string, runId: string = ru
   writeFileSync(join(runDir, "report.md"), "# Report\n", "utf8");
 }
 
+// Uses the real run-artifact writer, not a literal shaped to match the reader.
+async function writeScenarioRunViaWriter(dataDir: string, runDirName: string): Promise<void> {
+  const artifacts = await prepareRunArtifacts(dataDir, runDirName);
+  await persistRunArtifactWrites(artifacts, [
+    {
+      file: RUN_ARTIFACT_FILES.report,
+      kind: "json",
+      value: researchReport({
+        runId: runDirName,
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        scenarios: [
+          {
+            name: "Scenarioalpha upside path",
+            description: "Scenariobeta margin expansion holds through the horizon.",
+            sourceIds: ["s1"],
+          },
+        ],
+        sources: [
+          {
+            id: "s1",
+            title: "scenario source",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "news",
+            provider: "yahoo",
+            assetClass: "equity",
+            symbol: "AAPL",
+          },
+        ],
+      }),
+    },
+    { file: RUN_ARTIFACT_FILES.reportMarkdown, kind: "text", value: "# Report\n" },
+    { file: RUN_ARTIFACT_FILES.score, kind: "json", value: { runId: runDirName, scores: [] } },
+    { file: RUN_ARTIFACT_FILES.outcomes, kind: "json", value: [] },
+  ]);
+}
+
 describe("run artifact index parity", () => {
   test("indexed outcomes equal sidecar outcomes", async () => {
     const { dataDir, dbPath } = await tempDataDir();
@@ -325,6 +368,46 @@ describe("run artifact index parity", () => {
         diskSearch.map((entry) => searchResultKey(entry)).toSorted(),
       );
     }
+  });
+
+  test("scenario name and description are searchable with index and disk parity", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    await writeScenarioRunViaWriter(dataDir, "run-scenario");
+    const loaded = await loadRunArtifact(join(dataDir, "run-scenario"));
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+
+    const indexedByName = await searchRunReports(dataDir, { query: "Scenarioalpha" });
+    const indexedByDescription = await searchRunReports(dataDir, { query: "Scenariobeta" });
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const diskByName = await searchRunReports(dataDir, { query: "Scenarioalpha" });
+    const diskByDescription = await searchRunReports(dataDir, { query: "Scenariobeta" });
+
+    expect(loaded.artifact?.report.scenarios).toEqual([
+      {
+        name: "Scenarioalpha upside path",
+        description: "Scenariobeta margin expansion holds through the horizon.",
+        sourceIds: ["s1"],
+      },
+    ]);
+    expect(indexedByName.map((entry) => searchResultProjection(entry))).toEqual([
+      {
+        runId: "run-scenario",
+        section: "scenarios",
+        label: "Scenarioalpha upside path",
+        snippet:
+          "Scenarioalpha upside path Scenariobeta margin expansion holds through the horizon.",
+        sourceIds: ["s1"],
+      },
+    ]);
+    expect(indexedByDescription.map((entry) => searchResultProjection(entry))).toEqual(
+      indexedByName.map((entry) => searchResultProjection(entry)),
+    );
+    expect(diskByName.map((entry) => searchResultProjection(entry))).toEqual(
+      indexedByName.map((entry) => searchResultProjection(entry)),
+    );
+    expect(diskByDescription.map((entry) => searchResultProjection(entry))).toEqual(
+      indexedByDescription.map((entry) => searchResultProjection(entry)),
+    );
   });
 
   test("history search matches JSON index fallback", async () => {

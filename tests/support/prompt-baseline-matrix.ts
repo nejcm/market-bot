@@ -189,6 +189,29 @@ const historicalContext = {
   artifactDeltas: [],
 } as unknown as HistoricalResearchContext;
 
+// Keep the legacy prompt bytes while supplying the required runtime field.
+Object.defineProperty(historicalContext.runs[0]!, "dataGaps", { value: [] });
+
+const historicalGapContext: HistoricalResearchContext = {
+  ...historicalContext,
+  runs: [
+    {
+      ...historicalContext.runs[0]!,
+      runId: "run-historical-gaps",
+      dataGaps: [
+        "finnhub-analyst-range: analyst range unavailable",
+        "finnhub-eps-estimate: EPS estimates unavailable",
+        "finnhub-revenue-estimate: revenue estimates unavailable",
+        "finnhub-ebitda-estimate: EBITDA estimates unavailable",
+        "business-framework: Business Framework partial for AAPL: analyst-consensus: consensus unavailable",
+        "finnhub-events: dividend history unavailable",
+        "tradier-options: options evidence unavailable",
+        "business-framework: Business Framework partial for AAPL: segment-mix: segment mix unavailable",
+      ],
+    },
+  ],
+};
+
 const spotlightCandidate: SpotlightCandidate = {
   id: "cand-nvda",
   symbol: "NVDA",
@@ -469,6 +492,14 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
 
   add("stage:evidence-request", buildStagePrompt("evidence-request", stageInput()));
   add("stage:web-gather", buildStagePrompt("web-gather", stageInput()));
+  const historicalGapInput = stageInput({
+    context: { ...equityContext(), historicalContext: historicalGapContext },
+  });
+  add(
+    "stage:evidence-request:historical-gaps",
+    buildStagePrompt("evidence-request", historicalGapInput),
+  );
+  add("stage:web-gather:historical-gaps", buildStagePrompt("web-gather", historicalGapInput));
 
   add("stage:web-subject-profile:company", buildStagePrompt("web-subject-profile", stageInput()));
   add(

@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
+import { sourceGap } from "../src/domain/source-gaps";
 import type { ModelParams } from "../src/model/types";
 import type { Source, WebSearchType } from "../src/domain/types";
 import { runWebGatherLoop, type WebGatherStageOutput } from "../src/web-evidence/web-gather-loop";
@@ -102,6 +103,34 @@ const context: ResearchContext = {
   },
   calibrationContext: undefined,
 };
+
+const persistedGap = sourceGap({
+  source: "sec-edgar",
+  message: "SEC filing evidence remains unavailable",
+  capability: "extended-evidence",
+  cause: "fetch-failed",
+});
+
+function sourcesWithPersistedGap() {
+  return collectedSources({
+    sourceGaps: [persistedGap],
+    extendedEvidence: {
+      instrument: { assetClass: "equity", symbol: "AAPL" },
+      items: [],
+      gaps: [persistedGap],
+    },
+  });
+}
+
+function acquisitionTraps() {
+  const fetchImpl: FetchLike = mock(async () => {
+    throw new Error("unexpected provider call");
+  });
+  const generateRound = mock(async () => {
+    throw new Error("unexpected model call");
+  });
+  return { fetchImpl, generateRound };
+}
 
 function stage(content: unknown): WebGatherStageOutput {
   return {
@@ -325,19 +354,27 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.sourceGaps).toEqual([]);
   });
 
-  test("skips without an audit when web gather is disabled by config", async () => {
+  test("skips without calls or state loss when web gather is disabled by config", async () => {
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
     const result = await runWebGatherLoop({
       command,
       config: { ...config, webGatherDisabled: true },
-      collectedSources: collectedSources(),
+      collectedSources: sources,
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => stage({ requests: [] }),
+      fetchImpl,
+      generateRound,
     });
 
     expect(result.skipCode).toBe("disabled-by-config");
     expect(result.audit).toBeUndefined();
     expect(result.stageOutputs).toEqual([]);
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
   test("runs web gather for thematic list research", async () => {
@@ -390,8 +427,35 @@ describe("runWebGatherLoop", () => {
     },
   };
 
-  test("honors zero theme tool-call budget as disabled", async () => {
-    let generated = false;
+  test("honors zero round budget without calls or state loss", async () => {
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
+    const result = await runWebGatherLoop({
+      command,
+      config: {
+        ...config,
+        webGatherOptions: { ...config.webGatherOptions, maxRounds: 0 },
+      },
+      collectedSources: sources,
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      generateRound,
+    });
+
+    expect(result.skipCode).toBe("round-budget-zero");
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.stageOutputs).toEqual([]);
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources.extendedSources).toEqual([]);
+  });
+
+  test("honors zero theme tool-call budget without calls or state loss", async () => {
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
     const result = await runWebGatherLoop({
       command: {
         jobType: "research",
@@ -406,23 +470,26 @@ describe("runWebGatherLoop", () => {
           themeOverrides: { maxRounds: 1, maxToolCalls: 0, sourceBudget: 12 },
         },
       },
-      collectedSources: collectedSources(),
+      collectedSources: sources,
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => {
-        generated = true;
-        return stage({ requests: [] });
-      },
+      fetchImpl,
+      generateRound,
     });
 
-    expect(generated).toBe(false);
+    expect(result.skipCode).toBe("tool-call-budget-zero");
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources.sourceGaps).toEqual([]);
+    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
   test("honors zero theme source budget without emitting missing-key gap", async () => {
-    let generated = false;
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
     const sourceOptionsWithoutExa = { ...themeBudgetConfig.sourceOptions };
     delete sourceOptionsWithoutExa.exaApiKey;
     const result = await runWebGatherLoop({
@@ -440,23 +507,26 @@ describe("runWebGatherLoop", () => {
           themeOverrides: { maxRounds: 1, maxToolCalls: 6, sourceBudget: 0 },
         },
       },
-      collectedSources: collectedSources(),
+      collectedSources: sources,
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => {
-        generated = true;
-        return stage({ requests: [] });
-      },
+      fetchImpl,
+      generateRound,
     });
 
-    expect(generated).toBe(false);
+    expect(result.skipCode).toBe("missing-exa-credential");
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources.sourceGaps).toEqual([]);
+    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
   test("honors zero base tool-call budget as disabled for theme overrides", async () => {
-    let generated = false;
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
     const result = await runWebGatherLoop({
       command: {
         jobType: "research",
@@ -471,23 +541,26 @@ describe("runWebGatherLoop", () => {
           maxToolCalls: 0,
         },
       },
-      collectedSources: collectedSources(),
+      collectedSources: sources,
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => {
-        generated = true;
-        return stage({ requests: [] });
-      },
+      fetchImpl,
+      generateRound,
     });
 
-    expect(generated).toBe(false);
+    expect(result.skipCode).toBe("tool-call-budget-zero");
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources.sourceGaps).toEqual([]);
+    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
   test("honors zero base source budget without emitting theme missing-key gap", async () => {
-    let generated = false;
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
     const sourceOptionsWithoutExa = { ...themeBudgetConfig.sourceOptions };
     delete sourceOptionsWithoutExa.exaApiKey;
     const result = await runWebGatherLoop({
@@ -505,19 +578,21 @@ describe("runWebGatherLoop", () => {
           sourceBudget: 0,
         },
       },
-      collectedSources: collectedSources(),
+      collectedSources: sources,
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => {
-        generated = true;
-        return stage({ requests: [] });
-      },
+      fetchImpl,
+      generateRound,
     });
 
-    expect(generated).toBe(false);
+    expect(result.skipCode).toBe("missing-exa-credential");
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
-    expect(result.collectedSources.sourceGaps).toEqual([]);
+    expect(result.collectedSources).toBe(sources);
+    expect(result.collectedSources.sourceGaps).toEqual([persistedGap]);
+    expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
   test("applies the theme web-gather budget for thematic runs", async () => {
@@ -895,19 +970,26 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.acceptedRequests).toHaveLength(1);
   });
 
-  test("emits search-unavailable gap when Exa is absent for eligible deep runs", async () => {
+  test("emits search-unavailable gap without calls or fabricated coverage when Exa is absent", async () => {
     const { exaApiKey: _exaApiKey, ...sourceOptionsWithoutExa } = config.sourceOptions;
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
     const result = await runWebGatherLoop({
       command,
       config: { ...config, sourceOptions: sourceOptionsWithoutExa },
-      collectedSources: collectedSources(),
+      collectedSources: sources,
       context,
       now: new Date("2026-05-19T00:00:00.000Z"),
-      generateRound: async () => stage({ requests: [] }),
+      fetchImpl,
+      generateRound,
     });
 
+    expect(result.skipCode).toBe("missing-exa-credential");
     expect(result.stageOutputs).toEqual([]);
     expect(result.audit).toBeUndefined();
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.collectedSources.sourceGaps).toContainEqual(persistedGap);
     expect(result.collectedSources.sourceGaps).toContainEqual(
       expect.objectContaining({
         source: "web-gather",
@@ -921,6 +1003,7 @@ describe("runWebGatherLoop", () => {
     expect(result.collectedSources.extendedEvidence?.gaps).toEqual(
       result.collectedSources.sourceGaps,
     );
+    expect(result.collectedSources.extendedSources).toEqual([]);
   });
 
   test("emits search-unavailable gap when Exa is absent for thematic research", async () => {

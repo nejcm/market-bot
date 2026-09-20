@@ -13,6 +13,21 @@ function sha256(text: string): string {
   return new Bun.CryptoHasher("sha256").update(text).digest("hex");
 }
 
+function historicalDataGaps(key: string): readonly string[] {
+  const baseline = promptBaselineCases().find((candidate) => candidate.key === key);
+  if (baseline === undefined) {
+    throw new Error(`Missing prompt baseline case ${key}`);
+  }
+  const prompt = JSON.parse(baseline.text) as {
+    readonly evidence: {
+      readonly historicalContext: {
+        readonly runs: readonly { readonly dataGaps: readonly string[] }[];
+      };
+    };
+  };
+  return prompt.evidence.historicalContext.runs[0]?.dataGaps ?? [];
+}
+
 describe("prompt baseline", () => {
   test("prompt hashes match the checked-in goldens", async () => {
     const hashes: Record<string, string> = {};
@@ -39,5 +54,26 @@ describe("prompt baseline", () => {
     expect(second.map(({ key, text }) => `${key}:${sha256(text)}`)).toEqual(
       first.map(({ key, text }) => `${key}:${sha256(text)}`),
     );
+  });
+
+  test("historical-gap cases retain the complete and Web Gather views", () => {
+    const hidden = [
+      "finnhub-analyst-range: analyst range unavailable",
+      "finnhub-eps-estimate: EPS estimates unavailable",
+      "finnhub-revenue-estimate: revenue estimates unavailable",
+      "finnhub-ebitda-estimate: EBITDA estimates unavailable",
+      "business-framework: Business Framework partial for AAPL: analyst-consensus: consensus unavailable",
+    ];
+    const retained = [
+      "finnhub-events: dividend history unavailable",
+      "tradier-options: options evidence unavailable",
+      "business-framework: Business Framework partial for AAPL: segment-mix: segment mix unavailable",
+    ];
+
+    expect(historicalDataGaps("stage:evidence-request:historical-gaps")).toEqual([
+      ...hidden,
+      ...retained,
+    ]);
+    expect(historicalDataGaps("stage:web-gather:historical-gaps")).toEqual(retained);
   });
 });

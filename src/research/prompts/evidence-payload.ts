@@ -19,7 +19,11 @@ import { buildCalibrationBlock } from "../calibration-context";
 import type { SpotlightSelectionResult } from "../spotlights";
 import { deterministicSourceGaps } from "../deterministic-gaps";
 import { moverLimitFor } from "../depth-profile";
-import { collectedSourcesForGapView, type SourceGapView } from "./source-gap-view";
+import {
+  collectedSourcesForGapView,
+  sourceGapVisibleForView,
+  type SourceGapView,
+} from "./source-gap-view";
 import { isFreshWebSource, userSteeringField } from "./steering";
 
 function normalizedSymbol(symbol: string): string {
@@ -289,7 +293,9 @@ export function buildEvidencePayload(
     newsSources: collectedSources.newsSources,
     ...evidenceProjections,
     ...(historicalContext !== undefined
-      ? { historicalContext: compactHistoricalContext(historicalContext) }
+      ? {
+          historicalContext: compactHistoricalContext(historicalContext, options.sourceGapView),
+        }
       : {}),
     ...(context.spotlightCandidates !== undefined
       ? { spotlightCandidates: context.spotlightCandidates }
@@ -315,15 +321,35 @@ export function buildEvidencePayload(
   };
 }
 
+function historicalRunsForGapView(
+  runs: HistoricalResearchContext["runs"],
+  sourceGapView: SourceGapView,
+): HistoricalResearchContext["runs"] {
+  if (sourceGapView === "all") {
+    return runs;
+  }
+  let changed = false;
+  const projectedRuns = runs.map((run) => {
+    const dataGaps = run.dataGaps.filter((gap) => sourceGapVisibleForView(sourceGapView, gap));
+    if (dataGaps.length === run.dataGaps.length) {
+      return run;
+    }
+    changed = true;
+    return { ...run, dataGaps };
+  });
+  return changed ? projectedRuns : runs;
+}
+
 export function compactHistoricalContext(
   context: HistoricalResearchContext,
+  sourceGapView: SourceGapView,
 ): Record<string, unknown> {
   return {
     generatedAt: context.generatedAt,
     recentDays: context.recentDays,
     anchorMonths: context.anchorMonths,
     sourceIds: context.sources.map((source) => source.id),
-    runs: context.runs,
+    runs: historicalRunsForGapView(context.runs, sourceGapView),
     gaps: context.gaps,
     audit: context.audit,
     artifactDeltas: context.artifactDeltas,

@@ -11,6 +11,7 @@ import {
   type Prediction,
   type ProviderInstrumentId,
   type ResearchReport,
+  type Scenario,
   type Source,
   type SourceGap,
   type SourceGapAttemptClassification,
@@ -77,6 +78,24 @@ function readFindings(value: unknown): readonly KeyFinding[] {
       return [];
     }
     return [{ text: item.text, sourceIds: nonEmptyStringArrayValue(item.sourceIds) }];
+  });
+}
+
+function readScenarios(value: unknown): readonly Scenario[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item): readonly Scenario[] => {
+    if (!isRecord(item) || typeof item.name !== "string" || typeof item.description !== "string") {
+      return [];
+    }
+    return [
+      {
+        name: item.name,
+        description: item.description,
+        sourceIds: nonEmptyStringArrayValue(item.sourceIds),
+      },
+    ];
   });
 }
 
@@ -371,7 +390,7 @@ export function readReport(value: unknown): ResearchReport | undefined {
     bearCase: readFindings(value.bearCase),
     risks: readFindings(value.risks),
     catalysts: readFindings(value.catalysts),
-    scenarios: [],
+    scenarios: readScenarios(value.scenarios),
     ...(evidenceQuality !== undefined
       ? { evidenceQuality }
       : { confidence: legacyConfidence ?? "low" }),

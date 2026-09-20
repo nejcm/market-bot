@@ -9,6 +9,8 @@ import type { ResearchReport, RunTrace, SourceGap } from "../src/domain/types";
 import { prepareRunArtifacts } from "../src/artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
+import { readRunDetail } from "../app/artifacts";
+import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import {
   buildAlphaSearchManifest,
   buildFailedRunManifest,
@@ -34,6 +36,7 @@ import {
   collectedSources,
   deepEquityEvidenceBundle,
   marketSnapshot,
+  newsSource,
   researchReport,
   reverseDcfArtifact,
   valuationWorkbench,
@@ -347,6 +350,44 @@ describe("run artifact writer manifests", () => {
     const loaded = await loadRunArtifact(artifacts.runDir);
 
     expect(loaded.artifact?.report.extendedEvidence?.gaps[0]?.attempts).toEqual(attempts);
+  });
+
+  test("persisted scenarios survive the run detail read into the console workspace view", async () => {
+    const dataDir = tempDir();
+    const runId = "scenario-round-trip";
+    const source = newsSource({ id: "news-aapl-1" });
+    const scenarios = [
+      { name: "Base case", description: "Demand holds.", sourceIds: [source.id] },
+      { name: "Downside case", description: "Demand softens.", sourceIds: [source.id] },
+    ];
+    const artifacts = await prepareRunArtifacts(dataDir, runId);
+    await persistRunArtifactWrites(
+      artifacts,
+      buildResearchRunManifest(
+        equityCommand,
+        config,
+        result({
+          report: researchReport({
+            runId,
+            jobType: "equity",
+            assetClass: "equity",
+            symbol: "AAPL",
+            sources: [source],
+            scenarios,
+          }),
+        }),
+      ),
+    );
+
+    const detail = await readRunDetail(dataDir, runId);
+    if (detail === undefined) {
+      throw new Error("Expected run detail for the persisted scenario run");
+    }
+    const view = buildRunWorkspaceView(detail);
+
+    expect(view.report.scenarios).toEqual(scenarios);
+    expect(view.equityPresentation?.advanced.scenarios).toEqual(scenarios);
+    expect(view.tableOfContents.some((entry) => entry.key === "scenarios")).toBe(true);
   });
 
   test("research equity brief manifest preserves instrument null policies", () => {

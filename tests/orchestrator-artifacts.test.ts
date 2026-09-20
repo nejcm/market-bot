@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
+import { sourceGap } from "../src/domain/source-gaps";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import {
   collectedSources as collectedSourceBundle,
@@ -20,10 +21,22 @@ import {
 } from "./support/orchestrator-helpers";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { listRunSummaries, readRunDetail, searchRunReports } from "../app/artifacts";
+import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
+import { readGapTriage } from "../src/report/gap-triage";
+import { renderMarkdownReport } from "../src/report/markdown";
+import { validateResearchReport } from "../src/report/schema";
+import { rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import type { ResearchReport, SourceGap } from "../src/domain/types";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { readReport } from "../src/run-artifact-report-reader";
+import { readSnapshots } from "../src/run-artifact-snapshot-reader";
+import { assertSourceIdClosure } from "./support/run-fixtures/financial-invariants";
 
 const { dataDirs, cleanupDataDirs, tempDataDir } = createDataDirRegistry();
+const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
+const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
 
 const AMD_DATED_SUMMARY =
   "AMD's operating evidence supports a high-growth Data Center and AI infrastructure thesis, with substantial revenue, profit, and cash-flow expansion through 2026-06-27.";
@@ -45,6 +58,23 @@ const PRUNED_NUMERIC_ITEM = {
   text: NUMERIC_FINDING,
   sourceIds: [HISTORY_SOURCE],
 } as const;
+const MATERIAL_STRUCTURED_GAP = sourceGap({
+  source: "sec-company-facts",
+  message: "Issuer revenue facts were not returned for this run.",
+  cause: "provider-data-missing",
+  capability: "extended-evidence",
+  evidenceQualityImpact: "no-cap",
+  triage: "material",
+});
+const DIAGNOSTIC_STRUCTURED_GAP = sourceGap({
+  source: "finnhub-eps-estimate",
+  message: "endpoint is unavailable for the configured token (status 403)",
+  cause: "unsupported-coverage",
+  capability: "extended-evidence",
+  evidenceQualityImpact: "no-cap",
+  triage: "diagnostic",
+});
+const STRUCTURED_SOURCE_GAPS = [MATERIAL_STRUCTURED_GAP, DIAGNOSTIC_STRUCTURED_GAP];
 
 interface DiskAdvisory {
   readonly code: string;
@@ -112,6 +142,114 @@ async function readIntegrityArtifacts(runDir: string) {
   };
 }
 
+function restoreIndexEnv() {
+  if (originalIndexDbPath === undefined) {
+    delete process.env.MARKET_BOT_INDEX_DB_PATH;
+  } else {
+    process.env.MARKET_BOT_INDEX_DB_PATH = originalIndexDbPath;
+  }
+  if (originalIndexDisable === undefined) {
+    delete process.env.MARKET_BOT_INDEX_DISABLE;
+  } else {
+    process.env.MARKET_BOT_INDEX_DISABLE = originalIndexDisable;
+  }
+}
+
+async function assertDownstreamPresentation(
+  dataDir: string,
+  runDir: string,
+  searchQuery: string,
+  options: { readonly equityPresentation: boolean },
+) {
+  const runId = basename(runDir);
+  const raw = JSON.parse(
+    await readFile(join(runDir, RUN_ARTIFACT_FILES.report), "utf8"),
+  ) as unknown;
+  const report = validateResearchReport(raw as ResearchReport);
+  const readerReport = readReport(raw);
+  expect(readerReport).toBeDefined();
+  expect(readerReport?.summary).toBe(report.summary);
+  expect(readerReport?.dataGaps).toEqual(report.dataGaps);
+  const markdown = await readFile(join(runDir, RUN_ARTIFACT_FILES.reportMarkdown), "utf8");
+  const sourceGaps = JSON.parse(
+    await readFile(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), "utf8"),
+  ) as readonly SourceGap[];
+  expect(sourceGaps.length).toBeGreaterThan(0);
+  const snapshots = readSnapshots(
+    JSON.parse(await readFile(join(runDir, RUN_ARTIFACT_FILES.marketSnapshots), "utf8")) as unknown,
+  );
+  const snapshot = snapshots.find(
+    (item) =>
+      report.symbol !== undefined && item.symbol.toUpperCase() === report.symbol.toUpperCase(),
+  );
+  expect(markdown).toBe(renderMarkdownReport(report, snapshot, { sourceGaps }));
+  assertSourceIdClosure(raw, new Set(report.sources.map((source) => source.id)));
+
+  const detail = await readRunDetail(dataDir, runId);
+  expect(detail).toBeDefined();
+  if (detail === undefined) {
+    throw new Error(`missing run detail for ${runId}`);
+  }
+  const persistedSourceGaps = detail.sourceGaps;
+  expect(persistedSourceGaps).toBeDefined();
+  if (persistedSourceGaps === undefined) {
+    throw new Error(`missing sourceGaps for ${runId}`);
+  }
+  expect(sourceGaps).toEqual(persistedSourceGaps);
+  expect(detail.summary.availableFiles).not.toContain(RUN_ARTIFACT_FILES.evidenceBundle);
+  expect(detail.markdown).toBe(markdown);
+  const view = buildRunWorkspaceView(detail);
+  expect(view.report.summary).toBe(report.summary);
+  expect(view.report.markdown).toBe(markdown);
+  expect(view.report.findings.map((finding) => finding.text)).toEqual(
+    report.keyFindings.map((finding) => finding.text),
+  );
+  expect(view.report.findings.map((finding) => finding.sourceIds)).toEqual(
+    report.keyFindings.map((finding) => finding.sourceIds),
+  );
+  expect(view.sources.items.map((source) => source.id)).toEqual(
+    report.sources.map((source) => source.id),
+  );
+  if (options.equityPresentation) {
+    expect(view.equityPresentation).toBeDefined();
+  } else {
+    expect(view.equityPresentation).toBeUndefined();
+  }
+  for (const gap of report.dataGaps) {
+    const triage = readGapTriage(gap, persistedSourceGaps, report.symbol);
+    expect(view.gaps.triagedGaps.filter((item) => item.text === gap)).toHaveLength(1);
+    expect(view.gaps.triagedGaps).toContainEqual({ text: gap, triage });
+    const { equityPresentation } = view;
+    if (equityPresentation === undefined) {
+      continue;
+    }
+    const { materialGaps } = equityPresentation.defaultView;
+    const { diagnosticGaps } = equityPresentation.advanced;
+    if (triage === "material") {
+      expect(materialGaps).toContain(gap);
+      expect(diagnosticGaps).not.toContain(gap);
+    } else {
+      expect(diagnosticGaps).toContain(gap);
+      expect(materialGaps).not.toContain(gap);
+    }
+  }
+
+  const dbPath = join(dataDir, "index.sqlite");
+  process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+  delete process.env.MARKET_BOT_INDEX_DISABLE;
+  await rebuildRunArtifactIndex(dataDir, { dbPath });
+  const indexedSummaries = await listRunSummaries(dataDir);
+  const indexedSearch = await searchRunReports(dataDir, { query: searchQuery });
+  process.env.MARKET_BOT_INDEX_DISABLE = "1";
+  const diskSummaries = await listRunSummaries(dataDir);
+  const diskSearch = await searchRunReports(dataDir, { query: searchQuery });
+  expect(indexedSummaries).toEqual(diskSummaries);
+  expect(indexedSearch.map((entry) => entry.run.runId)).toEqual(
+    diskSearch.map((entry) => entry.run.runId),
+  );
+  expect(indexedSearch.length).toBeGreaterThan(0);
+}
+
 function datedSynthesisPayload(
   summary: string,
   extraFindings: readonly { readonly text: string; readonly sourceIds: readonly string[] }[] = [],
@@ -160,14 +298,51 @@ async function persistDatedIntegrityJob(
       ],
       marketContext,
       marketContextSources,
-      sourceGaps: [],
+      sourceGaps: STRUCTURED_SOURCE_GAPS,
     }),
     now: new Date("2026-05-19T00:00:00.000Z"),
   });
   return { dataDir, result };
 }
 
-afterEach(cleanupDataDirs);
+async function persistEquityPresentationJob() {
+  const dataDir = tempDataDir("market-bot-equity-presentation");
+  const result = await persistResearchJob({
+    command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    config: { ...config, dataDir },
+    provider: providerReturning(
+      JSON.stringify({
+        summary: AMD_DATED_SUMMARY,
+        keyFindings: [
+          { text: CITED_FINDING, sourceIds: ["market-aapl"] },
+          { text: "Coverage remains incomplete. [stale]", sourceIds: ["market-aapl"] },
+        ],
+        bullCase: [],
+        bearCase: [],
+        risks: [{ text: "Source coverage can change.", sourceIds: ["market-aapl"] }],
+        catalysts: [],
+        scenarios: [
+          { name: "Base", description: "Evidence remains relevant.", sourceIds: ["market-aapl"] },
+        ],
+        confidence: "medium",
+        dataGaps: [COVERAGE_GAP],
+        predictions: mockPredictions(3, "AAPL"),
+      }),
+    ),
+    collectedSources: collectedSourceBundle({
+      marketSnapshots,
+      newsSources,
+      sourceGaps: STRUCTURED_SOURCE_GAPS,
+    }),
+    now: new Date("2026-05-19T00:00:00.000Z"),
+  });
+  return { dataDir, result };
+}
+
+afterEach(async () => {
+  restoreIndexEnv();
+  await cleanupDataDirs();
+});
 
 describe("runResearchJob artifact persistence", () => {
   test("persists raw, normalized, report, markdown, and trace artifacts", async () => {
@@ -547,6 +722,9 @@ describe("runResearchJob artifact persistence", () => {
       report.predictions.every((prediction) => prediction.sourceIds.includes("market-aapl")),
     ).toBe(true);
     expect(report.dataGaps).toContain(COVERAGE_GAP);
+    await assertDownstreamPresentation(dataDir, result.artifacts.runDir, "Helios", {
+      equityPresentation: false,
+    });
   });
 
   test("persists a dated summary with a real numeric claim as advisory and prunes unsupported quantities", async () => {
@@ -585,5 +763,27 @@ describe("runResearchJob artifact persistence", () => {
     expect(report.dataGaps).toContain(COVERAGE_GAP);
     expect(traceAudit.prunedItemCount).toBe(traceAudit.pruned.length);
     expect(analyticsIntegrity.prunedItemCount).toBe(traceAudit.prunedItemCount);
+    await assertDownstreamPresentation(dataDir, result.artifacts.runDir, "Helios", {
+      equityPresentation: false,
+    });
+    const markdown = await readFile(
+      join(result.artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown),
+      "utf8",
+    );
+    expect(markdown).not.toContain(NUMERIC_FINDING);
+  });
+
+  test("persists equity presentation gaps through markdown, Console Simple/Advanced, and index/disk parity", async () => {
+    const { dataDir, result } = await persistEquityPresentationJob();
+    expect(result.artifacts.runDir.startsWith(dataDir)).toBe(true);
+    const markdown = await readFile(
+      join(result.artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown),
+      "utf8",
+    );
+    expect(markdown).toContain(AMD_DATED_SUMMARY);
+    expect(result.report.jobType).toBe("equity");
+    await assertDownstreamPresentation(dataDir, result.artifacts.runDir, "Helios", {
+      equityPresentation: true,
+    });
   });
 });

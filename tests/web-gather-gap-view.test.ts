@@ -1,13 +1,17 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { InstrumentCommand, ResearchCommand } from "../src/cli/args";
 import { sourceGap } from "../src/domain/source-gaps";
-import type { RunTrace, SourceGap } from "../src/domain/types";
+import type { ResearchReport, RunTrace, SourceGap } from "../src/domain/types";
 import { prepareRunArtifacts } from "../src/artifacts";
+import { listRunSummaries, readRunDetail, searchRunReports } from "../app/artifacts";
+import { buildRunWorkspaceView } from "../app/client/run-workspace-view";
 import { buildDeepEquityEvidenceBundle } from "../src/deep-equity/evidence";
+import { readGapTriage } from "../src/report/gap-triage";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { validateResearchReport } from "../src/report/schema";
 import { deterministicSourceGapEntries } from "../src/research/deterministic-gaps";
 import {
   createHistoricalContextReader,
@@ -21,6 +25,9 @@ import {
 } from "../src/research/prompts/source-gap-view";
 import { assembleResearchReport, buildSourceList } from "../src/research/report-assembly";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
+import { rebuildRunArtifactIndex } from "../src/run-artifact-index";
+import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { readReport } from "../src/run-artifact-report-reader";
 import { buildResearchRunManifest, persistRunArtifactWrites } from "../src/run-artifact-writer";
 import { collectAnalystExpectations } from "../src/sources/extended-evidence/analyst-expectations";
 import {
@@ -39,6 +46,7 @@ import {
   contextWithHistory,
   stagePromptFromArgs,
 } from "./support/research-context-helpers";
+import { assertSourceIdClosure } from "./support/run-fixtures/financial-invariants";
 
 const command: ResearchCommand = {
   jobType: "equity",
@@ -362,6 +370,7 @@ function priorTrace(runId: string, at: string): RunTrace {
 }
 
 interface AmdHistoryFixture {
+  readonly dataDir: string;
   readonly history: HistoricalResearchContext;
   readonly reportGapTexts: readonly (readonly string[])[];
 }
@@ -439,6 +448,7 @@ async function amdHistoryFixture(): Promise<AmdHistoryFixture> {
         now: new Date("2026-09-19T00:00:00.000Z"),
       });
       return {
+        dataDir,
         history: loaded.context,
         reportGapTexts: reports.map((report) => report.dataGaps),
       };
@@ -818,6 +828,124 @@ describe("Web Gather historical Source Gap view", () => {
     expect(fixture.history.runs.map((run) => run.dataGaps)).toEqual(
       fixture.reportGapTexts.map((gaps) => gaps.slice(0, historicalDataGapLimit)),
     );
+  });
+
+  test("exposes persisted historical gaps through markdown, Console, source-ID closure, and index/disk parity", async () => {
+    const fixture = await amdHistoryFixture();
+    const originalIndexDbPath = process.env.MARKET_BOT_INDEX_DB_PATH;
+    const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
+    try {
+      for (const runId of fixture.history.runs.map((run) => run.runId)) {
+        const runDir = join(fixture.dataDir, runId);
+        const raw = JSON.parse(
+          await readFile(join(runDir, RUN_ARTIFACT_FILES.report), "utf8"),
+        ) as unknown;
+        const report = validateResearchReport(raw as ResearchReport);
+        const readerReport = readReport(raw);
+        expect(readerReport).toBeDefined();
+        expect(readerReport?.dataGaps).toEqual(report.dataGaps);
+        const markdown = await readFile(join(runDir, RUN_ARTIFACT_FILES.reportMarkdown), "utf8");
+        const persistedGaps = JSON.parse(
+          await readFile(join(runDir, RUN_ARTIFACT_FILES.sourceGaps), "utf8"),
+        ) as readonly SourceGap[];
+        const trace = JSON.parse(
+          await readFile(join(runDir, RUN_ARTIFACT_FILES.trace), "utf8"),
+        ) as RunTrace;
+        expect(report.dataGaps).toEqual(priorAmdReportGapTexts);
+        expect(report.summary).toBe(`${runId} AMD research summary.`);
+        expect(persistedGaps.map((gap) => gap.source)).toEqual(
+          priorAmdSourceGaps.map((gap) => gap.source),
+        );
+        expect(trace.sourceGaps).toEqual(priorAmdGapTexts);
+        for (const prefix of excludedHistoricalPrefixes) {
+          expect(report.dataGaps.some((gap) => gap.startsWith(`${prefix}:`))).toBe(true);
+          expect(trace.sourceGaps.some((gap) => gap.startsWith(`${prefix}:`))).toBe(true);
+        }
+        expect(report.dataGaps.some((gap) => gap.includes("analyst-consensus"))).toBe(true);
+        // Fixture wrote markdown via renderMarkdownReport; this pins report.json round-trip, not orchestrator.md production.
+        expect(markdown).toBe(renderMarkdownReport(report));
+        assertSourceIdClosure(raw, new Set(report.sources.map((source) => source.id)));
+
+        const detail = await readRunDetail(fixture.dataDir, runId);
+        expect(detail).toBeDefined();
+        if (detail === undefined) {
+          throw new Error(`missing run detail for ${runId}`);
+        }
+        const persistedSourceGaps = detail.sourceGaps;
+        expect(persistedSourceGaps).toBeDefined();
+        if (persistedSourceGaps === undefined) {
+          throw new Error(`missing sourceGaps for ${runId}`);
+        }
+        expect(persistedGaps).toEqual(persistedSourceGaps);
+        expect(detail.summary.availableFiles).not.toContain(RUN_ARTIFACT_FILES.evidenceBundle);
+        expect(detail.markdown).toBe(markdown);
+        const view = buildRunWorkspaceView(detail);
+        expect(view.equityPresentation).toBeDefined();
+        expect(view.report.summary).toBe(report.summary);
+        expect(view.report.markdown).toBe(markdown);
+        expect(view.report.findings.map((finding) => finding.text)).toEqual(
+          report.keyFindings.map((finding) => finding.text),
+        );
+        expect(view.report.findings.map((finding) => finding.sourceIds)).toEqual(
+          report.keyFindings.map((finding) => finding.sourceIds),
+        );
+        expect(view.sources.items.map((source) => source.id)).toEqual(
+          report.sources.map((source) => source.id),
+        );
+        const { equityPresentation } = view;
+        if (equityPresentation === undefined) {
+          throw new Error(`missing equity presentation for ${runId}`);
+        }
+        for (const gap of report.dataGaps) {
+          const triage = readGapTriage(gap, persistedSourceGaps, report.symbol);
+          expect(view.gaps.triagedGaps.filter((item) => item.text === gap)).toHaveLength(1);
+          expect(view.gaps.triagedGaps).toContainEqual({ text: gap, triage });
+          const { materialGaps } = equityPresentation.defaultView;
+          const { diagnosticGaps } = equityPresentation.advanced;
+          if (triage === "material") {
+            expect(materialGaps).toContain(gap);
+            expect(diagnosticGaps).not.toContain(gap);
+          } else {
+            expect(diagnosticGaps).toContain(gap);
+            expect(materialGaps).not.toContain(gap);
+          }
+        }
+      }
+
+      const dbPath = join(fixture.dataDir, "index.sqlite");
+      process.env.MARKET_BOT_INDEX_DB_PATH = dbPath;
+      delete process.env.MARKET_BOT_INDEX_DISABLE;
+      await rebuildRunArtifactIndex(fixture.dataDir, { dbPath });
+      const indexedSummaries = await listRunSummaries(fixture.dataDir);
+      const indexedSearch = await searchRunReports(fixture.dataDir, {
+        query: "finnhub-eps-estimate",
+      });
+      process.env.MARKET_BOT_INDEX_DISABLE = "1";
+      const diskSummaries = await listRunSummaries(fixture.dataDir);
+      const diskSearch = await searchRunReports(fixture.dataDir, {
+        query: "finnhub-eps-estimate",
+      });
+      expect(indexedSummaries).toEqual(diskSummaries);
+      expect(indexedSearch.map((entry) => entry.run.runId)).toEqual(
+        diskSearch.map((entry) => entry.run.runId),
+      );
+      expect(indexedSearch.map((entry) => entry.run.runId)).toEqual([
+        "amd-prior-1",
+        "amd-prior-2",
+        "amd-prior-3",
+      ]);
+    } finally {
+      if (originalIndexDbPath === undefined) {
+        delete process.env.MARKET_BOT_INDEX_DB_PATH;
+      } else {
+        process.env.MARKET_BOT_INDEX_DB_PATH = originalIndexDbPath;
+      }
+      if (originalIndexDisable === undefined) {
+        delete process.env.MARKET_BOT_INDEX_DISABLE;
+      } else {
+        process.env.MARKET_BOT_INDEX_DISABLE = originalIndexDisable;
+      }
+    }
   });
 
   test("keeps current AMD Source Gap filtering in the actual Web Gather prompt", () => {

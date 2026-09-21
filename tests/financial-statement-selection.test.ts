@@ -359,11 +359,17 @@ describe("financial statement selection", () => {
         concepts: { "us-gaap": ["LongTermDebt"], "ifrs-full": ["Borrowings"] },
         components: [
           {
-            "us-gaap": ["LongTermDebtCurrent", "ShortTermBorrowings", "ShortTermDebt"],
+            "us-gaap": [
+              "LongTermDebtCurrent",
+              "DebtCurrent",
+              "LongTermDebtAndCapitalLeaseObligationsCurrent",
+              "ShortTermBorrowings",
+              "ShortTermDebt",
+            ],
             "ifrs-full": ["CurrentBorrowings"],
           },
           {
-            "us-gaap": ["LongTermDebtNoncurrent"],
+            "us-gaap": ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
             "ifrs-full": ["NoncurrentBorrowings"],
           },
         ],

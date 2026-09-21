@@ -51,7 +51,7 @@ export function eligibleMaraRevenueFacts(
   const candidates = rawConcept.units.USD.flatMap((value) => {
     const fact = readSecFactValue(value);
     const months = fact === undefined ? undefined : periodMonths(fact);
-    return fact?.form === "10-K" &&
+    return fact?.canonicalForm === "10-K" &&
       fact.end !== undefined &&
       fact.filed !== undefined &&
       months !== undefined &&

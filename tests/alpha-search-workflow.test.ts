@@ -257,8 +257,8 @@ function unmappedSecAtomPayload(): string {
 
 function secCompanyFactsPayload(): unknown {
   const annual = [
-    { val: 100, form: "10-K", fy: 2025, filed: "2026-02-01", end: "2025-12-31" },
-    { val: 80, form: "10-K", fy: 2024, filed: "2025-02-01", end: "2024-12-31" },
+    { val: 100, form: "10-K", fy: 2025, fp: "FY", filed: "2026-02-01", end: "2025-12-31" },
+    { val: 80, form: "10-K", fy: 2024, fp: "FY", filed: "2025-02-01", end: "2024-12-31" },
   ];
   return {
     facts: {

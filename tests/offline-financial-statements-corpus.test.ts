@@ -11,7 +11,7 @@ describe("offline financial-statement corpus", () => {
     const expectedClassifications = {
       aapl: { matched: 74, allowances: 0 },
       msft: { matched: 78, allowances: 0 },
-      mara: { matched: 59, allowances: 19 },
+      mara: { matched: 69, allowances: 9 },
       nbis: { matched: 37, allowances: 39 },
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 33, allowances: 43 },
@@ -93,17 +93,7 @@ describe("offline financial-statement corpus", () => {
       "financialLens.Quality.metrics.netMargin",
       "financialLens.Quality.metrics.roa",
       "financialLens.Quality.metrics.roe",
-      "fundamentalHistory.capex.annual",
       "fundamentalHistory.dilutedEps.annual",
-      "fundamentalHistory.freeCashFlowProxy.annual",
-      "fundamentalHistory.grossMargin.annual",
-      "fundamentalHistory.grossMargin.marginChange",
-      "fundamentalHistory.grossProfit.annual",
-      "fundamentalHistory.netIncome.annual",
-      "fundamentalHistory.netMargin.annual",
-      "fundamentalHistory.operatingCashFlow.annual",
-      "fundamentalHistory.operatingIncome.annual",
-      "fundamentalHistory.operatingMargin.annual",
       "fundamentalHistory.revenue.annual",
     ]);
     expect(exactPeriodPaths).toEqual([
@@ -187,9 +177,9 @@ describe("offline financial-statement corpus", () => {
       );
     });
 
-    expect(historyAllowances).toHaveLength(89);
-    expect(historyAllowances.length - reclassified.length).toBe(61);
-    expect(reclassified).toHaveLength(28);
+    expect(historyAllowances).toHaveLength(79);
+    expect(historyAllowances.length - reclassified.length).toBe(56);
+    expect(reclassified).toHaveLength(23);
     expect(
       reclassified.map((allowance) => `${allowance.fixture}:${allowance.path}`).toSorted(),
     ).toEqual(
@@ -204,14 +194,14 @@ describe("offline financial-statement corpus", () => {
           .map((allowance) => allowance.path.split(".").at(-1)!)
           .reduce((counts, field) => counts.set(field, (counts.get(field) ?? 0) + 1), new Map()),
       ),
-    ).toEqual({ annual: 10, concept: 18 });
+    ).toEqual({ annual: 5, concept: 18 });
   });
 
   test("does not permit property-bearing annual or TTM allowances to claim reclassification", async () => {
     const maraCase = await loadOfflineCorpusCase("mara");
     const overriddenMara = mutateOfflineCorpusCase(maraCase, {
       allowanceUpdates: [
-        { path: "fundamentalHistory.capex.annual", kind: "history-property-not-rederivable" },
+        { path: "fundamentalHistory.revenue.annual", kind: "history-property-not-rederivable" },
       ],
     });
     const fpiCase = await loadOfflineCorpusCase("fpi-quarterly");
@@ -222,7 +212,7 @@ describe("offline financial-statement corpus", () => {
     });
 
     expect(() => auditOfflineCorpusCase(overriddenMara)).toThrow(
-      /mara fundamentalHistory\.capex\.annual is not eligible for history-property reclassification/u,
+      /mara fundamentalHistory\.revenue\.annual is not eligible for history-property reclassification/u,
     );
     expect(() => auditOfflineCorpusCase(overriddenFpi)).toThrow(
       /fpi-quarterly fundamentalHistory\.revenue\.ttm is not eligible for history-property reclassification/u,

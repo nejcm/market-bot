@@ -9,6 +9,7 @@ import {
 import {
   capFinancialStatementPeriods,
   compareFinancialStatementFacts,
+  compositeStatementIdentity,
   deriveFinancialStatementTtm,
   detectFinancialStatementCadence,
   financialStatementPeriodKey,
@@ -20,10 +21,17 @@ import {
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import {
-  CANONICAL_SEC_FORMS,
+  calendarYearFromPeriodEnd,
+  preferDirectStatementBasis,
+  sameStatementFiscalPeriod,
+  statementFiscalPeriodKey,
+} from "./financial-statement-period-identity";
+import {
   COMPOSITE_STATEMENT_FACT_FORMULA,
   SEC_COMPANYFACTS_UNIT_SCALE,
+  canonicalizeSecForm,
   isAnnualReportForm,
+  readSecFactPeriodMetadata,
   type CanonicalSecForm,
   type FinancialStatementFact,
   type FinancialStatementEquityStack,
@@ -108,22 +116,6 @@ type EquityStackComponentKey =
   | "stockholdersEquityIncludingNoncontrollingInterest"
   | "temporaryEquity";
 
-export function canonicalizeSecForm(value: string):
-  | {
-      readonly form: SupportedSecForm;
-      readonly canonicalForm: CanonicalSecForm;
-      readonly amendment: boolean;
-    }
-  | undefined {
-  const amendment = value.endsWith("/A");
-  const canonical = amendment ? value.slice(0, -2) : value;
-  const canonicalForm = CANONICAL_SEC_FORMS.find((form) => form === canonical);
-  if (canonicalForm === undefined) {
-    return undefined;
-  }
-  return { form: value as SupportedSecForm, canonicalForm, amendment };
-}
-
 function parseFact(
   value: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -137,22 +129,13 @@ function parseFact(
   const formValue = readString(value, "form");
   const form = formValue === undefined ? undefined : canonicalizeSecForm(formValue);
   const accessionNumber = readString(value, "accn");
-  const filedAt = readString(value, "filed");
-  const periodEnd = readString(value, "end");
-  const fiscalPeriod = readString(value, "fp");
-  if (
-    numericValue === undefined ||
-    form === undefined ||
-    filedAt === undefined ||
-    periodEnd === undefined ||
-    fiscalPeriod === undefined
-  ) {
+  const period = readSecFactPeriodMetadata(value);
+  if (numericValue === undefined || form === undefined || period === undefined) {
     return undefined;
   }
-  // NOTE — ponytail: Calendar-year labels fit calendar filers and BNS-style Oct-31 years.
-  // Jan-31 retailers may call 2018-01-31 FY2017 while this yields 2018; this still beats the arbitrary filing frame.
-  const fiscalYear = Number.parseInt(periodEnd.slice(0, 4), 10);
-  if (!Number.isFinite(fiscalYear)) {
+  const { filed: filedAt, end: periodEnd, fp: fiscalPeriod } = period;
+  const fiscalYear = calendarYearFromPeriodEnd(periodEnd);
+  if (fiscalYear === undefined) {
     return undefined;
   }
   const periodStart = readString(value, "start");
@@ -201,6 +184,45 @@ function unitFacts(
   );
 }
 
+function factsForLatestPeriodConcept(
+  taxonomy: FinancialStatementTaxonomy,
+  root: Record<string, unknown>,
+  concepts: readonly string[],
+  eligible: (fact: ParsedFact) => boolean,
+): readonly ParsedFact[] {
+  const ranked = concepts
+    .map((concept, priority) => {
+      const facts = unitFacts(taxonomy, root, concept);
+      const latestPeriodEnd = facts
+        .filter((fact) => eligible(fact))
+        .map((fact) => fact.periodEnd)
+        .toSorted()
+        .at(-1);
+      return { facts, latestPeriodEnd, priority };
+    })
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        readonly facts: readonly ParsedFact[];
+        readonly latestPeriodEnd: string;
+        readonly priority: number;
+      } => candidate.latestPeriodEnd !== undefined,
+    );
+  const latestPeriodEnd = ranked
+    .map((candidate) => candidate.latestPeriodEnd)
+    .toSorted()
+    .at(-1);
+  if (latestPeriodEnd === undefined) {
+    return [];
+  }
+  return (
+    ranked
+      .filter((candidate) => candidate.latestPeriodEnd === latestPeriodEnd)
+      .toSorted((left, right) => left.priority - right.priority)[0]?.facts ?? []
+  );
+}
+
 function factsForDefinition(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -213,13 +235,7 @@ function factsForDefinition(
   }
   const concepts = definition.concepts[taxonomy];
   if (definition.key !== "revenue") {
-    for (const concept of concepts) {
-      const facts = unitFacts(taxonomy, root, concept);
-      if (facts.some((fact) => eligible(fact))) {
-        return facts;
-      }
-    }
-    return [];
+    return factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
   }
   const ranked = concepts
     .map((concept, priority) => {
@@ -259,36 +275,19 @@ function factsForDefinition(
   );
 }
 
-function sameFiscalPeriod(left: ParsedFact, right: ParsedFact): boolean {
-  return (
-    left.form === right.form &&
-    left.fiscalYear === right.fiscalYear &&
-    (left.form === "10-K" || left.fiscalPeriod === right.fiscalPeriod)
-  );
-}
-
-function fiscalPeriodKey(fact: ParsedFact): string {
-  return fact.form === "10-K"
-    ? `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}`
-    : `${fact.periodEnd}|${fact.form}|${String(fact.fiscalYear)}|${fact.fiscalPeriod}`;
-}
-
 function compositeFromContributors(contributors: readonly ParsedFact[]): ParsedFact {
   const [anchor] = contributors;
   if (anchor === undefined) {
     throw new Error("compositeFromContributors requires at least one contributor");
   }
-  const latestFiled = contributors.toSorted((left, right) =>
-    right.filedAt.localeCompare(left.filedAt),
-  )[0]!;
-  const accessions = new Set(contributors.map((fact) => fact.accessionNumber));
+  const identity = compositeStatementIdentity(contributors);
   return {
-    value: contributors.reduce((sum, fact) => sum + fact.value, 0),
+    value: identity.value,
     form: anchor.form,
     canonicalForm: anchor.canonicalForm,
     amendment: anchor.amendment,
-    accessionNumber: accessions.size === 1 ? anchor.accessionNumber : null,
-    filedAt: latestFiled.filedAt,
+    accessionNumber: identity.accessionNumber,
+    filedAt: identity.filedAt,
     periodEnd: anchor.periodEnd,
     fiscalYear: anchor.fiscalYear,
     fiscalPeriod: anchor.fiscalPeriod,
@@ -322,19 +321,13 @@ function factsForComposite(
   if (root === undefined) {
     return [];
   }
-  const slotFacts = slots.map((slot) => {
-    for (const concept of slot[taxonomy]) {
-      const facts = unitFacts(taxonomy, root, concept);
-      if (facts.some((fact) => eligible(fact))) {
-        return facts;
-      }
-    }
-    return [];
-  });
+  const slotFacts = slots.map((slot) =>
+    factsForLatestPeriodConcept(taxonomy, root, slot[taxonomy], eligible),
+  );
   const grouped = new Map<string, ParsedFact[][]>();
   for (const [slotIndex, facts] of slotFacts.entries()) {
     for (const fact of facts.filter((candidate) => eligible(candidate))) {
-      const key = fiscalPeriodKey(fact);
+      const key = statementFiscalPeriodKey(fact);
       const slotsForKey = grouped.get(key) ?? slots.map(() => []);
       const slotGroup = slotsForKey[slotIndex];
       if (slotGroup === undefined) {
@@ -355,7 +348,10 @@ function factsForComposite(
       return [];
     }
     const [anchor] = contributors;
-    if (anchor === undefined || contributors.some((fact) => !sameFiscalPeriod(anchor, fact))) {
+    if (
+      anchor === undefined ||
+      contributors.some((fact) => !sameStatementFiscalPeriod(anchor, fact))
+    ) {
       return [];
     }
     return [compositeFromContributors(contributors)];
@@ -366,12 +362,10 @@ function preferDirectBasis(
   direct: readonly FinancialStatementFact[],
   composite: readonly FinancialStatementFact[],
 ): boolean {
-  const compositeLatest = latestFinancialStatementFact(composite);
-  if (compositeLatest === undefined) {
-    return true;
-  }
-  const directLatest = latestFinancialStatementFact(direct);
-  return directLatest !== undefined && directLatest.periodEnd >= compositeLatest.periodEnd;
+  return preferDirectStatementBasis(
+    latestFinancialStatementFact(direct)?.periodEnd,
+    latestFinancialStatementFact(composite)?.periodEnd,
+  );
 }
 
 function allFactsForDefinition(

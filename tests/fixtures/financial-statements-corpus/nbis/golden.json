@@ -905,29 +905,29 @@
       "ttm": null
     },
     "shareRepurchases": {
-      "selectedConcept": "PaymentsForRepurchaseOfCommonStock",
+      "selectedConcept": "PaymentsForRepurchaseOfEquity",
       "selectedFact": {
-        "concept": "PaymentsForRepurchaseOfCommonStock",
-        "periodKey": "duration:12|2021-12-31",
-        "periodStart": "2021-01-01",
-        "periodEnd": "2021-12-31",
+        "concept": "PaymentsForRepurchaseOfEquity",
+        "periodKey": "duration:12|2024-12-31",
+        "periodStart": "2024-01-01",
+        "periodEnd": "2024-12-31",
         "form": "20-F",
-        "filingDate": "2022-04-20",
-        "accession": "0001558370-22-005654",
-        "value": 93800000,
+        "filingDate": "2025-04-30",
+        "accession": "0001558370-25-005991",
+        "value": 10000000,
         "currency": "USD",
         "unit": "USD"
       },
       "annual": [
         {
-          "concept": "PaymentsForRepurchaseOfCommonStock",
-          "periodKey": "duration:12|2021-12-31",
-          "periodStart": "2021-01-01",
-          "periodEnd": "2021-12-31",
+          "concept": "PaymentsForRepurchaseOfEquity",
+          "periodKey": "duration:12|2024-12-31",
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-12-31",
           "form": "20-F",
-          "filingDate": "2022-04-20",
-          "accession": "0001558370-22-005654",
-          "value": 93800000,
+          "filingDate": "2025-04-30",
+          "accession": "0001558370-25-005991",
+          "value": 10000000,
           "currency": "USD",
           "unit": "USD"
         }

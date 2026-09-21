@@ -4621,7 +4621,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -4690,7 +4690,30 @@
       },
       "grossProfit": {
         "concept": "GrossProfit",
-        "annual": [],
+        "annual": [
+          {
+            "value": 116767000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2021-01-01",
+            "periodEnd": "2021-12-31",
+            "periodMonths": 12,
+            "filedAt": "2024-05-24",
+            "currency": "USD"
+          },
+          {
+            "value": -33671000,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-01-01",
+            "periodEnd": "2022-12-31",
+            "periodMonths": 12,
+            "filedAt": "2024-05-24",
+            "currency": "USD"
+          }
+        ],
         "ttm": null,
         "cagr": null,
         "marginChange": null
@@ -4761,7 +4784,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -4889,7 +4912,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -5007,7 +5030,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD/shares"
           },
           {
@@ -5135,7 +5158,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -5263,7 +5286,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -5396,7 +5419,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -5460,10 +5483,38 @@
       },
       "grossMargin": {
         "concept": null,
-        "annual": [],
+        "annual": [
+          {
+            "value": 0.7336315600987666,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2021-01-01",
+            "periodEnd": "2021-12-31",
+            "periodMonths": 12,
+            "filedAt": "2024-05-24",
+            "currency": "USD"
+          },
+          {
+            "value": -0.28594600562193745,
+            "form": "10-K",
+            "fy": 2023,
+            "fp": "FY",
+            "periodStart": "2022-01-01",
+            "periodEnd": "2022-12-31",
+            "periodMonths": 12,
+            "filedAt": "2025-03-03",
+            "currency": "USD"
+          }
+        ],
         "ttm": null,
         "cagr": null,
-        "marginChange": null
+        "marginChange": {
+          "percentagePoints": -101.9577565720704,
+          "years": 0.9993360575508052,
+          "periodStart": "2021-12-31",
+          "periodEnd": "2022-12-31"
+        }
       },
       "operatingMargin": {
         "concept": null,
@@ -5498,7 +5549,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {
@@ -5598,7 +5649,7 @@
             "periodStart": "2021-01-01",
             "periodEnd": "2021-12-31",
             "periodMonths": 12,
-            "filedAt": "2024-02-28",
+            "filedAt": "2024-05-24",
             "currency": "USD"
           },
           {

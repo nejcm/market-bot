@@ -4,12 +4,13 @@ import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 
 interface FactOverrides {
-  readonly form?: "10-K" | "10-Q" | "20-F" | "6-K";
+  readonly form?: "10-K" | "10-Q" | "10-K/A" | "10-Q/A" | "20-F" | "6-K";
   readonly fp?: string;
   readonly fy?: number;
   readonly filed?: string;
   readonly start?: string;
   readonly end?: string;
+  readonly accn?: string;
 }
 
 function fact(val: number, overrides: FactOverrides = {}): Record<string, unknown> {
@@ -126,6 +127,98 @@ describe("fundamental history", () => {
     expect(noteStartsWith(history.series.revenue.notes, "annual:restatement-superseded:")).toBe(
       true,
     );
+  });
+
+  test("dedupes same-filed 10-K and 10-K/A by amendment, not input order", () => {
+    const history = derive(
+      payload({
+        Revenues: {
+          facts: [
+            ...annualFacts([100, 120]),
+            fact(100, { filed: "2025-01-15", accn: "0001-original" }),
+            fact(110, { form: "10-K/A", filed: "2025-01-15", accn: "0001-amendment" }),
+          ],
+        },
+      }),
+    );
+
+    expect(history.series.revenue.annual.at(-1)?.value).toBe(110);
+    expect(history.series.revenue.annual).toHaveLength(3);
+  });
+
+  test("dedupes same-filed 10-K/A facts by accession, not input order", () => {
+    const history = derive(
+      payload({
+        Revenues: {
+          facts: [
+            ...annualFacts([100, 120]),
+            fact(100, { form: "10-K/A", filed: "2025-01-15", accn: "0001" }),
+            fact(110, { form: "10-K/A", filed: "2025-01-15", accn: "0002" }),
+          ],
+        },
+      }),
+    );
+
+    expect(history.series.revenue.annual.at(-1)?.value).toBe(110);
+    expect(history.series.revenue.annual).toHaveLength(3);
+  });
+
+  test("dedupes same-filed 10-Q and 10-Q/A YTD by amendment, not input order", () => {
+    const history = derive(
+      payload({
+        Revenues: {
+          facts: [
+            ...annualFacts(),
+            priorYtd(),
+            latestYtd({ accn: "0001-original" }),
+            fact(140, {
+              form: "10-Q/A",
+              fp: "Q3",
+              fy: 2025,
+              filed: "2025-07-25",
+              start: "2024-10-01",
+              end: "2025-06-30",
+              accn: "0001-amendment",
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(history.series.revenue.ttm?.value).toBe(185);
+  });
+
+  test("dedupes same-filed 10-Q/A YTD facts by accession, not input order", () => {
+    const history = derive(
+      payload({
+        Revenues: {
+          facts: [
+            ...annualFacts(),
+            priorYtd(),
+            fact(130, {
+              form: "10-Q/A",
+              fp: "Q3",
+              fy: 2025,
+              filed: "2025-07-25",
+              start: "2024-10-01",
+              end: "2025-06-30",
+              accn: "0001",
+            }),
+            fact(140, {
+              form: "10-Q/A",
+              fp: "Q3",
+              fy: 2025,
+              filed: "2025-07-25",
+              start: "2024-10-01",
+              end: "2025-06-30",
+              accn: "0002",
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(history.series.revenue.ttm?.value).toBe(185);
   });
 
   test("excludes transition-period 10-K facts outside 10 to 14 months", () => {

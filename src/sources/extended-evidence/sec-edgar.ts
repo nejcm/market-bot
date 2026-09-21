@@ -6,13 +6,33 @@ import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
+import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
+import {
+  compareFinancialStatementFacts,
+  compositeStatementIdentity,
+  isCompleteComposite,
+} from "./financial-statement-selection";
+import {
+  preferDirectStatementBasis,
+  sameStatementFiscalPeriod,
+  statementFiscalPeriodKey,
+  type StatementFiscalPeriod,
+} from "./financial-statement-period-identity";
+import {
+  canonicalizeSecForm,
+  isDomesticPeriodicCanonicalForm,
+  readSecFactPeriodMetadata,
+} from "./financial-statements-contract";
 import { readArray } from "./utils";
 
-type SecForm = "10-K" | "10-Q";
+type SecForm = "10-K" | "10-Q" | "10-K/A" | "10-Q/A";
 
 export interface SecFactValue {
   readonly val: number;
   readonly form: SecForm;
+  readonly canonicalForm: "10-K" | "10-Q";
+  readonly amendment: boolean;
+  readonly accessionNumber?: string;
   readonly fp?: string;
   readonly fy?: number;
   readonly filed?: string;
@@ -207,10 +227,28 @@ export const SEC_METRIC_DEFINITIONS = [
 
 export type SecMetricDefinitionKey = (typeof SEC_METRIC_DEFINITIONS)[number]["key"];
 
+function usGaapDebtAliases(): {
+  readonly direct: readonly string[];
+  readonly current: readonly string[];
+  readonly noncurrent: readonly string[];
+} {
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
+  const current = definition?.components?.[0]?.["us-gaap"];
+  const noncurrent = definition?.components?.[1]?.["us-gaap"];
+  if (definition === undefined || current === undefined || noncurrent === undefined) {
+    throw new Error(
+      "Financial statement debt definition must include us-gaap direct and component aliases",
+    );
+  }
+  return { direct: definition.concepts["us-gaap"], current, noncurrent };
+}
+
+const US_GAAP_DEBT_ALIASES = usGaapDebtAliases();
+
 const DEBT_METRIC = {
   key: "debt",
   label: "debt",
-  concepts: ["LongTermDebt"],
+  concepts: US_GAAP_DEBT_ALIASES.direct,
   unitKeys: ["USD"],
 } as const satisfies SecMetricDefinition;
 
@@ -218,13 +256,13 @@ const DEBT_COMPONENTS = [
   {
     key: "currentDebt",
     label: "current debt",
-    concepts: ["LongTermDebtCurrent", "ShortTermBorrowings", "ShortTermDebt"],
+    concepts: US_GAAP_DEBT_ALIASES.current,
     unitKeys: ["USD"],
   },
   {
     key: "noncurrentDebt",
     label: "noncurrent debt",
-    concepts: ["LongTermDebtNoncurrent"],
+    concepts: US_GAAP_DEBT_ALIASES.noncurrent,
     unitKeys: ["USD"],
   },
 ] as const satisfies readonly SecMetricDefinition[];
@@ -336,23 +374,32 @@ export function readSecFactValue(value: unknown): SecFactValue | undefined {
     return undefined;
   }
   const val = readNumber(value, "val");
-  const form = readString(value, "form");
-  if (val === undefined || (form !== "10-Q" && form !== "10-K")) {
+  const formValue = readString(value, "form");
+  const parsed = formValue === undefined ? undefined : canonicalizeSecForm(formValue);
+  const period = readSecFactPeriodMetadata(value);
+  // Amendments share canonicalizeSecForm; 20-F/40-F/6-K stay canonical-only.
+  if (
+    val === undefined ||
+    parsed === undefined ||
+    !isDomesticPeriodicCanonicalForm(parsed.canonicalForm) ||
+    period === undefined
+  ) {
     return undefined;
   }
-  const fp = readString(value, "fp");
   const fy = readFiscalYear(value);
-  const filed = readString(value, "filed");
   const start = readString(value, "start");
-  const end = readString(value, "end");
+  const accessionNumber = readString(value, "accn");
   return {
     val,
-    form,
-    ...(fp !== undefined ? { fp } : {}),
+    form: parsed.form as SecForm,
+    canonicalForm: parsed.canonicalForm,
+    amendment: parsed.amendment,
+    fp: period.fp,
     ...(fy !== undefined ? { fy } : {}),
-    ...(filed !== undefined ? { filed } : {}),
+    filed: period.filed,
     ...(start !== undefined ? { start } : {}),
-    ...(end !== undefined ? { end } : {}),
+    end: period.end,
+    ...(accessionNumber !== undefined ? { accessionNumber } : {}),
   };
 }
 
@@ -394,16 +441,18 @@ function isStalePeriodEnd(periodEnd: string, analysisAsOf: string): boolean {
   return cutoffMs - periodMs > SEC_FRESHNESS_DAYS * DAY_MS;
 }
 
+function selectionFact(value: SecFactValue) {
+  return {
+    ...(value.start !== undefined ? { periodStart: value.start } : {}),
+    periodEnd: value.end ?? "",
+    filedAt: value.filed ?? "",
+    amendment: value.amendment,
+    accessionNumber: value.accessionNumber ?? null,
+  };
+}
+
 function compareFactRecency(a: SecFactValue, b: SecFactValue): number {
-  const periodEnd = (b.end ?? "").localeCompare(a.end ?? "");
-  if (periodEnd !== 0) {
-    return periodEnd;
-  }
-  const periodStart = (a.start ?? "").localeCompare(b.start ?? "");
-  if (periodStart !== 0) {
-    return periodStart;
-  }
-  return (b.filed ?? "").localeCompare(a.filed ?? "");
+  return compareFinancialStatementFacts(selectionFact(a), selectionFact(b));
 }
 
 function latestFact(values: readonly SecFactValue[]): SecFactValue | undefined {
@@ -428,24 +477,52 @@ function factValuesForConcept(
   );
 }
 
-function factValuesForMetricWithConcept(
+function factValuesForMostRecentConcept(
   gaap: Record<string, unknown>,
   metric: SecMetricDefinition,
+  eligible: (value: SecFactValue) => boolean,
 ): { readonly concept: string; readonly values: readonly SecFactValue[] } | undefined {
-  for (const concept of metric.concepts) {
-    const values = factValuesForConcept(gaap, concept, metric.unitKeys);
-    if (values.length > 0) {
-      return { concept, values };
-    }
+  const ranked = metric.concepts
+    .map((concept, priority) => {
+      const values = factValuesForConcept(gaap, concept, metric.unitKeys);
+      const latestEnd = values
+        .filter((value) => eligible(value))
+        .map((value) => value.end ?? "")
+        .toSorted()
+        .at(-1);
+      return { concept, values, latestEnd, priority };
+    })
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        readonly concept: string;
+        readonly values: readonly SecFactValue[];
+        readonly latestEnd: string;
+        readonly priority: number;
+      } => candidate.latestEnd !== undefined && candidate.latestEnd !== "",
+    );
+  const latestEnd = ranked
+    .map((candidate) => candidate.latestEnd)
+    .toSorted()
+    .at(-1);
+  if (latestEnd === undefined) {
+    return undefined;
   }
-  return undefined;
+  return ranked
+    .filter((candidate) => candidate.latestEnd === latestEnd)
+    .toSorted((left, right) => left.priority - right.priority)[0];
 }
 
 function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boolean {
-  if (latest.fy === undefined || candidate.fy !== latest.fy - 1 || candidate.form !== latest.form) {
+  if (
+    latest.fy === undefined ||
+    candidate.fy !== latest.fy - 1 ||
+    candidate.canonicalForm !== latest.canonicalForm
+  ) {
     return false;
   }
-  return latest.form === "10-Q" ? candidate.fp === latest.fp : true;
+  return latest.canonicalForm === "10-Q" ? candidate.fp === latest.fp : true;
 }
 
 function comparablePrior(
@@ -493,7 +570,11 @@ function selectMetric(
 }
 
 function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {
-  return a.form === b.form && a.fy === b.fy && (a.form === "10-K" || a.fp === b.fp);
+  return (
+    a.canonicalForm === b.canonicalForm &&
+    a.fy === b.fy &&
+    (a.canonicalForm === "10-K" || a.fp === b.fp)
+  );
 }
 
 function isCurrentFlowFact(anchor: SecFactValue, candidate: SecFactValue): boolean {
@@ -514,23 +595,52 @@ interface DebtComponentSum {
   readonly matches: readonly { readonly concept: string; readonly fact: SecFactValue }[];
 }
 
+function statementPeriod(value: SecFactValue): StatementFiscalPeriod | undefined {
+  return value.end === undefined
+    ? undefined
+    : { periodEnd: value.end, form: value.form, fiscalPeriod: value.fp ?? "" };
+}
+
+function sameDebtInstantPeriod(period: SecFactValue, value: SecFactValue): boolean {
+  const periodRef = statementPeriod(period);
+  const valueRef = statementPeriod(value);
+  return (
+    periodRef !== undefined &&
+    valueRef !== undefined &&
+    sameStatementFiscalPeriod(periodRef, valueRef) &&
+    value.end === period.end
+  );
+}
+
+function withoutAccessionNumber(value: SecFactValue): Omit<SecFactValue, "accessionNumber"> {
+  const { accessionNumber: _omitted, ...rest } = value;
+  return rest;
+}
+
 function sumMatchingFacts(
   period: SecFactValue,
   componentSlots: readonly DebtComponentSlot[],
 ): DebtComponentSum | undefined {
   const matches = componentSlots.flatMap((slot) => {
-    const fact = latestFact(
-      slot.values.filter((value) => sameFiscalPeriod(period, value) && value.end === period.end),
-    );
+    const fact = latestFact(slot.values.filter((value) => sameDebtInstantPeriod(period, value)));
     return fact === undefined ? [] : [{ concept: slot.concept, fact }];
   });
   if (matches.length === 0) {
     return undefined;
   }
+  const identity = compositeStatementIdentity(
+    matches.map((match) => ({
+      value: match.fact.val,
+      accessionNumber: match.fact.accessionNumber ?? null,
+      filedAt: match.fact.filed ?? "",
+    })),
+  );
   return {
     fact: {
-      ...period,
-      val: matches.reduce((sum, match) => sum + match.fact.val, 0),
+      ...withoutAccessionNumber(period),
+      val: identity.value,
+      filed: identity.filedAt,
+      ...(identity.accessionNumber !== null ? { accessionNumber: identity.accessionNumber } : {}),
     },
     matches,
   };
@@ -545,58 +655,88 @@ function debtCompositeFromSum(sum: DebtComponentSum): SecDebtComposite {
   };
 }
 
+function debtPeriodIdentity(value: SecFactValue): string {
+  const period = statementPeriod(value);
+  return period === undefined ? value.form : statementFiscalPeriodKey(period);
+}
+
 function selectDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
 ): { readonly selection: SecMetricSelection; readonly composite?: SecDebtComposite } | undefined {
   const direct = selectMetric(gaap, DEBT_METRIC, analysisAsOf);
-  const componentSlots = DEBT_COMPONENTS.flatMap((metric) => {
-    const populated = factValuesForMetricWithConcept(gaap, metric);
-    return populated === undefined
-      ? []
-      : [
-          {
-            concept: populated.concept,
-            values: populated.values.filter((value) => isFactObservableAsOf(value, analysisAsOf)),
-          },
-        ];
+  const eligible = (value: SecFactValue): boolean => isFactObservableAsOf(value, analysisAsOf);
+  const componentSlots: readonly DebtComponentSlot[] = DEBT_COMPONENTS.map((metric) => {
+    const populated = factValuesForMostRecentConcept(gaap, metric, eligible);
+    return {
+      concept: populated?.concept ?? metric.concepts[0]!,
+      values: (populated?.values ?? []).filter((value) => eligible(value)),
+    };
   });
-  const componentValues = componentSlots.map((slot) => slot.values);
-  const latest = latestFact(componentValues.flat());
-  const summedLatest = latest === undefined ? undefined : sumMatchingFacts(latest, componentSlots);
-  const priorPeriod =
-    latest === undefined ? undefined : comparablePrior(latest, componentValues.flat());
-  const priorSum =
-    priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentSlots);
-  const components =
-    summedLatest === undefined
-      ? undefined
-      : {
-          latest: summedLatest.fact,
-          ...(priorSum !== undefined ? { prior: priorSum.fact } : {}),
-        };
-  if (direct === undefined) {
-    if (components === undefined || summedLatest === undefined) {
+  const anchors = new Map<string, SecFactValue>();
+  for (const value of componentSlots.flatMap((slot) => slot.values)) {
+    const key = debtPeriodIdentity(value);
+    const existing = anchors.get(key);
+    if (existing === undefined || compareFactRecency(value, existing) < 0) {
+      anchors.set(key, value);
+    }
+  }
+  const componentSelections = [...anchors.values()].flatMap((anchor) => {
+    const summed = sumMatchingFacts(anchor, componentSlots);
+    if (summed === undefined) {
+      return [];
+    }
+    const priorPeriod = comparablePrior(
+      anchor,
+      componentSlots.flatMap((slot) => slot.values),
+    );
+    const prior =
+      priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentSlots);
+    const composite = debtCompositeFromSum(summed);
+    return [
+      {
+        latest: summed.fact,
+        ...(prior !== undefined ? { prior: prior.fact } : {}),
+        composite,
+      },
+    ];
+  });
+  const competing =
+    direct === undefined
+      ? componentSelections
+      : componentSelections.filter((selection) =>
+          isCompleteComposite(
+            selection.composite.componentCount,
+            selection.composite.componentSlotCount,
+          ),
+        );
+  const [components] = competing.toSorted((left, right) =>
+    compareFactRecency(left.latest, right.latest),
+  );
+  if (direct === undefined || components === undefined) {
+    if (direct !== undefined) {
+      return { selection: direct };
+    }
+    if (components === undefined) {
       return undefined;
     }
-    const composite = debtCompositeFromSum(summedLatest);
     return {
-      selection: components,
-      composite,
+      selection: {
+        latest: components.latest,
+        ...(components.prior !== undefined ? { prior: components.prior } : {}),
+      },
+      composite: components.composite,
     };
   }
-  if (components === undefined) {
+  if (preferDirectStatementBasis(direct.latest.end, components.latest.end)) {
     return { selection: direct };
-  }
-  if (compareFactRecency(direct.latest, components.latest) < 0) {
-    return { selection: direct };
-  }
-  if (summedLatest === undefined) {
-    return { selection: components };
   }
   return {
-    selection: components,
-    composite: debtCompositeFromSum(summedLatest),
+    selection: {
+      latest: components.latest,
+      ...(components.prior !== undefined ? { prior: components.prior } : {}),
+    },
+    composite: components.composite,
   };
 }
 

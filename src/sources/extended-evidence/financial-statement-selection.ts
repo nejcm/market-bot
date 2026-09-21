@@ -123,6 +123,34 @@ export function financialStatementFacts(
   return [...series.annual, ...series.interim];
 }
 
+export interface CompositeStatementContributor {
+  readonly value: number;
+  readonly accessionNumber: string | null;
+  readonly filedAt: string;
+}
+
+export function compositeStatementIdentity(
+  contributors: readonly CompositeStatementContributor[],
+): {
+  readonly value: number;
+  readonly accessionNumber: string | null;
+  readonly filedAt: string;
+} {
+  const [anchor] = contributors;
+  if (anchor === undefined) {
+    throw new Error("compositeStatementIdentity requires at least one contributor");
+  }
+  const accessions = new Set(contributors.map((fact) => fact.accessionNumber));
+  const latestFiled = contributors.toSorted((left, right) =>
+    right.filedAt.localeCompare(left.filedAt),
+  )[0]!;
+  return {
+    value: contributors.reduce((sum, fact) => sum + fact.value, 0),
+    accessionNumber: accessions.size === 1 ? anchor.accessionNumber : null,
+    filedAt: latestFiled.filedAt,
+  };
+}
+
 export function isCompleteComposite(componentCount: number, componentSlotCount: number): boolean {
   return componentCount === componentSlotCount;
 }

@@ -161,11 +161,17 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       },
       components: [
         {
-          "us-gaap": ["LongTermDebtCurrent", "ShortTermBorrowings", "ShortTermDebt"],
+          "us-gaap": [
+            "LongTermDebtCurrent",
+            "DebtCurrent",
+            "LongTermDebtAndCapitalLeaseObligationsCurrent",
+            "ShortTermBorrowings",
+            "ShortTermDebt",
+          ],
           "ifrs-full": ["CurrentBorrowings"],
         },
         {
-          "us-gaap": ["LongTermDebtNoncurrent"],
+          "us-gaap": ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
           "ifrs-full": ["NoncurrentBorrowings"],
         },
       ],

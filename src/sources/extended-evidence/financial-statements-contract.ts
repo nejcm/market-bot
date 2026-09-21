@@ -1,4 +1,4 @@
-import { isRecord } from "../../guards";
+import { isRecord, readString } from "../../guards";
 import type { SecFilingForm } from "../evidence-request-tools";
 import {
   type ArtifactObservationDrop,
@@ -41,6 +41,38 @@ export const ANNUAL_REPORT_FORMS_WITH_AMENDMENTS: readonly (
 
 export function isAnnualReportForm(form: CanonicalSecForm): form is AnnualReportForm {
   return ANNUAL_REPORT_FORMS.some((annualForm) => annualForm === form);
+}
+
+export function isDomesticPeriodicCanonicalForm(form: CanonicalSecForm): form is "10-K" | "10-Q" {
+  return form === "10-K" || form === "10-Q";
+}
+
+export function canonicalizeSecForm(value: string):
+  | {
+      readonly form: SupportedSecForm;
+      readonly canonicalForm: CanonicalSecForm;
+      readonly amendment: boolean;
+    }
+  | undefined {
+  const amendment = value.endsWith("/A");
+  const canonical = amendment ? value.slice(0, -2) : value;
+  const canonicalForm = CANONICAL_SEC_FORMS.find((form) => form === canonical);
+  if (canonicalForm === undefined) {
+    return undefined;
+  }
+  return { form: value as SupportedSecForm, canonicalForm, amendment };
+}
+
+export function readSecFactPeriodMetadata(
+  value: Record<string, unknown>,
+): { readonly filed: string; readonly end: string; readonly fp: string } | undefined {
+  const filed = readString(value, "filed");
+  const end = readString(value, "end");
+  const fp = readString(value, "fp");
+  if (filed === undefined || end === undefined || fp === undefined) {
+    return undefined;
+  }
+  return { filed, end, fp };
 }
 
 type FinancialStatementExtractionMethod = "sec-companyfacts" | "derived-sec-companyfacts";

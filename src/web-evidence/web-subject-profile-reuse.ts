@@ -12,7 +12,7 @@ import type {
 import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import type { SecFilingForm } from "../sources/evidence-request-tools";
-import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements";
+import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements-contract";
 import { isWebSubjectProfileWithheldAnswer } from "./contract";
 import {
   buildWebSubjectProfileReuseEvidence,

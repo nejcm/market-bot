@@ -30,8 +30,10 @@ import {
 
 const ASC_606_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax";
 
-const MARGIN_ANNUAL_PATH = "fundamentalHistory.grossMargin.annual";
-const MARGIN_CHANGE_PATH = "fundamentalHistory.grossMargin.marginChange";
+const MARGIN_ANNUAL_PATH = "fundamentalHistory.operatingMargin.annual";
+const MARGIN_CHANGE_PATH = "fundamentalHistory.operatingMargin.marginChange";
+const MARA_GROSS_MARGIN_ANNUAL_PATH = "fundamentalHistory.grossMargin.annual";
+const MARA_GROSS_MARGIN_CHANGE_PATH = "fundamentalHistory.grossMargin.marginChange";
 
 type HistoryClassifierFaultScenario = readonly [
   name: string,
@@ -44,22 +46,22 @@ type HistoryClassifierFaultScenario = readonly [
 const HISTORY_CLASSIFIER_FAULT_SCENARIOS: readonly HistoryClassifierFaultScenario[] = [
   [
     "rejects a history defect when a regenerated hash hides a margin sign flip",
-    "mara",
+    "nbis",
     [[`${MARGIN_CHANGE_PATH}.percentagePoints`, "negate"]],
     [MARGIN_CHANGE_PATH],
     classifierPattern(
-      "unclassified mara difference ",
+      "unclassified nbis difference ",
       MARGIN_ANNUAL_PATH,
       ": fundamental-history property re-derivation failed",
     ),
   ],
   [
     "rejects a history defect when a regenerated hash hides a margin-years mutation",
-    "mara",
+    "nbis",
     [[`${MARGIN_CHANGE_PATH}.years`, "increment"]],
     [MARGIN_CHANGE_PATH],
     classifierPattern(
-      "unclassified mara difference ",
+      "unclassified nbis difference ",
       MARGIN_ANNUAL_PATH,
       ": fundamental-history property re-derivation failed",
     ),
@@ -77,14 +79,14 @@ const HISTORY_CLASSIFIER_FAULT_SCENARIOS: readonly HistoryClassifierFaultScenari
   ],
   [
     "rejects a degenerate single-point margin summary with regenerated hashes",
-    "mara",
+    "nbis",
     [
       [MARGIN_ANNUAL_PATH, "last-only"],
       [MARGIN_CHANGE_PATH, "zero-margin-last", MARGIN_ANNUAL_PATH],
     ],
     [MARGIN_ANNUAL_PATH, MARGIN_CHANGE_PATH],
     classifierPattern(
-      "unclassified mara difference ",
+      "unclassified nbis difference ",
       MARGIN_ANNUAL_PATH,
       ": fundamental-history property re-derivation failed",
     ),
@@ -132,8 +134,7 @@ describe("offline financial-statement corpus — history rosters and alias fault
       }
       void [...detectInterchangeableAliasCandidates(syntheticAliasExecution(maraCase, "alias"))];
       const mutated = mutateOfflineCorpusCase(maraCase, {
-        mutations: [[`${MARGIN_CHANGE_PATH}.percentagePoints`, "negate"]],
-        allowanceUpdates: [{ path: MARGIN_CHANGE_PATH }],
+        mutations: [[`${MARA_GROSS_MARGIN_CHANGE_PATH}.percentagePoints`, "negate"]],
       });
       try {
         auditOfflineCorpusCase(mutated);
@@ -406,8 +407,6 @@ describe("offline financial-statement corpus — history rosters and alias fault
       "fpi-quarterly:legacy.operatingIncome:unanchored-empty",
       "fpi-quarterly:legacy.operatingMargin:vacuous-empty",
       "fpi-quarterly:legacy.revenue:unanchored-empty",
-      "mara:legacy.grossMargin:vacuous-empty",
-      "mara:legacy.grossProfit:vacuous-empty",
       "nbis:canonical.grossMargin:vacuous-empty",
       "nbis:canonical.grossProfit:unanchored-empty",
       "nbis:legacy.capex:unanchored-empty",
@@ -697,13 +696,13 @@ describe("offline financial-statement corpus — history rosters and alias fault
     expect(maraCase.allowances).toContainEqual(
       expect.objectContaining({
         fixture: "mara",
-        path: "fundamentalHistory.grossMargin.annual",
+        path: "fundamentalHistory.dilutedEps.annual",
       }),
     );
     expect(maraCase.allowances).toContainEqual(
       expect.objectContaining({
         fixture: "mara",
-        path: "fundamentalHistory.grossMargin.marginChange",
+        path: "fundamentalHistory.revenue.annual",
       }),
     );
     expect(() => auditOfflineCorpusCase(maraCase)).not.toThrow();
@@ -718,8 +717,8 @@ describe("offline financial-statement corpus — history rosters and alias fault
     };
     const injected = mutateOfflineCorpusCase(maraCase, {
       mutations: [
-        [MARGIN_ANNUAL_PATH, "set", annual],
-        [MARGIN_CHANGE_PATH, "set", injectedMarginChange],
+        [MARA_GROSS_MARGIN_ANNUAL_PATH, "set", annual],
+        [MARA_GROSS_MARGIN_CHANGE_PATH, "set", injectedMarginChange],
       ],
     });
 

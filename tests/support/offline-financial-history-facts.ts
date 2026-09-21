@@ -276,7 +276,8 @@ export function legacyEligiblePoints(
       return fact === undefined ? [] : [fact];
     })
     .filter(
-      (fact) => fact.form === "10-K" && isFactObservableAsOf(fact, execution.input.analysisAsOf),
+      (fact) =>
+        fact.canonicalForm === "10-K" && isFactObservableAsOf(fact, execution.input.analysisAsOf),
     )
     .flatMap((fact) => {
       const complete = completeLegacyFact(fact);

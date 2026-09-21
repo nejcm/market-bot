@@ -11,6 +11,7 @@ import {
   type SecMetricDefinition,
 } from "./sec-edgar";
 import { isRevenueConceptInRecencyBucket } from "./financial-statement-definitions";
+import { compareFinancialStatementFacts } from "./financial-statement-selection";
 import type { AnnualReportForm } from "./financial-statements-contract";
 
 export type FundamentalHistorySeriesKey =
@@ -228,12 +229,18 @@ function completeFact(fact: SecFactValue): FactWithPeriod | undefined {
   };
 }
 
+function historySelectionFact(value: FactWithPeriod) {
+  return {
+    periodStart: value.start,
+    periodEnd: value.end,
+    filedAt: value.filed,
+    amendment: value.amendment,
+    accessionNumber: value.accessionNumber ?? null,
+  };
+}
+
 function compareLatestFiled(left: FactWithPeriod, right: FactWithPeriod): number {
-  const filed = right.filed.localeCompare(left.filed);
-  if (filed !== 0) {
-    return filed;
-  }
-  return factSignature(right).localeCompare(factSignature(left));
+  return compareFinancialStatementFacts(historySelectionFact(left), historySelectionFact(right));
 }
 
 function dedupeFactsByPeriodEnd(facts: readonly FactWithPeriod[]): readonly FactWithPeriod[] {
@@ -299,7 +306,7 @@ function ttmPoint(
   }
 
   const completeQuarterly = observableFacts
-    .filter((fact) => fact.form === "10-Q")
+    .filter((fact) => fact.canonicalForm === "10-Q")
     .flatMap((fact) => {
       const complete = completeFact(fact);
       return complete === undefined || complete.months >= 10 ? [] : [complete];
@@ -454,7 +461,7 @@ function rawSeries(
   }
 
   const annualCandidates: FactWithPeriod[] = [];
-  for (const fact of observableFacts.filter((candidate) => candidate.form === "10-K")) {
+  for (const fact of observableFacts.filter((candidate) => candidate.canonicalForm === "10-K")) {
     const complete = completeFact(fact);
     if (complete === undefined) {
       notes.push(`annual:incomplete-metadata: ${factSignature(fact)} omitted`);

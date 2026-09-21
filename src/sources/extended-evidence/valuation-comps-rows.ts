@@ -17,7 +17,16 @@ import {
 } from "./valuation-comps-contract";
 
 import { readNumberMetric, readStringMetric } from "./utils";
-import { isFreshDate, isFreshPeriodEnd, unique } from "./valuation-comps-support";
+import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
+import { incompleteCompositeNote, isCompleteComposite } from "./financial-statement-selection";
+import type { SecDebtComposite } from "./sec-edgar";
+import {
+  balanceSheetPeriodDivergence,
+  isFreshDate,
+  isFreshPeriodEnd,
+  mixedPeriodMetrics,
+  unique,
+} from "./valuation-comps-support";
 
 export function targetRow(
   symbol: string,
@@ -213,6 +222,8 @@ export function peerRow(
   const marketCap = quote?.marketCap;
   const cash = readNumberMetric(metrics, "cash");
   const debt = readNumberMetric(metrics, "debt");
+  const cashPeriodEnd = readStringMetric(metrics, "cashPeriodEnd");
+  const debtPeriodEnd = readStringMetric(metrics, "debtPeriodEnd");
   const revenue = readNumberMetric(metrics, "revenue");
   const revenuePeriodMonths = readNumberMetric(metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(metrics, "revenuePeriodEnd");
@@ -223,14 +234,57 @@ export function peerRow(
           ? 12 / revenuePeriodMonths
           : 1)
       : undefined;
-  const enterpriseValue =
+  const computedEnterpriseValue =
     marketCap !== undefined && cash !== undefined && debt !== undefined
       ? marketCap + debt - cash
       : undefined;
-  const evToAnnualizedRevenue =
-    enterpriseValue !== undefined && annualizedRevenue !== undefined && annualizedRevenue > 0
-      ? enterpriseValue / annualizedRevenue
+  const computedNetDebt = cash !== undefined && debt !== undefined ? debt - cash : undefined;
+  const computedEvToAnnualizedRevenue =
+    computedEnterpriseValue !== undefined &&
+    annualizedRevenue !== undefined &&
+    annualizedRevenue > 0
+      ? computedEnterpriseValue / annualizedRevenue
       : undefined;
+  const periodDivergence = balanceSheetPeriodDivergence(metrics);
+  const unverifiableVintage =
+    cashPeriodEnd === undefined ||
+    debtPeriodEnd === undefined ||
+    !isExactCalendarPeriodEnd(cashPeriodEnd) ||
+    !isExactCalendarPeriodEnd(debtPeriodEnd) ||
+    !isFreshPeriodEnd(cashPeriodEnd, generatedAt) ||
+    !isFreshPeriodEnd(debtPeriodEnd, generatedAt);
+  const guardedMetrics =
+    periodDivergence === undefined
+      ? undefined
+      : mixedPeriodMetrics(
+          {
+            ...(computedEnterpriseValue !== undefined
+              ? { enterpriseValue: computedEnterpriseValue }
+              : {}),
+            ...(computedNetDebt !== undefined ? { netDebt: computedNetDebt } : {}),
+            ...(computedEvToAnnualizedRevenue !== undefined
+              ? { evToAnnualizedRevenue: computedEvToAnnualizedRevenue }
+              : {}),
+            ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
+            ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
+          },
+          periodDivergence,
+        );
+  const mixedPeriod =
+    guardedMetrics?.enterpriseValue === MIXED_PERIOD_METRIC ||
+    guardedMetrics?.netDebt === MIXED_PERIOD_METRIC;
+  const incompleteDebtBasis = isIncompleteDebtComposite(sec.debtComposite);
+  let enterpriseValue: number | typeof MIXED_PERIOD_METRIC | undefined = computedEnterpriseValue;
+  let netDebt: number | typeof MIXED_PERIOD_METRIC | undefined = computedNetDebt;
+  let evToAnnualizedRevenue = computedEvToAnnualizedRevenue;
+  if (mixedPeriod) {
+    enterpriseValue = MIXED_PERIOD_METRIC;
+    netDebt = MIXED_PERIOD_METRIC;
+    evToAnnualizedRevenue = undefined;
+  } else if (unverifiableVintage || incompleteDebtBasis) {
+    enterpriseValue = undefined;
+    evToAnnualizedRevenue = undefined;
+  }
   // SIC provenance is the SEC submissions endpoint, not company facts, so a
   // Row carrying a SIC must reference the submissions source as well.
   const sourceIds = unique([
@@ -249,7 +303,10 @@ export function peerRow(
     revenuePeriodEnd !== undefined &&
     isFreshPeriodEnd(revenuePeriodEnd, generatedAt) &&
     evToAnnualizedRevenue !== undefined &&
-    Number.isFinite(evToAnnualizedRevenue);
+    Number.isFinite(evToAnnualizedRevenue) &&
+    !unverifiableVintage &&
+    !mixedPeriod &&
+    !incompleteDebtBasis;
   const row: Omit<ValuationCompsRow, "usable"> = {
     symbol: peer.symbol,
     ...(peer.name !== undefined ? { name: peer.name } : {}),
@@ -262,7 +319,9 @@ export function peerRow(
     ...(marketCap !== undefined ? { marketCap } : {}),
     ...(cash !== undefined ? { cash } : {}),
     ...(debt !== undefined ? { debt } : {}),
-    ...(cash !== undefined && debt !== undefined ? { netDebt: debt - cash } : {}),
+    ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
+    ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
+    ...(netDebt !== undefined ? { netDebt } : {}),
     ...(enterpriseValue !== undefined ? { enterpriseValue } : {}),
     ...(revenue !== undefined ? { latestPeriodRevenue: revenue } : {}),
     ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
@@ -287,6 +346,7 @@ export function excludedPeer(
   provenance: PeerUniverse["provenance"],
   generatedAt: string,
   target: ValuationCompsRow,
+  debtComposite?: SecDebtComposite,
 ): readonly ExcludedValuationPeer[] {
   if (row.usable) {
     return [];
@@ -299,7 +359,7 @@ export function excludedPeer(
     {
       symbol: row.symbol,
       role: peer.role,
-      reason: exclusionReason(row, provenance, generatedAt, target),
+      reason: exclusionReason(row, provenance, generatedAt, target, debtComposite),
       sourceIds: row.sourceIds,
     },
   ];
@@ -310,6 +370,7 @@ function exclusionReason(
   provenance: PeerUniverse["provenance"],
   generatedAt: string,
   target: ValuationCompsRow,
+  debtComposite?: SecDebtComposite,
 ): string {
   if (row.quoteObservedAt === undefined) {
     return "missing quote";
@@ -326,6 +387,14 @@ function exclusionReason(
   if (row.debt === undefined) {
     return "missing SEC debt";
   }
+  const vintageReason = peerVintageExclusionReason(row, generatedAt);
+  if (vintageReason !== undefined) {
+    return vintageReason;
+  }
+  const incompleteReason = incompleteDebtBasisReason(debtComposite);
+  if (incompleteReason !== undefined) {
+    return incompleteReason;
+  }
   if (row.revenuePeriodEnd === undefined) {
     return "missing SEC revenue period end";
   }
@@ -339,4 +408,77 @@ function exclusionReason(
     return "stale SEC revenue period";
   }
   return comparabilityFailure(row, target, gateProfileFor(provenance, target)) ?? "not usable";
+}
+
+const SEC_PERIOD_END_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+
+function isExactCalendarPeriodEnd(periodEnd: string): boolean {
+  if (SEC_PERIOD_END_PATTERN.exec(periodEnd) === null) {
+    return false;
+  }
+  const ms = Date.parse(periodEnd);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === periodEnd;
+}
+
+function periodEndReasonLabel(periodEnd: string | undefined): string {
+  if (periodEnd === undefined) {
+    return "missing";
+  }
+  if (!isExactCalendarPeriodEnd(periodEnd)) {
+    return `${periodEnd} unparseable`;
+  }
+  return periodEnd;
+}
+
+function peerVintageExclusionReason(
+  row: ValuationCompsRow,
+  generatedAt: string,
+): string | undefined {
+  const { cashPeriodEnd, debtPeriodEnd } = row;
+  if (
+    cashPeriodEnd === undefined ||
+    debtPeriodEnd === undefined ||
+    !isExactCalendarPeriodEnd(cashPeriodEnd) ||
+    !isExactCalendarPeriodEnd(debtPeriodEnd)
+  ) {
+    return `SEC cash/debt period ends unavailable (cash ${periodEndReasonLabel(cashPeriodEnd)}; debt ${periodEndReasonLabel(debtPeriodEnd)})`;
+  }
+  const divergence = balanceSheetPeriodDivergence({
+    cashPeriodEnd,
+    debtPeriodEnd,
+  });
+  if (divergence !== undefined) {
+    return `cash period end ${divergence.cashPeriodEnd} and debt period end ${divergence.debtPeriodEnd} diverge by ${String(divergence.divergenceDays)} days; enterprise value flagged as mixed-period`;
+  }
+  if (
+    !isFreshPeriodEnd(cashPeriodEnd, generatedAt) ||
+    !isFreshPeriodEnd(debtPeriodEnd, generatedAt)
+  ) {
+    return `SEC cash/debt period ends stale (cash ${cashPeriodEnd}; debt ${debtPeriodEnd})`;
+  }
+  return undefined;
+}
+
+function isIncompleteDebtComposite(
+  composite: SecDebtComposite | undefined,
+): composite is SecDebtComposite {
+  return (
+    composite !== undefined &&
+    !isCompleteComposite(composite.componentCount, composite.componentSlotCount)
+  );
+}
+
+function incompleteDebtBasisReason(composite: SecDebtComposite | undefined): string | undefined {
+  if (!isIncompleteDebtComposite(composite)) {
+    return undefined;
+  }
+  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
+  const { periodEnd, selectedConcepts } = composite;
+  if (definition === undefined || periodEnd === undefined) {
+    return "incomplete SEC debt basis";
+  }
+  const note = incompleteCompositeNote(definition, "us-gaap", periodEnd, selectedConcepts);
+  return note === undefined
+    ? "incomplete SEC debt basis"
+    : `incomplete SEC debt basis: ${note.message}`;
 }

@@ -38,10 +38,18 @@ interface SecMetricSelection {
   readonly prior?: SecFactValue;
 }
 
+export interface SecDebtComposite {
+  readonly componentCount: number;
+  readonly componentSlotCount: number;
+  readonly selectedConcepts: readonly string[];
+  readonly periodEnd?: string;
+}
+
 export interface SecFundamentalsSummary {
   readonly summary: string;
   readonly metrics: Record<string, number | string>;
   readonly revenuePeriodEnd?: string;
+  readonly debtComposite?: SecDebtComposite;
   readonly gaps: readonly SourceGap[];
 }
 
@@ -61,6 +69,7 @@ export interface SecCompanyFactsResult {
   readonly metrics?: Record<string, number | string>;
   readonly summary?: string;
   readonly revenuePeriodEnd?: string;
+  readonly debtComposite?: SecDebtComposite;
   readonly sicClassification?: SecSicClassification;
   readonly filingsSummary?: string;
   readonly submissionsUrl?: string;
@@ -419,17 +428,17 @@ function factValuesForConcept(
   );
 }
 
-function factValuesForMetric(
+function factValuesForMetricWithConcept(
   gaap: Record<string, unknown>,
   metric: SecMetricDefinition,
-): readonly SecFactValue[] {
+): { readonly concept: string; readonly values: readonly SecFactValue[] } | undefined {
   for (const concept of metric.concepts) {
     const values = factValuesForConcept(gaap, concept, metric.unitKeys);
     if (values.length > 0) {
-      return values;
+      return { concept, values };
     }
   }
-  return [];
+  return undefined;
 }
 
 function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boolean {
@@ -495,48 +504,100 @@ function isCurrentFlowFact(anchor: SecFactValue, candidate: SecFactValue): boole
   );
 }
 
+interface DebtComponentSlot {
+  readonly concept: string;
+  readonly values: readonly SecFactValue[];
+}
+
+interface DebtComponentSum {
+  readonly fact: SecFactValue;
+  readonly matches: readonly { readonly concept: string; readonly fact: SecFactValue }[];
+}
+
 function sumMatchingFacts(
   period: SecFactValue,
-  componentValues: readonly (readonly SecFactValue[])[],
-): SecFactValue | undefined {
-  const matches = componentValues
-    .map((values) =>
-      latestFact(
-        values.filter((value) => sameFiscalPeriod(period, value) && value.end === period.end),
-      ),
-    )
-    .filter((value): value is SecFactValue => value !== undefined);
+  componentSlots: readonly DebtComponentSlot[],
+): DebtComponentSum | undefined {
+  const matches = componentSlots.flatMap((slot) => {
+    const fact = latestFact(
+      slot.values.filter((value) => sameFiscalPeriod(period, value) && value.end === period.end),
+    );
+    return fact === undefined ? [] : [{ concept: slot.concept, fact }];
+  });
   if (matches.length === 0) {
     return undefined;
   }
   return {
-    ...period,
-    val: matches.reduce((sum, value) => sum + value.val, 0),
+    fact: {
+      ...period,
+      val: matches.reduce((sum, match) => sum + match.fact.val, 0),
+    },
+    matches,
+  };
+}
+
+function debtCompositeFromSum(sum: DebtComponentSum): SecDebtComposite {
+  return {
+    componentCount: sum.matches.length,
+    componentSlotCount: DEBT_COMPONENTS.length,
+    selectedConcepts: sum.matches.map((match) => match.concept),
+    ...(sum.fact.end !== undefined ? { periodEnd: sum.fact.end } : {}),
   };
 }
 
 function selectDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
-): SecMetricSelection | undefined {
+): { readonly selection: SecMetricSelection; readonly composite?: SecDebtComposite } | undefined {
   const direct = selectMetric(gaap, DEBT_METRIC, analysisAsOf);
-  const componentValues = DEBT_COMPONENTS.map((metric) =>
-    factValuesForMetric(gaap, metric).filter((value) => isFactObservableAsOf(value, analysisAsOf)),
-  );
+  const componentSlots = DEBT_COMPONENTS.flatMap((metric) => {
+    const populated = factValuesForMetricWithConcept(gaap, metric);
+    return populated === undefined
+      ? []
+      : [
+          {
+            concept: populated.concept,
+            values: populated.values.filter((value) => isFactObservableAsOf(value, analysisAsOf)),
+          },
+        ];
+  });
+  const componentValues = componentSlots.map((slot) => slot.values);
   const latest = latestFact(componentValues.flat());
-  const summedLatest = latest === undefined ? undefined : sumMatchingFacts(latest, componentValues);
+  const summedLatest = latest === undefined ? undefined : sumMatchingFacts(latest, componentSlots);
   const priorPeriod =
     latest === undefined ? undefined : comparablePrior(latest, componentValues.flat());
-  const prior =
-    priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentValues);
+  const priorSum =
+    priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentSlots);
   const components =
     summedLatest === undefined
       ? undefined
-      : { latest: summedLatest, ...(prior !== undefined ? { prior } : {}) };
-  if (direct === undefined || components === undefined) {
-    return direct ?? components;
+      : {
+          latest: summedLatest.fact,
+          ...(priorSum !== undefined ? { prior: priorSum.fact } : {}),
+        };
+  if (direct === undefined) {
+    if (components === undefined || summedLatest === undefined) {
+      return undefined;
+    }
+    const composite = debtCompositeFromSum(summedLatest);
+    return {
+      selection: components,
+      composite,
+    };
   }
-  return compareFactRecency(direct.latest, components.latest) < 0 ? direct : components;
+  if (components === undefined) {
+    return { selection: direct };
+  }
+  if (compareFactRecency(direct.latest, components.latest) < 0) {
+    return { selection: direct };
+  }
+  if (summedLatest === undefined) {
+    return { selection: components };
+  }
+  return {
+    selection: components,
+    composite: debtCompositeFromSum(summedLatest),
+  };
 }
 
 function deltaPercent(latest: number, prior: number): number | undefined {
@@ -578,6 +639,7 @@ export function summarizeSecFundamentals(
       ? undefined
       : selectMetric(gaap, revenueDefinition, analysisAsOf);
   const flowPeriod = revenueSelection?.latest;
+  const debtSelection = selectDebtMetric(gaap, analysisAsOf);
   const metricSelections: readonly {
     readonly definition: SecMetricDefinition;
     readonly selection: SecMetricSelection | undefined;
@@ -594,7 +656,7 @@ export function summarizeSecFundamentals(
               FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
             ),
     })),
-    { definition: DEBT_METRIC, selection: selectDebtMetric(gaap, analysisAsOf) },
+    { definition: DEBT_METRIC, selection: debtSelection?.selection },
   ];
 
   for (const { definition, selection } of metricSelections) {
@@ -692,6 +754,7 @@ export function summarizeSecFundamentals(
     ...(typeof metrics.revenuePeriodEnd === "string"
       ? { revenuePeriodEnd: metrics.revenuePeriodEnd }
       : {}),
+    ...(debtSelection?.composite !== undefined ? { debtComposite: debtSelection.composite } : {}),
     gaps,
   };
 }
@@ -817,6 +880,9 @@ export async function fetchSecCompanyFactsForSymbol(
           summary: fundamentals.summary,
           ...(fundamentals.revenuePeriodEnd !== undefined
             ? { revenuePeriodEnd: fundamentals.revenuePeriodEnd }
+            : {}),
+          ...(fundamentals.debtComposite !== undefined
+            ? { debtComposite: fundamentals.debtComposite }
             : {}),
         }
       : {}),

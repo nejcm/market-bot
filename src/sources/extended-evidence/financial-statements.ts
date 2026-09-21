@@ -14,7 +14,9 @@ import {
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
   financialStatementFacts,
+  incompleteCompositeNotes,
   incompleteFinancialStatementNotes,
+  isCompleteComposite,
   latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import {
@@ -370,37 +372,6 @@ function preferDirectBasis(
   }
   const directLatest = latestFinancialStatementFact(direct);
   return directLatest !== undefined && directLatest.periodEnd >= compositeLatest.periodEnd;
-}
-
-function incompleteCompositeNotes(
-  definition: FinancialStatementSeriesDefinition,
-  taxonomy: FinancialStatementTaxonomy,
-  series: FinancialStatementSeries,
-): readonly FinancialStatementNote[] {
-  const slots = definition.components;
-  if (slots === undefined) {
-    return [];
-  }
-  return financialStatementFacts(series).flatMap((fact): readonly FinancialStatementNote[] => {
-    if (fact.composite === undefined) {
-      return [];
-    }
-    const selectedConcepts = new Set(
-      fact.composite.components.map((component) => component.concept),
-    );
-    const missingSlots = slots
-      .map((slot) => slot[taxonomy])
-      .filter((aliases) => aliases.every((alias) => !selectedConcepts.has(alias)));
-    return missingSlots.length === 0
-      ? []
-      : [
-          {
-            code: "incomplete-composite-series",
-            seriesKey: definition.key,
-            message: `${definition.label} composite for ${fact.periodEnd} omits ${missingSlots.map((aliases) => aliases.join("/")).join(", ")} because no eligible fact was selected for that component slot.`,
-          },
-        ];
-  });
 }
 
 function allFactsForDefinition(
@@ -920,7 +891,9 @@ function selectSeries(
   const directSelected = financialStatementFacts(direct.series).length > 0;
   const componentSlotCount = definition.components?.length ?? 0;
   const compositeFacts = factsForComposite(payload, taxonomy, definition, eligible).filter(
-    (fact) => !directSelected || fact.composite?.components.length === componentSlotCount,
+    (fact) =>
+      !directSelected ||
+      isCompleteComposite(fact.composite?.components.length ?? 0, componentSlotCount),
   );
   const composite = materializeBasis(
     compositeFacts,

@@ -1,22 +1,21 @@
 import { excludedPeer, peerRow, targetRow } from "./valuation-comps-rows";
 import { buildArtifact } from "./valuation-comps-range";
 import {
+  balanceSheetPeriodDivergence,
   enrichValuationItem,
+  guardMixedPeriodValuationItem,
   peerImpliedRangeSuppressionGaps,
   replaceValuationItem,
   sourcesForPeer,
   valuationCompsGap,
 } from "./valuation-comps-support";
 import {
-  MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
-  MIXED_PERIOD_METRIC,
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
   type ValuationCompsOptions,
   type ValuationCompsResult,
 } from "./valuation-comps-contract";
 
 import type { InstrumentCommand } from "../../cli/args";
-import { DAY_MS } from "../../config/shared";
 import { sourceGapWithContext } from "../../domain/source-gaps";
 import {
   type ExtendedEvidence,
@@ -142,8 +141,15 @@ export async function collectValuationComps(
   );
   const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
   const peers = peerSecResults.map((entry) => peerRow(entry, ctx.fetchedAt, target));
-  const excludedPeers = peers.flatMap((row) =>
-    excludedPeer(row, universe.peers, universe.provenance, ctx.fetchedAt, target),
+  const excludedPeers = peers.flatMap((row, index) =>
+    excludedPeer(
+      row,
+      universe.peers,
+      universe.provenance,
+      ctx.fetchedAt,
+      target,
+      peerSecResults[index]?.sec.debtComposite,
+    ),
   );
   const peerGaps = [
     ...mixedPeriodGaps,
@@ -238,35 +244,10 @@ function valuationEvidenceItem(evidence: ExtendedEvidence): ExtendedEvidenceItem
   return evidence.items.find((item) => item.category === "valuation");
 }
 
-interface BalanceSheetPeriodDivergence {
-  readonly cashPeriodEnd: string;
-  readonly debtPeriodEnd: string;
-  readonly divergenceDays: number;
-}
-
-function balanceSheetPeriodDivergence(
-  metrics: Readonly<Record<string, number | string>> | undefined,
-): BalanceSheetPeriodDivergence | undefined {
-  const cashPeriodEnd = readStringMetric(metrics, "cashPeriodEnd");
-  const debtPeriodEnd = readStringMetric(metrics, "debtPeriodEnd");
-  if (cashPeriodEnd === undefined || debtPeriodEnd === undefined) {
-    return undefined;
-  }
-  const cashPeriodMs = Date.parse(cashPeriodEnd);
-  const debtPeriodMs = Date.parse(debtPeriodEnd);
-  if (!Number.isFinite(cashPeriodMs) || !Number.isFinite(debtPeriodMs)) {
-    return undefined;
-  }
-  const divergenceDays = Math.abs(cashPeriodMs - debtPeriodMs) / DAY_MS;
-  return divergenceDays > MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
-    ? { cashPeriodEnd, debtPeriodEnd, divergenceDays }
-    : undefined;
-}
-
 function targetBalanceSheetPeriodDivergence(
   evidence: ExtendedEvidence,
   valuationItem: ExtendedEvidenceItem,
-): BalanceSheetPeriodDivergence | undefined {
+) {
   const valuationCashPeriodEnd = readStringMetric(valuationItem.metrics, "cashPeriodEnd");
   const valuationDebtPeriodEnd = readStringMetric(valuationItem.metrics, "debtPeriodEnd");
   if (valuationCashPeriodEnd !== undefined && valuationDebtPeriodEnd !== undefined) {
@@ -279,29 +260,4 @@ function targetBalanceSheetPeriodDivergence(
       readStringMetric(item.metrics, "debtPeriodEnd") !== undefined,
   );
   return balanceSheetPeriodDivergence(secItem?.metrics);
-}
-
-function guardMixedPeriodValuationItem(
-  item: ExtendedEvidenceItem,
-  divergence: BalanceSheetPeriodDivergence | undefined,
-): ExtendedEvidenceItem {
-  if (divergence === undefined) {
-    return item;
-  }
-  const retainedMetrics = Object.fromEntries(
-    Object.entries(item.metrics ?? {}).filter(
-      ([key]) => key !== "evToAnnualizedRevenue" && key !== "netDebtToMarketCap",
-    ),
-  );
-  return {
-    ...item,
-    summary: `Valuation Evidence: cash period end ${divergence.cashPeriodEnd} and debt period end ${divergence.debtPeriodEnd} diverge by ${String(divergence.divergenceDays)} days; enterprise value and net debt are mixed-period. Raw market cap, cash, debt, and revenue metrics are retained.`,
-    metrics: {
-      ...retainedMetrics,
-      cashPeriodEnd: divergence.cashPeriodEnd,
-      debtPeriodEnd: divergence.debtPeriodEnd,
-      netDebt: MIXED_PERIOD_METRIC,
-      enterpriseValue: MIXED_PERIOD_METRIC,
-    },
-  };
 }

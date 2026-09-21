@@ -201,11 +201,11 @@ TTM | 2026-03-31 | 2026-05-01 | 216.60 USD (2026-05-01) | 28.50x | 7.76x | 7.85x
 Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates
 --- | --- | --- | ---: | --- | ---
 AAPL | target | usable | 7.24x | USD | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-MSFT | core | usable | 11.50x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31
-GOOGL | core | usable | 5.92x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31
-AMZN | core | usable | 3.43x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31
-META | core | usable | 8.90x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31
-DELL | secondary | excluded | 1.00x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31
+MSFT | core | usable | 11.50x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
+GOOGL | core | usable | 5.92x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
+AMZN | core | usable | 3.43x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
+META | core | usable | 8.90x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
+DELL | secondary | excluded | 1.00x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
 
 
 

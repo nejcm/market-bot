@@ -8,6 +8,7 @@ import {
   type FinancialStatementSeriesKey,
   type FinancialStatementTtm,
   type FinancialStatementsArtifact,
+  type FinancialStatementTaxonomy,
   type InterimCadence,
 } from "./financial-statements-contract";
 
@@ -120,6 +121,53 @@ export function financialStatementFacts(
   series: FinancialStatementSeries,
 ): readonly FinancialStatementFact[] {
   return [...series.annual, ...series.interim];
+}
+
+export function isCompleteComposite(componentCount: number, componentSlotCount: number): boolean {
+  return componentCount === componentSlotCount;
+}
+
+export function incompleteCompositeNote(
+  definition: FinancialStatementSeriesDefinition,
+  taxonomy: FinancialStatementTaxonomy,
+  periodEnd: string,
+  selectedConcepts: readonly string[],
+): FinancialStatementNote | undefined {
+  const slots = definition.components;
+  if (slots === undefined) {
+    return undefined;
+  }
+  const selected = new Set(selectedConcepts);
+  const missingSlots = slots
+    .map((slot) => slot[taxonomy])
+    .filter((aliases) => aliases.every((alias) => !selected.has(alias)));
+  if (missingSlots.length === 0) {
+    return undefined;
+  }
+  return {
+    code: "incomplete-composite-series",
+    seriesKey: definition.key,
+    message: `${definition.label} composite for ${periodEnd} omits ${missingSlots.map((aliases) => aliases.join("/")).join(", ")} because no eligible fact was selected for that component slot.`,
+  };
+}
+
+export function incompleteCompositeNotes(
+  definition: FinancialStatementSeriesDefinition,
+  taxonomy: FinancialStatementTaxonomy,
+  series: FinancialStatementSeries,
+): readonly FinancialStatementNote[] {
+  return financialStatementFacts(series).flatMap((fact) => {
+    if (fact.composite === undefined) {
+      return [];
+    }
+    const note = incompleteCompositeNote(
+      definition,
+      taxonomy,
+      fact.periodEnd,
+      fact.composite.components.map((component) => component.concept),
+    );
+    return note === undefined ? [] : [note];
+  });
 }
 
 export function financialStatementFactForPeriod(

@@ -12,6 +12,50 @@ export const FIRECRAWL_PROVIDER = "firecrawl";
 const FIRECRAWL_API_URL = "https://api.firecrawl.dev/v2";
 const FIRECRAWL_SEARCH_ADAPTER = "firecrawl-search";
 const FIRECRAWL_SCRAPE_ADAPTER = "firecrawl-scrape";
+const PASSAGE_CHARS = 1000;
+const SENTENCE_CHARS = 330;
+const QUERY_FILLER = new Set(["and", "for", "from", "latest", "official", "stock", "the", "with"]);
+
+function relevantPassage(markdown: string, query: string): string {
+  if (markdown.length <= PASSAGE_CHARS) {
+    return markdown;
+  }
+  const terms = new Set(
+    [
+      ...(query.toLowerCase().match(/[a-z\d]{3,}/gu) ?? []),
+      ...(query.match(/\b[A-Z]{2}\b/gu)?.map((term) => term.toLowerCase()) ?? []),
+    ].filter((term) => !QUERY_FILLER.has(term)),
+  );
+  const sentences = [
+    ...new Set(
+      markdown
+        .replaceAll(/^\s*\[?!\[.*$/gmu, "")
+        .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+        .split(/(?<=[.!?])\s+|\n+/u)
+        .map((text) => text.replaceAll(/\s+/gu, " ").trim())
+        .filter(Boolean),
+    ),
+  ];
+  const ranked = sentences
+    .map((text, index) => {
+      const words = text.toLowerCase().match(/[a-z\d]{2,}/gu);
+      return { text, index, score: [...terms].filter((term) => words?.includes(term)).length };
+    })
+    .filter((sentence) => sentence.score > 0)
+    .toSorted((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 3)
+    .toSorted((a, b) => a.index - b.index);
+  const selected =
+    ranked.length > 0
+      ? ranked.map(({ text }) => text)
+      : [sentences.find((text) => text.length > 80) ?? sentences[0] ?? ""];
+  return (
+    selected
+      .map((text) => text.slice(0, SENTENCE_CHARS))
+      .join(" ")
+      .slice(0, PASSAGE_CHARS) || markdown.slice(0, PASSAGE_CHARS)
+  );
+}
 
 function firecrawlRequestInit(apiKey: string, body: unknown): RequestInit {
   return {
@@ -82,8 +126,8 @@ export async function requestFirecrawlScrape(
   });
 }
 
-// Response shape: { success, data: { web: [{ title, description, url, markdown, ... }] }, creditsUsed }. `highlights` is always empty: Firecrawl has no highlight equivalent.
-export function parseFirecrawlSearchResults(payload: unknown): WebGatherResultsParse {
+// Response shape: { success, data: { web: [{ title, description, url, markdown, ... }] }, creditsUsed }.
+export function parseFirecrawlSearchResults(payload: unknown, query = ""): WebGatherResultsParse {
   if (
     !isRecord(payload) ||
     payload.success === false ||
@@ -108,9 +152,10 @@ export function parseFirecrawlSearchResults(payload: unknown): WebGatherResultsP
       {
         url,
         ...(title !== undefined ? { title } : {}),
-        ...(summary !== undefined ? { summary } : {}),
+        ...(summary !== undefined ? { summary: relevantPassage(summary, query) } : {}),
         ...(text !== undefined ? { text } : {}),
-        highlights: [],
+        highlights:
+          text !== undefined && text.length > PASSAGE_CHARS ? [relevantPassage(text, query)] : [],
       },
     ];
   });
@@ -139,7 +184,13 @@ export function parseFirecrawlScrapeResult(url: string, payload: unknown): WebGa
   }
   const creditsUsed = readNumber(payload, "creditsUsed");
   return {
-    results: [{ url: validatedUrl, text, highlights: [] }],
+    results: [
+      {
+        url: validatedUrl,
+        text,
+        highlights: text.length > PASSAGE_CHARS ? [relevantPassage(text, "")] : [],
+      },
+    ],
     malformed: false,
     ...(creditsUsed !== undefined ? { creditsUsed } : {}),
   };

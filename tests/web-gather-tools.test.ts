@@ -841,6 +841,46 @@ describe("firecrawl fallback", () => {
     expect(surfacedUrls.has("https://firecrawl.example/aapl-1")).toBe(true);
   });
 
+  test("selects late Firecrawl passages before model input sanitization", async () => {
+    const markdown = `${"Navigation and unrelated links. ".repeat(80)}\n[![IREN GPU capacity image](https://example.test/image)](https://example.test/story)\nIREN GPU capacity expanded after the new facility opened.`;
+    const output = await executeWebGatherTool(
+      "web_search",
+      { query: "IREN GPU capacity", searchType: "current-subject" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "exa-search"
+              ? gap("exa-search", "status 500")
+              : jsonResult(adapter, {
+                  success: true,
+                  data: {
+                    web: [
+                      {
+                        url: "https://example.test/iren-capacity",
+                        title: "IREN capacity update",
+                        description: markdown,
+                        markdown,
+                      },
+                    ],
+                  },
+                }),
+        }),
+      }),
+      new Set(),
+    );
+
+    expect(output.sources[0]?.snippet).toContain("IREN GPU capacity expanded");
+    expect(output.sources[0]?.summary).toContain("IREN GPU capacity expanded");
+    expect(output.sources[0]?.snippet).not.toContain("Navigation");
+    expect(
+      output.modelInputSanitization?.entries.find((entry) => entry.fieldRole === "snippet"),
+    ).toMatchObject({ truncatedFieldCount: 0, truncatedCharCount: 0 });
+    expect(output.rawSnapshots[0]?.payload).toMatchObject({
+      data: { web: [{ markdown }] },
+    });
+  });
+
   test("falls back to Firecrawl search on thin Exa results after widen", async () => {
     const adapters: string[] = [];
     const result = await executeWebGatherTool(

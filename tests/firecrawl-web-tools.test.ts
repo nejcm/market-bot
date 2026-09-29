@@ -132,6 +132,44 @@ describe("firecrawl search parsing", () => {
     ]);
   });
 
+  test("uses the first sentence when the query has no match", () => {
+    const markdown = "A short site menu with no article content. ".repeat(40);
+    const parsed = parseFirecrawlSearchResults(
+      { success: true, data: { web: [{ url: "https://example.test/a", markdown }] } },
+      "IREN GPU capacity",
+    );
+
+    expect(parsed.results[0]?.highlights).toEqual(["A short site menu with no article content."]);
+  });
+
+  test("keeps bounded raw content when image stripping leaves no passage", () => {
+    const markdown = "[![Image](https://example.test/image)](https://example.test/story)\n".repeat(
+      30,
+    );
+    const parsed = parseFirecrawlSearchResults(
+      {
+        success: true,
+        data: { web: [{ url: "https://example.test/a", description: markdown, markdown }] },
+      },
+      "IREN GPU capacity",
+    );
+
+    expect(parsed.results[0]?.summary).toBe(markdown.slice(0, 1000));
+    expect(parsed.results[0]?.highlights).toEqual([markdown.slice(0, 1000)]);
+  });
+
+  test("deduplicates repeated sentences and matches uppercase two-letter query terms", () => {
+    const markdown = `${"IREN capacity update. ".repeat(60)}AI chip supply increased.`;
+    const parsed = parseFirecrawlSearchResults(
+      { success: true, data: { web: [{ url: "https://example.test/a", markdown }] } },
+      "IREN AI",
+    );
+
+    expect(parsed.results[0]?.highlights).toEqual([
+      "IREN capacity update. AI chip supply increased.",
+    ]);
+  });
+
   test("flags malformed responses when data.web is missing", () => {
     expect(parseFirecrawlSearchResults({ success: true, data: {} }).malformed).toBe(true);
     expect(parseFirecrawlSearchResults({ success: false }).malformed).toBe(true);
@@ -179,6 +217,18 @@ describe("firecrawl scrape parsing", () => {
     expect(parsed.results).toEqual([
       { url: "https://example.test/apple", text: "Apple sells devices.", highlights: [] },
     ]);
+  });
+
+  test("scrape selects the first substantive sentence without URL-token ranking", () => {
+    const intro =
+      "The opening paragraph describes the article and its scope in sufficient detail for a reader to understand it.";
+    const markdown = `${"Menu. ".repeat(180)}\n${intro}\nCompany update appears much later.`;
+    const parsed = parseFirecrawlScrapeResult("https://example.test/company-update", {
+      success: true,
+      data: { markdown },
+    });
+
+    expect(parsed.results[0]?.highlights).toEqual([intro]);
   });
 
   test("flags malformed when markdown is missing", () => {

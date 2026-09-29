@@ -19,8 +19,8 @@ describe("resolveConfig", () => {
   test("uses OpenAI defaults", () => {
     expect(resolveConfig({})).toMatchObject({
       provider: "openai",
-      quickModel: "gpt-5.4-mini",
-      synthesisModel: "gpt-5.5",
+      quickModel: "gpt-6-luna",
+      synthesisModel: "gpt-6-luna",
       dataDir: "data/runs",
       modelTimeoutMs: 300_000,
     });

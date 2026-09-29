@@ -273,8 +273,8 @@ describe("runCli", () => {
     });
 
     expect(result).toBe(runDir);
-    expect(calls).toEqual(["score", "index", "persist", "score", "calibration", "index"]);
-    expect(indexedRunDirs).toEqual([["old-run"], ["run-1"]]);
+    expect(calls).toEqual(["score", "index", "persist", "index", "score", "calibration", "index"]);
+    expect(indexedRunDirs).toEqual([["old-run"], ["run-1"], []]);
     expect(scoreTimestamps[0]?.getTime()).toBeLessThan(persistTimestamps[0]?.getTime() ?? 0);
     expect(scoreTimestamps[1]?.getTime()).toBeGreaterThan(
       persistTimestamps[0]?.getTime() ?? Infinity,
@@ -891,8 +891,17 @@ describe("runCli", () => {
     });
 
     expect(result).toBe(runDir);
-    expect(calls).toEqual(["score", "persist", "score", "calibration", "index", "stale-rebuild"]);
-    expect(staleRebuildArgs).toHaveLength(1);
+    expect(calls).toEqual([
+      "score",
+      "persist",
+      "index",
+      "stale-rebuild",
+      "score",
+      "calibration",
+      "index",
+      "stale-rebuild",
+    ]);
+    expect(staleRebuildArgs).toHaveLength(2);
     expect(staleRebuildArgs[0]?.dataDir).toBe(dataDir);
     // The CLI forwards the resolved index dbPath (config defaults it from dataDir).
     expect(staleRebuildArgs[0]?.options).toEqual({ dbPath: join(dataDir, "index.sqlite") });
@@ -1024,6 +1033,8 @@ describe("runCli", () => {
         "index",
         "stale-rebuild",
         "persist",
+        "index",
+        "stale-rebuild",
         "score-2",
         "index",
         "stale-rebuild",

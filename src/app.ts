@@ -366,6 +366,13 @@ export async function runCli(
     }
   })();
 
+  progress("updating run artifact index");
+  await updateRunArtifactIndex(
+    config.dataDir,
+    [result.artifacts.runDir],
+    dependencies,
+    config.indexOptions?.dbPath,
+  );
   progress("post-run score pass");
   const scoreResult = await runScore(
     config.dataDir,
@@ -387,7 +394,7 @@ export async function runCli(
   progress("updating run artifact index");
   await updateRunArtifactIndex(
     config.dataDir,
-    [result.artifacts.runDir, ...(scoreResult?.touchedRunDirs ?? [])],
+    scoreResult?.touchedRunDirs ?? [],
     dependencies,
     config.indexOptions?.dbPath,
   );

@@ -978,7 +978,7 @@ function structuredFinancialGaps(
   taxonomy: FinancialStatementTaxonomy | undefined,
   reportingCurrency: string | undefined,
   taggedSixKFacts: readonly ParsedFact[],
-  currentAnnualEnd: string | undefined,
+  currentAnnual: FinancialStatementFact | undefined,
   input: FinancialStatementsDeriveInput,
 ): readonly StructuredFinancialGap[] {
   const gaps: StructuredFinancialGap[] = [];
@@ -1003,7 +1003,9 @@ function structuredFinancialGaps(
     input.analysisAsOf,
   ).filter(
     (filing) =>
-      (currentAnnualEnd === undefined || filing.filedAt > currentAnnualEnd) &&
+      (currentAnnual === undefined ||
+        filing.filedAt > currentAnnual.filedAt ||
+        (filing.reportDate ?? filing.filedAt) > currentAnnual.periodEnd) &&
       !filingHasStructuredFact(filing, taggedSixKFacts),
   );
   if (untaggedSixK.length > 0) {
@@ -1179,7 +1181,7 @@ export function deriveFinancialStatements(
     selected.map((item) => item.series),
   );
   const statements = seriesRecord(series);
-  const currentAnnualEnd = latestFinancialStatementFact(
+  const currentAnnual = latestFinancialStatementFact(
     statements.incomeStatement.revenue.annual.filter((fact) => {
       const months = financialStatementPeriodMonths(fact);
       return (
@@ -1188,7 +1190,7 @@ export function deriveFinancialStatements(
         months <= MAX_ANNUAL_DURATION_MONTHS
       );
     }),
-  )?.periodEnd;
+  );
   const interimCadence = detectFinancialStatementCadence(series);
   const otherTaxonomies =
     taxonomy === undefined
@@ -1236,7 +1238,7 @@ export function deriveFinancialStatements(
       taxonomy,
       reportingCurrency,
       supportedSixKFacts(payload, input.analysisAsOf),
-      currentAnnualEnd,
+      currentAnnual,
       input,
     ),
   };

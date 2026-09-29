@@ -169,7 +169,7 @@ function statements(input: {
             form: ["20-F", "6-K"],
             filingDate: ["2026-03-15", input.untaggedSixKFiledAt ?? "2026-05-10"],
             accessionNumber: ["annual", "untagged-interim"],
-            reportDate: ["2025-12-31", "2026-03-31"],
+            reportDate: ["2025-12-31", input.untaggedSixKFiledAt ?? "2026-03-31"],
           },
         },
       }

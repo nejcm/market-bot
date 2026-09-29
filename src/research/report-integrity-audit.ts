@@ -48,15 +48,32 @@ export interface ReportIntegrityAuditResult {
   readonly advisories: readonly ReportIntegrityAdvisory[];
 }
 
-// Bare calendar years and forecast-horizon phrasing are not numeric claims for
+// Bare calendar/fiscal years and forecast-horizon phrasing are not numeric claims for
 // Pruning purposes: "revenue guidance for 2026" or "a 5-trading-day horizon"
 // Carries no measurable figure that demands a citation on its own. A year-like
 // Token attached to a price or percentage ("$2050", "2026%") stays numeric.
 // This exemption is deliberately broader than the warn-only audit's horizon
 // Pattern: pruning is destructive, so ambiguity favors keeping the claim.
-// YEAR, horizon, and ISO-date matchers carry /g for replaceAll and must not be reused with .test();
+// YEAR, month-day, horizon, and ISO-date matchers carry /g for replaceAll, not .test();
 // The unit patterns omit /g because they are .test()ed.
-const YEAR_TOKEN_PATTERN = /(?<![$\d.])\b(?:19|20)\d{2}\b(?!\s*%|\.\d)/gu;
+const YEAR_TOKEN_PATTERN =
+  /(?<![$\d.])\b(?:FY(?:\d{2}|(?:19|20)\d{2})|(?:19|20)\d{2})\b(?!\s*%|\.\d)/giu;
+const MONTH_DAY_PATTERN =
+  /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+([1-9]|[12]\d|3[01])(?:,\s*((?:19|20)\d{2}))?\b/gu;
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
 const HORIZON_TOKEN_PATTERN = /(?<![$])\b\d+\s*(?:-| )?(?:trading|calendar)?\s*-?\s*days?\b/giu;
 // Strip calendar-valid ISO dates first; year-stripping otherwise leaves "-MM-DD" as a numeric claim.
 // Symbol-adjacent currency/percent/multiple units stay numeric; whitespace-separated unit words are out of scope.
@@ -87,6 +104,18 @@ function isBlockingNumericOrTechnical(text: string): boolean {
       isUtcRoundTripIsoDate(span) && !hasAttachedFinancialUnit(text, offset, offset + span.length)
         ? " "
         : span,
+    )
+    .replaceAll(
+      MONTH_DAY_PATTERN,
+      (span, month: string, day: string, year: string | undefined, offset: number) => {
+        const monthIndex = MONTHS.indexOf(month.toLowerCase());
+        const date = new Date(Date.UTC(Number(year ?? "2000"), monthIndex, Number(day)));
+        return date.getUTCMonth() === monthIndex &&
+          date.getUTCDate() === Number(day) &&
+          !hasAttachedFinancialUnit(text, offset, offset + span.length)
+          ? " "
+          : span;
+      },
     )
     .replaceAll(YEAR_TOKEN_PATTERN, " ")
     .replaceAll(HORIZON_TOKEN_PATTERN, " ");

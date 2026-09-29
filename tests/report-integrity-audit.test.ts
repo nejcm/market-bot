@@ -253,6 +253,29 @@ describe("auditReportIntegrity", () => {
     expect(result.advisoryWarningCount).toBe(result.advisories.length);
   });
 
+  test("fiscal years and calendar dates alone do not create summary advisories", () => {
+    const summary =
+      "FY2026 losses leave execution central. The September 28 close was weak relative to broad proxies.";
+
+    expect(auditSummary(summary).advisoryWarningCount).toBe(0);
+    expect(auditSummary("FY26 losses leave execution central.").advisoryWarningCount).toBe(0);
+    expect(auditSummary(`${summary} FY2026 capex was $3.00 billion.`).advisories).toEqual([
+      { code: "uncited-numeric-summary-sentence", location: "summary[2]" },
+    ]);
+    for (const year of ["FY26", "FY2026"]) {
+      expect(auditUncitedFinding(`${year} losses leave execution central.`).pruned).toEqual([]);
+    }
+  });
+
+  test("lowercase may before a number is not treated as a date", () => {
+    const claim = "Revenue may 10 percent rise.";
+
+    expect(numericSummaryAdvisories(claim)).toEqual([UNCITED_NUMERIC_SUMMARY]);
+    expect(auditUncitedFinding(claim).pruned.map((item) => item.location)).toEqual([
+      "keyFindings[0]",
+    ]);
+  });
+
   test("accepts a current-source self-declaring posture", () => {
     const result = auditReportIntegrity(
       researchReport({ keyFindings: [citedFinding("Utilization remains unverified.")] }),
@@ -369,6 +392,8 @@ describe("auditReportIntegrity", () => {
       ["date at end without period", "Operating evidence remains qualitative through 2026-06-27"],
       ["date after newline", "Operating evidence remains qualitative\n2026-06-27."],
       ["fiscal year through date", "Fiscal 2025 through 2026-06-27"],
+      ["month-name date", "Operating evidence remains qualitative through June 27, 2026."],
+      ["month and day", "The September 28 close was weak."],
     ] as const;
 
     test.each([
@@ -418,7 +443,8 @@ describe("auditReportIntegrity", () => {
       ["trailing extra digit 2026-06-270", qualitativeThrough("2026-06-270"), true],
       ["dot-prefixed 0.2026-06-27", qualitativeThrough("0.2026-06-27"), true],
       ["iso timestamp", qualitativeThrough("2026-06-27T00:00:00Z"), true],
-      ["month-name date", "Operating evidence remains qualitative through June 27, 2026.", true],
+      ["invalid month-name date", qualitativeThrough("April 31, 2026"), true],
+      ["month-name date with percentage", qualitativeThrough("September 28%"), true],
     ] as const)("summary numeric detection for %s", (_name, summary, expectBlocking) => {
       const result = auditSummary(summary);
 

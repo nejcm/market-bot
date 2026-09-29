@@ -75,8 +75,9 @@ research boundaries without sharing persistence or scoring semantics.
 - After schema-valid synthesis and before forecast disagreement, the deterministic Report
   Integrity Audit prunes blocking violations: numeric or technical findings, scenarios, and
   predictions without an eligible supporting source (structural eligibility only — no
-  semantic-entailment claims; bare years and forecast-horizon wording do not count as numeric
-  claims, and cited historical forecast outcomes are exempt). Uncited numeric summary sentences
+  semantic-entailment claims; bare years, FY26/FY2026 labels, calendar-valid ISO and
+  capitalized month-name dates, and forecast-horizon wording do not count as numeric
+  claims; cited historical forecast outcomes are exempt). Uncited numeric summary sentences
   (the summary has no citation field) and missing evidence-posture labels remain advisory
   telemetry and are never pruned.
 - Every new report is stamped with `reportIntegrity` (`high` with no pruning; `medium` when

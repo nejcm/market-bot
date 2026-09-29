@@ -859,6 +859,79 @@ describe("canonical financial statements", () => {
     });
   });
 
+  test("ignores untagged 6-K filings covered by the current annual period", () => {
+    const companyFacts = payload({ "us-gaap": { Revenues: { USD: [annual(100, 2025)] } } });
+    const filings = (filingDates: readonly string[]) =>
+      derive(companyFacts, {
+        submissionsPayload: {
+          filings: {
+            recent: { form: filingDates.map(() => "6-K"), filingDate: filingDates },
+          },
+        },
+      }).structuredFinancialGaps;
+
+    expect(filings(["2025-06-30"])).toEqual([]);
+    expect(filings(["2025-06-30", "2026-03-31"])).toContainEqual(
+      expect.objectContaining({ code: "untagged-6-k" }),
+    );
+  });
+
+  test("uses 6-K report dates and the annual filing date to decide coverage", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: {
+          USD: [
+            fact({
+              value: 100,
+              form: "10-K",
+              fiscalYear: 2026,
+              fiscalPeriod: "FY",
+              filedAt: "2026-08-27",
+              periodStart: "2025-07-01",
+              periodEnd: "2026-06-30",
+            }),
+          ],
+        },
+      },
+    });
+    const gaps = (filingDate: string, reportDate?: string) =>
+      derive(companyFacts, {
+        analysisAsOf: "2026-09-29T00:00:00.000Z",
+        submissionsPayload: {
+          filings: {
+            recent: { form: ["6-K"], filingDate: [filingDate], reportDate: [reportDate] },
+          },
+        },
+      }).structuredFinancialGaps;
+
+    expect(gaps("2026-08-01", "2026-06-30")).toEqual([]);
+    expect(gaps("2026-08-01", "2026-07-31")).toContainEqual(
+      expect.objectContaining({ code: "untagged-6-k" }),
+    );
+    expect(gaps("2026-08-01")).toContainEqual(expect.objectContaining({ code: "untagged-6-k" }));
+    expect(gaps("2026-09-01", "2026-06-30")).toContainEqual(
+      expect.objectContaining({ code: "untagged-6-k" }),
+    );
+  });
+
+  test("keeps untagged 6-K and 6-K/A gaps when annual revenue is missing", () => {
+    const artifact = derive(payload({ "us-gaap": { Revenues: { USD: [] } } }), {
+      submissionsPayload: {
+        filings: {
+          recent: {
+            form: ["6-K", "6-K/A"],
+            filingDate: ["2026-05-01", "2026-05-02"],
+            reportDate: ["2025-12-31", "2025-12-31"],
+          },
+        },
+      },
+    });
+
+    expect(artifact.structuredFinancialGaps).toContainEqual(
+      expect.objectContaining({ code: "untagged-6-k", forms: ["6-K", "6-K/A"] }),
+    );
+  });
+
   test("does not let one tagged 6-K hide another untagged filing", () => {
     const artifact = derive(
       payload({

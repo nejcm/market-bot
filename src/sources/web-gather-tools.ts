@@ -361,7 +361,7 @@ function searchFallbackSpec(
         parsed.numResults,
         firecrawlTbsForSearchType(parsed.searchType),
       ),
-    parse: parseFirecrawlSearchResults,
+    parse: (payload) => parseFirecrawlSearchResults(payload, parsed.query),
     firecrawlMalformedMessage: "Firecrawl search response was malformed",
     firecrawlEmptyMessage: `Firecrawl returned no usable web search results for "${parsed.query}"`,
     noUsableMessage: (providerLabel) =>

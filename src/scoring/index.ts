@@ -40,6 +40,8 @@ import { resolveOutcome } from "./resolver";
 import {
   loadConditionalCalibrationCountsFromIndex,
   loadResolvedPairsFromIndex,
+  readRunArtifactIndexStatus,
+  writeThroughRunArtifactIndex,
 } from "../run-artifact-index";
 import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
@@ -478,7 +480,7 @@ export async function runScorePass(
 ): Promise<ScorePassResult> {
   const runDirs = await listRunDirs(dataDir);
 
-  const results = await Promise.all(
+  const settled = await Promise.allSettled(
     runDirs.map(async (runDir) => {
       // Single guarded read of report + existing scores via the canonical seam (ADR 0002),
       // Replacing the prior raw `as ResearchReport`/`as ScoreFile` casts. score.json is parsed
@@ -502,6 +504,24 @@ export async function runScorePass(
       };
     }),
   );
+  const failure = settled.find((result) => result.status === "rejected");
+  const results = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+  const touchedRunDirs = results.flatMap((result) =>
+    result.touchedRunDir === undefined ? [] : [result.touchedRunDir],
+  );
+  const indexRunDirs = failure === undefined ? touchedRunDirs : runDirs;
+  if (indexRunDirs.length > 0 && readRunArtifactIndexStatus(dataDir).state === "available") {
+    await writeThroughRunArtifactIndex(dataDir, indexRunDirs).catch((error: unknown) => {
+      process.stderr.write(
+        `Run artifact index update failed: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    });
+  }
+  if (failure !== undefined) {
+    throw failure.reason;
+  }
   let providerHealthRefreshFailed = false;
   try {
     await (options.refreshProviderHealth ?? writeProviderHealthSummary)(dataDir, now);
@@ -523,9 +543,7 @@ export async function runScorePass(
   return {
     scored: results.filter((result) => result.status === "scored").length,
     skipped: results.filter((result) => result.status === "skipped").length,
-    touchedRunDirs: results.flatMap((result) =>
-      result.touchedRunDir === undefined ? [] : [result.touchedRunDir],
-    ),
+    touchedRunDirs,
   };
 }
 

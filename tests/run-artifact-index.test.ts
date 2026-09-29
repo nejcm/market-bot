@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +18,7 @@ import {
 } from "../src/run-artifact-index";
 import { rebuildRunArtifactIndexIfStale } from "../src/run-artifact-index-repair";
 import type { SubsystemOutcome } from "../src/research/subsystem-outcomes";
-import { buildAndWriteCalibration } from "../src/scoring/index";
+import { buildAndWriteCalibration, runScorePass } from "../src/scoring/index";
 import { prediction, predictionScore, researchReport, newsSource } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -117,6 +117,7 @@ function writeRun(
           id: "p1",
           claim: "needle forecast",
           subject: "AAPL",
+          measurableAs: "close(AAPL, +5) > close(AAPL, 0)",
           sourceIds: ["s2"],
         }),
       ],
@@ -146,6 +147,105 @@ function writeRun(
 }
 
 describe("run artifact index", () => {
+  test("score pass updates sidecars before provider health reads the index", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const stderr = captureStderr();
+
+    await runScorePass(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+
+    const score = statSync(join(dataDir, "run-a", "score.json"));
+    const db = new Database(dbPath, { readonly: true });
+    const row = db
+      .query(
+        "SELECT size, modified_at FROM artifact_files WHERE run_id = ? AND path = 'score.json'",
+      )
+      .get("run-a") as { size: number; modified_at: number } | null;
+    db.close();
+    expect(row).toEqual({ size: score.size, modified_at: score.mtimeMs });
+    expect(stderr.join("")).not.toContain("index stale");
+  });
+
+  test("score pass indexes writes from other directories before rethrowing", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    writeRun(dataDir, "run-b", { writeScore: false });
+    writeJson(
+      join(dataDir, "run-b", "report.json"),
+      researchReport({
+        runId: "run-b",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        predictions: [prediction({ subject: "AAPL" })],
+      }),
+    );
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const stderr = captureStderr();
+
+    await expect(runScorePass(dataDir, new Date("2026-06-02T00:00:00.000Z"))).rejects.toThrow(
+      "subject does not match measurableAs",
+    );
+
+    expect(existsSync(join(dataDir, "run-a", "score.json"))).toBe(true);
+    expect(await listRunSummariesFromIndex(dataDir)).toBeDefined();
+    expect(stderr.join("")).not.toContain("index stale");
+  });
+
+  test("score pass continues when index write-through fails", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const stderr = captureStderr();
+    const writeThrough = spyOn(
+      await import("../src/run-artifact-index"),
+      "writeThroughRunArtifactIndex",
+    ).mockRejectedValueOnce(new Error("simulated index write failure"));
+    try {
+      await expect(
+        runScorePass(dataDir, new Date("2026-06-02T00:00:00.000Z"), {
+          refreshProviderHealth: async () => {},
+        }),
+      ).resolves.toMatchObject({ touchedRunDirs: [join(dataDir, "run-a")] });
+      expect(writeThrough).toHaveBeenCalledTimes(1);
+      expect(stderr.join("")).toContain(
+        "Run artifact index update failed: simulated index write failure",
+      );
+    } finally {
+      writeThrough.mockRestore();
+    }
+  });
+
+  test("score pass skips index write-through when the index is missing", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    const stderr = captureStderr();
+
+    await runScorePass(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+
+    expect(existsSync(join(dataDir, "run-a", "score.json"))).toBe(true);
+    expect(existsSync(dbPath)).toBe(false);
+    expect(stderr.join("")).not.toContain("index database missing");
+  });
+
+  test("score pass skips index write-through when the index is disabled", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a", { writeScore: false });
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const stderr = captureStderr();
+
+    await runScorePass(dataDir, new Date("2026-06-02T00:00:00.000Z"));
+
+    const db = new Database(dbPath, { readonly: true });
+    const scoreRow = db
+      .query("SELECT path FROM artifact_files WHERE run_id = ? AND path = 'score.json'")
+      .get("run-a");
+    db.close();
+    expect(existsSync(join(dataDir, "run-a", "score.json"))).toBe(true);
+    expect(scoreRow).toBeNull();
+    expect(stderr.join("")).not.toContain("index stale");
+  });
+
   test("indexes a Failed Run Artifact without report projections", async () => {
     const { dataDir, dbPath } = await tempDataDir();
     const runDir = join(dataDir, "failed-run");

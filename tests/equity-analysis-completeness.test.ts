@@ -54,6 +54,7 @@ function statements(input: {
   readonly interimForm?: "10-Q" | "6-K";
   readonly cadence?: "quarterly" | "semiannual" | "annual-only";
   readonly untaggedSixK?: boolean;
+  readonly untaggedSixKFiledAt?: string;
   readonly analysisAsOf?: string;
   readonly currentSemiannual?: boolean;
   readonly fourQuarters?: boolean;
@@ -166,7 +167,7 @@ function statements(input: {
         filings: {
           recent: {
             form: ["20-F", "6-K"],
-            filingDate: ["2026-03-15", "2026-05-10"],
+            filingDate: ["2026-03-15", input.untaggedSixKFiledAt ?? "2026-05-10"],
             accessionNumber: ["annual", "untagged-interim"],
             reportDate: ["2025-12-31", "2026-03-31"],
           },
@@ -424,6 +425,34 @@ describe("equity analysis completeness", () => {
     expect(result.dimensions.primaryFinancials.reasonCodes).not.toContain(
       "current-annual-statement-missing",
     );
+  });
+
+  test("keeps annual financials current when untagged 6-Ks predate the annual period", () => {
+    const asOf = "2026-04-15T00:00:00.000Z";
+    const artifact = statements({
+      cadence: "quarterly",
+      untaggedSixK: true,
+      untaggedSixKFiledAt: "2025-06-30",
+      analysisAsOf: asOf,
+    });
+    const completeness = deriveEquityAnalysisCompleteness({
+      asOf,
+      assetClass: "equity",
+      financialStatements: artifact,
+    });
+
+    expect(completeness.dimensions.primaryFinancials).toMatchObject({
+      status: "complete",
+      reasonCodes: ["annual-as-current"],
+    });
+    expect(artifact.structuredFinancialGaps).toEqual([]);
+    expect(
+      equityAnalysisCompletenessGaps(
+        completeness,
+        deriveEquityReportingFreshness(artifact, asOf),
+        "TEST",
+      ),
+    ).toEqual([]);
   });
 
   test("covers quarterly missing-period and unreconciled-TTM reasons", () => {

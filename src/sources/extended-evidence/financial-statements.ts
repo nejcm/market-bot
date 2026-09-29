@@ -978,6 +978,7 @@ function structuredFinancialGaps(
   taxonomy: FinancialStatementTaxonomy | undefined,
   reportingCurrency: string | undefined,
   taggedSixKFacts: readonly ParsedFact[],
+  currentAnnualEnd: string | undefined,
   input: FinancialStatementsDeriveInput,
 ): readonly StructuredFinancialGap[] {
   const gaps: StructuredFinancialGap[] = [];
@@ -1000,7 +1001,11 @@ function structuredFinancialGaps(
   const untaggedSixK = recentSubmissionSixKFilings(
     input.submissionsPayload,
     input.analysisAsOf,
-  ).filter((filing) => !filingHasStructuredFact(filing, taggedSixKFacts));
+  ).filter(
+    (filing) =>
+      (currentAnnualEnd === undefined || filing.filedAt > currentAnnualEnd) &&
+      !filingHasStructuredFact(filing, taggedSixKFacts),
+  );
   if (untaggedSixK.length > 0) {
     gaps.push({
       code: "untagged-6-k",
@@ -1173,6 +1178,17 @@ export function deriveFinancialStatements(
   const { series, notes: capNotes } = capFinancialStatementPeriods(
     selected.map((item) => item.series),
   );
+  const statements = seriesRecord(series);
+  const currentAnnualEnd = latestFinancialStatementFact(
+    statements.incomeStatement.revenue.annual.filter((fact) => {
+      const months = financialStatementPeriodMonths(fact);
+      return (
+        months !== undefined &&
+        months >= MIN_ANNUAL_DURATION_MONTHS &&
+        months <= MAX_ANNUAL_DURATION_MONTHS
+      );
+    }),
+  )?.periodEnd;
   const interimCadence = detectFinancialStatementCadence(series);
   const otherTaxonomies =
     taxonomy === undefined
@@ -1204,7 +1220,7 @@ export function deriveFinancialStatements(
     ...(equityStackSelection.equityStack !== undefined
       ? { equityStack: equityStackSelection.equityStack }
       : {}),
-    statements: seriesRecord(series),
+    statements,
     validationNotes: [
       ...taxonomyNotes,
       ...equityStackSelection.validationNotes,
@@ -1220,6 +1236,7 @@ export function deriveFinancialStatements(
       taxonomy,
       reportingCurrency,
       supportedSixKFacts(payload, input.analysisAsOf),
+      currentAnnualEnd,
       input,
     ),
   };

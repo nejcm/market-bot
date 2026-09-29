@@ -859,6 +859,23 @@ describe("canonical financial statements", () => {
     });
   });
 
+  test("ignores untagged 6-K filings covered by the current annual period", () => {
+    const companyFacts = payload({ "us-gaap": { Revenues: { USD: [annual(100, 2025)] } } });
+    const filings = (filingDates: readonly string[]) =>
+      derive(companyFacts, {
+        submissionsPayload: {
+          filings: {
+            recent: { form: filingDates.map(() => "6-K"), filingDate: filingDates },
+          },
+        },
+      }).structuredFinancialGaps;
+
+    expect(filings(["2025-06-30"])).toEqual([]);
+    expect(filings(["2025-06-30", "2026-03-31"])).toContainEqual(
+      expect.objectContaining({ code: "untagged-6-k" }),
+    );
+  });
+
   test("does not let one tagged 6-K hide another untagged filing", () => {
     const artifact = derive(
       payload({

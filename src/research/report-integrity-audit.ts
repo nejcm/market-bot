@@ -107,12 +107,19 @@ function isBlockingNumericOrTechnical(text: string): boolean {
     )
     .replaceAll(
       MONTH_DAY_PATTERN,
-      (span, month: string, day: string, year: string | undefined, offset: number) => {
+      (
+        span,
+        month: string,
+        day: string,
+        year: string | undefined,
+        offset: number,
+        input: string,
+      ) => {
         const monthIndex = MONTHS.indexOf(month.toLowerCase());
         const date = new Date(Date.UTC(Number(year ?? "2000"), monthIndex, Number(day)));
         return date.getUTCMonth() === monthIndex &&
           date.getUTCDate() === Number(day) &&
-          !hasAttachedFinancialUnit(text, offset, offset + span.length)
+          !hasAttachedFinancialUnit(input, offset, offset + span.length)
           ? " "
           : span;
       },

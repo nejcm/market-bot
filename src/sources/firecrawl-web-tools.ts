@@ -45,6 +45,9 @@ function relevantPassage(markdown: string, query: string): string {
     .toSorted((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, 3)
     .toSorted((a, b) => a.index - b.index);
+  if (query === "" && ranked.length === 0 && !sentences.some((text) => text.length > 80)) {
+    return markdown.slice(0, PASSAGE_CHARS);
+  }
   const selected =
     ranked.length > 0
       ? ranked.map(({ text }) => text)

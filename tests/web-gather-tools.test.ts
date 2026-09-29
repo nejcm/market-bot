@@ -1102,6 +1102,37 @@ describe("firecrawl fallback", () => {
     expect(result.gaps).toEqual([]);
   });
 
+  test("emits table content from a long Firecrawl scrape", async () => {
+    const markdown = [
+      "# Quarterly results",
+      "| Quarter | Revenue |",
+      "| --- | --- |",
+      ...Array.from(
+        { length: 70 },
+        (_, index) => `| Q${String(index + 1)} | $${String(index + 100)}m |`,
+      ),
+    ].join("\n");
+    const result = await executeWebGatherTool(
+      "web_fetch",
+      { url: "https://example.test/results" },
+      baseCtx({
+        firecrawlApiKey: "firecrawl-key",
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "exa-contents"
+              ? gap("exa-contents", "status 500")
+              : jsonResult(adapter, { success: true, data: { markdown } }),
+        }),
+      }),
+      new Set(["https://example.test/results"]),
+    );
+
+    expect(markdown.length).toBeGreaterThan(1000);
+    expect(result.sources[0]?.snippet).toContain("Q1");
+    expect(result.sources[0]?.snippet).toContain("$100m");
+    expect(result.gaps).toEqual([]);
+  });
+
   test("keeps the Exa gap and records fetch fallback when the Firecrawl scrape also fails", async () => {
     const surfacedUrls = new Set(["https://example.test/apple"]);
     const result = await executeWebGatherTool(

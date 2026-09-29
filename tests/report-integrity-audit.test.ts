@@ -373,6 +373,24 @@ describe("auditReportIntegrity", () => {
   });
 
   describe("ISO calendar dates", () => {
+    test("keeps a month-day percentage numeric after an earlier ISO date", () => {
+      for (const text of [
+        "Margins were September 28%.",
+        "As of 2026-06-27, margins were September 28%.",
+      ]) {
+        expect(auditUncitedFinding(text).pruned.map((item) => item.location)).toContain(
+          "keyFindings[0]",
+        );
+        expect(auditUncitedScenario(text).pruned.map((item) => item.location)).toContain(
+          "scenarios[0]",
+        );
+        expect(auditUncitedPrediction(text).pruned.map((item) => item.location)).toContain(
+          "predictions[0]",
+        );
+        expect(numericSummaryAdvisories(text)).toContainEqual(UNCITED_NUMERIC_SUMMARY);
+      }
+    });
+
     const validStandaloneIsoDateCases = [
       ["AMD deep-equity dated summary", AMD_DATED_SUMMARY],
       ["real leap day 2024-02-29", qualitativeThrough("2024-02-29")],

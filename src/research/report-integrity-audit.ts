@@ -75,9 +75,7 @@ const MONTHS = [
   "december",
 ];
 const HORIZON_TOKEN_PATTERN = /(?<![$])\b\d+\s*(?:-| )?(?:trading|calendar)?\s*-?\s*days?\b/giu;
-// Strip calendar-valid ISO dates first; year-stripping otherwise leaves "-MM-DD" as a numeric claim.
-// Symbol-adjacent currency/percent/multiple units stay numeric; whitespace-separated unit words are out of scope.
-// Must stay capture-group-free: a capture would steal replaceAll's offset and fail the unit guard open.
+// Strip ISO dates before years; captures would displace replaceAll's offset for unit checks.
 const ISO_CALENDAR_DATE_PATTERN = /(?<![\d.])\b\d{4}-\d{2}-\d{2}\b/gu;
 // 8 covers Sc + grouping/minus/whitespace; unbounded prefix slice was O(n^2) per date.
 const ISO_DATE_UNIT_WINDOW = 8;

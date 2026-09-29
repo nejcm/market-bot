@@ -132,14 +132,39 @@ describe("firecrawl search parsing", () => {
     ]);
   });
 
-  test("uses the first sentence when the query has no match", () => {
+  test("keeps bounded markdown when the query has no match", () => {
     const markdown = "A short site menu with no article content. ".repeat(40);
     const parsed = parseFirecrawlSearchResults(
       { success: true, data: { web: [{ url: "https://example.test/a", markdown }] } },
       "IREN GPU capacity",
     );
 
-    expect(parsed.results[0]?.highlights).toEqual(["A short site menu with no article content."]);
+    expect(parsed.results[0]?.highlights).toEqual([markdown.slice(0, 1000)]);
+  });
+
+  test("keeps results table rows when search terms do not match", () => {
+    const markdown = `# Quarterly results\n\n| Quarter | Revenue |\n| --- | --- |\n${Array.from(
+      { length: 70 },
+      (_, index) => `| Q${index + 1} | ${index + 100} |`,
+    ).join("\n")}`;
+    const parsed = parseFirecrawlSearchResults(
+      { success: true, data: { web: [{ url: "https://example.test/results", markdown }] } },
+      "IREN hashrate guidance",
+    );
+
+    expect(parsed.results[0]?.highlights[0]).toContain("| Q1 | 100 |");
+    expect(parsed.results[0]?.highlights[0]?.length).toBeLessThanOrEqual(1000);
+  });
+
+  test("keeps a matching sentence ahead of an unrelated table", () => {
+    const match = "IREN raised hashrate guidance to 50 EH/s for fiscal 2026.";
+    const markdown = `${"Site navigation and unrelated boilerplate.\n".repeat(30)}${match}\nMore boilerplate.\n| Office | City |\n| --- | --- |\n| HQ | Sydney |`;
+    const parsed = parseFirecrawlSearchResults(
+      { success: true, data: { web: [{ url: "https://example.test/results", markdown }] } },
+      "IREN hashrate guidance",
+    );
+
+    expect(parsed.results[0]?.highlights).toEqual([match]);
   });
 
   test("keeps bounded raw content when image stripping leaves no passage", () => {
@@ -229,6 +254,22 @@ describe("firecrawl scrape parsing", () => {
     });
 
     expect(parsed.results[0]?.highlights).toEqual([intro]);
+  });
+
+  test("scrape keeps table rows after a long caption", () => {
+    const caption =
+      "Quarterly operating results are presented in the following detailed table with each reporting period shown separately for context.";
+    const markdown = `# Quarterly results\n${caption}\n| Quarter | Revenue |\n| --- | --- |\n${Array.from(
+      { length: 70 },
+      (_, index) => `| Q${index + 1} | ${index + 100} |`,
+    ).join("\n")}`;
+    const parsed = parseFirecrawlScrapeResult("https://example.test/results", {
+      success: true,
+      data: { markdown },
+    });
+
+    expect(parsed.results[0]?.highlights[0]).toContain("| Q1 | 100 |");
+    expect(parsed.results[0]?.highlights[0]?.length).toBeLessThanOrEqual(1000);
   });
 
   test("flags malformed when markdown is missing", () => {

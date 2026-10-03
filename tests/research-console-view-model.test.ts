@@ -55,7 +55,9 @@ import {
   instrumentPath,
   isFailedRun,
 } from "../app/client/view-model";
-import { MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
+import { parseCalibrationContext } from "../src/research/calibration-context";
+import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
+import { resolvedPair } from "./support/research-context-helpers";
 
 describe("research console app view model", () => {
   test("round-trips instrument routes with normalized symbols", () => {
@@ -915,6 +917,11 @@ describe("research console app view model", () => {
   });
 });
 
+function currentPair(id: string, probability: number, outcome: "hit" | "miss") {
+  const base = resolvedPair(id, probability, outcome);
+  return { ...base, score: { ...base.score, scoringVersion: 3 as const } };
+}
+
 function sliceRowsForCount(count: unknown) {
   return calibrationSlices(
     { summary: { byKind: { direction: { brierScore: 0.25, count } } } },
@@ -1144,6 +1151,63 @@ describe("calibration view model", () => {
       { cause: "source_gap", count: 2 },
     ]);
     expect(calibrationAutopsyCauses({})).toEqual([]);
+  });
+
+  const validBin = {
+    label: "0.6-0.7",
+    pLow: 0.6,
+    pHigh: 0.7,
+    hitRate: 0.5,
+    hitCount: 2,
+    totalCount: 4,
+  };
+  const validMetric = { brierScore: 0.2, count: 4 };
+  const malformedSummary = {
+    bins: [
+      validBin,
+      { ...validBin, label: "inverted", pLow: 0.8, pHigh: 0.7 },
+      { ...validBin, label: "overcounted", hitCount: 5 },
+      { ...validBin, label: "   " },
+    ],
+    byMarketRegime: { "risk-on": validMetric, sideways: validMetric },
+  };
+
+  test("drops structurally impossible bins and unknown regime keys", () => {
+    expect(reliabilityBins({ summary: malformedSummary }).map((bin) => bin.label)).toEqual([
+      "0.6-0.7",
+    ]);
+    expect(calibrationSlices({ summary: malformedSummary }, "byMarketRegime")).toEqual([
+      { key: "risk-on", ...validMetric },
+    ]);
+  });
+
+  test("agrees with the prompt-path parser on surviving bins and regime keys", () => {
+    const context = parseCalibrationContext(malformedSummary);
+    expect(reliabilityBins({ summary: malformedSummary }).map((bin) => bin.label)).toEqual(
+      context?.bins?.map((bin) => bin.label) ?? [],
+    );
+    expect(
+      calibrationSlices({ summary: malformedSummary }, "byMarketRegime").map((row) => row.key),
+    ).toEqual(Object.keys(context?.byMarketRegime ?? {}));
+  });
+
+  test("renders a producer-built summary in full", () => {
+    const built = buildCalibrationSummary([
+      currentPair("pred-1", 0.65, "hit"),
+      currentPair("pred-2", 0.65, "miss"),
+      currentPair("pred-3", 0.25, "miss"),
+    ]);
+    const summary = structuredClone(built) as unknown as Record<string, unknown>;
+    expect(built.resolvedCount).toBe(3);
+    expect(built.bins.length).toBeGreaterThan(0);
+    expect(reliabilityBins({ summary })).toEqual(built.bins);
+    expect(calibrationSlices({ summary }, "byKind")).toEqual(
+      Object.entries(built.byKind).map(([key, { brierScore, count }]) => ({
+        key,
+        brierScore,
+        count,
+      })),
+    );
   });
 });
 

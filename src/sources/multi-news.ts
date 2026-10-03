@@ -538,7 +538,7 @@ async function collectThematicWebNews(
       numResults: ctx.newsLimit,
     },
     ctx,
-    new Set<string>(),
+    { admitSurfaced: () => {}, isAdmissible: () => false },
     subject,
   );
   return {

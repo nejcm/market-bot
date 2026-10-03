@@ -4,15 +4,14 @@ import type { CollectContext, RawSourceSnapshot } from "../src/sources/types";
 import {
   aggregateSanitizerAudit,
   emptyOutput,
-  isSurfacedUrl,
   outputFromResults,
-  rememberSurfacedUrls,
   validatedWebUrl,
   webGatherGap,
   type WebGatherProviderResult,
   type WebGatherSubject,
 } from "../src/sources/web-gather-emit";
 import type { WebGatherSanitizerAudit } from "../src/domain/types";
+import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";
 
@@ -135,15 +134,15 @@ describe("aggregateSanitizerAudit", () => {
   });
 });
 
-describe("rememberSurfacedUrls / isSurfacedUrl", () => {
+describe("surfacedUrlGate", () => {
   test("records raw and canonical URLs and matches either form", () => {
-    const surfaced = new Set<string>();
-    rememberSurfacedUrls([result({ url: "https://example.com/a?utm_source=x" })], surfaced);
+    const surfaced = surfacedUrlGate(new Set<string>());
+    surfaced.admitSurfaced([result({ url: "https://example.com/a?utm_source=x" })]);
 
-    expect(isSurfacedUrl("https://example.com/a?utm_source=x", surfaced)).toBe(true);
+    expect(surfaced.isAdmissible("https://example.com/a?utm_source=x")).toBe(true);
     // The canonical form (tracking params stripped) also matches.
-    expect(isSurfacedUrl("https://example.com/a", surfaced)).toBe(true);
-    expect(isSurfacedUrl("https://other.com/b", surfaced)).toBe(false);
+    expect(surfaced.isAdmissible("https://example.com/a")).toBe(true);
+    expect(surfaced.isAdmissible("https://other.com/b")).toBe(false);
   });
 });
 

@@ -25,14 +25,12 @@ import {
   parseModelRequests,
   runJsonToolLoop,
   withParseFailureEcho,
-  type JsonToolLoopRoundState,
 } from "../research/json-tool-loop";
 import { withStaleFallbackGaps } from "../research/json-tool-loop-support";
 import type { ResearchContext, WebGatherContext } from "../research/research-context-types";
 import {
   AVAILABLE_TOOLS,
   type ModelWebGatherRequest,
-  type ValidationState,
   type WebGatherExecutionAudit,
   type WebGatherLoopInput,
   type WebGatherLoopResult,
@@ -40,7 +38,8 @@ import {
   type WebGatherStageOutput,
 } from "./web-gather-types";
 import { secFilingCoverageFromSources } from "./web-gather-coverage";
-import { subjectLabelForRun, subjectTermsForRun, validateRequests } from "./web-gather-validation";
+import { subjectLabelForRun, subjectTermsForRun } from "./web-gather-validation";
+import { createWebGatherAcceptance, type WebGatherAcceptance } from "./web-gather-acceptance";
 import {
   executionRejectedEntry,
   mergeGaps,
@@ -64,9 +63,6 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     };
   }
   const { command } = input;
-  const surfacedUrls = new Set<string>();
-  const seenKeys = new Set<string>();
-  const thematicListSearchWidened = { value: false };
   const subject = webGatherSubjectForRun(command, input.collectedSources);
   if (subject === undefined) {
     return {
@@ -76,15 +72,20 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     };
   }
   const webGatherOptions = effectiveWebGatherOptions(command, input.config);
-  const config: AppConfig =
-    webGatherOptions === input.config.webGatherOptions
-      ? input.config
-      : { ...input.config, webGatherOptions };
   const subjectTerms = subjectTermsForRun(command, input.collectedSources, subject);
   const secFilingCoverage = secFilingCoverageFromSources(
     subject,
     input.collectedSources.extendedSources,
   );
+  const acceptance = createWebGatherAcceptance({
+    subject,
+    subjectTerms,
+    command,
+    secFilingCoverage,
+    reusedProfileCoverage: input.reusedProfileCoverage,
+    acceptancePolicy: input.acceptancePolicy,
+    budget: webGatherOptions,
+  });
   const collectContext = createCollectContext(
     command,
     input.config.sourceOptions,
@@ -107,7 +108,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
       : collectContext.context;
   const acquireRequest = (request: ModelWebGatherRequest) =>
     withStaleFallbackGaps(collectContext, () =>
-      executeWebGatherTool(request.tool, request.args, toolContext, surfacedUrls, subject),
+      executeWebGatherTool(request.tool, request.args, toolContext, acceptance, subject),
     );
   const mergeRequestOutput = (
     currentSources: CollectedSources,
@@ -149,13 +150,10 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
     return runDeepEquityWebGatherBatch({
       input,
       command,
-      config,
       webGatherOptions,
       subjectTerms,
       secFilingCoverage,
-      surfacedUrls,
-      seenKeys,
-      thematicListSearchWidened,
+      acceptance,
       acquireRequest,
       mergeRequestOutput,
       executionAudits,
@@ -187,7 +185,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
           maxRounds: webGatherOptions.maxRounds,
           maxToolCalls: webGatherOptions.maxToolCalls,
           sourceBudget: webGatherOptions.sourceBudget,
-          surfacedUrls: [...surfacedUrls].toSorted(),
+          surfacedUrls: acceptance.snapshot(),
           subjectTerms,
           ...(secFilingCoverage !== undefined ? { secFilingCoverage } : {}),
           ...(input.reusedProfileCoverage !== undefined
@@ -196,24 +194,7 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
         }),
         roundState.priorStages,
       ),
-    validateRequests: (requests, roundState) =>
-      validateRequests(
-        requests,
-        {
-          seenKeys,
-          surfacedUrls,
-          thematicListSearchWidened,
-          subject,
-          subjectTerms,
-          command,
-          secFilingCoverage,
-          reusedProfileCoverage: input.reusedProfileCoverage,
-          acceptancePolicy: input.acceptancePolicy,
-          config,
-          round: roundState.round,
-        },
-        roundState,
-      ),
+    validateRequests: (requests, roundState) => acceptance.validate(requests, roundState.round),
     mergeGaps: (currentSources, gaps) => mergeGaps(command, currentSources, gaps),
     executeRequest: async (currentSources, request) => {
       const outputWithStale = await acquireRequest(request);
@@ -254,13 +235,10 @@ export async function runWebGatherLoop(input: WebGatherLoopInput): Promise<WebGa
 async function runDeepEquityWebGatherBatch(input: {
   readonly input: WebGatherLoopInput;
   readonly command: ResearchCommand;
-  readonly config: AppConfig;
   readonly webGatherOptions: AppConfig["webGatherOptions"];
   readonly subjectTerms: readonly string[];
   readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
-  readonly surfacedUrls: Set<string>;
-  readonly seenKeys: Set<string>;
-  readonly thematicListSearchWidened: { value: boolean };
+  readonly acceptance: WebGatherAcceptance;
   readonly acquireRequest: (request: ModelWebGatherRequest) => Promise<WebGatherToolOutput>;
   readonly mergeRequestOutput: (
     currentSources: CollectedSources,
@@ -340,36 +318,13 @@ async function runDeepEquityWebGatherBatch(input: {
       ),
     };
   }
-  const priorStages = stageOutputs.slice(0, -1);
-  const roundState: JsonToolLoopRoundState<WebGatherStageOutput> = {
-    round,
-    sourceUnitsUsed: 0,
-    toolCallsUsed: 0,
-    priorStages,
-  };
   const searchRequests = parsed.filter(
     (request) => !isRecord(request) || request.tool !== "web_fetch",
   );
   const fetchRequests = parsed.filter(
     (request) => isRecord(request) && request.tool === "web_fetch",
   );
-  const validationState: ValidationState = {
-    seenKeys: input.seenKeys,
-    surfacedUrls: input.surfacedUrls,
-    thematicListSearchWidened: input.thematicListSearchWidened,
-    subject: webGatherSubjectForRun(
-      input.command,
-      input.input.collectedSources,
-    ) as WebGatherSubject,
-    subjectTerms: input.subjectTerms,
-    command: input.command,
-    secFilingCoverage: input.secFilingCoverage,
-    reusedProfileCoverage: input.input.reusedProfileCoverage,
-    acceptancePolicy: input.input.acceptancePolicy,
-    config: input.config,
-    round,
-  };
-  const searchValidation = validateRequests(searchRequests, validationState, roundState);
+  const searchValidation = input.acceptance.validate(searchRequests, round);
   const searchOutputs = await Promise.all(
     searchValidation.requests.map((request) => input.acquireRequest(request.request)),
   );
@@ -383,16 +338,7 @@ async function runDeepEquityWebGatherBatch(input: {
     collectedSources = merged.state;
     emittedGaps.push(...merged.gaps);
   }
-  const searchSourceUnits = searchValidation.requests.reduce(
-    (total, request) => total + request.sourceUnits,
-    0,
-  );
-  const fetchValidation = validateRequests(fetchRequests, validationState, {
-    round,
-    sourceUnitsUsed: searchSourceUnits,
-    toolCallsUsed: searchValidation.requests.length,
-    priorStages,
-  });
+  const fetchValidation = input.acceptance.validate(fetchRequests, round);
   const fetchOutputs = await Promise.all(
     fetchValidation.requests.map((request) => input.acquireRequest(request.request)),
   );

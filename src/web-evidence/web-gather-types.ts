@@ -11,7 +11,7 @@ import type {
 } from "../domain/types";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { WEB_GATHER_TOOL_UNITS } from "../sources/web-gather-tools";
-import type { WebGatherSubject, WebGatherToolOutput } from "../sources/web-gather-emit";
+import type { WebGatherToolOutput } from "../sources/web-gather-emit";
 import type { ResearchContext, WebGatherContext } from "../research/research-context-types";
 
 export interface WebGatherStageOutput {
@@ -71,20 +71,6 @@ export type ModelWebGatherRequest =
       readonly args: { readonly url: string };
       readonly rationale: string;
     };
-
-export interface ValidationState {
-  readonly seenKeys: Set<string>;
-  readonly surfacedUrls: Set<string>;
-  readonly thematicListSearchWidened: { value: boolean };
-  readonly subject: WebGatherSubject;
-  readonly subjectTerms: readonly string[];
-  readonly command: ResearchCommand;
-  readonly secFilingCoverage: WebGatherContext["secFilingCoverage"];
-  readonly reusedProfileCoverage: WebGatherContext["reusedProfileCoverage"];
-  readonly acceptancePolicy: WebGatherAcceptancePolicy | undefined;
-  readonly config: AppConfig;
-  readonly round: number;
-}
 
 export interface WebGatherExecutionAudit {
   readonly sanitizer: WebGatherSanitizerAudit;

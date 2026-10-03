@@ -145,23 +145,6 @@ export function validatedWebUrl(value: string | undefined): string | undefined {
   }
 }
 
-export function rememberSurfacedUrls(
-  results: readonly WebGatherProviderResult[],
-  surfacedUrls: Set<string>,
-): void {
-  for (const result of results) {
-    surfacedUrls.add(result.url);
-    const canonicalUrl = canonicalizeUrl(result.url);
-    if (canonicalUrl !== undefined) {
-      surfacedUrls.add(canonicalUrl);
-    }
-  }
-}
-
-export function isSurfacedUrl(url: string, surfacedUrls: ReadonlySet<string>): boolean {
-  return surfacedUrls.has(url) || surfacedUrls.has(canonicalizeUrl(url) ?? "");
-}
-
 export function outputFromResults(
   ctx: CollectContext,
   subject: WebGatherSubject,

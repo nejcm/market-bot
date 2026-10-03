@@ -26,9 +26,7 @@ import {
 import {
   EXA_PROVIDER,
   emptyOutput,
-  isSurfacedUrl,
   outputFromResults,
-  rememberSurfacedUrls,
   validatedWebUrl,
   webGatherGap,
   type WebGatherProviderResult,
@@ -56,11 +54,16 @@ const CURRENT_SUBJECT_WINDOW_DAYS = 180;
 export const MAX_WEB_GATHER_SEARCH_RESULTS = 8;
 const MAX_TEXT_CHARS = 5000;
 
+export interface WebGatherSurfacedUrls {
+  readonly admitSurfaced: (results: readonly WebGatherProviderResult[]) => void;
+  readonly isAdmissible: (url: string) => boolean;
+}
+
 export async function executeWebGatherTool(
   tool: WebGatherToolName,
   args: unknown,
   ctx: CollectContext,
-  surfacedUrls: Set<string>,
+  surfacedUrls: WebGatherSurfacedUrls,
   subject = webGatherSubjectFromContext(ctx),
 ): Promise<WebGatherToolOutput> {
   if (subject === undefined) {
@@ -163,7 +166,7 @@ function fetchArgs(args: unknown): { readonly url: string } | SourceGap {
 async function executeWebSearch(
   args: unknown,
   ctx: CollectContext,
-  surfacedUrls: Set<string>,
+  surfacedUrls: WebGatherSurfacedUrls,
   apiKey: string,
   subject: WebGatherSubject,
 ): Promise<WebGatherToolOutput> {
@@ -259,7 +262,7 @@ async function executeWebSearch(
 async function executeWebFetch(
   args: unknown,
   ctx: CollectContext,
-  surfacedUrls: Set<string>,
+  surfacedUrls: WebGatherSurfacedUrls,
   apiKey: string,
   subject: WebGatherSubject,
 ): Promise<WebGatherToolOutput> {
@@ -267,7 +270,7 @@ async function executeWebFetch(
   if (isSourceGap(parsed)) {
     return emptyOutput([parsed]);
   }
-  if (!isSurfacedUrl(parsed.url, surfacedUrls)) {
+  if (!surfacedUrls.isAdmissible(parsed.url)) {
     return emptyOutput([
       webGatherGap(WEB_GATHER_FETCH_URL_NOT_SURFACED_REASON, "validation-failed"),
     ]);
@@ -336,13 +339,13 @@ interface FirecrawlFallbackSpec {
   readonly firecrawlMalformedMessage: string;
   readonly firecrawlEmptyMessage: string;
   readonly noUsableMessage: (providerLabel: string) => string;
-  readonly surfacedUrls?: Set<string>;
+  readonly admitSurfaced?: WebGatherSurfacedUrls["admitSurfaced"];
 }
 
 function searchFallbackSpec(
   ctx: CollectContext,
   parsed: ParsedSearchArgs,
-  surfacedUrls: Set<string>,
+  surfacedUrls: WebGatherSurfacedUrls,
 ): FirecrawlFallbackSpec {
   return {
     minUsableResults: MIN_USABLE_SEARCH_RESULTS,
@@ -366,7 +369,7 @@ function searchFallbackSpec(
     firecrawlEmptyMessage: `Firecrawl returned no usable web search results for "${parsed.query}"`,
     noUsableMessage: (providerLabel) =>
       `${providerLabel} returned no usable web search results for "${parsed.query}"`,
-    surfacedUrls,
+    admitSurfaced: surfacedUrls.admitSurfaced,
   };
 }
 
@@ -398,8 +401,8 @@ async function withFirecrawlFallback(
 ): Promise<WebGatherToolOutput> {
   const exaUsable = exa.results.length >= spec.minUsableResults;
   if (exaUsable) {
-    if (spec.surfacedUrls !== undefined) {
-      rememberSurfacedUrls(exa.results, spec.surfacedUrls);
+    if (spec.admitSurfaced !== undefined) {
+      spec.admitSurfaced(exa.results);
     }
     if (exa.results.length === 0 && exa.gaps.length > 0) {
       return withFreshness(emptyOutput(exa.gaps, exa.rawSnapshots), exa.freshness);
@@ -411,8 +414,8 @@ async function withFirecrawlFallback(
   }
 
   if (ctx.firecrawlApiKey === undefined) {
-    if (spec.surfacedUrls !== undefined) {
-      rememberSurfacedUrls(exa.results, spec.surfacedUrls);
+    if (spec.admitSurfaced !== undefined) {
+      spec.admitSurfaced(exa.results);
     }
     const output =
       exa.results.length === 0 && exa.gaps.length > 0
@@ -440,8 +443,8 @@ async function withFirecrawlFallback(
   );
   const gaps =
     resolved.servedProvider === FIRECRAWL_PROVIDER ? resolved.gaps : [...exaGaps, ...resolved.gaps];
-  if (spec.surfacedUrls !== undefined) {
-    rememberSurfacedUrls(resolved.results, spec.surfacedUrls);
+  if (spec.admitSurfaced !== undefined) {
+    spec.admitSurfaced(resolved.results);
   }
   const fallback: WebGatherFallbackAudit = {
     attemptedProviders: [EXA_PROVIDER, FIRECRAWL_PROVIDER],

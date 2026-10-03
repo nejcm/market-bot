@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
 import type { RunTrace, Source, WebGatherFallbackAudit } from "../src/domain/types";
@@ -178,7 +179,7 @@ async function firecrawlFallbackFromProducer(options: {
       firecrawlApiKey: "firecrawl-key",
       request,
     },
-    new Set(),
+    surfacedUrlGate(new Set()),
   );
   if (result.fallback === undefined) {
     throw new Error("expected a Firecrawl fallback audit from the producer");

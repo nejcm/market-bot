@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 import type { SourceGap } from "../src/domain/types";
 import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../src/sources/web-gather-tools";
 import type {
@@ -67,9 +68,12 @@ const surfacedFetchCtx = baseCtx({
 });
 
 function fetchAdmitted(url: string, surfacedUrls: Set<string>) {
-  return executeWebGatherTool("web_fetch", { url }, surfacedFetchCtx, surfacedUrls).then(
-    (output) => !output.gaps.some((entry) => entry.cause === "validation-failed"),
-  );
+  return executeWebGatherTool(
+    "web_fetch",
+    { url },
+    surfacedFetchCtx,
+    surfacedUrlGate(surfacedUrls),
+  ).then((output) => !output.gaps.some((entry) => entry.cause === "validation-failed"));
 }
 
 describe("web gather tools", () => {
@@ -116,7 +120,7 @@ describe("web gather tools", () => {
           },
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(result.gaps).toEqual([]);
@@ -173,7 +177,7 @@ describe("web gather tools", () => {
         "web_search",
         { query: `AAPL ${searchType}`, searchType },
         ctx,
-        new Set(),
+        surfacedUrlGate(new Set()),
       );
     }
 
@@ -217,19 +221,19 @@ describe("web gather tools", () => {
       "web_search",
       { query: "AAPL recent news", searchType: "news" },
       ctx,
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
     const current = await executeWebGatherTool(
       "web_search",
       { query: "AAPL current company", searchType: "current-subject" },
       ctx,
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
     const background = await executeWebGatherTool(
       "web_search",
       { query: "AAPL company history", searchType: "background" },
       ctx,
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(requests).toHaveLength(5);
@@ -280,7 +284,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
       {
         subjectKind: "theme",
         subjectId: "ai-infrastructure-12345678",
@@ -310,7 +314,7 @@ describe("web gather tools", () => {
       "web_search",
       { query: "AAPL business model", searchType: "background" },
       ctxWithoutExa,
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.rawSnapshots).toEqual([]);
@@ -330,7 +334,7 @@ describe("web gather tools", () => {
       "web_fetch",
       { url: "https://example.test/not-surfaced" },
       baseCtx(),
-      new Set(["https://example.test/allowed"]),
+      surfacedUrlGate(new Set(["https://example.test/allowed"])),
     );
 
     expect(result.rawSnapshots).toEqual([]);
@@ -353,18 +357,23 @@ describe("web gather tools", () => {
       }),
     });
 
-    const nonObject = await executeWebGatherTool("web_search", "AAPL", ctx, new Set());
+    const nonObject = await executeWebGatherTool(
+      "web_search",
+      "AAPL",
+      ctx,
+      surfacedUrlGate(new Set()),
+    );
     const blankQuery = await executeWebGatherTool(
       "web_search",
       { query: "   ", searchType: "background" },
       ctx,
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
     const missingSearchType = await executeWebGatherTool(
       "web_search",
       { query: "AAPL profile" },
       ctx,
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(nonObject.gaps).toEqual([
@@ -402,13 +411,13 @@ describe("web gather tools", () => {
       "web_fetch",
       ["https://example.test/apple"],
       ctx,
-      new Set(["https://example.test/apple"]),
+      surfacedUrlGate(new Set(["https://example.test/apple"])),
     );
     const blankUrl = await executeWebGatherTool(
       "web_fetch",
       { url: "   " },
       ctx,
-      new Set(["https://example.test/apple"]),
+      surfacedUrlGate(new Set(["https://example.test/apple"])),
     );
 
     expect(nonObject.gaps).toEqual([
@@ -454,7 +463,7 @@ describe("web gather tools", () => {
           },
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(result.gaps).toEqual([]);
@@ -496,7 +505,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.gaps).toEqual([]);
@@ -557,7 +566,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources[0]).toMatchObject({
@@ -588,7 +597,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources).toEqual([]);
@@ -613,7 +622,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources[0]?.summary?.length).toBe(1200);
@@ -642,7 +651,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources).toEqual([
@@ -687,7 +696,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources).toEqual([]);
@@ -718,7 +727,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(search.sources).toEqual([]);
@@ -744,7 +753,7 @@ describe("web gather tools", () => {
             }),
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(
@@ -766,7 +775,7 @@ describe("web gather tools", () => {
           json: async () => gap("exa-search", "timeout"),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.rawSnapshots).toEqual([]);
@@ -790,7 +799,7 @@ describe("web gather tools", () => {
           json: async ({ adapter }) => jsonResult(adapter, { notResults: [] }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.rawSnapshots).toHaveLength(1);
@@ -813,7 +822,7 @@ describe("web gather tools", () => {
           json: async ({ adapter }) => jsonResult(adapter, { results: [] }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.rawSnapshots).toHaveLength(1);
@@ -836,7 +845,7 @@ describe("web gather tools", () => {
           json: async ({ adapter }) => jsonResult(adapter, { results: [{ title: "Missing URL" }] }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.rawSnapshots).toHaveLength(1);
@@ -897,7 +906,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(requests.map((entry) => entry.adapter)).toEqual(["exa-search", "firecrawl-search"]);
@@ -946,7 +955,7 @@ describe("firecrawl fallback", () => {
                 }),
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(output.sources[0]?.snippet).toContain("IREN GPU capacity expanded");
@@ -979,7 +988,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     // Exa initial + widen retry, then Firecrawl fallback.
@@ -1007,7 +1016,7 @@ describe("firecrawl fallback", () => {
               : jsonResult(adapter, firecrawlSearchPayload),
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(await fetchAdmitted("https://firecrawl.example/aapl-1", surfacedUrls)).toBe(true);
@@ -1027,7 +1036,7 @@ describe("firecrawl fallback", () => {
             }),
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(await fetchAdmitted("https://exa.example/one", surfacedUrls)).toBe(true);
@@ -1052,7 +1061,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(adapters).toEqual(["exa-search"]);
@@ -1073,7 +1082,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(adapters).toEqual(["exa-search"]);
@@ -1103,7 +1112,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources).toEqual([]);
@@ -1134,7 +1143,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      new Set(),
+      surfacedUrlGate(new Set()),
     );
 
     expect(result.sources).toEqual([]);
@@ -1166,7 +1175,7 @@ describe("firecrawl fallback", () => {
             },
           }),
         }),
-        new Set(),
+        surfacedUrlGate(new Set()),
       );
     }
 
@@ -1198,7 +1207,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(requests.map((entry) => entry.adapter)).toEqual(["exa-contents", "firecrawl-scrape"]);
@@ -1245,7 +1254,7 @@ describe("firecrawl fallback", () => {
               : jsonResult(adapter, { success: true, data: { markdown } }),
         }),
       }),
-      new Set(["https://example.test/results"]),
+      surfacedUrlGate(new Set(["https://example.test/results"])),
     );
 
     expect(markdown.length).toBeGreaterThan(1000);
@@ -1270,7 +1279,7 @@ describe("firecrawl fallback", () => {
           },
         }),
       }),
-      surfacedUrls,
+      surfacedUrlGate(surfacedUrls),
     );
 
     expect(result.sources).toEqual([]);

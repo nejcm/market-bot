@@ -3,9 +3,13 @@ import { MIN_CALIBRATION_SAMPLE } from "../../src/scoring/calibration";
 import {
   hasNoResolvedPredictions,
   isCalibrationCount,
-  isPositiveCalibrationCount,
   isUnitInterval,
 } from "../../src/scoring/calibration-invariant";
+import {
+  parseCalibrationBin,
+  parseMarketRegimeMetricMap,
+  parseMetricMap,
+} from "../../src/scoring/calibration-read";
 import { numberAt, readStringVerbatim } from "../../src/guards";
 import { formatDateMinute, readFiniteNumber, readRecord, runLabel } from "./view-model-format";
 
@@ -167,29 +171,10 @@ export function reliabilityBins(detail: CalibrationDetail): readonly Reliability
   if (!Array.isArray(bins)) {
     return [];
   }
-
   return bins
-    .filter(
-      (bin): bin is Record<string, unknown> =>
-        typeof bin === "object" && bin !== null && !Array.isArray(bin),
-    )
     .flatMap((bin) => {
-      const pLow = isUnitInterval(bin.pLow) ? bin.pLow : undefined;
-      const pHigh = isUnitInterval(bin.pHigh) ? bin.pHigh : undefined;
-      const hitRate = isUnitInterval(bin.hitRate) ? bin.hitRate : undefined;
-      // A bin exists only where a pair landed, so its total is >= 1 while its
-      // Hit count may legitimately be 0. The two rules stay distinct.
-      const hitCount = isCalibrationCount(bin.hitCount) ? bin.hitCount : undefined;
-      const totalCount = isPositiveCalibrationCount(bin.totalCount) ? bin.totalCount : undefined;
-      const label = typeof bin.label === "string" ? bin.label : undefined;
-      return pLow === undefined ||
-        pHigh === undefined ||
-        hitRate === undefined ||
-        hitCount === undefined ||
-        totalCount === undefined ||
-        label === undefined
-        ? []
-        : [{ label, pLow, pHigh, hitRate, hitCount, totalCount }];
+      const parsed = parseCalibrationBin(bin);
+      return parsed === undefined ? [] : [parsed];
     })
     .toSorted((left, right) => left.pLow - right.pLow);
 }
@@ -198,21 +183,14 @@ export function calibrationSlices(
   detail: CalibrationDetail,
   group: CalibrationSliceGroup,
 ): readonly CalibrationSliceRow[] {
-  const slice = detail.summary?.[group];
-  if (typeof slice !== "object" || slice === null || Array.isArray(slice)) {
-    return [];
-  }
-
-  const rows = Object.entries(slice).flatMap(([key, metric]) => {
-    if (typeof metric !== "object" || metric === null || Array.isArray(metric)) {
-      return [];
-    }
-
-    const record = metric as Record<string, unknown>;
-    const brierScore = isUnitInterval(record.brierScore) ? record.brierScore : undefined;
-    const count = isPositiveCalibrationCount(record.count) ? record.count : undefined;
-    return brierScore === undefined || count === undefined ? [] : [{ key, brierScore, count }];
-  });
+  const raw = detail.summary?.[group];
+  const metrics =
+    (group === "byMarketRegime" ? parseMarketRegimeMetricMap(raw) : parseMetricMap(raw)) ?? {};
+  const rows = Object.entries(metrics).map(([key, { brierScore, count }]) => ({
+    key,
+    brierScore,
+    count,
+  }));
 
   return group === "byHorizonBucket" || group === "byMarketUpdateHorizonBucket"
     ? rows.toSorted((left, right) => horizonBucketRank(left.key) - horizonBucketRank(right.key))

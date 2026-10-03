@@ -2,16 +2,21 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
-import { isRecord, readNumber, readString } from "../guards";
+import { isRecord, readString } from "../guards";
 import { brierSkillScore } from "../scoring/calibration";
 import {
   hasNoResolvedPredictions,
   isCalibrationCount,
-  isPositiveCalibrationCount,
   isUnitInterval,
 } from "../scoring/calibration-invariant";
+import {
+  parseCalibrationBin,
+  parseMarketRegimeMetricMap,
+  parseMetricMap,
+  readNumberWhere,
+} from "../scoring/calibration-read";
 import { buildAndWriteCalibration } from "../scoring/index";
-import type { CalibrationBin, CalibrationMetric } from "../scoring/types";
+import type { CalibrationMetric } from "../scoring/types";
 import { applicableCalibrationSlices, applicableKindSlices } from "./calibration-guidance";
 import type { CalibrationContext, ResearchContext } from "./research-context-types";
 
@@ -49,15 +54,6 @@ export async function refreshCalibrationContext(
 // Values outside that range are impossible and dropped.
 function isBrierSkill(value: number): boolean {
   return value >= -3 && value <= 1;
-}
-
-function readNumberWhere(
-  record: Record<string, unknown>,
-  key: string,
-  predicate: (value: number) => boolean,
-): number | undefined {
-  const value = readNumber(record, key);
-  return value !== undefined && predicate(value) ? value : undefined;
 }
 
 // Runtime schema validation at the disk boundary: summary.json is untrusted on read.
@@ -128,79 +124,6 @@ function parseConditionalCalibrationSummary(
     return undefined;
   }
   return { activatedCount, voidedCount };
-}
-
-function parseCalibrationBin(value: unknown): CalibrationBin | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const pLow = readNumberWhere(value, "pLow", isUnitInterval);
-  const pHigh = readNumberWhere(value, "pHigh", isUnitInterval);
-  const label = readString(value, "label");
-  const hitCount = readNumberWhere(value, "hitCount", isCalibrationCount);
-  const totalCount = readNumberWhere(value, "totalCount", isPositiveCalibrationCount);
-  const hitRate = readNumberWhere(value, "hitRate", isUnitInterval);
-  if (
-    pLow === undefined ||
-    pHigh === undefined ||
-    label === undefined ||
-    hitCount === undefined ||
-    totalCount === undefined ||
-    hitRate === undefined ||
-    pLow >= pHigh ||
-    hitCount > totalCount
-  ) {
-    return undefined;
-  }
-  return { pLow, pHigh, label, hitCount, totalCount, hitRate };
-}
-
-function parseCalibrationMetric(value: unknown): CalibrationMetric | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const brierScore = readNumberWhere(value, "brierScore", isUnitInterval);
-  const count = readNumberWhere(value, "count", isPositiveCalibrationCount);
-  if (brierScore === undefined || count === undefined) {
-    return undefined;
-  }
-  const runCount = readNumberWhere(value, "runCount", isPositiveCalibrationCount);
-  const brierStandardError = readNumberWhere(
-    value,
-    "brierStandardError",
-    (candidate) => candidate >= 0,
-  );
-  return {
-    brierScore,
-    count,
-    ...(runCount !== undefined && runCount <= count ? { runCount } : {}),
-    ...(brierStandardError !== undefined ? { brierStandardError } : {}),
-  };
-}
-
-function parseMetricMap(value: unknown): Record<string, CalibrationMetric> | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const entries = Object.entries(value).flatMap(([key, raw]) => {
-    const metric = parseCalibrationMetric(raw);
-    return metric === undefined ? [] : [[key, metric] as const];
-  });
-  return Object.fromEntries(entries);
-}
-
-function parseMarketRegimeMetricMap(value: unknown): Record<string, CalibrationMetric> | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const entries = Object.entries(value).flatMap(([key, raw]) => {
-    if (!isMarketRegimeLabel(key)) {
-      return [];
-    }
-    const metric = parseCalibrationMetric(raw);
-    return metric === undefined ? [] : [[key, metric] as const];
-  });
-  return Object.fromEntries(entries);
 }
 
 function parseMarketRegimeCoverage(value: unknown): Record<string, number> | undefined {

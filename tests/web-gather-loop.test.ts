@@ -838,6 +838,65 @@ describe("runWebGatherLoop", () => {
     ]);
   });
 
+  test("keeps the thematic allowance when the widening request is rejected", async () => {
+    const recorded = recordingExaFetch();
+    const result = await runWebGatherLoop({
+      command: {
+        jobType: "research",
+        assetClass: "equity",
+        subject: "Top-10 list of promising biotech stocks",
+        subjectKey: "biotech",
+        predictionProxySymbol: "XBI",
+        depth: "deep",
+      },
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 3, sourceBudget: 6 } },
+      collectedSources: collectedSources(),
+      context,
+      reusedProfileCoverage: { present: true, topics: ["whatItIs"] },
+      acceptancePolicy: lowPriorAcceptancePolicy,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: recorded.fetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+                numResults: 6,
+              },
+              rationale: "current sourced candidate evidence",
+            },
+            {
+              tool: "web_search",
+              args: {
+                query: "biotech promising stocks analyst picks",
+                searchType: "current-subject",
+                numResults: 8,
+              },
+              rationale: "duplicate widened list",
+            },
+            {
+              tool: "web_search",
+              args: { query: "biotech ranking stocks screen", searchType: "current-subject" },
+              rationale: "second sourced candidate list",
+            },
+          ],
+        }),
+    });
+
+    expect(recorded.searchNumResults).toEqual([6, 8]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({ tool: "web_search", reason: "duplicate web gather request" }),
+    ]);
+    expect(result.audit?.acceptedRequests.at(-1)?.numResultsOverride).toEqual({
+      kind: "thematic-widening",
+      effectiveNumResults: 8,
+    });
+  });
+
   test("spends a below-eight thematic exemption before implicit narrowing", async () => {
     const recorded = recordingExaFetch();
     const result = await runWebGatherLoop({
@@ -1568,6 +1627,122 @@ describe("runWebGatherLoop", () => {
       }),
     );
   });
+
+  test("skips a deep-equity batch at zero source budget without calls or state loss", async () => {
+    const sources = sourcesWithPersistedGap();
+    const { fetchImpl, generateRound } = acquisitionTraps();
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 4, sourceBudget: 0 } },
+      collectedSources: sources,
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl,
+      generateRound,
+    });
+
+    expect(result.skipCode).toBe("source-budget-zero");
+    expect(generateRound).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.audit).toBeUndefined();
+    expect(result.collectedSources).toBe(sources);
+  });
+
+  test("validates batch fetches only after every search is charged", async () => {
+    const result = await runWebGatherLoop({
+      command,
+      config: { ...config, webGatherOptions: { maxRounds: 1, maxToolCalls: 4, sourceBudget: 4 } },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+      }),
+      context,
+      now: new Date("2026-05-19T00:00:00.000Z"),
+      fetchImpl: exaFetch,
+      retryDelaysMs: [],
+      generateRound: async () =>
+        stage({
+          requests: [
+            {
+              tool: "web_fetch",
+              args: { url: "https://example.com/aapl-business" },
+              rationale: "fetch listed before its searches",
+            },
+            {
+              tool: "web_search",
+              args: { query: "AAPL business model", searchType: "background" },
+              rationale: "find relevant urls",
+            },
+            {
+              tool: "web_search",
+              args: { query: "AAPL revenue segments", searchType: "background" },
+              rationale: "second search",
+            },
+          ],
+        }),
+    });
+
+    expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual([
+      "web_search",
+      "web_search",
+    ]);
+    expect(result.audit?.rejectedRequests).toEqual([
+      expect.objectContaining({ tool: "web_fetch", reason: "web gather source budget exceeded" }),
+    ]);
+    expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toEqual([
+      "exa-search",
+      "exa-search",
+    ]);
+  });
+
+  for (const { label, webGatherOptions, reason } of [
+    {
+      label: "source units",
+      webGatherOptions: { maxRounds: 1, maxToolCalls: 4, sourceBudget: 2 },
+      reason: "web gather source budget exceeded",
+    },
+    {
+      label: "tool calls",
+      webGatherOptions: { maxRounds: 1, maxToolCalls: 1, sourceBudget: 8 },
+      reason: "web gather tool-call budget exceeded",
+    },
+  ]) {
+    test(`charges batch searches' ${label} before validating fetches`, async () => {
+      const result = await runWebGatherLoop({
+        command,
+        config: { ...config, webGatherOptions },
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ symbol: "AAPL", name: "Apple Inc." })],
+        }),
+        context,
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        fetchImpl: exaFetch,
+        retryDelaysMs: [],
+        generateRound: async () =>
+          stage({
+            requests: [
+              {
+                tool: "web_fetch",
+                args: { url: "https://example.com/aapl-business" },
+                rationale: "fetch listed before its search",
+              },
+              {
+                tool: "web_search",
+                args: { query: "AAPL business model", searchType: "background" },
+                rationale: "find relevant urls",
+              },
+            ],
+          }),
+      });
+
+      expect(result.audit?.acceptedRequests.map((entry) => entry.tool)).toEqual(["web_search"]);
+      expect(result.audit?.rejectedRequests).toEqual([
+        expect.objectContaining({ tool: "web_fetch", reason }),
+      ]);
+      expect(result.collectedSources.rawSnapshots.map((snapshot) => snapshot.adapter)).toEqual([
+        "exa-search",
+      ]);
+    });
+  }
 
   test("rejects web search numResults above executor maximum", async () => {
     const result = await runWebGatherLoop({

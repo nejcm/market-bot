@@ -230,8 +230,8 @@
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
-      "provider-data-missing": 20,
-      "unsupported-coverage": 1,
+      "unsupported-coverage": 2,
+      "provider-data-missing": 19,
       "suppressed-by-design": 1
     },
     "dataGaps": {

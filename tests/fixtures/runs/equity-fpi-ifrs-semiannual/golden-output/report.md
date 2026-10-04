@@ -52,7 +52,7 @@ Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/boo
 
 ## Material Data Gaps
 
-- **Material:** sec-edgar: No SEC company facts found for IFRSSA
+- **Material:** sec-edgar: SEC company facts for IFRSSA have no 10-K/10-Q rows \(foreign-filer forms such as 20-F/40-F\); legacy fundamentals summary unavailable
 - **Material:** sec-edgar: IFRSSA files as a foreign private issuer \(20-F, 6-K\); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
 - **Material:** valuation: Peer-implied price reference range suppressed for IFRSSA: peer supportability is not supported

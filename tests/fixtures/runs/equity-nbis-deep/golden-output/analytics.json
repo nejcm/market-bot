@@ -232,9 +232,9 @@
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
-      "provider-data-missing": 15,
-      "unsupported-coverage": 2,
+      "unsupported-coverage": 3,
       "suppressed-by-design": 2,
+      "provider-data-missing": 14,
       "session-in-progress": 1
     },
     "dataGaps": {

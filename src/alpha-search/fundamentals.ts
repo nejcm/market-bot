@@ -3,6 +3,7 @@ import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
 import {
   findSecTicker,
+  secFundamentalsUnavailableGap,
   secRequestInit,
   summarizeSecFundamentals,
 } from "../sources/extended-evidence/sec-edgar";
@@ -46,15 +47,14 @@ function noSecMappingGap(symbol: string): SourceGap {
   });
 }
 
-function noFundamentalsGap(symbol: string): SourceGap {
+function noFundamentalsGap(symbol: string, payload: unknown): SourceGap {
   return sourceGap({
     source: "sec-alpha-fundamentals",
     symbol,
     provider: "sec-edgar",
     capability: "extended-evidence",
-    cause: "provider-data-missing",
     evidenceQualityImpact: "no-cap",
-    message: `No SEC company facts found for alpha-search candidate ${symbol}`,
+    ...secFundamentalsUnavailableGap(payload, `alpha-search candidate ${symbol}`),
   });
 }
 
@@ -113,7 +113,7 @@ export async function collectAlphaSearchFundamentals(options: {
     rawSnapshots.push(result.rawSnapshot);
     const summary = summarizeSecFundamentals(result.payload, options.analysisAsOf);
     if (summary === undefined) {
-      missingFactsGaps.push(noFundamentalsGap(entry.symbol));
+      missingFactsGaps.push(noFundamentalsGap(entry.symbol, result.payload));
       continue;
     }
     fundamentalGaps.push(...summary.gaps.map((gap) => ({ ...gap, symbol: entry.symbol })));

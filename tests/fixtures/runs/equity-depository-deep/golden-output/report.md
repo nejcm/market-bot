@@ -107,7 +107,7 @@ The supplied evidence supports a cautious, evidence-limited BNS thesis. Reported
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `partial` · Valuation `partial` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `partial` · Valuation inputs `partial` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

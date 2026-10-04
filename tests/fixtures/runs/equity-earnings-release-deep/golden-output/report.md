@@ -75,7 +75,7 @@ No peer-derived reference range or normalized market multiple is available; this
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `complete` · Valuation `partial` · Expectations `not assessed — inputs unavailable` · Capital & ownership `complete` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `complete` · Valuation inputs `partial` · Expectations `not assessed — inputs unavailable` · Capital & ownership `complete` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

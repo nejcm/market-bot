@@ -13,18 +13,31 @@ async function listRunDirNames(dataDir: string): Promise<readonly string[]> {
     .toSorted();
 }
 
-async function mutableSidecarMatches(
+function summarizeMismatches(mismatches: readonly string[]): string {
+  const more = mismatches.length > 1 ? ` (+${String(mismatches.length - 1)} more)` : "";
+  return `${mismatches[0] ?? ""}${more}`;
+}
+
+function describeSidecar(
+  file: { readonly size: number; readonly mtime: number } | undefined,
+): string {
+  return file === undefined ? "absent" : `size ${String(file.size)} mtime ${String(file.mtime)}`;
+}
+
+async function mutableSidecarMismatch(
   dataDir: string,
   runDirName: string,
-  row: ArtifactFileRow,
-): Promise<boolean> {
-  const filePath = join(dataDir, runDirName, row.path);
-  try {
-    const metadata = await stat(filePath);
-    return metadata.isFile() && metadata.size === row.size && metadata.mtimeMs === row.modified_at;
-  } catch {
-    return false;
+  path: string,
+  indexed: ArtifactFileRow | undefined,
+): Promise<string | undefined> {
+  const metadata = await stat(join(dataDir, runDirName, path)).catch(() => {});
+  const disk = metadata?.isFile() ? { size: metadata.size, mtime: metadata.mtimeMs } : undefined;
+  const indexedFile =
+    indexed === undefined ? undefined : { size: indexed.size, mtime: indexed.modified_at };
+  if (disk?.size === indexedFile?.size && disk?.mtime === indexedFile?.mtime) {
+    return undefined;
   }
+  return `${runDirName}/${path} indexed ${describeSidecar(indexedFile)} vs disk ${describeSidecar(disk)}`;
 }
 
 export async function indexIsFresh(
@@ -48,8 +61,20 @@ export async function indexIsFresh(
       readonly run_dir_name: string;
     }[]
   ).map((row) => row.run_dir_name);
-  if (JSON.stringify(diskDirs) !== JSON.stringify(indexedDirs)) {
-    warn("index stale (run directory set mismatch), falling back to disk scan");
+  const diskDirSet = new Set(diskDirs);
+  const indexedDirSet = new Set(indexedDirs);
+  const dirMismatches = [
+    ...diskDirs
+      .filter((name) => !indexedDirSet.has(name))
+      .map((name) => `${name} indexed absent vs disk present`),
+    ...indexedDirs
+      .filter((name) => !diskDirSet.has(name))
+      .map((name) => `${name} indexed present vs disk absent`),
+  ];
+  if (dirMismatches.length > 0) {
+    warn(
+      `index stale (run directory set mismatch: ${summarizeMismatches(dirMismatches)}), falling back to disk scan`,
+    );
     return false;
   }
 
@@ -64,25 +89,24 @@ export async function indexIsFresh(
     .all(...MUTABLE_SIDECARS) as readonly ArtifactFileRow[];
   const sidecarsByKey = new Map(sidecars.map((row) => [`${row.run_id}:${row.path}`, row]));
 
-  const checks = runs.flatMap((run) =>
-    MUTABLE_SIDECARS.map(async (path) => {
-      const indexed = sidecarsByKey.get(`${run.run_id}:${path}`);
-      const diskPath = join(dataDir, run.run_dir_name, path);
-      const exists = await stat(diskPath)
-        .then((metadata) => metadata.isFile())
-        .catch(() => false);
-      if (!exists && indexed === undefined) {
-        return true;
-      }
-      return (
-        indexed !== undefined && (await mutableSidecarMatches(dataDir, run.run_dir_name, indexed))
-      );
-    }),
-  );
-
-  const results = await Promise.all(checks);
-  if (!results.every(Boolean)) {
-    warn("index stale (mutable sidecar mismatch), falling back to disk scan");
+  const mismatches = (
+    await Promise.all(
+      runs.flatMap((run) =>
+        MUTABLE_SIDECARS.map((path) =>
+          mutableSidecarMismatch(
+            dataDir,
+            run.run_dir_name,
+            path,
+            sidecarsByKey.get(`${run.run_id}:${path}`),
+          ),
+        ),
+      ),
+    )
+  ).filter((mismatch) => mismatch !== undefined);
+  if (mismatches.length > 0) {
+    warn(
+      `index stale (mutable sidecar mismatch: ${summarizeMismatches(mismatches)}), falling back to disk scan`,
+    );
     return false;
   }
   return true;

@@ -159,7 +159,7 @@ const COMPLETENESS_DIMENSION_LABELS: readonly {
   readonly label: string;
 }[] = [
   { key: "primaryFinancials", label: "Primary financials" },
-  { key: "valuation", label: "Valuation" },
+  { key: "valuation", label: "Valuation inputs" },
   { key: "expectations", label: "Expectations" },
   { key: "capitalOwnership", label: "Capital & ownership" },
   { key: "operatingKpis", label: "Operating KPIs" },

@@ -79,7 +79,7 @@ Fixture IFRS Semiannual plc synthetic FPI fixture replayed through current equit
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `complete` · Valuation `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `complete` · Valuation inputs `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

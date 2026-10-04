@@ -80,7 +80,7 @@ Fixture Quarterly FPI N.V. synthetic FPI fixture replayed through current equity
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `complete` · Valuation `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `complete` · Valuation inputs `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

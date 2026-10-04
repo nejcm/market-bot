@@ -164,7 +164,7 @@ function massiveSupplementalMarketGap(gap: SourceGap): SourceGap {
     return massiveGap(
       sourceGap({
         source: gap.source,
-        message: "massive supplemental-market snapshot unavailable on current plan",
+        message: `massive supplemental-market snapshot unavailable on current plan (HTTP ${status})`,
         cause: "unsupported-coverage",
       }),
       "market-data",

@@ -48,7 +48,7 @@ const PROVIDER_DEGRADATION_REASON_CODES: ReadonlySet<string> = new Set([
 ]);
 const COMPLETENESS_DIMENSION_DISPLAY_LABELS = [
   "Primary financials",
-  "Valuation",
+  "Valuation inputs",
   "Expectations",
   "Capital & ownership",
   "Operating KPIs",

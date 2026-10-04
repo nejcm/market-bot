@@ -499,10 +499,27 @@ describe("run artifact index", () => {
     writeRun(dataDir, "run-a");
     await rebuildRunArtifactIndex(dataDir, { dbPath });
     mkdirSync(join(dataDir, "run-new"));
+    mkdirSync(join(dataDir, "run-other"));
     const stderr = captureStderr();
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
-    expect(stderr.join("")).toContain("run directory set mismatch");
+    expect(stderr.join("")).toContain(
+      "run directory set mismatch: run-new indexed absent vs disk present (+1 more)",
+    );
+  });
+
+  test("names a run directory that is indexed but missing on disk", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    writeRun(dataDir, "run-b");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    await rm(join(dataDir, "run-b"), { recursive: true });
+    const stderr = captureStderr();
+
+    await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
+    expect(stderr.join("")).toContain(
+      "run directory set mismatch: run-b indexed present vs disk absent),",
+    );
   });
 
   test("returns undefined when a mutable sidecar is added after rebuild", async () => {
@@ -513,7 +530,27 @@ describe("run artifact index", () => {
     const stderr = captureStderr();
 
     await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
-    expect(stderr.join("")).toContain("mutable sidecar mismatch");
+    expect(stderr.join("")).toContain(
+      "mutable sidecar mismatch: run-a/score.json indexed absent vs disk size",
+    );
+  });
+
+  test("names the first changed mutable sidecar with indexed and disk values", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    writeRun(dataDir, "run-a");
+    writeRun(dataDir, "run-b");
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const indexed = statSync(join(dataDir, "run-a", "score.json"));
+    for (const run of ["run-a", "run-b"]) {
+      writeJson(join(dataDir, run, "score.json"), { runId: run, scores: [], extra: "changed" });
+    }
+    const disk = statSync(join(dataDir, "run-a", "score.json"));
+    const stderr = captureStderr();
+
+    await expect(listRunSummariesFromIndex(dataDir)).resolves.toBeUndefined();
+    expect(stderr.join("")).toContain(
+      `mutable sidecar mismatch: run-a/score.json indexed size ${String(indexed.size)} mtime ${String(indexed.mtimeMs)} vs disk size ${String(disk.size)} mtime ${String(disk.mtimeMs)} (+1 more)`,
+    );
   });
 
   test("warns when write-through is skipped because the index database is missing", async () => {

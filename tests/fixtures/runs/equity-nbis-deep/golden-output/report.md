@@ -84,7 +84,7 @@ Nebius Group N.V. synthetic FPI fixture replayed through current equity research
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `partial` · Valuation `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `partial`
+Dimension Status: Primary financials `partial` · Valuation inputs `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `partial`
 
 ### Balance Sheet and Share Count
 

@@ -569,6 +569,7 @@ describe("equity reader projection", () => {
       label: "Primary financials",
       status: "partial",
     });
+    expect(projection.appendix.completeness?.dimensions[1]?.label).toBe("Valuation inputs");
   });
 
   test("omits completeness placement when the report has no completeness contract", () => {

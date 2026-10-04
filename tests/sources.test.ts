@@ -656,7 +656,7 @@ describe("source normalization", () => {
         capability: "market-data",
         cause: "unsupported-coverage",
         evidenceQualityImpact: "no-cap",
-        message: "massive supplemental-market snapshot unavailable on current plan",
+        message: "massive supplemental-market snapshot unavailable on current plan (HTTP 403)",
       }),
     ]);
   });

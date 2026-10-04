@@ -305,7 +305,9 @@ describe("run artifact index parity", () => {
 
     expect(fromSnapshot?.map((ledger) => ledger.runId)).toEqual(["run-a"]);
     expect(fromRelist).toBeUndefined();
-    expect(stderr.join("")).toContain("index stale (run directory set mismatch)");
+    expect(stderr.join("")).toContain(
+      "index stale (run directory set mismatch: run-b indexed absent vs disk present)",
+    );
   });
 
   test("console list and search match disk fallback", async () => {

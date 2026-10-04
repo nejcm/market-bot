@@ -9,6 +9,7 @@ import { collectedSources, marketSnapshot, newsSource, researchReport } from "./
 import {
   completionInstruction,
   config,
+  equityFinalSynthesisPrompt,
   equityRequiredShapeKinds,
   resolvedPair,
   stagePromptFromArgs,
@@ -288,7 +289,23 @@ describe("buildStagePrompt final-synthesis shape", () => {
     expect(kinds).toContain("direction");
     expect(kinds).toContain("relative");
     expect(kinds).toContain("range");
-    expect(kinds).toContain("macro");
+  });
+
+  test("equity final-synthesis gates macro on an allowed FRED subject", () => {
+    const equityOnly = equityFinalSynthesisPrompt({ predictionSubjects: ["AAPL"] });
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL"] })).not.toContain("macro");
+    expect(JSON.parse(equityOnly).instruction).not.toContain("fred(");
+    expect(equityOnly).not.toContain("macro");
+    expect(completionInstruction({ predictionSubjects: ["AAPL"] })).not.toContain("macro");
+
+    const withFred = equityFinalSynthesisPrompt({ predictionSubjects: ["AAPL", "DGS10"] });
+    expect(equityRequiredShapeKinds({ predictionSubjects: ["AAPL", "DGS10"] })).toContain("macro");
+    expect(JSON.parse(withFred).instruction).toContain(
+      "fred(SERIES, +N) > fred(SERIES, 0) for macro",
+    );
+    expect(completionInstruction({ predictionSubjects: ["AAPL", "DGS10"] })).toContain(
+      "fred(SERIES, +N) > fred(SERIES, 0) for macro",
+    );
   });
 
   test("equity final-synthesis shape advertises volatility only when ^VIX is an allowed subject", () => {

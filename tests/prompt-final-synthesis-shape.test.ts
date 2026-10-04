@@ -658,7 +658,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
       "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO, VTI, ITOT, IWB, SCHB share the broad-us-index class",
     );
     // The one existing prediction is a bare `direction` call, so no broad-index slot is occupied.
-    expect(parsed.instruction).not.toContain("already occupy these broad-us-index slots");
+    expect(parsed.instruction).not.toContain("(broad-us-index)");
   });
 
   test("completion names occupied broad-us-index slots from existing relative predictions", () => {
@@ -678,7 +678,41 @@ describe("buildStagePrompt final-synthesis shape", () => {
     });
 
     expect(instruction).toContain(
-      "Existing predictions already occupy these broad-us-index slots: AAPL relative @ 5d (broad-us-index)",
+      "Existing predictions already occupy these slots (kind, subject, horizon; relative adds the benchmark class): relative AAPL @5d (broad-us-index) — do not restate them",
+    );
+  });
+
+  test("completion names occupied range and direction slots with the direction horizon gap", () => {
+    const range: Prediction = {
+      id: "pred-1",
+      claim: "NBIS closes outside $90-$110 in 5 trading days",
+      kind: "range",
+      subject: "NBIS",
+      measurableAs: "close(NBIS, +5) outside [90, 110]",
+      horizonTradingDays: 5,
+      probability: 0.3,
+      sourceIds: ["market-nbis"],
+    };
+    const direction: Prediction = {
+      id: "pred-2",
+      claim: "NBIS closes higher in 5 trading days",
+      kind: "direction",
+      subject: "NBIS",
+      measurableAs: "close(NBIS, +5) > close(NBIS, 0)",
+      horizonTradingDays: 5,
+      probability: 0.65,
+      sourceIds: ["market-nbis"],
+    };
+    const instruction = completionInstruction({
+      predictionSubjects: ["NBIS"],
+      existingPredictions: [range, direction],
+    });
+
+    expect(instruction).toContain(
+      ": range NBIS @5d; direction NBIS @5d (±1d) — do not restate them",
+    );
+    expect(instruction).toContain(
+      "different range bounds or an equivalent benchmark do not open a new slot",
     );
   });
 

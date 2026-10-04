@@ -219,8 +219,9 @@ describe("buildStagePrompt", () => {
       "Relative forecasts against any of SPY, QQQ, DIA, IVV, VOO, VTI, ITOT, IWB, SCHB share the broad-us-index class",
     );
     expect(parsed.predictionRepair?.instruction).toContain(
-      "For range forecasts, vary the horizon or range bounds",
+      "For range forecasts, use a different horizon",
     );
+    expect(parsed.predictionRepair?.instruction).not.toContain("range bounds");
     expect(parsed.predictionRepair?.instruction).toContain("at least 2 trading days apart");
   });
 

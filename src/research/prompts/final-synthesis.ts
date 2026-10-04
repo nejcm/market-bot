@@ -11,11 +11,12 @@ import {
 } from "../../domain/types";
 import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
-  BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_CLASS,
+  describeRedundancySlot,
   MAX_PREDICTION_HORIZON_TRADING_DAYS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
   MIN_PREDICTION_HORIZON_TRADING_DAYS,
+  observableForecastFromPrediction,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
@@ -245,34 +246,18 @@ function buildAllowedSubjectSteering(predictionSubjects: readonly string[]): str
   return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind. A second relative forecast for the same primary subject and exact horizon must differ in probability by more than ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)}, backed by a stated evidence-based differentiation; changing only the benchmark ticker does not add signal.`;
 }
 
-// Names the broad-US-index class+horizon slots already taken by existingPredictions so the
-// Completion pass does not re-propose a relative forecast the redundancy rule would reject.
-function describeOccupiedBroadIndexSlots(predictions: readonly Prediction[]): string {
-  const slots: string[] = [];
-  const seen = new Set<string>();
+// Names the redundancy slots already taken so completion does not re-propose a rejected forecast.
+function describeOccupiedSlots(predictions: readonly Prediction[]): string {
+  const slots = new Set<string>();
   for (const prediction of predictions) {
-    if (prediction.kind !== "relative" || !prediction.subject.includes(":")) {
-      continue;
+    const forecast = observableForecastFromPrediction(prediction);
+    const slot = "prediction" in forecast ? describeRedundancySlot(forecast) : undefined;
+    if (slot !== undefined) {
+      slots.add(slot);
     }
-    const [primary, benchmark] = prediction.subject.split(":");
-    if (
-      primary === undefined ||
-      benchmark === undefined ||
-      !BROAD_US_INDEX_BENCHMARKS.has(benchmark)
-    ) {
-      continue;
-    }
-    const key = `${primary}|${String(prediction.horizonTradingDays)}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    slots.push(
-      `${primary} relative @ ${String(prediction.horizonTradingDays)}d (${BROAD_US_INDEX_CLASS})`,
-    );
   }
-  return slots.length > 0
-    ? ` Existing predictions already occupy these ${BROAD_US_INDEX_CLASS} slots: ${slots.join("; ")} — do not restate them.`
+  return slots.size > 0
+    ? ` Existing predictions already occupy these slots (kind, subject, horizon; relative adds the benchmark class): ${[...slots].join("; ")} — do not restate them; different range bounds or an equivalent benchmark do not open a new slot.`
     : "";
 }
 
@@ -287,7 +272,7 @@ function buildPredictionRepairInstruction(
   ).favored.join(", ");
   const rangeGuidance = excludedKinds.includes("range")
     ? ""
-    : " For range forecasts, vary the horizon or range bounds when another range forecast already covers the same subject and horizon.";
+    : " For range forecasts, use a different horizon when another range forecast already covers the same subject and horizon.";
   return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK.${rangeGuidance} Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
@@ -532,7 +517,7 @@ function buildPredictionCompletionInstruction(
   const allowedSubjectSteering = buildAllowedSubjectSteering(
     context.depthProfile.predictionSubjects,
   );
-  const occupiedSlots = describeOccupiedBroadIndexSlots(completion.existingPredictions);
+  const occupiedSlots = describeOccupiedSlots(completion.existingPredictions);
   const conditionalActivationGuidance =
     command.depth === "deep"
       ? (buildConditionalPredictionActivationGuidance(

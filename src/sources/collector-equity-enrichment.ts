@@ -39,6 +39,7 @@ import type { SecCompanyFactsResult } from "./extended-evidence/sec-edgar";
 import {
   collectFinancialStatements,
   deriveFinancialStatements,
+  financialStatementsDebtBasisGaps,
 } from "./extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
@@ -154,6 +155,7 @@ interface EquityEnrichmentResult {
   readonly financialLensResult: FinancialLensResult;
   readonly fundamentalHistory: FundamentalHistoryArtifact | undefined;
   readonly financialStatements: FinancialStatementsArtifact | undefined;
+  readonly financialStatementGaps: readonly SourceGap[];
   readonly reportingFreshness: EquityReportingFreshness | undefined;
   readonly subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined;
   readonly capitalOwnership: CapitalOwnershipArtifact | undefined;
@@ -393,6 +395,10 @@ export async function collectEquityEnrichment(
     reverseDcf,
     fundamentalHistory,
     financialStatements,
+    financialStatementGaps:
+      financialStatements === undefined
+        ? []
+        : financialStatementsDebtBasisGaps(financialStatements),
     reportingFreshness,
     subsequentFinancing,
     capitalOwnership,
@@ -421,6 +427,7 @@ function noEquityEnrichment(
     reverseDcf: undefined,
     fundamentalHistory: undefined,
     financialStatements: undefined,
+    financialStatementGaps: [],
     reportingFreshness: undefined,
     subsequentFinancing: undefined,
     capitalOwnership: undefined,

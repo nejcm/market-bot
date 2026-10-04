@@ -169,6 +169,23 @@ describe("addValuationEvidence", () => {
     expect(valuation?.summary).toContain("market cap as of 2026-05-19; cash/debt as of 2026-03-31");
   });
 
+  test("carries a gross-principal debt basis only when the SEC item declares it", () => {
+    const snapshots = [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })];
+    const valuation = (evidence: ExtendedEvidence) =>
+      addValuationEvidence(command, snapshots, evidence).extendedEvidence?.items.find(
+        (item) => item.category === "valuation",
+      );
+    const gross = valuation(
+      secEvidence({ revenue: 400, cash: 30, debt: 50, debtBasis: "gross-principal" }),
+    );
+    const net = valuation(secEvidence({ revenue: 400, cash: 30, debt: 50 }));
+
+    expect(gross?.metrics?.debtBasis).toBe("gross-principal");
+    expect(gross?.summary).toContain("; debt is gross principal.");
+    expect(net?.metrics && "debtBasis" in net.metrics).toBe(false);
+    expect(net?.summary).not.toContain("gross principal");
+  });
+
   test("clamps negative-zero valuation multiples", () => {
     const result = addValuationEvidence(
       command,

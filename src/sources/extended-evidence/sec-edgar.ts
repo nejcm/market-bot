@@ -14,6 +14,7 @@ import {
   isYearAligned,
 } from "./financial-statement-selection";
 import {
+  grossPrincipalDebtFallbackApplies,
   preferDirectStatementBasis,
   sameStatementFiscalPeriod,
   statementFiscalPeriodKey,
@@ -21,7 +22,9 @@ import {
 } from "./financial-statement-period-identity";
 import {
   canonicalizeSecForm,
+  GROSS_PRINCIPAL_DEBT_CONCEPT,
   isDomesticPeriodicCanonicalForm,
+  type DebtBasis,
   readSecFactPeriodMetadata,
 } from "./financial-statements-contract";
 import { readArray } from "./utils";
@@ -671,10 +674,47 @@ function debtPeriodIdentity(value: SecFactValue): string {
   return period === undefined ? value.form : statementFiscalPeriodKey(period);
 }
 
+interface SecDebtSelection {
+  readonly selection: SecMetricSelection;
+  readonly composite?: SecDebtComposite;
+  readonly grossPrincipal?: { readonly periodEnd: string; readonly netPeriodEnd: string };
+}
+
 function selectDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
-): { readonly selection: SecMetricSelection; readonly composite?: SecDebtComposite } | undefined {
+): SecDebtSelection | undefined {
+  const net = selectNetDebtMetric(gaap, analysisAsOf);
+  const netLatest = net?.selection.latest;
+  const gross = factValuesForConcept(
+    gaap,
+    GROSS_PRINCIPAL_DEBT_CONCEPT,
+    DEBT_METRIC.unitKeys,
+  ).filter((value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf));
+  const latestGross = latestFact(gross);
+  if (
+    net === undefined ||
+    netLatest?.end === undefined ||
+    latestGross?.end === undefined ||
+    !grossPrincipalDebtFallbackApplies(
+      { periodEnd: netLatest.end, value: netLatest.val },
+      latestGross.end,
+      latestFact(gross.filter((value) => value.end === netLatest.end))?.val,
+    )
+  ) {
+    return net;
+  }
+  const prior = comparablePrior(latestGross, gross);
+  return {
+    selection: { latest: latestGross, ...(prior !== undefined ? { prior } : {}) },
+    grossPrincipal: { periodEnd: latestGross.end, netPeriodEnd: netLatest.end },
+  };
+}
+
+function selectNetDebtMetric(
+  gaap: Record<string, unknown>,
+  analysisAsOf?: string,
+): SecDebtSelection | undefined {
   const eligible = (value: SecFactValue): boolean => isFactObservableAsOf(value, analysisAsOf);
   const directConcept = factValuesForMostRecentConcept(gaap, DEBT_METRIC, eligible)?.concept;
   const direct =
@@ -755,6 +795,17 @@ function selectDebtMetric(
   };
 }
 
+export function grossPrincipalDebtGap(periodEnd: string, netPeriodEnd: string): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC debt uses gross principal (${GROSS_PRINCIPAL_DEBT_CONCEPT}) as of ${periodEnd}: net carrying debt is not tagged in companyfacts after ${netPeriodEnd}, where gross principal was within 5% of it`,
+    provider: "sec-edgar",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 function deltaPercent(latest: number, prior: number): number | undefined {
   return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
 }
@@ -811,7 +862,13 @@ export function summarizeSecFundamentals(
               FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
             ),
     })),
-    { definition: DEBT_METRIC, selection: debtSelection?.selection },
+    {
+      definition:
+        debtSelection?.grossPrincipal === undefined
+          ? DEBT_METRIC
+          : { ...DEBT_METRIC, label: "debt (gross principal)" },
+      selection: debtSelection?.selection,
+    },
   ];
 
   for (const { definition, selection } of metricSelections) {
@@ -853,6 +910,10 @@ export function summarizeSecFundamentals(
     }
   }
 
+  if (debtSelection?.grossPrincipal !== undefined) {
+    metrics.debtBasis = "gross-principal" satisfies DebtBasis;
+  }
+
   if (summaryParts.length === 0) {
     return undefined;
   }
@@ -873,7 +934,18 @@ export function summarizeSecFundamentals(
         ]
       : [];
 
+  const grossPrincipalGap =
+    debtSelection?.grossPrincipal === undefined
+      ? []
+      : [
+          grossPrincipalDebtGap(
+            debtSelection.grossPrincipal.periodEnd,
+            debtSelection.grossPrincipal.netPeriodEnd,
+          ),
+        ];
+
   const gaps: SourceGap[] = [
+    ...grossPrincipalGap,
     ...(missingFacts.length > 0
       ? [
           sourceGap({

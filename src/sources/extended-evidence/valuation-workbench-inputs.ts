@@ -41,7 +41,7 @@ function latest(values: readonly string[]): string {
 function factInput(label: string, fact: FinancialStatementFact): ValuationFundamentalInput {
   return {
     value: fact.value,
-    label,
+    label: fact.basis === "gross-principal" ? `${label} (gross principal)` : label,
     periodEnd: fact.periodEnd,
     publicAt: fact.filedAt,
     currency: fact.currency,

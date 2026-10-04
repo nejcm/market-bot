@@ -695,6 +695,56 @@ describe("valuation workbench", () => {
     });
   });
 
+  test("marks a gross-principal debt basis in the peer table only on that row", () => {
+    const base = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2025-05-01", close: 26 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+    const target = {
+      symbol: "TEST",
+      cashPeriodEnd: "2025-03-31",
+      debtPeriodEnd: "2025-03-31",
+      sourceIds: ["sec-TEST"],
+      usable: true,
+    };
+
+    const markdown = renderValuationWorkbenchMarkdown({
+      ...base,
+      peerComparison: {
+        status: "available",
+        valuationComps: {
+          version: 1,
+          generatedAt: "2025-06-01T00:00:00.000Z",
+          target,
+          peers: [{ ...target, symbol: "PEER", debtBasis: "gross-principal" }],
+          excludedPeers: [],
+          peerUniverseSourceIds: [],
+          summary: {
+            corePeerCount: 1,
+            secondaryPeerCount: 0,
+            usablePeerCount: 1,
+            valuationSupportability: "screening-only",
+          },
+          sourceIds: [],
+          freshnessFlags: {
+            targetQuoteFresh: true,
+            targetSecFresh: true,
+            peerQuoteFresh: true,
+            peerSecFresh: true,
+          },
+        },
+      },
+    });
+
+    expect(markdown).toContain("cash 2025-03-31; debt 2025-03-31 (gross principal)");
+    expect(markdown.match(/\(gross principal\)/gu)).toHaveLength(1);
+    expect(violatesResearchOnly(markdown)).toBeNull();
+  });
+
   test("omits a suppressed trailing-basis disclosure from markdown", () => {
     const artifact = buildValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",

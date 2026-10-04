@@ -95,6 +95,17 @@ function secFactUnits(
   };
 }
 
+function secInstantFact(val: number, end: string, fp: string, form = "10-Q") {
+  return {
+    val,
+    form,
+    fp,
+    fy: Number.parseInt(end.slice(0, 4), 10),
+    filed: end === "2026-06-29" ? "2026-07-01" : "2026-02-01",
+    end,
+  };
+}
+
 function omitFactEnd(fact: Record<string, number | string>): Record<string, number | string> {
   return Object.fromEntries(Object.entries(fact).filter(([key]) => key !== "end"));
 }
@@ -1107,6 +1118,37 @@ describe("collectValuationComps", () => {
     expect(amd?.enterpriseValue).toBe(400);
     expect(amd?.evToAnnualizedRevenue).toBeDefined();
     expect(result.artifact.excludedPeers.some((peer) => peer.symbol === "AMD")).toBe(false);
+  });
+
+  test("admits a peer whose fresher debt is calibrated gross principal", async () => {
+    const result = await collectNvdaWithAmdPayload(
+      secPayloadWithGaap({
+        LongTermDebt: { units: { USD: [secInstantFact(20, "2025-12-28", "FY", "10-K")] } },
+        DebtInstrumentCarryingAmount: {
+          units: {
+            USD: [
+              secInstantFact(20.5, "2025-12-28", "FY", "10-K"),
+              secInstantFact(30, "2026-06-29", "Q2"),
+            ],
+          },
+        },
+      }),
+    );
+
+    const amd = result.artifact.peers.find((peer) => peer.symbol === "AMD");
+    expect(amd).toMatchObject({
+      debt: 30,
+      debtPeriodEnd: "2026-06-29",
+      debtBasis: "gross-principal",
+      usable: true,
+    });
+    expect(result.artifact.target.debtBasis).toBeUndefined();
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        symbol: "AMD",
+        message: expect.stringContaining("SEC debt uses gross principal"),
+      }),
+    );
   });
 
   test("does not treat a 2011-09-30 peer debt period end as a usable row", async () => {

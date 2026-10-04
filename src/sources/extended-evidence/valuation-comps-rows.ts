@@ -20,6 +20,7 @@ import { readNumberMetric, readStringMetric } from "./utils";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
 import { incompleteCompositeNote, isCompleteComposite } from "./financial-statement-selection";
 import type { SecDebtComposite } from "./sec-edgar";
+import type { DebtBasis } from "./financial-statements-contract";
 import {
   balanceSheetPeriodDivergence,
   isFreshDate,
@@ -27,6 +28,12 @@ import {
   mixedPeriodMetrics,
   unique,
 } from "./valuation-comps-support";
+
+function readDebtBasis(metrics: ExtendedEvidenceItem["metrics"]): DebtBasis | undefined {
+  return readStringMetric(metrics, "debtBasis") === "gross-principal"
+    ? "gross-principal"
+    : undefined;
+}
 
 export function targetRow(
   symbol: string,
@@ -44,6 +51,7 @@ export function targetRow(
   const netDebt = readNumberMetric(item.metrics, "netDebt");
   const cashPeriodEnd = readStringMetric(item.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(item.metrics, "debtPeriodEnd");
+  const debtBasis = readDebtBasis(item.metrics);
   const mixedPeriod =
     item.metrics?.enterpriseValue === MIXED_PERIOD_METRIC ||
     item.metrics?.netDebt === MIXED_PERIOD_METRIC;
@@ -73,6 +81,7 @@ export function targetRow(
     ...(debt !== undefined ? { debt } : {}),
     ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
     ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
+    ...(debtBasis !== undefined ? { debtBasis } : {}),
     ...(guardedNetDebt !== undefined ? { netDebt: guardedNetDebt } : {}),
     ...(guardedEnterpriseValue !== undefined ? { enterpriseValue: guardedEnterpriseValue } : {}),
     ...(revenue !== undefined ? { latestPeriodRevenue: revenue } : {}),
@@ -224,6 +233,7 @@ export function peerRow(
   const debt = readNumberMetric(metrics, "debt");
   const cashPeriodEnd = readStringMetric(metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(metrics, "debtPeriodEnd");
+  const debtBasis = readDebtBasis(metrics);
   const revenue = readNumberMetric(metrics, "revenue");
   const revenuePeriodMonths = readNumberMetric(metrics, "revenuePeriodMonths");
   const revenuePeriodEnd = readStringMetric(metrics, "revenuePeriodEnd");
@@ -321,6 +331,7 @@ export function peerRow(
     ...(debt !== undefined ? { debt } : {}),
     ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
     ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
+    ...(debtBasis !== undefined ? { debtBasis } : {}),
     ...(netDebt !== undefined ? { netDebt } : {}),
     ...(enterpriseValue !== undefined ? { enterpriseValue } : {}),
     ...(revenue !== undefined ? { latestPeriodRevenue: revenue } : {}),

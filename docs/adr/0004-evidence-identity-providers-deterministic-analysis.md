@@ -34,7 +34,8 @@ current-report selection and Evidence Quality / Equity Analysis Completeness bou
 Quality advisory reasons; amended 2026-08-29: canonical statement facts may be deterministic
 same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured-registry and
 expectations entitlement completeness status; amended 2026-09-01: web-gather SEC coverage
-guard extended to current-subject searches)
+guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
+basis)
 
 ## Context
 
@@ -243,6 +244,23 @@ without pretending the project has a global security master.
   available: the missing slot is recorded by absence in `composite.components` and an omission note,
   not by silently substituting another concept. Direct facts remain `sec-companyfacts` without a
   `composite` field. The artifact-level extraction method stays `sec-companyfacts`.
+- Amendment: debt basis may be gross principal when net debt is untagged. Some filers tag current
+  balance-sheet debt only with issuer extensions or dimensional members, which companyfacts omits,
+  leaving the standard undimensioned `DebtInstrumentCarryingAmount` (principal before discount and
+  issuance costs) as the only fresh debt fact. Only instant gross facts are candidates. When its
+  latest instant is strictly fresher than the selected net debt, and at the net selection's own
+  period end it is within ±5% of net inclusive (zero matches zero), the legacy and canonical
+  selectors both use the latest gross fact and mark it `basis: "gross-principal"` (an absent basis
+  means net). A missing gross fact at that period, or a calibration miss, keeps net. The canonical
+  series appends only that one gross fact, carrying the calibration net period end as
+  `calibrationPeriodEnd` so disclosure survives period capping, and year-over-year priors never
+  cross basis (legacy takes a year-aligned gross prior; the canonical series has none), so
+  comparisons stay on one measurement. The basis is carried to valuation
+  evidence, valuation-comps rows, statement position and history, Financial Lens, and valuation
+  workbench inputs, rendered beside each gross amount, and disclosed as a `no-cap` SEC source gap
+  naming the gross concept and last net period. Both selectors emit that gap with identical text
+  and symbol, so source-gap dedupe keeps one; a canonical-only fallback (for example `20-F` net
+  with a fresher `6-K` gross fact, which legacy does not read) is still disclosed.
 - The artifact retains a shared roster of at most ten annual and twelve interim exact start/end
   period keys and projects every series onto that roster, detects
   `quarterly`, `semiannual`, `irregular`, `annual-only`, or `unknown` cadence, and derives TTM only

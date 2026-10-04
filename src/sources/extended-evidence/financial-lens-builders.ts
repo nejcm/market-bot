@@ -27,7 +27,7 @@ import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contr
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
-import { readNumberMetric } from "./utils";
+import { readNumberMetric, readStringMetric } from "./utils";
 
 export function qualityLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const sourceIds = secItem?.sourceIds ?? [];
@@ -240,8 +240,8 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
 
 export function strengthLens(
   secItem: ExtendedEvidenceItem | undefined,
-  valuationItem: ExtendedEvidenceItem | undefined,
-  yahooFundamentalsItem: ExtendedEvidenceItem | undefined,
+  valuationItem?: ExtendedEvidenceItem,
+  yahooFundamentalsItem?: ExtendedEvidenceItem,
 ): FinancialLens {
   const sourceIds = [
     ...new Set([
@@ -316,7 +316,9 @@ export function strengthLens(
     ),
     ...metric(
       "debt",
-      "Debt",
+      readStringMetric(secItem?.metrics, "debtBasis") === "gross-principal"
+        ? "Debt (gross principal)"
+        : "Debt",
       debt,
       "currency",
       secItem?.sourceIds ?? [],

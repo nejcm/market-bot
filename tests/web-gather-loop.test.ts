@@ -1146,7 +1146,6 @@ describe("runWebGatherLoop", () => {
     expect(result.audit?.acceptedRequests[0]?.freshness).toEqual({
       searchType: "background",
       endPublishedDate: "2026-05-19T00:00:00.000Z",
-      livecrawl: false,
       widened: false,
     });
     expect(result.audit?.sourceUnitsUsed).toBe(2);

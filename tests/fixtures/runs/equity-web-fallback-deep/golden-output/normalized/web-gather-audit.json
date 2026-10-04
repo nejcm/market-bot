@@ -23,7 +23,6 @@
       "freshness": {
         "searchType": "background",
         "endPublishedDate": "2026-06-15T14:30:00.000Z",
-        "livecrawl": false,
         "widened": false
       },
       "fallback": {

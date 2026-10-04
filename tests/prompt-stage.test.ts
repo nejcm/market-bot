@@ -472,8 +472,44 @@ describe("buildStagePrompt", () => {
       readonly domainPlaybooks?: readonly { readonly instruction?: string }[];
     };
 
-    expect(parsed.instruction).toBe("Analyze.");
+    expect(parsed.instruction).toStartWith("Analyze.");
+    expect(parsed.instruction).not.toContain("Challenge weak claims.");
     expect(parsed.domainPlaybooks?.[0]?.instruction).toBe("Challenge weak claims.");
+  });
+
+  test("withholds prediction targets from analysis stages but not from final synthesis", () => {
+    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
+      assetClass: "equity",
+      depth: "brief",
+    });
+    const promptFor = (stage: "instrument-evidence-analysis" | "final-synthesis") =>
+      JSON.parse(
+        stagePromptFromArgs(
+          stage,
+          command,
+          collectedSources({
+            rawSnapshots: [],
+            marketSnapshots: [marketSnapshot()],
+            newsSources: [newsSource()],
+            sourceGaps: [],
+          }),
+          config,
+          contextWithHistory(command),
+          { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
+        ),
+      ) as { readonly instruction: string; readonly depthProfile: Record<string, unknown> };
+    const analysis = promptFor("instrument-evidence-analysis");
+    const synthesis = promptFor("final-synthesis");
+
+    expect(analysis.instruction).toBe(
+      "Analyze.\n\nDo not emit predictions; final synthesis owns forecasts.",
+    );
+    expect(analysis.depthProfile).toHaveProperty("minimumKeyFindings");
+    expect(synthesis.instruction).not.toContain("Do not emit predictions");
+    for (const field of ["targetPredictions", "predictionSubjects", "targetKindMix"]) {
+      expect(analysis.depthProfile).not.toHaveProperty(field);
+      expect(synthesis.depthProfile).toHaveProperty(field);
+    }
   });
 
   test("adds citation guidance that reserves history reports for narrative context", () => {

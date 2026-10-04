@@ -177,7 +177,7 @@
   },
   "sourceFunnel": {
     "rawSnapshots": {
-      "total": 9,
+      "total": 13,
       "byAdapter": {
         "yahoo-ticker": 1,
         "yahoo-regime": 1,
@@ -186,7 +186,7 @@
         "sec-companyfacts": 1,
         "sec-submissions": 1,
         "yahoo-verified-chart": 1,
-        "sec-filing-text": 2
+        "sec-filing-text": 6
       }
     },
     "reportSources": {
@@ -203,11 +203,11 @@
       }
     },
     "sourceGaps": {
-      "total": 33,
+      "total": 34,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
-        "sec-edgar": 2,
+        "sec-edgar": 3,
         "finnhub-events": 1,
         "finnhub-eps-estimate": 1,
         "finnhub-revenue-estimate": 1,
@@ -225,17 +225,17 @@
       },
       "byTriage": {
         "diagnostic": 11,
-        "material": 22
+        "material": 23
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
       "unsupported-coverage": 2,
-      "provider-data-missing": 19,
+      "provider-data-missing": 20,
       "suppressed-by-design": 1
     },
     "dataGaps": {
-      "total": 39
+      "total": 40
     }
   },
   "providerEndpointAvailability": {
@@ -470,10 +470,10 @@
         "subject-profile: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 39,
+    "dataGapCount": 40,
     "extendedEvidence": {
       "itemCount": 7,
-      "gapCount": 25,
+      "gapCount": 26,
       "itemsByCategory": {
         "sec-edgar": 4,
         "yahoo-fundamentals": 1,
@@ -481,7 +481,7 @@
         "business-framework": 1
       },
       "gapsBySource": {
-        "sec-edgar": 2,
+        "sec-edgar": 3,
         "finnhub-events": 1,
         "finnhub-eps-estimate": 1,
         "finnhub-revenue-estimate": 1,
@@ -508,7 +508,7 @@
       "rejectedRequestCount": 0,
       "sourceUnitsUsed": 0,
       "executedTools": ["sec_latest_filing"],
-      "emittedGapCount": 1
+      "emittedGapCount": 2
     }
   },
   "predictions": {
@@ -584,7 +584,7 @@
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 3,
     "sourceCount": 20,
-    "gapCount": 12,
+    "gapCount": 13,
     "coverageRatio": 0.36363636363636365
   },
   "calibrationAtGeneration": {

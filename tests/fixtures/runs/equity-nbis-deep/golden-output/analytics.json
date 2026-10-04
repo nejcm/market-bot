@@ -102,8 +102,8 @@
         "profile": "short-metadata",
         "fieldRole": "title",
         "droppedItemCount": 0,
-        "inputChars": 51,
-        "outputChars": 51,
+        "inputChars": 68,
+        "outputChars": 68,
         "removedInstructionSpanCount": 0,
         "removedMarkupChromeCount": 0,
         "truncatedFieldCount": 0,
@@ -116,8 +116,8 @@
         "profile": "sec-filing",
         "fieldRole": "prose",
         "droppedItemCount": 0,
-        "inputChars": 4709,
-        "outputChars": 4709,
+        "inputChars": 7712,
+        "outputChars": 7708,
         "removedInstructionSpanCount": 0,
         "removedMarkupChromeCount": 0,
         "truncatedFieldCount": 0,
@@ -141,10 +141,14 @@
     ]
   },
   "sourceTextResearchOnly": {
-    "scannedCount": 21,
-    "flaggedCount": 0,
-    "flaggedByKind": {},
-    "flaggedByProvider": {}
+    "scannedCount": 22,
+    "flaggedCount": 1,
+    "flaggedByKind": {
+      "extended-evidence": 1
+    },
+    "flaggedByProvider": {
+      "sec-edgar": 1
+    }
   },
   "subsystemOutcomes": {
     "count": 18,
@@ -178,7 +182,7 @@
   },
   "sourceFunnel": {
     "rawSnapshots": {
-      "total": 9,
+      "total": 12,
       "byAdapter": {
         "yahoo-ticker": 1,
         "yahoo-regime": 1,
@@ -187,20 +191,22 @@
         "sec-companyfacts": 1,
         "sec-submissions": 1,
         "yahoo-verified-chart": 1,
-        "sec-filing-text": 2
+        "sec-filing-text": 3,
+        "sec-filing-index": 1,
+        "sec-earnings-release-exhibit": 1
       }
     },
     "reportSources": {
-      "total": 21,
+      "total": 22,
       "byKind": {
         "market-data": 8,
         "news": 8,
-        "extended-evidence": 5
+        "extended-evidence": 6
       },
       "byProvider": {
         "yahoo": 8,
         "yahoo-news": 8,
-        "sec-edgar": 5
+        "sec-edgar": 6
       }
     },
     "sourceGaps": {
@@ -475,10 +481,10 @@
     },
     "dataGapCount": 33,
     "extendedEvidence": {
-      "itemCount": 8,
+      "itemCount": 9,
       "gapCount": 25,
       "itemsByCategory": {
-        "sec-edgar": 4,
+        "sec-edgar": 5,
         "valuation": 1,
         "yahoo-fundamentals": 1,
         "financial-lens": 1,
@@ -569,7 +575,7 @@
     "gapLaneCount": 6,
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 2,
-    "sourceCount": 22,
+    "sourceCount": 23,
     "gapCount": 13,
     "coverageRatio": 0.45454545454545453
   },

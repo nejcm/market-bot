@@ -193,6 +193,7 @@
     "fred-macro: MARKET_BOT_FRED_API_KEY is not set",
     "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
     "sec-edgar: BNS files as a foreign private issuer (40-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
+    "sec-edgar: No results 6-K for BNS among the newest 6 of 9 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
     "Current quarterly financial statements, reconciled trailing-twelve-month results, per-share disclosures, asset-quality metrics, capital ratios, and provisioning data are missing.",
     "The reported net-income and EPS increases lack a normalized or recurring-earnings reconciliation.",
     "Business description, geographic and segment mix, customer concentration, pricing-power evidence, and company-specific operating KPIs are missing.",
@@ -1125,6 +1126,14 @@
         "provider": "sec-edgar",
         "capability": "evidence-request",
         "cause": "unsupported-coverage",
+        "evidenceQualityImpact": "extended-evidence-cap"
+      },
+      {
+        "source": "sec-edgar",
+        "message": "No results 6-K for BNS among the newest 6 of 9 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
+        "provider": "sec-edgar",
+        "capability": "evidence-request",
+        "cause": "provider-data-missing",
         "evidenceQualityImpact": "extended-evidence-cap"
       }
     ]

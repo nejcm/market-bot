@@ -37,7 +37,7 @@
     "outcome": "produced",
     "code": "covered",
     "stage": "source-collection",
-    "count": 4
+    "count": 5
   },
   {
     "subsystem": "evidence-lane:corporate-events",

@@ -12,6 +12,7 @@ export interface SecFiling {
   // Current-report item codes (e.g. "2.02"). Absent when the submissions payload omits them,
   // Which is treated as unknown rather than empty.
   readonly items?: readonly string[];
+  readonly amended?: true;
 }
 
 const SEC_8K_LOOKBACK_DAYS = 120;
@@ -105,6 +106,9 @@ function recentSecFilingRows(payload: unknown): readonly SecFiling[] {
         accessionNumber,
         primaryDocument,
         ...(items.length > 0 ? { items } : {}),
+        ...(foreignPrivateIssuerAnnualForm !== undefined && f !== foreignPrivateIssuerAnnualForm
+          ? { amended: true as const }
+          : {}),
       },
     ];
   });
@@ -116,7 +120,11 @@ export function selectLatestFilingByForm(
 ): SecFiling | undefined {
   return recentSecFilingRows(payload)
     .filter((filing) => filing.form === form)
-    .toSorted((a, b) => b.filingDate.localeCompare(a.filingDate))[0];
+    .toSorted(
+      (a, b) =>
+        Number(a.amended ?? false) - Number(b.amended ?? false) ||
+        b.filingDate.localeCompare(a.filingDate),
+    )[0];
 }
 
 function filingBasisDate(filing: SecFiling): string {
@@ -189,10 +197,7 @@ export function selectRecentCurrentReports(
   return selected.toSorted(byFilingRecency);
 }
 
-export function selectRecentEarningsSixKs(
-  payload: unknown,
-  fetchedAt: string,
-): readonly SecFiling[] {
+export function recentSixKs(payload: unknown, fetchedAt: string): readonly SecFiling[] {
   const fetchedAtMs = Date.parse(fetchedAt);
   if (!Number.isFinite(fetchedAtMs)) {
     return [];
@@ -207,12 +212,20 @@ export function selectRecentEarningsSixKs(
       const ageDays = (fetchedAtMs - filingDateMs) / DAY_MS;
       return ageDays >= 0 && ageDays <= SEC_8K_LOOKBACK_DAYS;
     })
-    .toSorted(
-      (left, right) =>
-        right.filingDate.localeCompare(left.filingDate) ||
-        right.accessionNumber.localeCompare(left.accessionNumber),
-    )
-    .slice(0, SEC_6K_LIMIT);
+    .toSorted(byFilingRecency);
+}
+
+// The results 6-K gets a reserved slot so routine 6-Ks cannot crowd it out, mirroring the
+// Item 2.02 exemption in selectRecentCurrentReports.
+export function selectRecentSixKs(
+  recent: readonly SecFiling[],
+  resultsSixK?: SecFiling,
+): readonly SecFiling[] {
+  const newest = recent.slice(0, SEC_6K_LIMIT);
+  return resultsSixK === undefined ||
+    newest.some((filing) => filing.accessionNumber === resultsSixK.accessionNumber)
+    ? newest
+    : [...newest, resultsSixK].toSorted(byFilingRecency);
 }
 
 export function filingUrl(cik: string, filing: SecFiling): string {
@@ -236,6 +249,9 @@ export function secFilingKey(filing: SecFiling): string {
   return `8k-${filing.accessionNumber}`;
 }
 
-export function isEarningsRelease(filing: SecFiling): boolean {
-  return filing.form === "8-K" && filing.items?.includes(EARNINGS_RELEASE_ITEM_CODE) === true;
+// 6-Ks carry no item codes, so a 6-K is a results filing only when its cover matched.
+export function isResultsFiling(filing: SecFiling, resultsSixK?: SecFiling): boolean {
+  return filing.form === "6-K"
+    ? filing.accessionNumber === resultsSixK?.accessionNumber
+    : filing.form === "8-K" && filing.items?.includes(EARNINGS_RELEASE_ITEM_CODE) === true;
 }

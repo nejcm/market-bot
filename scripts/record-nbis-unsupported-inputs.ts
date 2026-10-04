@@ -140,6 +140,7 @@ const dataCassette = JSON.parse(await readFile(dataCassettePath, "utf8")) as {
 };
 for (const file of [
   "nbis-20260331-index.txt",
+  "nbis-20260331x6k.txt",
   "nbis-20260331xex99d1.txt",
   "nbis-20260331xex99d2.txt",
   "nbis-20260616x6k.txt",

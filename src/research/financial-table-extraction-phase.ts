@@ -30,7 +30,7 @@ export interface FinancialTableExtractionPhaseInput {
   readonly executionPolicy?: UntaggedFinancialExtractionExecutionPolicy;
   readonly collect: Omit<
     CollectUntaggedFinancialExhibitInput,
-    "symbol" | "fetchedAt" | "rawSnapshots" | "financialStatements"
+    "symbol" | "fetchedAt" | "rawSnapshots" | "financialStatements" | "resultsCoverAccessions"
   >;
   readonly generateMapping: (
     packet: FinancialTablePacket,
@@ -121,6 +121,9 @@ export async function runFinancialTableExtractionPhase(
     fetchedAt: input.generatedAt,
     rawSnapshots: collectedSources.rawSnapshots,
     financialStatements,
+    ...(collectedSources.resultsCoverAccessions !== undefined
+      ? { resultsCoverAccessions: collectedSources.resultsCoverAccessions }
+      : {}),
     ...input.collect,
   });
   if (discovery.exhibit === undefined) {

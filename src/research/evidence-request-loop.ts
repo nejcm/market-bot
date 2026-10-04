@@ -433,6 +433,14 @@ function mergeToolOutput(
     extendedSources: [...collectedSources.extendedSources, ...output.sources],
     ...(extendedEvidence !== undefined ? { extendedEvidence } : {}),
     sourceGaps: [...collectedSources.sourceGaps, ...gaps],
+    ...(output.resultsCoverAccessions !== undefined
+      ? {
+          resultsCoverAccessions: [
+            ...(collectedSources.resultsCoverAccessions ?? []),
+            ...output.resultsCoverAccessions,
+          ],
+        }
+      : {}),
     ...(output.modelInputSanitization !== undefined
       ? {
           modelInputSanitization: mergeModelInputSanitization(

@@ -200,6 +200,112 @@ describe("untagged financial exhibit discovery", () => {
   });
 });
 
+function submissionsWith(
+  rows: readonly (readonly [
+    form: string,
+    filed: string,
+    report: string,
+    accession: string,
+    document: string,
+  ])[],
+): unknown {
+  return {
+    cik: "0001513845",
+    filings: {
+      recent: {
+        form: rows.map((row) => row[0]),
+        filingDate: rows.map((row) => row[1]),
+        reportDate: rows.map((row) => row[2]),
+        accessionNumber: rows.map((row) => row[3]),
+        primaryDocument: rows.map((row) => row[4]),
+      },
+    },
+  };
+}
+
+// Fails every index fetch so discovery walks all candidates in rank order.
+function indexRecorder(): {
+  readonly request: SourceRequestExecutor;
+  readonly indexUrls: string[];
+} {
+  const indexUrls: string[] = [];
+  return {
+    indexUrls,
+    request: {
+      json: async () => {
+        throw new Error("unexpected JSON request");
+      },
+      text: async (request) => {
+        indexUrls.push(request.url);
+        return { source: "sec-filing-index", message: "fixture miss" };
+      },
+    },
+  };
+}
+
+const NBIS_Q2_FS = "0001104659-26-094844";
+const NBIS_ROWS = [
+  ["6-K", "2026-08-12", "2026-08-12", NBIS_Q2_FS, "nbis-20260812x6k.htm"],
+  ["6-K", "2026-08-12", "2026-08-12", "0001104659-26-094568", "tm2622968d1_6k.htm"],
+  ["6-K", "2026-07-17", "2026-07-17", "0001104659-26-084452", "tm2620683d1_6k.htm"],
+  ["6-K", "2026-05-20", "2026-03-31", "0001104659-26-064092", "nbis-20260331x6k.htm"],
+  ["20-F", "2026-04-30", "2025-12-31", "0001104659-26-052948", "nbis-20251231x20f.htm"],
+] as const;
+
+describe("untagged financial exhibit period signal", () => {
+  test("ranks the results-cover Q2 statements 6-K ahead of the Q1 6-K", async () => {
+    const { request, indexUrls } = indexRecorder();
+
+    await collectUntaggedFinancialExhibit({
+      symbol: "NBIS",
+      fetchedAt: "2026-08-20T00:00:00.000Z",
+      request,
+      rawSnapshots: [
+        {
+          id: "subs",
+          adapter: "sec-submissions",
+          fetchedAt: "2026-08-20T00:00:00.000Z",
+          payload: submissionsWith(NBIS_ROWS),
+        },
+      ],
+      financialStatements: statements(),
+      resultsCoverAccessions: [NBIS_Q2_FS],
+    });
+
+    expect(indexUrls.map((url) => url.split("/").at(-1))).toEqual([
+      `${NBIS_Q2_FS}-index.html`,
+      "0001104659-26-064092-index.html",
+    ]);
+  });
+
+  test("reads a quarter-end YYYYMMDD document name as a period signal", async () => {
+    const { request, indexUrls } = indexRecorder();
+
+    await collectUntaggedFinancialExhibit({
+      symbol: "NBIS",
+      fetchedAt: "2026-08-20T00:00:00.000Z",
+      request,
+      rawSnapshots: [
+        {
+          id: "subs",
+          adapter: "sec-submissions",
+          fetchedAt: "2026-08-20T00:00:00.000Z",
+          payload: submissionsWith([
+            ["6-K", "2026-08-14", "2026-08-14", "0000000001-26-000003", "issuer-20260630x6k.htm"],
+            ["6-K", "2026-08-12", "2026-08-12", "0000000001-26-000002", "issuer-20260812x6k.htm"],
+            ["6-K", "2026-08-10", "2026-08-10", "0000000001-26-000001", "tm2622968d1_6k.htm"],
+          ]),
+        },
+      ],
+      financialStatements: statements(),
+    });
+
+    expect(indexUrls.map((url) => url.split("/").at(-1))).toEqual([
+      "0000000001-26-000003-index.html",
+    ]);
+  });
+});
+
 describe("financial table extraction phase", () => {
   test("gates production extraction before collector, fetch, packet, or model work", async () => {
     const initial = collectedSources();

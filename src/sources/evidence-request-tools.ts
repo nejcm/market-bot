@@ -232,6 +232,7 @@ function earningsReleaseProvenance(
 
 interface SixKCoverScan {
   readonly covers: ReadonlyMap<string, FilingTextFetch>;
+  readonly matchedAccessions: readonly string[];
   readonly resultsSixK?: SecFiling;
 }
 
@@ -243,6 +244,7 @@ async function scanSixKCovers(
   cik: string,
 ): Promise<SixKCoverScan> {
   const covers = new Map<string, FilingTextFetch>();
+  const matchedAccessions: string[] = [];
   let best: { readonly filing: SecFiling; readonly rank: number } | undefined = undefined;
   for (const filing of candidates.slice(0, SEC_6K_COVER_SCAN_LIMIT)) {
     if (best !== undefined && (best.rank === 0 || filing.filingDate !== best.filing.filingDate)) {
@@ -254,11 +256,18 @@ async function scanSixKCovers(
     const rank = isFetchTextResult(cover.result)
       ? sixKResultsCoverRank(normalizeFilingText(cover.result.payload))
       : undefined;
+    if (rank !== undefined) {
+      matchedAccessions.push(filing.accessionNumber);
+    }
     if (rank !== undefined && (best === undefined || rank < best.rank)) {
       best = { filing, rank };
     }
   }
-  return { covers, ...(best === undefined ? {} : { resultsSixK: best.filing }) };
+  return {
+    covers,
+    matchedAccessions,
+    ...(best === undefined ? {} : { resultsSixK: best.filing }),
+  };
 }
 
 function noResultsSixKMessage(symbol: string, scanned: number, candidates: number): string {
@@ -654,5 +663,8 @@ export async function collectSecFilingEvidence(
     items,
     gaps,
     modelInputSanitization: aggregateModelInputSanitization(sanitizationEntries),
+    ...(sixKScan.matchedAccessions.length > 0
+      ? { resultsCoverAccessions: sixKScan.matchedAccessions }
+      : {}),
   };
 }

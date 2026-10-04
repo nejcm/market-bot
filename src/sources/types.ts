@@ -205,6 +205,7 @@ export interface CollectedSources {
   };
   readonly secTargetPacket?: SecTargetPacket;
   readonly tradierPacket?: TradierPacket;
+  readonly resultsCoverAccessions?: readonly string[];
 }
 
 export interface ExtendedEvidenceCollectionResult {

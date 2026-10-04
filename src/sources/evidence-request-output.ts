@@ -9,6 +9,8 @@ export interface EvidenceRequestToolOutput {
   readonly items: readonly ExtendedEvidenceItem[];
   readonly gaps: readonly SourceGap[];
   readonly modelInputSanitization?: ModelInputSanitizationAggregate;
+  // Every 6-K whose cover matched a results signal, selected or not; in-memory only.
+  readonly resultsCoverAccessions?: readonly string[];
 }
 
 export function emptyOutput(

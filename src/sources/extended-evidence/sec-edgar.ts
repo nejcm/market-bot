@@ -675,8 +675,12 @@ function selectDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
 ): { readonly selection: SecMetricSelection; readonly composite?: SecDebtComposite } | undefined {
-  const direct = selectMetric(gaap, DEBT_METRIC, analysisAsOf);
   const eligible = (value: SecFactValue): boolean => isFactObservableAsOf(value, analysisAsOf);
+  const directConcept = factValuesForMostRecentConcept(gaap, DEBT_METRIC, eligible)?.concept;
+  const direct =
+    directConcept === undefined
+      ? undefined
+      : selectMetric(gaap, { ...DEBT_METRIC, concepts: [directConcept] }, analysisAsOf);
   const componentSlots: readonly DebtComponentSlot[] = DEBT_COMPONENTS.map((metric) => {
     const populated = factValuesForMostRecentConcept(gaap, metric, eligible);
     return {

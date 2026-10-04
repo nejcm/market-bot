@@ -1046,6 +1046,121 @@ describe("canonical financial statements", () => {
 
     expect(artifact.statements.balanceSheet.debt.annual).toEqual([]);
   });
+
+  describe("newer-filer debt aliases", () => {
+    const fy2026AsOf = { analysisAsOf: "2026-08-28T00:00:00.000Z" };
+    const fy2026 = (value: number, accessionNumber?: string, filedAt = "2026-07-20") =>
+      amdInstant({
+        value,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        filedAt,
+        periodEnd: "2026-05-31",
+        ...(accessionNumber !== undefined ? { accessionNumber } : {}),
+      });
+    const fy2022 = (value: number) =>
+      amdInstant({
+        value,
+        form: "10-K",
+        fiscalPeriod: "FY",
+        filedAt: "2022-07-20",
+        periodEnd: "2022-05-31",
+      });
+    const selectBoth = (gaap: Parameters<typeof payload>[0][string]) => {
+      const companyFacts = payload({
+        "us-gaap": { Revenues: { USD: [annual(100, 2025)] }, ...gaap },
+      });
+      const artifact = derive(companyFacts, fy2026AsOf);
+      const debt = latestFinancialStatementFact([
+        ...artifact.statements.balanceSheet.debt.annual,
+        ...artifact.statements.balanceSheet.debt.interim,
+      ]);
+      const legacy = summarizeSecFundamentals(companyFacts, fy2026AsOf.analysisAsOf);
+      expect(legacy?.metrics.debt).toBe(debt?.value);
+      expect(legacy?.metrics.debtPeriodEnd).toBe(debt?.periodEnd);
+      expect(legacy?.debtComposite).toEqual(
+        debt?.composite === undefined
+          ? undefined
+          : {
+              componentCount: debt.composite.components.length,
+              componentSlotCount: 2,
+              selectedConcepts: debt.composite.components.map((component) => component.concept),
+              periodEnd: debt.periodEnd,
+            },
+      );
+      return { artifact, debt };
+    };
+
+    test("selects a fresher notes-payable composite over a stale LongTermDebt (APLD shape)", () => {
+      const { debt } = selectBoth({
+        LongTermDebt: { USD: [fy2022(50_000_000)] },
+        NotesPayableCurrent: { USD: [fy2026(1_000_000_000, "apld-fy26")] },
+        LongTermNotesPayable: { USD: [fy2026(3_976_000_000, "apld-fy26")] },
+      });
+
+      expect(debt).toMatchObject({
+        value: 4_976_000_000,
+        periodEnd: "2026-05-31",
+        extractionMethod: "derived-sec-companyfacts",
+        concept: "NotesPayableCurrent+LongTermNotesPayable",
+      });
+      expect(debt?.composite?.components).toHaveLength(2);
+    });
+
+    test("selects a fresher combined total over a stale zero LongTermDebt (ORCL shape)", () => {
+      const { debt } = selectBoth({
+        LongTermDebt: { USD: [fy2022(0)] },
+        DebtLongtermAndShorttermCombinedAmount: { USD: [fy2026(129_541_000_000)] },
+      });
+
+      expect(debt).toMatchObject({
+        value: 129_541_000_000,
+        periodEnd: "2026-05-31",
+        extractionMethod: "sec-companyfacts",
+        concept: "DebtLongtermAndShorttermCombinedAmount",
+      });
+      expect(debt).not.toHaveProperty("composite");
+    });
+
+    test("keeps LongTermDebt when a later-filed combined total reports the same period", () => {
+      const { debt } = selectBoth({
+        LongTermDebt: { USD: [fy2026(120_000_000_000)] },
+        DebtLongtermAndShorttermCombinedAmount: {
+          USD: [fy2026(129_541_000_000, undefined, "2026-07-21")],
+        },
+      });
+
+      expect(debt).toMatchObject({ value: 120_000_000_000, concept: "LongTermDebt" });
+    });
+
+    test("keeps a stale direct basis over a fresher one-legged notes-payable composite", () => {
+      const { artifact, debt } = selectBoth({
+        CashAndCashEquivalentsAtCarryingValue: { USD: [fy2026(800_000_000)] },
+        LongTermDebt: { USD: [fy2022(50_000_000)] },
+        LongTermNotesPayable: { USD: [fy2026(3_976_000_000)] },
+      });
+
+      expect(debt).toMatchObject({
+        value: 50_000_000,
+        periodEnd: "2022-05-31",
+        concept: "LongTermDebt",
+      });
+      expect(artifact.omissionNotes).toContainEqual(
+        expect.objectContaining({ code: "stale-instant-series", seriesKey: "debt" }),
+      );
+    });
+
+    test("does not establish a debt basis from gross principal facts alone", () => {
+      const { artifact, debt } = selectBoth({
+        DebtInstrumentFaceAmount: { USD: [fy2026(5_000_000_000)] },
+      });
+
+      expect(debt).toBeUndefined();
+      expect(artifact.omissionNotes).toContainEqual(
+        expect.objectContaining({ code: "untagged-balance-sheet-series", seriesKey: "debt" }),
+      );
+    });
+  });
 });
 
 function amdInstant(input: {

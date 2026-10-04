@@ -356,7 +356,10 @@ describe("financial statement selection", () => {
         kind: "instant",
         unitKind: "monetary",
         deriveTtm: false,
-        concepts: { "us-gaap": ["LongTermDebt"], "ifrs-full": ["Borrowings"] },
+        concepts: {
+          "us-gaap": ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"],
+          "ifrs-full": ["Borrowings"],
+        },
         components: [
           {
             "us-gaap": [
@@ -365,11 +368,16 @@ describe("financial statement selection", () => {
               "LongTermDebtAndCapitalLeaseObligationsCurrent",
               "ShortTermBorrowings",
               "ShortTermDebt",
+              "NotesPayableCurrent",
             ],
             "ifrs-full": ["CurrentBorrowings"],
           },
           {
-            "us-gaap": ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+            "us-gaap": [
+              "LongTermDebtNoncurrent",
+              "LongTermDebtAndCapitalLeaseObligations",
+              "LongTermNotesPayable",
+            ],
             "ifrs-full": ["NoncurrentBorrowings"],
           },
         ],

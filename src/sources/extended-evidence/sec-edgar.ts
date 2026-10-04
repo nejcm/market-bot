@@ -11,6 +11,7 @@ import {
   compareFinancialStatementFacts,
   compositeStatementIdentity,
   isCompleteComposite,
+  isYearAligned,
 } from "./financial-statement-selection";
 import {
   preferDirectStatementBasis,
@@ -516,20 +517,30 @@ function factValuesForMostRecentConcept(
 
 function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boolean {
   if (
-    latest.fy === undefined ||
-    candidate.fy !== latest.fy - 1 ||
-    candidate.canonicalForm !== latest.canonicalForm
+    latest.end === undefined ||
+    candidate.end === undefined ||
+    candidate.canonicalForm !== latest.canonicalForm ||
+    !isYearAligned(candidate.end, latest.end)
   ) {
     return false;
   }
-  return latest.canonicalForm === "10-Q" ? candidate.fp === latest.fp : true;
+  const startAligned =
+    latest.start === undefined
+      ? candidate.start === undefined
+      : candidate.start !== undefined && isYearAligned(candidate.start, latest.start);
+  return startAligned && (latest.canonicalForm === "10-Q" ? candidate.fp === latest.fp : true);
 }
 
+// `fy` is filing context: prefer the prior year's own filing, else a later filing's comparative.
 function comparablePrior(
   latest: SecFactValue,
   values: readonly SecFactValue[],
 ): SecFactValue | undefined {
-  return latestFact(values.filter((value) => isComparablePrior(latest, value)));
+  const aligned = values.filter((value) => isComparablePrior(latest, value));
+  const priorFiling = aligned.filter(
+    (value) => latest.fy !== undefined && value.fy === latest.fy - 1,
+  );
+  return latestFact(priorFiling.length > 0 ? priorFiling : aligned);
 }
 
 function selectMetric(

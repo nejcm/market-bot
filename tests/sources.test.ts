@@ -131,6 +131,16 @@ function secFactUnits(current: number, prior = current - 1): { units: { USD: unk
   };
 }
 
+function secYoyGap(payload: unknown): string | undefined {
+  return summarizeSecFundamentals(payload)?.gaps.find((gap) =>
+    gap.message.startsWith("Missing comparable SEC company facts"),
+  )?.message;
+}
+
+function secDebtOnly(rows: Record<string, number | string>[]): unknown {
+  return { facts: { "us-gaap": { LongTermDebt: { units: { USD: rows } } } } };
+}
+
 function secCompanyFactsPayload(): unknown {
   return {
     facts: {
@@ -1367,6 +1377,131 @@ describe("SEC fundamental evidence", () => {
     expect(result?.gaps.some((gap) => gap.message.startsWith("Missing SEC company facts:"))).toBe(
       true,
     );
+  });
+
+  test("pairs YoY priors by period end rather than filing fiscal year", () => {
+    const annual = { form: "10-K", fp: "FY" };
+
+    const sameFilingComparative = summarizeSecFundamentals(
+      secDebtOnly([
+        secFact(45, { ...annual, fy: 2026, filed: "2026-08-28", end: "2025-06-30" }),
+        secFact(50, { ...annual, fy: 2026, filed: "2026-08-28", end: "2026-06-30" }),
+      ]),
+    );
+    expect(sameFilingComparative?.metrics).toMatchObject({ debt: 50, debtPrior: 45 });
+
+    const mislabelledComparative = summarizeSecFundamentals(
+      secDebtOnly([
+        secFact(30, { ...annual, fy: 2024, filed: "2025-03-01", end: "2023-12-31" }),
+        secFact(40, { ...annual, fy: 2024, filed: "2025-03-01", end: "2024-12-31" }),
+      ]),
+    );
+    expect(mislabelledComparative?.metrics).toMatchObject({ debt: 40, debtPrior: 30 });
+
+    const leapYear = summarizeSecFundamentals(
+      secDebtOnly([
+        secFact(30, { ...annual, fy: 2023, filed: "2023-04-01", end: "2023-02-28" }),
+        secFact(40, { ...annual, fy: 2024, filed: "2024-04-01", end: "2024-02-29" }),
+      ]),
+    );
+    expect(leapYear?.metrics.debtPrior).toBe(30);
+
+    const quarterly = [
+      secFact(48, { fp: "Q1", fy: 2026, filed: "2026-07-30", end: "2025-06-29" }),
+      secFact(50),
+    ];
+    expect(summarizeSecFundamentals(secDebtOnly(quarterly))?.metrics.debtPrior).toBeUndefined();
+    expect(secYoyGap(secDebtOnly(quarterly))).toContain("debt");
+    expect(
+      summarizeSecFundamentals(
+        secDebtOnly([
+          ...quarterly,
+          secFact(46, { fy: 2026, filed: "2026-07-30", end: "2025-06-29" }),
+        ]),
+      )?.metrics.debtPrior,
+    ).toBe(46);
+
+    const unaligned = secDebtOnly([
+      secFact(30, { ...annual, fy: 2025, filed: "2025-12-01", end: "2025-09-30" }),
+      secFact(40, { ...annual, fy: 2026, filed: "2026-08-28", end: "2026-06-30" }),
+    ]);
+    expect(summarizeSecFundamentals(unaligned)?.metrics.debtPrior).toBeUndefined();
+    expect(secYoyGap(unaligned)).toContain("debt");
+  });
+
+  test("pairs duration priors on aligned start and keeps the prior year's own filing", () => {
+    const annual = { form: "10-K", fp: "FY" };
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(90, {
+                  ...annual,
+                  fy: 2025,
+                  filed: "2025-11-01",
+                  start: "2024-09-29",
+                  end: "2025-09-27",
+                }),
+                secFact(92, {
+                  ...annual,
+                  fy: 2026,
+                  filed: "2026-11-01",
+                  start: "2024-09-29",
+                  end: "2025-09-27",
+                }),
+                secFact(70, {
+                  ...annual,
+                  fy: 2025,
+                  filed: "2025-11-01",
+                  start: "2025-06-29",
+                  end: "2025-09-27",
+                }),
+                secFact(100, {
+                  ...annual,
+                  fy: 2026,
+                  filed: "2026-11-01",
+                  start: "2025-09-28",
+                  end: "2026-10-03",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics).toMatchObject({ revenue: 100, revenuePrior: 90 });
+
+    const shortSpanOnly = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(70, {
+                  ...annual,
+                  fy: 2025,
+                  filed: "2025-11-01",
+                  start: "2025-06-29",
+                  end: "2025-09-27",
+                }),
+                secFact(100, {
+                  ...annual,
+                  fy: 2026,
+                  filed: "2026-11-01",
+                  start: "2025-09-28",
+                  end: "2026-10-03",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    };
+    expect(summarizeSecFundamentals(shortSpanOnly)?.metrics.revenuePrior).toBeUndefined();
+    expect(secYoyGap(shortSpanOnly)).toContain("revenue");
   });
 
   test("uses fresher debt components instead of a stale direct debt fact", () => {

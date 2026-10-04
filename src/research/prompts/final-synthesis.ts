@@ -20,13 +20,12 @@ import {
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
-import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import { buildCalibrationBlock } from "../calibration-context";
 import { EVIDENCE_POSTURE_LABELS } from "../post-synthesis-audit";
 import type { StageLabel } from "../prompt-loader";
 import type { DepthProfile, ResearchContext } from "../research-context-types";
 import type { ConditionalCalibrationSummary } from "../../scoring/types";
-import { buildEvidencePayload } from "./evidence-payload";
+import { buildEvidencePayload, verifiedMarketSnapshotEvidence } from "./evidence-payload";
 import {
   hasCiteableOptionsIvEvidence,
   isFredAllowedSubject,
@@ -370,22 +369,6 @@ function completionLatestClose(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): Record<string, unknown> | undefined {
-  if (
-    isInstrumentCommand(command) &&
-    collectedSources.verifiedMarketSnapshot?.symbol.toUpperCase() === command.symbol.toUpperCase()
-  ) {
-    const snapshot = collectedSources.verifiedMarketSnapshot;
-    return {
-      subject: snapshot.symbol,
-      close: snapshot.ohlcv.close,
-      sessionDate: snapshot.latestSessionDate,
-      sourceId: verifiedSnapshotSourceId(snapshot.symbol),
-      ...(snapshot.latestSessionStatus !== undefined
-        ? { latestSessionStatus: snapshot.latestSessionStatus }
-        : {}),
-    };
-  }
-
   const snapshot = completionMarketSnapshot(command, collectedSources);
   if (snapshot === undefined) {
     return undefined;
@@ -473,13 +456,16 @@ function buildCompletionEvidencePayload(
   for (const source of report.sources) {
     (source.kind === "web" ? webSources : sources).push(toCompletionSourceEntry(source));
   }
-  const latestClose = completionLatestClose(command, collectedSources);
+  const verifiedSnapshot = collectedSources.verifiedMarketSnapshot;
+  const latestClose =
+    verifiedSnapshot === undefined ? completionLatestClose(command, collectedSources) : undefined;
   const earningsSetup = completionEarningsSetup(collectedSources);
   const optionsIv = completionOptionsIv(collectedSources);
   const calibrationBlock = buildCalibrationBlock(context.calibrationContext, command, context);
   return {
     sources,
     ...(webSources.length > 0 ? { webSources } : {}),
+    ...(verifiedSnapshot !== undefined ? verifiedMarketSnapshotEvidence(verifiedSnapshot) : {}),
     ...(latestClose !== undefined ? { latestClose } : {}),
     ...(earningsSetup !== undefined ? { earningsSetup } : {}),
     ...(optionsIv.length > 0 ? { optionsIv } : {}),

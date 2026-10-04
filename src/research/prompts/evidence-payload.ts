@@ -1,6 +1,7 @@
 import type { AppConfig } from "../../config";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
+import type { VerifiedMarketSnapshot } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
 import { isCompanyProfileSecSource, subjectKindForCommand } from "../../web-evidence";
 import {
@@ -88,16 +89,18 @@ const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSou
 // The profile validator allowlist only admits web sources and company SEC filings; a snapshot citation would null the whole profile item.
 const projectVerifiedMarketSnapshot: EvidenceProjector = (options, _command, collectedSources) =>
   options.webSourceText !== "profile" && collectedSources.verifiedMarketSnapshot !== undefined
-    ? {
-        verifiedMarketSnapshot: collectedSources.verifiedMarketSnapshot,
-        verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(
-          collectedSources.verifiedMarketSnapshot.symbol,
-        ),
-        verifiedMarketSnapshotCitationRule: verifiedSnapshotCitationRule(
-          collectedSources.verifiedMarketSnapshot.symbol,
-        ),
-      }
+    ? verifiedMarketSnapshotEvidence(collectedSources.verifiedMarketSnapshot)
     : {};
+
+export function verifiedMarketSnapshotEvidence(
+  snapshot: VerifiedMarketSnapshot,
+): Record<string, unknown> {
+  return {
+    verifiedMarketSnapshot: snapshot,
+    verifiedMarketSnapshotSourceId: verifiedSnapshotSourceId(snapshot.symbol),
+    verifiedMarketSnapshotCitationRule: verifiedSnapshotCitationRule(snapshot.symbol),
+  };
+}
 
 const projectVerifiedRepresentativeSnapshots: EvidenceProjector = (
   _options,

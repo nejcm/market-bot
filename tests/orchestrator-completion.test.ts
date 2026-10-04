@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { runResearchJob } from "../src/research/orchestrator";
 import { legacyMarketOverviewCommand } from "./support/commands";
-import { collectedSources as collectedSourceBundle } from "./support/fixtures";
+import {
+  collectedSources as collectedSourceBundle,
+  verifiedMarketSnapshot,
+} from "./support/fixtures";
 import {
   config,
   emptySelectionStageReport,
@@ -48,6 +51,7 @@ describe("runResearchJob completion and redundancy", () => {
         marketSnapshots,
         newsSources,
         sourceGaps: [],
+        verifiedMarketSnapshot: verifiedMarketSnapshot(),
       }),
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
@@ -58,11 +62,17 @@ describe("runResearchJob completion and redundancy", () => {
       requestedCount: 2,
       existingPredictions: [],
     });
+    expect(finalPrompts[1]?.evidence).toMatchObject({
+      verifiedMarketSnapshot: { recentCloses: verifiedMarketSnapshot().recentCloses },
+      verifiedMarketSnapshotSourceId: "verified-snapshot-AAPL",
+    });
     expect(result.trace.predictionRetryErrors ?? []).toEqual([]);
     expect(result.trace.predictionCompletion).toMatchObject({
       initialCount: 0,
       targetCount: 2,
       acceptedPredictionIds: [],
+      rejectedCandidateCount: 0,
+      rejectionReasons: [],
       outcome: "declined-empty",
     });
     expect(result.report.predictions).toHaveLength(0);

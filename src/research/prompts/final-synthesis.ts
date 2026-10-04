@@ -20,15 +20,15 @@ import {
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
-import { verifiedSnapshotSourceId } from "../verified-snapshot-contract";
 import { buildCalibrationBlock } from "../calibration-context";
 import { EVIDENCE_POSTURE_LABELS } from "../post-synthesis-audit";
 import type { StageLabel } from "../prompt-loader";
 import type { DepthProfile, ResearchContext } from "../research-context-types";
 import type { ConditionalCalibrationSummary } from "../../scoring/types";
-import { buildEvidencePayload } from "./evidence-payload";
+import { buildEvidencePayload, verifiedMarketSnapshotEvidence } from "./evidence-payload";
 import {
   hasCiteableOptionsIvEvidence,
+  isFredAllowedSubject,
   isVixAllowedSubject,
   predictionCoverageGuidance,
   supportedPredictionKinds,
@@ -201,7 +201,9 @@ function predictionDslInstruction(
     "close(SUBJECT, +N) > close(SUBJECT, 0) for direction",
     "close(A, +N)/close(A, 0) > close(B, +N)/close(B, 0) for relative",
     ...(excludedKinds.includes("range") ? [] : ["close(SUBJECT, +N) outside [Lo, Hi] for range"]),
-    "fred(SERIES, +N) > fred(SERIES, 0) for macro",
+    ...(isFredAllowedSubject(predictionSubjects)
+      ? ["fred(SERIES, +N) > fred(SERIES, 0) for macro"]
+      : []),
   ];
   if (command.assetClass === "equity") {
     if (isVixAllowedSubject(predictionSubjects)) {
@@ -307,7 +309,7 @@ function conditionalForecastGrammar(): string {
 }
 
 // Pairs every additional advertised kind with its measurableAs grammar for the completion pass.
-// The base DSL (direction/relative/range/macro plus equity extras) comes from
+// The base DSL (direction/relative/range plus gated macro and equity extras) comes from
 // PredictionDslInstruction; this adds the earnings and conditional grammars under the same gates
 // SupportedPredictionKinds uses to advertise them, so the pass never nudges a kind whose grammar
 // The model has not been shown (run-review finding #3).
@@ -367,22 +369,6 @@ function completionLatestClose(
   command: ResearchCommand,
   collectedSources: CollectedSources,
 ): Record<string, unknown> | undefined {
-  if (
-    isInstrumentCommand(command) &&
-    collectedSources.verifiedMarketSnapshot?.symbol.toUpperCase() === command.symbol.toUpperCase()
-  ) {
-    const snapshot = collectedSources.verifiedMarketSnapshot;
-    return {
-      subject: snapshot.symbol,
-      close: snapshot.ohlcv.close,
-      sessionDate: snapshot.latestSessionDate,
-      sourceId: verifiedSnapshotSourceId(snapshot.symbol),
-      ...(snapshot.latestSessionStatus !== undefined
-        ? { latestSessionStatus: snapshot.latestSessionStatus }
-        : {}),
-    };
-  }
-
   const snapshot = completionMarketSnapshot(command, collectedSources);
   if (snapshot === undefined) {
     return undefined;
@@ -470,13 +456,16 @@ function buildCompletionEvidencePayload(
   for (const source of report.sources) {
     (source.kind === "web" ? webSources : sources).push(toCompletionSourceEntry(source));
   }
-  const latestClose = completionLatestClose(command, collectedSources);
+  const verifiedSnapshot = collectedSources.verifiedMarketSnapshot;
+  const latestClose =
+    verifiedSnapshot === undefined ? completionLatestClose(command, collectedSources) : undefined;
   const earningsSetup = completionEarningsSetup(collectedSources);
   const optionsIv = completionOptionsIv(collectedSources);
   const calibrationBlock = buildCalibrationBlock(context.calibrationContext, command, context);
   return {
     sources,
     ...(webSources.length > 0 ? { webSources } : {}),
+    ...(verifiedSnapshot !== undefined ? verifiedMarketSnapshotEvidence(verifiedSnapshot) : {}),
     ...(latestClose !== undefined ? { latestClose } : {}),
     ...(earningsSetup !== undefined ? { earningsSetup } : {}),
     ...(optionsIv.length > 0 ? { optionsIv } : {}),

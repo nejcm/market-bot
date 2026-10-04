@@ -62,7 +62,6 @@ export interface WebSearchFreshnessAudit {
   readonly initialWindowDays?: number;
   readonly effectiveWindowDays?: number;
   readonly endPublishedDate: string;
-  readonly livecrawl: boolean;
   readonly widened: boolean;
 }
 

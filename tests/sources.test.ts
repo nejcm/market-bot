@@ -20,7 +20,11 @@ import {
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { normalizeTitle, recencyDays } from "../src/sources/news-utils";
 import { createSourceRegistry } from "../src/sources/registry";
-import { collectSec, summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import {
+  collectSec,
+  secFundamentalsUnavailableGap,
+  summarizeSecFundamentals,
+} from "../src/sources/extended-evidence/sec-edgar";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { sourceGap } from "../src/domain/source-gaps";
@@ -129,6 +133,16 @@ function secFactUnits(current: number, prior = current - 1): { units: { USD: unk
       ],
     },
   };
+}
+
+function secYoyGap(payload: unknown): string | undefined {
+  return summarizeSecFundamentals(payload)?.gaps.find((gap) =>
+    gap.message.startsWith("Missing comparable SEC company facts"),
+  )?.message;
+}
+
+function secDebtOnly(rows: Record<string, number | string>[]): unknown {
+  return { facts: { "us-gaap": { LongTermDebt: { units: { USD: rows } } } } };
 }
 
 function secCompanyFactsPayload(): unknown {
@@ -642,7 +656,7 @@ describe("source normalization", () => {
         capability: "market-data",
         cause: "unsupported-coverage",
         evidenceQualityImpact: "no-cap",
-        message: "massive supplemental-market snapshot unavailable on current plan",
+        message: "massive supplemental-market snapshot unavailable on current plan (HTTP 403)",
       }),
     ]);
   });
@@ -1201,6 +1215,43 @@ describe("news provider collection", () => {
 });
 
 describe("SEC fundamental evidence", () => {
+  test("declares company-facts absence only when the payload has no fact rows", () => {
+    const foreignOnly = {
+      facts: { "us-gaap": { Revenues: { units: { USD: [secFact(1, { form: "20-F/A" })] } } } },
+    };
+    expect(summarizeSecFundamentals(foreignOnly)).toBeUndefined();
+    expect(secFundamentalsUnavailableGap(foreignOnly, "NBIS")).toEqual({
+      message:
+        "SEC company facts for NBIS have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
+      cause: "unsupported-coverage",
+    });
+    const untracked = { facts: { "us-gaap": { Untracked: { units: { USD: [secFact(1)] } } } } };
+    expect(secFundamentalsUnavailableGap(untracked, "AAPL")).toEqual({
+      message:
+        "SEC company facts for AAPL have no eligible rows for the tracked legacy summary metrics",
+      cause: "provider-data-missing",
+    });
+    const filedAfterCutoff = {
+      facts: { "us-gaap": { Revenues: { units: { USD: [secFact(1, { form: "10-K" })] } } } },
+    };
+    expect(summarizeSecFundamentals(filedAfterCutoff, "2026-01-01T00:00:00.000Z")).toBeUndefined();
+    expect(secFundamentalsUnavailableGap(filedAfterCutoff, "AAPL").cause).toBe(
+      "provider-data-missing",
+    );
+    for (const payload of [
+      { facts: { "us-gaap": {} } },
+      { facts: { "us-gaap": { Revenues: { units: { USD: [{}, { form: "20-F" }] } } } } },
+      { facts: { "us-gaap": { Revenues: { units: { USD: [null, 1] } } } } },
+      { facts: "malformed" },
+      null,
+    ]) {
+      expect(secFundamentalsUnavailableGap(payload, "AAPL")).toEqual({
+        message: "No SEC company facts found for AAPL",
+        cause: "provider-data-missing",
+      });
+    }
+  });
+
   test("selects the latest reporting period before a newer filing revision", () => {
     const result = summarizeSecFundamentals(
       {
@@ -1367,6 +1418,131 @@ describe("SEC fundamental evidence", () => {
     expect(result?.gaps.some((gap) => gap.message.startsWith("Missing SEC company facts:"))).toBe(
       true,
     );
+  });
+
+  test("pairs YoY priors by period end rather than filing fiscal year", () => {
+    const annual = { form: "10-K", fp: "FY" };
+
+    const sameFilingComparative = summarizeSecFundamentals(
+      secDebtOnly([
+        secFact(45, { ...annual, fy: 2026, filed: "2026-08-28", end: "2025-06-30" }),
+        secFact(50, { ...annual, fy: 2026, filed: "2026-08-28", end: "2026-06-30" }),
+      ]),
+    );
+    expect(sameFilingComparative?.metrics).toMatchObject({ debt: 50, debtPrior: 45 });
+
+    const mislabelledComparative = summarizeSecFundamentals(
+      secDebtOnly([
+        secFact(30, { ...annual, fy: 2024, filed: "2025-03-01", end: "2023-12-31" }),
+        secFact(40, { ...annual, fy: 2024, filed: "2025-03-01", end: "2024-12-31" }),
+      ]),
+    );
+    expect(mislabelledComparative?.metrics).toMatchObject({ debt: 40, debtPrior: 30 });
+
+    const leapYear = summarizeSecFundamentals(
+      secDebtOnly([
+        secFact(30, { ...annual, fy: 2023, filed: "2023-04-01", end: "2023-02-28" }),
+        secFact(40, { ...annual, fy: 2024, filed: "2024-04-01", end: "2024-02-29" }),
+      ]),
+    );
+    expect(leapYear?.metrics.debtPrior).toBe(30);
+
+    const quarterly = [
+      secFact(48, { fp: "Q1", fy: 2026, filed: "2026-07-30", end: "2025-06-29" }),
+      secFact(50),
+    ];
+    expect(summarizeSecFundamentals(secDebtOnly(quarterly))?.metrics.debtPrior).toBeUndefined();
+    expect(secYoyGap(secDebtOnly(quarterly))).toContain("debt");
+    expect(
+      summarizeSecFundamentals(
+        secDebtOnly([
+          ...quarterly,
+          secFact(46, { fy: 2026, filed: "2026-07-30", end: "2025-06-29" }),
+        ]),
+      )?.metrics.debtPrior,
+    ).toBe(46);
+
+    const unaligned = secDebtOnly([
+      secFact(30, { ...annual, fy: 2025, filed: "2025-12-01", end: "2025-09-30" }),
+      secFact(40, { ...annual, fy: 2026, filed: "2026-08-28", end: "2026-06-30" }),
+    ]);
+    expect(summarizeSecFundamentals(unaligned)?.metrics.debtPrior).toBeUndefined();
+    expect(secYoyGap(unaligned)).toContain("debt");
+  });
+
+  test("pairs duration priors on aligned start and keeps the prior year's own filing", () => {
+    const annual = { form: "10-K", fp: "FY" };
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(90, {
+                  ...annual,
+                  fy: 2025,
+                  filed: "2025-11-01",
+                  start: "2024-09-29",
+                  end: "2025-09-27",
+                }),
+                secFact(92, {
+                  ...annual,
+                  fy: 2026,
+                  filed: "2026-11-01",
+                  start: "2024-09-29",
+                  end: "2025-09-27",
+                }),
+                secFact(70, {
+                  ...annual,
+                  fy: 2025,
+                  filed: "2025-11-01",
+                  start: "2025-06-29",
+                  end: "2025-09-27",
+                }),
+                secFact(100, {
+                  ...annual,
+                  fy: 2026,
+                  filed: "2026-11-01",
+                  start: "2025-09-28",
+                  end: "2026-10-03",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.metrics).toMatchObject({ revenue: 100, revenuePrior: 90 });
+
+    const shortSpanOnly = {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                secFact(70, {
+                  ...annual,
+                  fy: 2025,
+                  filed: "2025-11-01",
+                  start: "2025-06-29",
+                  end: "2025-09-27",
+                }),
+                secFact(100, {
+                  ...annual,
+                  fy: 2026,
+                  filed: "2026-11-01",
+                  start: "2025-09-28",
+                  end: "2026-10-03",
+                }),
+              ],
+            },
+          },
+        },
+      },
+    };
+    expect(summarizeSecFundamentals(shortSpanOnly)?.metrics.revenuePrior).toBeUndefined();
+    expect(secYoyGap(shortSpanOnly)).toContain("revenue");
   });
 
   test("uses fresher debt components instead of a stale direct debt fact", () => {
@@ -2008,6 +2184,15 @@ describe("extended evidence provider collection", () => {
     );
 
     expect(result.items).toEqual([]);
+    expect(result.gaps.map((gap) => gap.message)).not.toContain(
+      "No SEC company facts found for nbis",
+    );
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        cause: "unsupported-coverage",
+        message: expect.stringContaining("SEC company facts for nbis have no 10-K/10-Q rows"),
+      }),
+    );
     expect(result.sicClassification).toEqual({
       sic: "7370",
       sicDescription: "Services-Computer Programming, Data Processing, Etc.",

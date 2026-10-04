@@ -2,6 +2,7 @@ import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { Prediction, PredictionKind } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
+import { FRED_SERIES } from "../../sources/fred";
 
 // A run may advertise `iv` forecast candidates only when it carries citeable options-IV
 // Evidence — an extended-evidence item with at least one sourceId. Source gaps (e.g. a missing
@@ -21,6 +22,11 @@ export function hasCiteableOptionsIvEvidence(collectedSources: CollectedSources)
 // Candidate the prompt just nudged (the burned ^VIX candidate in the 2026-07-05 review).
 export function isVixAllowedSubject(predictionSubjects: readonly string[]): boolean {
   return predictionSubjects.includes("^VIX");
+}
+
+// `macro` forecasts take a FRED series as subject; equity runs allow only their symbol.
+export function isFredAllowedSubject(predictionSubjects: readonly string[]): boolean {
+  return predictionSubjects.some((subject) => FRED_SERIES.includes(subject));
 }
 
 interface PredictionCoverage {
@@ -62,7 +68,7 @@ export function supportedPredictionKinds(
       ? (["iv"] as const)
       : []),
     "range",
-    "macro",
+    ...(isFredAllowedSubject(predictionSubjects) ? (["macro"] as const) : []),
     ...(command.depth === "deep" ? (["conditional"] as const) : []),
     ...(isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup)
       ? (["earnings-direction", "earnings-move"] as const)

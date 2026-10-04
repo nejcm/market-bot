@@ -999,11 +999,11 @@
       "gaps": [
         {
           "source": "sec-edgar",
-          "message": "No SEC company facts found for NBIS",
+          "message": "SEC company facts for NBIS have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
           "symbol": "NBIS",
           "provider": "sec-edgar",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
+          "cause": "unsupported-coverage",
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
@@ -9030,11 +9030,11 @@
       },
       {
         "source": "sec-edgar",
-        "message": "No SEC company facts found for NBIS",
+        "message": "SEC company facts for NBIS have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
         "symbol": "NBIS",
         "provider": "sec-edgar",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
+        "cause": "unsupported-coverage",
         "evidenceQualityImpact": "extended-evidence-cap",
         "triage": "material"
       },
@@ -9457,11 +9457,11 @@
             "regulatory-filings:gap:3"
           ],
           "gapText": [
-            "sec-edgar: No SEC company facts found for NBIS",
+            "sec-edgar: SEC company facts for NBIS have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
             "sec-edgar: NBIS files as a foreign private issuer (20-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
             "sec-untagged-financials: Untagged 6-K facts were not validated for NBIS because the capability is gated; they remain outside canonical financial-core completeness"
           ],
-          "gapCauses": ["provider-data-missing", "unsupported-coverage", "suppressed-by-design"],
+          "gapCauses": ["unsupported-coverage", "suppressed-by-design"],
           "freshnessNotes": ["latest evidence timestamp 2026-07-22T16:16:13.510Z"]
         },
         {

@@ -156,7 +156,7 @@ describe("web gather tools", () => {
     expect(surfacedUrls.has("https://apple.com/newsroom/article")).toBe(true);
   });
 
-  test("applies purpose-based publication windows and live crawl settings", async () => {
+  test("applies purpose-based publication windows and leaves live crawling at the provider default", async () => {
     const requests: { readonly url: string; readonly body: Record<string, unknown> }[] = [];
     const ctx = baseCtx({
       request: requestExecutor({
@@ -185,22 +185,21 @@ describe("web gather tools", () => {
       expect.objectContaining({
         startPublishedDate: "2026-04-01T00:00:00.000Z",
         endPublishedDate: fetchedAt,
-        contents: expect.objectContaining({ livecrawl: "always" }),
       }),
       expect.objectContaining({
         startPublishedDate: "2026-04-01T00:00:00.000Z",
         endPublishedDate: fetchedAt,
-        contents: expect.objectContaining({ livecrawl: "always" }),
       }),
       expect.objectContaining({
         startPublishedDate: "2025-11-02T00:00:00.000Z",
         endPublishedDate: fetchedAt,
-        contents: expect.objectContaining({ livecrawl: "always" }),
       }),
       expect.objectContaining({ endPublishedDate: fetchedAt }),
     ]);
     expect(requests[3]?.body.startPublishedDate).toBeUndefined();
-    expect((requests[3]!.body.contents as Record<string, unknown>).livecrawl).toBeUndefined();
+    for (const { body } of requests) {
+      expect(body.contents).not.toHaveProperty("livecrawl");
+    }
     expect(new Set(requests.map(({ url }) => url)).size).toBe(4);
   });
 
@@ -246,20 +245,17 @@ describe("web gather tools", () => {
       initialWindowDays: 30,
       effectiveWindowDays: 180,
       endPublishedDate: fetchedAt,
-      livecrawl: true,
       widened: true,
     });
     expect(current.freshness).toEqual({
       searchType: "current-subject",
       initialWindowDays: 180,
       endPublishedDate: fetchedAt,
-      livecrawl: true,
       widened: true,
     });
     expect(background.freshness).toEqual({
       searchType: "background",
       endPublishedDate: fetchedAt,
-      livecrawl: false,
       widened: false,
     });
   });

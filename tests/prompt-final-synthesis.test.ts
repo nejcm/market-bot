@@ -3,6 +3,7 @@ import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ResearchCommand } from "../src/cli/args";
 import { buildStagePrompt, type StageInput } from "../src/research/prompts";
 import { buildDepthProfile } from "../src/research/depth-profile";
+import { verifiedMarketSnapshotEvidence } from "../src/research/prompts/evidence-payload";
 import {
   MAX_PREDICTION_HORIZON_TRADING_DAYS,
   MIN_PREDICTION_HORIZON_TRADING_DAYS,
@@ -529,7 +530,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     expect(buildPrompt()).toContain("SPECIALIST_TRANSCRIPT");
   });
 
-  test("marks an unverified latest close in completion evidence", () => {
+  test("carries the main prompt's verified snapshot into completion evidence", () => {
     const prompt = stagePromptFromArgs(
       "final-synthesis",
       command,
@@ -553,13 +554,16 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
         reportDraft,
       },
     );
-    const parsed = JSON.parse(prompt) as {
-      readonly evidence: {
-        readonly latestClose?: { readonly latestSessionStatus?: string };
-      };
-    };
+    const parsed = JSON.parse(prompt) as { readonly evidence: Record<string, unknown> };
+    const snapshot = verifiedMarketSnapshot({
+      symbol: "AAPL",
+      latestSessionDate: "2026-05-01",
+      latestSessionStatus: "unverified",
+    });
 
-    expect(parsed.evidence.latestClose?.latestSessionStatus).toBe("unverified");
+    expect(parsed.evidence).toMatchObject(verifiedMarketSnapshotEvidence(snapshot));
+    expect(parsed.evidence.verifiedMarketSnapshotSourceId).toBe("verified-snapshot-AAPL");
+    expect(parsed.evidence.latestClose).toBeUndefined();
   });
 
   test("completion steering requires evidence-backed probability differentiation", () => {
@@ -713,6 +717,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
       readonly evidence: {
         readonly marketSnapshots?: unknown;
         readonly extendedEvidence?: unknown;
+        readonly verifiedMarketSnapshot?: unknown;
         readonly latestClose?: {
           readonly subject?: string;
           readonly price?: number;
@@ -747,6 +752,7 @@ describe("buildStagePrompt scoped prediction completion payload (#1)", () => {
     });
     expect(parsed.evidence.marketSnapshots).toBeUndefined();
     expect(parsed.evidence.extendedEvidence).toBeUndefined();
+    expect(parsed.evidence.verifiedMarketSnapshot).toBeUndefined();
   });
 });
 

@@ -72,7 +72,7 @@
     }
   },
   "dataGaps": [
-    "sec-edgar: No SEC company facts found for FPIQ",
+    "sec-edgar: SEC company facts for FPIQ have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
     "finnhub-events: MARKET_BOT_FINNHUB_API_TOKEN is not set",
     "finnhub-eps-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
     "finnhub-revenue-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub revenue estimate endpoint",
@@ -588,11 +588,11 @@
     "gaps": [
       {
         "source": "sec-edgar",
-        "message": "No SEC company facts found for FPIQ",
+        "message": "SEC company facts for FPIQ have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
         "symbol": "FPIQ",
         "provider": "sec-edgar",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
+        "cause": "unsupported-coverage",
         "evidenceQualityImpact": "extended-evidence-cap"
       },
       {

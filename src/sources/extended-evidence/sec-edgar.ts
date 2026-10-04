@@ -11,6 +11,7 @@ import {
   compareFinancialStatementFacts,
   compositeStatementIdentity,
   isCompleteComposite,
+  isYearAligned,
 } from "./financial-statement-selection";
 import {
   preferDirectStatementBasis,
@@ -516,20 +517,30 @@ function factValuesForMostRecentConcept(
 
 function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boolean {
   if (
-    latest.fy === undefined ||
-    candidate.fy !== latest.fy - 1 ||
-    candidate.canonicalForm !== latest.canonicalForm
+    latest.end === undefined ||
+    candidate.end === undefined ||
+    candidate.canonicalForm !== latest.canonicalForm ||
+    !isYearAligned(candidate.end, latest.end)
   ) {
     return false;
   }
-  return latest.canonicalForm === "10-Q" ? candidate.fp === latest.fp : true;
+  const startAligned =
+    latest.start === undefined
+      ? candidate.start === undefined
+      : candidate.start !== undefined && isYearAligned(candidate.start, latest.start);
+  return startAligned && (latest.canonicalForm === "10-Q" ? candidate.fp === latest.fp : true);
 }
 
+// `fy` is filing context: prefer the prior year's own filing, else a later filing's comparative.
 function comparablePrior(
   latest: SecFactValue,
   values: readonly SecFactValue[],
 ): SecFactValue | undefined {
-  return latestFact(values.filter((value) => isComparablePrior(latest, value)));
+  const aligned = values.filter((value) => isComparablePrior(latest, value));
+  const priorFiling = aligned.filter(
+    (value) => latest.fy !== undefined && value.fy === latest.fy - 1,
+  );
+  return latestFact(priorFiling.length > 0 ? priorFiling : aligned);
 }
 
 function selectMetric(
@@ -664,8 +675,12 @@ function selectDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
 ): { readonly selection: SecMetricSelection; readonly composite?: SecDebtComposite } | undefined {
-  const direct = selectMetric(gaap, DEBT_METRIC, analysisAsOf);
   const eligible = (value: SecFactValue): boolean => isFactObservableAsOf(value, analysisAsOf);
+  const directConcept = factValuesForMostRecentConcept(gaap, DEBT_METRIC, eligible)?.concept;
+  const direct =
+    directConcept === undefined
+      ? undefined
+      : selectMetric(gaap, { ...DEBT_METRIC, concepts: [directConcept] }, analysisAsOf);
   const componentSlots: readonly DebtComponentSlot[] = DEBT_COMPONENTS.map((metric) => {
     const populated = factValuesForMostRecentConcept(gaap, metric, eligible);
     return {
@@ -899,6 +914,53 @@ export function summarizeSecFundamentals(
   };
 }
 
+function secFactRows(payload: unknown): readonly Record<string, unknown>[] {
+  const facts = isRecord(payload) && isRecord(payload.facts) ? payload.facts : {};
+  return Object.values(facts).flatMap((concepts) =>
+    isRecord(concepts)
+      ? Object.values(concepts).flatMap((concept) =>
+          isRecord(concept) && isRecord(concept.units)
+            ? Object.values(concept.units).flatMap((rows) =>
+                Array.isArray(rows)
+                  ? rows.filter(
+                      (row) =>
+                        isRecord(row) &&
+                        readNumber(row, "val") !== undefined &&
+                        readString(row, "form") !== undefined,
+                    )
+                  : [],
+              )
+            : [],
+        )
+      : [],
+  );
+}
+
+// Why summarizeSecFundamentals returned undefined; absence is claimed only when no fact rows exist.
+export function secFundamentalsUnavailableGap(
+  payload: unknown,
+  subject: string,
+): Pick<SourceGap, "message" | "cause"> {
+  const rows = secFactRows(payload);
+  if (rows.length === 0) {
+    return { message: `No SEC company facts found for ${subject}`, cause: "provider-data-missing" };
+  }
+  const hasDomesticPeriodicRow = rows.some((row) => {
+    const form = readString(row, "form");
+    const parsed = form === undefined ? undefined : canonicalizeSecForm(form);
+    return parsed !== undefined && isDomesticPeriodicCanonicalForm(parsed.canonicalForm);
+  });
+  return hasDomesticPeriodicRow
+    ? {
+        message: `SEC company facts for ${subject} have no eligible rows for the tracked legacy summary metrics`,
+        cause: "provider-data-missing",
+      }
+    : {
+        message: `SEC company facts for ${subject} have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable`,
+        cause: "unsupported-coverage",
+      };
+}
+
 export async function fetchSecCompanyFactsForSymbol(
   ctx: CollectContext,
   symbol: string,
@@ -997,10 +1059,9 @@ export async function fetchSecCompanyFactsForSymbol(
       ? [
           sourceGap({
             source: "sec-edgar",
-            message: `No SEC company facts found for ${symbol}`,
+            ...secFundamentalsUnavailableGap(facts.payload, symbol),
             provider: "sec-edgar",
             capability: "extended-evidence",
-            cause: "provider-data-missing",
             evidenceQualityImpact: "extended-evidence-cap",
           }),
         ]

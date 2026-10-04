@@ -62,4 +62,34 @@ describe("collectAlphaSearchFundamentals", () => {
       expect.objectContaining({ symbol: "MSFT", message: "SEC companyfacts request failed" }),
     ]);
   });
+
+  test("words foreign-filer facts as unsupported coverage, not absence", async () => {
+    const request: SourceRequestExecutor = {
+      json: async ({ adapter }) =>
+        adapter === "sec-alpha-fundamentals-tickers"
+          ? fetched({ "0": { cik_str: 1_513_845, ticker: "NBIS", title: "Nebius Group N.V." } })
+          : fetched({
+              facts: { "us-gaap": { Revenues: { units: { USD: [{ val: 1, form: "20-F" }] } } } },
+            }),
+      text: async () => {
+        throw new Error("unexpected text request");
+      },
+    };
+
+    const result = await collectAlphaSearchFundamentals({
+      leads: [lead("NBIS")],
+      request,
+      analysisAsOf: FETCHED_AT,
+    });
+
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        symbol: "NBIS",
+        cause: "unsupported-coverage",
+        message: expect.stringContaining(
+          "SEC company facts for alpha-search candidate NBIS have no 10-K/10-Q rows",
+        ),
+      }),
+    ]);
+  });
 });

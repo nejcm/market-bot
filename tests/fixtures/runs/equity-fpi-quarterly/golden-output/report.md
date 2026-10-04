@@ -53,7 +53,7 @@ Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/boo
 
 ## Material Data Gaps
 
-- **Material:** sec-edgar: No SEC company facts found for FPIQ
+- **Material:** sec-edgar: SEC company facts for FPIQ have no 10-K/10-Q rows \(foreign-filer forms such as 20-F/40-F\); legacy fundamentals summary unavailable
 - **Material:** sec-edgar: FPIQ files as a foreign private issuer \(20-F, 6-K\); annual filing metadata is retained, no eligible recent 6-K filing was available, and annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
 - **Material:** valuation: Peer-implied price reference range suppressed for FPIQ: peer supportability is not supported
@@ -80,7 +80,7 @@ Fixture Quarterly FPI N.V. synthetic FPI fixture replayed through current equity
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `complete` · Valuation `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `complete` · Valuation inputs `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

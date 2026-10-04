@@ -350,7 +350,6 @@ interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
     readonly initialWindowDays?: number;
     readonly effectiveWindowDays?: number;
     readonly endPublishedDate: string;
-    readonly livecrawl: boolean;
     readonly widened: boolean;
   };
   // Present when Exa was unusable and Firecrawl fallback was attempted or unavailable.

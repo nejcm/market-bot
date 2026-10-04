@@ -300,7 +300,7 @@ export function latestCommonFinancialStatementPeriodEndFacts(
   );
 }
 
-function isYearAligned(prior: string, latest: string): boolean {
+export function isYearAligned(prior: string, latest: string): boolean {
   const days = daysBetween(prior, latest);
   return days !== undefined && days >= ALIGNMENT_MIN_DAYS && days <= ALIGNMENT_MAX_DAYS;
 }

@@ -1022,7 +1022,7 @@ describe("collectValuationComps", () => {
     expect(amd?.evToAnnualizedRevenue).toBeUndefined();
     expect(amd?.sourceIds.length).toBeGreaterThan(0);
     const reason =
-      "incomplete SEC debt basis: Debt composite for 2026-06-29 omits LongTermDebtCurrent/DebtCurrent/LongTermDebtAndCapitalLeaseObligationsCurrent/ShortTermBorrowings/ShortTermDebt because no eligible fact was selected for that component slot.";
+      "incomplete SEC debt basis: Debt composite for 2026-06-29 omits LongTermDebtCurrent/DebtCurrent/LongTermDebtAndCapitalLeaseObligationsCurrent/ShortTermBorrowings/ShortTermDebt/NotesPayableCurrent because no eligible fact was selected for that component slot.";
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",
@@ -1071,7 +1071,7 @@ describe("collectValuationComps", () => {
     expect(amd?.evToAnnualizedRevenue).toBeUndefined();
     expect(amd?.sourceIds.length).toBeGreaterThan(0);
     const reason =
-      "incomplete SEC debt basis: Debt composite for 2026-06-30 omits LongTermDebtNoncurrent/LongTermDebtAndCapitalLeaseObligations because no eligible fact was selected for that component slot.";
+      "incomplete SEC debt basis: Debt composite for 2026-06-30 omits LongTermDebtNoncurrent/LongTermDebtAndCapitalLeaseObligations/LongTermNotesPayable because no eligible fact was selected for that component slot.";
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",

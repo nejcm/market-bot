@@ -74,7 +74,7 @@ equity-aapl-brief replayed AAPL research view uses fixture market, news, SEC, an
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `blocked` · Valuation `partial` · Expectations `partial` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `blocked` · Valuation inputs `partial` · Expectations `partial` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

@@ -82,7 +82,7 @@ equity-aapl-deep replayed AAPL research view uses fixture market, news, SEC, and
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `complete` · Valuation `complete` · Expectations `partial` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
+Dimension Status: Primary financials `complete` · Valuation inputs `complete` · Expectations `partial` · Capital & ownership `partial` · Operating KPIs `not assessed — inputs unavailable`
 
 ### Balance Sheet and Share Count
 

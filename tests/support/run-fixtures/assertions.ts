@@ -381,7 +381,7 @@ export function assertEstimatedEarningsSuppressionPath(
   );
   expect(finalSynthesisPrompt).not.toContain("kind earnings-direction with measurableAs");
   expect(finalSynthesisPrompt).not.toContain("kind earnings-move with measurableAs");
-  expect(finalSynthesisPrompt).toContain('"kind": "direction|relative|iv|range|macro|conditional"');
+  expect(finalSynthesisPrompt).toContain('"kind": "direction|relative|iv|range|conditional"');
   expect(
     modelOutputs.some(
       (output) =>

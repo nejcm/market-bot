@@ -58,8 +58,10 @@ research boundaries without sharing persistence or scoring semantics.
   best-effort completion pass may add predictions only. It is prompted with a distilled context —
   the first-attempt report narrative, the critique stage output, and a compact source index
   (id/title/fetchedAt/url/publisher/snippet) plus deterministic forecast anchors required by the
-  advertised completion grammar, such as latest close, earnings event/implied move, qualifying IV
-  metrics, and qualifying calibration guidance. It does not replay the full evidence payload or
+  advertised completion grammar, such as the Verified Market Snapshot in the same compact form the
+  primary prompt carries (latest OHLCV, indicators, bounded recent closes, source id) or, without
+  one, the latest quote, earnings event/implied move, qualifying IV metrics, and qualifying
+  calibration guidance. It does not replay the full evidence payload or
   prior-stage transcript. The allowed source-ID list stays the citation authority, so the scoped
   context never invalidates a cite, and deterministic merge and validation remain the authority over
   accepted candidates.

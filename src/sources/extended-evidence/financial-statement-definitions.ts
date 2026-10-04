@@ -156,7 +156,7 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: false,
       concepts: {
-        "us-gaap": ["LongTermDebt"],
+        "us-gaap": ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"],
         "ifrs-full": ["Borrowings"],
       },
       components: [
@@ -167,11 +167,16 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
             "LongTermDebtAndCapitalLeaseObligationsCurrent",
             "ShortTermBorrowings",
             "ShortTermDebt",
+            "NotesPayableCurrent",
           ],
           "ifrs-full": ["CurrentBorrowings"],
         },
         {
-          "us-gaap": ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+          "us-gaap": [
+            "LongTermDebtNoncurrent",
+            "LongTermDebtAndCapitalLeaseObligations",
+            "LongTermNotesPayable",
+          ],
           "ifrs-full": ["NoncurrentBorrowings"],
         },
       ],

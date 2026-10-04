@@ -192,7 +192,6 @@ async function executeWebSearch(
     ...(initialWindowDays !== undefined ? { initialWindowDays } : {}),
     ...(effectiveWindowDays !== undefined ? { effectiveWindowDays } : {}),
     endPublishedDate: ctx.fetchedAt,
-    livecrawl: parsed.searchType !== "background",
     widened,
   });
   if (!isFetchJsonResult(initial)) {
@@ -638,7 +637,6 @@ async function requestExaSearch(
       text: { maxCharacters: MAX_TEXT_CHARS },
       summary: { query: parsed.query },
       highlights: { numSentences: 2, highlightsPerUrl: 2, query: parsed.query },
-      ...(livecrawl ? { livecrawl: "always" } : {}),
     },
   };
   return ctx.request.json({

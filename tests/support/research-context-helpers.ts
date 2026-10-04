@@ -181,11 +181,20 @@ export function resolvedPair(
 // The model-visible shape must stay gated in lockstep with the prose: volatility only when ^VIX
 // Is an allowed subject, iv only with citeable options-iv evidence (2026-07-05 review — an
 // Ungated shape advertised ^VIX/iv the subject gate then rejected).
-export function equityRequiredShapeKinds(opts: {
+export function equityRequiredShapeKinds(opts: EquityFinalSynthesisOptions): readonly string[] {
+  const parsed = JSON.parse(equityFinalSynthesisPrompt(opts)) as {
+    readonly requiredShape?: { readonly predictions?: readonly { readonly kind?: string }[] };
+  };
+  return parsed.requiredShape?.predictions?.[0]?.kind?.split("|") ?? [];
+}
+
+interface EquityFinalSynthesisOptions {
   readonly predictionSubjects: readonly string[];
   readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
   readonly depth?: "brief" | "deep";
-}): readonly string[] {
+}
+
+export function equityFinalSynthesisPrompt(opts: EquityFinalSynthesisOptions): string {
   const command: ResearchCommand = {
     jobType: "equity",
     assetClass: "equity",
@@ -193,7 +202,7 @@ export function equityRequiredShapeKinds(opts: {
     depth: opts.depth ?? "deep",
   };
   const baseProfile = buildDepthProfile(command, config);
-  const prompt = stagePromptFromArgs(
+  return stagePromptFromArgs(
     "final-synthesis",
     command,
     collectedSources({
@@ -229,10 +238,6 @@ export function equityRequiredShapeKinds(opts: {
     },
     { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
   );
-  const parsed = JSON.parse(prompt) as {
-    readonly requiredShape?: { readonly predictions?: readonly { readonly kind?: string }[] };
-  };
-  return parsed.requiredShape?.predictions?.[0]?.kind?.split("|") ?? [];
 }
 
 // Builds the completion-pass instruction for an AAPL equity deep run with full control over the

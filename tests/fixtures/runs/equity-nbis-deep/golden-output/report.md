@@ -54,7 +54,7 @@ Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/b
 
 ## Material Data Gaps
 
-- **Material:** sec-edgar: No SEC company facts found for NBIS
+- **Material:** sec-edgar: SEC company facts for NBIS have no 10-K/10-Q rows \(foreign-filer forms such as 20-F/40-F\); legacy fundamentals summary unavailable
 - **Material:** sec-edgar: NBIS files as a foreign private issuer \(20-F, 6-K\); recent 6-K text is attempted, while annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
 - **Material:** valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported
@@ -84,7 +84,7 @@ Nebius Group N.V. synthetic FPI fixture replayed through current equity research
 ### Analysis Completeness
 
 Coverage: `limited`
-Dimension Status: Primary financials `partial` · Valuation `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `partial`
+Dimension Status: Primary financials `partial` · Valuation inputs `complete` · Expectations `not assessed — inputs unavailable` · Capital & ownership `partial` · Operating KPIs `partial`
 
 ### Balance Sheet and Share Count
 

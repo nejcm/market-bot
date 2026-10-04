@@ -9,6 +9,13 @@ import type { WebSourceUsage } from "../web-evidence";
 import { isGapShapedClaimForAuditWarning } from "./gap-shaped-claims";
 
 const NUMERIC_CLAIM_PATTERN = /(?:[$]?\d+(?:\.\d+)?%?|\b\d+(?:\.\d+)?\b)/u;
+// "Q2 2026", "H1 FY26", "3Q" label a period, not a figure, unless a financial unit is attached.
+const FISCAL_PERIOD_TOKEN_PATTERN =
+  /(?<![\d.])\b(?:Q[1-4]|H[12]|[1-4]Q)(?:\s+(?:FY\s?\d{2}|(?:FY)?(?:19|20)\d{2}))?\b(?!\.\d)/giu;
+// 8 covers Sc + grouping/minus/whitespace; unbounded prefix slice was O(n^2) per date.
+const UNIT_WINDOW = 8;
+const CURRENCY_PREFIX_PATTERN = /\p{Sc}[\s()[\]{}-]*$/u;
+const UNIT_SUFFIX_PATTERN = /^\s*(?:[%‰‱]|[x×X⨯*]|\p{Sc})/u;
 const TECHNICAL_INDICATOR_PATTERN = /\b(?:ema|sma|rsi|macd|bollinger|atr)\b/iu;
 export const EVIDENCE_POSTURE_LABELS = [
   "observed fact",
@@ -114,7 +121,7 @@ function auditClaim(claim: AuditClaim): readonly PostSynthesisAuditWarning[] {
 }
 
 function isNumericOrTechnicalClaim(text: string): boolean {
-  return NUMERIC_CLAIM_PATTERN.test(text) || TECHNICAL_INDICATOR_PATTERN.test(text);
+  return isNumericClaim(text) || isTechnicalClaim(text);
 }
 
 export function isTechnicalClaim(text: string): boolean {
@@ -122,7 +129,17 @@ export function isTechnicalClaim(text: string): boolean {
 }
 
 export function isNumericClaim(text: string): boolean {
-  return NUMERIC_CLAIM_PATTERN.test(text);
+  return NUMERIC_CLAIM_PATTERN.test(
+    text.replaceAll(FISCAL_PERIOD_TOKEN_PATTERN, (span, offset: number) =>
+      hasAttachedFinancialUnit(text, offset, offset + span.length) ? span : " ",
+    ),
+  );
+}
+
+export function hasAttachedFinancialUnit(text: string, start: number, end: number): boolean {
+  const prefix = text.slice(Math.max(0, start - UNIT_WINDOW), start);
+  const suffix = text.slice(end, end + UNIT_WINDOW);
+  return CURRENCY_PREFIX_PATTERN.test(prefix) || UNIT_SUFFIX_PATTERN.test(suffix);
 }
 
 export function isHistoricalForecastOutcome(text: string): boolean {

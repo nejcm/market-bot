@@ -267,6 +267,40 @@ describe("auditReportIntegrity", () => {
     }
   });
 
+  test.each([
+    ["stronger Q2 2026 revenue", false],
+    ["stronger Q2 FY26 revenue", false],
+    ["H1 and H2 FY2026 demand stayed firm", false],
+    ["3Q demand stayed firm", false],
+    ["Q2 revenue of $582M", true],
+    ["Q3 up 12%", true],
+    ["Q2 2026% growth", true],
+    ["Q2 26% growth", true],
+    ["$3Q of backlog", true],
+    ["€3Q of backlog", true],
+    ["£3Q of backlog", true],
+    ["$ 3Q of backlog", true],
+    ["3Q‰ rise", true],
+    ["Q3 % rise", true],
+  ])("fiscal-period label %p classifies as numeric: %p", (text, numeric) => {
+    expect(summaryClassifiesAsNumeric(`${text}.`)).toBe(numeric);
+    expect(auditUncitedFinding(`${text}.`).pruned.length > 0).toBe(numeric);
+  });
+
+  test("NBIS secondary-coverage summary sentence carries no numeric advisory", () => {
+    const summary =
+      "NBIS evidence is mixed. Secondary coverage reports stronger Q2 2026 revenue and capacity plans; those figures are not validated in the supplied canonical statements.";
+
+    expect(numericSummaryAdvisories(summary)).toEqual([]);
+  });
+
+  test("keeps an uncited qualitative Q3 finding", () => {
+    const result = auditUncitedFinding("Q3 capacity commentary stayed qualitative.");
+
+    expect(result.pruned).toEqual([]);
+    expect(result.report.keyFindings).toHaveLength(1);
+  });
+
   test("lowercase may before a number is not treated as a date", () => {
     const claim = "Revenue may 10 percent rise.";
 

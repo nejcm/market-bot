@@ -11,6 +11,7 @@ import {
 } from "../domain/types";
 import { deriveResearchQualityDriver } from "./quality-driver";
 import {
+  hasAttachedFinancialUnit,
   hasNoSupportingSource,
   hasPostureLabel,
   isHistoricalForecastOutcome,
@@ -77,20 +78,10 @@ const MONTHS = [
 const HORIZON_TOKEN_PATTERN = /(?<![$])\b\d+\s*(?:-| )?(?:trading|calendar)?\s*-?\s*days?\b/giu;
 // Strip ISO dates before years; captures would displace replaceAll's offset for unit checks.
 const ISO_CALENDAR_DATE_PATTERN = /(?<![\d.])\b\d{4}-\d{2}-\d{2}\b/gu;
-// 8 covers Sc + grouping/minus/whitespace; unbounded prefix slice was O(n^2) per date.
-const ISO_DATE_UNIT_WINDOW = 8;
-const ISO_DATE_CURRENCY_PREFIX_PATTERN = /\p{Sc}[\s()[\]{}-]*$/u;
-const ISO_DATE_UNIT_SUFFIX_PATTERN = /^\s*(?:[%‰‱]|[x×X⨯*]|\p{Sc})/u;
 
 function isUtcRoundTripIsoDate(isoDate: string): boolean {
   const date = new Date(`${isoDate}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === isoDate;
-}
-
-function hasAttachedFinancialUnit(text: string, start: number, end: number): boolean {
-  const prefix = text.slice(Math.max(0, start - ISO_DATE_UNIT_WINDOW), start);
-  const suffix = text.slice(end, end + ISO_DATE_UNIT_WINDOW);
-  return ISO_DATE_CURRENCY_PREFIX_PATTERN.test(prefix) || ISO_DATE_UNIT_SUFFIX_PATTERN.test(suffix);
 }
 
 function isBlockingNumericOrTechnical(text: string): boolean {

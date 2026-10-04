@@ -19,7 +19,7 @@ import {
 import { readNumberMetric, readStringMetric } from "./utils";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
 import { incompleteCompositeNote, isCompleteComposite } from "./financial-statement-selection";
-import type { SecDebtComposite } from "./sec-edgar";
+import { latestFilingWithoutDebtFacts, type SecDebtComposite } from "./sec-edgar";
 import type { DebtBasis } from "./financial-statements-contract";
 import {
   balanceSheetPeriodDivergence,
@@ -357,7 +357,7 @@ export function excludedPeer(
   provenance: PeerUniverse["provenance"],
   generatedAt: string,
   target: ValuationCompsRow,
-  debtComposite?: SecDebtComposite,
+  sec?: PeerPacket["sec"],
 ): readonly ExcludedValuationPeer[] {
   if (row.usable) {
     return [];
@@ -366,12 +366,24 @@ export function excludedPeer(
   if (peer === undefined) {
     return [];
   }
+  const untaggedForm =
+    sec === undefined || row.debtPeriodEnd === undefined
+      ? undefined
+      : latestFilingWithoutDebtFacts(sec, row.debtPeriodEnd, generatedAt);
+  const reason = exclusionReason(row, provenance, generatedAt, target, sec?.debtComposite);
+  const vintage = reason === peerVintageExclusionReason(row, generatedAt);
   return [
     {
       symbol: row.symbol,
       role: peer.role,
-      reason: exclusionReason(row, provenance, generatedAt, target, debtComposite),
-      sourceIds: row.sourceIds,
+      reason:
+        vintage && untaggedForm !== undefined
+          ? `${reason}; latest ${untaggedForm} debt not in SEC companyfacts (issuer-extension or dimensional tagging)`
+          : reason,
+      sourceIds:
+        vintage && untaggedForm !== undefined && sec?.submissionsSourceId !== undefined
+          ? unique([...row.sourceIds, sec.submissionsSourceId])
+          : row.sourceIds,
     },
   ];
 }

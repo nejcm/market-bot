@@ -106,6 +106,49 @@ function secInstantFact(val: number, end: string, fp: string, form = "10-Q") {
   };
 }
 
+function recentFilings(
+  ...filings: readonly (readonly [
+    form: string,
+    accession: string,
+    reportDate: string | null,
+    filingDate: string,
+  ])[]
+): unknown {
+  return {
+    recent: {
+      form: filings.map(([form]) => form),
+      accessionNumber: filings.map(([, accession]) => accession),
+      reportDate: filings.map(([, , reportDate]) => reportDate),
+      filingDate: filings.map(([, , , filingDate]) => filingDate),
+    },
+  };
+}
+
+async function amdExclusionReason(
+  payload: unknown,
+  filings?: unknown,
+): Promise<string | undefined> {
+  const result = await collectValuationComps(
+    collectContext(
+      requestExecutor({
+        secOverrides: { AMD: { payload } },
+        ...(filings !== undefined ? { filingsOverrides: { AMD: filings } } : {}),
+      }),
+    ),
+    command,
+    [
+      marketSnapshot({
+        sourceId: "market-yahoo-equity-nvda",
+        symbol: "NVDA",
+        marketCap: 1000,
+        observedAt: generatedAt,
+      }),
+    ],
+    valuationEvidence(),
+  );
+  return result.artifact.excludedPeers.find((peer) => peer.symbol === "AMD")?.reason;
+}
+
 function omitFactEnd(fact: Record<string, number | string>): Record<string, number | string> {
   return Object.fromEntries(Object.entries(fact).filter(([key]) => key !== "end"));
 }
@@ -301,6 +344,7 @@ function requestExecutor(
       >
     >;
     readonly sicOverrides?: Readonly<Record<string, { readonly sic?: string | undefined }>>;
+    readonly filingsOverrides?: Readonly<Record<string, unknown>>;
   } = {},
 ): SourceRequestExecutor {
   const symbolByCik: Readonly<Record<string, string>> = {
@@ -320,9 +364,11 @@ function requestExecutor(
         const sic = Object.hasOwn(options.sicOverrides ?? {}, symbol)
           ? options.sicOverrides?.[symbol]?.sic
           : "3674";
+        const filings = options.filingsOverrides?.[symbol];
         return rawJson(adapter, {
           ...(sic !== undefined ? { sic } : {}),
           sicDescription: "Semiconductors & Related Devices",
+          ...(filings !== undefined ? { filings } : {}),
         });
       }
       if (adapter === "sec-tickers") {
@@ -1149,6 +1195,119 @@ describe("collectValuationComps", () => {
         message: expect.stringContaining("SEC debt uses gross principal"),
       }),
     );
+  });
+
+  describe("names an untagged latest-filing debt cause", () => {
+    const UNTAGGED = "debt not in SEC companyfacts (issuer-extension or dimensional tagging)";
+    const staleDebt = (accn = "0000000001-26-000001") =>
+      secPayloadWithGaap({
+        LongTermDebt: {
+          units: { USD: [{ ...secInstantFact(20, "2025-12-28", "FY", "10-K"), accn }] },
+        },
+      });
+    const latestQ = recentFilings(
+      ["10-Q", "0000000001-26-000009", "2026-06-29", "2026-07-01"],
+      ["10-K", "0000000001-26-000001", "2025-12-28", "2026-02-01"],
+    );
+    const divergence =
+      "cash period end 2026-06-29 and debt period end 2025-12-28 diverge by 183 days; enterprise value flagged as mixed-period";
+
+    test("WULF/HUT-shaped: newer 10-Q contributed no debt fact", async () => {
+      expect(await amdExclusionReason(staleDebt(), latestQ)).toBe(
+        `${divergence}; latest 10-Q ${UNTAGGED}`,
+      );
+    });
+
+    test("uses the actual form of the latest periodic filing", async () => {
+      expect(
+        await amdExclusionReason(
+          staleDebt(),
+          recentFilings(["10-K", "0000000001-26-000009", "2026-06-29", "2026-07-01"]),
+        ),
+      ).toBe(`${divergence}; latest 10-K ${UNTAGGED}`);
+    });
+
+    test.each([
+      ["the newer filing contributed debt facts", staleDebt("0000000001-26-000009"), latestQ],
+      [
+        "no filing is newer than the debt period",
+        staleDebt(),
+        recentFilings(["10-K", "0000000001-26-000001", "2025-12-28", "2026-02-01"]),
+      ],
+      [
+        "the newer filing is an amendment",
+        staleDebt(),
+        recentFilings(["10-Q/A", "0000000001-26-000009", "2026-06-29", "2026-07-01"]),
+      ],
+      [
+        "the newer filing is after the analysis cutoff",
+        staleDebt(),
+        recentFilings(["10-Q", "0000000001-26-000009", "2026-06-29", "2026-07-20"]),
+      ],
+      ["submissions carry no filings", staleDebt(), undefined],
+      [
+        "the newest filing lacks a report date, even if an older 10-Q has no debt facts",
+        staleDebt("0000000001-26-000010"),
+        recentFilings(
+          ["10-K", "0000000001-26-000010", null, "2026-07-02"],
+          ["10-Q", "0000000001-26-000009", "2026-06-29", "2026-07-01"],
+        ),
+      ],
+    ] as const)("keeps the existing reason when %s", async (_label, payload, filings) => {
+      expect(await amdExclusionReason(payload, filings)).toBe(divergence);
+    });
+
+    test("emits the submissions Source the cause cites even without a SIC", async () => {
+      const result = await collectValuationComps(
+        collectContext(
+          requestExecutor({
+            secOverrides: { AMD: { payload: staleDebt() } },
+            sicOverrides: { AMD: { sic: undefined } },
+            filingsOverrides: { AMD: latestQ },
+          }),
+        ),
+        command,
+        [
+          marketSnapshot({
+            sourceId: "market-yahoo-equity-nvda",
+            symbol: "NVDA",
+            marketCap: 1000,
+            observedAt: generatedAt,
+          }),
+        ],
+        valuationEvidence(),
+      );
+      const amd = result.artifact.excludedPeers.find((peer) => peer.symbol === "AMD");
+      const emitted = new Set(result.sources.map((source) => source.id));
+
+      expect(amd?.reason).toContain(`latest 10-Q ${UNTAGGED}`);
+      expect(amd?.sourceIds).toContain("extended-sec-edgar-amd-filings");
+      expect(
+        [...result.artifact.peers, ...result.artifact.excludedPeers]
+          .flatMap((row) => row.sourceIds)
+          .filter((id) => !emitted.has(id)),
+      ).toEqual([]);
+    });
+
+    test("CRWV-shaped gross fallback keeps debt current, so no cause fires", async () => {
+      const gross = (calibration: number) =>
+        secPayloadWithGaap({
+          LongTermDebt: { units: { USD: [secInstantFact(20, "2025-12-28", "FY", "10-K")] } },
+          DebtInstrumentCarryingAmount: {
+            units: {
+              USD: [
+                secInstantFact(calibration, "2025-12-28", "FY", "10-K"),
+                secInstantFact(30, "2026-06-29", "Q2"),
+              ],
+            },
+          },
+        });
+
+      expect(await amdExclusionReason(gross(20.5), latestQ)).toBeUndefined();
+      expect(await amdExclusionReason(gross(25), latestQ)).toBe(
+        `${divergence}; latest 10-Q ${UNTAGGED}`,
+      );
+    });
   });
 
   test("does not treat a 2011-09-30 peer debt period end as a usable row", async () => {

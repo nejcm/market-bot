@@ -67,7 +67,11 @@ export function replaceValuationItem(
   };
 }
 
-export function sourcesForPeer(command: InstrumentCommand, entry: PeerPacket): readonly Source[] {
+export function sourcesForPeer(
+  command: InstrumentCommand,
+  entry: PeerPacket,
+  citedSourceIds: readonly string[],
+): readonly Source[] {
   const quoteSource =
     entry.quote === undefined
       ? undefined
@@ -93,11 +97,11 @@ export function sourcesForPeer(command: InstrumentCommand, entry: PeerPacket): r
           entry.sec.identity,
         )
       : undefined;
-  // Mirrors the SIC gate in peerRow: every submissions source id referenced by
-  // A row must resolve to an emitted Source.
+  // Every submissions source id cited by a row or exclusion must resolve to an emitted Source.
   const submissionsSource =
-    entry.sec.sicClassification !== undefined &&
     entry.sec.submissionsSourceId !== undefined &&
+    (entry.sec.sicClassification !== undefined ||
+      citedSourceIds.includes(entry.sec.submissionsSourceId)) &&
     entry.sec.submissionsFetchedAt !== undefined
       ? evidenceSource(
           entry.sec.submissionsSourceId,

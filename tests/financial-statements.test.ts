@@ -2502,8 +2502,7 @@ describe("canonical debt basis selection", () => {
 });
 
 function debtLabel(item: ExtendedEvidenceItem | undefined): string | undefined {
-  return strengthLens(item).metrics.find((metric) => metric.key === "debt")
-    ?.label;
+  return strengthLens(item).metrics.find((metric) => metric.key === "debt")?.label;
 }
 
 function grossFallbackApplies(net: number, gross: number): boolean {
@@ -2772,6 +2771,50 @@ describe("gross-principal debt fallback", () => {
       expect.stringContaining("not tagged in companyfacts after 2022-06-30"),
     ]);
     expect(dedupeSourceGaps([{ ...legacyGap!, symbol: "TEST" }, ...canonicalGaps])).toHaveLength(1);
+  });
+
+  test.each([
+    ["only a noncurrent-slot prior exists", {}],
+    [
+      "a complete prior composite exists in other concepts",
+      { LongTermDebtCurrent: [q(50_000_000, "2025-06-30", "Q2", "2025-08-06")] },
+    ],
+  ] as const)("CORZ-shaped: keeps the debt YoY gap when %s", (_label, extra) => {
+    const { artifact, legacy } = selections(
+      facts({
+        LongTermDebt: [
+          q(4_000_000_000, "2025-12-31", "FY", "2026-02-27"),
+          q(4_297_967_000, "2026-06-30", "Q2", "2026-07-28"),
+        ],
+        LongTermNotesPayable: [q(1_058_000_000, "2025-06-30", "Q2", "2025-08-06")],
+        ...extra,
+      }),
+    );
+
+    expect(legacy?.metrics).toMatchObject({ debt: 4_297_967_000, debtPeriodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debtPrior).toBeUndefined();
+    expect(legacy?.gaps.map((gap) => gap.message)).toContainEqual(
+      expect.stringMatching(/^Missing comparable SEC company facts for YoY deltas: .*\bdebt$/u),
+    );
+    expect(
+      withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior,
+    ).toBeUndefined();
+  });
+
+  test("takes a same-concept legacy debt prior; canonical instant series carry no prior", () => {
+    const { artifact, legacy } = selections(
+      facts({
+        LongTermDebt: [
+          q(1_000_000_000, "2025-06-30", "Q2", "2025-08-06"),
+          q(4_297_967_000, "2026-06-30", "Q2", "2026-07-28"),
+        ],
+      }),
+    );
+
+    expect(legacy?.metrics.debtPrior).toBe(1_000_000_000);
+    expect(
+      withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior,
+    ).toBeUndefined();
   });
 
   test("discloses a canonical-only gross fallback from foreign forms", () => {

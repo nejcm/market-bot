@@ -139,7 +139,6 @@ export async function collectValuationComps(
       sec: await fetchSecCompanyFactsForSymbol(ctx, peer.symbol, options.secTickerPayload),
     })),
   );
-  const peerSources = peerSecResults.flatMap((entry) => sourcesForPeer(command, entry));
   const peers = peerSecResults.map((entry) => peerRow(entry, ctx.fetchedAt, target));
   const excludedPeers = peers.flatMap((row, index) =>
     excludedPeer(
@@ -148,7 +147,14 @@ export async function collectValuationComps(
       universe.provenance,
       ctx.fetchedAt,
       target,
-      peerSecResults[index]?.sec.debtComposite,
+      peerSecResults[index]?.sec,
+    ),
+  );
+  const peerSources = peerSecResults.flatMap((entry) =>
+    sourcesForPeer(
+      command,
+      entry,
+      excludedPeers.flatMap((peer) => (peer.symbol === entry.peer.symbol ? peer.sourceIds : [])),
     ),
   );
   const peerGaps = [

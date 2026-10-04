@@ -341,6 +341,70 @@ function summarizeSecFilings(payload: unknown): string | undefined {
   return filings.length > 0 ? `Recent SEC filings: ${filings.slice(0, 5).join(", ")}.` : undefined;
 }
 
+// Amendments are skipped: a partial 10-K/A or 10-Q/A legitimately carries no balance-sheet facts.
+export function latestFilingWithoutDebtFacts(
+  sec: Pick<SecCompanyFactsResult, "factsPayload" | "submissionsPayload">,
+  debtPeriodEnd: string,
+  asOf: string,
+): "10-K" | "10-Q" | undefined {
+  const recent =
+    isRecord(sec.submissionsPayload) && isRecord(sec.submissionsPayload.filings)
+      ? sec.submissionsPayload.filings.recent
+      : undefined;
+  const forms = readArray(recent, "form");
+  const accessions = readArray(recent, "accessionNumber");
+  const reportDates = readArray(recent, "reportDate");
+  const filingDates = readArray(recent, "filingDate");
+  const cutoff = asOf.slice(0, 10);
+  const [latest] = forms
+    .flatMap((form, index) => {
+      const filingDate = filingDates[index];
+      return (form === "10-K" || form === "10-Q") &&
+        typeof filingDate === "string" &&
+        filingDate <= cutoff
+        ? [
+            {
+              form,
+              filingDate,
+              accession: accessions[index],
+              reportDate: reportDates[index],
+            } as const,
+          ]
+        : [];
+    })
+    .toSorted((left, right) => right.filingDate.localeCompare(left.filingDate));
+  const gaap =
+    isRecord(sec.factsPayload) && isRecord(sec.factsPayload.facts)
+      ? sec.factsPayload.facts["us-gaap"]
+      : undefined;
+  if (
+    latest === undefined ||
+    typeof latest.accession !== "string" ||
+    typeof latest.reportDate !== "string" ||
+    latest.reportDate === "" ||
+    latest.reportDate <= debtPeriodEnd ||
+    !isRecord(gaap)
+  ) {
+    return undefined;
+  }
+  const debtConcepts = [
+    ...US_GAAP_DEBT_ALIASES.direct,
+    ...US_GAAP_DEBT_ALIASES.current,
+    ...US_GAAP_DEBT_ALIASES.noncurrent,
+  ];
+  const contributed = debtConcepts.some((concept) => {
+    const units = isRecord(gaap[concept]) ? gaap[concept].units : undefined;
+    return (
+      isRecord(units) &&
+      Object.values(units).some(
+        (rows) =>
+          Array.isArray(rows) && rows.some((row) => isRecord(row) && row.accn === latest.accession),
+      )
+    );
+  });
+  return contributed ? undefined : latest.form;
+}
+
 // SIC arrives as a string in current SEC submissions payloads, but tolerate a
 // Numeric encoding; provenance is always the submissions endpoint itself.
 function extractSecSic(payload: unknown): SecSicClassification | undefined {

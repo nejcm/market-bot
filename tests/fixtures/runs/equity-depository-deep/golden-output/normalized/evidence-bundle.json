@@ -1129,7 +1129,7 @@
         },
         {
           "source": "sec-edgar",
-          "message": "No results 6-K for BNS among the newest 6 of 9 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
+          "message": "No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected",
           "provider": "sec-edgar",
           "capability": "evidence-request",
           "cause": "provider-data-missing",
@@ -12070,7 +12070,7 @@
       },
       {
         "source": "sec-edgar",
-        "message": "No results 6-K for BNS among the newest 6 of 9 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
+        "message": "No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected",
         "provider": "sec-edgar",
         "capability": "evidence-request",
         "cause": "provider-data-missing",
@@ -12298,7 +12298,7 @@
           "gapText": [
             "sec-edgar: SEC company facts for BNS have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
             "sec-edgar: BNS files as a foreign private issuer (40-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
-            "sec-edgar: No results 6-K for BNS among the newest 6 of 9 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
+            "sec-edgar: No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected",
             "sec-untagged-financials: Untagged 6-K facts were not validated for BNS because the capability is gated; they remain outside canonical financial-core completeness"
           ],
           "gapCauses": ["unsupported-coverage", "provider-data-missing", "suppressed-by-design"],

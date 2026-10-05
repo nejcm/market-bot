@@ -1854,7 +1854,7 @@ describe("SEC 6-K results selection", () => {
     "Second Quarter 2026 Results. Revenue of $582.3 million, up 300% year over year. Net loss of $(120.5) million and adjusted EBITDA of $45.1 million.";
   const STATEMENTS_EXHIBIT =
     "Condensed Consolidated Statements of Operations. Revenue $1,164,600 thousand; operating income $(310.2); net loss $(452.7) million; total assets $9,876,543 thousand.";
-  // Ten 6-Ks newest-first; the results 6-K (day -53) is sixth, inside the six-cover scan cap.
+  // Fourteen 6-Ks newest-first, two more than the twelve-cover scan cap.
   const SIX_K_DATES = [
     "2026-07-17",
     "2026-06-16",
@@ -1866,6 +1866,10 @@ describe("SEC 6-K results selection", () => {
     "2026-05-13",
     "2026-05-01",
     "2026-04-20",
+    "2026-04-15",
+    "2026-04-10",
+    "2026-04-05",
+    "2026-04-01",
   ];
 
   const sixKRows: readonly FpiFilingRow[] = SIX_K_DATES.map((filingDate, index) => ({
@@ -1945,7 +1949,7 @@ describe("SEC 6-K results selection", () => {
     expect(requested.filter((url) => url.endsWith("-index.html"))).toEqual([
       "https://www.sec.gov/Archives/edgar/data/320193/000032019326000106/0000320193-26-000106-index.html",
     ]);
-    expect(requested.filter((url) => /sixk-\d\.htm$/u.test(url))).toHaveLength(6);
+    expect(requested.filter((url) => /sixk-\d+\.htm$/u.test(url))).toHaveLength(6);
     // Four higher-scoring statements exhibits would fill the candidate cap ahead of EX-99.1.
     expect(requested.some((url) => /ex99[2-5]\.htm$/u.test(url))).toBe(false);
     expect(result.gaps.some((entry) => entry.message.startsWith("No results 6-K"))).toBe(false);
@@ -1984,11 +1988,34 @@ describe("SEC 6-K results selection", () => {
     ]);
   });
 
+  test("finds an NBIS-shaped results pair behind six newer routine 6-Ks", async () => {
+    // Live NBIS shape: the statements 6-K has the higher accession, so it is read before the press release.
+    const pairDate = sixKRows.map((row, index) =>
+      index === 7 ? { ...row, filingDate: "2026-05-20" } : row,
+    );
+    const { result, requested } = await runSixKSelection([...pairDate, ...annualRows], {
+      "sixk-6.htm": RESULTS_COVER,
+      "sixk-7.htm": INTERIM_COVER,
+    });
+
+    const coverReads = requested.filter((url) => /sixk-\d+\.htm$/u.test(url));
+    expect(coverReads.map((url) => url.split("/").at(-1)).slice(-2)).toEqual([
+      "sixk-7.htm",
+      "sixk-6.htm",
+    ]);
+    expect(accessions(result.items)).toEqual([
+      "0000320193-26-000101",
+      "0000320193-26-000102",
+      "0000320193-26-000107",
+    ]);
+    expect(result.gaps.some((entry) => entry.message.startsWith("No results 6-K"))).toBe(false);
+  });
+
   test("falls back to recency-only selection when no cover reports results", async () => {
     const { result, requested } = await runSixKSelection([...sixKRows, ...annualRows], {});
 
     expect(accessions(result.items)).toEqual(["0000320193-26-000101", "0000320193-26-000102"]);
-    expect(requested.filter((url) => /sixk-\d\.htm$/u.test(url))).toHaveLength(6);
+    expect(requested.filter((url) => /sixk-\d+\.htm$/u.test(url))).toHaveLength(12);
     expect(requested.some((url) => url.endsWith("-index.html"))).toBe(false);
     expect(result.gaps).toEqual([
       expect.objectContaining({
@@ -1998,7 +2025,7 @@ describe("SEC 6-K results selection", () => {
       }),
       expect.objectContaining({
         message:
-          "No results 6-K for AAPL among the newest 6 of 10 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
+          "No results 6-K for AAPL among the newest 12 of 14 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
         cause: "provider-data-missing",
       }),
     ]);
@@ -2006,13 +2033,13 @@ describe("SEC 6-K results selection", () => {
 
   test("stops scanning at the cover cap", async () => {
     const { result } = await runSixKSelection([...sixKRows, ...annualRows], {
-      "sixk-6.htm": RESULTS_COVER,
+      "sixk-12.htm": RESULTS_COVER,
     });
 
     expect(accessions(result.items)).toEqual(["0000320193-26-000101", "0000320193-26-000102"]);
     expect(result.gaps).toContainEqual(
       expect.objectContaining({
-        message: expect.stringContaining("among the newest 6 of 10 6-K covers"),
+        message: expect.stringContaining("among the newest 12 of 14 6-K covers"),
       }),
     );
   });

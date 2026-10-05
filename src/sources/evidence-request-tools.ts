@@ -62,7 +62,7 @@ export type { EvidenceRequestToolOutput } from "./evidence-request-output";
 export type { SecFilingForm } from "./sec-filing-selection";
 export { hasSubstantiveResultsContent, normalizeFilingText } from "./sec-filing-text";
 
-const SEC_6K_COVER_SCAN_LIMIT = 6;
+const SEC_6K_COVER_SCAN_LIMIT = 12;
 
 export const EVIDENCE_REQUEST_TOOL_UNITS: Record<EvidenceRequestToolName, number> = {
   sec_latest_filing: 5,

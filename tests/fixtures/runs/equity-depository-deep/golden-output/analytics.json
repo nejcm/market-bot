@@ -177,7 +177,7 @@
   },
   "sourceFunnel": {
     "rawSnapshots": {
-      "total": 13,
+      "total": 16,
       "byAdapter": {
         "yahoo-ticker": 1,
         "yahoo-regime": 1,
@@ -186,7 +186,7 @@
         "sec-companyfacts": 1,
         "sec-submissions": 1,
         "yahoo-verified-chart": 1,
-        "sec-filing-text": 6
+        "sec-filing-text": 9
       }
     },
     "reportSources": {

@@ -163,7 +163,7 @@ Deep equity uses the explicit recipe in `src/deep-equity/acquisition-recipe.ts`.
 latest 10-K, a newer 10-Q, and eligible recent 8-K/6-K packets through the shared retry/cache seam.
 Foreign private issuers get the original 20-F/40-F (an amendment only when no original exists) as
 metadata, the two newest 6-Ks in a 120-day window, and a reserved slot for the newest results 6-K.
-6-Ks carry no item codes, so up to six covers are read newest-first for a results signal; a
+6-Ks carry no item codes, so up to twelve covers are read newest-first for a results signal; a
 results press release beats a same-date interim-statements 6-K. Item 2.02 8-Ks and the results 6-K
 read their EX-99 exhibit (EX-99.1 first for 6-Ks); other 6-Ks stay cover-only. A failed scan
 cover and a scan with no results match (exhausted or cap-limited) are declared gaps.

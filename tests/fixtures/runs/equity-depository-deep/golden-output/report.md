@@ -71,7 +71,7 @@ Observed market multiples are trailing P/E 17.60x, forward P/E 13.76x, price/boo
 
 - **Material:** sec-edgar: SEC company facts for BNS have no 10-K/10-Q rows \(foreign-filer forms such as 20-F/40-F\); legacy fundamentals summary unavailable
 - **Material:** sec-edgar: BNS files as a foreign private issuer \(40-F, 6-K\); recent 6-K text is attempted, while annual-report section parsing remains unsupported
-- **Material:** sec-edgar: No results 6-K for BNS among the newest 6 of 9 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected
+- **Material:** sec-edgar: No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected
 - **Material:** Current quarterly financial statements, reconciled trailing-twelve-month results, per-share disclosures, asset-quality metrics, capital ratios, and provisioning data are missing.
 - **Material:** The reported net-income and EPS increases lack a normalized or recurring-earnings reconciliation.
 - **Material:** Business description, geographic and segment mix, customer concentration, pricing-power evidence, and company-specific operating KPIs are missing.

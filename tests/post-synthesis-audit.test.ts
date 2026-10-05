@@ -180,6 +180,25 @@ describe("auditPostSynthesisReport", () => {
     ]);
   });
 
+  test("fiscal-period labels alone are not numeric claims", () => {
+    const warnings = auditPostSynthesisReport(
+      reportWith({
+        risks: [
+          { text: "Model inference: Q2 2026 and 3Q demand stayed qualitative.", sourceIds: [] },
+          { text: "Model inference: Q3 up 12%.", sourceIds: [] },
+          { text: "Model inference: €3Q of backlog.", sourceIds: [] },
+          { text: "Model inference: $ 3Q of backlog.", sourceIds: [] },
+        ],
+      }),
+    );
+
+    expect(warnings.map((warning) => [warning.code, warning.location])).toEqual([
+      ["unsupported-numeric-claim", "risks[1]"],
+      ["unsupported-numeric-claim", "risks[2]"],
+      ["unsupported-numeric-claim", "risks[3]"],
+    ]);
+  });
+
   test("suppresses posture warning when weak claim carries a posture label", () => {
     const warnings = auditPostSynthesisReport(
       reportWith({

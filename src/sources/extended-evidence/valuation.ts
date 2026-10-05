@@ -137,6 +137,7 @@ export function addValuationEvidence(
   const revenuePeriodEnd = readStringMetric(secItem.metrics, "revenuePeriodEnd");
   const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(secItem.metrics, "debtPeriodEnd");
+  const grossPrincipalDebt = readStringMetric(secItem.metrics, "debtBasis") === "gross-principal";
   const quoteObservedAt = snapshot.observedAt;
   const sic = readStringMetric(secItem.metrics, "sic");
   const sicDescription = readStringMetric(secItem.metrics, "sicDescription");
@@ -170,7 +171,7 @@ export function addValuationEvidence(
   const item: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -186,6 +187,7 @@ export function addValuationEvidence(
       ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
       ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
       ...(debtPeriodEnd !== undefined ? { debtPeriodEnd } : {}),
+      ...(grossPrincipalDebt ? { debtBasis: "gross-principal" } : {}),
       ...(sic !== undefined ? { sic } : {}),
       ...(sicDescription !== undefined ? { sicDescription } : {}),
       ...(evToAnnualizedRevenue !== undefined ? { evToAnnualizedRevenue } : {}),

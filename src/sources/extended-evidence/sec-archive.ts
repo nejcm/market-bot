@@ -41,10 +41,15 @@ function isSecArchiveDocumentUrl(url: URL): boolean {
   return url.hostname === "www.sec.gov" && url.pathname.startsWith("/Archives/edgar/data/");
 }
 
+function isExhibit991(document: FilingDocument): boolean {
+  return /^EX-99\.1$/iu.test(document.type);
+}
+
 export function filingDocuments(
   html: string,
   baseUrl: string,
   primaryDocument: string,
+  pressReleaseFirst = false,
 ): readonly FilingDocument[] {
   return [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)]
     .flatMap((rowMatch): readonly FilingDocument[] => {
@@ -85,6 +90,11 @@ export function filingDocuments(
         },
       ];
     })
-    .toSorted((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    .toSorted(
+      (left, right) =>
+        (pressReleaseFirst ? Number(isExhibit991(right)) - Number(isExhibit991(left)) : 0) ||
+        right.score - left.score ||
+        left.name.localeCompare(right.name),
+    )
     .slice(0, MAX_DOCUMENT_CANDIDATES);
 }

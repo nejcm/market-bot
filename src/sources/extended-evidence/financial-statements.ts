@@ -1,6 +1,11 @@
 import { isRecord, readNumber, readString } from "../../guards";
+import type { SourceGap } from "../../domain/types";
 import type { CollectContext } from "../types";
-import { fetchSecCompanyFactsForSymbol, type SecCompanyFactsResult } from "./sec-edgar";
+import {
+  fetchSecCompanyFactsForSymbol,
+  grossPrincipalDebtGap,
+  type SecCompanyFactsResult,
+} from "./sec-edgar";
 import {
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   isRevenueConceptInRecencyBucket,
@@ -22,12 +27,14 @@ import {
 } from "./financial-statement-selection";
 import {
   calendarYearFromPeriodEnd,
+  grossPrincipalDebtFallbackApplies,
   preferDirectStatementBasis,
   sameStatementFiscalPeriod,
   statementFiscalPeriodKey,
 } from "./financial-statement-period-identity";
 import {
   COMPOSITE_STATEMENT_FACT_FORMULA,
+  GROSS_PRINCIPAL_DEBT_CONCEPT,
   SEC_COMPANYFACTS_UNIT_SCALE,
   canonicalizeSecForm,
   isAnnualReportForm,
@@ -863,6 +870,46 @@ function materializeBasis(
   };
 }
 
+// One gross fact appended after the net history; priors never cross basis (financial-lens-canonical).
+function withGrossPrincipalDebt(
+  payload: unknown,
+  selected: SelectedSeries,
+  definition: FinancialStatementSeriesDefinition,
+  reportingCurrency: string,
+  input: FinancialStatementsDeriveInput,
+  eligible: (fact: ParsedFact) => boolean,
+): SelectedSeries {
+  const root = taxonomyRoot(payload, "us-gaap");
+  const net = latestFinancialStatementFact(financialStatementFacts(selected.series));
+  const gross = (
+    root === undefined ? [] : unitFacts("us-gaap", root, GROSS_PRINCIPAL_DEBT_CONCEPT)
+  ).filter((fact) => fact.periodStart === undefined && eligible(fact));
+  const [latestGross] = gross.toSorted(compareFinancialStatementFacts);
+  const [grossAtNet] = gross
+    .filter((fact) => fact.periodEnd === net?.periodEnd)
+    .toSorted(compareFinancialStatementFacts);
+  if (
+    net === undefined ||
+    latestGross === undefined ||
+    !grossPrincipalDebtFallbackApplies(net, latestGross.periodEnd, grossAtNet?.value)
+  ) {
+    return selected;
+  }
+  const fact: FinancialStatementFact = {
+    ...toSelectedFact(latestGross, definition, reportingCurrency, input.sourceId),
+    basis: "gross-principal",
+    calibrationPeriodEnd: net.periodEnd,
+  };
+  const { series } = selected;
+  return {
+    ...selected,
+    series:
+      fact.periodType === "annual"
+        ? { ...series, annual: [...series.annual, fact] }
+        : { ...series, interim: [...series.interim, fact] },
+  };
+}
+
 function selectSeries(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -897,12 +944,16 @@ function selectSeries(
     input.analysisAsOf,
     unit,
   );
-  const selected = preferDirectBasis(
+  const netSelected = preferDirectBasis(
     [...direct.series.annual, ...direct.series.interim],
     [...composite.series.annual, ...composite.series.interim],
   )
     ? direct
     : composite;
+  const selected =
+    definition.key === "debt" && taxonomy === "us-gaap"
+      ? withGrossPrincipalDebt(payload, netSelected, definition, reportingCurrency, input, eligible)
+      : netSelected;
   const notes = incompleteCompositeNotes(definition, taxonomy, selected.series);
   return notes.length === 0
     ? selected
@@ -1242,6 +1293,23 @@ export function deriveFinancialStatements(
       input,
     ),
   };
+}
+
+// Same text and symbol as the legacy target gap, so dedupeSourceGaps collapses the pair.
+export function financialStatementsDebtBasisGaps(
+  artifact: FinancialStatementsArtifact,
+): readonly SourceGap[] {
+  const gross = latestFinancialStatementFact(
+    financialStatementFacts(artifact.statements.balanceSheet.debt),
+  );
+  return gross?.calibrationPeriodEnd === undefined
+    ? []
+    : [
+        {
+          ...grossPrincipalDebtGap(gross.periodEnd, gross.calibrationPeriodEnd),
+          symbol: artifact.symbol,
+        },
+      ];
 }
 
 export interface CollectedFinancialStatements {

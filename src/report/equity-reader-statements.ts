@@ -1,4 +1,5 @@
 import type {
+  DebtBasis,
   FinancialStatementFact,
   FinancialStatementNote,
   FinancialStatementsArtifact,
@@ -21,6 +22,7 @@ interface EquityReaderStatementValue {
   readonly unit: string;
   readonly unitScale: number;
   readonly sourceIds: readonly string[];
+  readonly basis?: DebtBasis;
 }
 
 interface EquityReaderBalanceSheetRow {
@@ -71,6 +73,7 @@ function statementValue(fact: FinancialStatementFact): EquityReaderStatementValu
     unit: fact.unit,
     unitScale: fact.unitScale,
     sourceIds: fact.sourceIds,
+    ...(fact.basis === undefined ? {} : { basis: fact.basis }),
   };
 }
 

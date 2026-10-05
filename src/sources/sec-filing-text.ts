@@ -93,6 +93,20 @@ export function hasSubstantiveResultsContent(normalized: string): boolean {
   );
 }
 
+const SIX_K_RESULTS_RELEASE_PATTERN =
+  /financial results for the (?:first|second|third|fourth) quarter/iu;
+const SIX_K_INTERIM_FINANCIALS_PATTERN =
+  /three(?: and (?:six|nine))? months ended|unaudited condensed consolidated financial statements/iu;
+
+// Lower ranks win: a results press release beats an interim-statements 6-K, whose 1 MB+
+// Statements exhibit belongs to untagged table extraction rather than filing text.
+export function sixKResultsCoverRank(normalizedCover: string): number | undefined {
+  if (SIX_K_RESULTS_RELEASE_PATTERN.test(normalizedCover)) {
+    return 0;
+  }
+  return SIX_K_INTERIM_FINANCIALS_PATTERN.test(normalizedCover) ? 1 : undefined;
+}
+
 export function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
     return value;

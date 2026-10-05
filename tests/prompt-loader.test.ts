@@ -259,6 +259,17 @@ describe("loadStagePrompt — real prompt files", () => {
     );
   });
 
+  test("real web-gather prompt steers single-equity searches to issuer-primary sources", async () => {
+    const result = await loadStagePrompt("web-gather", tickerCommand);
+
+    expect(result.instruction).toContain(
+      "When `evidence.command.jobType` is `equity`, close latest-results gaps from the issuer's newsroom or investor-relations pages and its SEC filing pages before secondary coverage.",
+    );
+    expect(result.instruction).toContain(
+      "When `evidence.command.jobType` is `equity`, do not spend searches on analyst price targets, rating changes, or valuation estimates.",
+    );
+  });
+
   test("real company profile prompt anchors KPIs on the latest filing", async () => {
     const result = await loadStagePrompt("web-subject-profile", dailyEquityCommand);
     expect(result.instruction).toContain(

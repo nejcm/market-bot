@@ -1644,6 +1644,8 @@ describe("run workspace view", () => {
               quoteCurrency: "USD",
               quoteObservedAt: "2026-05-19T00:00:00.000Z",
               revenuePeriodEnd: "2026-03-31",
+              debtPeriodEnd: "2026-03-31",
+              debtBasis: "gross-principal",
               sourceIds: ["sec-msft", "market-msft"],
               usable: true,
             },
@@ -1700,12 +1702,14 @@ describe("run workspace view", () => {
           role: "target",
           multiple: "8.50x",
           currency: "USD",
+          inputDates: expect.stringMatching(/ · debt 2025-12-31$/u),
         },
         {
           symbol: "MSFT",
           role: "core",
           multiple: "10.00x",
           currency: "USD",
+          inputDates: expect.stringMatching(/ · debt 2026-03-31 \(gross principal\)$/u),
         },
       ],
       excludedPeerRows: [

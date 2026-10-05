@@ -44,6 +44,8 @@ export interface CollectUntaggedFinancialExhibitInput {
   readonly secUserAgent?: string;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly financialStatements: FinancialStatementsArtifact;
+  // 6-Ks whose cover matched the filing-text results signal; their names often carry no period.
+  readonly resultsCoverAccessions?: readonly string[];
 }
 
 function submissionPayload(snapshots: readonly RawSourceSnapshot[]): unknown {
@@ -59,6 +61,7 @@ function filingCandidates(
   payload: unknown,
   annualEnd: string | undefined,
   cutoff: string,
+  resultsCoverAccessions: readonly string[],
 ): readonly FilingCandidate[] {
   if (!isRecord(payload) || !isRecord(payload.filings) || !isRecord(payload.filings.recent)) {
     return [];
@@ -89,7 +92,8 @@ function filingCandidates(
       }
       const periodSignal =
         reportDate !== filedAt ||
-        /(?:quarter|q[1-4]|20\d{4}(?:03|06|09|12)\d{2})/iu.test(primaryDocument);
+        resultsCoverAccessions.includes(accessionNumber) ||
+        /(?:quarter|q[1-4]|20\d{2}(?:03|06|09|12)\d{2})/iu.test(primaryDocument);
       return periodSignal ? [{ accessionNumber, filedAt, reportDate, primaryDocument, form }] : [];
     })
     .toSorted(
@@ -157,6 +161,7 @@ export async function collectUntaggedFinancialExhibit(
     submissions,
     latestAnnualEnd(input.financialStatements),
     input.fetchedAt.slice(0, 10),
+    input.resultsCoverAccessions ?? [],
   );
   if (cik === undefined || candidates.length === 0) {
     return {

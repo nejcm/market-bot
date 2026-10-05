@@ -2,10 +2,7 @@ import type { StageLabel } from "../prompt-loader";
 import { buildEvidencePayload } from "./evidence-payload";
 import { assembleStagePrompt, stagePlaybooks, type StageInput } from "./stage-envelope";
 
-// The seven generic-path analysis stages (specialist-analysis, regime-context-analysis,
-// Mover-theme-analysis, instrument-evidence-analysis, market-behavior-analysis, critique,
-// Forecast-disagreement) share one prompt assembly: the findings/dataGaps required shape,
-// Bare-metadata web sources, and any domain playbooks attached to the stage.
+// Prediction targets are withheld: shipped to analysis stages they invited off-DSL candidates.
 export function buildAnalysisStagePrompt(stage: StageLabel, input: StageInput): string {
   const {
     command,
@@ -17,11 +14,17 @@ export function buildAnalysisStagePrompt(stage: StageLabel, input: StageInput): 
     predictionRepromptErrors = [],
     reportValidationErrors = [],
   } = input;
+  const {
+    targetPredictions: _targetPredictions,
+    predictionSubjects: _predictionSubjects,
+    targetKindMix: _targetKindMix,
+    ...depthProfile
+  } = context.depthProfile;
   return assembleStagePrompt({
     stage,
-    instruction: loaded.instruction,
+    instruction: `${loaded.instruction}\n\nDo not emit predictions; final synthesis owns forecasts.`,
     stageGoal: loaded.goal,
-    depthProfile: context.depthProfile,
+    depthProfile,
     evidence: buildEvidencePayload(
       { includePriorCalibration: false, sourceGapView: "all", webSourceText: "metadata" },
       command,

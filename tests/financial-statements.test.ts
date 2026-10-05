@@ -1,6 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
-import { latestFinancialStatementFact } from "../src/sources/extended-evidence/financial-statement-selection";
+import {
+  deriveFinancialStatements,
+  financialStatementsDebtBasisGaps,
+} from "../src/sources/extended-evidence/financial-statements";
+import { grossPrincipalDebtFallbackApplies } from "../src/sources/extended-evidence/financial-statement-period-identity";
+import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
+import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
+import {
+  balanceSheetHistoryFromProjection,
+  financialPositionFromProjection,
+} from "../app/client/run-workspace-financials";
+import { dedupeSourceGaps } from "../src/domain/source-gaps";
+import type { ExtendedEvidenceItem } from "../src/domain/types";
+import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import {
+  financialStatementFacts,
+  latestFinancialStatementFact,
+} from "../src/sources/extended-evidence/financial-statement-selection";
 import {
   canonicalizeSecForm,
   type FinancialStatementSeries,
@@ -13,7 +30,7 @@ import {
   MIXED_PERIOD_METRIC,
 } from "../src/sources/extended-evidence/valuation-comps";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
-import { marketSnapshot } from "./support/fixtures";
+import { marketSnapshot, researchReport } from "./support/fixtures";
 
 interface FactInput {
   readonly value: number;
@@ -2481,5 +2498,430 @@ describe("canonical debt basis selection", () => {
       componentSlotCount: 2,
       periodEnd: "2026-06-30",
     });
+  });
+});
+
+function debtLabel(item: ExtendedEvidenceItem | undefined): string | undefined {
+  return strengthLens(item).metrics.find((metric) => metric.key === "debt")?.label;
+}
+
+function grossFallbackApplies(net: number, gross: number): boolean {
+  return grossPrincipalDebtFallbackApplies(
+    { periodEnd: "2026-03-31", value: net },
+    "2026-06-30",
+    gross,
+  );
+}
+
+describe("gross-principal debt fallback", () => {
+  const asOf = { analysisAsOf: "2026-10-04T00:00:00.000Z" };
+  const q = (value: number, periodEnd: string, fiscalPeriod: string, filedAt: string) =>
+    amdInstant({
+      value,
+      form: fiscalPeriod === "FY" ? "10-K" : "10-Q",
+      fiscalPeriod,
+      filedAt,
+      periodEnd,
+    });
+  const crwvNet = [
+    q(11_051_501_000, "2025-06-30", "Q2", "2025-08-13"),
+    q(21_373_000_000, "2025-12-31", "FY", "2026-03-02"),
+    q(24_859_000_000, "2026-03-31", "Q1", "2026-05-08"),
+  ];
+  const crwvGross = [
+    q(11_171_485_000, "2025-06-30", "Q2", "2025-08-13"),
+    q(21_615_000_000, "2025-12-31", "FY", "2026-03-02"),
+    q(25_149_000_000, "2026-03-31", "Q1", "2026-05-08"),
+    q(35_551_000_000, "2026-06-30", "Q2", "2026-08-12"),
+  ];
+  const facts = (concepts: Readonly<Record<string, readonly Record<string, unknown>[]>>) =>
+    payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        ...Object.fromEntries(
+          Object.entries(concepts).map(([concept, usd]) => [concept, { USD: usd }]),
+        ),
+      },
+    });
+  const selections = (companyFacts: unknown) => {
+    const artifact = derive(companyFacts, asOf);
+    return {
+      artifact,
+      canonical: latestFinancialStatementFact([
+        ...artifact.statements.balanceSheet.debt.annual,
+        ...artifact.statements.balanceSheet.debt.interim,
+      ]),
+      legacy: summarizeSecFundamentals(companyFacts, asOf.analysisAsOf),
+    };
+  };
+
+  test("CRWV-shaped facts select fresher gross principal in both writers", () => {
+    const { artifact, canonical, legacy } = selections(
+      facts({ LongTermDebt: crwvNet, DebtInstrumentCarryingAmount: crwvGross }),
+    );
+
+    expect(canonical).toMatchObject({
+      value: 35_551_000_000,
+      periodEnd: "2026-06-30",
+      concept: "DebtInstrumentCarryingAmount",
+      extractionMethod: "sec-companyfacts",
+      basis: "gross-principal",
+    });
+    expect(artifact.statements.balanceSheet.debt.interim.filter((item) => item.basis)).toHaveLength(
+      1,
+    );
+    expect(legacy?.metrics).toMatchObject({
+      debt: canonical?.value,
+      debtPeriodEnd: canonical?.periodEnd,
+      debtBasis: "gross-principal",
+      debtPrior: 11_171_485_000,
+    });
+    expect(legacy?.debtComposite).toBeUndefined();
+    expect(legacy?.summary).toContain("debt (gross principal) 35551000000");
+    expect(legacy?.gaps.map((gap) => gap.message)).toContain(
+      "SEC debt uses gross principal (DebtInstrumentCarryingAmount) as of 2026-06-30: net carrying debt is not tagged in companyfacts after 2026-03-31, where gross principal was within 5% of it",
+    );
+    const lens = withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics;
+    expect(lens).toMatchObject({ debt: 35_551_000_000, debtBasis: "gross-principal" });
+    expect(lens?.debtPrior).toBeUndefined();
+    expect(debtLabel(withCanonicalFinancialLensInputs(undefined, artifact).items[0])).toBe(
+      "Debt (gross principal)",
+    );
+    expect(
+      debtLabel(
+        withCanonicalFinancialLensInputs(
+          undefined,
+          selections(facts({ LongTermDebt: crwvNet })).artifact,
+        ).items[0],
+      ),
+    ).toBe("Debt");
+  });
+
+  test("HUT-shaped facts calibrate at the stale net period and select 7.735B", () => {
+    const { canonical, legacy } = selections(
+      facts({
+        LongTermDebt: [q(300_585_000, "2024-12-31", "FY", "2025-03-03")],
+        LongTermDebtCurrent: [q(64_965_000, "2024-12-31", "FY", "2025-03-03")],
+        LongTermDebtNoncurrent: [q(235_620_000, "2024-12-31", "FY", "2025-03-03")],
+        DebtInstrumentCarryingAmount: [
+          q(302_311_000, "2024-12-31", "FY", "2025-03-03"),
+          q(408_874_000, "2025-12-31", "FY", "2026-02-25"),
+          q(7_735_104_000, "2026-06-30", "Q2", "2026-08-04"),
+        ],
+      }),
+    );
+
+    expect(canonical).toMatchObject({
+      value: 7_735_104_000,
+      periodEnd: "2026-06-30",
+      basis: "gross-principal",
+    });
+    expect(legacy?.metrics).toMatchObject({
+      debt: 7_735_104_000,
+      debtPeriodEnd: "2026-06-30",
+      debtBasis: "gross-principal",
+    });
+  });
+
+  test.each([
+    [
+      "no shared calibration period",
+      { LongTermDebt: crwvNet, DebtInstrumentCarryingAmount: crwvGross.slice(3) },
+      24_859_000_000,
+    ],
+    [
+      "calibration miss above 5%",
+      {
+        LongTermDebt: crwvNet,
+        DebtInstrumentCarryingAmount: [
+          q(26_200_000_000, "2026-03-31", "Q1", "2026-05-08"),
+          ...crwvGross.slice(3),
+        ],
+      },
+      24_859_000_000,
+    ],
+    [
+      "equal-period net present",
+      {
+        LongTermDebt: [...crwvNet, q(35_068_000_000, "2026-06-30", "Q2", "2026-08-12")],
+        DebtInstrumentCarryingAmount: crwvGross,
+      },
+      35_068_000_000,
+    ],
+    [
+      "gross concept absent (dimensional-only facts are not in companyfacts)",
+      { LongTermDebt: crwvNet },
+      24_859_000_000,
+    ],
+    [
+      "gross filed after the analysis cutoff",
+      {
+        LongTermDebt: crwvNet,
+        DebtInstrumentCarryingAmount: [
+          ...crwvGross.slice(0, 3),
+          q(35_551_000_000, "2026-06-30", "Q2", "2026-10-05"),
+        ],
+      },
+      24_859_000_000,
+    ],
+  ] as const)("keeps net debt when %s", (_label, concepts, expected) => {
+    const { canonical, legacy } = selections(facts(concepts));
+
+    expect(canonical?.value).toBe(expected);
+    expect(canonical?.basis).toBeUndefined();
+    expect(legacy?.metrics.debt).toBe(expected);
+    expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
+    expect(legacy?.metrics.debtBasis).toBeUndefined();
+    expect(legacy?.gaps.some((gap) => gap.message.includes("gross principal"))).toBe(false);
+  });
+
+  test("discloses gross basis on statement, workbench, and console surfaces only for that fact", () => {
+    const fy2026Revenue = fact({
+      value: 5_000_000_000,
+      form: "10-K",
+      fiscalYear: 2026,
+      fiscalPeriod: "FY",
+      filedAt: "2026-08-12",
+      periodStart: "2025-07-01",
+      periodEnd: "2026-06-30",
+    });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [fy2026Revenue] },
+          LongTermDebt: { USD: crwvNet },
+          DebtInstrumentCarryingAmount: { USD: crwvGross },
+        },
+      }),
+      asOf,
+    );
+    const history = balanceSheetHistory(artifact, asOf.analysisAsOf);
+    const position = financialPosition(artifact, asOf.analysisAsOf);
+
+    expect(position?.debt).toMatchObject({ value: 35_551_000_000, basis: "gross-principal" });
+    expect(history?.rows.map((row) => row.debt?.basis)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      "gross-principal",
+    ]);
+    const markdown = renderBalanceSheetAndShareCount(researchReport(), history);
+    expect(markdown.match(/\(gross principal\)/gu)).toHaveLength(1);
+    expect(balanceSheetHistoryFromProjection(history)?.rows.at(-1)?.debt).toContain(
+      "(gross principal)",
+    );
+    expect(balanceSheetHistoryFromProjection(history)?.rows[0]?.debt).not.toContain("gross");
+    expect(
+      financialPositionFromProjection(position)?.metrics.find((metric) => metric.label === "Debt")
+        ?.dateBasis,
+    ).toBe("period 2026-06-30 · filed 2026-08-12 · gross principal");
+    expect(valuationPeriodInputs(artifact).periods.at(-1)?.debt?.label).toBe(
+      "Debt (gross principal)",
+    );
+  });
+
+  test("canonical selection discloses the gross basis and dedupes with the legacy gap", () => {
+    const companyFacts = facts({ LongTermDebt: crwvNet, DebtInstrumentCarryingAmount: crwvGross });
+    const { artifact, legacy } = selections(companyFacts);
+    const canonicalGaps = financialStatementsDebtBasisGaps(artifact);
+    const legacyGap = legacy?.gaps.find((gap) => gap.message.includes("gross principal"));
+
+    expect(canonicalGaps).toHaveLength(1);
+    expect(canonicalGaps[0]).toMatchObject({ symbol: "TEST", evidenceQualityImpact: "no-cap" });
+    expect(dedupeSourceGaps([{ ...legacyGap!, symbol: "TEST" }, ...canonicalGaps])).toHaveLength(1);
+    expect(
+      financialStatementsDebtBasisGaps(selections(facts({ LongTermDebt: crwvNet })).artifact),
+    ).toEqual([]);
+  });
+
+  test.each([
+    ["evicted by the interim period cap", []],
+    ["with an older annual net fact retained", [q(90, "2021-12-31", "FY", "2022-03-01")]],
+  ] as const)("names the calibration net period when it is %s", (_label, olderNet) => {
+    const quarterEnds = ["03-31", "06-30", "09-30", "12-31"];
+    const cash = [2023, 2024, 2025].flatMap((year) =>
+      quarterEnds.map((monthDay, index) =>
+        q(10, `${String(year)}-${monthDay}`, `Q${String(index + 1)}`, `${String(year + 1)}-02-01`),
+      ),
+    );
+    const { artifact, canonical, legacy } = selections(
+      facts({
+        CashAndCashEquivalentsAtCarryingValue: cash,
+        LongTermDebt: [...olderNet, q(100, "2022-06-30", "Q2", "2022-08-10")],
+        DebtInstrumentCarryingAmount: [
+          q(102, "2022-06-30", "Q2", "2022-08-10"),
+          q(200, "2026-06-30", "Q2", "2026-08-12"),
+        ],
+      }),
+    );
+    const canonicalGaps = financialStatementsDebtBasisGaps(artifact);
+    const legacyGap = legacy?.gaps.find((gap) => gap.message.includes("gross principal"));
+
+    expect(canonical).toMatchObject({
+      value: 200,
+      basis: "gross-principal",
+      calibrationPeriodEnd: "2022-06-30",
+    });
+    expect(
+      financialStatementFacts(artifact.statements.balanceSheet.debt).some(
+        (item) => item.periodEnd === "2022-06-30",
+      ),
+    ).toBe(false);
+    expect(canonicalGaps.map((gap) => gap.message)).toEqual([
+      expect.stringContaining("not tagged in companyfacts after 2022-06-30"),
+    ]);
+    expect(dedupeSourceGaps([{ ...legacyGap!, symbol: "TEST" }, ...canonicalGaps])).toHaveLength(1);
+  });
+
+  test.each([
+    ["only a noncurrent-slot prior exists", {}],
+    [
+      "a complete prior composite exists in other concepts",
+      { LongTermDebtCurrent: [q(50_000_000, "2025-06-30", "Q2", "2025-08-06")] },
+    ],
+  ] as const)("CORZ-shaped: keeps the debt YoY gap when %s", (_label, extra) => {
+    const { artifact, legacy } = selections(
+      facts({
+        LongTermDebt: [
+          q(4_000_000_000, "2025-12-31", "FY", "2026-02-27"),
+          q(4_297_967_000, "2026-06-30", "Q2", "2026-07-28"),
+        ],
+        LongTermNotesPayable: [q(1_058_000_000, "2025-06-30", "Q2", "2025-08-06")],
+        ...extra,
+      }),
+    );
+
+    expect(legacy?.metrics).toMatchObject({ debt: 4_297_967_000, debtPeriodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debtPrior).toBeUndefined();
+    expect(legacy?.gaps.map((gap) => gap.message)).toContainEqual(
+      expect.stringMatching(/^Missing comparable SEC company facts for YoY deltas: .*\bdebt$/u),
+    );
+    expect(
+      withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior,
+    ).toBeUndefined();
+  });
+
+  test("takes a same-concept legacy debt prior; canonical instant series carry no prior", () => {
+    const { artifact, legacy } = selections(
+      facts({
+        LongTermDebt: [
+          q(1_000_000_000, "2025-06-30", "Q2", "2025-08-06"),
+          q(4_297_967_000, "2026-06-30", "Q2", "2026-07-28"),
+        ],
+      }),
+    );
+
+    expect(legacy?.metrics.debtPrior).toBe(1_000_000_000);
+    expect(
+      withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior,
+    ).toBeUndefined();
+  });
+
+  test("discloses a canonical-only gross fallback from foreign forms", () => {
+    const foreign = (value: number, periodEnd: string, form: string, filedAt: string) =>
+      fact({ value, form, fiscalPeriod: form === "20-F" ? "FY" : "Q2", filedAt, periodEnd });
+    const { artifact, canonical, legacy } = selections(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: [
+              fact({
+                value: 100,
+                form: "20-F",
+                fiscalPeriod: "FY",
+                filedAt: "2026-03-01",
+                periodStart: "2025-01-01",
+                periodEnd: "2025-12-31",
+              }),
+            ],
+          },
+          LongTermDebt: { USD: [foreign(1000, "2025-12-31", "20-F", "2026-03-01")] },
+          DebtInstrumentCarryingAmount: {
+            USD: [
+              foreign(1020, "2025-12-31", "20-F", "2026-03-01"),
+              foreign(1500, "2026-06-30", "6-K", "2026-08-20"),
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(legacy).toBeUndefined();
+    expect(canonical).toMatchObject({ value: 1500, basis: "gross-principal" });
+    expect(financialStatementsDebtBasisGaps(artifact)).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "as of 2026-06-30: net carrying debt is not tagged in companyfacts after 2025-12-31",
+        ),
+      }),
+    ]);
+  });
+
+  test("calibrates a zero net debt against zero gross principal", () => {
+    const { canonical, legacy } = selections(
+      facts({
+        LongTermDebt: [q(0, "2025-12-31", "FY", "2026-03-02")],
+        DebtInstrumentCarryingAmount: [
+          q(0, "2025-12-31", "FY", "2026-03-02"),
+          q(200, "2026-06-30", "Q2", "2026-08-12"),
+        ],
+      }),
+    );
+
+    expect(canonical).toMatchObject({ value: 200, basis: "gross-principal" });
+    expect(legacy?.metrics).toMatchObject({ debt: 200, debtBasis: "gross-principal" });
+  });
+
+  test("ignores duration-shaped gross rows across latest and calibration candidates", () => {
+    const duration = (value: number, periodEnd: string, periodStart: string) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalPeriod: "Q2",
+        filedAt: "2026-08-12",
+        periodStart,
+        periodEnd,
+      });
+    const competing = selections(
+      facts({
+        LongTermDebt: [q(100, "2025-12-31", "FY", "2026-03-02")],
+        DebtInstrumentCarryingAmount: [
+          q(101, "2025-12-31", "FY", "2026-03-02"),
+          q(200, "2026-06-30", "Q2", "2026-08-12"),
+          duration(999, "2026-06-30", "2026-01-01"),
+        ],
+      }),
+    );
+    const durationOnly = selections(
+      facts({
+        LongTermDebt: [q(100, "2025-12-31", "FY", "2026-03-02")],
+        DebtInstrumentCarryingAmount: [
+          duration(101, "2025-12-31", "2025-07-01"),
+          duration(200, "2026-06-30", "2026-01-01"),
+        ],
+      }),
+    );
+
+    expect(competing.canonical?.value).toBe(200);
+    expect(competing.legacy?.metrics.debt).toBe(200);
+    expect(durationOnly.canonical).toMatchObject({ value: 100 });
+    expect(durationOnly.canonical?.basis).toBeUndefined();
+    expect(durationOnly.legacy?.metrics.debt).toBe(100);
+  });
+
+  test("calibration tolerance is inclusive at ±5% and sign-aware", () => {
+    expect([
+      grossFallbackApplies(100, 105),
+      grossFallbackApplies(100, 95),
+      grossFallbackApplies(-100, -105),
+    ]).toEqual([true, true, true]);
+    expect([
+      grossFallbackApplies(100, 105.01),
+      grossFallbackApplies(100, 94.99),
+      grossFallbackApplies(100, -100),
+    ]).toEqual([false, false, false]);
+    expect(
+      grossPrincipalDebtFallbackApplies({ periodEnd: "2026-06-30", value: 100 }, "2026-06-30", 100),
+    ).toBe(false);
   });
 });

@@ -35,14 +35,19 @@ import {
   byFilingRecency,
   detectForeignPrivateIssuerForms,
   filingUrl,
-  isEarningsRelease,
+  isResultsFiling,
+  recentSixKs,
   selectCurrentQuarterlyFiling,
   selectLatestFilingByForm,
   selectRecentCurrentReports,
-  selectRecentEarningsSixKs,
+  selectRecentSixKs,
   type SecFiling,
 } from "./sec-filing-selection";
-import { hasSubstantiveResultsContent, normalizeFilingText } from "./sec-filing-text";
+import {
+  hasSubstantiveResultsContent,
+  normalizeFilingText,
+  sixKResultsCoverRank,
+} from "./sec-filing-text";
 import {
   buildSecFilingMetadataOnlyItem,
   buildSecFilingSourceItem,
@@ -56,6 +61,8 @@ import { collectTradierIvTermStructure } from "./tradier-iv-term-structure";
 export type { EvidenceRequestToolOutput } from "./evidence-request-output";
 export type { SecFilingForm } from "./sec-filing-selection";
 export { hasSubstantiveResultsContent, normalizeFilingText } from "./sec-filing-text";
+
+const SEC_6K_COVER_SCAN_LIMIT = 12;
 
 export const EVIDENCE_REQUEST_TOOL_UNITS: Record<EvidenceRequestToolName, number> = {
   sec_latest_filing: 5,
@@ -91,11 +98,16 @@ function secTextRequestInit(userAgent: string | undefined): RequestInit | undefi
   return userAgent === undefined ? undefined : { headers: { "user-agent": userAgent } };
 }
 
+interface FilingTextFetch {
+  readonly result: FetchTextResult | SourceGap;
+  readonly url: string;
+}
+
 async function fetchFilingText(
   ctx: CollectContext,
   filing: SecFiling,
   cik: string,
-): Promise<{ result: FetchTextResult | SourceGap; url: string }> {
+): Promise<FilingTextFetch> {
   const url = filingUrl(cik, filing);
   const result = await ctx.request.text({
     url,
@@ -118,7 +130,7 @@ function secEarningsExhibitGap(
 ): SourceGap {
   return sourceGap({
     source: "sec-edgar",
-    message: `SEC Item 2.02 8-K ${filing.accessionNumber} for ${symbol} yielded no substantive earnings-release content (${exhibitState}; ${primaryState})`,
+    message: `SEC ${filing.form === "6-K" ? "results 6-K" : "Item 2.02 8-K"} ${filing.accessionNumber} for ${symbol} yielded no substantive earnings-release content (${exhibitState}; ${primaryState})`,
     provider: "sec-edgar",
     capability: "evidence-request",
     cause: "provider-data-missing",
@@ -151,7 +163,13 @@ async function resolveEarningsReleaseExhibit(
   if (!isFetchTextResult(index)) {
     return { rawSnapshots: [], gaps: [index] };
   }
-  const documents = filingDocuments(index.payload, baseUrl, filing.primaryDocument);
+  // A results 6-K's statements exhibit outranks its EX-99.1 press release and can run past 1 MB.
+  const documents = filingDocuments(
+    index.payload,
+    baseUrl,
+    filing.primaryDocument,
+    filing.form === "6-K",
+  );
   if (documents.length === 0) {
     return { rawSnapshots: [index.rawSnapshot], gaps: [] };
   }
@@ -212,12 +230,75 @@ function earningsReleaseProvenance(
   return { earningsReleaseDocument: document, earningsReleaseExhibit: resolved };
 }
 
+interface SixKCoverScan {
+  readonly covers: ReadonlyMap<string, FilingTextFetch>;
+  readonly matchedAccessions: readonly string[];
+  readonly resultsSixK?: SecFiling;
+}
+
+// 6-Ks carry no item codes, so results are found by reading covers newest-first. Same-date
+// Siblings are still read after a match so the press release can beat the statements filing.
+async function scanSixKCovers(
+  ctx: CollectContext,
+  candidates: readonly SecFiling[],
+  cik: string,
+): Promise<SixKCoverScan> {
+  const covers = new Map<string, FilingTextFetch>();
+  const matchedAccessions: string[] = [];
+  let best: { readonly filing: SecFiling; readonly rank: number } | undefined = undefined;
+  for (const filing of candidates.slice(0, SEC_6K_COVER_SCAN_LIMIT)) {
+    if (best !== undefined && (best.rank === 0 || filing.filingDate !== best.filing.filingDate)) {
+      break;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    const cover = await fetchFilingText(ctx, filing, cik);
+    covers.set(filing.accessionNumber, cover);
+    const rank = isFetchTextResult(cover.result)
+      ? sixKResultsCoverRank(normalizeFilingText(cover.result.payload))
+      : undefined;
+    if (rank !== undefined) {
+      matchedAccessions.push(filing.accessionNumber);
+    }
+    if (rank !== undefined && (best === undefined || rank < best.rank)) {
+      best = { filing, rank };
+    }
+  }
+  return {
+    covers,
+    matchedAccessions,
+    ...(best === undefined ? {} : { resultsSixK: best.filing }),
+  };
+}
+
+function noResultsSixKMessage(symbol: string, scanned: number, candidates: number): string {
+  if (scanned < candidates) {
+    return `No results 6-K for ${symbol} among the newest ${String(scanned)} of ${String(candidates)} 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected`;
+  }
+  if (candidates === 1) {
+    return `No results 6-K for ${symbol} in the only 6-K cover in the 120-day window; 6-K text is recency-selected`;
+  }
+  return `No results 6-K for ${symbol} among the ${String(candidates)} 6-K covers in the 120-day window; 6-K text is recency-selected`;
+}
+
+function noResultsSixKGap(symbol: string, scanned: number, candidates: number): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: noResultsSixKMessage(symbol, scanned, candidates),
+    provider: "sec-edgar",
+    capability: "evidence-request",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "extended-evidence-cap",
+  });
+}
+
 async function collectSecFiling(
   ctx: CollectContext,
   command: InstrumentCommand,
   match: { cik: string; ticker: string; name?: string },
   filing: SecFiling,
+  resultsFiling: boolean,
   submissionsRawSnapshot?: RawSourceSnapshot,
+  prefetchedText?: FilingTextFetch,
 ): Promise<{
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly sources: readonly Source[];
@@ -226,12 +307,12 @@ async function collectSecFiling(
   readonly sanitizationEntries: readonly ModelInputSanitizationAggregateEntry[];
   readonly droppedItemCount: number;
 }> {
-  const { result, url } = await fetchFilingText(ctx, filing, match.cik);
+  const { result, url } = prefetchedText ?? (await fetchFilingText(ctx, filing, match.cik));
   const primary = isFetchTextResult(result) ? result : undefined;
   const primaryFetchGaps: readonly SourceGap[] = isFetchTextResult(result) ? [] : [result];
   // A failed primary fetch does not rule out the exhibit: index and EX-99 are separate documents,
   // And for an Item 2.02 the exhibit is where the results actually are.
-  const exhibit = isEarningsRelease(filing)
+  const exhibit = resultsFiling
     ? await resolveEarningsReleaseExhibit(ctx, filing, match.cik)
     : undefined;
   const exhibitSubstantive =
@@ -452,10 +533,10 @@ export async function collectSecFilingEvidence(
           .filter((filing): filing is SecFiling => filing !== undefined)
           .toSorted(byFilingRecency)[0]
       : undefined;
-  const sixKs =
-    tenK === undefined && tenQ === undefined
-      ? selectRecentEarningsSixKs(submissionsPayload, ctx.fetchedAt)
-      : [];
+  const sixKCandidates =
+    tenK === undefined && tenQ === undefined ? recentSixKs(submissionsPayload, ctx.fetchedAt) : [];
+  const sixKScan = await scanSixKCovers(ctx, sixKCandidates, match.cik);
+  const sixKs = selectRecentSixKs(sixKCandidates, sixKScan.resultsSixK);
 
   if (tenK === undefined && tenQ === undefined && fpiAnnual === undefined && sixKs.length === 0) {
     return emptyOutput(
@@ -495,6 +576,19 @@ export async function collectSecFilingEvidence(
         ]
       : [];
   const rawSnapshots: RawSourceSnapshot[] = [...sharedRawSnapshots];
+  for (const [accessionNumber, cover] of sixKScan.covers) {
+    if (sixKs.some((filing) => filing.accessionNumber === accessionNumber)) {
+      continue;
+    }
+    if (isFetchTextResult(cover.result)) {
+      rawSnapshots.push(cover.result.rawSnapshot);
+    } else {
+      gaps.push({ ...cover.result, message: `${cover.result.message} (6-K results-cover scan)` });
+    }
+  }
+  if (sixKCandidates.length > 0 && sixKScan.resultsSixK === undefined) {
+    gaps.push(noResultsSixKGap(command.symbol, sixKScan.covers.size, sixKCandidates.length));
+  }
   const sanitizationEntries: ModelInputSanitizationAggregateEntry[] = [];
   let droppedItemCount = 0;
 
@@ -524,7 +618,17 @@ export async function collectSecFilingEvidence(
     [tenK, tenQ, ...eightKs, ...sixKs].flatMap((filing) =>
       filing === undefined
         ? []
-        : [collectSecFiling(ctx, command, match, filing, submissionsRawSnapshot)],
+        : [
+            collectSecFiling(
+              ctx,
+              command,
+              match,
+              filing,
+              isResultsFiling(filing, sixKScan.resultsSixK),
+              submissionsRawSnapshot,
+              sixKScan.covers.get(filing.accessionNumber),
+            ),
+          ],
     ),
   );
   for (const result of filingResults) {
@@ -559,5 +663,8 @@ export async function collectSecFilingEvidence(
     items,
     gaps,
     modelInputSanitization: aggregateModelInputSanitization(sanitizationEntries),
+    ...(sixKScan.matchedAccessions.length > 0
+      ? { resultsCoverAccessions: sixKScan.matchedAccessions }
+      : {}),
   };
 }

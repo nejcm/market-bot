@@ -349,6 +349,10 @@ describe("SEC latest filing evidence tool", () => {
         cause: "unsupported-coverage",
         evidenceQualityImpact: "core-cap",
       }),
+      expect.objectContaining({
+        message:
+          "No results 6-K for AAPL in the only 6-K cover in the 120-day window; 6-K text is recency-selected",
+      }),
     ]);
   });
 
@@ -396,6 +400,9 @@ describe("SEC latest filing evidence tool", () => {
         ),
         cause: "unsupported-coverage",
         evidenceQualityImpact: "core-cap",
+      }),
+      expect.objectContaining({
+        message: expect.stringContaining("No results 6-K for AAPL in the only 6-K cover"),
       }),
     ]);
   });
@@ -1795,6 +1802,279 @@ describe("SEC latest filing evidence tool", () => {
         message: "No SEC 10-K filing found for AAPL; only quarterly 10-Q available",
       }),
     ]);
+  });
+});
+
+interface FpiFilingRow {
+  readonly form: string;
+  readonly filingDate: string;
+  readonly accession: string;
+  readonly document: string;
+}
+
+function fpiSubmissions(rows: readonly FpiFilingRow[]): unknown {
+  return {
+    filings: {
+      recent: {
+        form: rows.map((row) => row.form),
+        filingDate: rows.map((row) => row.filingDate),
+        reportDate: rows.map((row) => row.filingDate),
+        accessionNumber: rows.map((row) => row.accession),
+        primaryDocument: rows.map((row) => row.document),
+      },
+    },
+  };
+}
+
+function resultsIndex(accession: string): string {
+  const folder = accession.replaceAll("-", "");
+  return `<table><tr><td>2</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/${folder}/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+    <tr><td>3</td><td>Unaudited Financial Statements</td><td><a href="/Archives/edgar/data/320193/${folder}/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    <tr><td>3</td><td>Financial Statements 3</td><td><a href="/Archives/edgar/data/320193/${folder}/ex993.htm">ex993.htm</a></td><td>EX-99.3</td></tr>
+    <tr><td>4</td><td>Financial Statements 4</td><td><a href="/Archives/edgar/data/320193/${folder}/ex994.htm">ex994.htm</a></td><td>EX-99.4</td></tr>
+    <tr><td>5</td><td>Financial Statements 5</td><td><a href="/Archives/edgar/data/320193/${folder}/ex995.htm">ex995.htm</a></td><td>EX-99.5</td></tr></table>`;
+}
+
+function accessions(items: readonly ExtendedEvidenceItem[]): readonly unknown[] {
+  return items
+    .filter((item) => item.metrics?.form === "6-K")
+    .map((item) => item.metrics?.accessionNumber);
+}
+
+describe("SEC 6-K results selection", () => {
+  const SIX_K_FETCHED_AT = "2026-07-22T00:00:00.000Z";
+  const RESULTS_ACCESSION = "0000320193-26-000106";
+  const ROUTINE_COVER =
+    "Furnished as Exhibit 99.1 to this Report on Form 6-K is a press release of the Company announcing the closing of an acquisition.";
+  const RESULTS_COVER =
+    "Filed as Exhibit 99.1 to this Report on Form 6-K is a press release announcing the Company's unaudited consolidated financial results for the second quarter ended June 30, 2026.";
+  const INTERIM_COVER =
+    "Furnished as Exhibit 99.2 to this Report on Form 6-K are the Unaudited Condensed Consolidated Financial Statements for the Three and Six Months Ended June 30, 2026.";
+  const RESULTS_RELEASE =
+    "Second Quarter 2026 Results. Revenue of $582.3 million, up 300% year over year. Net loss of $(120.5) million and adjusted EBITDA of $45.1 million.";
+  const STATEMENTS_EXHIBIT =
+    "Condensed Consolidated Statements of Operations. Revenue $1,164,600 thousand; operating income $(310.2); net loss $(452.7) million; total assets $9,876,543 thousand.";
+  // Fourteen 6-Ks newest-first, two more than the twelve-cover scan cap.
+  const SIX_K_DATES = [
+    "2026-07-17",
+    "2026-06-16",
+    "2026-06-10",
+    "2026-06-05",
+    "2026-06-01",
+    "2026-05-30",
+    "2026-05-20",
+    "2026-05-13",
+    "2026-05-01",
+    "2026-04-20",
+    "2026-04-15",
+    "2026-04-10",
+    "2026-04-05",
+    "2026-04-01",
+  ];
+
+  const sixKRows: readonly FpiFilingRow[] = SIX_K_DATES.map((filingDate, index) => ({
+    form: "6-K",
+    filingDate,
+    accession: `0000320193-26-${String(101 + index).padStart(6, "0")}`,
+    document: `sixk-${String(index)}.htm`,
+  }));
+  const annualRows: readonly FpiFilingRow[] = [
+    {
+      form: "20-F/A",
+      filingDate: "2026-05-22",
+      accession: "0000320193-26-000090",
+      document: "a20fa.htm",
+    },
+    {
+      form: "20-F",
+      filingDate: "2026-04-30",
+      accession: "0000320193-26-000080",
+      document: "a20f.htm",
+    },
+  ];
+
+  async function runSixKSelection(
+    rows: readonly FpiFilingRow[],
+    covers: Readonly<Record<string, string | SourceGap>>,
+  ) {
+    const requested: string[] = [];
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        fetchedAt: SIX_K_FETCHED_AT,
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, fpiSubmissions(rows)),
+          text: async ({ adapter, url }) => {
+            requested.push(url);
+            if (adapter === "sec-filing-index") {
+              return textResult(adapter, resultsIndex(url.split("/").at(-1)?.slice(0, 20) ?? ""));
+            }
+            if (adapter === "sec-earnings-release-exhibit") {
+              return textResult(
+                adapter,
+                url.endsWith("ex991.htm") ? RESULTS_RELEASE : STATEMENTS_EXHIBIT,
+              );
+            }
+            const cover = covers[url.split("/").at(-1) ?? ""] ?? ROUTINE_COVER;
+            return typeof cover === "string" ? textResult(adapter, cover) : cover;
+          },
+        }),
+      }),
+    );
+    return { result, requested };
+  }
+
+  test("reserves a slot for the results 6-K and reads its EX-99.1 over a statements exhibit", async () => {
+    const { result, requested } = await runSixKSelection([...sixKRows, ...annualRows], {
+      "sixk-5.htm": RESULTS_COVER,
+    });
+
+    expect(accessions(result.items)).toEqual([
+      "0000320193-26-000101",
+      "0000320193-26-000102",
+      RESULTS_ACCESSION,
+    ]);
+    const resultsSource = result.sources.find((source) => source.id.endsWith(RESULTS_ACCESSION));
+    expect(resultsSource?.url).toBe(
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000106/ex991.htm",
+    );
+    expect(resultsSource?.snippet).toContain("Revenue of $582.3 million");
+    expect(
+      result.items.find((item) => item.metrics?.accessionNumber === RESULTS_ACCESSION)?.metrics,
+    ).toMatchObject({ earningsReleaseDocument: "exhibit", earningsReleaseExhibit: "substantive" });
+    // Covers are read once each; only the results 6-K walks its filing index.
+    expect(requested.filter((url) => url.endsWith("-index.html"))).toEqual([
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000106/0000320193-26-000106-index.html",
+    ]);
+    expect(requested.filter((url) => /sixk-\d+\.htm$/u.test(url))).toHaveLength(6);
+    // Four higher-scoring statements exhibits would fill the candidate cap ahead of EX-99.1.
+    expect(requested.some((url) => /ex99[2-5]\.htm$/u.test(url))).toBe(false);
+    expect(result.gaps.some((entry) => entry.message.startsWith("No results 6-K"))).toBe(false);
+  });
+
+  test("keeps non-results 6-Ks cover-only", async () => {
+    const { result } = await runSixKSelection([...sixKRows, ...annualRows], {
+      "sixk-5.htm": RESULTS_COVER,
+    });
+
+    const routine = result.items.find(
+      (item) => item.metrics?.accessionNumber === "0000320193-26-000101",
+    );
+    expect(routine?.metrics?.earningsReleaseDocument).toBeUndefined();
+    expect(result.sources.find((source) => source.id === routine?.sourceIds[0])?.url).toEndWith(
+      "sixk-0.htm",
+    );
+  });
+
+  test("prefers the results press release over a same-date interim-statements 6-K", async () => {
+    // The interim filing carries the higher accession, so it is read first and then replaced.
+    const sameDate = sixKRows.map((row, index) =>
+      index === 4 ? { ...row, filingDate: "2026-05-30" } : row,
+    );
+    const { result, requested } = await runSixKSelection([...sameDate, ...annualRows], {
+      "sixk-4.htm": RESULTS_COVER,
+      "sixk-5.htm": INTERIM_COVER,
+    });
+
+    const coverReads = requested.filter((url) => /sixk-[45]\.htm$/u.test(url));
+    expect(coverReads.map((url) => url.split("/").at(-1))).toEqual(["sixk-5.htm", "sixk-4.htm"]);
+    expect(accessions(result.items)).toEqual([
+      "0000320193-26-000101",
+      "0000320193-26-000102",
+      "0000320193-26-000105",
+    ]);
+  });
+
+  test("finds an NBIS-shaped results pair behind six newer routine 6-Ks", async () => {
+    // Live NBIS shape: the statements 6-K has the higher accession, so it is read before the press release.
+    const pairDate = sixKRows.map((row, index) =>
+      index === 7 ? { ...row, filingDate: "2026-05-20" } : row,
+    );
+    const { result, requested } = await runSixKSelection([...pairDate, ...annualRows], {
+      "sixk-6.htm": RESULTS_COVER,
+      "sixk-7.htm": INTERIM_COVER,
+    });
+
+    const coverReads = requested.filter((url) => /sixk-\d+\.htm$/u.test(url));
+    expect(coverReads.map((url) => url.split("/").at(-1)).slice(-2)).toEqual([
+      "sixk-7.htm",
+      "sixk-6.htm",
+    ]);
+    expect(accessions(result.items)).toEqual([
+      "0000320193-26-000101",
+      "0000320193-26-000102",
+      "0000320193-26-000107",
+    ]);
+    expect(result.gaps.some((entry) => entry.message.startsWith("No results 6-K"))).toBe(false);
+  });
+
+  test("falls back to recency-only selection when no cover reports results", async () => {
+    const { result, requested } = await runSixKSelection([...sixKRows, ...annualRows], {});
+
+    expect(accessions(result.items)).toEqual(["0000320193-26-000101", "0000320193-26-000102"]);
+    expect(requested.filter((url) => /sixk-\d+\.htm$/u.test(url))).toHaveLength(12);
+    expect(requested.some((url) => url.endsWith("-index.html"))).toBe(false);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "recent 6-K text is attempted, while annual-report section parsing remains unsupported",
+        ),
+      }),
+      expect.objectContaining({
+        message:
+          "No results 6-K for AAPL among the newest 12 of 14 6-K covers in the 120-day window; older covers were not read and 6-K text is recency-selected",
+        cause: "provider-data-missing",
+      }),
+    ]);
+  });
+
+  test("stops scanning at the cover cap", async () => {
+    const { result } = await runSixKSelection([...sixKRows, ...annualRows], {
+      "sixk-12.htm": RESULTS_COVER,
+    });
+
+    expect(accessions(result.items)).toEqual(["0000320193-26-000101", "0000320193-26-000102"]);
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("among the newest 12 of 14 6-K covers"),
+      }),
+    );
+  });
+
+  test("declares an exhausted scan when every in-window cover is non-results", async () => {
+    const { result } = await runSixKSelection([...sixKRows.slice(0, 3), ...annualRows], {});
+
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({
+        message:
+          "No results 6-K for AAPL among the 3 6-K covers in the 120-day window; 6-K text is recency-selected",
+      }),
+    );
+  });
+
+  test("gaps a failed scan cover instead of dropping it silently", async () => {
+    const { result } = await runSixKSelection([...sixKRows, ...annualRows], {
+      "sixk-3.htm": gap("sec-filing-text", "timeout"),
+      "sixk-5.htm": RESULTS_COVER,
+    });
+
+    expect(accessions(result.items)).toContain(RESULTS_ACCESSION);
+    expect(result.gaps).toContainEqual(
+      expect.objectContaining({ message: "timeout (6-K results-cover scan)" }),
+    );
+  });
+
+  test("prefers the original 20-F over a later 20-F/A", async () => {
+    const { result } = await runSixKSelection(annualRows, {});
+
+    expect(result.items[0]?.metrics).toMatchObject({
+      form: "20-F",
+      filingDate: "2026-04-30",
+      primaryDocument: "a20f.htm",
+    });
   });
 });
 

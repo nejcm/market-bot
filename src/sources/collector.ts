@@ -600,6 +600,7 @@ export async function collectSources(
       ...enrichmentResult.financialLensResult.sourceGaps,
       ...enrichmentResult.businessFrameworkResult.sourceGaps,
       ...enrichmentResult.packetFailureGaps,
+      ...enrichmentResult.financialStatementGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

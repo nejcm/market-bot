@@ -151,7 +151,7 @@ export function renderBalanceSheetAndShareCount(
     [
       row.period,
       formatTrendAmount(row.cash?.value),
-      formatTrendAmount(row.debt?.value),
+      `${formatTrendAmount(row.debt?.value)}${row.debt?.basis === "gross-principal" ? " (gross principal)" : ""}`,
       formatTrendAmount(row.dilutedShares?.value),
     ].join(" | "),
   );

@@ -53,7 +53,10 @@ export interface StagePromptParts {
   readonly stage: StageLabel;
   readonly instruction: string;
   readonly stageGoal: string;
-  readonly depthProfile: DepthProfile;
+  readonly depthProfile: Omit<
+    DepthProfile,
+    "targetPredictions" | "predictionSubjects" | "targetKindMix"
+  >;
   readonly evidence: Record<string, unknown>;
   readonly playbooks?: readonly LoadedPlaybook[] | undefined;
   readonly priorStages: readonly unknown[];

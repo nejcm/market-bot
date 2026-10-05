@@ -6,6 +6,8 @@ import type { AppConfig } from "../src/config";
 import type { ModelProvider } from "../src/model/types";
 import { runAnalysisPhase } from "../src/research/analysis-phase";
 import { runEvidenceRequestLoop } from "../src/research/evidence-request-loop";
+import { runFinancialTableExtractionPhase } from "../src/research/financial-table-extraction-phase";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import type { StageOutput } from "../src/research/final-synthesis";
 import type { HistoricalResearchContext } from "../src/research/historical-context";
 import { runMarketUpdatePhase } from "../src/research/market-update-phase";
@@ -125,7 +127,179 @@ const historicalContext: HistoricalResearchContext = {
   },
 };
 
+const NBIS_PAIR_FS = "0001104659-26-094844";
+const NBIS_PAIR_SUBMISSIONS = {
+  cik: "0001513845",
+  filings: {
+    recent: {
+      form: ["6-K", "6-K", "6-K", "6-K", "6-K", "20-F"],
+      filingDate: [
+        "2026-08-18",
+        "2026-08-15",
+        "2026-08-12",
+        "2026-08-12",
+        "2026-05-20",
+        "2026-04-30",
+      ],
+      reportDate: [
+        "2026-08-18",
+        "2026-08-15",
+        "2026-08-12",
+        "2026-08-12",
+        "2026-03-31",
+        "2025-12-31",
+      ],
+      accessionNumber: [
+        "0001104659-26-096002",
+        "0001104659-26-095001",
+        NBIS_PAIR_FS,
+        "0001104659-26-094568",
+        "0001104659-26-064092",
+        "0001104659-26-052948",
+      ],
+      primaryDocument: [
+        "tm2623002d1_6k.htm",
+        "tm2623001d1_6k.htm",
+        "nbis-20260812x6k.htm",
+        "tm2622968d1_6k.htm",
+        "nbis-20260331x6k.htm",
+        "nbis-20251231x20f.htm",
+      ],
+    },
+  },
+};
+
+function nbisPairFetch(input: string | URL | Request): Promise<Response> {
+  const url = String(input);
+  if (url.includes("company_tickers")) {
+    return Promise.resolve(
+      Response.json({ "0": { cik_str: 1_513_845, ticker: "NBIS", title: "Nebius Group N.V." } }),
+    );
+  }
+  if (url.includes("submissions")) {
+    return Promise.resolve(Response.json(NBIS_PAIR_SUBMISSIONS));
+  }
+  if (url.endsWith("nbis-20260812x6k.htm")) {
+    return Promise.resolve(
+      new Response(
+        "Furnished as Exhibit 99.2 are the Unaudited Condensed Consolidated Financial Statements for the Three and Six Months Ended June 30, 2026.",
+      ),
+    );
+  }
+  if (url.endsWith("tm2622968d1_6k.htm")) {
+    return Promise.resolve(
+      new Response(
+        "Filed as Exhibit 99.1 is a press release announcing unaudited consolidated financial results for the second quarter ended June 30, 2026.",
+      ),
+    );
+  }
+  if (url.includes("tm262300")) {
+    return Promise.resolve(
+      new Response("Furnished as Exhibit 99.1 is a press release announcing a new data center."),
+    );
+  }
+  return Promise.resolve(new Response("not found", { status: 404 }));
+}
+
+function nbisStatements() {
+  return deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: {
+            units: {
+              USD: [
+                {
+                  val: 200_000_000,
+                  form: "20-F",
+                  accn: "annual",
+                  filed: "2026-04-30",
+                  start: "2025-01-01",
+                  end: "2025-12-31",
+                  fy: 2025,
+                  fp: "FY",
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    {
+      symbol: "NBIS",
+      generatedAt: "2026-08-20T00:00:00.000Z",
+      analysisAsOf: "2026-08-20T00:00:00.000Z",
+      sourceId: "sec-facts",
+      submissionsPayload: NBIS_PAIR_SUBMISSIONS,
+      submissionsSourceId: "sec-submissions",
+    },
+  );
+}
+
 describe("research phase seams", () => {
+  test("hands every results-cover 6-K from filing evidence to untagged discovery", async () => {
+    const evidence = await runEvidenceRequestLoop({
+      command: { jobType: "equity", assetClass: "equity", symbol: "NBIS", depth: "deep" },
+      config: configFor(await tempDataDir()),
+      collectedSources: collectedSources({ marketSnapshots: [marketSnapshot({ symbol: "NBIS" })] }),
+      context,
+      now: new Date("2026-08-20T00:00:00.000Z"),
+      fetchImpl: nbisPairFetch,
+      retryDelaysMs: [],
+      generateRound: async () => ({
+        stage: "evidence-request",
+        content: JSON.stringify({ requests: [] }),
+        tokenEstimate: 10,
+      }),
+    });
+    const indexUrls: string[] = [];
+
+    await runFinancialTableExtractionPhase({
+      symbol: "NBIS",
+      generatedAt: "2026-08-20T00:00:00.000Z",
+      collectedSources: {
+        ...evidence.collectedSources,
+        rawSnapshots: [
+          ...evidence.collectedSources.rawSnapshots,
+          {
+            id: "sec-submissions",
+            adapter: "sec-submissions",
+            fetchedAt: "2026-08-20T00:00:00.000Z",
+            payload: NBIS_PAIR_SUBMISSIONS,
+          },
+        ],
+        financialStatements: nbisStatements(),
+      },
+      executionPolicy: { enabled: true },
+      collect: {
+        request: {
+          json: async () => {
+            throw new Error("unexpected JSON request");
+          },
+          text: async (request) => {
+            indexUrls.push(request.url.split("/").at(-1) ?? "");
+            return { source: "sec-filing-index", message: "fixture miss" };
+          },
+        },
+      },
+      generateMapping: async () => {
+        throw new Error("unexpected mapping");
+      },
+    });
+
+    // The report keeps only the press release; the statements sibling still reaches discovery.
+    expect(
+      evidence.collectedSources.extendedEvidence?.items.map(
+        (item) => item.metrics?.accessionNumber,
+      ),
+    ).not.toContain(NBIS_PAIR_FS);
+    expect(indexUrls).toEqual([
+      `${NBIS_PAIR_FS}-index.html`,
+      "0001104659-26-094568-index.html",
+      "0001104659-26-064092-index.html",
+    ]);
+  });
+
   test("evidence request phase retrieves required SEC evidence without a model round", async () => {
     let generated = 0;
 

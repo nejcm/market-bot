@@ -114,6 +114,7 @@ function priorComparable(
     financialStatementFacts(series).filter(
       (fact) =>
         fact.periodEnd < selected.periodEnd &&
+        fact.basis === selected.basis &&
         financialStatementPeriodMonths(fact) === months &&
         financialStatementPeriodsYearAligned(fact, selected) &&
         fact.currency === selected.currency &&
@@ -134,6 +135,9 @@ function addFactMetrics(
   }
   metrics[key] = fact.value;
   metrics[`${key}PeriodEnd`] = fact.periodEnd;
+  if (fact.basis !== undefined) {
+    metrics[`${key}Basis`] = fact.basis;
+  }
   const months = financialStatementPeriodMonths(fact);
   if (months !== undefined) {
     metrics[`${key}PeriodMonths`] = months;

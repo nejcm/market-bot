@@ -40,9 +40,9 @@ export {
 } from "./observable-candidates";
 
 export {
-  BROAD_US_INDEX_BENCHMARKS,
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_CLASS,
+  describeRedundancySlot,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "./observable-redundancy";

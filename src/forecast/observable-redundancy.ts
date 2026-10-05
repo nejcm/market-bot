@@ -26,9 +26,7 @@ export const BROAD_US_INDEX_BENCHMARK_SYMBOLS = [
   "IWB",
   "SCHB",
 ] as const;
-export const BROAD_US_INDEX_BENCHMARKS: ReadonlySet<string> = new Set(
-  BROAD_US_INDEX_BENCHMARK_SYMBOLS,
-);
+const BROAD_US_INDEX_BENCHMARKS: ReadonlySet<string> = new Set(BROAD_US_INDEX_BENCHMARK_SYMBOLS);
 export const BROAD_US_INDEX_CLASS = "broad-us-index";
 
 function relativeBenchmarkKey(forecast: ObservableForecast): string | undefined {
@@ -39,7 +37,9 @@ function relativeBenchmarkKey(forecast: ObservableForecast): string | undefined 
   return BROAD_US_INDEX_BENCHMARKS.has(benchmark) ? BROAD_US_INDEX_CLASS : benchmark;
 }
 
-function redundancyKey(forecast: ObservableForecast): string {
+function redundancySlot(
+  forecast: ObservableForecast,
+): readonly [kind: string, subject: string, horizon: string, benchmark?: string] {
   const benchmark = relativeBenchmarkKey(forecast);
   if (benchmark !== undefined && forecast.expression.kind === "relative") {
     return [
@@ -47,11 +47,26 @@ function redundancyKey(forecast: ObservableForecast): string {
       forecast.expression.subjectA,
       String(forecast.horizonTradingDays),
       benchmark,
-    ].join("|");
+    ];
   }
-  return [forecast.prediction.kind, forecast.subject, String(forecast.horizonTradingDays)].join(
-    "|",
-  );
+  return [forecast.prediction.kind, forecast.subject, String(forecast.horizonTradingDays)];
+}
+
+function redundancyKey(forecast: ObservableForecast): string {
+  return redundancySlot(forecast).join("|");
+}
+
+// Prompt label for the slot an accepted forecast occupies; conditionals occupy none.
+export function describeRedundancySlot(forecast: ObservableForecast): string | undefined {
+  if (forecast.prediction.kind === "conditional") {
+    return undefined;
+  }
+  const [kind, subject, horizon, benchmark] = redundancySlot(forecast);
+  const label = `${kind} ${subject} @${horizon}d`;
+  if (kind === "direction") {
+    return `${label} (±${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS - 1)}d)`;
+  }
+  return benchmark === undefined ? label : `${label} (${benchmark})`;
 }
 
 // The observable grammar renders every `direction` forecast as one up event.

@@ -15,6 +15,7 @@ import type {
 import type { RawSourceSnapshot } from "../types";
 import type { ResearchSubjectRegistryEntry } from "../../research/subject-registry";
 import type { fetchSecCompanyFactsForSymbol } from "./sec-edgar";
+import type { DebtBasis } from "./financial-statements-contract";
 
 export const MIN_USABLE_PEERS = 3;
 export const MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS = 92;
@@ -56,6 +57,7 @@ export interface ValuationCompsRow {
   readonly debt?: number;
   readonly cashPeriodEnd?: string;
   readonly debtPeriodEnd?: string;
+  readonly debtBasis?: DebtBasis;
   readonly netDebt?: number | typeof MIXED_PERIOD_METRIC;
   readonly enterpriseValue?: number | typeof MIXED_PERIOD_METRIC;
   readonly latestPeriodRevenue?: number;

@@ -41,3 +41,19 @@ export function preferDirectStatementBasis(
   }
   return directPeriodEnd !== undefined && directPeriodEnd >= compositePeriodEnd;
 }
+
+const GROSS_DEBT_CALIBRATION_TOLERANCE = 0.05;
+
+// Gross principal stands in for net debt only when fresher and within tolerance of net at net's own period end.
+export function grossPrincipalDebtFallbackApplies(
+  net: { readonly periodEnd: string; readonly value: number },
+  latestGrossPeriodEnd: string,
+  grossAtNetPeriodEnd: number | undefined,
+): boolean {
+  return (
+    latestGrossPeriodEnd > net.periodEnd &&
+    grossAtNetPeriodEnd !== undefined &&
+    Math.abs(grossAtNetPeriodEnd - net.value) <=
+      GROSS_DEBT_CALIBRATION_TOLERANCE * Math.abs(net.value)
+  );
+}

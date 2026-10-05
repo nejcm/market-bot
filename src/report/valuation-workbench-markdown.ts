@@ -93,7 +93,11 @@ function peerRow(row: ValuationCompsRow, targetSymbol: string): string {
     ...(priceDate === undefined ? [] : [priceDate]),
     ...(row.revenuePeriodEnd === undefined ? [] : [`revenue ${row.revenuePeriodEnd}`]),
     ...(row.cashPeriodEnd === undefined ? [] : [`cash ${row.cashPeriodEnd}`]),
-    ...(row.debtPeriodEnd === undefined ? [] : [`debt ${row.debtPeriodEnd}`]),
+    ...(row.debtPeriodEnd === undefined
+      ? []
+      : [
+          `debt ${row.debtPeriodEnd}${row.debtBasis === "gross-principal" ? " (gross principal)" : ""}`,
+        ]),
   ].join("; ");
   return [
     row.symbol,

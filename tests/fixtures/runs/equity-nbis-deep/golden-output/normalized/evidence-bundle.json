@@ -556,14 +556,14 @@
       {
         "id": "extended-sec-edgar-nbis-20f",
         "title": "NBIS SEC 20-F",
-        "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926065681/nbis-20251231x20fa.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926052948/nbis-20251231x20f.htm",
         "fetchedAt": "2026-07-22T16:16:13.510Z",
         "kind": "extended-evidence",
         "assetClass": "equity",
         "symbol": "NBIS",
         "provider": "sec-edgar",
         "rawRef": "raw-sec-submissions-2026-07-22T16:16:13.510Z",
-        "summary": "20-F filed 2026-05-22 for period 2025-12-31 (filing text unavailable).",
+        "summary": "20-F filed 2026-04-30 for period 2025-12-31 (filing text unavailable).",
         "identity": {
           "displayName": "Nebius Group N.V.",
           "providerIds": [
@@ -624,6 +624,36 @@
         "rawRef": "raw-sec-filing-text-2026-07-22T16:16:13.510Z",
         "summary": "6-K filed 2026-06-16 for event date 2026-06-16 (material current report).",
         "snippet": "6-K 1 tm2618059d1_6k.htm FORM 6-K UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 6-K Report of Foreign Private Issuer Pursuant to Rule 13a-16 or 15d-16 of the Securities Exchange Act of 1934 June 16, 2026 NEBIUS GROUP N.V. Schiphol Boulevard 165 1118 BG, Schiphol, the Netherlands. Tel: +31 202 066 970 (Address, Including ZIP Code, and Telephone Number, Including Area Code, of Registrant’s Principal Executive Offices) Indicate by check mark whether the registrant files or will file annual reports under cover of Form 20-F or Form 40-F. Form 20-F x Form 40-F ¨ Furnished as Exhibit 99.1 to this Report on Form 6-K is a press release of Nebius Group N.V. (the “ Company ”) dated June 16, 2026, announcing the closing of the acquisition of MagicByte, Inc. (d/b/a Eigen AI Labs) by the Company. INCORPORATION BY REFERENCE Exhibit 99.1 to this Report on Form 6-K is hereby incorporated by reference into the Company’s Registration Statements on Form F-3ASR (File No. 333-286932) and Form S-8 (File No. 333-286934), including any prospectuses forming a part of such Registration Statements, to the extent not superseded by documents or reports subsequently filed or furnished. INDEX TO EXHIBITS Exhibit No. Description 99.1 Press release of Nebius Group N.V. dated June 16, 2026, announcing the closing of the acquisition of MagicByte, Inc. (d/b/a Eigen AI Labs) by the Company. SIGNATURES Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned, thereunto duly authorized. NEBIUS GROUP N.V. Date: June 16, 2026 By: /s/ NATHALIE VAN WIGGEN Nathalie van Wiggen Company Secretary",
+        "identity": {
+          "displayName": "Nebius Group N.V.",
+          "providerIds": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "cik",
+              "value": "0001513845"
+            }
+          ],
+          "aliases": [
+            {
+              "provider": "sec-edgar",
+              "idKind": "ticker",
+              "value": "NBIS"
+            }
+          ]
+        }
+      },
+      {
+        "id": "extended-sec-edgar-nbis-6k-0001104659-26-064092",
+        "title": "NBIS SEC 6-K",
+        "url": "https://www.sec.gov/Archives/edgar/data/1513845/000110465926064092/nbis-20260331xex99d1.htm",
+        "fetchedAt": "2026-07-22T16:16:13.510Z",
+        "kind": "extended-evidence",
+        "assetClass": "equity",
+        "symbol": "NBIS",
+        "provider": "sec-edgar",
+        "rawRef": "raw-sec-earnings-release-exhibit-2026-07-22T16:16:13.510Z",
+        "summary": "6-K filed 2026-05-20 for event date 2026-03-31 (material current report).",
+        "snippet": "EX-99.1 2 nbis-20260331xex99d1.htm EX-99.1 Exhibit 99.1 Operating and Financial Review and Prospects First Quarter Ended March 31, 2025 and 2026 You should read the following discussion and analysis of our financial condition and results of operations for the three months ended March 31, 2025 and 2026 in conjunction with our unaudited condensed consolidated financial statements and related notes appearing elsewhere in this Report on Form 6-K, as well as our audited consolidated financial statements and the “Operating and Financial Review and Prospects” section of our 2025 Annual Report on Form 20-F, filed with the Securities and Exchange Commission on April 30, 2026. In addition to historical information, this discussion contains forward-looking statements based on our current expectations that involve risks, uncertainties and assumptions. Our actual results may differ materially from those anticipated in these forward-looking statements as a result of various factors, including those set forth in the “Risk Factors” and “Forward-Looking Statements” sections of our 2025 Annual Report. The historical results described below relate to the results of our continuing operations. Overview Nebius, a global AI cloud platform, delivers a unified full-stack AI cloud that spans the complete AI journey – from compute capacity to software and services – that enables fast and efficient training and inference at scale. Founded around deep in-house technological expertise, Nebius offers a comprehensive and integrated suite of AI and ML cloud solutions, including both hardware and software built in-house. This combination of AI-optimized hardware and software enables us to deliver high-performance GPU compute clusters, storage, managed services, and advanced tools for AI model training and inference at enterprise-scale. Headquartered in Amsterdam and listed on Nasdaq, Nebius Group N.V., the parent company (the “Company”), together with its consolidated subsidiaries (collectively “Nebius Group” or the “Group”), offers one of the few global, at scale, multi-tenant clouds purpose-built for AI, with a significant presence in Europe, the U.S., and other geographies around the world. Nebius Group includes Nebius as well as two distinct businesses that operate under separate brands: Avride, a leading developer of autonomous vehicles and delivery robots; and TripleTen, a leading edtech platform focused on reskilling people for careers in tech. Nebius Group also owns significant equity stakes in ClickHouse and Toloka, both of which were previously spun out of the Group. A detailed description of our business and key trends impacting our results of operations is contained in the “Operating and Financial Review and Prospects” section of our 2025 Annual Report. Operating Segments Our primary business, Nebius, delivers a unified full-stack AI cloud platform that spans the complete AI journey – from compute capacity to software and services that enable fast and efficient AI...",
         "identity": {
           "displayName": "Nebius Group N.V.",
           "providerIds": [
@@ -902,15 +932,15 @@
         {
           "category": "sec-edgar",
           "title": "NBIS SEC 20-F",
-          "summary": "20-F filed 2026-05-22 for period 2025-12-31 (filing text unavailable).",
+          "summary": "20-F filed 2026-04-30 for period 2025-12-31 (filing text unavailable).",
           "sourceIds": ["extended-sec-edgar-nbis-20f"],
           "observedAt": "2026-07-22T16:16:13.510Z",
           "metrics": {
             "form": "20-F",
-            "filingDate": "2026-05-22",
+            "filingDate": "2026-04-30",
             "reportDate": "2025-12-31",
-            "accessionNumber": "0001104659-26-065681",
-            "primaryDocument": "nbis-20251231x20fa.htm",
+            "accessionNumber": "0001104659-26-052948",
+            "primaryDocument": "nbis-20251231x20f.htm",
             "cik": "0001513845"
           },
           "identity": {
@@ -975,6 +1005,40 @@
             "reportDate": "2026-06-16",
             "accessionNumber": "0001104659-26-074352",
             "primaryDocument": "tm2618059d1_6k.htm",
+            "cik": "0001513845"
+          },
+          "identity": {
+            "displayName": "Nebius Group N.V.",
+            "providerIds": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "cik",
+                "value": "0001513845"
+              }
+            ],
+            "aliases": [
+              {
+                "provider": "sec-edgar",
+                "idKind": "ticker",
+                "value": "NBIS"
+              }
+            ]
+          }
+        },
+        {
+          "category": "sec-edgar",
+          "title": "NBIS SEC 6-K",
+          "summary": "6-K filed 2026-05-20 for event date 2026-03-31 (material current report). Filing excerpt: EX-99.1 2 nbis-20260331xex99d1.htm EX-99.1 Exhibit 99.1 Operating and Financial Review and Prospects First Quarter Ended March 31, 2025 and 2026 You should read the following discussion and analysis of our financial condition and results of operations for the three months ended March 31, 2025 and 2026 in conjunction with our unaudited condensed consolidated financial statements and related notes appearing elsewhere in this Report on Form 6-K, as well as our audited consolidated financial statements and the “Operating and Financial Review and Prospects” section of our 2025 Annual Report on Form 20-F, filed with the Securities and Exchange Commission on April 30, 2026. In addition to historical information, this discussion contains forward-looking statements based on our current expectations that involve risks, uncertainties and assumptions. Our actual results may differ materially from those anticipated in these forward-looking statements as a result of various factors, including those set forth in the “Risk Factors” and “Forward-Looking Statements” sections of our 2025 Annual Report. The historical results described below relate to the results of our continuing operations. Overview...",
+          "sourceIds": ["extended-sec-edgar-nbis-6k-0001104659-26-064092"],
+          "observedAt": "2026-07-22T16:16:13.510Z",
+          "metrics": {
+            "form": "6-K",
+            "filingDate": "2026-05-20",
+            "reportDate": "2026-03-31",
+            "accessionNumber": "0001104659-26-064092",
+            "primaryDocument": "nbis-20260331x6k.htm",
+            "earningsReleaseDocument": "exhibit",
+            "earningsReleaseExhibit": "substantive",
             "cik": "0001513845"
           },
           "identity": {
@@ -9449,7 +9513,8 @@
             "extended-sec-edgar-nbis-fundamentals",
             "extended-sec-edgar-nbis-20f",
             "extended-sec-edgar-nbis-6k-0001104659-26-084452",
-            "extended-sec-edgar-nbis-6k-0001104659-26-074352"
+            "extended-sec-edgar-nbis-6k-0001104659-26-074352",
+            "extended-sec-edgar-nbis-6k-0001104659-26-064092"
           ],
           "gapIds": [
             "regulatory-filings:gap:1",
@@ -9540,7 +9605,7 @@
         "gapLaneCount": 6,
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 2,
-        "sourceCount": 22,
+        "sourceCount": 23,
         "gapCount": 13,
         "coverageRatio": 0.45454545454545453
       }
@@ -9745,6 +9810,19 @@
           ]
         },
         {
+          "id": "extended-sec-edgar-nbis-6k-0001104659-26-064092",
+          "kind": "extended-evidence",
+          "provider": "sec-edgar",
+          "fetchedAt": "2026-07-22T16:16:13.510Z",
+          "lane": "regulatory-filings",
+          "posture": "covered",
+          "relatedGapIds": [
+            "regulatory-filings:gap:1",
+            "regulatory-filings:gap:2",
+            "regulatory-filings:gap:3"
+          ]
+        },
+        {
           "id": "market-yahoo-equity-nbis",
           "kind": "market-data",
           "provider": "yahoo",
@@ -9855,8 +9933,8 @@
           "profile": "short-metadata",
           "fieldRole": "title",
           "droppedItemCount": 0,
-          "inputChars": 51,
-          "outputChars": 51,
+          "inputChars": 68,
+          "outputChars": 68,
           "removedInstructionSpanCount": 0,
           "removedMarkupChromeCount": 0,
           "truncatedFieldCount": 0,
@@ -9869,8 +9947,8 @@
           "profile": "sec-filing",
           "fieldRole": "prose",
           "droppedItemCount": 0,
-          "inputChars": 4709,
-          "outputChars": 4709,
+          "inputChars": 7712,
+          "outputChars": 7708,
           "removedInstructionSpanCount": 0,
           "removedMarkupChromeCount": 0,
           "truncatedFieldCount": 0,

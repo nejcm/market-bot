@@ -1126,6 +1126,14 @@
           "capability": "evidence-request",
           "cause": "unsupported-coverage",
           "evidenceQualityImpact": "extended-evidence-cap"
+        },
+        {
+          "source": "sec-edgar",
+          "message": "No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected",
+          "provider": "sec-edgar",
+          "capability": "evidence-request",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "extended-evidence-cap"
         }
       ]
     }
@@ -12061,6 +12069,15 @@
         "triage": "material"
       },
       {
+        "source": "sec-edgar",
+        "message": "No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected",
+        "provider": "sec-edgar",
+        "capability": "evidence-request",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "extended-evidence-cap",
+        "triage": "material"
+      },
+      {
         "source": "sec-untagged-financials",
         "message": "Untagged 6-K facts were not validated for BNS because the capability is gated; they remain outside canonical financial-core completeness",
         "symbol": "BNS",
@@ -12275,14 +12292,16 @@
           "gapIds": [
             "regulatory-filings:gap:1",
             "regulatory-filings:gap:2",
-            "regulatory-filings:gap:3"
+            "regulatory-filings:gap:3",
+            "regulatory-filings:gap:4"
           ],
           "gapText": [
             "sec-edgar: SEC company facts for BNS have no 10-K/10-Q rows (foreign-filer forms such as 20-F/40-F); legacy fundamentals summary unavailable",
             "sec-edgar: BNS files as a foreign private issuer (40-F, 6-K); recent 6-K text is attempted, while annual-report section parsing remains unsupported",
+            "sec-edgar: No results 6-K for BNS among the 9 6-K covers in the 120-day window; 6-K text is recency-selected",
             "sec-untagged-financials: Untagged 6-K facts were not validated for BNS because the capability is gated; they remain outside canonical financial-core completeness"
           ],
-          "gapCauses": ["unsupported-coverage", "suppressed-by-design"],
+          "gapCauses": ["unsupported-coverage", "provider-data-missing", "suppressed-by-design"],
           "freshnessNotes": ["latest evidence timestamp 2026-08-15T05:02:29.864Z"]
         },
         {
@@ -12358,7 +12377,7 @@
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 3,
         "sourceCount": 20,
-        "gapCount": 12,
+        "gapCount": 13,
         "coverageRatio": 0.36363636363636365
       }
     },
@@ -12519,7 +12538,8 @@
           "relatedGapIds": [
             "regulatory-filings:gap:1",
             "regulatory-filings:gap:2",
-            "regulatory-filings:gap:3"
+            "regulatory-filings:gap:3",
+            "regulatory-filings:gap:4"
           ]
         },
         {
@@ -12532,7 +12552,8 @@
           "relatedGapIds": [
             "regulatory-filings:gap:1",
             "regulatory-filings:gap:2",
-            "regulatory-filings:gap:3"
+            "regulatory-filings:gap:3",
+            "regulatory-filings:gap:4"
           ]
         },
         {
@@ -12545,7 +12566,8 @@
           "relatedGapIds": [
             "regulatory-filings:gap:1",
             "regulatory-filings:gap:2",
-            "regulatory-filings:gap:3"
+            "regulatory-filings:gap:3",
+            "regulatory-filings:gap:4"
           ]
         },
         {
@@ -12558,7 +12580,8 @@
           "relatedGapIds": [
             "regulatory-filings:gap:1",
             "regulatory-filings:gap:2",
-            "regulatory-filings:gap:3"
+            "regulatory-filings:gap:3",
+            "regulatory-filings:gap:4"
           ]
         }
       ]

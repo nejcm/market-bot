@@ -14,6 +14,7 @@ import {
   isYearAligned,
 } from "./financial-statement-selection";
 import {
+  grossPrincipalDebtFallbackApplies,
   preferDirectStatementBasis,
   sameStatementFiscalPeriod,
   statementFiscalPeriodKey,
@@ -21,7 +22,9 @@ import {
 } from "./financial-statement-period-identity";
 import {
   canonicalizeSecForm,
+  GROSS_PRINCIPAL_DEBT_CONCEPT,
   isDomesticPeriodicCanonicalForm,
+  type DebtBasis,
   readSecFactPeriodMetadata,
 } from "./financial-statements-contract";
 import { readArray } from "./utils";
@@ -336,6 +339,70 @@ function summarizeSecFilings(payload: unknown): string | undefined {
       (value) => value.startsWith("10-K ") || value.startsWith("10-Q ") || value.startsWith("8-K "),
     );
   return filings.length > 0 ? `Recent SEC filings: ${filings.slice(0, 5).join(", ")}.` : undefined;
+}
+
+// Amendments are skipped: a partial 10-K/A or 10-Q/A legitimately carries no balance-sheet facts.
+export function latestFilingWithoutDebtFacts(
+  sec: Pick<SecCompanyFactsResult, "factsPayload" | "submissionsPayload">,
+  debtPeriodEnd: string,
+  asOf: string,
+): "10-K" | "10-Q" | undefined {
+  const recent =
+    isRecord(sec.submissionsPayload) && isRecord(sec.submissionsPayload.filings)
+      ? sec.submissionsPayload.filings.recent
+      : undefined;
+  const forms = readArray(recent, "form");
+  const accessions = readArray(recent, "accessionNumber");
+  const reportDates = readArray(recent, "reportDate");
+  const filingDates = readArray(recent, "filingDate");
+  const cutoff = asOf.slice(0, 10);
+  const [latest] = forms
+    .flatMap((form, index) => {
+      const filingDate = filingDates[index];
+      return (form === "10-K" || form === "10-Q") &&
+        typeof filingDate === "string" &&
+        filingDate <= cutoff
+        ? [
+            {
+              form,
+              filingDate,
+              accession: accessions[index],
+              reportDate: reportDates[index],
+            } as const,
+          ]
+        : [];
+    })
+    .toSorted((left, right) => right.filingDate.localeCompare(left.filingDate));
+  const gaap =
+    isRecord(sec.factsPayload) && isRecord(sec.factsPayload.facts)
+      ? sec.factsPayload.facts["us-gaap"]
+      : undefined;
+  if (
+    latest === undefined ||
+    typeof latest.accession !== "string" ||
+    typeof latest.reportDate !== "string" ||
+    latest.reportDate === "" ||
+    latest.reportDate <= debtPeriodEnd ||
+    !isRecord(gaap)
+  ) {
+    return undefined;
+  }
+  const debtConcepts = [
+    ...US_GAAP_DEBT_ALIASES.direct,
+    ...US_GAAP_DEBT_ALIASES.current,
+    ...US_GAAP_DEBT_ALIASES.noncurrent,
+  ];
+  const contributed = debtConcepts.some((concept) => {
+    const units = isRecord(gaap[concept]) ? gaap[concept].units : undefined;
+    return (
+      isRecord(units) &&
+      Object.values(units).some(
+        (rows) =>
+          Array.isArray(rows) && rows.some((row) => isRecord(row) && row.accn === latest.accession),
+      )
+    );
+  });
+  return contributed ? undefined : latest.form;
 }
 
 // SIC arrives as a string in current SEC submissions payloads, but tolerate a
@@ -671,10 +738,47 @@ function debtPeriodIdentity(value: SecFactValue): string {
   return period === undefined ? value.form : statementFiscalPeriodKey(period);
 }
 
+interface SecDebtSelection {
+  readonly selection: SecMetricSelection;
+  readonly composite?: SecDebtComposite;
+  readonly grossPrincipal?: { readonly periodEnd: string; readonly netPeriodEnd: string };
+}
+
 function selectDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
-): { readonly selection: SecMetricSelection; readonly composite?: SecDebtComposite } | undefined {
+): SecDebtSelection | undefined {
+  const net = selectNetDebtMetric(gaap, analysisAsOf);
+  const netLatest = net?.selection.latest;
+  const gross = factValuesForConcept(
+    gaap,
+    GROSS_PRINCIPAL_DEBT_CONCEPT,
+    DEBT_METRIC.unitKeys,
+  ).filter((value) => value.start === undefined && isFactObservableAsOf(value, analysisAsOf));
+  const latestGross = latestFact(gross);
+  if (
+    net === undefined ||
+    netLatest?.end === undefined ||
+    latestGross?.end === undefined ||
+    !grossPrincipalDebtFallbackApplies(
+      { periodEnd: netLatest.end, value: netLatest.val },
+      latestGross.end,
+      latestFact(gross.filter((value) => value.end === netLatest.end))?.val,
+    )
+  ) {
+    return net;
+  }
+  const prior = comparablePrior(latestGross, gross);
+  return {
+    selection: { latest: latestGross, ...(prior !== undefined ? { prior } : {}) },
+    grossPrincipal: { periodEnd: latestGross.end, netPeriodEnd: netLatest.end },
+  };
+}
+
+function selectNetDebtMetric(
+  gaap: Record<string, unknown>,
+  analysisAsOf?: string,
+): SecDebtSelection | undefined {
   const eligible = (value: SecFactValue): boolean => isFactObservableAsOf(value, analysisAsOf);
   const directConcept = factValuesForMostRecentConcept(gaap, DEBT_METRIC, eligible)?.concept;
   const direct =
@@ -755,6 +859,17 @@ function selectDebtMetric(
   };
 }
 
+export function grossPrincipalDebtGap(periodEnd: string, netPeriodEnd: string): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC debt uses gross principal (${GROSS_PRINCIPAL_DEBT_CONCEPT}) as of ${periodEnd}: net carrying debt is not tagged in companyfacts after ${netPeriodEnd}, where gross principal was within 5% of it`,
+    provider: "sec-edgar",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 function deltaPercent(latest: number, prior: number): number | undefined {
   return prior === 0 ? undefined : ((latest - prior) / Math.abs(prior)) * 100;
 }
@@ -811,7 +926,13 @@ export function summarizeSecFundamentals(
               FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
             ),
     })),
-    { definition: DEBT_METRIC, selection: debtSelection?.selection },
+    {
+      definition:
+        debtSelection?.grossPrincipal === undefined
+          ? DEBT_METRIC
+          : { ...DEBT_METRIC, label: "debt (gross principal)" },
+      selection: debtSelection?.selection,
+    },
   ];
 
   for (const { definition, selection } of metricSelections) {
@@ -853,6 +974,10 @@ export function summarizeSecFundamentals(
     }
   }
 
+  if (debtSelection?.grossPrincipal !== undefined) {
+    metrics.debtBasis = "gross-principal" satisfies DebtBasis;
+  }
+
   if (summaryParts.length === 0) {
     return undefined;
   }
@@ -873,7 +998,18 @@ export function summarizeSecFundamentals(
         ]
       : [];
 
+  const grossPrincipalGap =
+    debtSelection?.grossPrincipal === undefined
+      ? []
+      : [
+          grossPrincipalDebtGap(
+            debtSelection.grossPrincipal.periodEnd,
+            debtSelection.grossPrincipal.netPeriodEnd,
+          ),
+        ];
+
   const gaps: SourceGap[] = [
+    ...grossPrincipalGap,
     ...(missingFacts.length > 0
       ? [
           sourceGap({

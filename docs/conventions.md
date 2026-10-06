@@ -52,7 +52,7 @@ Verification:
 
 The focused command is for the edit loop. Apply the [Final Quality Check](../AGENTS.md) rule when reporting a phase as passing; only the reportable command may be cited.
 
-- Review checklist: if anything under `tests/fixtures/*/golden-output/` moved, the commit body must state why. `bun run scripts/replay-fixture-run.ts <fixture> --write-golden` already prints a bucketed, escalation-aware diff before overwriting, and `git diff` is the durable record; no new tracking file is needed. The gap is that nobody reads it.
+- Review checklist: if anything under `tests/fixtures/runs/*/golden-output/` moved, the commit body must state why. `bun run scripts/replay-fixture-run.ts <fixture> --write-golden` already prints a bucketed, escalation-aware diff before overwriting, and `git diff` is the durable record; no new tracking file is needed. The gap is that nobody reads it.
 
 ## Commits
 

@@ -69,26 +69,28 @@ Failed final-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-rep
 
 `data/` also holds `calibration/`, `index.sqlite` (Run Artifact Index), `history/` (search index + instrument timelines), `cache/`, and `news-seen.json` (suppresses repeat news URLs for 30 days). All rebuildable, none disposable.
 
+To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-companyfacts") | "\(input_filename) \(.payload.cik) \(.payload.entityName)"' data/cache/<date>/*.json`. Filenames are request-fingerprint hashes; neither cache entries nor `raw/snapshots.json` record the request URL.
+
 `prompts/` holds the model stage prompts and Domain Playbooks — a stage's behavior is usually changed there, not in `src/`.
 
 ## Hit every surface
 
 The recurring defect is a change that lands only on the path you tested (see `684e454`). Walk the chain end to end.
 
-**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the golden fixtures (`tests/**/__golden__` / `--check-golden` replays) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "reran goldens, no diff expected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
+**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the golden fixtures (`tests/fixtures/runs/<name>/golden-output/`, replayed and compared by `bun run check` for every fixture listed in `tests/equity-fixture/run.test.ts`; use `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — only for a readable diff or `--write-golden`; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "reran goldens, no diff expected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
 
 **A new evidence field or report section:**
 
 1. Collector — `src/sources/extended-evidence/<provider>.ts` and its contract file.
 2. Projection — `src/research/extended-evidence-projections.ts`, the single producer of report extras.
 3. Reader types — `src/report/report-extras-contract.ts`. **Read its header comment first**: producer types are strict, reader types structural.
-4. Artifact schema — `src/report/schema.ts`.
+4. Artifact schema — `src/report/schema.ts` for `report.json`; deep-equity `normalized/evidence-bundle.json` types in `src/deep-equity/types.ts`, shape validation in `src/deep-equity/artifact-schema.ts`, readers in `src/run-artifacts.ts`.
 5. Markdown — the matching `src/report/markdown-*.ts` (equity, evidence, profile, market-update are separate renderers).
 6. Source-id traversal — the citation walk must see the new rows, or the claim renders uncited.
 7. Console view model — `app/client/view-model-*.ts` and the run-workspace modules.
 8. Console component — `app/client/components/*.svelte`.
 9. Index projection — the `src/run-artifact-index-*` modules, if the field should be searchable.
-10. Tests and goldens — a unit test at the adapter seam, then a fixture replay with `--check-golden`.
+10. Tests and goldens — a unit test at the adapter seam, then `bun run check`, which replays every fixture listed in `tests/equity-fixture/run.test.ts` against its golden (a new fixture must be added to that list).
 
 **A new env var:** `src/config.ts` → `.env.example` → `docs/configuration.md` → the run profiles under `src/config/runs/profiles/` if it is run-type-scoped. All four.
 

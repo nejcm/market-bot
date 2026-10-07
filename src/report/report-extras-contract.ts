@@ -324,13 +324,13 @@ export function readBusinessFrameworkExtra(
 // Web subject profile
 // ---------------------------------------------------------------------------
 
-// Artifact leaves stay strict except for the persisted empty-answer sentinel.
+// Artifact leaves stay strict except for empty text: the uncited sentinel or a stripped marker-only answer.
 export function readWebSubjectProfileAnswer(value: unknown): WebSubjectProfileAnswer | undefined {
   if (!isRecord(value)) {
     return;
   }
   const sourceIds = readStringArray(value, "sourceIds");
-  if (value.answer === "" && sourceIds?.length === 0) {
+  if (value.answer === "" && sourceIds !== undefined) {
     return { answer: "", sourceIds };
   }
   const answer = readString(value, "answer");
@@ -349,7 +349,7 @@ export function readWebSubjectProfileFacts(
       malformed = true;
       return [];
     }
-    const claim = readString(item, "claim");
+    const claim = item.claim === "" ? "" : readString(item, "claim");
     const sourceIds = readStringArray(item, "sourceIds");
     if (claim === undefined || sourceIds === undefined) {
       malformed = true;

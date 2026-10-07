@@ -438,10 +438,11 @@ function screenedFailureOpenGap(gap: string): string {
  * Pre-existing clean notices are then counted via `isWebSubjectProfileWithheldAnswer` so the
  * reusing run re-emits the matching Source Gaps instead of dropping the declaration.
  */
-function screenReusedArtifact(artifact: WebSubjectProfileArtifact): {
+function screenReusedArtifact(reused: WebSubjectProfileArtifact): {
   readonly artifact: WebSubjectProfileArtifact;
   readonly withheldGaps: readonly SourceGap[];
 } {
+  const artifact = withoutSourceIdMarkers(reused);
   const screened = screenProfileFields(artifact);
   if (screened.withheldGaps.length === 0) {
     return { artifact, withheldGaps: [] };
@@ -643,7 +644,7 @@ function parseProfile(
   const subjectLabel = readString(parsed, "subjectLabel");
   const companyName = readString(parsed, "companyName");
   return {
-    profile: {
+    profile: withoutSourceIdMarkers({
       subjectSummary: "error" in subjectSummary ? EMPTY_ANSWER : subjectSummary.answer,
       questions: questions.questions,
       recentMaterialEvents: recentMaterialEvents.facts,
@@ -651,7 +652,7 @@ function parseProfile(
       openGaps: stringArrayValue(parsed.openGaps),
       ...(subjectLabel !== undefined ? { subjectLabel } : {}),
       ...(companyName !== undefined ? { companyName } : {}),
-    },
+    }),
     rejections: [
       ...subjectSummaryRejections,
       ...questions.rejections,
@@ -775,6 +776,46 @@ function readFacts(
     facts.push({ claim, sourceIds });
   });
   return { facts, rejections };
+}
+
+// Models sometimes echo `[sourceId]` inline; renderers already append the structured refs.
+function withoutSourceIdMarkers<
+  T extends ScreenableProfileFields & {
+    readonly subjectLabel?: string;
+    readonly companyName?: string;
+  },
+>(profile: T): T {
+  const ids = profileSourceIds(profile)
+    .map((id) => id.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`))
+    .join("|");
+  const marker = String.raw`\[\s*(?:${ids})(?:\s*,\s*(?:${ids}))*\s*\]`;
+  const markerRun = new RegExp(String.raw`[^\S\r\n]*(?:${marker}[^\S\r\n]*)+`, "gu");
+  const strip = (text: string): string => {
+    if (ids === "") {
+      return text;
+    }
+    const stripped = text.replaceAll(markerRun, (run: string, offset: number) =>
+      /^[\r\n([{]?$/u.test(text[offset - 1] ?? "") ||
+      /^[\r\n.,;:!?)\]}"'’”]?$/u.test(text[offset + run.length] ?? "")
+        ? ""
+        : " ",
+    );
+    return stripped !== text && stripped.trim() === "" ? "" : stripped;
+  };
+  const answer = (value: WebSubjectProfileAnswer) => ({ ...value, answer: strip(value.answer) });
+  const fact = (value: WebSubjectProfileFact) => ({ ...value, claim: strip(value.claim) });
+  return {
+    ...profile,
+    subjectSummary: answer(profile.subjectSummary),
+    questions: Object.fromEntries(
+      Object.entries(profile.questions).map(([key, value]) => [key, answer(value)]),
+    ),
+    recentMaterialEvents: profile.recentMaterialEvents.map(fact),
+    factLedger: profile.factLedger.map(fact),
+    openGaps: profile.openGaps.map(strip).filter((gap) => gap !== ""),
+    ...(profile.subjectLabel !== undefined ? { subjectLabel: strip(profile.subjectLabel) } : {}),
+    ...(profile.companyName !== undefined ? { companyName: strip(profile.companyName) } : {}),
+  };
 }
 
 function profileSourceIds(profile: ScreenableProfileFields): readonly string[] {

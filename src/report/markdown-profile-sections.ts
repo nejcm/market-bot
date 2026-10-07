@@ -214,7 +214,7 @@ export function renderWebSubjectProfile(report: ResearchReport): string {
   });
   const factRows = (rowsIn: readonly WebSubjectProfileFactValue[]): readonly string[] =>
     rowsIn.flatMap((row) => {
-      if (row.claim === undefined) {
+      if (row.claim === undefined || row.claim === "") {
         return [];
       }
       const refs = sourceRefs(citedSourceIds(report, row));

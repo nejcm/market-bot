@@ -1320,4 +1320,79 @@ describe("Web Subject Profile reuse", () => {
       readWebSubjectProfileArtifact({ ...withoutOrigin, extraField: "ignored" })?.originRunDirName,
     ).toBeUndefined();
   });
+
+  describe("inline source-id markers across the reuse load", () => {
+    const marker = `[${webSource.id}]`;
+
+    async function loadPrior(artifact: WebSubjectProfileArtifact) {
+      const dataDir = tempRunsDir();
+      await writePriorRun({ dataDir, runId: "prior-aapl-markers", symbol: "AAPL", artifact });
+      return findReusableWebSubjectProfile({
+        dataDir,
+        command,
+        now: new Date("2026-05-03T00:00:00.000Z"),
+        reuseDaysBySubjectKind,
+        currentSecFilingDate: "2026-04-25",
+      });
+    }
+
+    test("a produced profile with emptied cited text loads through the strict reader", async () => {
+      const markerOnly = { answer: marker, sourceIds: [webSource.id] };
+      const produced = buildWebSubjectProfileEvidence({
+        command,
+        subject: { subjectKind: "company", subjectId: "AAPL", symbol: "AAPL" },
+        generatedAt: "2026-05-01T00:00:00.000Z",
+        runId: "prior-aapl-markers",
+        modelContent: JSON.stringify({
+          subjectSummary: markerOnly,
+          questions: { ...profile().questions, whatItDoes: markerOnly },
+          recentMaterialEvents: [{ claim: marker, sourceIds: [webSource.id] }],
+          factLedger: [
+            { claim: marker, sourceIds: [webSource.id] },
+            { claim: `Apple sells devices. ${marker}`, sourceIds: [webSource.id] },
+          ],
+          openGaps: [],
+        }),
+        webSources: [webSource],
+        extendedEvidence: undefined,
+        secFilingBasisDate: "2026-04-25",
+      }).artifact;
+      expect(readWebSubjectProfileArtifact(structuredClone(produced))).toEqual(produced);
+
+      const reuse = await loadPrior(produced);
+
+      expect(reuse?.profile.subjectSummary).toEqual({ answer: "", sourceIds: [webSource.id] });
+      expect(
+        reuse?.profile.subjectKind === "company" ? reuse.profile.questions.whatItDoes : undefined,
+      ).toEqual({ answer: "", sourceIds: [webSource.id] });
+      expect(reuse?.profile.recentMaterialEvents).toEqual([
+        { claim: "", sourceIds: [webSource.id] },
+      ]);
+      expect(reuse?.profile.factLedger).toEqual([
+        { claim: "", sourceIds: [webSource.id] },
+        { claim: "Apple sells devices.", sourceIds: [webSource.id] },
+      ]);
+    });
+
+    test("strips markers from a legacy profile loaded for reuse", async () => {
+      const legacy = profile();
+      const reuse = await loadPrior({
+        ...legacy,
+        subjectSummary: { answer: `Apple sells devices. ${marker}`, sourceIds: [webSource.id] },
+        openGaps: [`Regional split missing ${marker}.`],
+      });
+      expect(reuse).toBeDefined();
+      const attached = attachReusableWebSubjectProfile({
+        command,
+        collectedSources: collectedSources(),
+        reuse: reuse as NonNullable<typeof reuse>,
+      });
+
+      expect(attached.webSubjectProfile?.subjectSummary).toEqual({
+        answer: "Apple sells devices.",
+        sourceIds: [webSource.id],
+      });
+      expect(attached.webSubjectProfile?.openGaps).toEqual(["Regional split missing."]);
+    });
+  });
 });

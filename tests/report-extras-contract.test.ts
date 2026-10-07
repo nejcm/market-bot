@@ -417,9 +417,13 @@ describe("web subject profile extra", () => {
     expect(markdown).toContain("## Web Subject Profile\n\n- **What It Does:** Sells devices.");
   });
 
-  test("accepts only the exact empty-answer sentinel in artifact leaves", () => {
+  test("accepts exactly empty text, cited or not, in artifact leaves", () => {
     expect(readWebSubjectProfileAnswer({ answer: " ", sourceIds: [] })).toBeUndefined();
-    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: ["web-source"] })).toBeUndefined();
+    expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: ["web-source"] })).toEqual({
+      answer: "",
+      sourceIds: ["web-source"],
+    });
+    expect(readWebSubjectProfileAnswer({ answer: "" })).toBeUndefined();
     expect(readWebSubjectProfileAnswer({ answer: "", sourceIds: [] })).toEqual({
       answer: "",
       sourceIds: [],
@@ -440,6 +444,9 @@ describe("web subject profile extra", () => {
     ).toEqual([{ claim: "Cited.", sourceIds: ["web-source"] }]);
     expect(readWebSubjectProfileFacts([{ claim: "Uncited.", sourceIds: [] }])).toEqual([]);
     expect(readWebSubjectProfileFacts([{ claim: " ", sourceIds: [] }])).toBeUndefined();
+    expect(readWebSubjectProfileFacts([{ claim: "", sourceIds: ["web-source"] }])).toEqual([
+      { claim: "", sourceIds: ["web-source"] },
+    ]);
   });
 });
 

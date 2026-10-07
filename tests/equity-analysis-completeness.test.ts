@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence, ResearchReport } from "../src/domain/types";
 import { validateResearchReport } from "../src/report/schema";
 import {
+  currentIncompleteStatements,
   deriveEquityAnalysisCompleteness,
   deriveEquityReportingFreshness,
   equityAnalysisCompletenessGaps,
@@ -1168,6 +1169,66 @@ describe("equity analysis completeness freshness gaps", () => {
     expect(gaps.map((gap) => gap.message.slice(0, gap.message.indexOf(":"))).toSorted()).toEqual([
       "cadence-unestablished",
     ]);
+  });
+
+  test("names the current incomplete statements behind current-primary-statements-incomplete", () => {
+    const base = statements({ cadence: "quarterly" });
+    const current = latestFinancialStatementFact(base.statements.incomeStatement.revenue.interim)!;
+    const historical = base.statements.incomeStatement.revenue.annual[0]!;
+    const cashFlow = `cashFlowStatement interim period ${current.periodKey} is missing operatingCashFlow`;
+    const balance = `balanceSheet interim period ${current.periodKey} is missing cash, totalAssets, totalLiabilities, stockholdersEquity`;
+    const artifact: FinancialStatementsArtifact = {
+      ...base,
+      validationNotes: [
+        ...base.validationNotes,
+        {
+          code: "incomplete-statement",
+          periodKey: `annual|${historical.periodKey}`,
+          message: `cashFlowStatement annual period ${historical.periodKey} is missing operatingCashFlow`,
+        },
+        {
+          code: "incomplete-statement",
+          periodKey: `interim|${current.periodKey}`,
+          message: cashFlow,
+        },
+        {
+          code: "incomplete-statement",
+          periodKey: `interim|${current.periodKey}`,
+          message: balance,
+        },
+      ],
+    };
+    const completeness = deriveEquityAnalysisCompleteness({
+      asOf: AS_OF,
+      assetClass: "equity",
+      financialStatements: artifact,
+    });
+    const freshness = deriveEquityReportingFreshness(artifact, AS_OF);
+    const incomplete = currentIncompleteStatements(artifact, AS_OF);
+    const detail = `interim cadence quarterly; latest reported period end ${freshness!.latestReportedPeriodEnd!}`;
+    const [gap] = equityAnalysisCompletenessGaps(completeness, freshness, "TEST", incomplete);
+    const [genericGap] = equityAnalysisCompletenessGaps(completeness, freshness, "TEST");
+
+    expect(incomplete).toEqual([cashFlow, balance]);
+    expect(currentIncompleteStatements(base, AS_OF)).toEqual([]);
+    expect(currentIncompleteStatements(undefined, AS_OF)).toEqual([]);
+    expect(completeness.dimensions.primaryFinancials).not.toHaveProperty("incompleteStatements");
+    expect(completeness.dimensions.primaryFinancials.reasonCodes).toEqual([
+      "current-primary-statements-incomplete",
+    ]);
+    expect(gap).toMatchObject({
+      message: expect.stringMatching(
+        new RegExp(
+          `^current-primary-statements-incomplete: TEST current primary statements are incomplete: ${RegExp.escape(`${cashFlow}; ${balance}`)} \\(${RegExp.escape(detail)}`,
+          "u",
+        ),
+      ),
+      evidenceQualityImpact: "no-cap",
+      triage: "material",
+    });
+    expect(genericGap?.message).toStartWith(
+      "current-primary-statements-incomplete: TEST reporting surface is not current (",
+    );
   });
 
   test("latestReportedPeriodEnd excludes derived TTM", () => {

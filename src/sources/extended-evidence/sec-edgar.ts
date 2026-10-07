@@ -6,7 +6,11 @@ import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
-import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  scopedLabel,
+} from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
   compositeStatementIdentity,
@@ -60,6 +64,7 @@ export interface SecMetricDefinition {
 interface SecMetricSelection {
   readonly latest: SecFactValue;
   readonly prior?: SecFactValue;
+  readonly concept?: string;
 }
 
 export interface SecDebtComposite {
@@ -163,13 +168,16 @@ export const SEC_METRIC_DEFINITIONS = [
   {
     key: "operatingCashFlow",
     label: "operating cash flow",
-    concepts: ["NetCashProvidedByUsedInOperatingActivities"],
+    concepts: [
+      "NetCashProvidedByUsedInOperatingActivities",
+      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    ],
     unitKeys: ["USD"],
   },
   {
     key: "capex",
     label: "capex",
-    concepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    concepts: ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
     unitKeys: ["USD"],
   },
   {
@@ -523,6 +531,12 @@ function compareFactRecency(a: SecFactValue, b: SecFactValue): number {
   return compareFinancialStatementFacts(selectionFact(a), selectionFact(b));
 }
 
+function compareFactPeriod(a: SecFactValue, b: SecFactValue): number {
+  return (
+    (b.end ?? "").localeCompare(a.end ?? "") || (periodMonths(b) ?? 0) - (periodMonths(a) ?? 0)
+  );
+}
+
 function latestFact(values: readonly SecFactValue[]): SecFactValue | undefined {
   return values.toSorted(compareFactRecency)[0];
 }
@@ -598,16 +612,12 @@ function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boole
   return startAligned && (latest.canonicalForm === "10-Q" ? candidate.fp === latest.fp : true);
 }
 
-// `fy` is filing context: prefer the prior year's own filing, else a later filing's comparative.
+// Latest-filed wins, so a later filing's restated comparative beats the prior year's original.
 function comparablePrior(
   latest: SecFactValue,
   values: readonly SecFactValue[],
 ): SecFactValue | undefined {
-  const aligned = values.filter((value) => isComparablePrior(latest, value));
-  const priorFiling = aligned.filter(
-    (value) => latest.fy !== undefined && value.fy === latest.fy - 1,
-  );
-  return latestFact(priorFiling.length > 0 ? priorFiling : aligned);
+  return latestFact(values.filter((value) => isComparablePrior(latest, value)));
 }
 
 function selectMetric(
@@ -616,8 +626,8 @@ function selectMetric(
   analysisAsOf?: string,
   flowPeriod?: SecFactValue,
 ): SecMetricSelection | undefined {
-  const selections: SecMetricSelection[] = [];
-  for (const concept of metric.concepts) {
+  const selections: (SecMetricSelection & { readonly priority: number })[] = [];
+  for (const [priority, concept] of metric.concepts.entries()) {
     const observableValues = factValuesForConcept(gaap, concept, metric.unitKeys).filter((value) =>
       isFactObservableAsOf(value, analysisAsOf),
     );
@@ -636,15 +646,12 @@ function selectMetric(
       continue;
     }
     const prior = comparablePrior(latest, values);
-    selections.push({ latest, ...(prior !== undefined ? { prior } : {}) });
+    selections.push({ latest, ...(prior !== undefined ? { prior } : {}), concept, priority });
   }
-  return selections.toSorted((a, b) => {
-    const recency = compareFactRecency(a.latest, b.latest);
-    if (recency !== 0) {
-      return recency;
-    }
-    return Number(b.prior !== undefined) - Number(a.prior !== undefined);
-  })[0];
+  // On an equal period configured order wins, even over prior availability: it encodes measure scope.
+  return selections.toSorted(
+    (a, b) => compareFactPeriod(a.latest, b.latest) || a.priority - b.priority,
+  )[0];
 }
 
 function sameFiscalPeriod(a: SecFactValue, b: SecFactValue): boolean {
@@ -890,6 +897,41 @@ function formatMetric(
   return `${label} ${String(latest)} (${delta.toFixed(1)}% YoY)`;
 }
 
+const SUMMARY_METRIC_DEFINITIONS: readonly SecMetricDefinition[] = [
+  ...SEC_METRIC_DEFINITIONS,
+  DEBT_METRIC,
+];
+
+// `metricsFor` picks the metric source per key, so canonical inputs can override legacy ones.
+export function formatSecFundamentalsSummary(
+  metricsFor: (key: string) => Readonly<Record<string, number | string>> | undefined,
+): string | undefined {
+  const parts = SUMMARY_METRIC_DEFINITIONS.flatMap(({ key, label }) => {
+    const metrics = metricsFor(key);
+    const latest = metrics?.[key];
+    if (typeof latest !== "number") {
+      return [];
+    }
+    if (key === "consolidatedNetIncome" && metricsFor("netIncome")?.netIncome === latest) {
+      return [];
+    }
+    const prior = metrics?.[`${key}Prior`];
+    const delta = metrics?.[`${key}DeltaPercent`];
+    const scope = metrics?.[`${key}Scope`];
+    const basisLabel =
+      metrics?.[`${key}Basis`] === "gross-principal" ? `${label} (gross principal)` : label;
+    return [
+      formatMetric(
+        scopedLabel(basisLabel, typeof scope === "string" ? scope : undefined),
+        latest,
+        typeof prior === "number" ? prior : undefined,
+        typeof delta === "number" ? delta : undefined,
+      ),
+    ];
+  });
+  return parts.length === 0 ? undefined : `SEC Fundamental Evidence: ${parts.join(", ")}.`;
+}
+
 export function summarizeSecFundamentals(
   payload: unknown,
   analysisAsOf?: string,
@@ -901,7 +943,6 @@ export function summarizeSecFundamentals(
   const metrics: Record<string, number | string> = {};
   const missingFacts: string[] = [];
   const missingDeltas: string[] = [];
-  const summaryParts: string[] = [];
 
   const [revenueDefinition] = SEC_METRIC_DEFINITIONS;
   const revenueSelection =
@@ -926,13 +967,7 @@ export function summarizeSecFundamentals(
               FLOW_METRIC_KEYS.has(definition.key) ? flowPeriod : undefined,
             ),
     })),
-    {
-      definition:
-        debtSelection?.grossPrincipal === undefined
-          ? DEBT_METRIC
-          : { ...DEBT_METRIC, label: "debt (gross principal)" },
-      selection: debtSelection?.selection,
-    },
+    { definition: DEBT_METRIC, selection: debtSelection?.selection },
   ];
 
   for (const { definition, selection } of metricSelections) {
@@ -969,8 +1004,9 @@ export function summarizeSecFundamentals(
         metrics[`${definition.key}DeltaPercent`] = delta;
       }
     }
-    if (definition.key !== "consolidatedNetIncome" || metrics.netIncome !== latest.val) {
-      summaryParts.push(formatMetric(definition.label, latest.val, prior?.val, delta));
+    const scope = conceptScope(selection.concept);
+    if (scope !== undefined) {
+      metrics[`${definition.key}Scope`] = scope;
     }
   }
 
@@ -978,7 +1014,8 @@ export function summarizeSecFundamentals(
     metrics.debtBasis = "gross-principal" satisfies DebtBasis;
   }
 
-  if (summaryParts.length === 0) {
+  const summary = formatSecFundamentalsSummary(() => metrics);
+  if (summary === undefined) {
     return undefined;
   }
 
@@ -1040,7 +1077,7 @@ export function summarizeSecFundamentals(
   ];
 
   return {
-    summary: `SEC Fundamental Evidence: ${summaryParts.join(", ")}.`,
+    summary,
     metrics,
     ...(typeof metrics.revenuePeriodEnd === "string"
       ? { revenuePeriodEnd: metrics.revenuePeriodEnd }

@@ -3,6 +3,7 @@ import {
   atOrBelow,
   metric,
   observedPeriod,
+  operatingCashFlowLabel,
   peIsClean,
   peMetricValue,
   percentChange,
@@ -111,7 +112,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
     ),
     ...metric(
       "freeCashFlowProxy",
-      "FCF proxy",
+      operatingCashFlowLabel(secItem, "FCF proxy"),
       freeCashFlowProxy,
       "currency",
       sourceIds,
@@ -119,7 +120,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
     ),
     ...metric(
       "cashConversion",
-      "Cash conversion",
+      operatingCashFlowLabel(secItem, "Cash conversion"),
       cashConversion,
       "ratio",
       sourceIds,
@@ -213,7 +214,7 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
     ),
     ...metric(
       "operatingCashFlowDeltaPercent",
-      "Operating cash flow YoY",
+      operatingCashFlowLabel(secItem, "Operating cash flow YoY"),
       readSecMetric(secItem?.metrics, "operatingCashFlowDeltaPercent"),
       "whole-percent",
       sourceIds,
@@ -585,7 +586,7 @@ export function valueLens(
       ),
       ...metric(
         "pcfRatio",
-        "PCF",
+        operatingCashFlowLabel(secItem, "PCF"),
         pcfRatio,
         "ratio",
         pcfSourceIds,

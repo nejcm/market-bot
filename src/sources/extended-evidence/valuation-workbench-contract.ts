@@ -48,6 +48,7 @@ export interface ValuationFundamentalInput {
   readonly unit: string;
   readonly sourceIds: readonly string[];
   readonly derivation?: string;
+  readonly scope?: string;
 }
 
 export interface ValuationPriceInput {
@@ -209,7 +210,8 @@ function hasFundamentalInputShape(value: unknown): boolean {
     (value.currency === null || readString(value, "currency") !== undefined) &&
     readString(value, "unit") !== undefined &&
     readStringArray(value, "sourceIds") !== undefined &&
-    (value.derivation === undefined || readString(value, "derivation") !== undefined)
+    (value.derivation === undefined || readString(value, "derivation") !== undefined) &&
+    (value.scope === undefined || readString(value, "scope") !== undefined)
   );
 }
 

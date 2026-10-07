@@ -2957,7 +2957,7 @@ describe("gross-principal debt fallback", () => {
     ).toBeUndefined();
   });
 
-  test("takes a same-concept legacy debt prior; canonical instant series carry no prior", () => {
+  test("legacy and canonical both take the same-concept year-ago debt prior", () => {
     const { artifact, legacy } = selections(
       facts({
         LongTermDebt: [
@@ -2968,9 +2968,9 @@ describe("gross-principal debt fallback", () => {
     );
 
     expect(legacy?.metrics.debtPrior).toBe(1_000_000_000);
-    expect(
-      withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior,
-    ).toBeUndefined();
+    expect(withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior).toBe(
+      1_000_000_000,
+    );
   });
 
   test("discloses a canonical-only gross fallback from foreign forms", () => {

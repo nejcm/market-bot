@@ -12,6 +12,7 @@ import {
   type SecFactMetricKey,
   type SecMetricKey,
 } from "./financial-lens-canonical";
+import { scopedLabel } from "./financial-statement-definitions";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 import { readNumberMetric } from "./utils";
 import { formatPeRatio, type LensValueUnit } from "./value-format";
@@ -97,6 +98,13 @@ function readSecStringMetric(
   key: SecMetricKey,
 ): string | undefined {
   return readRawStringMetric(metrics, key);
+}
+
+export function operatingCashFlowLabel(
+  item: ExtendedEvidenceItem | undefined,
+  label: string,
+): string {
+  return scopedLabel(label, readSecStringMetric(item?.metrics, "operatingCashFlowScope"));
 }
 
 export function tickerSnapshot(

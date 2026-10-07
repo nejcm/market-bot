@@ -1470,7 +1470,7 @@ describe("SEC fundamental evidence", () => {
     expect(secYoyGap(unaligned)).toContain("debt");
   });
 
-  test("pairs duration priors on aligned start and keeps the prior year's own filing", () => {
+  test("pairs duration priors on aligned start and takes the latest-filed restated comparative", () => {
     const annual = { form: "10-K", fp: "FY" };
     const result = summarizeSecFundamentals({
       facts: {
@@ -1513,7 +1513,7 @@ describe("SEC fundamental evidence", () => {
       },
     });
 
-    expect(result?.metrics).toMatchObject({ revenue: 100, revenuePrior: 90 });
+    expect(result?.metrics).toMatchObject({ revenue: 100, revenuePrior: 92 });
 
     const shortSpanOnly = {
       facts: {
@@ -1591,15 +1591,12 @@ describe("SEC fundamental evidence", () => {
     expect(result?.metrics.debtPeriodEnd).toBe("2026-03-31");
   });
 
-  test("uses contract revenue fallback for comparable revenue deltas", () => {
+  test("keeps total revenue over a contract-revenue alias that only adds a comparable prior", () => {
     const result = summarizeSecFundamentals(secCompanyFactsPayloadWithRevenueContractConcept());
 
-    expect(result?.metrics).toMatchObject({
-      revenue: 100,
-      revenuePrior: 90,
-    });
-    expect(result?.metrics.revenueDeltaPercent).toBeCloseTo(11.11);
-    expect(result?.gaps.map((gap) => gap.message)).not.toContain(
+    expect(result?.metrics.revenue).toBe(100);
+    expect(result?.metrics.revenuePrior).toBeUndefined();
+    expect(result?.gaps.map((gap) => gap.message)).toContain(
       "Missing comparable SEC company facts for YoY deltas: revenue",
     );
   });

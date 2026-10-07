@@ -1742,6 +1742,34 @@ describe("SEC latest filing evidence tool", () => {
     );
   });
 
+  test("keeps a short 10-Q no-material-changes Risk Factors section and gaps only the rest", async () => {
+    const riskFactors =
+      "ITEM 1A. RISK FACTORS The most significant risk factors applicable to the Company are described in Part II, Item 1A \u201CRisk Factors\u201D of our Annual Report on Form 10-K for the year ended September 30, 2025. There have been no material changes from the risk factors previously disclosed.";
+    const body = [
+      `ITEM 2. MANAGEMENT'S DISCUSSION ${repeatToMinAlpha(
+        "Actual MD&A discusses revenue growth, margins, liquidity, and segment trends.",
+      )}`,
+      riskFactors,
+      "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS None.",
+    ].join(" ");
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-Q"])),
+          text: async ({ adapter }) => textResult(adapter, body),
+        }),
+      }),
+    );
+
+    expect(result.sources[0]?.snippet).toContain(`[Risk Factors] ${riskFactors}`);
+    expect(result.gaps).toContainEqual(sectionOmissionGap("10-Q", "AAPL", ["Segments", "Notes"]));
+    expect(result.gaps.some((item) => item.message.includes("Risk Factors"))).toBe(false);
+  });
+
   test("a whitespace-tolerant anchor does not match letters separated by non-whitespace", async () => {
     // Negative test for A2.5: whitespaceTolerantLiteral only inserts `\s*` between characters,
     // Which matches actual whitespace splits (drop caps, iXBRL tag boundaries) but not a digit

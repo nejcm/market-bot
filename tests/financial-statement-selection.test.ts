@@ -170,13 +170,19 @@ describe("financial statement selection", () => {
       {
         key: "operatingCashFlow",
         label: "operating cash flow",
-        concepts: ["NetCashProvidedByUsedInOperatingActivities"],
+        concepts: [
+          "NetCashProvidedByUsedInOperatingActivities",
+          "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        ],
         unitKeys: ["USD"],
       },
       {
         key: "capex",
         label: "capex",
-        concepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+        concepts: [
+          "PaymentsToAcquirePropertyPlantAndEquipment",
+          "PaymentsToAcquireProductiveAssets",
+        ],
         unitKeys: ["USD"],
       },
       {
@@ -391,7 +397,10 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: true,
         concepts: {
-          "us-gaap": ["NetCashProvidedByUsedInOperatingActivities"],
+          "us-gaap": [
+            "NetCashProvidedByUsedInOperatingActivities",
+            "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          ],
           "ifrs-full": ["CashFlowsFromUsedInOperatingActivities"],
         },
       },
@@ -403,7 +412,10 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: true,
         concepts: {
-          "us-gaap": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+          "us-gaap": [
+            "PaymentsToAcquirePropertyPlantAndEquipment",
+            "PaymentsToAcquireProductiveAssets",
+          ],
           "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
         },
       },
@@ -458,15 +470,8 @@ describe("financial statement selection", () => {
     ]);
   });
 
-  test("pins roster-covered non-revenue series to one concept per taxonomy", () => {
-    const legacyKeys = new Set([
-      "grossProfit",
-      "operatingIncome",
-      "netIncome",
-      "dilutedEps",
-      "operatingCashFlow",
-      "capex",
-    ]);
+  test("pins roster-covered income-statement series to one concept per taxonomy", () => {
+    const legacyKeys = new Set(["grossProfit", "operatingIncome", "netIncome", "dilutedEps"]);
     const canonicalKeys = new Set(
       [...legacyKeys].map((key) => (key === "capex" ? "capitalExpenditure" : key)),
     );

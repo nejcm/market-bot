@@ -6,6 +6,7 @@ import {
   type ResearchReport,
 } from "../domain/types";
 import { readNumber } from "../guards";
+import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
 import type { CollectedSources } from "../sources/types";
 import {
   projectEquityReader,
@@ -124,7 +125,7 @@ export function renderProjectedFinancialTrends(
   return [
     "## Financial Trends",
     "",
-    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported ${scopedLabel("operating-cash-flow", trends.freeCashFlowScope)} less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
     "",
     "Period | Revenue | Net income | Operating margin | FCF",
     "--- | ---: | ---: | ---: | ---:",

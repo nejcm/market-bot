@@ -162,6 +162,21 @@ function peerReferenceRangeLine(
   return `- Reference range: ${referenceRange.low.toFixed(2)}–${referenceRange.high.toFixed(2)} ${referenceRange.inputs.quoteCurrency}; midpoint ${referenceRange.mid.toFixed(2)}; observed position ${referenceRange.position}; ${priceDate}.`;
 }
 
+export function freeCashFlowScopeDisclosure(
+  observations: readonly HistoricalValuationObservation[],
+): string | undefined {
+  const scoped = observations.flatMap((observation) => {
+    const scope = observation.inputs.freeCashFlow?.scope;
+    return scope === undefined
+      ? []
+      : [{ scope, period: `${observation.basis} ${observation.periodEnd}` }];
+  });
+  const [first] = scoped;
+  return first === undefined
+    ? undefined
+    : `P/FCF uses free cash flow proxy (${first.scope}) for ${scoped.map(({ period }) => period).join(", ")}`;
+}
+
 export function renderValuationWorkbenchMarkdown(
   artifact: ValuationWorkbenchArtifact | undefined,
 ): string {
@@ -177,6 +192,7 @@ export function renderValuationWorkbenchMarkdown(
           "--- | --- | --- | --- | ---: | ---: | ---: | ---:",
           ...observations.map((observation) => historicalRow(observation)),
         ].join("\n");
+  const scopeDisclosure = freeCashFlowScopeDisclosure(observations);
   const trailing =
     artifact.historicalMultiples.trailingBasis.status === "available"
       ? [
@@ -191,6 +207,7 @@ export function renderValuationWorkbenchMarkdown(
     `Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
     "",
     ...trailing,
+    ...(scopeDisclosure === undefined ? [] : [`- ${scopeDisclosure}.`, ""]),
     historical,
     "",
     peerSection(artifact),

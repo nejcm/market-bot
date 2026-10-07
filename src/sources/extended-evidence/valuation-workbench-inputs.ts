@@ -4,7 +4,11 @@ import type {
   FinancialStatementTtm,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
-import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  scopedLabel,
+} from "./financial-statement-definitions";
 import {
   deriveFinancialStatementTtm,
   financialStatementFactForPeriod,
@@ -38,10 +42,21 @@ function latest(values: readonly string[]): string {
   return values.toSorted().at(-1) ?? "";
 }
 
+function withScope(
+  label: string,
+  concept: string,
+): Pick<ValuationFundamentalInput, "label" | "scope"> {
+  const scope = conceptScope(concept);
+  return { label: scopedLabel(label, scope), ...(scope !== undefined ? { scope } : {}) };
+}
+
 function factInput(label: string, fact: FinancialStatementFact): ValuationFundamentalInput {
   return {
     value: fact.value,
-    label: fact.basis === "gross-principal" ? `${label} (gross principal)` : label,
+    ...withScope(
+      fact.basis === "gross-principal" ? `${label} (gross principal)` : label,
+      fact.concept,
+    ),
     periodEnd: fact.periodEnd,
     publicAt: fact.firstPublicAt,
     currency: fact.currency,
@@ -53,7 +68,7 @@ function factInput(label: string, fact: FinancialStatementFact): ValuationFundam
 function ttmInput(label: string, ttm: FinancialStatementTtm): ValuationFundamentalInput {
   return {
     value: ttm.value,
-    label,
+    ...withScope(label, ttm.components.fiscalYear.concept),
     periodEnd: ttm.periodEnd,
     publicAt: latest(Object.values(ttm.components).map((fact) => fact.firstPublicAt)),
     currency: ttm.currency,
@@ -79,7 +94,8 @@ function fcfInput(
   }
   return {
     value: operatingCashFlow.value - capitalExpenditure.value,
-    label: "Free cash flow proxy",
+    label: scopedLabel("Free cash flow proxy", operatingCashFlow.scope),
+    ...(operatingCashFlow.scope !== undefined ? { scope: operatingCashFlow.scope } : {}),
     periodEnd: operatingCashFlow.periodEnd,
     publicAt: latest([operatingCashFlow.publicAt, capitalExpenditure.publicAt]),
     currency: operatingCashFlow.currency,

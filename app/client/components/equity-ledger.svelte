@@ -254,7 +254,7 @@
         >
           {@render columnHeading(
             "Financial trends",
-            `${defaultView.financialTrends.reportingCurrency ?? "currency unavailable"} · FCF proxy`,
+            `${defaultView.financialTrends.reportingCurrency ?? "currency unavailable"} · ${defaultView.financialTrends.freeCashFlowLabel}`,
           )}
           <div class="overflow-x-auto">
             <table class="w-full min-w-125 border-collapse font-mono text-[12.5px]">

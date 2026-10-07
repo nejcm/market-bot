@@ -152,13 +152,31 @@ function whitespaceTolerantLiteral(literal: string): string {
 // Shorthand for whitespaceTolerantLiteral, used to build every multi-word section anchor below.
 const tw = whitespaceTolerantLiteral;
 
-function selectSection(text: string, pattern: RegExp, maxChars: number): SectionMiss | string {
+// A 10-Q may state Risk Factors as a short reference back to the annual report, in either order.
+function isNoMaterialChangeRiskFactors(section: string): boolean {
+  return (
+    /\bno material changes?\b/iu.test(section) &&
+    /\bannual report\b|\bform 10-K\b/iu.test(section) &&
+    substantiveAlphaCount(section) >= SEC_SECTION_MIN_ALPHA_CHARS
+  );
+}
+
+function selectSection(
+  text: string,
+  pattern: RegExp,
+  maxChars: number,
+  acceptsShort?: (section: string) => boolean,
+): SectionMiss | string {
   const candidates = [...text.matchAll(pattern)].map((match) => {
     const section = boundedSection(text, match.index ?? 0, maxChars);
     return { section, alphaCount: substantiveAlphaCount(section) };
   });
   const [accepted] = candidates
-    .filter((candidate) => candidate.alphaCount >= SEC_SECTION_MIN_SELECTED_ALPHA_CHARS)
+    .filter(
+      (candidate) =>
+        candidate.alphaCount >= SEC_SECTION_MIN_SELECTED_ALPHA_CHARS ||
+        acceptsShort?.(candidate.section) === true,
+    )
     .toSorted((a, b) => b.section.length - a.section.length);
   if (accepted !== undefined) {
     return accepted.section;
@@ -221,6 +239,7 @@ export function secFilingSectionPacket(
     readonly label: string;
     readonly pattern: RegExp;
     readonly maxChars: number;
+    readonly acceptsShort?: (section: string) => boolean;
   }[] = [
     ...(form === "10-K"
       ? [
@@ -238,6 +257,7 @@ export function secFilingSectionPacket(
         "giu",
       ),
       maxChars: SEC_SECTION_BUDGETS.riskFactors,
+      ...(form === "10-Q" ? { acceptsShort: isNoMaterialChangeRiskFactors } : {}),
     },
     { label: "MD&A", pattern: mdnaPattern, maxChars: SEC_SECTION_BUDGETS.mdna },
     { label: "Segments", pattern: segmentsPattern, maxChars: SEC_SECTION_BUDGETS.segments },
@@ -246,7 +266,12 @@ export function secFilingSectionPacket(
   const parts: string[] = [];
   const misses: SectionMiss[] = [];
   for (const section of sections) {
-    const selected = selectSection(normalized, section.pattern, section.maxChars);
+    const selected = selectSection(
+      normalized,
+      section.pattern,
+      section.maxChars,
+      section.acceptsShort,
+    );
     if (typeof selected !== "string") {
       misses.push({ ...selected, label: section.label });
       continue;

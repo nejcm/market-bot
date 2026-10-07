@@ -4,6 +4,7 @@ import type {
   FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
 import type { ValuationMetricSuppressionReason } from "../sources/extended-evidence/valuation-workbench-contract";
+import { conceptScope } from "../sources/extended-evidence/financial-statement-definitions";
 import { periodLabel } from "./equity-reader-statements";
 import { metricCell } from "./valuation-workbench-markdown";
 
@@ -23,6 +24,7 @@ interface FinancialTrendRow {
 
 export interface EquityReaderFinancialTrends {
   readonly reportingCurrency?: string;
+  readonly freeCashFlowScope?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly FinancialTrendRow[];
 }
@@ -205,8 +207,10 @@ export function financialTrends(
     return undefined;
   }
   const reportingCurrency = financialTrendCurrency(history);
+  const freeCashFlowScope = conceptScope(history.series.operatingCashFlow?.concept);
   return {
     ...(reportingCurrency === undefined ? {} : { reportingCurrency }),
+    ...(freeCashFlowScope === undefined ? {} : { freeCashFlowScope }),
     sourceIds: [history.sourceId],
     rows,
   };

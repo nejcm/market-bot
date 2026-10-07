@@ -10,7 +10,11 @@ import {
   type SecFactValue,
   type SecMetricDefinition,
 } from "./sec-edgar";
-import { isRevenueConceptInRecencyBucket } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  isRevenueConceptInRecencyBucket,
+  scopedLabel,
+} from "./financial-statement-definitions";
 import { compareFinancialStatementFacts } from "./financial-statement-selection";
 import type { AnnualReportForm } from "./financial-statements-contract";
 
@@ -166,9 +170,6 @@ function selectFacts(
         return parsed === undefined ? [] : [parsed];
       });
       if (facts.length > 0) {
-        if (definition.key !== "revenue") {
-          return { concept, currency, facts };
-        }
         const [latest] = facts
           .filter((candidate) => isFactObservableAsOf(candidate, analysisAsOf))
           .toSorted(
@@ -191,7 +192,9 @@ function selectFacts(
   }
   return ranked
     .filter((candidate) =>
-      isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd),
+      definition.key === "revenue"
+        ? isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd)
+        : candidate.latest.end === latestPeriodEnd,
     )
     .toSorted(
       (left, right) =>
@@ -653,10 +656,15 @@ export type FundamentalHistoryRawSeries = Readonly<
 export function buildFundamentalHistorySeries(
   raw: FundamentalHistoryRawSeries,
 ): FundamentalHistoryArtifact["series"] {
+  const cashFlowScope = conceptScope(raw.operatingCashFlow.concept);
+  const scopedOperatingCashFlow = {
+    ...raw.operatingCashFlow,
+    label: scopedLabel(raw.operatingCashFlow.label, cashFlowScope),
+  };
   const freeCashFlowProxy = pairSeries(
     "freeCashFlowProxy",
-    "Free cash flow proxy",
-    raw.operatingCashFlow,
+    scopedLabel("Free cash flow proxy", cashFlowScope),
+    scopedOperatingCashFlow,
     raw.capex,
     (operatingCashFlow, capex) => operatingCashFlow - capex,
   );
@@ -688,7 +696,7 @@ export function buildFundamentalHistorySeries(
     operatingIncome: raw.operatingIncome,
     netIncome: raw.netIncome,
     dilutedEps: raw.dilutedEps,
-    operatingCashFlow: raw.operatingCashFlow,
+    operatingCashFlow: scopedOperatingCashFlow,
     capex: raw.capex,
     freeCashFlowProxy,
     grossMargin,

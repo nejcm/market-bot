@@ -30,6 +30,14 @@ export function isRevenueConceptInRecencyBucket(
   return Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= REVENUE_CONCEPT_RECENCY_BUCKET_DAYS;
 }
 
+export function conceptScope(concept: string | undefined): string | undefined {
+  return concept?.endsWith("ContinuingOperations") === true ? "continuing operations" : undefined;
+}
+
+export function scopedLabel(label: string, scope: string | undefined): string {
+  return scope === undefined ? label : `${label} (${scope})`;
+}
+
 export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatementSeriesDefinition[] =
   [
     {
@@ -189,7 +197,10 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: true,
       concepts: {
-        "us-gaap": ["NetCashProvidedByUsedInOperatingActivities"],
+        "us-gaap": [
+          "NetCashProvidedByUsedInOperatingActivities",
+          "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        ],
         "ifrs-full": ["CashFlowsFromUsedInOperatingActivities"],
       },
     },
@@ -201,7 +212,10 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: true,
       concepts: {
-        "us-gaap": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+        "us-gaap": [
+          "PaymentsToAcquirePropertyPlantAndEquipment",
+          "PaymentsToAcquireProductiveAssets",
+        ],
         "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
       },
     },

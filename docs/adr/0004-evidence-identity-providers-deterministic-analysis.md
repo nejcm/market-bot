@@ -212,10 +212,18 @@ without pretending the project has a global security master.
   `report.json`: inside the bundle for deep equity and in `normalized/fundamental-history.json` for
   other equity runs. Each revenue series buckets concepts whose latest eligible period is within 100
   days of the most recent candidate, then selects the first by configured order; other series select
-  the first configured concept with facts. Configured concept order is load-bearing semantics rather
-  than a tie-break of convenience: it ranks total-revenue tags above narrower contract-revenue tags,
-  which for some issuers differ by an order of magnitude. Observed history depth never overrides
-  selection because a deeper tag may represent a narrower measure. Offline corpus roster
+  the concept with the most recent eligible period, configured order breaking ties. Configured concept
+  order is load-bearing semantics rather than a tie-break of convenience: it ranks total-revenue tags
+  above narrower contract-revenue tags, which for some issuers differ by an order of magnitude, and
+  total operating cash flow above its continuing-operations variant. Observed history depth never
+  overrides selection because a deeper tag may represent a narrower measure. A narrower alias wins
+  only when the broader tag has stopped at an older period (an issuer that re-tags after a
+  discontinued operation); the continuing-operations variant then carries a "(continuing
+  operations)" scope label through the SEC summary, Fundamental History, Financial Trends, OCF-derived
+  lens metrics, and the FCF inputs of the Valuation Workbench and reverse DCF. Configured order also
+  outranks prior availability on an equal period, so a missing total-tag comparative stays a gap
+  rather than a reason to switch scope. Selection stays whole-concept, so TTM never splices two
+  concepts. Offline corpus roster
   verification re-derives the selected concept for roster-covered series from this rule rather than
   checking allow-list membership alone. Selection then filters by the analysis cutoff, retains up to
   ten 10-14-month 10-K periods, and resolves duplicate period ends to the latest-filed restatement.
@@ -444,8 +452,8 @@ without pretending the project has a global security master.
   annualized metrics must preserve period metadata and be treated as screening evidence.
 - Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
   series. Revenue buckets concepts whose latest eligible period is within 100 days of the most
-  recent candidate, then uses configured order; other series use the first configured concept with
-  facts. Because order encodes measure scope, reordering a concept list is a correctness change, not
+  recent candidate, then uses configured order; other series use the concept with the most recent
+  eligible period, configured order breaking ties. Because order encodes measure scope, reordering a concept list is a correctness change, not
   a preference change; exact definition contents and order are pinned by test. Accepting shortened
   history remains preferable to substituting a differently scoped series; when an alternative tag
   would extend history, the shortening stays silent by design and is not reported as a gap.

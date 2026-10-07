@@ -21,7 +21,7 @@
   {:else}
     <div class="mt-3 grid gap-2 text-[10px] text-muted-foreground sm:grid-cols-3">
       <div>
-        <span class="font-semibold text-foreground">Starting FCF</span><br />
+        <span class="font-semibold text-foreground">{reverseDcf.startingFcfLabel}</span><br />
         <span class="font-mono">{reverseDcf.startingFcf}</span><br />
         {reverseDcf.startingFcfDates}
       </div>

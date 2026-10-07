@@ -5,12 +5,19 @@ import type {
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
-import type { SecDebtMetricKey, SecMetricDefinitionKey, SecSicClassification } from "./sec-edgar";
+import { conceptScope } from "./financial-statement-definitions";
+import {
+  formatSecFundamentalsSummary,
+  type SecDebtMetricKey,
+  type SecMetricDefinitionKey,
+  type SecSicClassification,
+} from "./sec-edgar";
 import {
   financialStatementFacts,
   financialStatementPeriodMonths,
   financialStatementPeriodsYearAligned,
   financialStatementSeriesByKey,
+  isYearAligned,
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
@@ -99,6 +106,7 @@ export type SecMetricKey =
   | `${SecFactMetricKey}PeriodMonths`
   | `${SecFactMetricKey}Prior`
   | `${SecFactMetricKey}DeltaPercent`
+  | `${SecFactMetricKey}Scope`
   | `${CanonicalDerivedMetricKey}Selected${"Value" | "PeriodEnd" | "PeriodMonths"}`
   | "revenuePeriodEnd"
   | "financialLensSelectionVersion"
@@ -115,8 +123,13 @@ function priorComparable(
       (fact) =>
         fact.periodEnd < selected.periodEnd &&
         fact.basis === selected.basis &&
+        fact.concept === selected.concept &&
         financialStatementPeriodMonths(fact) === months &&
-        financialStatementPeriodsYearAligned(fact, selected) &&
+        (series.statement === "balanceSheet"
+          ? fact.periodStart === undefined &&
+            selected.periodStart === undefined &&
+            isYearAligned(fact.periodEnd, selected.periodEnd)
+          : financialStatementPeriodsYearAligned(fact, selected)) &&
         fact.currency === selected.currency &&
         fact.unit === selected.unit &&
         fact.unitScale === selected.unitScale,
@@ -137,6 +150,10 @@ function addFactMetrics(
   metrics[`${key}PeriodEnd`] = fact.periodEnd;
   if (fact.basis !== undefined) {
     metrics[`${key}Basis`] = fact.basis;
+  }
+  const scope = conceptScope(fact.concept);
+  if (scope !== undefined) {
+    metrics[`${key}Scope`] = scope;
   }
   const months = financialStatementPeriodMonths(fact);
   if (months !== undefined) {
@@ -314,6 +331,29 @@ function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }
 
+const CANONICAL_FACT_METRIC_KEYS = new Set<string>(
+  [...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey]) => metricKey),
+);
+
+function canonicalSummary(
+  legacy: ExtendedEvidenceItem | undefined,
+  metrics: Readonly<Record<string, number | string>>,
+): string {
+  // Without a legacy item there is no us-gaap label or USD basis to render prose against.
+  if (legacy === undefined) {
+    return "Canonical SEC financial statement inputs.";
+  }
+  if (hasCanonicalFinancialLensSelection(legacy)) {
+    return legacy.summary;
+  }
+  // Canonical keys render only from canonical metrics; legacy fills keys canonical never produces.
+  const fundamentals = formatSecFundamentalsSummary((key) =>
+    CANONICAL_FACT_METRIC_KEYS.has(key) ? metrics : legacy.metrics,
+  );
+  const filings = legacy.summary.replace(/SEC Fundamental Evidence: .*$/su, "").trim();
+  return [filings, fundamentals].filter((part) => part !== undefined && part !== "").join(" ");
+}
+
 export function withCanonicalFinancialLensInputs(
   evidence: ExtendedEvidence | undefined,
   artifact: FinancialStatementsArtifact,
@@ -332,7 +372,7 @@ export function withCanonicalFinancialLensInputs(
   const canonical: ExtendedEvidenceItem = {
     category: "sec-edgar",
     title: legacy?.title ?? `${artifact.symbol} canonical financial statements`,
-    summary: legacy?.summary ?? "Canonical SEC financial statement inputs.",
+    summary: canonicalSummary(legacy, metrics),
     sourceIds: unique([...(legacy?.sourceIds ?? []), artifact.sourceId]),
     observedAt: legacy?.observedAt ?? artifact.analysisAsOf,
     metrics: {

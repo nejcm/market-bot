@@ -47,7 +47,9 @@ When running:
   isolation** — keeping run logs out of the review — not model savings; the
   cost is market-bot's own model calls, which the driving agent does not
   change. Say so plainly if asked.
-- **Run pair members sequentially.** Concurrent runs share `data/` state.
+- **Run pair members in parallel.** Run dirs publish atomically; if the model
+  provider rate-limits (429 / capacity errors in `failure.json`), rerun that
+  member alone.
 - **One run per subject.** Repeat same-subject runs discriminate run-to-run
   variance, but that is the most expensive axis; older runs of the same subject
   (Step 2) cover most of it for free. Do N repeats only on explicit request, and

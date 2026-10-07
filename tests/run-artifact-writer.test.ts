@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { InstrumentCommand, MarketOverviewCommand } from "../src/cli/args";
 import type { ResearchSubjectCommand } from "../src/cli/job-registry";
 import type { AppConfig } from "../src/config";
 import type { ResearchReport, RunTrace, SourceGap } from "../src/domain/types";
-import { prepareRunArtifacts } from "../src/artifacts";
+import { prepareRunArtifacts, publishRunArtifacts } from "../src/artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { readRunDetail } from "../app/artifacts";
@@ -929,5 +929,35 @@ describe("persistRunArtifactWrites", () => {
     expect(await readFile(join(artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown), "utf8")).toBe(
       "# Report\n",
     );
+  });
+});
+
+describe("publishRunArtifacts", () => {
+  test("run dir appears only once every write lands", async () => {
+    const root = tempDir();
+    const dataDir = join(root, "runs");
+    const artifacts = await publishRunArtifacts(dataDir, "run-1", async (staged) => {
+      expect(await readdir(dataDir).catch(() => [])).toEqual([]);
+      await persistRunArtifactWrites(staged, [
+        { file: RUN_ARTIFACT_FILES.analytics, kind: "json", value: { ok: true } },
+      ]);
+    });
+
+    expect(artifacts.runDir).toBe(join(dataDir, "run-1"));
+    expect(await readFile(join(artifacts.runDir, RUN_ARTIFACT_FILES.analytics), "utf8")).toBe(
+      '{\n  "ok": true\n}\n',
+    );
+    expect(await readdir(root)).toEqual(["runs"]);
+  });
+
+  test("a failed write leaves no run dir", async () => {
+    const root = tempDir();
+    const dataDir = join(root, "runs");
+    const failure = publishRunArtifacts(dataDir, "run-1", () =>
+      Promise.reject(new Error("disk full")),
+    );
+
+    await expect(failure).rejects.toThrow("disk full");
+    expect(await readdir(dataDir).catch(() => [])).toEqual([]);
   });
 });

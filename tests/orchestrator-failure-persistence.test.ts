@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
-import { mkdir, readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { InstrumentCommand } from "../src/cli/args";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
@@ -256,6 +256,7 @@ describe("Failed Run Artifact persistence", () => {
       "12345678-1234-1234-1234-123456789abc",
     );
     const runDir = join(dataDir, "2026-05-19T00-00-00-000Z-12345678");
+    const stage = join(dirname(dataDir), `.${basename(dataDir)}-${basename(runDir)}.partial`);
     await mkdir(join(runDir, "raw"), { recursive: true });
     await mkdir(join(runDir, "normalized"), { recursive: true });
     await mkdir(join(runDir, "failure.json"));
@@ -278,12 +279,14 @@ describe("Failed Run Artifact persistence", () => {
       expect(error.message).toMatch(/Report failed validation after 4 final-synthesis call\(s\)/u);
       expect(error.runDir).toBeUndefined();
       expect(stderr.join("")).toContain("Failed to persist run diagnostics:");
-      expect(await readdir(runDir)).toEqual(
+      expect(await readdir(runDir)).toEqual(["failure.json", "normalized", "raw"]);
+      expect(await readdir(stage)).toEqual(
         expect.arrayContaining(["failure.json", "rejected-report.json", "stages.json"]),
       );
     } finally {
       process.stderr.write = originalWrite;
       randomUuid.mockRestore();
+      await rm(stage, { recursive: true, force: true });
     }
   });
 });

@@ -5,7 +5,7 @@ import { dirtySourceHash } from "../reproducibility";
 import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
+import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucket,
@@ -801,37 +801,38 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         critiqueOutput,
         ...error.stageOutputs,
       ];
-      const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
-      progress(`writing failed run artifacts to ${artifacts.runDir}`);
-      await persistFailedRunArtifactWrites(
-        artifacts,
-        buildFailedRunManifest({
-          command,
-          runId,
-          generatedAt,
-          failedAt: completedAt(),
-          message: error.message,
-          reportValidationErrors: error.reportValidationErrors,
-          predictionErrors: error.predictionErrors,
-          totalCalls: error.totalCalls,
-          reportRepairReprompts: error.reportRepairReprompts,
-          stageOutputs,
-          payload: error.payload,
-          collectedSources,
-          historicalContext,
-          sourcePlan: sourcePlanning.sourcePlan,
-          evidenceLanes: sourcePlanning.evidenceLanes,
-          sourceLedger: sourcePlanning.sourceLedger,
-          ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
-          ...(webGatherLoop.skipCode !== undefined
-            ? { webGatherSkipCode: webGatherLoop.skipCode }
-            : {}),
-          ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
-          playbookAudit,
-          evidenceQuality: evidenceQualityAssessment,
-          codeVersion,
-          ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
-        }),
+      progress("writing failed run artifacts");
+      const artifacts = await publishRunArtifacts(input.config.dataDir, runId, (staged) =>
+        persistFailedRunArtifactWrites(
+          staged,
+          buildFailedRunManifest({
+            command,
+            runId,
+            generatedAt,
+            failedAt: completedAt(),
+            message: error.message,
+            reportValidationErrors: error.reportValidationErrors,
+            predictionErrors: error.predictionErrors,
+            totalCalls: error.totalCalls,
+            reportRepairReprompts: error.reportRepairReprompts,
+            stageOutputs,
+            payload: error.payload,
+            collectedSources,
+            historicalContext,
+            sourcePlan: sourcePlanning.sourcePlan,
+            evidenceLanes: sourcePlanning.evidenceLanes,
+            sourceLedger: sourcePlanning.sourceLedger,
+            ...(webGatherLoop.audit !== undefined ? { webGatherAudit: webGatherLoop.audit } : {}),
+            ...(webGatherLoop.skipCode !== undefined
+              ? { webGatherSkipCode: webGatherLoop.skipCode }
+              : {}),
+            ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
+            playbookAudit,
+            evidenceQuality: evidenceQualityAssessment,
+            codeVersion,
+            ...(sourceStateHash !== undefined ? { sourceStateHash } : {}),
+          }),
+        ),
       );
       error.runDir = artifacts.runDir;
     } catch (persistError: unknown) {
@@ -1018,11 +1019,9 @@ export async function persistResearchJob(
   const command = normalizeResearchCommandDepth(input.command);
   const jobInput: RunResearchJobInput = command === input.command ? input : { ...input, command };
   const result = await runResearchJob(jobInput);
-  const artifacts = await prepareRunArtifacts(input.config.dataDir, result.report.runId);
-  progress(`writing run artifacts to ${artifacts.runDir}`);
-  await persistRunArtifactWrites(
-    artifacts,
-    buildResearchRunManifest(command, input.config, result),
+  progress("writing run artifacts");
+  const artifacts = await publishRunArtifacts(input.config.dataDir, result.report.runId, (staged) =>
+    persistRunArtifactWrites(staged, buildResearchRunManifest(command, input.config, result)),
   );
 
   if (

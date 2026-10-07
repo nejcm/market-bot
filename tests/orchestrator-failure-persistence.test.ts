@@ -279,7 +279,8 @@ describe("Failed Run Artifact persistence", () => {
       expect(error.message).toMatch(/Report failed validation after 4 final-synthesis call\(s\)/u);
       expect(error.runDir).toBeUndefined();
       expect(stderr.join("")).toContain("Failed to persist run diagnostics:");
-      expect(await readdir(runDir)).toEqual(["failure.json", "normalized", "raw"]);
+      const entries = await readdir(runDir);
+      expect(entries.toSorted()).toEqual(["failure.json", "normalized", "raw"]);
       expect(await readdir(stage)).toEqual(
         expect.arrayContaining(["failure.json", "rejected-report.json", "stages.json"]),
       );

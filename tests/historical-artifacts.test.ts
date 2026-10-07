@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { isRecord } from "../src/guards";
 import { readCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import {
   readFinancialStatementsArtifact,
@@ -7,6 +8,22 @@ import {
 import { readReverseDcfArtifact } from "../src/sources/extended-evidence/reverse-dcf";
 import { parseFinancialTableMappingOutput } from "../src/sources/extended-evidence/untagged-financial-table-validation";
 import { readValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
+
+// Lifts the frozen v1 facts to the current shape so the drop tests isolate one malformed field.
+function withFirstPublicAt(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => withFirstPublicAt(item));
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
+  const lifted = Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, withFirstPublicAt(item)]),
+  );
+  return "filedAt" in value && "periodKey" in value
+    ? { ...lifted, firstPublicAt: value.filedAt }
+    : lifted;
+}
 
 describe("frozen historical artifacts", () => {
   test("reads capital ownership version 1", async () => {
@@ -17,18 +34,59 @@ describe("frozen historical artifacts", () => {
     expect(readCapitalOwnershipArtifact(artifact)).toBeDefined();
   });
 
-  test("reads financial statements version 1", async () => {
-    const artifact: unknown = await Bun.file(
-      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
-    ).json();
-
-    expect(readFinancialStatementsArtifact(artifact)).toBeDefined();
-  });
-
-  test("drops only an unreadable financial statement fact", async () => {
+  test("reads financial statements version 1, dating facts without firstPublicAt to filedAt", async () => {
     const artifact = (await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
     ).json()) as FinancialStatementsArtifact;
+
+    const read = readFinancialStatementsArtifact(artifact);
+
+    expect(read?.statements.incomeStatement.revenue.annual).toEqual(
+      artifact.statements.incomeStatement.revenue.annual.map((fact) => ({
+        ...fact,
+        firstPublicAt: fact.filedAt,
+      })),
+    );
+    const ttm = read?.statements.incomeStatement.netIncome.ttm?.components.fiscalYear;
+    expect(ttm?.firstPublicAt).toBe("2026-03-02");
+    expect(read?.readDiagnostics?.droppedObservationCount).toBe(0);
+    expect(read?.readDiagnostics?.backfills).toContainEqual({
+      reason: "financialStatements.revenue.annual.firstPublicAt-backfilled",
+      count: 2,
+    });
+  });
+
+  test("drops a fact with a non-string firstPublicAt", async () => {
+    const frozen: unknown = await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json();
+    const artifact = withFirstPublicAt(frozen) as FinancialStatementsArtifact;
+    const { revenue } = artifact.statements.incomeStatement;
+    const malformed = {
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        incomeStatement: {
+          ...artifact.statements.incomeStatement,
+          revenue: { ...revenue, annual: [{ ...revenue.annual[0], firstPublicAt: 0 }] },
+        },
+      },
+    };
+
+    const read = readFinancialStatementsArtifact(malformed);
+
+    expect(read?.statements.incomeStatement.revenue.annual).toEqual([]);
+    expect(read?.readDiagnostics).toEqual({
+      droppedObservationCount: 1,
+      drops: [{ reason: "financialStatements.revenue.annual.invalid", count: 1 }],
+    });
+  });
+
+  test("drops only an unreadable financial statement fact", async () => {
+    const frozen: unknown = await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json();
+    const artifact = withFirstPublicAt(frozen) as FinancialStatementsArtifact;
     const { revenue } = artifact.statements.incomeStatement;
     const malformed = {
       ...artifact,
@@ -54,9 +112,10 @@ describe("frozen historical artifacts", () => {
   });
 
   test("drops only an unreadable equity-stack fact", async () => {
-    const artifact = (await Bun.file(
+    const frozen: unknown = await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
-    ).json()) as FinancialStatementsArtifact;
+    ).json();
+    const artifact = withFirstPublicAt(frozen) as FinancialStatementsArtifact;
     const fact = artifact.statements.incomeStatement.revenue.annual[0]!;
     const malformed = {
       ...artifact,
@@ -80,9 +139,10 @@ describe("frozen historical artifacts", () => {
   });
 
   test("drops only an unreadable TTM observation", async () => {
-    const artifact = (await Bun.file(
+    const frozen: unknown = await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
-    ).json()) as FinancialStatementsArtifact;
+    ).json();
+    const artifact = withFirstPublicAt(frozen) as FinancialStatementsArtifact;
     const { netIncome } = artifact.statements.incomeStatement;
     const malformed = {
       ...artifact,

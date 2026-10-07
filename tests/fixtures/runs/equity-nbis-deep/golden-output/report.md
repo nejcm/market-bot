@@ -163,16 +163,16 @@ No prior run artifacts matched this research scope.
 
 ### Valuation Workbench
 
-As-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.
+Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.
 
 Basis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF
 --- | --- | --- | --- | ---: | ---: | ---: | ---:
-ANNUAL | 2016-12-31 | 2019-04-19 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
-ANNUAL | 2017-12-31 | 2020-04-02 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
-ANNUAL | 2018-12-31 | 2021-04-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
-ANNUAL | 2019-12-31 | 2022-04-20 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
-ANNUAL | 2020-12-31 | 2023-04-20 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
-ANNUAL | 2021-12-31 | 2024-04-26 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
+ANNUAL | 2016-12-31 | 2017-03-22 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)
+ANNUAL | 2017-12-31 | 2018-03-27 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
+ANNUAL | 2018-12-31 | 2019-04-19 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
+ANNUAL | 2019-12-31 | 2020-04-02 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
+ANNUAL | 2020-12-31 | 2021-04-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
+ANNUAL | 2021-12-31 | 2022-04-20 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
 ANNUAL | 2022-12-31 | 2025-04-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)
 ANNUAL | 2023-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 212.66x | 5230.73x | 5380.40x | 68.63x
 ANNUAL | 2024-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | N/M | 424.52x | 415.15x | N/M

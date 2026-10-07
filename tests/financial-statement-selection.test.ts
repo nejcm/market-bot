@@ -53,6 +53,7 @@ function fact(overrides: FactOverrides = {}): FinancialStatementFact {
     amendment,
     accessionNumber: overrides.accessionNumber ?? "accession-a",
     filedAt: overrides.filedAt ?? "2025-02-01",
+    firstPublicAt: overrides.filedAt ?? "2025-02-01",
     ...(overrides.periodStart === null
       ? {}
       : { periodStart: overrides.periodStart ?? "2024-01-01" }),

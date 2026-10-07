@@ -43,7 +43,7 @@ function factInput(label: string, fact: FinancialStatementFact): ValuationFundam
     value: fact.value,
     label: fact.basis === "gross-principal" ? `${label} (gross principal)` : label,
     periodEnd: fact.periodEnd,
-    publicAt: fact.filedAt,
+    publicAt: fact.firstPublicAt,
     currency: fact.currency,
     unit: fact.unit,
     sourceIds: fact.sourceIds,
@@ -55,7 +55,7 @@ function ttmInput(label: string, ttm: FinancialStatementTtm): ValuationFundament
     value: ttm.value,
     label,
     periodEnd: ttm.periodEnd,
-    publicAt: latest(Object.values(ttm.components).map((fact) => fact.filedAt)),
+    publicAt: latest(Object.values(ttm.components).map((fact) => fact.firstPublicAt)),
     currency: ttm.currency,
     unit: ttm.unit,
     sourceIds: ttm.sourceIds,
@@ -173,12 +173,12 @@ function annualInputs(
   );
   const cashFact = latestFinancialStatementFact(
     financialStatementFacts(balanceSheet.cash).filter(
-      (fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt,
+      (fact) => fact.periodEnd <= periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
   const debtFact = latestFinancialStatementFact(
     financialStatementFacts(balanceSheet.debt).filter(
-      (fact) => fact.periodEnd <= periodEnd && fact.filedAt <= publicAt,
+      (fact) => fact.periodEnd <= periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
   const dilutedShares = directShares ?? deriveShares(netIncome, dilutedEps);
@@ -253,12 +253,12 @@ function periodInputsFromTtm(
   );
   const cashFact = latestFinancialStatementFact(
     financialStatementFacts(balanceSheet.cash).filter(
-      (fact) => fact.periodEnd <= revenue.periodEnd && fact.filedAt <= publicAt,
+      (fact) => fact.periodEnd <= revenue.periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
   const debtFact = latestFinancialStatementFact(
     financialStatementFacts(balanceSheet.debt).filter(
-      (fact) => fact.periodEnd <= revenue.periodEnd && fact.filedAt <= publicAt,
+      (fact) => fact.periodEnd <= revenue.periodEnd && fact.firstPublicAt <= publicAt,
     ),
   );
   return {
@@ -308,8 +308,8 @@ function derivedTtmAt(
   }
   return deriveFinancialStatementTtm(
     definition,
-    series.annual.filter((fact) => fact.filedAt <= cutoff),
-    series.interim.filter((fact) => fact.filedAt <= cutoff),
+    series.annual.filter((fact) => fact.firstPublicAt <= cutoff),
+    series.interim.filter((fact) => fact.firstPublicAt <= cutoff),
     artifact.reportingCurrency,
   ).ttm;
 }
@@ -319,7 +319,7 @@ function historicalTtmInputs(
 ): readonly ValuationPeriodInputs[] {
   const { incomeStatement, cashFlowStatement, perShare } = artifact.statements;
   const cutoffs = [
-    ...new Set(incomeStatement.revenue.interim.map((fact) => fact.filedAt)),
+    ...new Set(incomeStatement.revenue.interim.map((fact) => fact.firstPublicAt)),
   ].toSorted();
   return cutoffs.flatMap((cutoff) => {
     const revenue = derivedTtmAt(artifact, incomeStatement.revenue, cutoff);

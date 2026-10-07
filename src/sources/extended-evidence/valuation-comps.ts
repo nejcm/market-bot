@@ -7,10 +7,12 @@ import {
   peerImpliedRangeSuppressionGaps,
   replaceValuationItem,
   sourcesForPeer,
+  usablePeersLabel,
   valuationCompsGap,
 } from "./valuation-comps-support";
 import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
+  SUPPORTABILITY_SUPPRESSION_CAUSE,
   type ValuationCompsOptions,
   type ValuationCompsResult,
 } from "./valuation-comps-contract";
@@ -169,7 +171,7 @@ export async function collectValuationComps(
     ...excludedPeers.map((peer) =>
       valuationCompsGap(
         `Peer ${peer.symbol} excluded from valuation comps: ${peer.reason}`,
-        "provider-data-missing",
+        peer.cause,
         "valuation-peers",
         peer.symbol,
       ),
@@ -184,15 +186,17 @@ export async function collectValuationComps(
     peerGaps,
     peerSources.map((source) => source.id),
   );
+  const { valuationSupportability, usablePeerCount } = artifact.summary;
+  const usablePeers = usablePeersLabel(usablePeerCount);
   const supportabilityGaps =
-    artifact.summary.valuationSupportability === "supported"
+    valuationSupportability === "supported"
       ? []
       : [
           valuationCompsGap(
-            artifact.summary.valuationSupportability === "not-meaningful"
-              ? `Valuation peer comps not-meaningful for ${command.symbol}: ${REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT} ${String(artifact.summary.usablePeerCount)} usable peers passed the applicable gates`
-              : `Valuation peer comps ${artifact.summary.valuationSupportability} for ${command.symbol}: ${artifact.summary.usablePeerCount} usable peers`,
-            "provider-data-missing",
+            valuationSupportability === "not-meaningful"
+              ? `Valuation peer comps not-meaningful for ${command.symbol}: ${REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT} ${usablePeers} passed the applicable gates`
+              : `Valuation peer comps ${valuationSupportability} for ${command.symbol}: ${usablePeers}`,
+            SUPPORTABILITY_SUPPRESSION_CAUSE[valuationSupportability],
             "valuation",
             command.symbol.toUpperCase(),
           ),
@@ -200,7 +204,10 @@ export async function collectValuationComps(
   const allGaps = [
     ...peerGaps,
     ...supportabilityGaps,
-    ...peerImpliedRangeSuppressionGaps(artifact),
+    // A suppressed range only restates the supportability gap, which stays the material one.
+    ...peerImpliedRangeSuppressionGaps(artifact).map((gap) =>
+      supportabilityGaps.length === 0 ? gap : { ...gap, triage: "diagnostic" as const },
+    ),
   ];
   return {
     extendedEvidence: replaceValuationItem(

@@ -2,6 +2,7 @@ import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import type { SourceGap } from "../domain/types";
 import type { CollectedSources, FetchLike } from "../sources/types";
+import { isSubstantiveProfileText } from "./contract";
 import {
   buildWebSubjectProfileEvidence,
   buildWebSubjectProfileFailureEvidence,
@@ -27,7 +28,9 @@ function reusedProfileCoverage(
   return {
     present: true,
     topics: Object.entries(reuse.profile.questions)
-      .filter(([, answer]) => answer.sourceIds.length > 0)
+      .filter(
+        ([, answer]) => isSubstantiveProfileText(answer.answer) && answer.sourceIds.length > 0,
+      )
       .map(([topic]) => topic)
       .toSorted(),
   };

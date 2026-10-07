@@ -203,12 +203,12 @@ const WEB_SUBJECT_PROFILE_QUESTION_LABELS: Readonly<Record<WebSubjectProfileQues
   };
 
 // View policy: an uncited fact is not shown, and a claim the reader kept without
-// Text (`claim: undefined`) has nothing to render.
+// Text (`claim: undefined` or a stripped marker-only `""`) has nothing to render.
 function webProfileFacts(
   facts: readonly WebSubjectProfileFactValue[],
 ): readonly WebSubjectProfileFactView[] {
   return facts.flatMap(({ claim, sourceIds }): readonly WebSubjectProfileFactView[] =>
-    claim === undefined || sourceIds.length === 0 ? [] : [{ claim, sourceIds }],
+    claim === undefined || claim === "" || sourceIds.length === 0 ? [] : [{ claim, sourceIds }],
   );
 }
 

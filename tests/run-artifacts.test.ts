@@ -475,6 +475,26 @@ describe("loadRunArtifact", () => {
     expect(artifact?.report.equityAnalysisCompleteness).toEqual(equityAnalysisCompleteness);
   });
 
+  test("reports financial statement facts backfilled without firstPublicAt", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "pre-first-public");
+    await writeJson(join(runDir, "report.json"), researchReport({ runId: "pre-first-public" }));
+    await writeJson(
+      join(runDir, "normalized", "financial-statements.json"),
+      await Bun.file(
+        new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+      ).json(),
+    );
+
+    const { artifact } = await loadRunArtifact(runDir);
+
+    expect(artifact?.report.dataGaps).toContainEqual(
+      expect.stringMatching(
+        /^Financial statement facts without firstPublicAt: \d+ dated to their selected filing \(financialStatements\.revenue\.annual\.firstPublicAt-backfilled: 2/u,
+      ),
+    );
+  });
+
   test("keeps historical reports readable without Phase 2 fields", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "historical-report");

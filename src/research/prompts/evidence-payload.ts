@@ -4,6 +4,7 @@ import { rankMovers } from "../../movers/ranking";
 import type { VerifiedMarketSnapshot } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
 import { isCompanyProfileSecSource, subjectKindForCommand } from "../../web-evidence";
+import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 import {
   forPrompt,
   verifiedSnapshotCitationRule,
@@ -148,7 +149,7 @@ const projectWebSources: EvidenceProjector = (options, command, collectedSources
   // Their sanitized summary here (snippet as a fallback) — but only for web sources
   // The attached profile does not already carry as a pre-cited fact, keeping the
   // Low-trust text surface bounded.
-  const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
+  const profileCoveredIds = substantiveProfileSourceIds(collectedSources.webSubjectProfile);
   return {
     webSources: collectedSources.extendedSources
       .filter(

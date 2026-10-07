@@ -116,3 +116,28 @@ export type WebSubjectProfileArtifact =
         Record<WebSubjectProfileThemeQuestionKey, WebSubjectProfileAnswer>
       >;
     });
+
+// Emptied rows and withheld notices keep their sourceIds for traversal but carry no evidence.
+export function isSubstantiveProfileText(text: string): boolean {
+  return text !== "" && !isWebSubjectProfileWithheldAnswer(text);
+}
+
+export function substantiveProfileSourceIds(
+  profile: WebSubjectProfileArtifact | undefined,
+): ReadonlySet<string> {
+  if (profile === undefined) {
+    return new Set();
+  }
+  const answers: readonly WebSubjectProfileAnswer[] = [
+    profile.subjectSummary,
+    ...Object.values(profile.questions),
+  ];
+  return new Set([
+    ...answers
+      .filter((row) => isSubstantiveProfileText(row.answer))
+      .flatMap((row) => row.sourceIds),
+    ...[...profile.recentMaterialEvents, ...profile.factLedger]
+      .filter((row) => isSubstantiveProfileText(row.claim))
+      .flatMap((row) => row.sourceIds),
+  ]);
+}

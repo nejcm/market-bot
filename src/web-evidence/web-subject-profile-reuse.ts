@@ -13,9 +13,10 @@ import { isRecord } from "../guards";
 import { scanWebSubjectProfileRunArtifacts } from "../run-artifacts";
 import type { SecFilingForm } from "../sources/evidence-request-tools";
 import { canonicalizeSecForm } from "../sources/extended-evidence/financial-statements-contract";
-import { isWebSubjectProfileWithheldAnswer } from "./contract";
+import { isWebSubjectProfileWithheldAnswer, substantiveProfileSourceIds } from "./contract";
 import {
   buildWebSubjectProfileReuseEvidence,
+  screenReusedWebSubjectProfile,
   type WebSubjectProfileArtifact,
   webSubjectProfileSubjectForCommand,
 } from "./web-subject-profile";
@@ -25,6 +26,7 @@ import { classifyWebEvidenceUtilization } from "./web-source-usage";
 
 export interface WebSubjectProfileReuse {
   readonly profile: WebSubjectProfileArtifact;
+  readonly withheldGaps: readonly SourceGap[];
   readonly sources: readonly Source[];
   readonly gap: SourceGap;
   readonly runDirName: string;
@@ -104,7 +106,9 @@ export async function findReusableWebSubjectProfile(input: {
   );
 
   for (const artifact of candidates) {
-    const profile = artifact.webSubjectProfile;
+    const { artifact: profile, withheldGaps } = screenReusedWebSubjectProfile(
+      artifact.webSubjectProfile,
+    );
     if (
       !isReusableProfile(profile, {
         subjectId: subject.subjectId,
@@ -134,6 +138,7 @@ export async function findReusableWebSubjectProfile(input: {
     );
     return {
       profile,
+      withheldGaps,
       sources,
       gap: sourceGap({
         source: "web-subject-profile",
@@ -191,7 +196,7 @@ export function attachReusableWebSubjectProfile(input: {
   const result = buildWebSubjectProfileReuseEvidence({
     command: input.command,
     subject,
-    artifact: input.reuse.profile,
+    reused: { artifact: input.reuse.profile, withheldGaps: input.reuse.withheldGaps },
     extendedEvidence: input.collectedSources.extendedEvidence,
     freshnessGap: input.reuse.gap,
   });
@@ -199,10 +204,6 @@ export function attachReusableWebSubjectProfile(input: {
     ...input.collectedSources,
     extendedSources: mergeSources(input.collectedSources.extendedSources, input.reuse.sources),
     ...(result.extendedEvidence !== undefined ? { extendedEvidence: result.extendedEvidence } : {}),
-    /*
-     * The screened artifact, not `input.reuse.profile`: a profile persisted before the
-     * research-only screen existed must not re-enter assembly with its original wording.
-     */
     webSubjectProfile: result.artifact,
     webSubjectProfileReuse: {
       runDirName: input.reuse.runDirName,
@@ -226,7 +227,7 @@ function isReusableProfile(
   },
 ): boolean {
   if (
-    profile.sourceIds.length === 0 ||
+    substantiveProfileSourceIds(profile).size === 0 ||
     profile.subjectId.toUpperCase() !== input.subjectId.toUpperCase()
   ) {
     return false;

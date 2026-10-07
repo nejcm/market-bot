@@ -9,6 +9,7 @@ import {
 } from "../domain/types";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
+import { substantiveProfileSourceIds } from "../web-evidence/contract";
 import { isUsListing } from "../sources/instrument-capability";
 import {
   normalizeResearchCommandDepth,
@@ -408,7 +409,7 @@ const LANE_DEFINITIONS: readonly LaneDefinition[] = [
       (command.depth === "deep" &&
         isInstrumentCommand(command) &&
         (command.assetClass === "equity" || command.assetClass === "crypto")),
-    sourceIds: (sources) => sources.webSubjectProfile?.sourceIds ?? [],
+    sourceIds: (sources) => [...substantiveProfileSourceIds(sources.webSubjectProfile)],
     gapMatches: (gap) => gap.source === "web-subject-profile" || gap.source === "web-gather",
   },
 ];

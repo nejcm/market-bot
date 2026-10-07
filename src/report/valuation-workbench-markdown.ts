@@ -188,7 +188,7 @@ export function renderValuationWorkbenchMarkdown(
     "",
     "## Valuation Workbench",
     "",
-    `As-reported multiples use ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
+    `Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the ${artifact.historicalMultiples.priceSelectionRule}; statement period ends do not establish public availability. Reporting currency: ${artifact.reportingCurrency ?? "unavailable"}. Quote currency: ${artifact.quoteCurrency ?? "unavailable"}.`,
     "",
     ...trailing,
     historical,

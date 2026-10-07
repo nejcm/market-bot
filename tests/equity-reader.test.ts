@@ -35,6 +35,7 @@ function statementFact(
     amendment: filedAt === "2025-03-01",
     accessionNumber: `accession-${key}-${filedAt}`,
     filedAt,
+    firstPublicAt: filedAt,
     periodEnd,
     fiscalYear: Number(periodEnd.slice(0, 4)),
     fiscalPeriod: "FY",

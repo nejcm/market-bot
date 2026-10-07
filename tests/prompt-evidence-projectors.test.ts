@@ -11,6 +11,7 @@ import type {
 import type { EarningsSetupCollected } from "../src/sources/types";
 import { sanitizeMarketSnapshotMetadata } from "../src/sources/metadata-sanitization";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";
+import { WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE } from "../src/web-evidence/contract";
 import {
   collectedSources,
   marketSnapshot,
@@ -20,6 +21,8 @@ import {
 } from "./support/fixtures";
 import { config, researchContext, stagePromptFromArgs } from "./support/research-context-helpers";
 import { verifiedSnapshotCitationRule } from "../src/research/verified-snapshot-contract";
+import { hasFreshWebEvidence } from "../src/research/prompts/steering";
+import { buildWebSourceSynthesisInputs } from "../src/research/prompts/web-source-synthesis-inputs";
 
 function evidenceFor(
   command: ResearchCommand,
@@ -408,6 +411,42 @@ describe("#1 — evidence projectors in buildStagePrompt payload", () => {
     expect(fresh!.summary).toBe("Fresh summary");
     // Summary present, so snippet is suppressed for token control.
     expect(fresh!.snippet).toBeUndefined();
+  });
+
+  test.each([
+    ["emptied rows", ""],
+    ["withheld notices", WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE],
+  ])("final-synthesis keeps the text of a source cited only by %s", (_name, claim) => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const emptiedOnly = {
+      id: "web-3",
+      title: "Cited only by an emptied row",
+      fetchedAt: "2026-06-28T00:00:00.000Z",
+      kind: "web" as const,
+      summary: "Emptied-row summary",
+    };
+    const profile: WebSubjectProfileArtifact = {
+      ...webProfileForProjection,
+      factLedger: [...webProfileForProjection.factLedger, { claim, sourceIds: ["web-3"] }],
+      sourceIds: ["web-1", "web-3"],
+    };
+    const sources = { extendedSources: [emptiedOnly], webSubjectProfile: profile };
+    const evidence = evidenceFor(command, sources, "final-synthesis");
+    const [projected] = evidence.webSources as readonly Record<string, unknown>[];
+    expect(projected?.summary).toBe("Emptied-row summary");
+    expect(hasFreshWebEvidence(collectedSources(sources))).toBe(true);
+    expect(buildWebSourceSynthesisInputs(command, collectedSources(sources))).toEqual([
+      expect.objectContaining({
+        sourceId: "web-3",
+        modelVisibleText: "summary",
+        profileCovered: false,
+      }),
+    ]);
   });
 
   test("final-synthesis projects fresh web summary when no profile exists", () => {

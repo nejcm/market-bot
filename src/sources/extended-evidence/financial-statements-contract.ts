@@ -122,6 +122,7 @@ export interface FinancialStatementFact {
   readonly amendment: boolean;
   readonly accessionNumber: string | null;
   readonly filedAt: string;
+  readonly firstPublicAt: string;
   readonly periodStart?: string;
   readonly periodEnd: string;
   readonly fiscalYear: number;
@@ -325,6 +326,7 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     typeof value.amendment === "boolean" &&
     (value.accessionNumber === null || typeof value.accessionNumber === "string") &&
     stringField(value, "filedAt") !== undefined &&
+    (value.firstPublicAt === undefined || typeof value.firstPublicAt === "string") &&
     (value.periodStart === undefined || typeof value.periodStart === "string") &&
     stringField(value, "periodEnd") !== undefined &&
     numberField(value, "fiscalYear") !== undefined &&
@@ -363,6 +365,41 @@ function hasFinancialStatementTtmShape(value: unknown): boolean {
   );
 }
 
+// Facts written before firstPublicAt keep their selected-filing date; each backfill is reported.
+function backfillFirstPublicAt(fact: FinancialStatementFact): FinancialStatementFact {
+  return { ...fact, firstPublicAt: fact.firstPublicAt ?? fact.filedAt };
+}
+
+function readFinancialStatementFacts(
+  values: readonly unknown[],
+  reason: string,
+): {
+  readonly observations: readonly FinancialStatementFact[];
+  readonly drops: readonly ArtifactObservationDrop[];
+  readonly backfills: readonly ArtifactObservationDrop[];
+} {
+  const read = readArtifactObservations<FinancialStatementFact>(
+    values,
+    `${reason}.invalid`,
+    (fact) => (hasFinancialStatementFactShape(fact) ? (fact as FinancialStatementFact) : undefined),
+  );
+  return {
+    observations: read.observations.map(backfillFirstPublicAt),
+    drops: read.drops,
+    backfills: firstPublicAtBackfills(read.observations, reason),
+  };
+}
+
+function firstPublicAtBackfills(
+  facts: readonly FinancialStatementFact[],
+  reason: string,
+): readonly ArtifactObservationDrop[] {
+  const count = facts.filter(
+    (fact) => (fact.firstPublicAt as string | undefined) === undefined,
+  ).length;
+  return count === 0 ? [] : [{ reason: `${reason}.firstPublicAt-backfilled`, count }];
+}
+
 function readFinancialStatementSeries(
   value: unknown,
   key: FinancialStatementSeriesKey,
@@ -370,6 +407,7 @@ function readFinancialStatementSeries(
   | {
       readonly series: FinancialStatementSeries;
       readonly drops: readonly ArtifactObservationDrop[];
+      readonly backfills: readonly ArtifactObservationDrop[];
     }
   | undefined {
   if (
@@ -385,18 +423,8 @@ function readFinancialStatementSeries(
   ) {
     return undefined;
   }
-  const readFact = (fact: unknown): FinancialStatementFact | undefined =>
-    hasFinancialStatementFactShape(fact) ? (fact as FinancialStatementFact) : undefined;
-  const annual = readArtifactObservations<FinancialStatementFact>(
-    value.annual,
-    `financialStatements.${key}.annual.invalid`,
-    readFact,
-  );
-  const interim = readArtifactObservations<FinancialStatementFact>(
-    value.interim,
-    `financialStatements.${key}.interim.invalid`,
-    readFact,
-  );
+  const annual = readFinancialStatementFacts(value.annual, `financialStatements.${key}.annual`);
+  const interim = readFinancialStatementFacts(value.interim, `financialStatements.${key}.interim`);
   const ttm =
     value.ttm === undefined
       ? undefined
@@ -408,6 +436,7 @@ function readFinancialStatementSeries(
               ? (candidate as FinancialStatementTtm)
               : undefined,
         );
+  const [readTtm] = ttm?.observations ?? [];
   const { ttm: _ttm, ...rest } = value;
   return {
     series: {
@@ -417,9 +446,28 @@ function readFinancialStatementSeries(
       statement: value.statement,
       annual: annual.observations,
       interim: interim.observations,
-      ...(ttm?.observations[0] !== undefined ? { ttm: ttm.observations[0] } : {}),
+      ...(readTtm === undefined
+        ? {}
+        : {
+            ttm: {
+              ...readTtm,
+              components: {
+                fiscalYear: backfillFirstPublicAt(readTtm.components.fiscalYear),
+                latestYearToDate: backfillFirstPublicAt(readTtm.components.latestYearToDate),
+                priorYearToDate: backfillFirstPublicAt(readTtm.components.priorYearToDate),
+              },
+            },
+          }),
     },
     drops: [...annual.drops, ...interim.drops, ...(ttm?.drops ?? [])],
+    backfills: [
+      ...annual.backfills,
+      ...interim.backfills,
+      ...firstPublicAtBackfills(
+        readTtm === undefined ? [] : Object.values(readTtm.components),
+        `financialStatements.${key}.ttm`,
+      ),
+    ],
   };
 }
 
@@ -427,6 +475,7 @@ function readFinancialStatementEquityStack(value: unknown):
   | {
       readonly equityStack: FinancialStatementEquityStack;
       readonly drops: readonly ArtifactObservationDrop[];
+      readonly backfills: readonly ArtifactObservationDrop[];
     }
   | undefined {
   if (!isRecord(value)) {
@@ -442,22 +491,20 @@ function readFinancialStatementEquityStack(value: unknown):
   ] as const;
   const facts: Partial<Record<(typeof keys)[number], readonly FinancialStatementFact[]>> = {};
   const drops: ArtifactObservationDrop[] = [];
+  const backfills: ArtifactObservationDrop[] = [];
   for (const key of keys) {
     if (!Array.isArray(value[key])) {
       return undefined;
     }
-    const read = readArtifactObservations<FinancialStatementFact>(
-      value[key],
-      `financialStatements.equityStack.${key}.invalid`,
-      (fact) =>
-        hasFinancialStatementFactShape(fact) ? (fact as FinancialStatementFact) : undefined,
-    );
+    const read = readFinancialStatementFacts(value[key], `financialStatements.equityStack.${key}`);
     facts[key] = read.observations;
     drops.push(...read.drops);
+    backfills.push(...read.backfills);
   }
   return {
     equityStack: { ...value, ...facts } as unknown as FinancialStatementEquityStack,
     drops,
+    backfills,
   };
 }
 
@@ -528,6 +575,7 @@ export function readFinancialStatementsArtifact(
   const allSeries = { ...income, ...balance, ...cashFlow, ...perShare };
   const series: Partial<Record<FinancialStatementSeriesKey, FinancialStatementSeries>> = {};
   const drops: ArtifactObservationDrop[] = [...(equityStack?.drops ?? [])];
+  const backfills: ArtifactObservationDrop[] = [...(equityStack?.backfills ?? [])];
   for (const key of FINANCIAL_STATEMENT_SERIES_KEYS) {
     const read = readFinancialStatementSeries(allSeries[key], key);
     if (read === undefined) {
@@ -535,6 +583,7 @@ export function readFinancialStatementsArtifact(
     }
     series[key] = read.series;
     drops.push(...read.drops);
+    backfills.push(...read.backfills);
   }
   const statement = (record: Record<string, unknown>) =>
     Object.fromEntries(
@@ -543,7 +592,7 @@ export function readFinancialStatementsArtifact(
         series[key as FinancialStatementSeriesKey] ?? record[key],
       ]),
     );
-  return withArtifactReadDiagnostics(
+  const read = withArtifactReadDiagnostics(
     {
       ...value,
       ...(equityStack === undefined ? {} : { equityStack: equityStack.equityStack }),
@@ -558,4 +607,7 @@ export function readFinancialStatementsArtifact(
     previous,
     drops,
   );
+  return backfills.length === 0 || read.readDiagnostics === undefined
+    ? read
+    : { ...read, readDiagnostics: { ...read.readDiagnostics, backfills } };
 }

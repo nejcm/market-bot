@@ -409,16 +409,22 @@ export async function loadRunArtifact(runDir: string): Promise<LoadedRunArtifact
     reverseDcf,
   ].flatMap((artifact) => artifact?.readDiagnostics?.drops ?? []);
   const droppedObservationCount = observationDrops.reduce((sum, drop) => sum + drop.count, 0);
+  const backfills = financialStatements?.readDiagnostics?.backfills ?? [];
+  const backfilledCount = backfills.reduce((sum, backfill) => sum + backfill.count, 0);
+  const readGaps = [
+    ...(droppedObservationCount === 0
+      ? []
+      : [
+          `Artifact observations unavailable: ${String(droppedObservationCount)} ${droppedObservationCount === 1 ? "observation" : "observations"} dropped (${observationDrops.map((drop) => `${drop.reason}: ${String(drop.count)}`).join(", ")}).`,
+        ]),
+    ...(backfilledCount === 0
+      ? []
+      : [
+          `Financial statement facts without firstPublicAt: ${String(backfilledCount)} dated to their selected filing (${backfills.map((backfill) => `${backfill.reason}: ${String(backfill.count)}`).join(", ")}).`,
+        ]),
+  ];
   const readableReport =
-    droppedObservationCount === 0
-      ? report
-      : {
-          ...report,
-          dataGaps: [
-            ...report.dataGaps,
-            `Artifact observations unavailable: ${String(droppedObservationCount)} ${droppedObservationCount === 1 ? "observation" : "observations"} dropped (${observationDrops.map((drop) => `${drop.reason}: ${String(drop.count)}`).join(", ")}).`,
-          ],
-        };
+    readGaps.length === 0 ? report : { ...report, dataGaps: [...report.dataGaps, ...readGaps] };
 
   return {
     artifact: {

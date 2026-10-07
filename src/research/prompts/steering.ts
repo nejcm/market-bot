@@ -1,6 +1,7 @@
 import type { ResearchCommand } from "../../cli/args";
 import type { Source } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
+import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 
 // Bounded steering field shared by the spotlight-selection and final-synthesis
 // Stages so an optional market-overview prompt steers both (A3) without
@@ -31,7 +32,7 @@ export function isFreshWebSource(source: Source, profileCoveredIds: ReadonlySet<
 // The steering only advertises fresh sources the model can actually read. Drives the fresh-web
 // Preference in buildPrimaryPredictionInstruction (run-review finding #1).
 export function hasFreshWebEvidence(collectedSources: CollectedSources): boolean {
-  const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
+  const profileCoveredIds = substantiveProfileSourceIds(collectedSources.webSubjectProfile);
   return collectedSources.extendedSources.some(
     (source) =>
       isFreshWebSource(source, profileCoveredIds) &&

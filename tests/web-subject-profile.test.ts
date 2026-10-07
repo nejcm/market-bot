@@ -4,6 +4,7 @@ import {
   buildWebSubjectProfileFailureEvidence,
   buildWebSubjectProfileReuseEvidence,
   isCompanyProfileSecSource,
+  screenReusedWebSubjectProfile,
   normalizedSubjectId,
 } from "../src/web-evidence/web-subject-profile";
 import {
@@ -18,6 +19,11 @@ import {
   validateResearchReport,
 } from "../src/report/schema";
 import { renderWebSubjectProfile } from "../src/report/markdown-profile-sections";
+import { webSubjectProfileView } from "../app/client/view-model";
+import {
+  readWebSubjectProfileAnswer,
+  readWebSubjectProfileFacts,
+} from "../src/report/report-extras-contract";
 import { sourceGap } from "../src/domain/source-gaps";
 import { researchReport } from "./support/fixtures";
 import type { Source } from "../src/domain/types";
@@ -1095,7 +1101,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap,
     });
@@ -1123,7 +1129,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: origin as NonNullable<typeof origin>,
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
       extendedEvidence: undefined,
       freshnessGap,
     });
@@ -1490,7 +1496,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1530,7 +1536,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: origin as NonNullable<typeof origin>,
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1576,7 +1582,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: mixed,
+      reused: screenReusedWebSubjectProfile(mixed),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1606,7 +1612,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1627,7 +1633,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: origin as NonNullable<typeof origin>,
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1803,7 +1809,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1821,5 +1827,256 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
         }),
       ),
     ).not.toThrow();
+  });
+});
+
+describe("Web Subject Profile inline source-id markers", () => {
+  const other: Source = { ...webSource, id: "web-aapl-87654321", title: "Apple segments" };
+
+  function payloadWith(
+    answer: string,
+    claim: string,
+    sourceIds = [webSource.id],
+    extra: Record<string, unknown> = {},
+  ): string {
+    const value = { answer, sourceIds };
+    return JSON.stringify({
+      ...extra,
+      subjectSummary: value,
+      questions: Object.fromEntries(
+        [
+          "whatItDoes",
+          "howItMakesMoney",
+          "customers",
+          "geography",
+          "purchaseRecurrence",
+          "pricingPower",
+          "recessionCyclicality",
+          "managementTrackRecord",
+          "capitalAllocation",
+          "companyKpis",
+          "riskFactors",
+        ].map((key) => [key, value]),
+      ),
+      recentMaterialEvents: [],
+      factLedger: [{ claim, sourceIds: [other.id] }],
+      openGaps: [],
+      ...extra,
+    });
+  }
+
+  function buildResult(
+    answer: string,
+    claim = "Apple reports segments.",
+    sourceIds?: string[],
+    extra?: Record<string, unknown>,
+  ) {
+    return buildWebSubjectProfileEvidence({
+      command,
+      subject,
+      generatedAt: "2026-05-19T00:00:00.000Z",
+      runId: "test-run",
+      modelContent: payloadWith(answer, claim, sourceIds, extra),
+      webSources: [webSource, other],
+      extendedEvidence: undefined,
+    });
+  }
+
+  function build(...args: Parameters<typeof buildResult>) {
+    return buildResult(...args).artifact;
+  }
+
+  test("caps Evidence Quality and declares a gap when every row was only markers", () => {
+    const marker = `[${webSource.id}]`;
+    const result = buildResult(marker, marker, undefined, {
+      recentMaterialEvents: [{ claim: marker, sourceIds: [webSource.id] }],
+      factLedger: [
+        { claim: marker, sourceIds: [webSource.id] },
+        { claim: "Uncited by an admitted source.", sourceIds: ["web-aapl-00000000"] },
+      ],
+    });
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("items rejected for source-citation errors"),
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
+      expect.objectContaining({
+        message:
+          "Web Subject Profile empty for AAPL: no cited substantive answer or fact remains after validation and marker removal",
+        cause: "validation-failed",
+      }),
+    ]);
+  });
+
+  test("strips known single and grouped markers and leaves sourceIds untouched", () => {
+    const artifact = build(
+      `Apple sells devices [${webSource.id}], and services. [${webSource.id}, ${other.id}] [${other.id}]`,
+      `Apple reports segments. [${other.id}]`,
+    );
+    expect(artifact.subjectSummary).toEqual({
+      answer: "Apple sells devices, and services.",
+      sourceIds: [webSource.id],
+    });
+    expect(artifact.factLedger).toEqual([
+      { claim: "Apple reports segments.", sourceIds: [other.id] },
+    ]);
+    expect(artifact.sourceIds).toEqual([webSource.id, other.id].toSorted());
+  });
+
+  test("keeps bracketed text that is not a known source id", () => {
+    const artifact = build(
+      `Segments are [AI Cloud Services] and [web-aapl-00000000]; mixed [${webSource.id}, web-aapl-00000000].`,
+    );
+    expect(artifact.subjectSummary.answer).toBe(
+      `Segments are [AI Cloud Services] and [web-aapl-00000000]; mixed [${webSource.id}, web-aapl-00000000].`,
+    );
+  });
+
+  test("empties marker-only text, keeps its citations, and both renderers skip it", () => {
+    const markerOnly = `[${webSource.id}]`;
+    const artifact = build(markerOnly, ` [${other.id}] `, undefined, {
+      recentMaterialEvents: [
+        { claim: markerOnly, sourceIds: [webSource.id] },
+        { claim: "Apple expanded services.", sourceIds: [webSource.id] },
+      ],
+    });
+    expect(artifact.subjectSummary).toEqual({ answer: "", sourceIds: [webSource.id] });
+    expect(artifact.factLedger).toEqual([{ claim: "", sourceIds: [other.id] }]);
+    expect(artifact.recentMaterialEvents[0]).toEqual({ claim: "", sourceIds: [webSource.id] });
+
+    const report = researchReport({
+      jobType: "research",
+      sources: [webSource, other],
+      extras: { webSubjectProfile: artifact },
+    });
+    const rows = renderWebSubjectProfile(report)
+      .split("\n")
+      .filter((line) => line.startsWith("- "));
+    expect(rows.some((line) => line.includes("Apple expanded services."))).toBe(true);
+    expect(rows.every((line) => line.includes("Apple"))).toBe(true);
+    const view = webSubjectProfileView(report as unknown as Record<string, unknown>);
+    expect(view?.subjectSummary).toBeUndefined();
+    expect(view?.factLedger).toEqual([]);
+    expect(view?.recentMaterialEvents.map((event) => event.claim)).toEqual([
+      "Apple expanded services.",
+    ]);
+  });
+
+  test("collapses the spacing a removed marker leaves and keeps newlines", () => {
+    expect(build(`Apple sells [${webSource.id}]  devices.`).subjectSummary.answer).toBe(
+      "Apple sells devices.",
+    );
+    expect(build(`Apple sells devices [${webSource.id}] .`).subjectSummary.answer).toBe(
+      "Apple sells devices.",
+    );
+    expect(
+      build(`Apple sells devices. [${webSource.id}]\n[${webSource.id}] Services grow.`)
+        .subjectSummary.answer,
+    ).toBe("Apple sells devices.\nServices grow.");
+  });
+
+  test("leaves no space before a closing quote or bracket and keeps CRLF", () => {
+    const answerOf = (text: string) => build(text).subjectSummary.answer;
+    expect(answerOf(`Apple "sells devices [${webSource.id}]" today.`)).toBe(
+      'Apple "sells devices" today.',
+    );
+    expect(answerOf(`Apple [sells devices [${webSource.id}]] today.`)).toBe(
+      "Apple [sells devices] today.",
+    );
+    expect(answerOf(`Apple sells devices. [${webSource.id}]\r\nServices grow.`)).toBe(
+      "Apple sells devices.\r\nServices grow.",
+    );
+  });
+
+  test("empties multiline marker-only text so the strict readers accept it", () => {
+    for (const newline of ["\n", "\r\n"]) {
+      const markers = `[${webSource.id}]${newline}[${webSource.id}]`;
+      const artifact = build(markers, `[${other.id}]${newline}[${other.id}]`, undefined, {
+        openGaps: [markers, "Segment mix unclear."],
+      });
+      expect(readWebSubjectProfileAnswer(artifact.subjectSummary)).toEqual({
+        answer: "",
+        sourceIds: [webSource.id],
+      });
+      expect(readWebSubjectProfileFacts(artifact.factLedger)).toEqual([
+        { claim: "", sourceIds: [other.id] },
+      ]);
+      expect(artifact.openGaps).toEqual(["Segment mix unclear."]);
+    }
+  });
+
+  test("leaves whitespace-only text without a marker unchanged", () => {
+    const origin = build("Apple sells devices.");
+    const result = buildWebSubjectProfileReuseEvidence({
+      command,
+      subject,
+      reused: screenReusedWebSubjectProfile({
+        ...origin,
+        subjectSummary: { answer: " \n ", sourceIds: [webSource.id] },
+      }),
+      extendedEvidence: undefined,
+      freshnessGap: reuseFreshnessGap(),
+    });
+    expect(result.artifact.subjectSummary.answer).toBe(" \n ");
+  });
+
+  test("leaves text without a known marker byte-identical", () => {
+    expect(build("Apple\uE000sells [Products]  devices .").subjectSummary.answer).toBe(
+      "Apple\uE000sells [Products]  devices .",
+    );
+  });
+
+  test("strips known markers from open gaps and labels", () => {
+    const artifact = build("Apple sells devices.", undefined, undefined, {
+      subjectLabel: `Apple [${webSource.id}]`,
+      companyName: `Apple Inc. [${webSource.id}]`,
+      openGaps: [
+        `Regional split missing [${webSource.id}].`,
+        `[${webSource.id}]`,
+        "[Products] mix unclear.",
+      ],
+    });
+    expect(artifact).toMatchObject({
+      subjectLabel: "Apple",
+      companyName: "Apple Inc.",
+      openGaps: ["Regional split missing.", "[Products] mix unclear."],
+    });
+  });
+
+  test("strips markers from a reused artifact", () => {
+    const origin = build("Apple sells devices.");
+    const legacy = {
+      ...origin,
+      subjectSummary: {
+        answer: `Apple sells devices. [${webSource.id}]`,
+        sourceIds: [webSource.id],
+      },
+    } as typeof origin;
+    const result = buildWebSubjectProfileReuseEvidence({
+      command,
+      subject,
+      reused: screenReusedWebSubjectProfile(legacy),
+      extendedEvidence: undefined,
+      freshnessGap: reuseFreshnessGap(),
+    });
+    expect(result.artifact.subjectSummary).toEqual({
+      answer: "Apple sells devices.",
+      sourceIds: [webSource.id],
+    });
+  });
+
+  test("renders a single citation set in markdown", () => {
+    const artifact = build(`Apple sells devices. [${webSource.id}]`);
+    const markdown = renderWebSubjectProfile(
+      researchReport({
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        sources: [webSource, other],
+        extras: { webSubjectProfile: artifact },
+      }),
+    );
+    const row = markdown.split("\n").find((line) => line.includes("What It Does"));
+    expect(row?.split(webSource.id)).toHaveLength(2);
   });
 });

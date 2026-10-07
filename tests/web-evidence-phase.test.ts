@@ -7,6 +7,7 @@ import type { Source } from "../src/domain/types";
 import type { StageOutput } from "../src/research/final-synthesis";
 import type { ResearchContext } from "../src/research/research-context-types";
 import { runWebEvidencePhase } from "../src/web-evidence/web-evidence-phase";
+import { WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE } from "../src/web-evidence/contract";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 
 const tmpDirs: string[] = [];
@@ -121,6 +122,11 @@ describe("Web Evidence phase", () => {
       sourceIds: [source.id],
     };
     const uncitedAnswer = { answer: "Supply follows a fixed schedule.", sourceIds: [] };
+    const emptiedAnswer = { answer: "", sourceIds: [source.id] };
+    const withheldAnswer = {
+      answer: WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
+      sourceIds: [source.id],
+    };
     await writeJson(join(runDir, "report.json"), {
       runId: "prior-btc",
       jobType: "crypto",
@@ -154,9 +160,9 @@ describe("Web Evidence phase", () => {
         valueAccrual: citedAnswer,
         supplyIssuance: uncitedAnswer,
         usageAdoption: citedAnswer,
-        governanceBuilders: citedAnswer,
+        governanceBuilders: withheldAnswer,
         competitionMoat: citedAnswer,
-        keyRisks: citedAnswer,
+        keyRisks: emptiedAnswer,
       },
       recentMaterialEvents: [],
       factLedger: [{ claim: citedAnswer.answer, sourceIds: citedAnswer.sourceIds }],
@@ -194,14 +200,7 @@ describe("Web Evidence phase", () => {
         expect(stage).toBe("web-gather");
         expect(stageContext.webGather?.reusedProfileCoverage).toEqual({
           present: true,
-          topics: [
-            "competitionMoat",
-            "governanceBuilders",
-            "keyRisks",
-            "usageAdoption",
-            "valueAccrual",
-            "whatItDoes",
-          ],
+          topics: ["competitionMoat", "usageAdoption", "valueAccrual", "whatItDoes"],
         });
         const output: StageOutput = {
           stage,

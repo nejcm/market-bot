@@ -74,6 +74,7 @@ interface ParsedFact {
   readonly taxonomy: FinancialStatementTaxonomy;
   readonly concept: string;
   readonly unit: string;
+  readonly firstPublicAt?: string;
   readonly composite?: {
     readonly formula: typeof COMPOSITE_STATEMENT_FACT_FORMULA;
     readonly components: readonly ParsedCompositeComponent[];
@@ -361,7 +362,25 @@ function factsForComposite(
     ) {
       return [];
     }
-    return [compositeFromContributors(contributors)];
+    const composite = compositeFromContributors(contributors);
+    const histories = slotFacts.flatMap((facts, index) =>
+      slotGroups[index]?.length === 0
+        ? []
+        : [
+            facts.filter(
+              (fact) =>
+                eligible(fact) &&
+                periodKey(fact) === periodKey(anchor) &&
+                periodType(fact, definition) === periodType(anchor, definition),
+            ),
+          ],
+    );
+    return [
+      {
+        ...composite,
+        firstPublicAt: firstPublicDate(composite.value, composite.filedAt, histories),
+      },
+    ];
   });
 }
 
@@ -538,8 +557,38 @@ function periodKey(fact: ParsedFact): string {
   return financialStatementPeriodKey(fact);
 }
 
+type DatedFact = ParsedFact & { readonly firstPublicAt: string };
+
+// Earliest filing date from which the selected value stayed effective, so A -> B -> A dates to the later A.
+function firstPublicDate(
+  value: number,
+  filedAt: string,
+  slots: readonly (readonly ParsedFact[])[],
+): string {
+  const valueAt = (date: string) =>
+    slots.reduce<number | undefined>((sum, slot) => {
+      const [effective] = slot
+        .filter((fact) => fact.filedAt <= date)
+        .toSorted(compareFinancialStatementFacts);
+      return sum === undefined || effective === undefined ? undefined : sum + effective.value;
+    }, 0);
+  const dates = [...new Set(slots.flat().map((fact) => fact.filedAt))]
+    .filter((date) => date <= filedAt)
+    .toSorted();
+  const supersededAt = dates.findLast((date) => valueAt(date) !== value) ?? "";
+  return dates.find((date) => date > supersededAt) ?? filedAt;
+}
+
+function withFirstPublicAt(winner: ParsedFact, candidates: readonly ParsedFact[]): DatedFact {
+  const peers = candidates.filter((fact) => periodKey(fact) === periodKey(winner));
+  return {
+    ...winner,
+    firstPublicAt: winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [peers]),
+  };
+}
+
 function toSelectedFact(
-  fact: ParsedFact,
+  fact: DatedFact,
   definition: FinancialStatementSeriesDefinition,
   currency: string,
   sourceId: string,
@@ -564,6 +613,7 @@ function toSelectedFact(
     amendment: fact.amendment,
     accessionNumber: fact.accessionNumber,
     filedAt: fact.filedAt,
+    firstPublicAt: fact.firstPublicAt,
     ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
     periodEnd: fact.periodEnd,
     fiscalYear: fact.fiscalYear,
@@ -638,8 +688,8 @@ function selectEquityStackComponent(
     throw new Error("Financial statement definitions must include stockholdersEquity");
   }
   return [...byPeriodEnd.values()]
-    .map(
-      (facts) =>
+    .map((facts) =>
+      withFirstPublicAt(
         facts.toSorted(
           (left, right) =>
             Number(right.accessionNumber === preferredAccessions.get(right.periodEnd)) -
@@ -648,6 +698,8 @@ function selectEquityStackComponent(
               (priority.get(right.concept) ?? Number.MAX_SAFE_INTEGER) ||
             compareFinancialStatementFacts(left, right),
         )[0]!,
+        facts,
+      ),
     )
     .toSorted(chronological)
     .map((fact) => toSelectedFact(fact, instantDefinition, reportingCurrency, input.sourceId));
@@ -743,7 +795,7 @@ function selectEquityStack(
 function selectRestatements(
   facts: readonly ParsedFact[],
   seriesKey: FinancialStatementSeriesKey,
-): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+): { readonly facts: readonly DatedFact[]; readonly notes: readonly FinancialStatementNote[] } {
   const groups = new Map<string, ParsedFact[]>();
   for (const fact of facts) {
     const key = periodKey(fact);
@@ -761,7 +813,7 @@ function selectRestatements(
         message: `${String(ordered.length - 1)} duplicate/restated fact(s) superseded by ${winner.accessionNumber ?? "unknown accession"} filed ${winner.filedAt}`,
       });
     }
-    return winner;
+    return withFirstPublicAt(winner, matches);
   });
   return { facts: selected, notes };
 }
@@ -896,7 +948,12 @@ function withGrossPrincipalDebt(
     return selected;
   }
   const fact: FinancialStatementFact = {
-    ...toSelectedFact(latestGross, definition, reportingCurrency, input.sourceId),
+    ...toSelectedFact(
+      withFirstPublicAt(latestGross, gross),
+      definition,
+      reportingCurrency,
+      input.sourceId,
+    ),
     basis: "gross-principal",
     calibrationPeriodEnd: net.periodEnd,
   };

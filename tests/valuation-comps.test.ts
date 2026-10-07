@@ -18,7 +18,9 @@ import {
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
 import type { PeerUniverse } from "../src/research/peer-universe";
 import { isRecord } from "../src/guards";
-import { marketSnapshot } from "./support/fixtures";
+import { collectedSources, marketSnapshot } from "./support/fixtures";
+import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
+import { buildSubsystemOutcomes } from "../src/research/subsystem-outcomes";
 
 const generatedAt = "2026-07-15T00:00:00.000Z";
 const command = { jobType: "equity", assetClass: "equity", symbol: "NVDA", depth: "deep" } as const;
@@ -403,6 +405,7 @@ function astsRequestExecutor(
   options: {
     readonly quoteOverrides?: Readonly<Record<string, number>>;
     readonly sicOverrides?: Readonly<Record<string, string>>;
+    readonly companyFactsOverrides?: Readonly<Record<string, unknown>>;
   } = {},
 ): SourceRequestExecutor {
   return {
@@ -441,7 +444,10 @@ function astsRequestExecutor(
         });
       }
       if (adapter === "sec-companyfacts") {
-        return rawJson(adapter, secPayload({ revenue: peer.revenue }));
+        return rawJson(
+          adapter,
+          options.companyFactsOverrides?.[peer.symbol] ?? secPayload({ revenue: peer.revenue }),
+        );
       }
       throw new Error(`unexpected adapter ${adapter}`);
     },
@@ -991,6 +997,7 @@ describe("collectValuationComps", () => {
       expect.objectContaining({
         symbol: "AMD",
         reason: "SEC cash/debt period ends stale (cash 2011-06-29; debt 2011-06-29)",
+        cause: "provider-data-missing",
       }),
     );
     expect(result.gaps).toContainEqual(
@@ -999,6 +1006,7 @@ describe("collectValuationComps", () => {
         symbol: "AMD",
         message:
           "Peer AMD excluded from valuation comps: SEC cash/debt period ends stale (cash 2011-06-29; debt 2011-06-29)",
+        cause: "provider-data-missing",
       }),
     );
   });
@@ -1618,7 +1626,10 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.gateProfile).toBe("full");
     expect(result.artifact.summary.usablePeerCount).toBe(0);
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
-    expect(result.artifact.excludedPeers[0]?.reason).toBe("target SIC classification unavailable");
+    expect(result.artifact.excludedPeers[0]).toMatchObject({
+      reason: "target SIC classification unavailable",
+      cause: "provider-data-missing",
+    });
   });
 
   test("uses a submissions-only target SIC for revenue-exempt peer gating", async () => {
@@ -1904,15 +1915,38 @@ describe("collectValuationComps", () => {
       expect.objectContaining({
         symbol: "IRDM",
         reason: "SIC gate (revenue-exempt profile): SIC group mismatch (peer 73 vs target 48)",
+        cause: "suppressed-by-design",
       }),
       expect.objectContaining({
         symbol: "VSAT",
         reason: "market-cap gate (revenue-exempt profile): market cap outside 0.2x-5x of target",
+        cause: "suppressed-by-design",
       }),
     ]);
     expect(result.artifact.excludedPeers.map((peer) => peer.reason).join(" ")).not.toContain(
       "annualized revenue",
     );
+    expect(
+      result.gaps.filter((gap) => gap.source === "valuation-peers").map((gap) => gap.cause),
+    ).toEqual(["suppressed-by-design", "suppressed-by-design"]);
+    const valuationGaps = result.gaps.filter((gap) => gap.source === "valuation");
+    expect(valuationGaps).toEqual([
+      expect.objectContaining({
+        message:
+          "Valuation peer comps not-meaningful for ASTS: Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. 1 usable peer passed the applicable gates",
+        cause: "suppressed-by-design",
+      }),
+      expect.objectContaining({
+        message:
+          "Peer-implied price reference range suppressed for ASTS: peer supportability is not supported",
+        cause: "suppressed-by-design",
+        triage: "diagnostic",
+      }),
+    ]);
+    expect(valuationGaps[0]?.triage).toBeUndefined();
+    expect(
+      result.extendedEvidence.items.find((item) => item.category === "valuation")?.summary,
+    ).toContain("Peer comps supportability: not-meaningful; 1 usable peer.");
   });
 
   test("zero-revenue targets are not meaningful while SIC and market-cap gates still apply", async () => {
@@ -1971,15 +2005,100 @@ describe("collectValuationComps", () => {
       expect.objectContaining({
         symbol: "IRDM",
         reason: "SIC gate (revenue-exempt profile): SIC group mismatch (peer 73 vs target 48)",
+        cause: "suppressed-by-design",
       }),
       expect.objectContaining({
         symbol: "VSAT",
         reason: "market-cap gate (revenue-exempt profile): market cap outside 0.2x-5x of target",
+        cause: "suppressed-by-design",
       }),
     ]);
     expect(result.artifact.excludedPeers.map((peer) => peer.reason).join(" ")).not.toContain(
       "annualized revenue",
     );
+    expect(
+      result.gaps.filter((gap) => gap.source === "valuation-peers").map((gap) => gap.cause),
+    ).toEqual(["suppressed-by-design", "suppressed-by-design"]);
+    const valuationGaps = result.gaps.filter((gap) => gap.source === "valuation");
+    expect(valuationGaps).toEqual([
+      expect.objectContaining({
+        message:
+          "Valuation peer comps not-meaningful for ASTS: Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only. 1 usable peer passed the applicable gates",
+        cause: "suppressed-by-design",
+      }),
+      expect.objectContaining({
+        message:
+          "Peer-implied price reference range suppressed for ASTS: peer supportability is not supported",
+        cause: "suppressed-by-design",
+        triage: "diagnostic",
+      }),
+    ]);
+    expect(valuationGaps[0]?.triage).toBeUndefined();
+    expect(
+      result.extendedEvidence.items.find((item) => item.category === "valuation")?.summary,
+    ).toContain("Peer comps supportability: not-meaningful; 1 usable peer.");
+  });
+
+  test.each([
+    {
+      name: "all gated",
+      gsat: { sicOverrides: { GSAT: "7372" } },
+      gsatCause: "suppressed-by-design",
+    },
+    {
+      name: "gated plus data-missing",
+      gsat: { companyFactsOverrides: { GSAT: { facts: { "us-gaap": {} } } } },
+      gsatCause: "provider-data-missing",
+    },
+  ])("records a $name peer-valuation lane as declined by design", async ({ gsat, gsatCause }) => {
+    const astsCommand = { ...command, symbol: "ASTS" };
+    const result = await collectValuationComps(
+      collectContext(
+        astsRequestExecutor({
+          quoteOverrides: { VSAT: 4_300_000_000 },
+          ...gsat,
+          sicOverrides: { IRDM: "7372", ...("sicOverrides" in gsat ? gsat.sicOverrides : {}) },
+        }),
+        astsCommand,
+      ),
+      astsCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-asts",
+          symbol: "ASTS",
+          marketCap: 22_000_000_000,
+          observedAt: generatedAt,
+        }),
+      ],
+      astsValuationEvidence(),
+      astsOptions,
+    );
+    const { sourcePlan, evidenceLanes } = assessSourcePlan(
+      buildSourcePlan(astsCommand, generatedAt),
+      collectedSources({ valuationComps: result.artifact, sourceGaps: result.gaps }),
+      generatedAt,
+    );
+    const outcomes = buildSubsystemOutcomes({
+      sourcePlan,
+      evidenceLanes,
+      sourceGaps: result.gaps,
+      webSubjectProfilePresent: false,
+      playbookAudit: { selected: [], rejected: [] },
+    });
+
+    expect(result.artifact.summary.usablePeerCount).toBe(0);
+    expect(
+      result.gaps
+        .filter((gap) => gap.source === "valuation-peers")
+        .map((gap) => [gap.symbol, gap.cause]),
+    ).toEqual([
+      ["GSAT", gsatCause],
+      ["IRDM", "suppressed-by-design"],
+      ["VSAT", "suppressed-by-design"],
+    ]);
+    expect(
+      outcomes.find((item) => item.subsystem === "evidence-lane:peer-valuation"),
+    ).toMatchObject({ outcome: "declined", code: "suppressed-by-design", count: 3 });
   });
 
   test("ASTS-shaped target admits GSAT, IRDM, and VSAT as size/sector peers", async () => {

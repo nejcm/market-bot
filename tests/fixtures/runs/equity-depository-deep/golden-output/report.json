@@ -202,6 +202,7 @@
     "marketaux-news: missing MARKET_BOT_MARKETAUX_API_TOKEN",
     "finnhub-news: missing MARKET_BOT_FINNHUB_API_TOKEN",
     "valuation: Valuation Evidence unavailable for BNS: missing debt",
+    "market-yahoo-fx-usdcad: Yahoo FX close unavailable for USDCAD=X on or before 2025-08-26",
     "financial-lens: Financial Lens Evidence partial for BNS: missing valuation evidence",
     "business-framework: Business Framework partial for BNS: business-description: Business description is not available from current normalized sources",
     "business-framework: Business Framework partial for BNS: geographic-mix: Geographic revenue mix is not available from current normalized sources",

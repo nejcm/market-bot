@@ -1348,7 +1348,7 @@
         "symbol": "DELL",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
+        "cause": "suppressed-by-design",
         "evidenceQualityImpact": "extended-evidence-cap"
       },
       {

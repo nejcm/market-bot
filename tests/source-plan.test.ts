@@ -298,6 +298,91 @@ describe("source plan", () => {
     expect(subjectProfileCheck?.passed).toBe(true);
   });
 
+  test("counts only substantive profile rows toward subject-profile coverage", () => {
+    const command: ResearchCommand = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "deep",
+    };
+    const source = (id: string) => ({
+      id,
+      title: id,
+      fetchedAt: generatedAt,
+      kind: "web" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      provider: "exa",
+    });
+    const kept = source("web-aapl-11111111");
+    const emptied = source("web-aapl-22222222");
+    const assess = (text: string) => {
+      const answer = { answer: text, sourceIds: [kept.id] };
+      const result = buildWebSubjectProfileEvidence({
+        command,
+        subject: {
+          subjectKind: "company",
+          subjectId: "AAPL",
+          assetClass: "equity",
+          symbol: "AAPL",
+        },
+        generatedAt,
+        runId: "source-plan-run",
+        modelContent: JSON.stringify({
+          subjectSummary: answer,
+          questions: Object.fromEntries(
+            [
+              "whatItDoes",
+              "howItMakesMoney",
+              "customers",
+              "geography",
+              "purchaseRecurrence",
+              "pricingPower",
+              "recessionCyclicality",
+              "managementTrackRecord",
+              "capitalAllocation",
+              "companyKpis",
+              "riskFactors",
+            ].map((key) => [key, answer]),
+          ),
+          recentMaterialEvents: [],
+          factLedger: [
+            { claim: text, sourceIds: [kept.id] },
+            { claim: `[${emptied.id}]`, sourceIds: [emptied.id] },
+          ],
+          openGaps: [],
+        }),
+        webSources: [kept, emptied],
+        extendedEvidence: undefined,
+      });
+      const plan = plannedAndAssessed(
+        command,
+        collectedSources({
+          webSubjectProfile: result.artifact,
+          extendedSources: [kept, emptied],
+          sourceGaps: result.sourceGaps,
+        }),
+      );
+      return {
+        lane: plan.evidenceLanes.lanes.find((lane) => lane.lane === "subject-profile"),
+        check: assessEvidenceQuality(plan, generatedAt).checks.find(
+          (item) => item.capability === "subject-profile",
+        ),
+      };
+    };
+
+    const markerOnly = assess(`[${kept.id}]`);
+    expect(markerOnly.lane).toMatchObject({ status: "gap", coveredSourceIds: [] });
+    expect(markerOnly.lane?.gapText).toContainEqual(
+      expect.stringContaining("Web Subject Profile empty for AAPL"),
+    );
+    expect(markerOnly.check?.passed).toBe(false);
+
+    const mixed = assess("Apple sells devices and services.");
+    expect(mixed.lane).toMatchObject({ status: "covered", coveredSourceIds: [kept.id] });
+    expect(mixed.check?.passed).toBe(true);
+  });
+
   test("records a gap for every uncovered lane in a sparse deep-equity run", () => {
     const plan = plannedAndAssessed(
       { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },

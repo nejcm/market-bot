@@ -1180,6 +1180,143 @@ describe("canonical financial statements", () => {
   });
 });
 
+describe("first-public dating of selected facts", () => {
+  const fy2023Revenue = (filings: readonly (readonly [number, string, string?, null?])[]) =>
+    derive(
+      payload({
+        "us-gaap": {
+          Revenues: {
+            USD: filings.map(([value, filedAt, form = "10-K", accession]) => ({
+              ...fact({
+                value,
+                form,
+                fiscalYear: Number(filedAt.slice(0, 4)),
+                fiscalPeriod: "FY",
+                filedAt,
+                periodStart: "2023-01-01",
+                periodEnd: "2023-12-31",
+              }),
+              ...(accession === null ? { accn: undefined } : {}),
+            })),
+          },
+        },
+      }),
+    ).statements.incomeStatement.revenue.annual.map(({ value, filedAt, firstPublicAt }) => ({
+      value,
+      filedAt,
+      firstPublicAt,
+    }));
+
+  test("dates an unchanged value repeated in later filings to its first filing", () => {
+    expect(
+      fy2023Revenue([
+        [383_285_000_000, "2024-11-03"],
+        [383_285_000_000, "2025-11-01"],
+        [383_285_000_000, "2026-03-31"],
+      ]),
+    ).toEqual([{ value: 383_285_000_000, filedAt: "2026-03-31", firstPublicAt: "2024-11-03" }]);
+  });
+
+  test("never backdates a restated value to an earlier filing of a different value", () => {
+    expect(
+      fy2023Revenue([
+        [8_921_200_000, "2024-04-26"],
+        [20_900_000, "2025-04-30"],
+        [9_800_000, "2026-04-30"],
+      ]),
+    ).toEqual([{ value: 9_800_000, filedAt: "2026-04-30", firstPublicAt: "2026-04-30" }]);
+  });
+
+  test("dates A -> B -> A to the filing that restored A", () => {
+    expect(
+      fy2023Revenue([
+        [100, "2024-02-15"],
+        [110, "2025-02-15"],
+        [100, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+  });
+
+  test("a same-day amendment supersedes the original filing's value", () => {
+    expect(
+      fy2023Revenue([
+        [100, "2024-02-15"],
+        [100, "2025-02-15"],
+        [110, "2025-02-15", "10-K/A"],
+        [100, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+  });
+
+  test("a same-day amendment supersedes the original when both lack accessions", () => {
+    expect(
+      fy2023Revenue([
+        [100, "2024-02-15"],
+        [100, "2025-02-15", "10-K", null],
+        [110, "2025-02-15", "10-K/A", null],
+        [100, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+  });
+
+  const compositeDebt = (filings: readonly (readonly [number, number, string, string?])[]) => {
+    const filing = (value: number, filedAt: string, form: string) => ({
+      ...instant(value, 2024, form),
+      filed: filedAt,
+      accn: `${filedAt}-${form}`,
+    });
+    return derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2024)] },
+          LongTermDebtCurrent: {
+            USD: filings.map(([current, , filedAt, form = "10-K"]) =>
+              filing(current, filedAt, form),
+            ),
+          },
+          LongTermDebtNoncurrent: {
+            USD: filings.map(([, noncurrent, filedAt, form = "10-K"]) =>
+              filing(noncurrent, filedAt, form),
+            ),
+          },
+        },
+      }),
+    ).statements.balanceSheet.debt.annual.map(({ value, filedAt, firstPublicAt }) => ({
+      value,
+      filedAt,
+      firstPublicAt,
+    }));
+  };
+
+  test("dates a composite refiled unchanged to its components' first filing", () => {
+    expect(
+      compositeDebt([
+        [10, 90, "2025-02-15"],
+        [10, 90, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2025-02-15" }]);
+  });
+
+  test("dates a composite with a restated component to the restatement", () => {
+    expect(
+      compositeDebt([
+        [10, 90, "2025-02-15"],
+        [10, 95, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 105, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+  });
+
+  test("dates a composite restored after an amended composite to the restoration", () => {
+    expect(
+      compositeDebt([
+        [10, 90, "2024-02-15"],
+        [10, 95, "2025-02-15", "10-K/A"],
+        [10, 90, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+  });
+});
+
 function amdInstant(input: {
   readonly value: number;
   readonly form: "10-K" | "10-Q";
@@ -2566,6 +2703,7 @@ describe("gross-principal debt fallback", () => {
       concept: "DebtInstrumentCarryingAmount",
       extractionMethod: "sec-companyfacts",
       basis: "gross-principal",
+      firstPublicAt: "2026-08-12",
     });
     expect(artifact.statements.balanceSheet.debt.interim.filter((item) => item.basis)).toHaveLength(
       1,
@@ -2620,6 +2758,24 @@ describe("gross-principal debt fallback", () => {
       debt: 7_735_104_000,
       debtPeriodEnd: "2026-06-30",
       debtBasis: "gross-principal",
+    });
+  });
+
+  test("refiled gross principal keeps its first filing date", () => {
+    const { canonical } = selections(
+      facts({
+        LongTermDebt: crwvNet,
+        DebtInstrumentCarryingAmount: [
+          ...crwvGross,
+          q(35_551_000_000, "2026-06-30", "Q2", "2026-09-15"),
+        ],
+      }),
+    );
+
+    expect(canonical).toMatchObject({
+      basis: "gross-principal",
+      filedAt: "2026-09-15",
+      firstPublicAt: "2026-08-12",
     });
   });
 

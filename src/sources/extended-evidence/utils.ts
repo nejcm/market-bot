@@ -8,6 +8,7 @@ export interface ArtifactObservationDrop {
 export interface ArtifactReadDiagnostics {
   readonly droppedObservationCount: number;
   readonly drops: readonly ArtifactObservationDrop[];
+  readonly backfills?: readonly ArtifactObservationDrop[];
 }
 
 export type ReadArtifact<T> = T & { readonly readDiagnostics?: ArtifactReadDiagnostics };

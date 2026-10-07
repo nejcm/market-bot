@@ -170,7 +170,7 @@ No prior run artifacts matched this research scope.
 
 ### Valuation Workbench
 
-As-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: unavailable.
+Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: unavailable.
 
 - Trailing basis: reconciled TTM through 2026-06-27, public 2026-07-31.
 
@@ -178,12 +178,13 @@ Basis | Statement period | Public date | First eligible close | P/E | P/S | EV/r
 --- | --- | --- | --- | ---: | ---: | ---: | ---:
 ANNUAL | 2017-09-30 | 2019-10-31 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
 ANNUAL | 2018-09-29 | 2020-10-30 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
-ANNUAL | 2019-09-28 | 2021-10-29 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
-ANNUAL | 2020-09-26 | 2022-10-28 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
-ANNUAL | 2021-09-25 | 2023-11-03 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
-ANNUAL | 2022-09-24 | 2024-11-01 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
-ANNUAL | 2023-09-30 | 2025-10-31 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
-ANNUAL | 2024-09-28 | 2025-10-31 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
+ANNUAL | 2019-09-28 | 2020-10-30 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
+ANNUAL | 2020-09-26 | 2020-10-30 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
+ANNUAL | 2021-09-25 | 2021-10-29 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
+ANNUAL | 2022-09-24 | 2022-10-28 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (debt-unavailable) | — (quote-currency-unavailable)
+ANNUAL | 2023-09-30 | 2023-11-03 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
+ANNUAL | 2024-09-28 | 2024-11-01 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
+TTM | 2025-06-28 | 2025-08-01 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
 ANNUAL | 2025-09-27 | 2025-10-31 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
 TTM | 2025-12-27 | 2026-01-30 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)
 TTM | 2026-03-28 | 2026-05-01 | — | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable) | — (quote-currency-unavailable)

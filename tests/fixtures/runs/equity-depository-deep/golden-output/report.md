@@ -78,6 +78,7 @@ Observed market multiples are trailing P/E 17.60x, forward P/E 13.76x, price/boo
 - **Material:** Management track record, capital-allocation commentary, detailed risk factors, recession sensitivity, and dividend-sustainability evidence are missing.
 - **Material:** The substantive contents of the July 2026 6-K news-release exhibits are absent.
 - **Material:** valuation: Valuation Evidence unavailable for BNS: missing debt
+- **Material:** market-yahoo-fx-usdcad: Yahoo FX close unavailable for USDCAD=X on or before 2025-08-26
 - **Material:** financial-lens: Financial Lens Evidence partial for BNS: missing valuation evidence
 - **Material:** business-framework: Business Framework partial for BNS: business-description: Business description is not available from current normalized sources
 - **Material:** business-framework: Business Framework partial for BNS: geographic-mix: Geographic revenue mix is not available from current normalized sources
@@ -208,21 +209,23 @@ No prior run artifacts matched this research scope.
 
 ### Valuation Workbench
 
-As-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: CAD. Quote currency: USD.
+Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: CAD. Quote currency: USD.
 
 - Trailing basis: reconciled TTM through 2026-01-31, public 2026-02-24.
 
 Basis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF
 --- | --- | --- | --- | ---: | ---: | ---: | ---:
 ANNUAL | 2016-10-31 | 2018-11-27 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2017-10-31 | 2019-11-26 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2018-10-31 | 2020-12-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2019-10-31 | 2021-11-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2020-10-31 | 2021-11-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2021-10-31 | 2022-11-29 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2022-10-31 | 2023-11-28 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2017-10-31 | 2018-11-27 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2018-10-31 | 2018-11-27 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2019-10-31 | 2019-11-26 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2020-10-31 | 2020-12-01 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2021-10-31 | 2021-11-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2022-10-31 | 2022-11-29 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
 ANNUAL | 2023-10-31 | 2024-12-03 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
-ANNUAL | 2024-10-31 | 2025-12-02 | 70.55 USD (2025-12-02; converted at USD/CAD 1.4000 on 2025-12-02) | 16.83x | 3.61x | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+ANNUAL | 2024-10-31 | 2024-12-03 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+TTM | 2025-04-30 | 2025-05-27 | — | — (price-history-unavailable) | — (price-history-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
+TTM | 2025-07-31 | 2025-08-26 | 61.41 USD (2025-08-26) | — (fx-rate-unavailable) | — (fx-rate-unavailable) | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
 ANNUAL | 2025-10-31 | 2025-12-02 | 70.55 USD (2025-12-02; converted at USD/CAD 1.4000 on 2025-12-02) | 17.42x | 3.27x | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
 TTM | 2026-01-31 | 2026-02-24 | 75.38 USD (2026-02-24; converted at USD/CAD 1.3694 on 2026-02-24) | 15.32x | 3.65x | not applicable (deposit-funded issuer; enterprise value is not defined) | not applicable (depository issuer; capex-based free cash flow is not defined)
 

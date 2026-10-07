@@ -27,6 +27,7 @@ function fact(input: {
   readonly value: number;
   readonly periodEnd: string;
   readonly filedAt: string;
+  readonly firstPublicAt?: string;
   readonly periodType?: "annual" | "interim";
   readonly unit?: string;
   readonly currency?: string | null;
@@ -41,6 +42,7 @@ function fact(input: {
     amendment: false,
     accessionNumber: `${input.periodEnd}-${input.key}`,
     filedAt: input.filedAt,
+    firstPublicAt: input.firstPublicAt ?? input.filedAt,
     periodStart: `${String(Number(input.periodEnd.slice(0, 4)) - 1)}-01-01`,
     periodEnd: input.periodEnd,
     fiscalYear: Number(input.periodEnd.slice(0, 4)),
@@ -198,7 +200,74 @@ function withoutTtm(artifact: FinancialStatementsArtifact): FinancialStatementsA
   };
 }
 
+function refile(item: FinancialStatementFact): FinancialStatementFact {
+  return { ...item, filedAt: "2025-05-20" };
+}
+
+function refiledWithUnchangedValues(
+  artifact: FinancialStatementsArtifact,
+): FinancialStatementsArtifact {
+  const refileSeries = (item: FinancialStatementSeries): FinancialStatementSeries => ({
+    ...item,
+    annual: item.annual.map(refile),
+    interim: item.interim.map(refile),
+    ...(item.ttm === undefined
+      ? {}
+      : {
+          ttm: {
+            ...item.ttm,
+            components: {
+              fiscalYear: refile(item.ttm.components.fiscalYear),
+              latestYearToDate: refile(item.ttm.components.latestYearToDate),
+              priorYearToDate: refile(item.ttm.components.priorYearToDate),
+            },
+          },
+        }),
+  });
+  const refileGroup = <T extends Readonly<Record<string, FinancialStatementSeries>>>(group: T) =>
+    Object.fromEntries(
+      Object.entries(group).map(([key, item]) => [key, refileSeries(item)]),
+    ) as unknown as T;
+  const { incomeStatement, balanceSheet, cashFlowStatement, perShare } = artifact.statements;
+  return {
+    ...artifact,
+    statements: {
+      incomeStatement: refileGroup(incomeStatement),
+      balanceSheet: refileGroup(balanceSheet),
+      cashFlowStatement: refileGroup(cashFlowStatement),
+      perShare: refileGroup(perShare),
+    },
+  };
+}
+
 describe("valuation workbench", () => {
+  test("dates rows and balance-sheet joins to the first filing of each selected value", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: refiledWithUnchangedValues(statements()),
+      priceHistory: [
+        { date: "2024-02-15", close: 20 },
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+        { date: "2025-05-20", close: 30 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+
+    expect(
+      artifact.historicalMultiples.observations.map(({ basis, publicAt }) => ({ basis, publicAt })),
+    ).toEqual([
+      { basis: "annual", publicAt: "2024-02-15" },
+      { basis: "annual", publicAt: "2025-02-15" },
+      { basis: "ttm", publicAt: "2025-05-01" },
+    ]);
+    expect(artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
+      enterpriseValueToRevenue: { status: "populated", value: 2.05 },
+    });
+  });
+
   test("aligns each historical multiple to the first close on or after publication", () => {
     const artifact = buildValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",

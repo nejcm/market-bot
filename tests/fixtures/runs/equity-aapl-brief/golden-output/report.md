@@ -142,7 +142,7 @@ No prior run artifacts matched this research scope.
 
 ### Valuation Workbench
 
-As-reported multiples use first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: unavailable. Quote currency: USD.
+Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: unavailable. Quote currency: USD.
 
 - Suppressed: no annual or reconciled TTM valuation basis available.
 

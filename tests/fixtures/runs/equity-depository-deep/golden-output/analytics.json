@@ -203,7 +203,7 @@
       }
     },
     "sourceGaps": {
-      "total": 34,
+      "total": 35,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -218,6 +218,7 @@
         "fred-macro": 1,
         "tradier-options": 1,
         "valuation": 1,
+        "market-yahoo-fx-usdcad": 1,
         "financial-lens": 1,
         "business-framework": 12,
         "sec-untagged-financials": 1,
@@ -225,17 +226,17 @@
       },
       "byTriage": {
         "diagnostic": 11,
-        "material": 23
+        "material": 24
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
       "unsupported-coverage": 2,
-      "provider-data-missing": 20,
+      "provider-data-missing": 21,
       "suppressed-by-design": 1
     },
     "dataGaps": {
-      "total": 40
+      "total": 41
     }
   },
   "providerEndpointAvailability": {
@@ -470,7 +471,7 @@
         "subject-profile: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 40,
+    "dataGapCount": 41,
     "extendedEvidence": {
       "itemCount": 7,
       "gapCount": 26,
@@ -584,7 +585,7 @@
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 3,
     "sourceCount": 20,
-    "gapCount": 13,
+    "gapCount": 14,
     "coverageRatio": 0.36363636363636365
   },
   "calibrationAtGeneration": {

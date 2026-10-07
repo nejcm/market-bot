@@ -226,7 +226,6 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
 // Tight enough that an inverted rate or a dropped conversion cannot fit inside them.
 const CONVERTED_ROW = /converted at USD\/CAD /gu;
 const PINNED_CONVERSIONS = [
-  { periodEnd: "2024-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 121_684_643_191 },
   { periodEnd: "2025-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 123_264_963_232 },
   { periodEnd: "2026-01-31", rate: 1.3694, close: 75.38, pe: 103.22, ps: 138_816_182_634 },
 ] as const;
@@ -295,6 +294,20 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
       numerator: convertedClose * (dilutedShares ?? 0),
     });
   }
+
+  const fy2024 = observations.find(
+    (observation) => observation.basis === "annual" && observation.periodEnd === "2024-10-31",
+  );
+  expect(fy2024?.publicAt, "FY2024 dates to its first filing").toBe("2024-12-03");
+  expect(fy2024?.metrics.priceToEarnings).toMatchObject({
+    status: "suppressed",
+    reason: "price-history-unavailable",
+  });
+
+  // The synthetic USDCAD cassette entry has no closes before 2025-11-25.
+  expect(result.report.dataGaps).toContain(
+    "market-yahoo-fx-usdcad: Yahoo FX close unavailable for USDCAD=X on or before 2025-08-26",
+  );
 
   for (const pinned of PINNED_CONVERSIONS) {
     const match = converted.find(({ observation }) => observation.periodEnd === pinned.periodEnd);

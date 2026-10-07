@@ -19,8 +19,8 @@ the docs it links (architecture, conventions, ADRs) for context and constraints.
 # Step 0 — Resolve the target run
 
 Default to the newest existing comparable run. A fresh deep equity run costs
-~12 minutes of wall clock and live model tokens (a recent NBIS deep run: 584s,
-~438k tokens), so **never** execute the CLI when the user supplied a run dir,
+~12 minutes of wall clock and live model tokens, so **never** execute 
+the CLI when the user supplied a run dir,
 when a comparable recent run already exists and no fresh one was asked for, or
 when you were invoked by another skill or subagent — notably
 `improve-market-runs`, whose Review subagent calls this skill _after_ it has
@@ -28,8 +28,8 @@ already run the CLI, so running here would double-run and recurse.
 
 When the user does explicitly ask for a fresh run, or no comparable run exists:
 
-- **Delegate execution to a cheap worker** (per the Cheap-worker row of
-  `rules/model-routing.md`; do not pin a model here) that returns only the
+- **Delegate execution to a cheap worker** (pick the model per the
+  `agent-orchestration` skill; do not pin one here) that returns only the
   run-dir path plus the tail of any failure. The purpose is **context
   isolation** — keeping run logs out of the review — not model savings; the
   cost is market-bot's own model calls, which the driving agent does not
@@ -98,9 +98,15 @@ same code. Before analyzing metrics:
 1. Read `codeVersion.commit` from both runs' `analytics.json`. If either is
    missing or no longer resolves (`git cat-file -e <sha>`), treat every
    run-vs-run delta as **unattributable** and label the findings accordingly.
-2. If the commits differ, first check ancestry with
-   `git merge-base --is-ancestor <base> <target>` — `A..B` range syntax is
-   meaningless across diverged branches. Then use
+2. If the commits differ, first compare trees: `git diff --quiet <base> <target>`
+   exiting 0 means identical code (common after a squash merge) — treat as same
+   commit. Otherwise check ancestry with
+   `git merge-base --is-ancestor <base> <target>`. Exit 0: count commits with
+   `git rev-list --count <base>..<target>`. Exit 1 (diverged, or squash-merged
+   so the run commit is not an ancestor of HEAD): report
+   `diverged; linear distance unavailable`, do not call range commits "later
+   changes", and count from an equivalent ancestor only after verifying it with
+   the tree diff above. Either way, use
    `git diff --name-only <base> <target>` to identify which subsystems actually
    changed; `git log --oneline` shows commit subjects, not touched files, and
    subjects routinely understate their blast radius. Flag any change touching a
@@ -109,17 +115,21 @@ same code. Before analyzing metrics:
    **"confounded by code change — regression hypothesis, not run-quality
    finding"** and may not carry a suspected cause unless artifact evidence
    distinguishes a code effect from a data effect.
-3. Compare the target run's commit to current HEAD; list any later commits
-   touching a finding's subsystem and mark those findings "possibly already
-   addressed at HEAD" before recommending work.
+3. Compare the target run's commit to current HEAD the same way (tree diff,
+   then ancestry, then `git diff --name-only <target> HEAD`); mark findings
+   whose subsystem changed "possibly already addressed at HEAD" before
+   recommending work.
 4. The report must include a "Code delta" line next to the baseline
-   disclosure: both commits, the commit count between them, and the
-   target-to-HEAD distance.
+   disclosure: both commits, the commit count between them (or "identical
+   tree" / "diverged; linear distance unavailable"), and the target-to-HEAD
+   distance in the same terms.
 
 Deltas inside the recorded variance bands in `docs/run-variance-baseline.md`
 are noise unless corroborated by independent evidence, provided that doc's
-recorded commit still matches the relevant subsystems; treat the bands as stale
-once the relevant subsystem changed.
+recorded commit still matches the relevant subsystems — run the doc's own
+staleness command against the target commit. When the bands are stale, say
+"no valid variance band" in the Code delta line and treat every run-vs-run metric delta as unproven unless independent
+artifact evidence corroborates it.
 
 # Output
 
@@ -143,7 +153,7 @@ For each Recommendation item, **at most 8, ranked**:
 - **Evidence** — exact file:field and values backing it (no impressions)
 - **Category** — e.g. `bug`, `regression`, `evidence-coverage`,
   `prediction-quality`, `calibration`, `determinism`, `telemetry`,
-  `provider-incident`
+  `provider-incident`, `adr-conflict`
 - **Scope** — `subject-specific` / `systemic` / `unknown`, classified against
   the Step 1 cohort: `subject-specific` when present only for this subject,
   `systemic` when present across subjects on the same commit and config hash,
@@ -156,7 +166,12 @@ For each Recommendation item, **at most 8, ranked**:
   missing optional provider keys, provider outages, market availability, or
   unresolved future prediction horizons — **unless** telemetry or reporting
   around them can be improved, in which case it is `fixable` and the telemetry
-  improvement is the finding.
+  improvement is the finding. Before marking anything `fixable`, find the ADR
+  governing the behavior the fix would change (`docs/adr/README.md`). If the
+  fix contradicts it (e.g. banning a source class an ADR permits, or a roster
+  change an ADR treats as policy), set Category `adr-conflict`, Disposition
+  `skip`, and name the ADR and the clause; recommend an amendment only when the
+  artifact evidence shows the ADR's premise no longer holds.
 - **Objective check** — one concrete artifact assertion that would verify a fix
   (e.g. "`analytics.json:sourceFunnel.sourceGaps.total` has no duplicate
   `(source, message)` pair"). Not a test name — an assertion over run artifacts.
@@ -190,7 +205,13 @@ Before writing a **Suspected cause** that names code behavior:
    "There is no X check" requires having searched for X and found nothing. When
    a mechanism exists but did not fire, the finding is _why it did not fire_ —
    usually a narrower and more valuable defect than the one you started with.
-4. If you did not read the code, write `cause: unverified — read <file/symbol>
+4. **Do not trust recorded cause labels.** A gap `cause`, an outcome `code`,
+   or a Source Gap classification is itself code output. Before building a
+   finding on one (e.g. reading `provider-data-missing` as a data failure),
+   read the producer that assigns it and confirm the label matches the branch
+   taken. A deliberate exclusion labeled as missing data is a `telemetry` bug
+   and the finding in its own right.
+5. If you did not read the code, write `cause: unverified — read <file/symbol>
 to confirm` instead of guessing. This is an acceptable outcome; a confident
    wrong cause is not.
 

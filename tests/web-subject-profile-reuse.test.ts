@@ -1014,6 +1014,7 @@ describe("Web Subject Profile reuse", () => {
       collectedSources: collectedSources(),
       reuse: {
         profile: profile(),
+        withheldGaps: [],
         sources: [webSource],
         runDirName: "prior-aapl",
         ageDays: 19,
@@ -1372,6 +1373,61 @@ describe("Web Subject Profile reuse", () => {
         { claim: "", sourceIds: [webSource.id] },
         { claim: "Apple sells devices.", sourceIds: [webSource.id] },
       ]);
+    });
+
+    test.each([
+      ["emptied", ""],
+      ["persisted marker-only", `[${webSource.id}]`],
+    ])("rejects a profile whose every row is %s", async (_name, text) => {
+      const legacy = profile();
+      const emptied = { answer: text, sourceIds: [webSource.id] };
+      const questions = Object.fromEntries(
+        Object.keys(legacy.questions).map((key) => [key, emptied]),
+      ) as unknown as typeof legacy.questions;
+      const reuse = await loadPrior({
+        ...legacy,
+        subjectSummary: emptied,
+        questions,
+        recentMaterialEvents: [],
+        factLedger: [{ claim: text, sourceIds: [webSource.id] }],
+      } as WebSubjectProfileArtifact);
+      expect(reuse).toBeUndefined();
+    });
+
+    test("keeps the withholding gap of an uncited unsafe answer through attachment", async () => {
+      const legacy = profile();
+      const reuse = await loadPrior({
+        ...legacy,
+        questions: { ...legacy.questions, whatItDoes: { answer: "Buy the dip", sourceIds: [] } },
+      } as WebSubjectProfileArtifact);
+      expect(reuse).toBeDefined();
+      const attached = attachReusableWebSubjectProfile({
+        command,
+        collectedSources: collectedSources(),
+        reuse: reuse as NonNullable<typeof reuse>,
+      });
+
+      const withheld = attached.sourceGaps.filter((gap) => gap.message.includes("withheld"));
+      expect(withheld).toEqual([
+        expect.objectContaining({
+          source: "web-subject-profile",
+          evidenceQualityImpact: "extended-evidence-cap",
+        }),
+      ]);
+      expect(
+        attached.webSubjectProfile?.subjectKind === "company"
+          ? attached.webSubjectProfile.questions.whatItDoes
+          : undefined,
+      ).toEqual({ answer: "", sourceIds: [] });
+    });
+
+    test("returns the marker-stripped candidate for reuse", async () => {
+      const legacy = profile();
+      const reuse = await loadPrior({
+        ...legacy,
+        subjectSummary: { answer: `Apple sells devices. ${marker}`, sourceIds: [webSource.id] },
+      });
+      expect(reuse?.profile.subjectSummary.answer).toBe("Apple sells devices.");
     });
 
     test("strips markers from a legacy profile loaded for reuse", async () => {

@@ -12,6 +12,7 @@ import type {
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
 import {
   isWebSubjectProfileWithheldAnswer,
+  substantiveProfileSourceIds,
   WEB_SUBJECT_PROFILE_QUESTION_KEYS,
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_MARKER,
@@ -438,10 +439,14 @@ function screenedFailureOpenGap(gap: string): string {
  * Pre-existing clean notices are then counted via `isWebSubjectProfileWithheldAnswer` so the
  * reusing run re-emits the matching Source Gaps instead of dropping the declaration.
  */
-function screenReusedArtifact(reused: WebSubjectProfileArtifact): {
+export interface ScreenedReusedWebSubjectProfile {
   readonly artifact: WebSubjectProfileArtifact;
   readonly withheldGaps: readonly SourceGap[];
-} {
+}
+
+export function screenReusedWebSubjectProfile(
+  reused: WebSubjectProfileArtifact,
+): ScreenedReusedWebSubjectProfile {
   const artifact = withoutSourceIdMarkers(reused);
   const screened = screenProfileFields(artifact);
   if (screened.withheldGaps.length === 0) {
@@ -530,9 +535,19 @@ export function buildWebSubjectProfileEvidence(input: {
       ? { secFilingBasisDate: input.secFilingBasisDate }
       : {}),
   });
+  const emptyGap =
+    substantiveProfileSourceIds(artifact).size === 0
+      ? [
+          profileGap(
+            `Web Subject Profile empty for ${input.subject.subjectId}: no cited substantive answer or fact remains after validation and marker removal`,
+            "validation-failed",
+          ),
+        ]
+      : [];
   return profileResult(input.command, input.extendedEvidence, input.subject, artifact, sourceIds, [
     ...(rejectionGap === undefined ? [] : [rejectionGap]),
     ...screened.withheldGaps,
+    ...emptyGap,
   ]);
 }
 
@@ -560,18 +575,17 @@ export function buildWebSubjectProfileFailureEvidence(input: {
 export function buildWebSubjectProfileReuseEvidence(input: {
   readonly command: ResearchCommand;
   readonly subject: WebSubjectProfileSubject;
-  readonly artifact: WebSubjectProfileArtifact;
+  readonly reused: ScreenedReusedWebSubjectProfile;
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly freshnessGap: SourceGap;
 }): WebSubjectProfileResult {
-  const screened = screenReusedArtifact(input.artifact);
   return profileResult(
     input.command,
     input.extendedEvidence,
     input.subject,
-    screened.artifact,
-    screened.artifact.sourceIds,
-    [input.freshnessGap, ...screened.withheldGaps],
+    input.reused.artifact,
+    input.reused.artifact.sourceIds,
+    [input.freshnessGap, ...input.reused.withheldGaps],
   );
 }
 
@@ -1039,14 +1053,17 @@ function partialAcceptanceImpact(
 ): NonNullable<SourceGap["evidenceQualityImpact"]> {
   const totalQuestions = WEB_SUBJECT_PROFILE_QUESTION_KEYS[subjectKind].length;
   const answeredQuestions = Object.values(profile.questions).filter(
-    (answer) => answer.sourceIds.length > 0,
+    (answer) => answer.answer !== "" && answer.sourceIds.length > 0,
   ).length;
-  const survivingFacts = profile.factLedger.length + profile.recentMaterialEvents.length;
+  const survivingFacts = [...profile.factLedger, ...profile.recentMaterialEvents].filter(
+    (fact) => fact.claim !== "",
+  ).length;
   // Every subject kind defines a fixed, non-empty question set (contract.ts),
   // So totalQuestions is always > 0 here.
   const sufficientQuestions = answeredQuestions / totalQuestions >= MIN_ANSWERED_QUESTION_RATIO;
   const sufficientFacts = survivingFacts >= MIN_SURVIVING_FACT_COUNT;
-  const hasSubjectSummary = profile.subjectSummary.sourceIds.length > 0;
+  const hasSubjectSummary =
+    profile.subjectSummary.answer !== "" && profile.subjectSummary.sourceIds.length > 0;
   return hasSubjectSummary && sufficientQuestions && sufficientFacts
     ? "no-cap"
     : "extended-evidence-cap";

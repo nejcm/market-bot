@@ -5,6 +5,7 @@ import type {
   WebSourceSynthesisInput,
 } from "../../domain/types";
 import { subjectKindForCommand } from "../../web-evidence";
+import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 import type { CollectedSources } from "../../sources/types";
 import { hasFreshWebEvidence, isFreshWebSource } from "./steering";
 
@@ -22,7 +23,7 @@ export function buildWebSourceSynthesisInputs(
     return undefined;
   }
   const includedInContext = subjectKindForCommand(command) !== undefined;
-  const profileCoveredIds = new Set(collectedSources.webSubjectProfile?.sourceIds);
+  const profileCoveredIds = substantiveProfileSourceIds(collectedSources.webSubjectProfile);
   const freshWebSteeringActive = includedInContext && hasFreshWebEvidence(collectedSources);
   const profileAttached = collectedSources.webSubjectProfile !== undefined;
   return webSources.map((source) => {

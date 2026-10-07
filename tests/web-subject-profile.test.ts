@@ -4,6 +4,7 @@ import {
   buildWebSubjectProfileFailureEvidence,
   buildWebSubjectProfileReuseEvidence,
   isCompanyProfileSecSource,
+  screenReusedWebSubjectProfile,
   normalizedSubjectId,
 } from "../src/web-evidence/web-subject-profile";
 import {
@@ -1100,7 +1101,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap,
     });
@@ -1128,7 +1129,7 @@ describe("Web Subject Profile openGaps research-only screen", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: origin as NonNullable<typeof origin>,
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
       extendedEvidence: undefined,
       freshnessGap,
     });
@@ -1495,7 +1496,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1535,7 +1536,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: origin as NonNullable<typeof origin>,
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1581,7 +1582,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: mixed,
+      reused: screenReusedWebSubjectProfile(mixed),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1611,7 +1612,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1632,7 +1633,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: origin as NonNullable<typeof origin>,
+      reused: screenReusedWebSubjectProfile(origin as NonNullable<typeof origin>),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1808,7 +1809,7 @@ describe("Web Subject Profile model-authored field research-only screen", () => 
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -1864,7 +1865,7 @@ describe("Web Subject Profile inline source-id markers", () => {
     });
   }
 
-  function build(
+  function buildResult(
     answer: string,
     claim = "Apple reports segments.",
     sourceIds?: string[],
@@ -1878,8 +1879,34 @@ describe("Web Subject Profile inline source-id markers", () => {
       modelContent: payloadWith(answer, claim, sourceIds, extra),
       webSources: [webSource, other],
       extendedEvidence: undefined,
-    }).artifact;
+    });
   }
+
+  function build(...args: Parameters<typeof buildResult>) {
+    return buildResult(...args).artifact;
+  }
+
+  test("caps Evidence Quality and declares a gap when every row was only markers", () => {
+    const marker = `[${webSource.id}]`;
+    const result = buildResult(marker, marker, undefined, {
+      recentMaterialEvents: [{ claim: marker, sourceIds: [webSource.id] }],
+      factLedger: [
+        { claim: marker, sourceIds: [webSource.id] },
+        { claim: "Uncited by an admitted source.", sourceIds: ["web-aapl-00000000"] },
+      ],
+    });
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("items rejected for source-citation errors"),
+        evidenceQualityImpact: "extended-evidence-cap",
+      }),
+      expect.objectContaining({
+        message:
+          "Web Subject Profile empty for AAPL: no cited substantive answer or fact remains after validation and marker removal",
+        cause: "validation-failed",
+      }),
+    ]);
+  });
 
   test("strips known single and grouped markers and leaves sourceIds untouched", () => {
     const artifact = build(
@@ -1983,7 +2010,10 @@ describe("Web Subject Profile inline source-id markers", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: { ...origin, subjectSummary: { answer: " \n ", sourceIds: [webSource.id] } },
+      reused: screenReusedWebSubjectProfile({
+        ...origin,
+        subjectSummary: { answer: " \n ", sourceIds: [webSource.id] },
+      }),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });
@@ -2025,7 +2055,7 @@ describe("Web Subject Profile inline source-id markers", () => {
     const result = buildWebSubjectProfileReuseEvidence({
       command,
       subject,
-      artifact: legacy,
+      reused: screenReusedWebSubjectProfile(legacy),
       extendedEvidence: undefined,
       freshnessGap: reuseFreshnessGap(),
     });

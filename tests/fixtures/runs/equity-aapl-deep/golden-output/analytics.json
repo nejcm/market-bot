@@ -198,7 +198,8 @@
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
-      "provider-data-missing": 25
+      "provider-data-missing": 24,
+      "suppressed-by-design": 1
     },
     "dataGaps": {
       "total": 38

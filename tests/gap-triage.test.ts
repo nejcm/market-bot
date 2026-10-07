@@ -231,6 +231,31 @@ describe("gap triage", () => {
     );
   });
 
+  test("places by-design valuation gaps by source, not by cause", () => {
+    const byDesign = {
+      provider: "market-bot",
+      capability: "extended-evidence",
+      cause: "suppressed-by-design",
+      evidenceQualityImpact: "extended-evidence-cap",
+    } as const;
+    expect(
+      classifyGap({
+        ...byDesign,
+        source: "valuation-peers",
+        symbol: "IRDM",
+        message: "Peer IRDM excluded from valuation comps: SIC group mismatch",
+      }),
+    ).toBe("diagnostic");
+    expect(
+      classifyGap({
+        ...byDesign,
+        source: "valuation",
+        symbol: "ASTS",
+        message: "Valuation peer comps not-meaningful for ASTS",
+      }),
+    ).toBe("material");
+  });
+
   test("defaults an unknown code to material", () => {
     expect(classifyGap("new-unmapped-gap-code")).toBe("material");
   });

@@ -1655,6 +1655,7 @@ describe("run workspace view", () => {
               symbol: "GOOG",
               role: "core",
               reason: "revenue period is stale",
+              cause: "provider-data-missing",
               sourceIds: ["sec-goog"],
             },
           ],

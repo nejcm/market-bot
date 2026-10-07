@@ -14,6 +14,7 @@ import {
   type PeerPacket,
   type ValuationCompsRow,
   type ValuationGateProfile,
+  type ValuationPeerExclusion,
 } from "./valuation-comps-contract";
 
 import { readNumberMetric, readStringMetric } from "./utils";
@@ -152,14 +153,22 @@ export function gateProfileFor(
   return provenance === "ticker-mapping" ? "curated-no-sic" : "full";
 }
 
+function missing(reason: string): ValuationPeerExclusion {
+  return { reason, cause: "provider-data-missing" };
+}
+
+function gated(reason: string): ValuationPeerExclusion {
+  return { reason, cause: "suppressed-by-design" };
+}
+
 function comparabilityGateFailure(
   gateProfile: ValuationGateProfile,
   gate: "market-cap" | "SIC",
-  reason: string,
-): string {
+  exclusion: ValuationPeerExclusion,
+): ValuationPeerExclusion {
   return gateProfile === "revenue-exempt"
-    ? `${gate} gate (revenue-exempt profile): ${reason}`
-    : reason;
+    ? { ...exclusion, reason: `${gate} gate (revenue-exempt profile): ${exclusion.reason}` }
+    : exclusion;
 }
 
 // Deterministic comparability gate. The SIC-group gate is skipped only for the
@@ -167,56 +176,69 @@ function comparabilityGateFailure(
 // Revenue-exempt profile. Returns the first failed-gate reason, or undefined
 // When the candidate is comparable to the target. Business-model metadata
 // (role/rationale) never overrides a failure.
+// Only a measured mismatch is by design; an unreadable gate input is missing data.
 function comparabilityFailure(
   row: ComparabilityInputs,
   target: ComparabilityInputs,
   gateProfile: ValuationGateProfile,
-): string | undefined {
+): ValuationPeerExclusion | undefined {
   if (gateProfile !== "curated-no-sic") {
     if (row.sic === undefined) {
-      return comparabilityGateFailure(gateProfile, "SIC", "missing SIC classification");
+      return comparabilityGateFailure(gateProfile, "SIC", missing("missing SIC classification"));
     }
     if (target.sic === undefined) {
-      return comparabilityGateFailure(gateProfile, "SIC", "target SIC classification unavailable");
+      return comparabilityGateFailure(
+        gateProfile,
+        "SIC",
+        missing("target SIC classification unavailable"),
+      );
     }
     if (sicGroup(row.sic) !== sicGroup(target.sic)) {
       return comparabilityGateFailure(
         gateProfile,
         "SIC",
-        `SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`,
+        gated(`SIC group mismatch (peer ${sicGroup(row.sic)} vs target ${sicGroup(target.sic)})`),
       );
     }
   }
   if (row.marketCap === undefined) {
-    return comparabilityGateFailure(gateProfile, "market-cap", "missing market cap");
+    return comparabilityGateFailure(gateProfile, "market-cap", missing("missing market cap"));
   }
   if (target.marketCap === undefined) {
-    return comparabilityGateFailure(gateProfile, "market-cap", "target market cap unavailable");
+    return comparabilityGateFailure(
+      gateProfile,
+      "market-cap",
+      missing("target market cap unavailable"),
+    );
   }
   if (target.marketCap <= 0) {
-    return comparabilityGateFailure(gateProfile, "market-cap", "target market cap not positive");
+    return comparabilityGateFailure(
+      gateProfile,
+      "market-cap",
+      missing("target market cap not positive"),
+    );
   }
   if (!withinSizeGate(row.marketCap, target.marketCap)) {
     return comparabilityGateFailure(
       gateProfile,
       "market-cap",
-      `market cap outside ${SIZE_GATE_LABEL} of target`,
+      gated(`market cap outside ${SIZE_GATE_LABEL} of target`),
     );
   }
   if (gateProfile === "revenue-exempt") {
     return undefined;
   }
   if (row.annualizedRevenue === undefined) {
-    return "missing annualized revenue";
+    return missing("missing annualized revenue");
   }
   if (target.annualizedRevenue === undefined) {
-    return "target annualized revenue unavailable";
+    return missing("target annualized revenue unavailable");
   }
   if (target.annualizedRevenue <= 0) {
-    return "target annualized revenue not positive";
+    return missing("target annualized revenue not positive");
   }
   if (!withinSizeGate(row.annualizedRevenue, target.annualizedRevenue)) {
-    return `annualized revenue outside ${SIZE_GATE_LABEL} of target`;
+    return gated(`annualized revenue outside ${SIZE_GATE_LABEL} of target`);
   }
   return undefined;
 }
@@ -370,16 +392,17 @@ export function excludedPeer(
     sec === undefined || row.debtPeriodEnd === undefined
       ? undefined
       : latestFilingWithoutDebtFacts(sec, row.debtPeriodEnd, generatedAt);
-  const reason = exclusionReason(row, provenance, generatedAt, target, sec?.debtComposite);
-  const vintage = reason === peerVintageExclusionReason(row, generatedAt);
+  const exclusion = exclusionReason(row, provenance, generatedAt, target, sec?.debtComposite);
+  const vintage = exclusion.reason === peerVintageExclusionReason(row, generatedAt);
   return [
     {
       symbol: row.symbol,
       role: peer.role,
       reason:
         vintage && untaggedForm !== undefined
-          ? `${reason}; latest ${untaggedForm} debt not in SEC companyfacts (issuer-extension or dimensional tagging)`
-          : reason,
+          ? `${exclusion.reason}; latest ${untaggedForm} debt not in SEC companyfacts (issuer-extension or dimensional tagging)`
+          : exclusion.reason,
+      cause: exclusion.cause,
       sourceIds:
         vintage && untaggedForm !== undefined && sec?.submissionsSourceId !== undefined
           ? unique([...row.sourceIds, sec.submissionsSourceId])
@@ -394,43 +417,45 @@ function exclusionReason(
   generatedAt: string,
   target: ValuationCompsRow,
   debtComposite?: SecDebtComposite,
-): string {
+): ValuationPeerExclusion {
   if (row.quoteObservedAt === undefined) {
-    return "missing quote";
+    return missing("missing quote");
   }
   if (row.marketCap === undefined) {
-    return "missing market cap";
+    return missing("missing market cap");
   }
   if (row.latestPeriodRevenue === undefined) {
-    return "missing SEC revenue";
+    return missing("missing SEC revenue");
   }
   if (row.cash === undefined) {
-    return "missing SEC cash";
+    return missing("missing SEC cash");
   }
   if (row.debt === undefined) {
-    return "missing SEC debt";
+    return missing("missing SEC debt");
   }
   const vintageReason = peerVintageExclusionReason(row, generatedAt);
   if (vintageReason !== undefined) {
-    return vintageReason;
+    return missing(vintageReason);
   }
   const incompleteReason = incompleteDebtBasisReason(debtComposite);
   if (incompleteReason !== undefined) {
-    return incompleteReason;
+    return missing(incompleteReason);
   }
   if (row.revenuePeriodEnd === undefined) {
-    return "missing SEC revenue period end";
+    return missing("missing SEC revenue period end");
   }
   if (row.evToAnnualizedRevenue === undefined) {
-    return "missing EV/revenue multiple";
+    return missing("missing EV/revenue multiple");
   }
   if (!isFreshDate(row.quoteObservedAt, generatedAt)) {
-    return "stale quote";
+    return missing("stale quote");
   }
   if (!isFreshPeriodEnd(row.revenuePeriodEnd, generatedAt)) {
-    return "stale SEC revenue period";
+    return missing("stale SEC revenue period");
   }
-  return comparabilityFailure(row, target, gateProfileFor(provenance, target)) ?? "not usable";
+  return (
+    comparabilityFailure(row, target, gateProfileFor(provenance, target)) ?? missing("not usable")
+  );
 }
 
 const SEC_PERIOD_END_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;

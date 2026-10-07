@@ -336,7 +336,8 @@
     },
     "sourceGapsByCause": {
       "missing-credential": 2,
-      "provider-data-missing": 14,
+      "provider-data-missing": 13,
+      "suppressed-by-design": 1,
       "validation-failed": 2
     },
     "dataGaps": {

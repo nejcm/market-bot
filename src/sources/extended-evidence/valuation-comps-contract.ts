@@ -156,10 +156,14 @@ export type PeerImpliedRange =
       readonly suppressedReason: PeerImpliedRangeSuppressedReason;
     });
 
-export interface ExcludedValuationPeer {
+export interface ValuationPeerExclusion {
+  readonly reason: string;
+  readonly cause: "suppressed-by-design" | "provider-data-missing";
+}
+
+export interface ExcludedValuationPeer extends ValuationPeerExclusion {
   readonly symbol: string;
   readonly role: PeerUniversePeer["role"];
-  readonly reason: string;
   readonly sourceIds: readonly string[];
 }
 

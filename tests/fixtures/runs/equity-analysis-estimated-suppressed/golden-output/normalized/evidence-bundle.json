@@ -1400,7 +1400,7 @@
           "symbol": "DELL",
           "provider": "market-bot",
           "capability": "extended-evidence",
-          "cause": "provider-data-missing",
+          "cause": "suppressed-by-design",
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
@@ -4520,6 +4520,7 @@
           "symbol": "DELL",
           "role": "secondary",
           "reason": "market cap outside 0.2x-5x of target",
+          "cause": "suppressed-by-design",
           "sourceIds": [
             "market-yahoo-equity-dell",
             "extended-sec-edgar-dell-fundamentals",
@@ -5189,6 +5190,7 @@
               "symbol": "DELL",
               "role": "secondary",
               "reason": "market cap outside 0.2x-5x of target",
+              "cause": "suppressed-by-design",
               "sourceIds": [
                 "market-yahoo-equity-dell",
                 "extended-sec-edgar-dell-fundamentals",
@@ -6237,7 +6239,7 @@
         "symbol": "DELL",
         "provider": "market-bot",
         "capability": "extended-evidence",
-        "cause": "provider-data-missing",
+        "cause": "suppressed-by-design",
         "evidenceQualityImpact": "extended-evidence-cap",
         "triage": "diagnostic"
       },
@@ -6585,7 +6587,7 @@
           "gapText": [
             "valuation-peers: Peer DELL excluded from valuation comps: market cap outside 0.2x-5x of target"
           ],
-          "gapCauses": ["provider-data-missing"],
+          "gapCauses": ["suppressed-by-design"],
           "freshnessNotes": ["latest evidence timestamp 2026-06-15T14:30:00.000Z"]
         },
         {

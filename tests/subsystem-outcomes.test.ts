@@ -712,6 +712,17 @@ describe("Subsystem Outcomes", () => {
     });
   });
 
+  test("maps an all-gated lane to declined and a gated-plus-data mix to declined", () => {
+    expect(newsLaneOutcome(["suppressed-by-design"])).toMatchObject({
+      outcome: "declined",
+      code: "suppressed-by-design",
+    });
+    expect(newsLaneOutcome(["provider-data-missing", "suppressed-by-design"])).toMatchObject({
+      outcome: "declined",
+      code: "suppressed-by-design",
+    });
+  });
+
   test("maps unsupported-coverage to declined", () => {
     expect(newsLaneOutcome(["unsupported-coverage"])).toMatchObject({
       outcome: "declined",

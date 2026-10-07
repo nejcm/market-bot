@@ -14,6 +14,10 @@ import {
 } from "./valuation-comps-contract";
 import { readStringMetric } from "./utils";
 
+export function usablePeersLabel(count: number): string {
+  return `${String(count)} usable ${count === 1 ? "peer" : "peers"}`;
+}
+
 export function enrichValuationItem(
   item: ExtendedEvidenceItem,
   artifact: ValuationCompsArtifact,
@@ -25,7 +29,7 @@ export function enrichValuationItem(
       : "";
   const peerReadThrough =
     summary.peerMedianEvToAnnualizedRevenue === undefined
-      ? ` Peer comps supportability: ${summary.valuationSupportability}; ${summary.usablePeerCount} usable peers.${applicabilityCaveat}`
+      ? ` Peer comps supportability: ${summary.valuationSupportability}; ${usablePeersLabel(summary.usablePeerCount)}.${applicabilityCaveat}`
       : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x.${applicabilityCaveat}`;
   const provenanceNote =
     artifact.provenance === "model-proposed-validated"

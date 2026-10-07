@@ -1,5 +1,6 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { writeFileAtomic } from "../artifacts";
 import {
   researchReportEvidenceQuality,
   type AssetClass,
@@ -522,14 +523,13 @@ export async function rebuildHistoryArtifacts(
     ),
   };
   const indexPath = join(dir, INDEX_FILE);
-  await writeFile(indexPath, `${JSON.stringify(index, undefined, 2)}\n`, "utf8");
+  await writeFileAtomic(indexPath, `${JSON.stringify(index, undefined, 2)}\n`);
 
   await Promise.all(
     timelines.map((timeline) =>
-      writeFile(
+      writeFileAtomic(
         join(instrumentsDir, instrumentFileName(timeline.instrumentKey)),
         `${JSON.stringify(timeline, undefined, 2)}\n`,
-        "utf8",
       ),
     ),
   );

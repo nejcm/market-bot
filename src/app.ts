@@ -39,6 +39,8 @@ import { isRecord, readStringVerbatim } from "./guards";
 import { progress } from "./progress";
 import { readJsonFile } from "./run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES } from "./run-artifact-layout";
+import { withSharedStateLock } from "./shared-state-lock";
+import { assertRunStagingUsable } from "./artifacts";
 
 export interface RunCliDependencies {
   readonly createProvider?: (config: AppConfig) => ModelProvider;
@@ -153,23 +155,28 @@ export async function runCli(
   const runScore = dependencies.runScorePass ?? runScorePass;
   const writeCalibration = dependencies.buildAndWriteCalibration ?? buildAndWriteCalibration;
 
+  const locked = <T>(run: () => Promise<T>): Promise<T> => withSharedStateLock(config.dataDir, run);
+
   if (command.jobType === "score") {
-    const result = await runScore(config.dataDir, now(), {
-      ...scorePassOptions(config.sourceOptions),
-      ...(command.force === true ? { force: true } : {}),
+    const result = await locked(async () => {
+      const scored = await runScore(config.dataDir, now(), {
+        ...scorePassOptions(config.sourceOptions),
+        ...(command.force === true ? { force: true } : {}),
+      });
+      await writeCalibration(config.dataDir);
+      await updateRunArtifactIndex(
+        config.dataDir,
+        scored.touchedRunDirs,
+        dependencies,
+        config.indexOptions?.dbPath,
+      );
+      return scored;
     });
-    await writeCalibration(config.dataDir);
-    await updateRunArtifactIndex(
-      config.dataDir,
-      result.touchedRunDirs,
-      dependencies,
-      config.indexOptions?.dbPath,
-    );
     return `Score pass complete: ${String(result.scored)} run(s) scored, ${String(result.skipped)} skipped`;
   }
 
   if (command.jobType === "calibration") {
-    const summary = await writeCalibration(config.dataDir);
+    const summary = await locked(() => writeCalibration(config.dataDir));
     return summary !== null
       ? renderCalibrationConsole(summary)
       : "Calibration summary not written: no resolved predictions found";
@@ -186,14 +193,13 @@ export async function runCli(
   }
 
   if (command.jobType === "provider-health") {
-    const result = await writeProviderHealthSummary(config.dataDir);
+    const result = await locked(() => writeProviderHealthSummary(config.dataDir));
     return `Provider health written to ${result.markdownPath}`;
   }
 
   if (command.jobType === "history-rebuild") {
-    const result = await (dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts)(
-      config.dataDir,
-      now(),
+    const result = await locked(() =>
+      (dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts)(config.dataDir, now()),
     );
     return `History rebuilt: ${String(result.sourceRunCount)} run(s), ${String(
       result.instrumentCount,
@@ -201,9 +207,11 @@ export async function runCli(
   }
 
   if (command.jobType === "index-rebuild") {
-    const result = await (dependencies.rebuildRunArtifactIndex ?? rebuildRunArtifactIndex)(
-      config.dataDir,
-      config.indexOptions?.dbPath === undefined ? {} : { dbPath: config.indexOptions.dbPath },
+    const result = await locked(() =>
+      (dependencies.rebuildRunArtifactIndex ?? rebuildRunArtifactIndex)(
+        config.dataDir,
+        config.indexOptions?.dbPath === undefined ? {} : { dbPath: config.indexOptions.dbPath },
+      ),
     );
     return `Index rebuilt: ${String(result.sourceRunCount)} run(s), ${String(
       result.malformedRunCount,
@@ -213,10 +221,12 @@ export async function runCli(
   }
 
   if (command.jobType === "history-search") {
-    await rebuildHistoryArtifactsIfStale(
-      config.dataDir,
-      now(),
-      dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts,
+    await locked(() =>
+      rebuildHistoryArtifactsIfStale(
+        config.dataDir,
+        now(),
+        dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts,
+      ),
     );
     const results = await (dependencies.searchHistoryIndex ?? searchHistoryIndex)(config.dataDir, {
       query: command.query,
@@ -233,10 +243,12 @@ export async function runCli(
   }
 
   if (command.jobType === "history-thesis-delta") {
-    await rebuildHistoryArtifactsIfStale(
-      config.dataDir,
-      now(),
-      dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts,
+    await locked(() =>
+      rebuildHistoryArtifactsIfStale(
+        config.dataDir,
+        now(),
+        dependencies.rebuildHistoryArtifacts ?? rebuildHistoryArtifacts,
+      ),
     );
     const provider = command.narrative
       ? (dependencies.createProvider ?? createProvider)(config)
@@ -267,16 +279,19 @@ export async function runCli(
   }
 
   if (command.jobType === "alpha-search") {
+    await assertRunStagingUsable(config.dataDir);
     const result = await (dependencies.runAlphaSearchWorkflow ?? runAlphaSearchWorkflow)({
       command,
       config,
     });
     progress("updating run artifact index");
-    await updateRunArtifactIndex(
-      config.dataDir,
-      [result.artifacts.runDir],
-      dependencies,
-      config.indexOptions?.dbPath,
+    await locked(() =>
+      updateRunArtifactIndex(
+        config.dataDir,
+        [result.artifacts.runDir],
+        dependencies,
+        config.indexOptions?.dbPath,
+      ),
     );
     emitRunQualitySummary(() => renderAlphaSearchAnalyticsConsole(result.analytics));
     return result.artifacts.runDir;
@@ -285,26 +300,29 @@ export async function runCli(
   // Best-effort pre-run score pass: resolve predictions that became scorable
   // Since the last run so the orchestrator's calibration-context refresh sees
   // Them. Failures log to stderr; the post-run pass remains the safety net.
+  await assertRunStagingUsable(config.dataDir);
   progress(`provider ${config.provider}; pre-run score pass`);
-  const preRunScoreResult = await runScore(
-    config.dataDir,
-    now(),
-    scorePassOptions(config.sourceOptions),
-  ).catch((error: unknown) => {
-    process.stderr.write(
-      `Pre-run score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  });
-  // A rejected parallel pass may already have changed mutable sidecars, so an
-  // Empty update still runs the stale-index repair path.
-  if (preRunScoreResult === undefined || preRunScoreResult.touchedRunDirs.length > 0) {
-    await updateRunArtifactIndex(
+  await locked(async () => {
+    const preRunScoreResult = await runScore(
       config.dataDir,
-      preRunScoreResult?.touchedRunDirs ?? [],
-      dependencies,
-      config.indexOptions?.dbPath,
-    );
-  }
+      now(),
+      scorePassOptions(config.sourceOptions),
+    ).catch((error: unknown) => {
+      process.stderr.write(
+        `Pre-run score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    });
+    // A rejected parallel pass may already have changed mutable sidecars, so an
+    // Empty update still runs the stale-index repair path.
+    if (preRunScoreResult === undefined || preRunScoreResult.touchedRunDirs.length > 0) {
+      await updateRunArtifactIndex(
+        config.dataDir,
+        preRunScoreResult?.touchedRunDirs ?? [],
+        dependencies,
+        config.indexOptions?.dbPath,
+      );
+    }
+  });
 
   const provider = (dependencies.createProvider ?? createProvider)(config);
   const rawResearchCommand = asResearchCommand(command);
@@ -340,11 +358,14 @@ export async function runCli(
     } catch (error: unknown) {
       if (isFinalSynthesisRejectedError(error) && error.runDir !== undefined) {
         progress("updating run artifact index");
-        await updateRunArtifactIndex(
-          config.dataDir,
-          [error.runDir],
-          dependencies,
-          config.indexOptions?.dbPath,
+        const failedRunDir = error.runDir;
+        await locked(() =>
+          updateRunArtifactIndex(
+            config.dataDir,
+            [failedRunDir],
+            dependencies,
+            config.indexOptions?.dbPath,
+          ),
         );
         const failureFile = await readJsonFile(join(error.runDir, RUN_ARTIFACT_FILES.failure));
         const runId =
@@ -366,38 +387,40 @@ export async function runCli(
     }
   })();
 
-  progress("updating run artifact index");
-  await updateRunArtifactIndex(
-    config.dataDir,
-    [result.artifacts.runDir],
-    dependencies,
-    config.indexOptions?.dbPath,
-  );
-  progress("post-run score pass");
-  const scoreResult = await runScore(
-    config.dataDir,
-    now(),
-    scorePassOptions(config.sourceOptions),
-  ).catch((error: unknown) => {
-    process.stderr.write(
-      `Score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
+  await locked(async () => {
+    progress("updating run artifact index");
+    await updateRunArtifactIndex(
+      config.dataDir,
+      [result.artifacts.runDir],
+      dependencies,
+      config.indexOptions?.dbPath,
     );
-  });
-  if (scoreResult !== undefined) {
-    progress("building calibration summary");
-    await writeCalibration(config.dataDir).catch((error: unknown) => {
+    progress("post-run score pass");
+    const scoreResult = await runScore(
+      config.dataDir,
+      now(),
+      scorePassOptions(config.sourceOptions),
+    ).catch((error: unknown) => {
       process.stderr.write(
-        `Calibration build failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        `Score pass failed: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     });
-  }
-  progress("updating run artifact index");
-  await updateRunArtifactIndex(
-    config.dataDir,
-    scoreResult?.touchedRunDirs ?? [],
-    dependencies,
-    config.indexOptions?.dbPath,
-  );
+    if (scoreResult !== undefined) {
+      progress("building calibration summary");
+      await writeCalibration(config.dataDir).catch((error: unknown) => {
+        process.stderr.write(
+          `Calibration build failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      });
+    }
+    progress("updating run artifact index");
+    await updateRunArtifactIndex(
+      config.dataDir,
+      scoreResult?.touchedRunDirs ?? [],
+      dependencies,
+      config.indexOptions?.dbPath,
+    );
+  });
 
   progress(`run complete: ${result.artifacts.runDir}`);
   emitRunQualitySummary(() => renderRunAnalyticsConsole(result.analytics));

@@ -1,4 +1,4 @@
-import { createRunId, prepareRunArtifacts, type RunArtifactPaths } from "../artifacts";
+import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../artifacts";
 import type { AlphaSearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
 import { progress } from "../progress";
@@ -612,32 +612,33 @@ export async function runAlphaSearchWorkflow(input: {
     fundamentalSourceGaps: fundamentals.sourceGaps,
   });
   progress("alpha-search: writing run artifacts");
-  const artifacts = await prepareRunArtifacts(input.config.dataDir, runId);
-  await persistRunArtifactWrites(
-    artifacts,
-    buildAlphaSearchManifest({
-      rawSnapshots: [
-        ...apeWisdom.rawSnapshots,
-        ...secDiscovery.rawSnapshots,
-        ...fundamentals.rawSnapshots,
-        ...listedUniverse.rawSnapshots,
-        ...yahoo.rawSnapshots,
-      ],
-      socialCandidates: rankedCandidates,
-      secDiscoveryCandidates: secDiscovery.candidates,
-      alphaSearchCandidates: validationCandidates,
-      listedUniverse: listedUniverse.entries,
-      researchLeads,
-      secFundamentals: fundamentals.fundamentals,
-      secFundamentalsSourceGaps: fundamentals.sourceGaps,
-      candidateProfiles,
-      rejectedCandidates: reportRejectedCandidates,
-      sourceGaps,
-      analytics,
-      report,
-      markdown,
-      trace,
-    }),
+  const artifacts = await publishRunArtifacts(input.config.dataDir, runId, (staged) =>
+    persistRunArtifactWrites(
+      staged,
+      buildAlphaSearchManifest({
+        rawSnapshots: [
+          ...apeWisdom.rawSnapshots,
+          ...secDiscovery.rawSnapshots,
+          ...fundamentals.rawSnapshots,
+          ...listedUniverse.rawSnapshots,
+          ...yahoo.rawSnapshots,
+        ],
+        socialCandidates: rankedCandidates,
+        secDiscoveryCandidates: secDiscovery.candidates,
+        alphaSearchCandidates: validationCandidates,
+        listedUniverse: listedUniverse.entries,
+        researchLeads,
+        secFundamentals: fundamentals.fundamentals,
+        secFundamentalsSourceGaps: fundamentals.sourceGaps,
+        candidateProfiles,
+        rejectedCandidates: reportRejectedCandidates,
+        sourceGaps,
+        analytics,
+        report,
+        markdown,
+        trace,
+      }),
+    ),
   );
 
   return { report, markdown, trace, analytics, artifacts };

@@ -1,6 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { writeFileAtomic } from "../artifacts";
+import { withFileLock } from "../shared-state-lock";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
@@ -111,14 +112,7 @@ export async function readNewsSeenEntries(path: string): Promise<readonly NewsSe
 
 async function writeNewsSeenIndex(path: string, index: NewsSeenIndex): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(tempPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
-    await rename(tempPath, path);
-  } catch (error: unknown) {
-    await rm(tempPath, { force: true });
-    throw error;
-  }
+  await writeFileAtomic(path, `${JSON.stringify(index, null, 2)}\n`);
 }
 
 function toCanonical(source: Source): string | undefined {
@@ -174,6 +168,10 @@ function pruneEntries(
 }
 
 export async function recordSeenNewsSources(options: RecordSeenNewsOptions): Promise<void> {
+  await withFileLock(`${options.path}.lock`, () => mergeSeenNewsSources(options));
+}
+
+async function mergeSeenNewsSources(options: RecordSeenNewsOptions): Promise<void> {
   const lane = newsSeenLane(options.command);
   const now = new Date(options.seenAt);
   const existing = pruneEntries(

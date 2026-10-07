@@ -57,7 +57,7 @@ Live runs cost real money and time — a deep equity run is ~12 minutes and ~438
 - **Never `--write-golden`** unless the change was intentionally output-changing, and say so in the commit body.
 - **Never delete or prune under `data/`.** `cache prune`, `index rebuild`, `history rebuild` throw away derived state that costs provider calls to rebuild. Ask instead.
 - **Never read or echo `.env`.** It holds live keys; `.env.example` has the names.
-- **Never kill a running CLI process.** A partial run leaves a half-written run dir the index then picks up.
+- **Never kill a running CLI process.** The spend is already sunk; a killed run leaves only a hidden `data/.runs-<run-id>.partial` stage dir, never a run dir. Parallel runs are supported: run dirs publish whole, and score passes, calibration, index and history writes serialize on `data/shared-state.lock` (news-seen and learned-peer merges on their own `.lock` files). Source-provider rate limits are per process, so parallel runs double the request rate.
 
 Always fine: `bun test`, `bun run check`, fixture replays without `--live`, reading anything under `data/runs/`.
 
@@ -65,7 +65,7 @@ Always fine: `bun test`, `bun run check`, fixture replays without `--live`, read
 
 Artifacts land in `data/runs/<run-id>/` — `report.json`, `report.md`, `score.json`, `analytics.json`, `outcomes.json`, `stages.json`, `trace.json`, `normalized/`, `raw/`.
 
-Failed final-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`; no `report.json`, `report.md`, `trace.json`, or `analytics.json`. `failure.json` is written last, so its presence means the run dir is complete.
+Failed final-synthesis runs leave `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`; no `report.json`, `report.md`, `trace.json`, or `analytics.json`. Run dirs are staged and renamed into `data/runs/` whole (`publishRunArtifacts`), so a visible run dir is always complete.
 
 `data/` also holds `calibration/`, `index.sqlite` (Run Artifact Index), `history/` (search index + instrument timelines), `cache/`, and `news-seen.json` (suppresses repeat news URLs for 30 days). All rebuildable, none disposable.
 

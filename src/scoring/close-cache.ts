@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { writeFileAtomic } from "../artifacts";
 import type { AssetClass } from "../domain/types";
 import type { Observation } from "../forecast/observable";
 import type { ScoringPolicyVersion } from "./policy";
@@ -202,7 +203,7 @@ async function readWindow(
 async function writeClose(path: string, entry: CloseCacheEntry): Promise<void> {
   try {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify(entry, undefined, 2)}\n`, "utf8");
+    await writeFileAtomic(path, `${JSON.stringify(entry, undefined, 2)}\n`);
   } catch {
     // Close-cache writes are best-effort; scoring can still continue without them.
   }
@@ -211,7 +212,7 @@ async function writeClose(path: string, entry: CloseCacheEntry): Promise<void> {
 async function writeWindow(path: string, entry: CloseWindowCacheEntry): Promise<void> {
   try {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify(entry, undefined, 2)}\n`, "utf8");
+    await writeFileAtomic(path, `${JSON.stringify(entry, undefined, 2)}\n`);
   } catch {
     // Window-cache writes are best-effort; scoring can still continue without them.
   }

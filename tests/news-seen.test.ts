@@ -70,6 +70,27 @@ describe("news seen index", () => {
     ]);
   });
 
+  test("concurrent records keep each other's entries", async () => {
+    const path = tempSeenPath();
+    const record = (runId: string, url: string) =>
+      recordSeenNewsSources({
+        path,
+        retentionDays: 30,
+        command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
+        runId,
+        seenAt: "2026-05-01T00:00:00.000Z",
+        sources: [newsSource({ title: runId, url })],
+      });
+
+    await Promise.all([
+      record("run-a", "https://example.test/a"),
+      record("run-b", "https://example.test/b"),
+    ]);
+
+    const entries = await readNewsSeenEntries(path);
+    expect(entries.map((entry) => entry.lastRunId).toSorted()).toEqual(["run-a", "run-b"]);
+  });
+
   test("prunes expired entries while recording fresh news", async () => {
     const path = tempSeenPath();
     await writeFile(

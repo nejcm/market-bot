@@ -228,6 +228,7 @@ data/
   history/                derived search index + instrument timelines
   cache/                  raw source + close caches
   news-seen.json          suppresses repeat news URLs (30 days)
+  shared-state.lock       serializes score/calibration/index/history writes across parallel runs
 ```
 
 A run whose final synthesis fails still leaves a complete directory — `failure.json`, `outcomes.json`, `rejected-report.json`, `stages.json`, `normalized/`, and `raw/`, but no `report.json` or `report.md`. `failure.json` is written last, so its presence means the run finished writing.

@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { writeFileAtomic } from "../artifacts";
 import {
   buildAlphaCandidateProfiles,
   buildAlphaCandidateWatchlist,
@@ -436,10 +437,9 @@ async function scoreRunDir(
         scoredAt: now.toISOString(),
       };
 
-      await writeFile(
+      await writeFileAtomic(
         join(runDir, SCORE_FILE),
         `${JSON.stringify(scoreFile, undefined, 2)}\n`,
-        "utf8",
       );
       currentScores = mergedScores;
       wroteScore = true;
@@ -794,11 +794,10 @@ export async function buildAndWriteCalibration(
   const summary = buildCalibrationSummary(pairs, now, conditionalCounts);
   const calibrationDir = join(dataDir, "../calibration");
   await mkdir(calibrationDir, { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     join(calibrationDir, "summary.json"),
     `${JSON.stringify(summary, undefined, 2)}\n`,
-    "utf8",
   );
-  await writeFile(join(calibrationDir, "summary.md"), renderCalibrationMarkdown(summary), "utf8");
+  await writeFileAtomic(join(calibrationDir, "summary.md"), renderCalibrationMarkdown(summary));
   return summary;
 }

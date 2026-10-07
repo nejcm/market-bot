@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { InstrumentCommand, MarketOverviewCommand } from "../src/cli/args";
 import type { ResearchSubjectCommand } from "../src/cli/job-registry";
 import type { AppConfig } from "../src/config";
 import type { ResearchReport, RunTrace, SourceGap } from "../src/domain/types";
-import { prepareRunArtifacts, publishRunArtifacts } from "../src/artifacts";
+import { assertRunStagingUsable, prepareRunArtifacts, publishRunArtifacts } from "../src/artifacts";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { readRunDetail } from "../app/artifacts";
@@ -959,5 +959,55 @@ describe("publishRunArtifacts", () => {
 
     await expect(failure).rejects.toThrow("disk full");
     expect(await readdir(dataDir).catch(() => [])).toEqual([]);
+  });
+
+  test("stages beside the real runs dir when dataDir is a symlink", async () => {
+    const root = tempDir();
+    const realRuns = join(root, "real", "runs");
+    await mkdir(realRuns, { recursive: true });
+    await symlink(realRuns, join(root, "link"));
+
+    const artifacts = await publishRunArtifacts(join(root, "link"), "run-1", async () => {
+      const staging = await readdir(join(root, "real"));
+      expect(staging.toSorted()).toEqual([".runs-run-1.partial", "runs"]);
+    });
+
+    expect(artifacts.runDir).toBe(join(root, "link", "run-1"));
+    expect(await readdir(realRuns)).toEqual(["run-1"]);
+    const rootEntries = await readdir(root);
+    expect(rootEntries.toSorted()).toEqual(["link", "real"]);
+  });
+
+  test("dataDir '.' stages in the parent of the working directory", async () => {
+    const root = tempDir();
+    const runsDir = join(root, "runs");
+    await mkdir(runsDir, { recursive: true });
+    const cwd = process.cwd();
+    process.chdir(runsDir);
+    try {
+      await publishRunArtifacts(".", "run-1", async () => {
+        expect(await readdir(runsDir)).toEqual([]);
+      });
+    } finally {
+      process.chdir(cwd);
+    }
+
+    expect(await readdir(runsDir)).toEqual(["run-1"]);
+    expect(await readdir(root)).toEqual(["runs"]);
+  });
+
+  test("rejects an unwritable staging parent before any write", async () => {
+    const root = tempDir();
+    const parent = join(root, "parent");
+    const dataDir = join(parent, "runs");
+    await mkdir(dataDir, { recursive: true });
+    await chmod(parent, 0o555);
+    try {
+      await expect(assertRunStagingUsable(dataDir)).rejects.toThrow(
+        `Run staging needs ${parent} to be writable`,
+      );
+    } finally {
+      await chmod(parent, 0o755);
+    }
   });
 });

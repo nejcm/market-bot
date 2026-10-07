@@ -1,5 +1,6 @@
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { writeFileAtomic } from "../artifacts";
 import { dataRootFromRunsDir } from "../data-paths";
 import {
   isSourceGapCapability,
@@ -976,8 +977,8 @@ export async function writeProviderHealthSummary(
   const markdownPath = join(outputDir, "summary.md");
 
   await mkdir(outputDir, { recursive: true });
-  await writeFile(jsonPath, `${JSON.stringify(summary, undefined, 2)}\n`, "utf8");
-  await writeFile(markdownPath, renderProviderHealthMarkdown(summary), "utf8");
+  await writeFileAtomic(jsonPath, `${JSON.stringify(summary, undefined, 2)}\n`);
+  await writeFileAtomic(markdownPath, renderProviderHealthMarkdown(summary));
 
   return { jsonPath, markdownPath, summary };
 }

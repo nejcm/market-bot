@@ -57,7 +57,7 @@ Live runs cost real money and time — a deep equity run is ~12 minutes and ~438
 - **Never `--write-golden`** unless the change was intentionally output-changing, and say so in the commit body.
 - **Never delete or prune under `data/`.** `cache prune`, `index rebuild`, `history rebuild` throw away derived state that costs provider calls to rebuild. Ask instead.
 - **Never read or echo `.env`.** It holds live keys; `.env.example` has the names.
-- **Never kill a running CLI process.** The spend is already sunk; a killed run leaves only a hidden `data/.runs-<run-id>.partial` stage dir, never a run dir. Concurrent runs are safe.
+- **Never kill a running CLI process.** The spend is already sunk; a killed run leaves only a hidden `data/.runs-<run-id>.partial` stage dir, never a run dir. Parallel runs are supported: run dirs publish whole, and score passes, calibration, index and history writes serialize on `data/shared-state.lock` (news-seen and learned-peer merges on their own `.lock` files). Source-provider rate limits are per process, so parallel runs double the request rate.
 
 Always fine: `bun test`, `bun run check`, fixture replays without `--live`, reading anything under `data/runs/`.
 

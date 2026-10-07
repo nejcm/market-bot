@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
-import { rm, unlink } from "node:fs/promises";
+import { mkdir, rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
+import { writeFileAtomic } from "../artifacts";
 import { sourceGap } from "../domain/source-gaps";
 import type { SourceGap } from "../domain/types";
 import { isYahooMarketDataAdapter, yahooCacheFallbackDays } from "./yahoo-resilience";
@@ -192,7 +193,8 @@ function isValidCacheEntryMetadata(
 
 async function writeEntry(path: string, entry: CacheEntry): Promise<void> {
   try {
-    await Bun.write(path, JSON.stringify(entry));
+    await mkdir(dirname(path), { recursive: true });
+    await writeFileAtomic(path, JSON.stringify(entry));
   } catch {
     // Cache write failures are non-fatal; the run continues without caching.
   }

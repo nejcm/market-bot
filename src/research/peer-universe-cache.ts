@@ -1,6 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { writeFileAtomic } from "../artifacts";
+import { withFileLock } from "../shared-state-lock";
 import { DAY_MS } from "../config/shared";
 import { isRecord } from "../guards";
 import {
@@ -140,14 +141,7 @@ async function readIndex(path: string): Promise<readonly PeerUniverseLearnedEntr
 
 async function writeIndex(path: string, index: PeerUniverseLearnedIndex): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(tempPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
-    await rename(tempPath, path);
-  } catch (error: unknown) {
-    await rm(tempPath, { force: true });
-    throw error;
-  }
+  await writeFileAtomic(path, `${JSON.stringify(index, null, 2)}\n`);
 }
 
 // Returns a cache-reader function that resolves a cached peer universe for the
@@ -183,8 +177,8 @@ export function makePeerUniverseCacheReader(
 }
 
 // Returns a cache-writer function that persists a validated peer universe for the
-// Given symbol. Prunes stale entries and sorts by symbol for stable diffs. Uses an
-// Atomic temp-file write to avoid partial writes.
+// Given symbol. Prunes stale entries and sorts by symbol for stable diffs. The
+// Read-merge-write runs under a file lock so concurrent runs keep each other's entries.
 export function makePeerUniverseCacheWriter(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
@@ -202,9 +196,6 @@ export function makePeerUniverseCacheWriter(
         `Invalid learned peer universe: target mismatch ${universe.targetSymbol} != ${target}`,
       );
     }
-    const entries = await readIndex(path);
-    // Prune stale entries and remove any existing entry for this symbol (upsert)
-    const pruned = entries.filter((e) => e.targetSymbol !== target && !isStale(e, now, ttlDays));
     const newEntry: PeerUniverseLearnedEntry = {
       targetSymbol: target,
       provenance: "model-proposed-validated",
@@ -215,9 +206,14 @@ export function makePeerUniverseCacheWriter(
       providerName,
       audit,
     };
-    const upserted = [...pruned, newEntry].toSorted((a, b) =>
-      a.targetSymbol.localeCompare(b.targetSymbol),
-    );
-    await writeIndex(path, { version: CACHE_VERSION, entries: upserted });
+    await withFileLock(`${path}.lock`, async () => {
+      const entries = await readIndex(path);
+      // Prune stale entries and remove any existing entry for this symbol (upsert)
+      const pruned = entries.filter((e) => e.targetSymbol !== target && !isStale(e, now, ttlDays));
+      const upserted = [...pruned, newEntry].toSorted((a, b) =>
+        a.targetSymbol.localeCompare(b.targetSymbol),
+      );
+      await writeIndex(path, { version: CACHE_VERSION, entries: upserted });
+    });
   };
 }

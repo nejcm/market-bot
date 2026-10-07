@@ -23,39 +23,61 @@ on the same code: a high-coverage subject, `equity AMD --deep`, and a
 thin-coverage subject, `equity CLFD --deep` (Clearfield, a small-cap domestic
 10-K filer, so the difference is online coverage, not filing path). The pair is
 fixed so each subject builds its own baseline history; change it only on
-request. Findings in both runs are systemic; findings in one isolate the
-high-coverage or the thin-coverage path.
+request. Where a finding shows up is a lead toward systemic versus
+coverage-path causes, not a verdict; the Output **Scope** rule decides.
 
-A pair member is reusable when its newest run's tree matches HEAD
-(`git diff --quiet <codeVersion.commit> HEAD`) and the two runs share
-`reproducibility.effectiveConfigHash`. Run only the members that are not
-reusable. A fresh deep equity run costs ~12 minutes and ~438k live model tokens
+A pair member is reusable only when its newest run executed the source now in
+the workspace, read from its `analytics.json`, and the two runs share
+`reproducibility.effectiveConfigHash`:
+
+- **Clean run, clean workspace** — `codeVersion.dirty` is `false`, `git status
+--porcelain` is empty, and `git diff --quiet <codeVersion.commit> HEAD`
+  passes.
+- **Dirty run** — `codeVersion.commit` is HEAD and
+  `reproducibility.dirtySourceHash` equals the workspace's
+  (`bun -e 'import { dirtySourceHash } from "./src/reproducibility"; console.log(dirtySourceHash() ?? "clean")'`;
+  no CLI call).
+
+Anything else — a dirty run without `dirtySourceHash`, a dirty run against a
+clean workspace or the reverse — is not reusable. Run only the members that
+are not reusable. A fresh deep equity run costs ~12 minutes and ~438k live model tokens
 (a recent NBIS deep run: 584s); state the total before starting.
 
-**Single-run mode.** Review exactly one run, and **never** execute the CLI, when
-the user supplied a run dir or named one subject that already has a run, or when
-you were invoked by another skill or subagent — notably `improve-market-runs`,
-whose Review subagent calls this skill _after_ it has already run the CLI, so
-running here would double-run and recurse. Run a named subject only on an
-explicit request for a fresh run or when it has no comparable run.
+**Single-run mode.** Review exactly one run. **Never** execute the CLI when the
+user supplied a run dir, or when you were invoked by another skill or subagent —
+notably `improve-market-runs`, whose Review subagent calls this skill _after_ it
+has already run the CLI, so running here would double-run and recurse; no
+request wording overrides either case. When the user named one subject, review
+its newest comparable run; run it only when it has none, or when the user
+explicitly asked for a fresh run (e.g. "run fresh AMD") — that request wins over
+an existing run.
 
 When running:
 
 - **Delegate execution to a cheap worker** (pick the model per the
-  `agent-orchestration` skill; do not pin one here) that returns only the
-  run-dir paths plus the tail of any failure. The purpose is **context
+  `agent-orchestration` skill; do not pin one here) that returns, per run, the
+  exit status, the run-dir path when one was printed, and the last ~40 lines of
+  stderr. The purpose is **context
   isolation** — keeping run logs out of the review — not model savings; the
   cost is market-bot's own model calls, which the driving agent does not
   change. Say so plainly if asked.
-- **Run pair members in parallel.** Run dirs publish atomically; if the model
-  provider rate-limits (429 / capacity errors in `failure.json`), rerun that
-  member alone.
+- **Run pair members in parallel.** Run dirs publish atomically and the
+  shared-state phases (score pass, calibration, index, history, news-seen)
+  serialize on a lock under `data/`; provider rate-limit queues are per process,
+  so two runs double the request rate. A member that exits non-zero without a
+  run dir (e.g. a model-provider 429 / capacity error in its stderr tail) is
+  reported as failed with that tail — not rerun. A rerun needs explicit user
+  approval after you state its cost (~12 minutes, ~438k tokens per deep run).
+  Source-provider throttling usually surfaces instead as Source Gaps inside a
+  successful run; review those as findings.
 - **One run per subject.** Repeat same-subject runs discriminate run-to-run
   variance, but that is the most expensive axis; older runs of the same subject
   (Step 2) cover most of it for free. Do N repeats only on explicit request, and
   state the total cost before starting.
-- **A failed pair member** (`failure.json`) is still reviewed from its
-  `outcomes.json`; say the pair comparison is partial.
+- **A failed pair member** with a run dir (`failure.json`, written only for a
+  rejected final synthesis) is still reviewed from its `outcomes.json`; one
+  without a run dir is reviewed from its stderr tail only. Either way say the
+  pair comparison is partial.
 
 Map requests to commands via `src/cli/job-registry.ts`, e.g.
 `bun run src/cli.ts equity NBIS --deep`, `bun run src/cli.ts crypto BTC`,
@@ -184,14 +206,19 @@ For each Recommendation item, **at most 8, ranked**:
 - **Category** — e.g. `bug`, `regression`, `evidence-coverage`,
   `prediction-quality`, `calibration`, `determinism`, `telemetry`,
   `provider-incident`, `adr-conflict`
-- **Scope** — `subject-specific` / `systemic` / `unknown`, classified against
-  the Step 1 cohort: `subject-specific` when present only for this subject,
-  `systemic` when present across subjects on the same commit and config hash,
-  `unknown` when the cohort is too thin to tell. In pair mode, a finding in both
-  runs is `systemic`; one in a single run is `subject-specific` with the
-  subject named (`subject-specific: CLFD`) — say whether thin coverage explains
-  it, and treat a high-coverage-only finding as a full-evidence-path defect. Say `unknown` rather than
-  guessing. A systemic finding outranks a subject-specific one of equal severity.
+- **Observed in** — the run(s) showing the symptom (in pair mode `AMD`,
+  `CLFD`, or both). This is a fact, not a classification.
+- **Scope** — `subject-specific` / `systemic` / `unknown`, inferred separately
+  from **Observed in** against the Step 1 cohort: `subject-specific` when
+  present only for this subject, `systemic` when present across subjects on the
+  same commit and config hash, `unknown` when the cohort is too thin to tell.
+  One pair is a thin cohort: a symptom in one member is not `subject-specific`
+  by that alone (a provider incident can hit one run at random), and the same
+  symptom in both is not `systemic` unless the cause is the same. Attribute it
+  to the high- or thin-coverage path only with corroborating evidence — the
+  same symptom in older runs of that subject, or a code path that branches on
+  coverage — and otherwise say `unknown`. A systemic finding outranks a
+  subject-specific one of equal severity.
 - **Suspected cause** — subject to the cause-verification rule below
 - **Severity** — `high` / `medium` / `low`
 - **Effort** — `S` / `M` / `L`

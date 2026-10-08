@@ -38,6 +38,29 @@ const baseExtendedEvidence: ExtendedEvidence = secEvidence({
 });
 
 describe("addValuationEvidence", () => {
+  test("declares a Source Gap when cash and debt periods diverge", () => {
+    const result = addValuationEvidence(
+      command,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+      secEvidence({
+        revenue: 100,
+        cash: 30,
+        cashPeriodEnd: "2026-06-30",
+        debt: 50,
+        debtPeriodEnd: "2025-06-30",
+      }),
+    );
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+
+    expect(valuation?.metrics?.enterpriseValue).toBe("mixed-period");
+    expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        symbol: "AAPL",
+        message: expect.stringContaining("Mixed-period valuation inputs for AAPL"),
+      }),
+    ]);
+  });
+
   test("preserves populated valuation values at the canonical input seam", () => {
     const facts = {
       facts: {

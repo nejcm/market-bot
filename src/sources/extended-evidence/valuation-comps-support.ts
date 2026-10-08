@@ -243,6 +243,18 @@ export function mixedPeriodMetrics(
   };
 }
 
+export function mixedPeriodValuationGap(
+  symbol: string,
+  divergence: BalanceSheetPeriodDivergence,
+): SourceGap {
+  return valuationCompsGap(
+    `Mixed-period valuation inputs for ${symbol}: cash period end ${divergence.cashPeriodEnd} and debt period end ${divergence.debtPeriodEnd} diverge by ${String(divergence.divergenceDays)} days; enterprise value and net debt flagged as mixed-period`,
+    "provider-data-missing",
+    "valuation",
+    symbol.toUpperCase(),
+  );
+}
+
 export function guardMixedPeriodValuationItem(
   item: ExtendedEvidenceItem,
   divergence: BalanceSheetPeriodDivergence | undefined,

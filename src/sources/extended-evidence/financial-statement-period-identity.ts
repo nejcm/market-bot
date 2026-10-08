@@ -18,30 +18,6 @@ export function statementFiscalPeriodKey(period: StatementFiscalPeriod): string 
     : `${period.periodEnd}|${period.form}|${String(year ?? "")}|${period.fiscalPeriod}`;
 }
 
-export function sameStatementFiscalPeriod(
-  left: StatementFiscalPeriod,
-  right: StatementFiscalPeriod,
-): boolean {
-  const leftYear = calendarYearFromPeriodEnd(left.periodEnd);
-  const rightYear = calendarYearFromPeriodEnd(right.periodEnd);
-  return (
-    leftYear !== undefined &&
-    leftYear === rightYear &&
-    left.form === right.form &&
-    (left.form === "10-K" || left.fiscalPeriod === right.fiscalPeriod)
-  );
-}
-
-export function preferDirectStatementBasis(
-  directPeriodEnd: string | undefined,
-  compositePeriodEnd: string | undefined,
-): boolean {
-  if (compositePeriodEnd === undefined) {
-    return true;
-  }
-  return directPeriodEnd !== undefined && directPeriodEnd >= compositePeriodEnd;
-}
-
 const GROSS_DEBT_CALIBRATION_TOLERANCE = 0.05;
 
 // Gross principal stands in for net debt only when fresher and within tolerance of net at net's own period end.

@@ -367,27 +367,6 @@ describe("financial statement selection", () => {
           "us-gaap": ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"],
           "ifrs-full": ["Borrowings"],
         },
-        components: [
-          {
-            "us-gaap": [
-              "LongTermDebtCurrent",
-              "DebtCurrent",
-              "LongTermDebtAndCapitalLeaseObligationsCurrent",
-              "ShortTermBorrowings",
-              "ShortTermDebt",
-              "NotesPayableCurrent",
-            ],
-            "ifrs-full": ["CurrentBorrowings"],
-          },
-          {
-            "us-gaap": [
-              "LongTermDebtNoncurrent",
-              "LongTermDebtAndCapitalLeaseObligations",
-              "LongTermNotesPayable",
-            ],
-            "ifrs-full": ["NoncurrentBorrowings"],
-          },
-        ],
       },
       {
         key: "operatingCashFlow",

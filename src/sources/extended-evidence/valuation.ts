@@ -9,6 +9,11 @@ import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
 import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
+import {
+  balanceSheetPeriodDivergence,
+  guardMixedPeriodValuationItem,
+  mixedPeriodValuationGap,
+} from "./valuation-comps-support";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -168,7 +173,7 @@ export function addValuationEvidence(
     enterpriseValue === undefined
       ? "EV/annualized revenue not applicable"
       : `EV/annualized revenue ${fixed(evToAnnualizedRevenue)}`;
-  const item: ExtendedEvidenceItem = {
+  const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
     summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}.`,
@@ -197,6 +202,10 @@ export function addValuationEvidence(
     },
     ...(secItem.identity !== undefined ? { identity: secItem.identity } : {}),
   };
+  const divergence = balanceSheetPeriodDivergence(rawItem.metrics);
+  const item = guardMixedPeriodValuationItem(rawItem, divergence);
+  const sourceGaps =
+    divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)];
 
   return {
     extendedEvidence: {
@@ -205,8 +214,8 @@ export function addValuationEvidence(
         assetClass: command.assetClass,
       },
       items: [...(extendedEvidence?.items ?? []), item],
-      gaps: extendedEvidence?.gaps ?? [],
+      gaps: [...(extendedEvidence?.gaps ?? []), ...sourceGaps],
     },
-    sourceGaps: [],
+    sourceGaps,
   };
 }

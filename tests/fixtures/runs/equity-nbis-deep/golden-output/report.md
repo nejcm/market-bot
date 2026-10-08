@@ -175,7 +175,7 @@ ANNUAL | 2020-12-31 | 2021-04-01 | — | — (price-history-unavailable) | — (
 ANNUAL | 2021-12-31 | 2022-04-20 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
 ANNUAL | 2022-12-31 | 2025-04-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)
 ANNUAL | 2023-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 212.66x | 5230.73x | 5380.40x | 68.63x
-ANNUAL | 2024-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | N/M | 424.52x | 415.15x | N/M
+ANNUAL | 2024-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | N/M | 424.52x | — (mixed-period-balance-sheet) | N/M
 ANNUAL | 2025-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 418.88x | 64.62x | 65.42x | N/M
 
 #### Peer comparison

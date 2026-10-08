@@ -8,7 +8,6 @@ import type {
 import { conceptScope } from "./financial-statement-definitions";
 import {
   formatSecFundamentalsSummary,
-  type SecDebtMetricKey,
   type SecMetricDefinitionKey,
   type SecSicClassification,
 } from "./sec-edgar";
@@ -98,7 +97,7 @@ const INSTANT_SERIES = [
 
 type CanonicalFactMetricKey = (typeof FLOW_SERIES)[number][0] | (typeof INSTANT_SERIES)[number][0];
 
-export type SecFactMetricKey = CanonicalFactMetricKey | SecMetricDefinitionKey | SecDebtMetricKey;
+export type SecFactMetricKey = CanonicalFactMetricKey | SecMetricDefinitionKey;
 
 export type SecMetricKey =
   | SecFactMetricKey

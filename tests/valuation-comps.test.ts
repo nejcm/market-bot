@@ -1075,10 +1075,11 @@ describe("collectValuationComps", () => {
     );
   });
 
-  test("guards a peer whose debt composite is missing a component leg", async () => {
+  test("guards a peer whose fresh one-sided debt omits the other side reported earlier", async () => {
     const result = await collectNvdaWithAmdPayload(
       secPayloadWithoutLongTermDebt({
-        LongTermDebtNoncurrent: secFactUnits(20, 19),
+        LongTermDebtNoncurrent: { units: { USD: [secFact(20)] } },
+        LongTermDebtCurrent: { units: { USD: [secFact(5, { end: "2026-01-29", fp: "Q1" })] } },
       }),
     );
 
@@ -1086,27 +1087,16 @@ describe("collectValuationComps", () => {
     expect(amd).toMatchObject({
       symbol: "AMD",
       cash: 10,
-      debt: 20,
       cashPeriodEnd: "2026-06-29",
-      debtPeriodEnd: "2026-06-29",
+      debt: 5,
+      debtPeriodEnd: "2026-01-29",
       usable: false,
     });
-    expect(amd?.enterpriseValue).toBeUndefined();
     expect(amd?.evToAnnualizedRevenue).toBeUndefined();
-    expect(amd?.sourceIds.length).toBeGreaterThan(0);
-    const reason =
-      "incomplete SEC debt basis: Debt composite for 2026-06-29 omits LongTermDebtCurrent/DebtCurrent/LongTermDebtAndCapitalLeaseObligationsCurrent/ShortTermBorrowings/ShortTermDebt/NotesPayableCurrent because no eligible fact was selected for that component slot.";
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",
-        reason,
-      }),
-    );
-    expect(result.gaps).toContainEqual(
-      expect.objectContaining({
-        source: "valuation-peers",
-        symbol: "AMD",
-        message: `Peer AMD excluded from valuation comps: ${reason}`,
+        reason: expect.stringContaining("enterprise value flagged as mixed-period"),
       }),
     );
   });
@@ -1135,16 +1125,15 @@ describe("collectValuationComps", () => {
     expect(amd).toMatchObject({
       symbol: "AMD",
       cash: 10,
-      debt: 30,
       cashPeriodEnd: "2026-06-30",
-      debtPeriodEnd: "2026-06-30",
       usable: false,
     });
+    expect(amd?.debt).toBeUndefined();
     expect(amd?.enterpriseValue).toBeUndefined();
     expect(amd?.evToAnnualizedRevenue).toBeUndefined();
     expect(amd?.sourceIds.length).toBeGreaterThan(0);
     const reason =
-      "incomplete SEC debt basis: Debt composite for 2026-06-30 omits LongTermDebtNoncurrent/LongTermDebtAndCapitalLeaseObligations/LongTermNotesPayable because no eligible fact was selected for that component slot.";
+      "incomplete SEC debt basis: debt composite for 2026-06-30 is incomplete: omits LongTermDebtNoncurrent, reported nonzero within the prior year or earlier for this instant";
     expect(result.artifact.excludedPeers).toContainEqual(
       expect.objectContaining({
         symbol: "AMD",

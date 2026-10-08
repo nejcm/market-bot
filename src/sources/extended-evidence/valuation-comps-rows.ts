@@ -18,8 +18,6 @@ import {
 } from "./valuation-comps-contract";
 
 import { readNumberMetric, readStringMetric } from "./utils";
-import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
-import { incompleteCompositeNote, isCompleteComposite } from "./financial-statement-selection";
 import { latestFilingWithoutDebtFacts, type SecDebtComposite } from "./sec-edgar";
 import type { DebtBasis } from "./financial-statements-contract";
 import {
@@ -430,14 +428,14 @@ function exclusionReason(
   if (row.cash === undefined) {
     return missing("missing SEC cash");
   }
+  const incompleteReason = incompleteDebtBasisReason(debtComposite);
   if (row.debt === undefined) {
-    return missing("missing SEC debt");
+    return missing(incompleteReason ?? "missing SEC debt");
   }
   const vintageReason = peerVintageExclusionReason(row, generatedAt);
   if (vintageReason !== undefined) {
     return missing(vintageReason);
   }
-  const incompleteReason = incompleteDebtBasisReason(debtComposite);
   if (incompleteReason !== undefined) {
     return missing(incompleteReason);
   }
@@ -510,23 +508,11 @@ function peerVintageExclusionReason(
 function isIncompleteDebtComposite(
   composite: SecDebtComposite | undefined,
 ): composite is SecDebtComposite {
-  return (
-    composite !== undefined &&
-    !isCompleteComposite(composite.componentCount, composite.componentSlotCount)
-  );
+  return composite?.incompleteReason !== undefined;
 }
 
 function incompleteDebtBasisReason(composite: SecDebtComposite | undefined): string | undefined {
-  if (!isIncompleteDebtComposite(composite)) {
-    return undefined;
-  }
-  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
-  const { periodEnd, selectedConcepts } = composite;
-  if (definition === undefined || periodEnd === undefined) {
-    return "incomplete SEC debt basis";
-  }
-  const note = incompleteCompositeNote(definition, "us-gaap", periodEnd, selectedConcepts);
-  return note === undefined
-    ? "incomplete SEC debt basis"
-    : `incomplete SEC debt basis: ${note.message}`;
+  return composite?.incompleteReason === undefined
+    ? undefined
+    : `incomplete SEC debt basis: debt composite for ${composite.periodEnd ?? "the latest period"} is incomplete: ${composite.incompleteReason}`;
 }

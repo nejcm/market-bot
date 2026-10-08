@@ -1,4 +1,8 @@
-import type { FinancialStatementSeriesDefinition } from "./financial-statement-definitions";
+import {
+  DEBT_CONCEPTS,
+  type DebtTaxonomyConcepts,
+  type FinancialStatementSeriesDefinition,
+} from "./financial-statement-definitions";
 import {
   SEC_COMPANYFACTS_UNIT_SCALE,
   type FinancialStatementFact,
@@ -151,51 +155,237 @@ export function compositeStatementIdentity(
   };
 }
 
-export function isCompleteComposite(componentCount: number, componentSlotCount: number): boolean {
-  return componentCount === componentSlotCount;
+export interface DebtResolution<T> {
+  readonly basis: "total" | "components";
+  readonly contributors: readonly { readonly concept: string; readonly fact: T }[];
+  readonly incompleteReason?: string;
 }
 
-export function incompleteCompositeNote(
-  definition: FinancialStatementSeriesDefinition,
+export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): ReadonlySet<string> {
+  const concepts = DEBT_CONCEPTS[taxonomy];
+  return new Set([
+    ...concepts.totals,
+    ...[concepts.current, concepts.noncurrent].flatMap((side) => [
+      ...side.generic,
+      ...side.instruments.flat(),
+    ]),
+    ...(concepts.financeLeases === undefined
+      ? []
+      : [concepts.financeLeases.total, ...concepts.financeLeases.split]),
+  ]);
+}
+
+export function debtCandidateConcepts(
   taxonomy: FinancialStatementTaxonomy,
-  periodEnd: string,
-  selectedConcepts: readonly string[],
-): FinancialStatementNote | undefined {
-  const slots = definition.components;
-  if (slots === undefined) {
-    return undefined;
+  root: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  const concepts = DEBT_CONCEPTS[taxonomy];
+  const pattern = concepts.unrecognizedBorrowing;
+  return [
+    ...new Set([
+      ...recognizedDebtConcepts(taxonomy),
+      ...(pattern === undefined
+        ? []
+        : Object.keys(root).filter((concept) => pattern.test(concept))),
+    ]),
+  ];
+}
+
+export interface DebtHistoryFact {
+  readonly concept: string;
+  readonly periodEnd: string;
+  readonly filedAt: string;
+  readonly value: number;
+}
+
+export interface DebtInstant {
+  readonly periodEnd: string;
+  readonly filedAt: string;
+}
+
+interface DebtSide {
+  readonly generic: string | undefined;
+  readonly concepts: readonly string[];
+  readonly instruments: readonly (readonly string[])[];
+}
+
+const DEBT_CONTINUITY_DAYS = 400;
+
+function financeLeaseConcepts(
+  concepts: DebtTaxonomyConcepts,
+  sides: readonly DebtSide[],
+  tagged: ReadonlyMap<string, unknown>,
+): { readonly concepts: readonly string[]; readonly incompleteReason?: string } {
+  const leases = concepts.financeLeases;
+  if (leases === undefined) {
+    return { concepts: [] };
   }
-  const selected = new Set(selectedConcepts);
-  const missingSlots = slots
-    .map((slot) => slot[taxonomy])
-    .filter((aliases) => aliases.every((alias) => !selected.has(alias)));
-  if (missingSlots.length === 0) {
-    return undefined;
+  const inclusive = (index: number) =>
+    concepts.leaseInclusive?.includes(sides[index]?.generic ?? "") === true;
+  const missingLegs = leases.split.filter((leg, index) => !inclusive(index) && !tagged.has(leg));
+  const neededLegs = leases.split.filter((_, index) => !inclusive(index));
+  if (neededLegs.length === leases.split.length && tagged.has(leases.total)) {
+    return { concepts: [leases.total] };
   }
+  const taggedLegs = neededLegs.filter((leg) => tagged.has(leg));
+  if (taggedLegs.length === 0 && !tagged.has(leases.total)) {
+    return { concepts: [] };
+  }
+  return missingLegs.length === 0
+    ? { concepts: taggedLegs }
+    : {
+        concepts: taggedLegs,
+        incompleteReason: `finance leases lack ${missingLegs.join(", ")}`,
+      };
+}
+
+function coveredDebtConcepts(
+  concepts: DebtTaxonomyConcepts,
+  sides: readonly DebtSide[],
+  leaseConcepts: readonly string[],
+): ReadonlySet<string> {
+  const leases = concepts.financeLeases;
+  const coveredLegs = (leases?.split ?? []).filter(
+    (leg, index) =>
+      concepts.leaseInclusive?.includes(sides[index]?.generic ?? "") === true ||
+      leaseConcepts.includes(leg) ||
+      (leases !== undefined && leaseConcepts.includes(leases.total)),
+  );
+  return new Set([
+    ...sides.flatMap((side, index) =>
+      side.generic === undefined
+        ? side.instruments.filter((group) => group.some((c) => side.concepts.includes(c))).flat()
+        : [
+            ...(index === 0 ? concepts.current : concepts.noncurrent).generic,
+            ...side.instruments.flat(),
+          ],
+    ),
+    ...(sides.every((side) => side.generic !== undefined) ? concepts.totals : []),
+    ...coveredLegs,
+    ...(leases !== undefined && coveredLegs.length === leases.split.length ? [leases.total] : []),
+  ]);
+}
+
+// Every debt concept last reported nonzero within the prior year, or earlier for this instant, must be covered.
+function omittedDebtConcepts(
+  instant: DebtInstant,
+  covered: (concept: string) => boolean,
+  history: readonly DebtHistoryFact[],
+): readonly string[] {
+  const earliest = Date.parse(instant.periodEnd) - DEBT_CONTINUITY_DAYS * DAY_MS;
+  const latestPrior = new Map<string, DebtHistoryFact>();
+  for (const fact of history) {
+    const existing = latestPrior.get(fact.concept);
+    const prior =
+      fact.periodEnd < instant.periodEnd ||
+      (fact.periodEnd === instant.periodEnd && fact.filedAt < instant.filedAt);
+    if (
+      prior &&
+      (existing === undefined ||
+        fact.periodEnd > existing.periodEnd ||
+        (fact.periodEnd === existing.periodEnd && fact.filedAt > existing.filedAt))
+    ) {
+      latestPrior.set(fact.concept, fact);
+    }
+  }
+  return [...latestPrior.values()]
+    .filter(
+      (fact) =>
+        fact.value !== 0 && Date.parse(fact.periodEnd) >= earliest && !covered(fact.concept),
+    )
+    .map((fact) => fact.concept)
+    .toSorted();
+}
+
+function incompleteDebtReason(
+  taxonomy: FinancialStatementTaxonomy,
+  instant: DebtInstant,
+  sides: readonly DebtSide[],
+  leases: { readonly concepts: readonly string[]; readonly incompleteReason?: string },
+  tagged: ReadonlyMap<string, unknown>,
+  history: readonly DebtHistoryFact[],
+): string | undefined {
+  const recognized = recognizedDebtConcepts(taxonomy);
+  const unrecognized = [...tagged.keys()].filter((concept) => !recognized.has(concept));
+  if (unrecognized.length > 0) {
+    return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
+  }
+  const borrowings = sides.flatMap((side) => side.concepts);
+  if (borrowings.length === 0) {
+    return "no borrowing line item is tagged";
+  }
+  if (leases.incompleteReason !== undefined) {
+    return leases.incompleteReason;
+  }
+  const covered = coveredDebtConcepts(DEBT_CONCEPTS[taxonomy], sides, leases.concepts);
+  const leaseConcepts = new Set(Object.values(DEBT_CONCEPTS[taxonomy].financeLeases ?? {}).flat());
+  // Two generic side lines are the classified debt totals, so prior footnote borrowings are constituents.
+  const bothGeneric = sides.every((side) => side.generic !== undefined);
+  const omitted = omittedDebtConcepts(
+    instant,
+    (concept) => covered.has(concept) || (bothGeneric && !leaseConcepts.has(concept)),
+    history,
+  );
+  return omitted.length > 0
+    ? `omits ${omitted.join(", ")}, reported nonzero within the prior year or earlier for this instant`
+    : undefined;
+}
+
+// Shared by legacy SEC metrics and canonical statements; `tagged` holds one fact per concept at one instant.
+export function resolveDebtAtInstant<T>(
+  taxonomy: FinancialStatementTaxonomy,
+  instant: DebtInstant,
+  tagged: ReadonlyMap<string, T>,
+  history: readonly DebtHistoryFact[],
+): DebtResolution<T> {
+  const concepts = DEBT_CONCEPTS[taxonomy];
+  const first = (aliases: readonly string[]) => aliases.find((alias) => tagged.has(alias));
+  const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
+  const total = first(concepts.totals);
+  if (total !== undefined) {
+    return { basis: "total", contributors: [contributor(total)] };
+  }
+  const sides = [concepts.current, concepts.noncurrent].map((side) => {
+    const generic = first(side.generic);
+    return {
+      generic,
+      instruments: side.instruments,
+      concepts:
+        generic === undefined
+          ? side.instruments.flatMap((aliases) => first(aliases) ?? [])
+          : [generic],
+    };
+  });
+  const leases = financeLeaseConcepts(concepts, sides, tagged);
+  const incompleteReason = incompleteDebtReason(taxonomy, instant, sides, leases, tagged, history);
   return {
-    code: "incomplete-composite-series",
-    seriesKey: definition.key,
-    message: `${definition.label} composite for ${periodEnd} omits ${missingSlots.map((aliases) => aliases.join("/")).join(", ")} because no eligible fact was selected for that component slot.`,
+    basis: "components",
+    contributors: [...sides.flatMap((side) => side.concepts), ...leases.concepts].map((concept) =>
+      contributor(concept),
+    ),
+    ...(incompleteReason !== undefined ? { incompleteReason } : {}),
   };
 }
 
-export function incompleteCompositeNotes(
-  definition: FinancialStatementSeriesDefinition,
-  taxonomy: FinancialStatementTaxonomy,
-  series: FinancialStatementSeries,
-): readonly FinancialStatementNote[] {
-  return financialStatementFacts(series).flatMap((fact) => {
-    if (fact.composite === undefined) {
-      return [];
-    }
-    const note = incompleteCompositeNote(
-      definition,
-      taxonomy,
-      fact.periodEnd,
-      fact.composite.components.map((component) => component.concept),
-    );
-    return note === undefined ? [] : [note];
-  });
+// A later filing's incomplete resolution of an instant supersedes earlier complete ones (partial amendments).
+export function unsupersededDebtResolutions<
+  R extends { readonly periodEnd: string; readonly filedAt: string; readonly incomplete: boolean },
+>(resolved: readonly R[]): readonly R[] {
+  return resolved.filter(
+    (entry) =>
+      !resolved.some(
+        (other) =>
+          other.incomplete && other.periodEnd === entry.periodEnd && other.filedAt > entry.filedAt,
+      ),
+  );
+}
+
+export function incompleteDebtNote(periodEnd: string, reason: string): FinancialStatementNote {
+  return {
+    code: "incomplete-composite-series",
+    seriesKey: "debt",
+    message: `Debt composite for ${periodEnd} is incomplete: ${reason}.`,
+  };
 }
 
 export function financialStatementFactForPeriod(

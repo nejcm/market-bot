@@ -32,7 +32,8 @@ export type ValuationMetricSuppressionReason =
   | "diluted-shares-unavailable"
   | "numerator-unavailable"
   | "cash-unavailable"
-  | "debt-unavailable";
+  | "debt-unavailable"
+  | "mixed-period-balance-sheet";
 
 type ValuationMetricNotMeaningfulReason =
   | "negative-denominator"
@@ -175,6 +176,7 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "numerator-unavailable",
   "cash-unavailable",
   "debt-unavailable",
+  "mixed-period-balance-sheet",
 ]);
 const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);
 const READABLE_METRIC_SUPPRESSION_REASONS = new Set<string>([

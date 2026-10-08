@@ -16,8 +16,75 @@ export interface FinancialStatementSeriesDefinition {
   readonly unitKind: "monetary" | "per-share" | "shares";
   readonly deriveTtm: boolean;
   readonly concepts: FinancialStatementConceptAliases;
-  readonly components?: readonly FinancialStatementConceptAliases[];
 }
+
+interface DebtSideConcepts {
+  readonly generic: readonly string[];
+  readonly instruments: readonly (readonly string[])[];
+}
+
+export interface DebtTaxonomyConcepts {
+  readonly totals: readonly string[];
+  readonly current: DebtSideConcepts;
+  readonly noncurrent: DebtSideConcepts;
+  readonly financeLeases?: { readonly total: string; readonly split: readonly string[] };
+  readonly leaseInclusive?: readonly string[];
+  readonly unrecognizedBorrowing?: RegExp;
+}
+
+// Inner arrays are alternatives for one line item; separate entries are disjoint and add.
+export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxonomyConcepts>> = {
+  "us-gaap": {
+    totals: [
+      "LongTermDebt",
+      "DebtLongtermAndShorttermCombinedAmount",
+      "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
+      "DebtAndCapitalLeaseObligations",
+    ],
+    current: {
+      generic: [
+        "LongTermDebtCurrent",
+        "DebtCurrent",
+        "LongTermDebtAndCapitalLeaseObligationsCurrent",
+      ],
+      instruments: [
+        ["ShortTermBorrowings", "ShortTermDebt"],
+        ["NotesPayableCurrent"],
+        ["LoansPayableCurrent"],
+        ["LinesOfCreditCurrent"],
+        ["ConvertibleDebtCurrent"],
+        ["SecuredDebtCurrent"],
+        ["CommercialPaper"],
+      ],
+    },
+    noncurrent: {
+      generic: ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+      instruments: [
+        ["LongTermNotesPayable"],
+        ["LongTermLoansPayable"],
+        ["LongTermLineOfCredit"],
+        ["ConvertibleDebtNoncurrent"],
+        ["SecuredLongTermDebt"],
+      ],
+    },
+    financeLeases: {
+      total: "FinanceLeaseLiability",
+      split: ["FinanceLeaseLiabilityCurrent", "FinanceLeaseLiabilityNoncurrent"],
+    },
+    leaseInclusive: [
+      "DebtCurrent",
+      "LongTermDebtAndCapitalLeaseObligationsCurrent",
+      "LongTermDebtAndCapitalLeaseObligations",
+    ],
+    unrecognizedBorrowing:
+      /(?:Debt|Borrowings|Notes|NotesPayable|LoansPayable|LinesOfCredit|LineOfCredit|CommercialPaper|Debt\w*LeaseObligations)(?:Current|Noncurrent)?$/u,
+  },
+  "ifrs-full": {
+    totals: ["Borrowings"],
+    current: { generic: ["CurrentBorrowings"], instruments: [] },
+    noncurrent: { generic: ["NoncurrentBorrowings"], instruments: [] },
+  },
+};
 
 const DAY_MS = 86_400_000;
 const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
@@ -167,27 +234,6 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
         "us-gaap": ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"],
         "ifrs-full": ["Borrowings"],
       },
-      components: [
-        {
-          "us-gaap": [
-            "LongTermDebtCurrent",
-            "DebtCurrent",
-            "LongTermDebtAndCapitalLeaseObligationsCurrent",
-            "ShortTermBorrowings",
-            "ShortTermDebt",
-            "NotesPayableCurrent",
-          ],
-          "ifrs-full": ["CurrentBorrowings"],
-        },
-        {
-          "us-gaap": [
-            "LongTermDebtNoncurrent",
-            "LongTermDebtAndCapitalLeaseObligations",
-            "LongTermNotesPayable",
-          ],
-          "ifrs-full": ["NoncurrentBorrowings"],
-        },
-      ],
     },
     {
       key: "operatingCashFlow",

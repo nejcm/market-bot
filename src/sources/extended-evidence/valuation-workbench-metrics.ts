@@ -1,3 +1,7 @@
+import {
+  balanceSheetPeriodDivergence,
+  type BalanceSheetPeriodDivergence,
+} from "./valuation-comps-support";
 import { unique, type ValuationPeriodInputs } from "./valuation-workbench-inputs";
 import type {
   ValuationFundamentalInput,
@@ -121,11 +125,19 @@ export function metricResults(
 ): Readonly<Record<ValuationMetricKey, ValuationMetricResult>> {
   const shares = inputs.dilutedShares?.value;
   const marketCap = price === null || shares === undefined ? undefined : price.close * shares;
+  const mixedPeriod =
+    inputs.cash === undefined || inputs.debt === undefined
+      ? undefined
+      : balanceSheetPeriodDivergence({
+          cashPeriodEnd: inputs.cash.periodEnd,
+          debtPeriodEnd: inputs.debt.periodEnd,
+        });
   const enterpriseValue =
     depositorySic !== undefined ||
     marketCap === undefined ||
     inputs.cash === undefined ||
-    inputs.debt === undefined
+    inputs.debt === undefined ||
+    mixedPeriod !== undefined
       ? undefined
       : marketCap + inputs.debt.value - inputs.cash.value;
   const commonSourceIds = Object.values(inputs).flatMap((input) =>
@@ -148,6 +160,7 @@ export function metricResults(
     depositorySic,
     cash: inputs.cash,
     debt: inputs.debt,
+    mixedPeriod,
     dilutedShares: inputs.dilutedShares,
     enterpriseValue,
     revenue: inputs.revenue,
@@ -248,6 +261,7 @@ function enterpriseValueToRevenueMetric(input: {
   readonly depositorySic: string | undefined;
   readonly cash: ValuationFundamentalInput | undefined;
   readonly debt: ValuationFundamentalInput | undefined;
+  readonly mixedPeriod: BalanceSheetPeriodDivergence | undefined;
   readonly dilutedShares: ValuationFundamentalInput | undefined;
   readonly enterpriseValue: number | undefined;
   readonly revenue: ValuationFundamentalInput | undefined;
@@ -270,6 +284,14 @@ function enterpriseValueToRevenueMetric(input: {
   }
   if (input.debt === undefined) {
     return suppression("debt-unavailable", "As-reported debt is unavailable.", input.sourceIds);
+  }
+  if (input.mixedPeriod !== undefined) {
+    const { cashPeriodEnd, debtPeriodEnd, divergenceDays } = input.mixedPeriod;
+    return suppression(
+      "mixed-period-balance-sheet",
+      `Cash (${cashPeriodEnd}) and debt (${debtPeriodEnd}) period ends diverge by ${String(Math.round(divergenceDays))} days.`,
+      input.sourceIds,
+    );
   }
   if (input.dilutedShares === undefined) {
     return suppression(

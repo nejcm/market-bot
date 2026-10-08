@@ -8733,13 +8733,11 @@
                 "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
               },
               "enterpriseValueToRevenue": {
-                "status": "populated",
-                "value": 415.1491933267339,
-                "display": "415.15x",
-                "numerator": 37986151189.39615,
-                "denominator": 91500000,
-                "formula": "((close × diluted shares) + debt - cash) / revenue",
-                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+                "status": "suppressed",
+                "display": "—",
+                "reason": "mixed-period-balance-sheet",
+                "detail": "Cash (2024-12-31) and debt (2023-12-31) period ends diverge by 366 days.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
               },
               "priceToFreeCashFlow": {
                 "status": "not-meaningful",

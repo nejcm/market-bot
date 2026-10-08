@@ -7,6 +7,7 @@ import {
 import { buildArtifact } from "./valuation-comps-range";
 import {
   balanceSheetPeriodDivergence,
+  mixedPeriodValuationGap,
   enrichValuationItem,
   guardMixedPeriodValuationItem,
   peerImpliedRangeSuppressionGaps,
@@ -80,14 +81,7 @@ export async function collectValuationComps(
   const mixedPeriodGaps =
     targetPeriodDivergence === undefined
       ? []
-      : [
-          valuationCompsGap(
-            `Mixed-period valuation inputs for ${command.symbol}: cash period end ${targetPeriodDivergence.cashPeriodEnd} and debt period end ${targetPeriodDivergence.debtPeriodEnd} diverge by ${String(targetPeriodDivergence.divergenceDays)} days; enterprise value and net debt flagged as mixed-period`,
-            "provider-data-missing",
-            "valuation",
-            command.symbol.toUpperCase(),
-          ),
-        ];
+      : [mixedPeriodValuationGap(command.symbol, targetPeriodDivergence)];
 
   const targetSnapshot = marketSnapshots.find(
     (snapshot) =>

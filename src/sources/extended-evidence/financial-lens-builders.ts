@@ -27,6 +27,7 @@ import type {
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
+import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import { readNumberMetric, readStringMetric } from "./utils";
 
@@ -261,7 +262,11 @@ export function strengthLens(
   const selectedNetDebt = selectedFinancialLensDerivedMetric(
     secItem,
     "netDebt",
-    debt === undefined || cash === undefined ? undefined : debt - cash,
+    debt === undefined ||
+      cash === undefined ||
+      balanceSheetPeriodDivergence(secItem?.metrics) !== undefined
+      ? undefined
+      : debt - cash,
   );
   const netDebt =
     valuationItem?.metrics?.netDebt === MIXED_PERIOD_METRIC

@@ -20,16 +20,17 @@ import {
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
   financialStatementFacts,
-  incompleteCompositeNotes,
+  debtCandidateConcepts,
+  incompleteDebtNote,
+  unsupersededDebtResolutions,
   incompleteFinancialStatementNotes,
-  isCompleteComposite,
   latestFinancialStatementFact,
+  recognizedDebtConcepts,
+  resolveDebtAtInstant,
 } from "./financial-statement-selection";
 import {
   calendarYearFromPeriodEnd,
   grossPrincipalDebtFallbackApplies,
-  preferDirectStatementBasis,
-  sameStatementFiscalPeriod,
   statementFiscalPeriodKey,
 } from "./financial-statement-period-identity";
 import {
@@ -315,83 +316,133 @@ function compositeFromContributors(contributors: readonly ParsedFact[]): ParsedF
   };
 }
 
-function factsForComposite(
+function withCompositeFirstPublicAt(
+  composite: ParsedFact,
+  definition: FinancialStatementSeriesDefinition,
+  candidates: readonly ParsedFact[],
+): ParsedFact {
+  const histories = (composite.composite?.components ?? []).map((component) =>
+    candidates.filter(
+      (fact) =>
+        fact.concept === component.concept &&
+        periodKey(fact) === periodKey(composite) &&
+        periodType(fact, definition) === periodType(composite, definition),
+    ),
+  );
+  return {
+    ...composite,
+    firstPublicAt: firstPublicDate(composite.value, composite.filedAt, histories),
+  };
+}
+
+function debtRestatements(
+  fact: ParsedFact | undefined,
+  basis: "total" | "components",
+  candidates: readonly ParsedFact[],
+): readonly ParsedFact[] {
+  if (fact === undefined || basis === "components") {
+    return fact === undefined ? [] : [fact];
+  }
+  const key = statementFiscalPeriodKey(fact);
+  return candidates.filter(
+    (candidate) =>
+      candidate.concept === fact.concept && statementFiscalPeriodKey(candidate) === key,
+  );
+}
+
+function factsForDebt(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   definition: FinancialStatementSeriesDefinition,
   eligible: (fact: ParsedFact) => boolean,
-): readonly ParsedFact[] {
-  const slots = definition.components;
-  if (slots === undefined || slots.length === 0) {
-    return [];
-  }
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
   const root = taxonomyRoot(payload, taxonomy);
   if (root === undefined) {
-    return [];
+    return { facts: [], notes: [] };
   }
-  const slotFacts = slots.map((slot) =>
-    factsForLatestPeriodConcept(taxonomy, root, slot[taxonomy], eligible),
-  );
-  const grouped = new Map<string, ParsedFact[][]>();
-  for (const [slotIndex, facts] of slotFacts.entries()) {
-    for (const fact of facts.filter((candidate) => eligible(candidate))) {
-      const key = statementFiscalPeriodKey(fact);
-      const slotsForKey = grouped.get(key) ?? slots.map(() => []);
-      const slotGroup = slotsForKey[slotIndex];
-      if (slotGroup === undefined) {
-        continue;
-      }
-      grouped.set(
-        key,
-        slotsForKey.map((group, index) => (index === slotIndex ? [...group, fact] : group)),
-      );
-    }
-  }
-  return [...grouped.values()].flatMap((slotGroups) => {
-    const contributors = slotGroups.flatMap((group) => {
-      const [winner] = group.toSorted(compareFinancialStatementFacts);
-      return winner === undefined ? [] : [winner];
-    });
-    if (contributors.length === 0) {
-      return [];
-    }
-    const [anchor] = contributors;
-    if (
-      anchor === undefined ||
-      contributors.some((fact) => !sameStatementFiscalPeriod(anchor, fact))
-    ) {
-      return [];
-    }
-    const composite = compositeFromContributors(contributors);
-    const histories = slotFacts.flatMap((facts, index) =>
-      slotGroups[index]?.length === 0
-        ? []
-        : [
-            facts.filter(
-              (fact) =>
-                eligible(fact) &&
-                periodKey(fact) === periodKey(anchor) &&
-                periodType(fact, definition) === periodType(anchor, definition),
-            ),
-          ],
+  const recognized = recognizedDebtConcepts(taxonomy);
+  const candidates = debtCandidateConcepts(taxonomy, root)
+    .flatMap((concept) => unitFacts(taxonomy, root, concept))
+    .filter(
+      (fact) => eligible(fact) && (fact.periodStart === undefined || recognized.has(fact.concept)),
     );
-    return [
-      {
-        ...composite,
-        firstPublicAt: firstPublicDate(composite.value, composite.filedAt, histories),
-      },
-    ];
+  const instants = new Map<string, Map<string, ParsedFact>>();
+  for (const fact of candidates.toSorted(compareFinancialStatementFacts)) {
+    const key = statementFiscalPeriodKey(fact);
+    const tagged = instants.get(key) ?? new Map<string, ParsedFact>();
+    if (!tagged.has(fact.concept)) {
+      tagged.set(fact.concept, fact);
+    }
+    instants.set(key, tagged);
+  }
+  const history = candidates.map(({ concept, periodEnd, filedAt, value }) => ({
+    concept,
+    periodEnd,
+    filedAt,
+    value,
+  }));
+  const resolved = [...instants.values()].map((tagged) => {
+    const facts = [...tagged.values()];
+    const instant = {
+      periodEnd: facts[0]?.periodEnd ?? "",
+      filedAt:
+        facts
+          .map((fact) => fact.filedAt)
+          .toSorted()
+          .at(-1) ?? "",
+    };
+    const resolution = resolveDebtAtInstant(taxonomy, instant, tagged, history);
+    const contributors = resolution.contributors.map((contributor) => contributor.fact);
+    const [anchor] = contributors;
+    const incomplete = resolution.incompleteReason !== undefined || anchor === undefined;
+    let fact: ParsedFact | undefined;
+    if (!incomplete) {
+      fact =
+        resolution.basis === "total"
+          ? anchor
+          : withCompositeFirstPublicAt(
+              compositeFromContributors(contributors),
+              definition,
+              candidates,
+            );
+    }
+    return {
+      ...instant,
+      fact,
+      restatements: debtRestatements(fact, resolution.basis, candidates),
+      incomplete,
+      incompleteReason: resolution.incompleteReason,
+      basis: resolution.basis,
+    };
   });
-}
-
-function preferDirectBasis(
-  direct: readonly FinancialStatementFact[],
-  composite: readonly FinancialStatementFact[],
-): boolean {
-  return preferDirectStatementBasis(
-    latestFinancialStatementFact(direct)?.periodEnd,
-    latestFinancialStatementFact(composite)?.periodEnd,
+  const current = unsupersededDebtResolutions(resolved);
+  const [latest] = current
+    .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
+    .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
+  const latestComplete = latest?.periodEnd ?? "";
+  const notes = new Map(
+    current.flatMap(({ periodEnd, incompleteReason }) =>
+      incompleteReason === undefined || periodEnd <= latestComplete
+        ? []
+        : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason)] as const],
+    ),
   );
+  const ineligible = (latest?.fact.concept.split("+") ?? []).flatMap((concept) =>
+    unitFacts(taxonomy, root, concept).filter((fact) => !eligible(fact)),
+  );
+  const kept = new Set(
+    current.flatMap((entry) =>
+      entry.incomplete || entry.basis !== latest?.basis ? [] : entry.restatements,
+    ),
+  );
+  return {
+    facts: [
+      ...candidates.filter((fact) => kept.has(fact)),
+      ...[...kept].filter((fact) => fact.composite !== undefined),
+      ...ineligible,
+    ],
+    notes: [...notes.values()],
+  };
 }
 
 function allFactsForDefinition(
@@ -977,44 +1028,24 @@ function selectSeries(
   const unit = expectedUnit(definition, reportingCurrency);
   const eligible = (fact: ParsedFact) =>
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
-  const directFacts = factsForDefinition(payload, taxonomy, definition, eligible);
-  const direct = materializeBasis(
-    directFacts,
+  const debt =
+    definition.key === "debt" ? factsForDebt(payload, taxonomy, definition, eligible) : undefined;
+  const selected = materializeBasis(
+    debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible),
     definition,
     reportingCurrency,
     input.sourceId,
     input.analysisAsOf,
     unit,
   );
-  const directSelected = financialStatementFacts(direct.series).length > 0;
-  const componentSlotCount = definition.components?.length ?? 0;
-  const compositeFacts = factsForComposite(payload, taxonomy, definition, eligible).filter(
-    (fact) =>
-      !directSelected ||
-      isCompleteComposite(fact.composite?.components.length ?? 0, componentSlotCount),
-  );
-  const composite = materializeBasis(
-    compositeFacts,
-    definition,
-    reportingCurrency,
-    input.sourceId,
-    input.analysisAsOf,
-    unit,
-  );
-  const netSelected = preferDirectBasis(
-    [...direct.series.annual, ...direct.series.interim],
-    [...composite.series.annual, ...composite.series.interim],
-  )
-    ? direct
-    : composite;
-  const selected =
-    definition.key === "debt" && taxonomy === "us-gaap"
-      ? withGrossPrincipalDebt(payload, netSelected, definition, reportingCurrency, input, eligible)
-      : netSelected;
-  const notes = incompleteCompositeNotes(definition, taxonomy, selected.series);
-  return notes.length === 0
-    ? selected
-    : { ...selected, omissionNotes: [...selected.omissionNotes, ...notes] };
+  if (debt === undefined) {
+    return selected;
+  }
+  const withGross =
+    taxonomy === "us-gaap"
+      ? withGrossPrincipalDebt(payload, selected, definition, reportingCurrency, input, eligible)
+      : selected;
+  return { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
 }
 
 function recentSubmissionSixKFilings(
@@ -1149,17 +1180,6 @@ function reportingPeriodDays(cadence: InterimCadence): number {
   return QUARTERLY_REPORTING_PERIOD_DAYS;
 }
 
-function debtAliasConcepts(taxonomy: FinancialStatementTaxonomy): readonly string[] {
-  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
-  if (definition === undefined) {
-    throw new Error("Financial statement definitions must include debt");
-  }
-  return [
-    ...definition.concepts[taxonomy],
-    ...(definition.components ?? []).flatMap((slot) => slot[taxonomy]),
-  ];
-}
-
 function debtAliasesTagged(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy | undefined,
@@ -1169,7 +1189,9 @@ function debtAliasesTagged(
     const root = taxonomyRoot(payload, candidate);
     return (
       root !== undefined &&
-      debtAliasConcepts(candidate).some((concept) => unitFacts(candidate, root, concept).length > 0)
+      [...recognizedDebtConcepts(candidate)].some(
+        (concept) => unitFacts(candidate, root, concept).length > 0,
+      )
     );
   });
 }

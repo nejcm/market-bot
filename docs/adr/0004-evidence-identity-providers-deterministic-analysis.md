@@ -35,7 +35,8 @@ Quality advisory reasons; amended 2026-08-29: canonical statement facts may be d
 same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured-registry and
 expectations entitlement completeness status; amended 2026-09-01: web-gather SEC coverage
 guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
-basis; amended 2026-10-08: accession-addressed SEC document cache)
+basis; amended 2026-10-08: accession-addressed SEC document cache; amended 2026-10-08: per-instant
+debt resolution and same-period enterprise value)
 
 ## Context
 
@@ -255,15 +256,28 @@ without pretending the project has a global security master.
   totals. Matching period keys resolve by filed date, amendment status, and accession number; a
   later valid amendment supersedes only its matching period. Selected facts preserve form,
   canonical form, accession, filing and period metadata, fiscal identifiers, taxonomy, unit/currency,
-  unit scale, extraction method, and source IDs. A series definition may name ordered component
-  slots; when those tagged facts are strictly fresher than the direct alias, the selected fact is a
-  deterministic same-period sum (`extractionMethod: derived-sec-companyfacts`) that carries every
-  contributor. Only a complete composite can displace a present direct basis, and it does so only
-  when its period end is strictly fresher. One basis is used for the whole series so year-over-year
-  comparisons stay on one measurement. When no direct basis exists, a one-legged composite remains
-  available: the missing slot is recorded by absence in `composite.components` and an omission note,
-  not by silently substituting another concept. Direct facts remain `sec-companyfacts` without a
-  `composite` field. The artifact-level extraction method stays `sec-companyfacts`.
+  unit scale, extraction method, and source IDs. Debt is resolved per balance-sheet instant by one
+  rule shared by the legacy and canonical selectors: a tagged standard total (including the
+  lease-inclusive aggregates, which are alternatives to their constituents) wins; otherwise the
+  selected fact is a deterministic same-instant sum (`extractionMethod: derived-sec-companyfacts`)
+  of disjoint borrowing line items plus finance leases, carrying every contributor. Aliases of one
+  line item, a total and its constituents, and a finance-lease total and its current/noncurrent
+  split are alternatives, never added; a generic current or noncurrent long-term-debt line
+  subsumes that side's instrument lines and, when the concept map marks it lease-inclusive (for
+  example `DebtCurrent`), that side's lease leg; operating leases are excluded. A component set is complete only when no unrecognized standard borrowing
+  concept is tagged at that instant, it has a borrowing line, finance leases are a full total or
+  both needed split legs, and every debt concept
+  whose latest earlier value (within the prior 400 days, or from an earlier filing of the same
+  instant) was nonzero is still covered, lease legs per side; when both sides are generic, earlier
+  borrowing details count as their constituents. A later filing's incomplete set supersedes an earlier
+  complete one for the same instant. The canonical series keeps only instants on the latest
+  complete instant's basis, and legacy priors never cross basis, so year-over-year comparisons stay
+  on one measurement. Incomplete instants are never published as debt; when newer than the latest complete instant they produce an
+  `incomplete-composite-series` note, and the legacy peer row declares the incomplete basis.
+  Absence never establishes zero; explicit tagged zeros count. Companyfacts omits issuer-extension
+  and dimensional facts, so completeness is a rule over standard tags, not proof. Direct facts
+  remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays
+  `sec-companyfacts`.
 - Amendment: debt basis may be gross principal when net debt is untagged. Some filers tag current
   balance-sheet debt only with issuer extensions or dimensional members, which companyfacts omits,
   leaving the standard undimensioned `DebtInstrumentCarryingAmount` (principal before discount and
@@ -431,7 +445,10 @@ without pretending the project has a global security master.
   score.
 - Valuation evidence preserves quote, cash, and debt dates. It discloses the market-cap and
   balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
-  quote with cash/debt more than 92 days apart.
+  quote with cash/debt more than 92 days apart. Cash and debt more than 92 days apart are a
+  different failure: target valuation evidence, peer rows, Financial Lens net debt, and historical
+  Workbench EV/revenue (`mixed-period-balance-sheet`) all withhold EV rather than pair them; the
+  target valuation producer declares the mixed-period Source Gap itself, so brief runs carry it.
 - For a depository issuer, enterprise value and every EV-derived surface are inapplicable, not
   unavailable: deposits and borrowings fund operations, so no defensible operating/financing split
   exists. The issuer is classified once from a well-formed four-digit SIC on its own `sec-edgar`

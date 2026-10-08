@@ -6,21 +6,20 @@ import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
-import {
-  conceptScope,
-  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
-  scopedLabel,
-} from "./financial-statement-definitions";
+import { conceptScope, DEBT_CONCEPTS, scopedLabel } from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
   compositeStatementIdentity,
-  isCompleteComposite,
+  debtCandidateConcepts,
   isYearAligned,
+  recognizedDebtConcepts,
+  resolveDebtAtInstant,
+  unsupersededDebtResolutions,
+  type DebtHistoryFact,
+  type DebtResolution,
 } from "./financial-statement-selection";
 import {
   grossPrincipalDebtFallbackApplies,
-  preferDirectStatementBasis,
-  sameStatementFiscalPeriod,
   statementFiscalPeriodKey,
   type StatementFiscalPeriod,
 } from "./financial-statement-period-identity";
@@ -68,10 +67,9 @@ interface SecMetricSelection {
 }
 
 export interface SecDebtComposite {
-  readonly componentCount: number;
-  readonly componentSlotCount: number;
   readonly selectedConcepts: readonly string[];
   readonly periodEnd?: string;
+  readonly incompleteReason?: string;
 }
 
 export interface SecFundamentalsSummary {
@@ -239,49 +237,12 @@ export const SEC_METRIC_DEFINITIONS = [
 
 export type SecMetricDefinitionKey = (typeof SEC_METRIC_DEFINITIONS)[number]["key"];
 
-function usGaapDebtAliases(): {
-  readonly direct: readonly string[];
-  readonly current: readonly string[];
-  readonly noncurrent: readonly string[];
-} {
-  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find((item) => item.key === "debt");
-  const current = definition?.components?.[0]?.["us-gaap"];
-  const noncurrent = definition?.components?.[1]?.["us-gaap"];
-  if (definition === undefined || current === undefined || noncurrent === undefined) {
-    throw new Error(
-      "Financial statement debt definition must include us-gaap direct and component aliases",
-    );
-  }
-  return { direct: definition.concepts["us-gaap"], current, noncurrent };
-}
-
-const US_GAAP_DEBT_ALIASES = usGaapDebtAliases();
-
 const DEBT_METRIC = {
   key: "debt",
   label: "debt",
-  concepts: US_GAAP_DEBT_ALIASES.direct,
+  concepts: DEBT_CONCEPTS["us-gaap"].totals,
   unitKeys: ["USD"],
 } as const satisfies SecMetricDefinition;
-
-const DEBT_COMPONENTS = [
-  {
-    key: "currentDebt",
-    label: "current debt",
-    concepts: US_GAAP_DEBT_ALIASES.current,
-    unitKeys: ["USD"],
-  },
-  {
-    key: "noncurrentDebt",
-    label: "noncurrent debt",
-    concepts: US_GAAP_DEBT_ALIASES.noncurrent,
-    unitKeys: ["USD"],
-  },
-] as const satisfies readonly SecMetricDefinition[];
-
-export type SecDebtMetricKey =
-  | (typeof DEBT_METRIC)["key"]
-  | (typeof DEBT_COMPONENTS)[number]["key"];
 
 const FLOW_METRIC_KEYS = new Set([
   "revenue",
@@ -395,12 +356,7 @@ export function latestFilingWithoutDebtFacts(
   ) {
     return undefined;
   }
-  const debtConcepts = [
-    ...US_GAAP_DEBT_ALIASES.direct,
-    ...US_GAAP_DEBT_ALIASES.current,
-    ...US_GAAP_DEBT_ALIASES.noncurrent,
-  ];
-  const contributed = debtConcepts.some((concept) => {
+  const contributed = debtCandidateConcepts("us-gaap", gaap).some((concept) => {
     const units = isRecord(gaap[concept]) ? gaap[concept].units : undefined;
     return (
       isRecord(units) &&
@@ -559,43 +515,6 @@ function factValuesForConcept(
   );
 }
 
-function factValuesForMostRecentConcept(
-  gaap: Record<string, unknown>,
-  metric: SecMetricDefinition,
-  eligible: (value: SecFactValue) => boolean,
-): { readonly concept: string; readonly values: readonly SecFactValue[] } | undefined {
-  const ranked = metric.concepts
-    .map((concept, priority) => {
-      const values = factValuesForConcept(gaap, concept, metric.unitKeys);
-      const latestEnd = values
-        .filter((value) => eligible(value))
-        .map((value) => value.end ?? "")
-        .toSorted()
-        .at(-1);
-      return { concept, values, latestEnd, priority };
-    })
-    .filter(
-      (
-        candidate,
-      ): candidate is {
-        readonly concept: string;
-        readonly values: readonly SecFactValue[];
-        readonly latestEnd: string;
-        readonly priority: number;
-      } => candidate.latestEnd !== undefined && candidate.latestEnd !== "",
-    );
-  const latestEnd = ranked
-    .map((candidate) => candidate.latestEnd)
-    .toSorted()
-    .at(-1);
-  if (latestEnd === undefined) {
-    return undefined;
-  }
-  return ranked
-    .filter((candidate) => candidate.latestEnd === latestEnd)
-    .toSorted((left, right) => left.priority - right.priority)[0];
-}
-
 function isComparablePrior(latest: SecFactValue, candidate: SecFactValue): boolean {
   if (
     latest.end === undefined ||
@@ -670,74 +589,10 @@ function isCurrentFlowFact(anchor: SecFactValue, candidate: SecFactValue): boole
   );
 }
 
-interface DebtComponentSlot {
-  readonly concept: string;
-  readonly values: readonly SecFactValue[];
-}
-
-interface DebtComponentSum {
-  readonly fact: SecFactValue;
-  readonly matches: readonly { readonly concept: string; readonly fact: SecFactValue }[];
-}
-
 function statementPeriod(value: SecFactValue): StatementFiscalPeriod | undefined {
   return value.end === undefined
     ? undefined
     : { periodEnd: value.end, form: value.form, fiscalPeriod: value.fp ?? "" };
-}
-
-function sameDebtInstantPeriod(period: SecFactValue, value: SecFactValue): boolean {
-  const periodRef = statementPeriod(period);
-  const valueRef = statementPeriod(value);
-  return (
-    periodRef !== undefined &&
-    valueRef !== undefined &&
-    sameStatementFiscalPeriod(periodRef, valueRef) &&
-    value.end === period.end
-  );
-}
-
-function withoutAccessionNumber(value: SecFactValue): Omit<SecFactValue, "accessionNumber"> {
-  const { accessionNumber: _omitted, ...rest } = value;
-  return rest;
-}
-
-function sumMatchingFacts(
-  period: SecFactValue,
-  componentSlots: readonly DebtComponentSlot[],
-): DebtComponentSum | undefined {
-  const matches = componentSlots.flatMap((slot) => {
-    const fact = latestFact(slot.values.filter((value) => sameDebtInstantPeriod(period, value)));
-    return fact === undefined ? [] : [{ concept: slot.concept, fact }];
-  });
-  if (matches.length === 0) {
-    return undefined;
-  }
-  const identity = compositeStatementIdentity(
-    matches.map((match) => ({
-      value: match.fact.val,
-      accessionNumber: match.fact.accessionNumber ?? null,
-      filedAt: match.fact.filed ?? "",
-    })),
-  );
-  return {
-    fact: {
-      ...withoutAccessionNumber(period),
-      val: identity.value,
-      filed: identity.filedAt,
-      ...(identity.accessionNumber !== null ? { accessionNumber: identity.accessionNumber } : {}),
-    },
-    matches,
-  };
-}
-
-function debtCompositeFromSum(sum: DebtComponentSum): SecDebtComposite {
-  return {
-    componentCount: sum.matches.length,
-    componentSlotCount: DEBT_COMPONENTS.length,
-    selectedConcepts: sum.matches.map((match) => match.concept),
-    ...(sum.fact.end !== undefined ? { periodEnd: sum.fact.end } : {}),
-  };
 }
 
 function debtPeriodIdentity(value: SecFactValue): string {
@@ -745,8 +600,30 @@ function debtPeriodIdentity(value: SecFactValue): string {
   return period === undefined ? value.form : statementFiscalPeriodKey(period);
 }
 
+function resolvedDebtFact(resolution: DebtResolution<SecFactValue>): SecFactValue | undefined {
+  const facts = resolution.contributors.map((contributor) => contributor.fact);
+  const [anchor] = facts;
+  if (anchor === undefined || resolution.basis === "total") {
+    return anchor;
+  }
+  const identity = compositeStatementIdentity(
+    facts.map((fact) => ({
+      value: fact.val,
+      accessionNumber: fact.accessionNumber ?? null,
+      filedAt: fact.filed ?? "",
+    })),
+  );
+  const { accessionNumber: _omitted, ...period } = anchor;
+  return {
+    ...period,
+    val: identity.value,
+    filed: identity.filedAt,
+    ...(identity.accessionNumber !== null ? { accessionNumber: identity.accessionNumber } : {}),
+  };
+}
+
 interface SecDebtSelection {
-  readonly selection: SecMetricSelection;
+  readonly selection?: SecMetricSelection;
   readonly composite?: SecDebtComposite;
   readonly grossPrincipal?: { readonly periodEnd: string; readonly netPeriodEnd: string };
 }
@@ -756,7 +633,7 @@ function selectDebtMetric(
   analysisAsOf?: string,
 ): SecDebtSelection | undefined {
   const net = selectNetDebtMetric(gaap, analysisAsOf);
-  const netLatest = net?.selection.latest;
+  const netLatest = net?.selection?.latest;
   const gross = factValuesForConcept(
     gaap,
     GROSS_PRINCIPAL_DEBT_CONCEPT,
@@ -786,83 +663,86 @@ function selectNetDebtMetric(
   gaap: Record<string, unknown>,
   analysisAsOf?: string,
 ): SecDebtSelection | undefined {
-  const eligible = (value: SecFactValue): boolean => isFactObservableAsOf(value, analysisAsOf);
-  const directConcept = factValuesForMostRecentConcept(gaap, DEBT_METRIC, eligible)?.concept;
-  const direct =
-    directConcept === undefined
-      ? undefined
-      : selectMetric(gaap, { ...DEBT_METRIC, concepts: [directConcept] }, analysisAsOf);
-  const componentSlots: readonly DebtComponentSlot[] = DEBT_COMPONENTS.map((metric) => {
-    const populated = factValuesForMostRecentConcept(gaap, metric, eligible);
-    return {
-      concept: populated?.concept ?? metric.concepts[0]!,
-      values: (populated?.values ?? []).filter((value) => eligible(value)),
-    };
-  });
-  const anchors = new Map<string, SecFactValue>();
-  for (const value of componentSlots.flatMap((slot) => slot.values)) {
-    const key = debtPeriodIdentity(value);
-    const existing = anchors.get(key);
-    if (existing === undefined || compareFactRecency(value, existing) < 0) {
-      anchors.set(key, value);
+  const instants = new Map<string, Map<string, SecFactValue>>();
+  const history: DebtHistoryFact[] = [];
+  const recognized = recognizedDebtConcepts("us-gaap");
+  for (const concept of debtCandidateConcepts("us-gaap", gaap)) {
+    const values = factValuesForConcept(gaap, concept, DEBT_METRIC.unitKeys).filter(
+      (value) =>
+        isFactObservableAsOf(value, analysisAsOf) &&
+        (value.start === undefined || recognized.has(concept)),
+    );
+    for (const value of values.toSorted(compareFactRecency)) {
+      history.push({
+        concept,
+        periodEnd: value.end ?? "",
+        filedAt: value.filed ?? "",
+        value: value.val,
+      });
+      const tagged = instants.get(debtPeriodIdentity(value)) ?? new Map<string, SecFactValue>();
+      if (!tagged.has(concept)) {
+        tagged.set(concept, value);
+      }
+      instants.set(debtPeriodIdentity(value), tagged);
     }
   }
-  const componentSelections = [...anchors.values()].flatMap((anchor) => {
-    const summed = sumMatchingFacts(anchor, componentSlots);
-    if (summed === undefined) {
-      return [];
-    }
-    const priorPeriod = comparablePrior(
-      anchor,
-      componentSlots.flatMap((slot) => slot.values),
-    );
-    const prior =
-      priorPeriod === undefined ? undefined : sumMatchingFacts(priorPeriod, componentSlots);
-    const composite = debtCompositeFromSum(summed);
-    return [
-      {
-        latest: summed.fact,
-        ...(prior !== undefined ? { prior: prior.fact } : {}),
-        composite,
-      },
-    ];
-  });
-  const competing =
-    direct === undefined
-      ? componentSelections
-      : componentSelections.filter((selection) =>
-          isCompleteComposite(
-            selection.composite.componentCount,
-            selection.composite.componentSlotCount,
+  const resolved = unsupersededDebtResolutions(
+    [...instants.values()].map((tagged) => {
+      const [anchor] = [...tagged.values()].toSorted(compareFactRecency);
+      const instant = { periodEnd: anchor?.end ?? "", filedAt: anchor?.filed ?? "" };
+      const resolution = resolveDebtAtInstant("us-gaap", instant, tagged, history);
+      const fact =
+        resolution.incompleteReason === undefined ? resolvedDebtFact(resolution) : undefined;
+      return { ...instant, resolution, fact, anchor, incomplete: fact === undefined };
+    }),
+  ).toSorted((left, right) =>
+    left.anchor === undefined || right.anchor === undefined
+      ? 0
+      : compareFactRecency(left.fact ?? left.anchor, right.fact ?? right.anchor),
+  );
+  const [newest] = resolved;
+  const complete = resolved.flatMap((entry) =>
+    entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }],
+  );
+  const [latest] = complete;
+  const prior =
+    latest === undefined
+      ? undefined
+      : comparablePrior(
+          latest.fact,
+          complete.flatMap((entry) =>
+            entry.resolution.basis === latest.resolution.basis ? [entry.fact] : [],
           ),
         );
-  const [components] = competing.toSorted((left, right) =>
-    compareFactRecency(left.latest, right.latest),
-  );
-  if (direct === undefined || components === undefined) {
-    if (direct !== undefined) {
-      return { selection: direct };
-    }
-    if (components === undefined) {
-      return undefined;
-    }
-    return {
-      selection: {
-        latest: components.latest,
-        ...(components.prior !== undefined ? { prior: components.prior } : {}),
-      },
-      composite: components.composite,
-    };
-  }
-  if (preferDirectStatementBasis(direct.latest.end, components.latest.end)) {
-    return { selection: direct };
+  const [primary] = latest?.resolution.contributors ?? [];
+  const composite =
+    newest?.resolution.basis === "components"
+      ? {
+          selectedConcepts: newest.resolution.contributors.map(
+            (contributor) => contributor.concept,
+          ),
+          periodEnd: newest.periodEnd,
+          ...(newest.resolution.incompleteReason !== undefined
+            ? { incompleteReason: newest.resolution.incompleteReason }
+            : {}),
+        }
+      : undefined;
+  if (latest === undefined && composite === undefined) {
+    return undefined;
   }
   return {
-    selection: {
-      latest: components.latest,
-      ...(components.prior !== undefined ? { prior: components.prior } : {}),
-    },
-    composite: components.composite,
+    ...(latest !== undefined
+      ? {
+          selection: {
+            latest: latest.fact,
+            ...(prior !== undefined ? { prior } : {}),
+            ...(latest.resolution.basis === "total" && primary !== undefined
+              ? { concept: primary.concept }
+              : {}),
+          },
+        }
+      : {}),
+    ...(composite !== undefined ? { composite } : {}),
   };
 }
 

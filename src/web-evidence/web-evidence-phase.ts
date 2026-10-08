@@ -7,6 +7,7 @@ import {
   buildWebSubjectProfileEvidence,
   buildWebSubjectProfileFailureEvidence,
   isCompanyProfileSecSource,
+  profileCitableSources,
   webSubjectProfileSubjectForCommand,
 } from "./web-subject-profile";
 import { reconcileBusinessFramework } from "../sources/extended-evidence/business-framework-reconcile";
@@ -66,18 +67,14 @@ async function runWebSubjectProfileExtraction(input: {
     input.phaseInput.command,
     input.collectedSources.resolvedSubject,
   );
-  const webSources = input.collectedSources.extendedSources.filter(
-    (source) => source.kind === "web",
-  );
   const subject = webSubjectProfileSubjectForCommand(profileCommand);
   if (subject === undefined) {
     return { collectedSources: input.collectedSources };
   }
-  const secSources =
-    subject.subjectKind === "company"
-      ? input.collectedSources.extendedSources.filter(isCompanyProfileSecSource)
-      : [];
-  const allowedSources = [...webSources, ...secSources];
+  const allowedSources = profileCitableSources(
+    input.collectedSources.extendedSources,
+    subject.subjectKind,
+  );
   if (allowedSources.length === 0) {
     return { collectedSources: input.collectedSources };
   }

@@ -622,7 +622,7 @@ describe("Web Gather Source Gap view", () => {
       ) as {
         evidence: {
           sourceGaps: readonly string[];
-          extendedEvidence: { readonly gaps: readonly SourceGap[] };
+          extendedEvidence?: { readonly gaps: readonly SourceGap[] };
         };
       };
 
@@ -638,7 +638,9 @@ describe("Web Gather Source Gap view", () => {
       expect(parsed.evidence.sourceGaps.some((text) => text.includes("analyst-consensus"))).toBe(
         true,
       );
-      expect(parsed.evidence.extendedEvidence.gaps).toEqual(droppedGaps);
+      expect(parsed.evidence.extendedEvidence?.gaps).toEqual(
+        stage === "web-subject-profile" ? undefined : droppedGaps,
+      );
     }
   });
 

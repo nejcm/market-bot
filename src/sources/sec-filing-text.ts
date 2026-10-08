@@ -125,13 +125,52 @@ const SEC_SECTION_BUDGETS = {
   notes: 500,
 } as const;
 
-// Extracts a bounded slice of `text` starting at `start`, stopping at the next
-// ITEM header (to avoid bleeding into the following section) or `maxChars`.
-function boundedSection(text: string, start: number, maxChars: number): string {
-  const afterStart = text.slice(start);
-  const nextItem = /ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]/iu.exec(afterStart.slice(1));
-  const endOffset = nextItem !== null ? 1 + nextItem.index : afterStart.length;
-  return truncateText(afterStart.slice(0, Math.min(endOffset, maxChars)), maxChars);
+const ITEM_HEADING = /ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]/giu;
+// Normalized text has no line breaks: a heading follows page furniture or a sentence end, never prose.
+const HEADING_CONTEXT =
+  /(?:[.!?:;)\]”\d]|\b[Cc]onten\s*t\s*s|\b\p{Lu}{2,}|[.!?]\s*[ivx]{1,5})\s*$/u;
+const PART_PREFIX = /\b(?:PART|Part)\s+[IVX]+,?\s*$/u;
+const REFERENCE_LEAD = /\b(?:see|refer\s+to|under|in|pursuant\s+to|also|of|and)\s*$/iu;
+// Cross-references are written "Item 7", so an all-caps "ITEM 7. TITLE" needs no sentence end before it.
+const ALL_CAPS_ITEM_HEADING = /^ITEM\s+\d+[A-Z]?\b[.\u2010-\u2015:-]?\s*\[?\p{Lu}\s?\p{Lu}/u;
+
+// A page number, dotted leader or lowercase continuation marks a contents row or prose.
+const NOT_CONTENTS_ROW_OR_PROSE = String.raw`(?!\s*(?:\.{2,}|\(\d{1,3}\)|\d{1,3}(?![\d,.])|(?-i:[a-z])))`;
+
+function isHeadingAt(text: string, index: number): boolean {
+  const from = Math.max(0, index - 60);
+  const before = text.slice(from, index).replace(PART_PREFIX, "");
+  if (from === 0 && before.trim() === "") {
+    return true;
+  }
+  return (
+    !REFERENCE_LEAD.test(before) &&
+    (ALL_CAPS_ITEM_HEADING.test(text.slice(index, index + 40)) || HEADING_CONTEXT.test(before))
+  );
+}
+
+function firstHeading(text: string, pattern: RegExp, from: number, to: number): number | undefined {
+  for (const match of text.slice(from, to).matchAll(pattern)) {
+    if (isHeadingAt(text, from + match.index)) {
+      return from + match.index;
+    }
+  }
+  return undefined;
+}
+
+// Slices from `start` (or a selectable `subheading`) to the next ITEM heading, capped at `maxChars`.
+function boundedSection(
+  text: string,
+  start: number,
+  maxChars: number,
+  subheading?: RegExp,
+): string {
+  const end = firstHeading(text, ITEM_HEADING, start + 1, text.length) ?? text.length;
+  const anchor = subheading === undefined ? undefined : firstHeading(text, subheading, start, end);
+  const anchored = anchor === undefined ? "" : text.slice(anchor, Math.min(end, anchor + maxChars));
+  return substantiveAlphaCount(anchored) >= SEC_SECTION_MIN_SELECTED_ALPHA_CHARS
+    ? anchored
+    : text.slice(start, Math.min(end, start + maxChars));
 }
 
 export function substantiveAlphaCount(value: string): number {
@@ -166,11 +205,14 @@ function selectSection(
   pattern: RegExp,
   maxChars: number,
   acceptsShort?: (section: string) => boolean,
+  subheading?: RegExp,
 ): SectionMiss | string {
-  const candidates = [...text.matchAll(pattern)].map((match) => {
-    const section = boundedSection(text, match.index ?? 0, maxChars);
-    return { section, alphaCount: substantiveAlphaCount(section) };
-  });
+  const candidates = [...text.matchAll(pattern)]
+    .filter((match) => !/^ITEM/iu.test(match[0]) || isHeadingAt(text, match.index))
+    .map((match) => {
+      const section = boundedSection(text, match.index, maxChars, subheading);
+      return { section, alphaCount: substantiveAlphaCount(section) };
+    });
   const [accepted] = candidates
     .filter(
       (candidate) =>
@@ -240,6 +282,7 @@ export function secFilingSectionPacket(
     readonly pattern: RegExp;
     readonly maxChars: number;
     readonly acceptsShort?: (section: string) => boolean;
+    readonly subheading?: RegExp;
   }[] = [
     ...(form === "10-K"
       ? [
@@ -259,7 +302,15 @@ export function secFilingSectionPacket(
       maxChars: SEC_SECTION_BUDGETS.riskFactors,
       ...(form === "10-Q" ? { acceptsShort: isNoMaterialChangeRiskFactors } : {}),
     },
-    { label: "MD&A", pattern: mdnaPattern, maxChars: SEC_SECTION_BUDGETS.mdna },
+    {
+      label: "MD&A",
+      pattern: mdnaPattern,
+      maxChars: SEC_SECTION_BUDGETS.mdna,
+      subheading: new RegExp(
+        `${tw("RESULTS")}\\s+${tw("OF")}\\s+(?:${tw("CONTINUING")}\\s+)?${tw("OPERATIONS")}${NOT_CONTENTS_ROW_OR_PROSE}`,
+        "giu",
+      ),
+    },
     { label: "Segments", pattern: segmentsPattern, maxChars: SEC_SECTION_BUDGETS.segments },
     { label: "Notes", pattern: notesPattern, maxChars: SEC_SECTION_BUDGETS.notes },
   ];
@@ -271,6 +322,7 @@ export function secFilingSectionPacket(
       section.pattern,
       section.maxChars,
       section.acceptsShort,
+      section.subheading,
     );
     if (typeof selected !== "string") {
       misses.push({ ...selected, label: section.label });

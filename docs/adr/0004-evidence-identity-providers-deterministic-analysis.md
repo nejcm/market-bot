@@ -380,7 +380,19 @@ without pretending the project has a global security master.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
-  Learned results are cached and revalidated.
+  The proposal prompt states the target's SIC group and 0.2x-5x market-cap and annualized-revenue
+  bands (each omitted when the input is absent) so nominations aim inside the comparability gates.
+  Learned results are cached and revalidated. Each run that resolves a learned universe records
+  its usable-peer count against that cache generation, except when target market cap is not
+  positive, SIC is missing, or a peer fetch failed or fell back to stale cache; older feedback
+  never overwrites newer. A usable generation with fewer than three usable peers is re-proposed
+  at most once per TTL window: the attempt is claimed under the cache lock before the model call
+  and stays consumed if the proposal is insufficient, while the learned peers keep serving. An
+  expired or invalid entry has no peers to serve, so it re-proposes on each run like a cache miss
+  without spending the allowance. Either re-proposal is deferred while target SIC or a positive
+  market cap is unavailable. Every learned write is compare-and-set against the entry observed
+  before proposing, so a delayed writer cannot replace newer state. A refresh that is deferred,
+  not claimed, or insufficient emits a diagnostic Source Gap.
 - Peer median/IQR aggregates include only candidates that pass deterministic comparability gates:
   a two-digit SEC SIC group matching the target's, and market cap and annualized revenue each
   inclusively within 0.2x-5x of the target's, in addition to the existing freshness and

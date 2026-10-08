@@ -16,7 +16,11 @@ import {
   type SecCompanyFactsResult,
 } from "../src/sources/extended-evidence/sec-edgar";
 import type { CollectContext, FetchJsonResult, SourceRequestExecutor } from "../src/sources/types";
-import type { PeerUniverse } from "../src/research/peer-universe";
+import type {
+  LearnedPeerUniverse,
+  PeerUniverse,
+  PeerUniverseFallbackContext,
+} from "../src/research/peer-universe";
 import { isRecord } from "../src/guards";
 import { collectedSources, marketSnapshot } from "./support/fixtures";
 import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
@@ -45,7 +49,11 @@ function impliedRangeInput(
 }
 
 // Cache-reader stub that always misses, mirroring the real reader's miss result.
-async function cacheMiss(): Promise<PeerUniverse | undefined> {
+function learned(universe: PeerUniverse): LearnedPeerUniverse {
+  return { universe, generation: "2026-01-01T00:00:00.000Z", refresh: "not-needed" };
+}
+
+async function cacheMiss(): Promise<LearnedPeerUniverse | undefined> {
   return undefined;
 }
 
@@ -1567,41 +1575,43 @@ describe("collectValuationComps", () => {
     };
     const fallbackOptions: ValuationCompsOptions = {
       peerUniverseFallback: {
-        cacheRead: async () => ({
-          targetSymbol: "ZZZZ",
-          provenance: "model-proposed-validated",
-          peers: [
-            {
-              symbol: "AMD",
-              name: "Advanced Micro Devices",
-              role: "core",
-              rationale: "peer",
-              sourceIds: ["sec-company-tickers"],
-            },
-            {
-              symbol: "AVGO",
-              name: "Broadcom",
-              role: "core",
-              rationale: "peer",
-              sourceIds: ["sec-company-tickers"],
-            },
-            {
-              symbol: "ANET",
-              name: "Arista Networks",
-              role: "secondary",
-              rationale: "peer",
-              sourceIds: ["sec-company-tickers"],
-            },
-          ],
-          sources: [
-            {
-              sourceId: "sec-company-tickers",
-              title: "SEC company_tickers.json directory",
-              url: "https://www.sec.gov/files/company_tickers.json",
-            },
-          ],
-        }),
-        cacheWrite: async () => {},
+        cacheRead: async () =>
+          learned({
+            targetSymbol: "ZZZZ",
+            provenance: "model-proposed-validated",
+            peers: [
+              {
+                symbol: "AMD",
+                name: "Advanced Micro Devices",
+                role: "core",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+              {
+                symbol: "AVGO",
+                name: "Broadcom",
+                role: "core",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+              {
+                symbol: "ANET",
+                name: "Arista Networks",
+                role: "secondary",
+                rationale: "peer",
+                sourceIds: ["sec-company-tickers"],
+              },
+            ],
+            sources: [
+              {
+                sourceId: "sec-company-tickers",
+                title: "SEC company_tickers.json directory",
+                url: "https://www.sec.gov/files/company_tickers.json",
+              },
+            ],
+          }),
+        cacheWrite: async () => "written",
+        claimRefresh: async () => false,
         propose: async () => {
           throw new Error("cache hit must not propose");
         },
@@ -2543,31 +2553,182 @@ describe("collectValuationComps", () => {
         },
       ],
     };
-    const cachedOptions: ValuationCompsOptions = {
-      peerUniverseFallback: {
-        cacheRead: async () => cachedUniverse,
-        cacheWrite: async () => {},
-        propose: async () => {
-          throw new Error("cache hit must not propose");
-        },
+    const evaluations: unknown[][] = [];
+    const cachedFallback: PeerUniverseFallbackContext = {
+      cacheRead: async () => learned(cachedUniverse),
+      cacheWrite: async () => "written",
+      claimRefresh: async () => false,
+      propose: async () => {
+        throw new Error("cache hit must not propose");
+      },
+      recordEvaluation: async (...args) => {
+        evaluations.push(args);
       },
     };
+    const cachedOptions: ValuationCompsOptions = { peerUniverseFallback: cachedFallback };
+    const zzzzSnapshot = marketSnapshot({
+      sourceId: "market-yahoo-equity-zzzz",
+      symbol: "ZZZZ",
+      marketCap: 1000,
+      observedAt: generatedAt,
+    });
+    const executor = requestExecutor({ sicOverrides: { AMD: { sic: "7372" } } });
 
     const result = await collectValuationComps(
-      collectContext(requestExecutor({ sicOverrides: { AMD: { sic: "7372" } } })),
+      collectContext(executor),
       unmappedCommand,
-      [
-        marketSnapshot({
-          sourceId: "market-yahoo-equity-zzzz",
-          symbol: "ZZZZ",
-          marketCap: 1000,
-          observedAt: generatedAt,
-        }),
-      ],
+      [zzzzSnapshot],
       unmappedValuation,
       cachedOptions,
     );
 
+    expect(evaluations).toEqual([["ZZZZ", "2026-01-01T00:00:00.000Z", 2]]);
+
+    const quoteOutage: SourceRequestExecutor = {
+      ...executor,
+      json: async (request) =>
+        request.adapter.startsWith("yahoo")
+          ? {
+              source: "yahoo",
+              message: "quote outage",
+              capability: "market-data",
+              cause: "fetch-failed",
+              evidenceQualityImpact: "extended-evidence-cap",
+            }
+          : executor.json(request),
+    };
+    await collectValuationComps(
+      collectContext(quoteOutage),
+      unmappedCommand,
+      [zzzzSnapshot],
+      unmappedValuation,
+      cachedOptions,
+    );
+    const noSicValuation: ExtendedEvidence = {
+      ...unmappedValuation,
+      items: unmappedValuation.items.map((item) => ({
+        ...item,
+        metrics: Object.fromEntries(
+          Object.entries(item.metrics ?? {}).filter(([key]) => key !== "sic"),
+        ),
+      })),
+    };
+    await collectValuationComps(
+      collectContext(executor),
+      unmappedCommand,
+      [zzzzSnapshot],
+      noSicValuation,
+      cachedOptions,
+    );
+    for (const staleAdapter of ["yahoo-valuation-peers", "sec-companyfacts"]) {
+      const staleFallback: SourceRequestExecutor = {
+        ...executor,
+        json: async (request) =>
+          request.adapter === staleAdapter
+            ? {
+                rawSnapshot: {
+                  id: `raw-${staleAdapter}`,
+                  adapter: staleAdapter,
+                  fetchedAt: generatedAt,
+                  payload: undefined,
+                  cacheStatus: "stale-fallback",
+                },
+                payload: undefined,
+              }
+            : executor.json(request),
+      };
+      await collectValuationComps(
+        collectContext(staleFallback),
+        unmappedCommand,
+        [zzzzSnapshot],
+        unmappedValuation,
+        cachedOptions,
+      );
+    }
+    const zeroCapValuation: ExtendedEvidence = {
+      ...unmappedValuation,
+      items: unmappedValuation.items.map((item) => ({
+        ...item,
+        metrics: { ...item.metrics, marketCap: 0 },
+      })),
+    };
+    await collectValuationComps(
+      collectContext(executor),
+      unmappedCommand,
+      [zzzzSnapshot],
+      zeroCapValuation,
+      cachedOptions,
+    );
+    expect(evaluations).toHaveLength(1);
+
+    const usedAllowance = await collectValuationComps(
+      collectContext(executor),
+      unmappedCommand,
+      [zzzzSnapshot],
+      unmappedValuation,
+      {
+        peerUniverseFallback: {
+          ...cachedFallback,
+          cacheRead: async () => ({ ...learned(cachedUniverse), refresh: "used" }),
+        },
+      },
+    );
+    expect(usedAllowance.gaps).toContainEqual(
+      expect.objectContaining({
+        message:
+          "Peer Universe refresh for ZZZZ: the one refresh allowed per TTL window is already used; the previously learned peers were used",
+        cause: "suppressed-by-design",
+        triage: "diagnostic",
+      }),
+    );
+    const refreshMessage = async (fallback: PeerUniverseFallbackContext) =>
+      (
+        await collectValuationComps(
+          collectContext(executor),
+          unmappedCommand,
+          [zzzzSnapshot],
+          unmappedValuation,
+          { peerUniverseFallback: fallback },
+        )
+      ).gaps.find((gap) => gap.message.startsWith("Peer Universe refresh"))?.message;
+    const failedAudit = {
+      proposed: 4,
+      survived: 1,
+      rejectedByDirectory: 3,
+      rejectedByEtf: 0,
+      rejectedByListing: 0,
+      modelId: "test-model",
+    };
+    expect(
+      await refreshMessage({
+        ...cachedFallback,
+        cacheRead: async () => ({ generation: "2026-01-01T00:00:00.000Z", refresh: "due" }),
+        propose: async () => ({ audit: failedAudit }),
+      }),
+    ).toBe(
+      "Peer Universe refresh for ZZZZ: the re-proposal did not yield a valid peer set (1 of 4 proposed peers validated)",
+    );
+    expect(
+      await refreshMessage({
+        ...cachedFallback,
+        cacheRead: async () => ({ ...learned(cachedUniverse), refresh: "due" }),
+        claimRefresh: async () => false,
+      }),
+    ).toBe(
+      "Peer Universe refresh for ZZZZ: the refresh was not claimed by this run (already claimed or no longer due); the previously learned peers were used",
+    );
+    expect(
+      await refreshMessage({
+        ...cachedFallback,
+        cacheRead: async () => ({ ...learned(cachedUniverse), refresh: "due" }),
+        claimRefresh: async () => {
+          throw new Error("write failed");
+        },
+      }),
+    ).toBe(
+      "Peer Universe refresh for ZZZZ: the refresh claim could not be persisted; allowance not consumed; the previously learned peers were used",
+    );
+    expect(result.gaps.some((gap) => gap.message.includes("Peer Universe refresh"))).toBe(false);
     expect(result.artifact.summary.usablePeerCount).toBe(2);
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
     expect(result.artifact.excludedPeers).toEqual([
@@ -2588,54 +2749,59 @@ describe("collectValuationComps", () => {
         sourceIds: item.sourceIds.map((id) => id.replace("nvda", "zzzz")),
       })),
     };
+    const proposedFor: unknown[] = [];
     const fallbackOptions: ValuationCompsOptions = {
       peerUniverseFallback: {
         cacheRead: cacheMiss,
-        cacheWrite: async () => {},
-        propose: async (symbol) => ({
-          universe: {
-            targetSymbol: symbol,
-            provenance: "model-proposed-validated",
-            peers: [
-              {
-                symbol: "AMD",
-                name: "Advanced Micro Devices",
-                role: "core",
-                rationale: "peer",
-                sourceIds: ["sec-company-tickers"],
-              },
-              {
-                symbol: "AVGO",
-                name: "Broadcom",
-                role: "core",
-                rationale: "peer",
-                sourceIds: ["sec-company-tickers"],
-              },
-              {
-                symbol: "ANET",
-                name: "Arista Networks",
-                role: "secondary",
-                rationale: "peer",
-                sourceIds: ["sec-company-tickers"],
-              },
-            ],
-            sources: [
-              {
-                sourceId: "sec-company-tickers",
-                title: "SEC company_tickers.json directory",
-                url: "https://www.sec.gov/files/company_tickers.json",
-              },
-            ],
-          },
-          audit: {
-            proposed: 3,
-            survived: 3,
-            rejectedByDirectory: 0,
-            rejectedByEtf: 0,
-            rejectedByListing: 0,
-            modelId: "test-model",
-          },
-        }),
+        cacheWrite: async () => "written",
+        claimRefresh: async () => false,
+        propose: async (symbol, target) => {
+          proposedFor.push(target);
+          return {
+            universe: {
+              targetSymbol: symbol,
+              provenance: "model-proposed-validated",
+              peers: [
+                {
+                  symbol: "AMD",
+                  name: "Advanced Micro Devices",
+                  role: "core",
+                  rationale: "peer",
+                  sourceIds: ["sec-company-tickers"],
+                },
+                {
+                  symbol: "AVGO",
+                  name: "Broadcom",
+                  role: "core",
+                  rationale: "peer",
+                  sourceIds: ["sec-company-tickers"],
+                },
+                {
+                  symbol: "ANET",
+                  name: "Arista Networks",
+                  role: "secondary",
+                  rationale: "peer",
+                  sourceIds: ["sec-company-tickers"],
+                },
+              ],
+              sources: [
+                {
+                  sourceId: "sec-company-tickers",
+                  title: "SEC company_tickers.json directory",
+                  url: "https://www.sec.gov/files/company_tickers.json",
+                },
+              ],
+            },
+            audit: {
+              proposed: 3,
+              survived: 3,
+              rejectedByDirectory: 0,
+              rejectedByEtf: 0,
+              rejectedByListing: 0,
+              modelId: "test-model",
+            },
+          };
+        },
       },
     };
 
@@ -2654,6 +2820,13 @@ describe("collectValuationComps", () => {
       fallbackOptions,
     );
 
+    expect(proposedFor).toEqual([
+      {
+        marketCap: expect.any(Number),
+        sic: expect.any(String),
+        annualizedRevenue: expect.any(Number),
+      },
+    ]);
     expect(result.artifact.provenance).toBe("model-proposed-validated");
     expect(result.artifact.peers.map((peer) => peer.symbol)).toEqual(["AMD", "AVGO", "ANET"]);
     const valuationSummary = result.extendedEvidence.items.find(
@@ -2675,7 +2848,8 @@ describe("collectValuationComps", () => {
     const fallbackOptions: ValuationCompsOptions = {
       peerUniverseFallback: {
         cacheRead: cacheMiss,
-        cacheWrite: async () => {},
+        cacheWrite: async () => "written",
+        claimRefresh: async () => false,
         propose: async (symbol) => ({
           universe: {
             targetSymbol: symbol,
@@ -2758,7 +2932,8 @@ describe("collectValuationComps", () => {
     const fallbackOptions: ValuationCompsOptions = {
       peerUniverseFallback: {
         cacheRead: cacheMiss,
-        cacheWrite: async () => {},
+        cacheWrite: async () => "written",
+        claimRefresh: async () => false,
         propose: async () => ({
           audit: {
             proposed: 1,

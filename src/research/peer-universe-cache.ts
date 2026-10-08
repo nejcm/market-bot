@@ -4,8 +4,10 @@ import { writeFileAtomic } from "../artifacts";
 import { withFileLock } from "../shared-state-lock";
 import { DAY_MS } from "../config/shared";
 import { isRecord } from "../guards";
+import { MIN_USABLE_PEERS } from "../sources/extended-evidence/valuation-comps-contract";
 import {
   validatePeerUniverse,
+  type LearnedPeerUniverse,
   type ProposalAudit,
   type PeerUniverse,
   type PeerUniversePeer,
@@ -24,6 +26,14 @@ interface PeerUniverseLearnedEntry {
   readonly modelId: string;
   readonly providerName: string;
   readonly audit: ProposalAudit;
+  readonly windowStartedAt?: string;
+  readonly refreshAttemptedAt?: string;
+  readonly evaluation?: PeerUniverseEvaluation;
+}
+
+interface PeerUniverseEvaluation {
+  readonly usablePeerCount: number;
+  readonly evaluatedAt: string;
 }
 
 interface PeerUniverseLearnedIndex {
@@ -32,11 +42,65 @@ interface PeerUniverseLearnedIndex {
 }
 
 function isStale(entry: PeerUniverseLearnedEntry, now: Date, ttlDays: number): boolean {
-  const proposedMs = Date.parse(entry.proposedAt);
-  if (!Number.isFinite(proposedMs)) {
-    return true;
+  return isExpired(entry.proposedAt, now, ttlDays);
+}
+
+function isExpired(at: string, now: Date, ttlDays: number): boolean {
+  const ms = Date.parse(at);
+  return !Number.isFinite(ms) || now.getTime() - ms > ttlDays * DAY_MS;
+}
+
+function refreshWindowAnchor(entry: PeerUniverseLearnedEntry): string {
+  return entry.windowStartedAt ?? entry.proposedAt;
+}
+
+function refreshAllowed(entry: PeerUniverseLearnedEntry, now: Date, ttlDays: number): boolean {
+  return (
+    entry.refreshAttemptedAt === undefined || isExpired(refreshWindowAnchor(entry), now, ttlDays)
+  );
+}
+
+function usableUniverse(
+  entry: PeerUniverseLearnedEntry,
+  now: Date,
+  ttlDays: number,
+): PeerUniverse | undefined {
+  if (isStale(entry, now, ttlDays)) {
+    return undefined;
   }
-  return now.getTime() - proposedMs > ttlDays * DAY_MS;
+  const universe: PeerUniverse = {
+    targetSymbol: entry.targetSymbol,
+    provenance: "model-proposed-validated",
+    peers: entry.peers,
+    sources: entry.sources,
+  };
+  return validatePeerUniverse(universe).valid ? universe : undefined;
+}
+
+// An expired or invalid entry re-proposes like a miss; the per-window cap guards quality refreshes.
+function refreshState(
+  entry: PeerUniverseLearnedEntry,
+  now: Date,
+  ttlDays: number,
+): LearnedPeerUniverse["refresh"] {
+  if (usableUniverse(entry, now, ttlDays) === undefined) {
+    return "due";
+  }
+  if (entry.evaluation === undefined || entry.evaluation.usablePeerCount >= MIN_USABLE_PEERS) {
+    return "not-needed";
+  }
+  return refreshAllowed(entry, now, ttlDays) ? "due" : "used";
+}
+
+function readEvaluation(value: unknown): PeerUniverseEvaluation | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.usablePeerCount !== "number" ||
+    typeof value.evaluatedAt !== "string"
+  ) {
+    return undefined;
+  }
+  return { usablePeerCount: value.usablePeerCount, evaluatedAt: value.evaluatedAt };
 }
 
 function readPeer(value: unknown): PeerUniversePeer | undefined {
@@ -113,6 +177,7 @@ function readEntry(value: unknown): PeerUniverseLearnedEntry | undefined {
   if (peers.length === 0 || sources.length === 0 || audit === undefined) {
     return undefined;
   }
+  const evaluation = readEvaluation(value.evaluation);
   return {
     targetSymbol: value.targetSymbol,
     provenance: "model-proposed-validated",
@@ -122,6 +187,13 @@ function readEntry(value: unknown): PeerUniverseLearnedEntry | undefined {
     modelId: value.modelId,
     providerName: value.providerName,
     audit,
+    ...(typeof value.windowStartedAt === "string"
+      ? { windowStartedAt: value.windowStartedAt }
+      : {}),
+    ...(typeof value.refreshAttemptedAt === "string"
+      ? { refreshAttemptedAt: value.refreshAttemptedAt }
+      : {}),
+    ...(evaluation !== undefined ? { evaluation } : {}),
   };
 }
 
@@ -144,48 +216,115 @@ async function writeIndex(path: string, index: PeerUniverseLearnedIndex): Promis
   await writeFileAtomic(path, `${JSON.stringify(index, null, 2)}\n`);
 }
 
-// Returns a cache-reader function that resolves a cached peer universe for the
-// Given symbol. Performs a staleness check and re-validates on every read (poison
-// Guard). Resolves undefined on miss, stale entry, or validation failure.
+// Resolves the learned entry for a symbol, re-validated on every read (poison guard); an
+// Expired or invalid entry resolves without a universe so a re-proposal can replace it.
 export function makePeerUniverseCacheReader(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   now: Date = new Date(),
-): (symbol: string) => Promise<PeerUniverse | undefined> {
-  return async (symbol: string): Promise<PeerUniverse | undefined> => {
+): (symbol: string) => Promise<LearnedPeerUniverse | undefined> {
+  return async (symbol: string): Promise<LearnedPeerUniverse | undefined> => {
     const entries = await readIndex(path);
     const target = symbol.trim().toUpperCase();
     const entry = entries.find((e) => e.targetSymbol === target);
     if (entry === undefined) {
       return undefined;
     }
-    if (isStale(entry, now, ttlDays)) {
-      return undefined;
-    }
-    const universe: PeerUniverse = {
-      targetSymbol: target,
-      provenance: "model-proposed-validated",
-      peers: entry.peers,
-      sources: entry.sources,
+    const universe = usableUniverse(entry, now, ttlDays);
+    return {
+      ...(universe !== undefined ? { universe } : {}),
+      generation: entry.proposedAt,
+      refresh: refreshState(entry, now, ttlDays),
     };
-    const validation = validatePeerUniverse(universe);
-    if (!validation.valid) {
-      return undefined;
-    }
-    return universe;
   };
 }
 
-// Returns a cache-writer function that persists a validated peer universe for the
-// Given symbol. Prunes stale entries and sorts by symbol for stable diffs. The
-// Read-merge-write runs under a file lock so concurrent runs keep each other's entries.
+async function updateEntry(
+  path: string,
+  symbol: string,
+  generation: string,
+  update: (entry: PeerUniverseLearnedEntry) => PeerUniverseLearnedEntry | undefined,
+): Promise<boolean> {
+  const target = symbol.trim().toUpperCase();
+  return withFileLock(`${path}.lock`, async () => {
+    const entries = await readIndex(path);
+    const current = entries.find((e) => e.targetSymbol === target && e.proposedAt === generation);
+    const next = current === undefined ? undefined : update(current);
+    if (next === undefined) {
+      return false;
+    }
+    await writeIndex(path, {
+      version: CACHE_VERSION,
+      entries: entries.map((e) => (e === current ? next : e)),
+    });
+    return true;
+  });
+}
+
+// Records the valuation run's usable-peer count against the cache generation it evaluated.
+export function makePeerUniverseEvaluationRecorder(
+  path: string,
+  now: Date = new Date(),
+): (symbol: string, generation: string, usablePeerCount: number) => Promise<void> {
+  return async (symbol, generation, usablePeerCount) => {
+    await updateEntry(path, symbol, generation, (entry) =>
+      entry.evaluation !== undefined && Date.parse(entry.evaluation.evaluatedAt) > now.getTime()
+        ? undefined
+        : { ...entry, evaluation: { usablePeerCount, evaluatedAt: now.toISOString() } },
+    );
+  };
+}
+
+// Consumes the one refresh allowed per TTL window; true only for the run that claimed it.
+export function makePeerUniverseRefreshClaimer(
+  path: string,
+  ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
+  now: Date = new Date(),
+): (symbol: string, generation: string) => Promise<boolean> {
+  return async (symbol, generation) =>
+    updateEntry(path, symbol, generation, (entry) =>
+      usableUniverse(entry, now, ttlDays) !== undefined &&
+      refreshState(entry, now, ttlDays) === "due"
+        ? {
+            ...entry,
+            windowStartedAt: isExpired(refreshWindowAnchor(entry), now, ttlDays)
+              ? now.toISOString()
+              : refreshWindowAnchor(entry),
+            refreshAttemptedAt: now.toISOString(),
+          }
+        : undefined,
+    );
+}
+
+function carriedRefreshWindow(
+  previous: PeerUniverseLearnedEntry | undefined,
+  now: Date,
+  ttlDays: number,
+): Pick<PeerUniverseLearnedEntry, "windowStartedAt" | "refreshAttemptedAt"> {
+  if (previous === undefined || isExpired(refreshWindowAnchor(previous), now, ttlDays)) {
+    return {};
+  }
+  return {
+    windowStartedAt: refreshWindowAnchor(previous),
+    ...(previous.refreshAttemptedAt !== undefined
+      ? { refreshAttemptedAt: previous.refreshAttemptedAt }
+      : {}),
+  };
+}
+
+// Compare-and-set: writes only if the entry is still the one observed before proposing.
 export function makePeerUniverseCacheWriter(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   providerName = "unknown",
   now: Date = new Date(),
-): (symbol: string, universe: PeerUniverse, audit: ProposalAudit) => Promise<void> {
-  return async (symbol: string, universe: PeerUniverse, audit: ProposalAudit): Promise<void> => {
+): (
+  symbol: string,
+  universe: PeerUniverse,
+  audit: ProposalAudit,
+  observedGeneration?: string,
+) => Promise<string | undefined> {
+  return async (symbol, universe, audit, observedGeneration) => {
     const validation = validatePeerUniverse(universe);
     if (!validation.valid) {
       throw new Error(`Invalid learned peer universe: ${validation.errors.join("; ")}`);
@@ -196,24 +335,30 @@ export function makePeerUniverseCacheWriter(
         `Invalid learned peer universe: target mismatch ${universe.targetSymbol} != ${target}`,
       );
     }
-    const newEntry: PeerUniverseLearnedEntry = {
-      targetSymbol: target,
-      provenance: "model-proposed-validated",
-      peers: universe.peers,
-      sources: universe.sources,
-      proposedAt: now.toISOString(),
-      modelId: audit.modelId,
-      providerName,
-      audit,
-    };
-    await withFileLock(`${path}.lock`, async () => {
+    const proposedAt = now.toISOString();
+    return withFileLock(`${path}.lock`, async () => {
       const entries = await readIndex(path);
-      // Prune stale entries and remove any existing entry for this symbol (upsert)
+      const previous = entries.find((e) => e.targetSymbol === target);
+      if (previous?.proposedAt !== observedGeneration) {
+        return;
+      }
+      const newEntry: PeerUniverseLearnedEntry = {
+        targetSymbol: target,
+        provenance: "model-proposed-validated",
+        peers: universe.peers,
+        sources: universe.sources,
+        proposedAt,
+        modelId: audit.modelId,
+        providerName,
+        audit,
+        ...carriedRefreshWindow(previous, now, ttlDays),
+      };
       const pruned = entries.filter((e) => e.targetSymbol !== target && !isStale(e, now, ttlDays));
       const upserted = [...pruned, newEntry].toSorted((a, b) =>
         a.targetSymbol.localeCompare(b.targetSymbol),
       );
       await writeIndex(path, { version: CACHE_VERSION, entries: upserted });
+      return proposedAt;
     });
   };
 }

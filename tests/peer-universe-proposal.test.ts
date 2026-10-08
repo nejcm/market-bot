@@ -127,6 +127,48 @@ describe("createPeerUniverseProposer", () => {
     expect(audit).toMatchObject({ proposed: 3, survived: 3, modelId: "test-model" });
   });
 
+  async function userPromptFor(
+    target?: Parameters<ReturnType<typeof createPeerUniverseProposer>>[1],
+  ): Promise<string> {
+    const provider = modelProvider(peersJson([]));
+    await createPeerUniverseProposer({
+      provider,
+      model: "test-model",
+      request: secTickersExecutor(),
+    })("ZZZZ", target);
+    const request = (provider.generate as ReturnType<typeof mock>).mock.calls[0]?.[0] as
+      | ModelRequest
+      | undefined;
+    return request?.messages.find((message) => message.role === "user")?.content ?? "";
+  }
+
+  test("asks for peers inside the SIC group and 0.2x-5x cap and revenue bands", async () => {
+    const prompt = await userPromptFor({
+      marketCap: 451_530_688,
+      sic: "3661",
+      annualizedRevenue: 150_000_000,
+    });
+
+    expect(prompt).toContain("two-digit group 36 (target SIC 3661)");
+    expect(prompt).toContain("market capitalization between $90.3M and $2.3B (target $451.5M)");
+    expect(prompt).toContain("annualized revenue between $30M and $750M (target $150M)");
+  });
+
+  test("omits the band for absent or invalid target inputs", async () => {
+    for (const target of [
+      undefined,
+      {},
+      { marketCap: 0, sic: "36", annualizedRevenue: Number.NaN },
+    ]) {
+      const prompt = await userPromptFor(target);
+      expect(prompt).toContain("comparable companies for ZZZZ. Return JSON");
+      expect(prompt).not.toContain("Only include");
+    }
+    const sicOnly = await userPromptFor({ sic: "3661" });
+    expect(sicOnly).toContain("two-digit group 36");
+    expect(sicOnly).not.toContain("market capitalization");
+  });
+
   test("rejects a hallucinated ticker not in the SEC directory", async () => {
     const propose = createPeerUniverseProposer({
       provider: modelProvider(

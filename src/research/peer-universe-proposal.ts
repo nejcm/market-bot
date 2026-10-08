@@ -12,8 +12,13 @@ import {
   type PeerUniverse,
   type PeerUniversePeer,
   type PeerUniverseSource,
+  type PeerUniverseTargetInputs,
   type ProposalAudit,
 } from "./peer-universe";
+import {
+  SIZE_GATE_MAX_RATIO,
+  SIZE_GATE_MIN_RATIO,
+} from "../sources/extended-evidence/valuation-comps-contract";
 
 const UNSUPPORTED_SECURITY_NAME_RE =
   /\b(ADR|ADS|AMERICAN DEPOSITARY|ETF|ETN|FUND|TRUST|INDEX|UNIT|WARRANT|RIGHT|PREFERRED|PREFERENCE|NOTE|NOTES|DEBENTURE|BOND)\b/iu;
@@ -60,11 +65,42 @@ function buildSystemPrompt(): string {
   );
 }
 
-function buildUserPrompt(targetSymbol: string, targetName?: string): string {
+const COMPACT_USD = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function sizeBandClause(label: string, value: number | undefined): string | undefined {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return `${label} between ${COMPACT_USD.format(value * SIZE_GATE_MIN_RATIO)} and ${COMPACT_USD.format(value * SIZE_GATE_MAX_RATIO)} (target ${COMPACT_USD.format(value)})`;
+}
+
+// Mirrors the deterministic comparability gates so proposed peers are not all rejected downstream.
+function comparabilityBand(target: PeerUniverseTargetInputs | undefined): string {
+  const clauses = [
+    target?.sic !== undefined && /^\d{4}$/u.test(target.sic)
+      ? `an SEC SIC code in the two-digit group ${target.sic.slice(0, 2)} (target SIC ${target.sic})`
+      : undefined,
+    sizeBandClause("market capitalization", target?.marketCap),
+    sizeBandClause("annualized revenue", target?.annualizedRevenue),
+  ].filter((clause): clause is string => clause !== undefined);
+  return clauses.length === 0 ? "" : `Only include companies with ${clauses.join("; ")}. `;
+}
+
+function buildUserPrompt(
+  targetSymbol: string,
+  targetName?: string,
+  target?: PeerUniverseTargetInputs,
+): string {
   const subject = targetName !== undefined ? `${targetName} (${targetSymbol})` : targetSymbol;
   return (
-    `List up to ${String(MAX_PEERS)} US-listed common-stock comparable companies for ${subject}. ` +
-    `Return JSON with this exact shape: ` +
+    `List up to ${String(MAX_PEERS)} US-listed common-stock comparable companies for ${subject}. ${comparabilityBand(
+      target,
+    )}Return JSON with this exact shape: ` +
     `{"peers":[{"symbol":"string","name":"string","role":"core"|"secondary","rationale":"string"}]}`
   );
 }
@@ -123,7 +159,11 @@ function isEligibleListedCommonStock(
 // Runs the structured-JSON model call; returns the raw content, or an empty string
 // When the provider throws (network/timeout). Empty content parses to zero candidates,
 // So the caller degrades to the existing too-few-survivors gap without a special case.
-async function generatePeerProposal(deps: ProposerDeps, target: string): Promise<string> {
+async function generatePeerProposal(
+  deps: ProposerDeps,
+  target: string,
+  targetInputs: PeerUniverseTargetInputs | undefined,
+): Promise<string> {
   try {
     const response = await deps.provider.generate({
       model: deps.model,
@@ -137,7 +177,7 @@ async function generatePeerProposal(deps: ProposerDeps, target: string): Promise
       },
       messages: [
         { role: "system", content: withUntrustedModelInputRule(buildSystemPrompt()) },
-        { role: "user", content: buildUserPrompt(target, deps.targetName) },
+        { role: "user", content: buildUserPrompt(target, deps.targetName, targetInputs) },
       ],
     });
     return response.content;
@@ -152,8 +192,11 @@ async function generatePeerProposal(deps: ProposerDeps, target: string): Promise
 // Undefined. Cache write is the caller's responsibility.
 export function createPeerUniverseProposer(
   deps: ProposerDeps,
-): (symbol: string) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }> {
-  return async (targetSymbol: string) => {
+): (
+  symbol: string,
+  targetInputs?: PeerUniverseTargetInputs,
+) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }> {
+  return async (targetSymbol, targetInputs) => {
     const target = targetSymbol.trim().toUpperCase();
 
     // Fetch SEC company_tickers.json — reused (cached) from the peer fetch pipeline
@@ -177,7 +220,7 @@ export function createPeerUniverseProposer(
     const tickersPayload = tickersResult.payload;
 
     // Model call: structured JSON, low token budget, temperature:0 for reproducibility
-    const modelContent = await generatePeerProposal(deps, target);
+    const modelContent = await generatePeerProposal(deps, target, targetInputs);
     const rawPeers = parseProposedPeers(modelContent);
     const modelId = deps.model;
 

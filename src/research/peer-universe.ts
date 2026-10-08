@@ -47,8 +47,10 @@ export interface PeerUniverseRefreshNote {
     | "claim-lost"
     | "claim-error"
     | "allowance-used"
-    | "missing-target-inputs";
+    | "missing-target-inputs"
+    | "unavailable";
   readonly audit?: ProposalAudit;
+  readonly allowanceReleased?: boolean;
 }
 
 export interface PeerUniverseValidationResult {
@@ -73,6 +75,13 @@ export interface LearnedPeerUniverse {
   readonly refresh: "due" | "used" | "not-needed";
 }
 
+// `unavailable` marks a proposal that could not run (directory or model failure), not a weak one.
+export interface PeerUniverseProposal {
+  readonly universe?: PeerUniverse;
+  readonly audit: ProposalAudit;
+  readonly unavailable?: boolean;
+}
+
 export interface PeerUniverseTargetInputs {
   readonly marketCap?: number;
   readonly sic?: string;
@@ -86,12 +95,14 @@ export interface PeerUniverseFallbackContext {
     universe: PeerUniverse,
     audit: ProposalAudit,
     observedGeneration?: string,
+    claimed?: boolean,
   ) => Promise<string | undefined>;
   readonly propose: (
     symbol: string,
     target?: PeerUniverseTargetInputs,
-  ) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }>;
+  ) => Promise<PeerUniverseProposal>;
   readonly claimRefresh: (symbol: string, generation: string) => Promise<boolean>;
+  readonly releaseRefresh?: (symbol: string, generation: string) => Promise<boolean>;
   readonly recordEvaluation?: (
     symbol: string,
     generation: string,
@@ -278,10 +289,20 @@ export async function resolvePeerUniverseWithFallback(
       ? "Resolved from model-proposed, code-validated peer universe"
       : "Resolved from refreshed model-proposed peer universe after too few usable peers",
     cached.generation,
+    cached.universe !== undefined,
   );
-  return proposed.resolution?.status === "resolved"
-    ? proposed.resolution
-    : withRefresh({ outcome: "insufficient", audit: proposed.audit });
+  if (proposed.resolution?.status === "resolved") {
+    return proposed.resolution;
+  }
+  if (!proposed.unavailable) {
+    return withRefresh({ outcome: "insufficient", audit: proposed.audit });
+  }
+  if (cached.universe === undefined) {
+    return withRefresh({ outcome: "unavailable" });
+  }
+  const allowanceReleased =
+    (await fallback.releaseRefresh?.(target, cached.generation).catch(() => false)) === true;
+  return withRefresh({ outcome: "unavailable", allowanceReleased });
 }
 
 // Target inputs that let a proposal and its feedback speak to the SIC and market-cap gates.
@@ -301,10 +322,15 @@ async function proposeAndCache(
   targetInputs: PeerUniverseTargetInputs | undefined,
   reason: string,
   observedGeneration?: string,
-): Promise<{ resolution?: PeerUniverseResolution; audit: ProposalAudit }> {
-  const { universe, audit } = await fallback.propose(target, targetInputs);
+  claimed = false,
+): Promise<{
+  resolution?: PeerUniverseResolution;
+  audit: ProposalAudit;
+  unavailable?: boolean;
+}> {
+  const { universe, audit, unavailable } = await fallback.propose(target, targetInputs);
   if (universe === undefined) {
-    return { audit };
+    return { audit, ...(unavailable === true ? { unavailable } : {}) };
   }
   const proposedResolution = resolvedPeerUniverse(target, universe, reason);
   if (proposedResolution.status !== "resolved") {
@@ -312,7 +338,7 @@ async function proposeAndCache(
   }
   let generation: string | undefined;
   try {
-    generation = await fallback.cacheWrite(target, universe, audit, observedGeneration);
+    generation = await fallback.cacheWrite(target, universe, audit, observedGeneration, claimed);
   } catch {
     // Swallow cache-write errors; run succeeds even when disk is unavailable
   }

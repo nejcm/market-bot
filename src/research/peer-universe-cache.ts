@@ -5,6 +5,7 @@ import { withFileLock } from "../shared-state-lock";
 import { DAY_MS } from "../config/shared";
 import { isRecord } from "../guards";
 import { MIN_USABLE_PEERS } from "../sources/extended-evidence/valuation-comps-contract";
+import { PROPOSER_REVISION } from "./peer-universe-proposal";
 import {
   validatePeerUniverse,
   type LearnedPeerUniverse,
@@ -28,6 +29,7 @@ interface PeerUniverseLearnedEntry {
   readonly audit: ProposalAudit;
   readonly windowStartedAt?: string;
   readonly refreshAttemptedAt?: string;
+  readonly refreshProposerRevision?: number;
   readonly evaluation?: PeerUniverseEvaluation;
 }
 
@@ -54,9 +56,16 @@ function refreshWindowAnchor(entry: PeerUniverseLearnedEntry): string {
   return entry.windowStartedAt ?? entry.proposedAt;
 }
 
-function refreshAllowed(entry: PeerUniverseLearnedEntry, now: Date, ttlDays: number): boolean {
+function refreshAllowed(
+  entry: PeerUniverseLearnedEntry,
+  now: Date,
+  ttlDays: number,
+  revision: number,
+): boolean {
   return (
-    entry.refreshAttemptedAt === undefined || isExpired(refreshWindowAnchor(entry), now, ttlDays)
+    entry.refreshAttemptedAt === undefined ||
+    (entry.refreshProposerRevision ?? 0) < revision ||
+    isExpired(refreshWindowAnchor(entry), now, ttlDays)
   );
 }
 
@@ -82,6 +91,7 @@ function refreshState(
   entry: PeerUniverseLearnedEntry,
   now: Date,
   ttlDays: number,
+  revision: number,
 ): LearnedPeerUniverse["refresh"] {
   if (usableUniverse(entry, now, ttlDays) === undefined) {
     return "due";
@@ -89,7 +99,7 @@ function refreshState(
   if (entry.evaluation === undefined || entry.evaluation.usablePeerCount >= MIN_USABLE_PEERS) {
     return "not-needed";
   }
-  return refreshAllowed(entry, now, ttlDays) ? "due" : "used";
+  return refreshAllowed(entry, now, ttlDays, revision) ? "due" : "used";
 }
 
 function readEvaluation(value: unknown): PeerUniverseEvaluation | undefined {
@@ -193,6 +203,9 @@ function readEntry(value: unknown): PeerUniverseLearnedEntry | undefined {
     ...(typeof value.refreshAttemptedAt === "string"
       ? { refreshAttemptedAt: value.refreshAttemptedAt }
       : {}),
+    ...(typeof value.refreshProposerRevision === "number"
+      ? { refreshProposerRevision: value.refreshProposerRevision }
+      : {}),
     ...(evaluation !== undefined ? { evaluation } : {}),
   };
 }
@@ -222,6 +235,7 @@ export function makePeerUniverseCacheReader(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   now: Date = new Date(),
+  revision: number = PROPOSER_REVISION,
 ): (symbol: string) => Promise<LearnedPeerUniverse | undefined> {
   return async (symbol: string): Promise<LearnedPeerUniverse | undefined> => {
     const entries = await readIndex(path);
@@ -234,7 +248,7 @@ export function makePeerUniverseCacheReader(
     return {
       ...(universe !== undefined ? { universe } : {}),
       generation: entry.proposedAt,
-      refresh: refreshState(entry, now, ttlDays),
+      refresh: refreshState(entry, now, ttlDays, revision),
     };
   };
 }
@@ -280,27 +294,58 @@ export function makePeerUniverseRefreshClaimer(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   now: Date = new Date(),
+  revision: number = PROPOSER_REVISION,
 ): (symbol: string, generation: string) => Promise<boolean> {
   return async (symbol, generation) =>
     updateEntry(path, symbol, generation, (entry) =>
       usableUniverse(entry, now, ttlDays) !== undefined &&
-      refreshState(entry, now, ttlDays) === "due"
+      refreshState(entry, now, ttlDays, revision) === "due"
         ? {
             ...entry,
             windowStartedAt: isExpired(refreshWindowAnchor(entry), now, ttlDays)
               ? now.toISOString()
               : refreshWindowAnchor(entry),
             refreshAttemptedAt: now.toISOString(),
+            refreshProposerRevision: revision,
           }
         : undefined,
     );
+}
+
+// Returns the allowance this run claimed when the proposal could not run at all.
+export function makePeerUniverseRefreshReleaser(
+  path: string,
+  now: Date = new Date(),
+  revision: number = PROPOSER_REVISION,
+): (symbol: string, generation: string) => Promise<boolean> {
+  return async (symbol, generation) =>
+    updateEntry(path, symbol, generation, (entry) => {
+      if (!ownsClaim(entry, now, revision)) {
+        return undefined;
+      }
+      const {
+        refreshAttemptedAt: _attempt,
+        refreshProposerRevision: _revision,
+        ...released
+      } = entry;
+      return released;
+    });
+}
+
+function ownsClaim(entry: PeerUniverseLearnedEntry, now: Date, revision: number): boolean {
+  return (
+    entry.refreshAttemptedAt === now.toISOString() && entry.refreshProposerRevision === revision
+  );
 }
 
 function carriedRefreshWindow(
   previous: PeerUniverseLearnedEntry | undefined,
   now: Date,
   ttlDays: number,
-): Pick<PeerUniverseLearnedEntry, "windowStartedAt" | "refreshAttemptedAt"> {
+): Pick<
+  PeerUniverseLearnedEntry,
+  "windowStartedAt" | "refreshAttemptedAt" | "refreshProposerRevision"
+> {
   if (previous === undefined || isExpired(refreshWindowAnchor(previous), now, ttlDays)) {
     return {};
   }
@@ -309,22 +354,27 @@ function carriedRefreshWindow(
     ...(previous.refreshAttemptedAt !== undefined
       ? { refreshAttemptedAt: previous.refreshAttemptedAt }
       : {}),
+    ...(previous.refreshProposerRevision !== undefined
+      ? { refreshProposerRevision: previous.refreshProposerRevision }
+      : {}),
   };
 }
 
-// Compare-and-set: writes only if the entry is still the one observed before proposing.
+// Compare-and-set against the entry observed before proposing, and against this run's claim.
 export function makePeerUniverseCacheWriter(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   providerName = "unknown",
   now: Date = new Date(),
+  revision: number = PROPOSER_REVISION,
 ): (
   symbol: string,
   universe: PeerUniverse,
   audit: ProposalAudit,
   observedGeneration?: string,
+  claimed?: boolean,
 ) => Promise<string | undefined> {
-  return async (symbol, universe, audit, observedGeneration) => {
+  return async (symbol, universe, audit, observedGeneration, claimed) => {
     const validation = validatePeerUniverse(universe);
     if (!validation.valid) {
       throw new Error(`Invalid learned peer universe: ${validation.errors.join("; ")}`);
@@ -339,7 +389,10 @@ export function makePeerUniverseCacheWriter(
     return withFileLock(`${path}.lock`, async () => {
       const entries = await readIndex(path);
       const previous = entries.find((e) => e.targetSymbol === target);
-      if (previous?.proposedAt !== observedGeneration) {
+      if (
+        previous?.proposedAt !== observedGeneration ||
+        (claimed === true && (previous === undefined || !ownsClaim(previous, now, revision)))
+      ) {
         return;
       }
       const newEntry: PeerUniverseLearnedEntry = {

@@ -7,8 +7,14 @@ import {
   makePeerUniverseCacheWriter,
   makePeerUniverseEvaluationRecorder,
   makePeerUniverseRefreshClaimer,
+  makePeerUniverseRefreshReleaser,
 } from "../src/research/peer-universe-cache";
-import type { PeerUniverse, ProposalAudit } from "../src/research/peer-universe";
+import {
+  resolvePeerUniverseWithFallback,
+  type PeerUniverse,
+  type ProposalAudit,
+} from "../src/research/peer-universe";
+import { createPeerUniverseProposer } from "../src/research/peer-universe-proposal";
 
 let dir = "";
 let cachePath = "";
@@ -379,5 +385,123 @@ describe("peer universe refresh policy", () => {
     };
     expect(parsed.entries.map((e) => e.targetSymbol)).toEqual(["AAAA", "ZZZZ"]);
     expect(parsed.entries[1]?.evaluation?.usablePeerCount).toBe(1);
+  });
+
+  test("an attempt spent under a superseded proposer revision is granted once more", async () => {
+    const generation = await seed();
+    await record(day0, generation, 0);
+    const parsed = JSON.parse(await readFile(cachePath, "utf8")) as {
+      entries: Record<string, unknown>[];
+    };
+    await writeFile(
+      cachePath,
+      JSON.stringify({
+        ...parsed,
+        entries: parsed.entries.map((entry) => ({
+          ...entry,
+          refreshAttemptedAt: day0.toISOString(),
+        })),
+      }),
+      "utf8",
+    );
+    expect(await refreshAt(day1)).toBe("due");
+    expect(await claim(day1, generation)).toBe(true);
+    expect(await refreshAt(day2)).toBe("used");
+  });
+
+  test("a release returns only this run's claim", async () => {
+    const generation = await seed();
+    await record(day0, generation, 0);
+    await claim(day1, generation);
+    expect(await makePeerUniverseRefreshReleaser(cachePath, day2)("ZZZZ", generation)).toBe(false);
+    expect(await refreshAt(day2)).toBe("used");
+    expect(await makePeerUniverseRefreshReleaser(cachePath, day1)("ZZZZ", generation)).toBe(true);
+    expect(await refreshAt(day2)).toBe("due");
+  });
+
+  test("an SEC directory outage releases the claim so the next run can refresh", async () => {
+    const generation = await seed();
+    await record(day0, generation, 0);
+    const fallbackAt = (now: Date) => ({
+      cacheRead: makePeerUniverseCacheReader(cachePath, 90, now),
+      cacheWrite: makePeerUniverseCacheWriter(cachePath, 90, "p", now),
+      claimRefresh: makePeerUniverseRefreshClaimer(cachePath, 90, now),
+      releaseRefresh: makePeerUniverseRefreshReleaser(cachePath, now),
+      propose: createPeerUniverseProposer({
+        provider: {
+          name: "test",
+          generate: async () => {
+            throw new Error("model must not run without the directory");
+          },
+        },
+        model: "test-model",
+        request: {
+          json: async () => ({
+            source: "sec-edgar",
+            message: "SEC tickers timeout",
+            capability: "extended-evidence",
+            cause: "fetch-failed",
+            evidenceQualityImpact: "extended-evidence-cap",
+          }),
+          text: async () => {
+            throw new Error("listing must not be fetched");
+          },
+        },
+      }),
+    });
+    const inputs = { marketCap: 450e6, sic: "3661" };
+
+    const outage = await resolvePeerUniverseWithFallback(
+      "ZZZZ",
+      fallbackAt(day1),
+      undefined,
+      undefined,
+      inputs,
+    );
+
+    expect(outage.status).toBe("resolved");
+    expect(outage.refresh).toEqual({ outcome: "unavailable", allowanceReleased: true });
+    expect(await refreshAt(day2)).toBe("due");
+    expect(await claim(day2, generation)).toBe(true);
+  });
+
+  test("an older proposer revision cannot reclaim an allowance a newer one consumed", async () => {
+    const generation = await seed();
+    await record(day0, generation, 0);
+    expect(await makePeerUniverseRefreshClaimer(cachePath, 90, day1, 3)("ZZZZ", generation)).toBe(
+      true,
+    );
+    expect((await makePeerUniverseCacheReader(cachePath, 90, day2, 2)("ZZZZ"))?.refresh).toBe(
+      "used",
+    );
+    expect(await makePeerUniverseRefreshClaimer(cachePath, 90, day2, 2)("ZZZZ", generation)).toBe(
+      false,
+    );
+  });
+
+  test("an obsolete claimant cannot publish over or release a newer revision's claim", async () => {
+    const generation = await seed();
+    await record(day0, generation, 0);
+    const day1Later = new Date(day1.getTime() + 1000);
+    expect(await makePeerUniverseRefreshClaimer(cachePath, 90, day1, 2)("ZZZZ", generation)).toBe(
+      true,
+    );
+    expect(
+      await makePeerUniverseRefreshClaimer(cachePath, 90, day1Later, 3)("ZZZZ", generation),
+    ).toBe(true);
+    const writeV2 = makePeerUniverseCacheWriter(cachePath, 90, "p", day1, 2);
+    expect(await writeV2("ZZZZ", universe("ZZZZ"), audit, generation, true)).toBeUndefined();
+    expect(await makePeerUniverseRefreshReleaser(cachePath, day1, 2)("ZZZZ", generation)).toBe(
+      false,
+    );
+    expect(await storedEntry()).toMatchObject({
+      proposedAt: generation,
+      refreshAttemptedAt: day1Later.toISOString(),
+      refreshProposerRevision: 3,
+    });
+    const writeV3 = makePeerUniverseCacheWriter(cachePath, 90, "p", day1Later, 3);
+    expect(await writeV3("ZZZZ", universe("ZZZZ"), audit, generation, true)).toBe(
+      day1Later.toISOString(),
+    );
   });
 });

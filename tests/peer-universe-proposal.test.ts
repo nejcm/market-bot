@@ -367,11 +367,33 @@ describe("createPeerUniverseProposer", () => {
       request: secTickersExecutor(false),
     });
 
-    const { universe } = await propose("ZZZZ");
+    const { universe, unavailable } = await propose("ZZZZ");
 
     expect(universe).toBeUndefined();
+    expect(unavailable).toBe(true);
     // Model is never called when the SEC directory is unavailable.
     expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  test("marks a thrown model call unavailable, unlike an empty proposal", async () => {
+    const failing = createPeerUniverseProposer({
+      provider: {
+        name: "test",
+        generate: async () => {
+          throw new Error("timeout");
+        },
+      },
+      model: "test-model",
+      request: secTickersExecutor(),
+    });
+    const empty = createPeerUniverseProposer({
+      provider: modelProvider(peersJson([])),
+      model: "test-model",
+      request: secTickersExecutor(),
+    });
+
+    expect((await failing("ZZZZ")).unavailable).toBe(true);
+    expect((await empty("ZZZZ")).unavailable).toBeUndefined();
   });
 
   test("caps survivors at MAX_PEERS (8)", async () => {

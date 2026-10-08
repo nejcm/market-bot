@@ -287,6 +287,10 @@ const REFRESH_NOTES: Record<
     text: "the one refresh allowed per TTL window is already used",
     cause: "suppressed-by-design",
   },
+  unavailable: {
+    text: "the re-proposal could not run because the peer directory or model was unavailable",
+    cause: "provider-data-missing",
+  },
   "missing-target-inputs": {
     text: "target market cap or SIC is unavailable, so the re-proposal is deferred",
     cause: "suppressed-by-design",
@@ -303,10 +307,14 @@ function peerUniverseRefreshGap(
     refresh.audit === undefined
       ? ""
       : ` (${String(refresh.audit.survived)} of ${String(refresh.audit.proposed)} proposed peers validated${reusedLearnedPeers ? "; allowance consumed" : ""})`;
+  const release =
+    refresh.allowanceReleased === undefined
+      ? ""
+      : `; allowance ${refresh.allowanceReleased ? "released" : "not released"}`;
   const reuse = reusedLearnedPeers ? "; the previously learned peers were used" : "";
   return {
     ...valuationCompsGap(
-      `Peer Universe refresh for ${symbol}: ${note.text}${audit}${reuse}`,
+      `Peer Universe refresh for ${symbol}: ${note.text}${audit}${release}${reuse}`,
       note.cause,
       "valuation-peers",
       symbol.toUpperCase(),

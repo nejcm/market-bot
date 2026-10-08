@@ -11,6 +11,7 @@ import {
   MIN_PROPOSED_PEERS,
   type PeerUniverse,
   type PeerUniversePeer,
+  type PeerUniverseProposal,
   type PeerUniverseSource,
   type PeerUniverseTargetInputs,
   type ProposalAudit,
@@ -24,6 +25,10 @@ const UNSUPPORTED_SECURITY_NAME_RE =
   /\b(ADR|ADS|AMERICAN DEPOSITARY|ETF|ETN|FUND|TRUST|INDEX|UNIT|WARRANT|RIGHT|PREFERRED|PREFERENCE|NOTE|NOTES|DEBENTURE|BOND)\b/iu;
 
 const SEC_TICKERS_SOURCE_ID = "sec-company-tickers";
+
+// Bump when the proposal prompt changes materially; a refresh spent under an older revision is
+// Granted again.
+export const PROPOSER_REVISION = 2;
 
 export interface ProposerDeps {
   readonly provider: ModelProvider;
@@ -163,14 +168,12 @@ function isEligibleListedCommonStock(
   );
 }
 
-// Runs the structured-JSON model call; returns the raw content, or an empty string
-// When the provider throws (network/timeout). Empty content parses to zero candidates,
-// So the caller degrades to the existing too-few-survivors gap without a special case.
+// Runs the structured-JSON model call; null when the provider throws (network/timeout).
 async function generatePeerProposal(
   deps: ProposerDeps,
   target: string,
   targetInputs: PeerUniverseTargetInputs | undefined,
-): Promise<string> {
+): Promise<string | null> {
   try {
     const response = await deps.provider.generate({
       model: deps.model,
@@ -190,7 +193,7 @@ async function generatePeerProposal(
     });
     return response.content;
   } catch {
-    return "";
+    return null;
   }
 }
 
@@ -200,10 +203,7 @@ async function generatePeerProposal(
 // Undefined. Cache write is the caller's responsibility.
 export function createPeerUniverseProposer(
   deps: ProposerDeps,
-): (
-  symbol: string,
-  targetInputs?: PeerUniverseTargetInputs,
-) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }> {
+): (symbol: string, targetInputs?: PeerUniverseTargetInputs) => Promise<PeerUniverseProposal> {
   return async (targetSymbol, targetInputs) => {
     const target = targetSymbol.trim().toUpperCase();
 
@@ -219,16 +219,19 @@ export function createPeerUniverseProposer(
     });
     if (!isFetchJsonResult(tickersResult)) {
       // SEC directory unavailable — degrade to existing unsupported-coverage gap
-      return { audit: emptyAudit("(sec-fetch-failed)") };
+      return { audit: emptyAudit("(sec-fetch-failed)"), unavailable: true };
     }
     const listedUniverse = await collectListedUniverse(deps.request);
     if (listedUniverse.entries.length === 0) {
-      return { audit: emptyAudit("(listing-fetch-failed)") };
+      return { audit: emptyAudit("(listing-fetch-failed)"), unavailable: true };
     }
     const tickersPayload = tickersResult.payload;
 
     // Model call: structured JSON, temperature:0 for reproducibility
     const modelContent = await generatePeerProposal(deps, target, targetInputs);
+    if (modelContent === null) {
+      return { audit: emptyAudit(deps.model), unavailable: true };
+    }
     const rawPeers = parseProposedPeers(modelContent);
     const modelId = deps.model;
 

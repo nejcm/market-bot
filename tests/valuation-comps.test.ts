@@ -2728,6 +2728,17 @@ describe("collectValuationComps", () => {
     ).toBe(
       "Peer Universe refresh for ZZZZ: the refresh claim could not be persisted; allowance not consumed; the previously learned peers were used",
     );
+    expect(
+      await refreshMessage({
+        ...cachedFallback,
+        cacheRead: async () => ({ ...learned(cachedUniverse), refresh: "due" }),
+        claimRefresh: async () => true,
+        releaseRefresh: async () => true,
+        propose: async () => ({ audit: failedAudit, unavailable: true }),
+      }),
+    ).toBe(
+      "Peer Universe refresh for ZZZZ: the re-proposal could not run because the peer directory or model was unavailable; allowance released; the previously learned peers were used",
+    );
     expect(result.gaps.some((gap) => gap.message.includes("Peer Universe refresh"))).toBe(false);
     expect(result.artifact.summary.usablePeerCount).toBe(2);
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");

@@ -314,7 +314,13 @@ describe("resolvePeerUniverseWithFallback", () => {
     expect(result.status).toBe("resolved");
     expect(result.universe?.provenance).toBe("model-proposed-validated");
     expect(cacheWriteMock).toHaveBeenCalledTimes(1);
-    expect(cacheWriteMock).toHaveBeenCalledWith("ZZZZ", proposedUniverse, dummyAudit, undefined);
+    expect(cacheWriteMock).toHaveBeenCalledWith(
+      "ZZZZ",
+      proposedUniverse,
+      dummyAudit,
+      undefined,
+      false,
+    );
   });
 
   test("does not write an invalid proposed universe to cache", async () => {
@@ -431,7 +437,13 @@ describe("resolvePeerUniverseWithFallback", () => {
       expect(order).toEqual(["claim", "propose"]);
       expect(result.reason).toContain("refreshed");
       expect(result.learnedGeneration).toBe("2026-10-08T00:00:00.000Z");
-      expect(cacheWrite).toHaveBeenCalledWith("ZZZZ", replacement, dummyAudit, dueEntry.generation);
+      expect(cacheWrite).toHaveBeenCalledWith(
+        "ZZZZ",
+        replacement,
+        dummyAudit,
+        dueEntry.generation,
+        true,
+      );
     });
 
     test("an insufficient or invalid refresh keeps the cached universe with a note", async () => {
@@ -450,6 +462,49 @@ describe("resolvePeerUniverseWithFallback", () => {
       expect(result.learnedGeneration).toBe(dueEntry.generation);
       expect(result.refresh).toEqual({ outcome: "insufficient", audit: dummyAudit });
       expect(cacheWrite).not.toHaveBeenCalled();
+    });
+
+    test("an unavailable proposal reports whether the claim was released", async () => {
+      const release = mock(async () => {
+        throw new Error("lock busy");
+      });
+      const { fallback } = refreshFallback({
+        propose: async () => ({ audit: dummyAudit, unavailable: true }),
+        releaseRefresh: release,
+      });
+
+      const result = await resolvePeerUniverseWithFallback(
+        "ZZZZ",
+        fallback,
+        undefined,
+        undefined,
+        inputs,
+      );
+
+      expect(result.status).toBe("resolved");
+      expect(result.refresh).toEqual({ outcome: "unavailable", allowanceReleased: false });
+      expect(release).toHaveBeenCalledWith("ZZZZ", dueEntry.generation);
+    });
+
+    test("an unavailable renewal of an expired entry has nothing to release", async () => {
+      const release = mock(async () => true);
+      const { fallback } = refreshFallback({
+        cacheRead: async () => ({ generation: dueEntry.generation, refresh: "due" }),
+        propose: async () => ({ audit: dummyAudit, unavailable: true }),
+        releaseRefresh: release,
+      });
+
+      const result = await resolvePeerUniverseWithFallback(
+        "ZZZZ",
+        fallback,
+        undefined,
+        undefined,
+        inputs,
+      );
+
+      expect(result.status).toBe("unresolved");
+      expect(result.refresh).toEqual({ outcome: "unavailable" });
+      expect(release).not.toHaveBeenCalled();
     });
 
     test("a lost claim uses the cached universe without proposing", async () => {
@@ -561,6 +616,7 @@ describe("resolvePeerUniverseWithFallback", () => {
         replacement,
         dummyAudit,
         dueEntry.generation,
+        false,
       );
       expect(claimRefresh).not.toHaveBeenCalled();
       expect(cacheWrite).not.toHaveBeenCalled();

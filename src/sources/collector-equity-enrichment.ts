@@ -59,6 +59,7 @@ import {
   makePeerUniverseCacheWriter,
   makePeerUniverseEvaluationRecorder,
   makePeerUniverseRefreshClaimer,
+  makePeerUniverseRefreshReleaser,
 } from "../research/peer-universe-cache";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
@@ -115,6 +116,7 @@ function peerUniverseFallbackFor(
           now,
         ),
         recordEvaluation: makePeerUniverseEvaluationRecorder(peerUniverse.cachePath, now),
+        releaseRefresh: makePeerUniverseRefreshReleaser(peerUniverse.cachePath, now),
         propose: createPeerUniverseProposer({
           provider: peerUniverse.provider,
           model: peerUniverse.model,

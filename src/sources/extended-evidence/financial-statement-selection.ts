@@ -236,17 +236,15 @@ function leaseAdjustment(
   if (leases === undefined) {
     return { subtracted: [], unadjusted: inclusive, deductions: [] };
   }
-  const totalLeases = isTagged(leases.total)
-    ? [leases.total]
-    : (leases.split.every((leg) => isTagged(leg))
-      ? leases.split
-      : []);
+  const splitLeases = leases.split.every((leg) => isTagged(leg)) ? leases.split : [];
+  const totalLeases = isTagged(leases.total) ? [leases.total] : splitLeases;
   const deductions: { aggregates: readonly string[]; leases: readonly string[] }[] = [];
   const pending: string[] = [];
   for (const concept of inclusive) {
     const scope = concepts.leaseInclusive?.[concept];
     const leg = leases.split[scope === "current" ? 0 : 1];
-    const match = scope === "total" ? totalLeases : (leg !== undefined && isTagged(leg) ? [leg] : []);
+    const legLeases = leg !== undefined && isTagged(leg) ? [leg] : [];
+    const match = scope === "total" ? totalLeases : legLeases;
     if (match.length > 0) {
       deductions.push({ aggregates: [concept], leases: match });
     } else {

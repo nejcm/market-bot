@@ -219,7 +219,7 @@ export async function collectValuationComps(
   if (
     resolution.learnedGeneration !== undefined &&
     hasPeerBandInputs(targetInputs) &&
-    !peerGaps.some(isTransientFetchGap) &&
+    !peerGaps.some((gap) => isTransientFetchGap(gap)) &&
     !rawSnapshots.some((snapshot) => snapshot.cacheStatus === "stale-fallback")
   ) {
     await options.peerUniverseFallback

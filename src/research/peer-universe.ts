@@ -271,10 +271,8 @@ export async function resolvePeerUniverseWithFallback(
   }
   // Only a quality refresh of a usable universe spends the window allowance.
   if (cached.universe !== undefined) {
-    let claimed: boolean;
-    try {
-      claimed = await fallback.claimRefresh(target, cached.generation);
-    } catch {
+    const claimed = await fallback.claimRefresh(target, cached.generation).catch(() => undefined);
+    if (claimed === undefined) {
       return withRefresh({ outcome: "claim-error" });
     }
     if (!claimed) {
@@ -336,12 +334,10 @@ async function proposeAndCache(
   if (proposedResolution.status !== "resolved") {
     return { resolution: proposedResolution, audit };
   }
-  let generation: string | undefined;
-  try {
-    generation = await fallback.cacheWrite(target, universe, audit, observedGeneration, claimed);
-  } catch {
-    // Swallow cache-write errors; run succeeds even when disk is unavailable
-  }
+  // Swallow cache-write errors; run succeeds even when disk is unavailable
+  const generation = await fallback
+    .cacheWrite(target, universe, audit, observedGeneration, claimed)
+    .catch(() => undefined);
   return { resolution: learnedResolution(proposedResolution, generation), audit };
 }
 

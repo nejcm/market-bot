@@ -395,8 +395,8 @@ describe("createPeerUniverseProposer", () => {
       request: secTickersExecutor(),
     });
 
-    expect((await failing("ZZZZ")).unavailable).toBe(true);
-    expect((await empty("ZZZZ")).unavailable).toBeUndefined();
+    expect(await failing("ZZZZ")).toHaveProperty("unavailable", true);
+    expect(await empty("ZZZZ")).not.toHaveProperty("unavailable");
   });
 
   function brokenCboeExecutor(listedSymbols?: string[]): SourceRequestExecutor {

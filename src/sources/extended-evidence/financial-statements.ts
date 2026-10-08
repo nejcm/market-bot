@@ -307,11 +307,9 @@ function compositeFromContributors(
     fiscalPeriod: anchor.fiscalPeriod,
     taxonomy: anchor.taxonomy,
     concept: contributors
-      .map(
-        (fact, index) =>
-          `${index === 0 ? "" : (subtracted.has(fact.concept) ? "-" : "+")}${fact.concept}`,
-      )
-      .join(""),
+      .map((fact) => `${subtracted.has(fact.concept) ? "-" : "+"}${fact.concept}`)
+      .join("")
+      .slice(1),
     unit: anchor.unit,
     composite: {
       formula: COMPOSITE_STATEMENT_FACT_FORMULA,
@@ -421,18 +419,20 @@ function factsForDebt(
     );
     const [anchor] = contributors;
     const incomplete = resolution.incompleteReason !== undefined || anchor === undefined;
-    let fact: ParsedFact | undefined;
-    if (!incomplete) {
-      fact =
-        resolution.basis === "total"
-          ? anchor
-          : withCompositeFirstPublicAt(
-              compositeFromContributors(contributors, subtracted),
-              definition,
-              candidates,
-              subtracted,
-            );
-    }
+    const resolveFact = (): ParsedFact | undefined => {
+      if (incomplete) {
+        return undefined;
+      }
+      return resolution.basis === "total"
+        ? anchor
+        : withCompositeFirstPublicAt(
+            compositeFromContributors(contributors, subtracted),
+            definition,
+            candidates,
+            subtracted,
+          );
+    };
+    const fact = resolveFact();
     return {
       ...instant,
       fact,

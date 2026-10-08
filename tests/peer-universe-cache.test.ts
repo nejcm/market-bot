@@ -129,7 +129,7 @@ describe("peer universe cache", () => {
     const future = new Date(Date.now() + 200 * 86_400_000);
     const read = makePeerUniverseCacheReader(cachePath, 90, future);
     expect(await read("ZZZZ")).toMatchObject({ refresh: "due" });
-    expect((await read("ZZZZ"))?.universe).toBeUndefined();
+    expect(await read("ZZZZ")).not.toHaveProperty("universe");
   });
 
   test("drops a poisoned entry that fails validation", async () => {
@@ -175,7 +175,7 @@ describe("peer universe cache", () => {
 
     const read = makePeerUniverseCacheReader(cachePath);
     expect(await read("ZZZZ")).toMatchObject({ refresh: "due" });
-    expect((await read("ZZZZ"))?.universe).toBeUndefined();
+    expect(await read("ZZZZ")).not.toHaveProperty("universe");
   });
 
   test("rejects an unknown schema version", async () => {
@@ -250,8 +250,10 @@ describe("peer universe refresh policy", () => {
     makePeerUniverseEvaluationRecorder(cachePath, now)("ZZZZ", generation, usablePeerCount);
   const claim = (now: Date, generation: string) =>
     makePeerUniverseRefreshClaimer(cachePath, 90, now)("ZZZZ", generation);
-  const refreshAt = async (now: Date) =>
-    (await makePeerUniverseCacheReader(cachePath, 90, now)("ZZZZ"))?.refresh;
+  const refreshAt = async (now: Date) => {
+    const entry = await makePeerUniverseCacheReader(cachePath, 90, now)("ZZZZ");
+    return entry?.refresh;
+  };
 
   async function seed(): Promise<string> {
     const generation = await write(day0);
@@ -286,20 +288,20 @@ describe("peer universe refresh policy", () => {
   test("feedback for a superseded generation is ignored", async () => {
     await seed();
     await record(day1, oldGeneration, 0);
-    expect((await storedEntry())?.evaluation).toBeUndefined();
+    expect(await storedEntry()).not.toHaveProperty("evaluation");
   });
 
   test("older feedback never overwrites newer feedback in either direction", async () => {
     const generation = await seed();
     await record(day2, generation, 0);
     await record(day1, generation, 3);
-    expect((await storedEntry())?.evaluation).toEqual({
+    expect(await storedEntry()).toHaveProperty("evaluation", {
       usablePeerCount: 0,
       evaluatedAt: day2.toISOString(),
     });
     await record(day2, generation, 3);
     await record(day1, generation, 0);
-    expect((await storedEntry())?.evaluation).toMatchObject({ usablePeerCount: 3 });
+    expect(await storedEntry()).toMatchObject({ evaluation: { usablePeerCount: 3 } });
   });
 
   test("only one concurrent claim wins and a failed refresh keeps the allowance consumed", async () => {
@@ -325,7 +327,7 @@ describe("peer universe refresh policy", () => {
       windowStartedAt: generation,
       refreshAttemptedAt: day1.toISOString(),
     });
-    expect((await storedEntry())?.evaluation).toBeUndefined();
+    expect(await storedEntry()).not.toHaveProperty("evaluation");
     await record(day1, day1.toISOString(), 0);
     expect(await refreshAt(day2)).toBe("used");
   });
@@ -333,7 +335,7 @@ describe("peer universe refresh policy", () => {
   test("a write against a superseded generation is skipped", async () => {
     await seed();
     expect(await write(day1, oldGeneration, 9)).toBeUndefined();
-    expect((await storedEntry())?.proposedAt).toBe(day0.toISOString());
+    expect(await storedEntry()).toHaveProperty("proposedAt", day0.toISOString());
   });
 
   test("a write over an expired generation survives a concurrent prune by another symbol", async () => {
@@ -343,7 +345,7 @@ describe("peer universe refresh policy", () => {
     expect(await storedEntry()).toBeUndefined();
 
     expect(await write(day91, generation)).toBe(day91.toISOString());
-    expect((await storedEntry())?.proposedAt).toBe(day91.toISOString());
+    expect(await storedEntry()).toHaveProperty("proposedAt", day91.toISOString());
   });
 
   test("a delayed cache-miss write cannot overwrite a newer refresh", async () => {
@@ -352,7 +354,7 @@ describe("peer universe refresh policy", () => {
     await claim(day1, generation);
     await write(day1, generation);
     expect(await write(day2, undefined, 9)).toBeUndefined();
-    expect((await storedEntry())?.proposedAt).toBe(day1.toISOString());
+    expect(await storedEntry()).toHaveProperty("proposedAt", day1.toISOString());
   });
 
   test("a claim is refused once newer feedback shows enough usable peers", async () => {
@@ -381,7 +383,7 @@ describe("peer universe refresh policy", () => {
     const afterWindow = new Date(day0.getTime() + 90.5 * 86_400_000);
     expect(await refreshAt(afterWindow)).toBe("due");
     expect(await claim(afterWindow, refreshed)).toBe(true);
-    expect((await storedEntry())?.windowStartedAt).toBe(afterWindow.toISOString());
+    expect(await storedEntry()).toHaveProperty("windowStartedAt", afterWindow.toISOString());
   });
 
   test("feedback on one symbol keeps a concurrently written symbol", async () => {
@@ -481,9 +483,9 @@ describe("peer universe refresh policy", () => {
     expect(await makePeerUniverseRefreshClaimer(cachePath, 90, day1, 3)("ZZZZ", generation)).toBe(
       true,
     );
-    expect((await makePeerUniverseCacheReader(cachePath, 90, day2, 2)("ZZZZ"))?.refresh).toBe(
-      "used",
-    );
+    expect(await makePeerUniverseCacheReader(cachePath, 90, day2, 2)("ZZZZ")).toMatchObject({
+      refresh: "used",
+    });
     expect(await makePeerUniverseRefreshClaimer(cachePath, 90, day2, 2)("ZZZZ", generation)).toBe(
       false,
     );

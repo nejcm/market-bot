@@ -2670,16 +2670,16 @@ describe("collectValuationComps", () => {
         triage: "diagnostic",
       }),
     );
-    const refreshMessage = async (fallback: PeerUniverseFallbackContext) =>
-      (
-        await collectValuationComps(
-          collectContext(executor),
-          unmappedCommand,
-          [zzzzSnapshot],
-          unmappedValuation,
-          { peerUniverseFallback: fallback },
-        )
-      ).gaps.find((gap) => gap.message.startsWith("Peer Universe refresh"))?.message;
+    const refreshMessage = async (fallback: PeerUniverseFallbackContext) => {
+      const { gaps } = await collectValuationComps(
+        collectContext(executor),
+        unmappedCommand,
+        [zzzzSnapshot],
+        unmappedValuation,
+        { peerUniverseFallback: fallback },
+      );
+      return gaps.find((gap) => gap.message.startsWith("Peer Universe refresh"))?.message;
+    };
     const failedAudit = {
       proposed: 4,
       survived: 1,

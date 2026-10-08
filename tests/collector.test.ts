@@ -1007,11 +1007,11 @@ describe("collectSources", () => {
       }
       if (url.includes("otherlisted.txt")) {
         return textResponse(
-          "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n",
+          "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\nIBM|International Business Machines Corporation Common Stock|N|IBM|N|100|N|IBM\n",
         );
       }
       if (url.includes("listed_symbols/csv")) {
-        return textResponse("Name,Symbol\n");
+        return textResponse("Name,Symbol\nCboe Listed Example Inc,CBLX\n");
       }
       if (url.includes("companyfacts")) {
         return jsonResponse(collectorSecPayload());

@@ -157,8 +157,13 @@ export function compositeStatementIdentity(
 
 export interface DebtResolution<T> {
   readonly basis: "total" | "components";
-  readonly contributors: readonly { readonly concept: string; readonly fact: T }[];
+  readonly contributors: readonly {
+    readonly concept: string;
+    readonly fact: T;
+    readonly subtract?: true;
+  }[];
   readonly incompleteReason?: string;
+  readonly leaseInclusive?: readonly string[];
 }
 
 export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): ReadonlySet<string> {
@@ -211,46 +216,74 @@ interface DebtSide {
 
 const DEBT_CONTINUITY_DAYS = 400;
 
-function financeLeaseConcepts(
+interface LeaseAdjustment {
+  readonly subtracted: readonly string[];
+  readonly unadjusted: readonly string[];
+  readonly deductions: readonly {
+    readonly aggregates: readonly string[];
+    readonly leases: readonly string[];
+  }[];
+}
+
+// Debt is borrowing-based: a lease-inclusive aggregate loses the matching finance lease tagged beside it.
+function leaseAdjustment(
   concepts: DebtTaxonomyConcepts,
-  sides: readonly DebtSide[],
-  tagged: ReadonlyMap<string, unknown>,
-): { readonly concepts: readonly string[]; readonly incompleteReason?: string } {
+  used: readonly string[],
+  isTagged: (concept: string) => boolean,
+): LeaseAdjustment {
   const leases = concepts.financeLeases;
+  const inclusive = used.filter((concept) => concepts.leaseInclusive?.[concept] !== undefined);
   if (leases === undefined) {
-    return { concepts: [] };
+    return { subtracted: [], unadjusted: inclusive, deductions: [] };
   }
-  const inclusive = (index: number) =>
-    concepts.leaseInclusive?.includes(sides[index]?.generic ?? "") === true;
-  const missingLegs = leases.split.filter((leg, index) => !inclusive(index) && !tagged.has(leg));
-  const neededLegs = leases.split.filter((_, index) => !inclusive(index));
-  if (neededLegs.length === leases.split.length && tagged.has(leases.total)) {
-    return { concepts: [leases.total] };
+  const totalLeases = isTagged(leases.total)
+    ? [leases.total]
+    : (leases.split.every((leg) => isTagged(leg))
+      ? leases.split
+      : []);
+  const deductions: { aggregates: readonly string[]; leases: readonly string[] }[] = [];
+  const pending: string[] = [];
+  for (const concept of inclusive) {
+    const scope = concepts.leaseInclusive?.[concept];
+    const leg = leases.split[scope === "current" ? 0 : 1];
+    const match = scope === "total" ? totalLeases : (leg !== undefined && isTagged(leg) ? [leg] : []);
+    if (match.length > 0) {
+      deductions.push({ aggregates: [concept], leases: match });
+    } else {
+      pending.push(concept);
+    }
   }
-  const taggedLegs = neededLegs.filter((leg) => tagged.has(leg));
-  if (taggedLegs.length === 0 && !tagged.has(leases.total)) {
-    return { concepts: [] };
+  if (pending.length === 2 && isTagged(leases.total)) {
+    deductions.push({ aggregates: pending, leases: [leases.total] });
+    pending.length = 0;
   }
-  return missingLegs.length === 0
-    ? { concepts: taggedLegs }
-    : {
-        concepts: taggedLegs,
-        incompleteReason: `finance leases lack ${missingLegs.join(", ")}`,
-      };
+  return {
+    subtracted: [...new Set(deductions.flatMap((deduction) => deduction.leases))],
+    unadjusted: pending,
+    deductions,
+  };
+}
+
+// `expression` is a selected debt concept, e.g. `DebtCurrent+LongTermDebtNoncurrent-FinanceLeaseLiabilityCurrent`.
+export function unadjustedLeaseInclusiveDebt(
+  taxonomy: FinancialStatementTaxonomy,
+  expression: string,
+): readonly string[] {
+  const terms = expression.match(/[+-]?[^+-]+/gu) ?? [];
+  const subtracted = new Set(
+    terms.filter((term) => term.startsWith("-")).map((term) => term.slice(1)),
+  );
+  const used = terms
+    .filter((term) => !term.startsWith("-"))
+    .map((term) => term.replace(/^\+/u, ""));
+  return leaseAdjustment(DEBT_CONCEPTS[taxonomy], used, (concept) => subtracted.has(concept))
+    .unadjusted;
 }
 
 function coveredDebtConcepts(
   concepts: DebtTaxonomyConcepts,
   sides: readonly DebtSide[],
-  leaseConcepts: readonly string[],
 ): ReadonlySet<string> {
-  const leases = concepts.financeLeases;
-  const coveredLegs = (leases?.split ?? []).filter(
-    (leg, index) =>
-      concepts.leaseInclusive?.includes(sides[index]?.generic ?? "") === true ||
-      leaseConcepts.includes(leg) ||
-      (leases !== undefined && leaseConcepts.includes(leases.total)),
-  );
   return new Set([
     ...sides.flatMap((side, index) =>
       side.generic === undefined
@@ -261,8 +294,7 @@ function coveredDebtConcepts(
           ],
     ),
     ...(sides.every((side) => side.generic !== undefined) ? concepts.totals : []),
-    ...coveredLegs,
-    ...(leases !== undefined && coveredLegs.length === leases.split.length ? [leases.total] : []),
+    ...Object.values(concepts.financeLeases ?? {}).flat(),
   ]);
 }
 
@@ -301,7 +333,6 @@ function incompleteDebtReason(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
   sides: readonly DebtSide[],
-  leases: { readonly concepts: readonly string[]; readonly incompleteReason?: string },
   tagged: ReadonlyMap<string, unknown>,
   history: readonly DebtHistoryFact[],
 ): string | undefined {
@@ -310,20 +341,15 @@ function incompleteDebtReason(
   if (unrecognized.length > 0) {
     return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
   }
-  const borrowings = sides.flatMap((side) => side.concepts);
-  if (borrowings.length === 0) {
+  if (sides.every((side) => side.concepts.length === 0)) {
     return "no borrowing line item is tagged";
   }
-  if (leases.incompleteReason !== undefined) {
-    return leases.incompleteReason;
-  }
-  const covered = coveredDebtConcepts(DEBT_CONCEPTS[taxonomy], sides, leases.concepts);
-  const leaseConcepts = new Set(Object.values(DEBT_CONCEPTS[taxonomy].financeLeases ?? {}).flat());
+  const covered = coveredDebtConcepts(DEBT_CONCEPTS[taxonomy], sides);
   // Two generic side lines are the classified debt totals, so prior footnote borrowings are constituents.
   const bothGeneric = sides.every((side) => side.generic !== undefined);
   const omitted = omittedDebtConcepts(
     instant,
-    (concept) => covered.has(concept) || (bothGeneric && !leaseConcepts.has(concept)),
+    (concept) => covered.has(concept) || bothGeneric,
     history,
   );
   return omitted.length > 0
@@ -337,14 +363,12 @@ export function resolveDebtAtInstant<T>(
   instant: DebtInstant,
   tagged: ReadonlyMap<string, T>,
   history: readonly DebtHistoryFact[],
+  valueOf: (fact: T) => number,
 ): DebtResolution<T> {
   const concepts = DEBT_CONCEPTS[taxonomy];
   const first = (aliases: readonly string[]) => aliases.find((alias) => tagged.has(alias));
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
   const total = first(concepts.totals);
-  if (total !== undefined) {
-    return { basis: "total", contributors: [contributor(total)] };
-  }
   const sides = [concepts.current, concepts.noncurrent].map((side) => {
     const generic = first(side.generic);
     return {
@@ -356,14 +380,29 @@ export function resolveDebtAtInstant<T>(
           : [generic],
     };
   });
-  const leases = financeLeaseConcepts(concepts, sides, tagged);
-  const incompleteReason = incompleteDebtReason(taxonomy, instant, sides, leases, tagged, history);
+  const used = total === undefined ? sides.flatMap((side) => side.concepts) : [total];
+  const { subtracted, unadjusted, deductions } = leaseAdjustment(concepts, used, (concept) =>
+    tagged.has(concept),
+  );
+  const sum = (names: readonly string[]) =>
+    names.reduce((acc, name) => acc + valueOf(tagged.get(name) as T), 0);
+  const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
+  const componentReason =
+    total === undefined
+      ? incompleteDebtReason(taxonomy, instant, sides, tagged, history)
+      : undefined;
+  const incompleteReason =
+    excess === undefined
+      ? componentReason
+      : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   return {
-    basis: "components",
-    contributors: [...sides.flatMap((side) => side.concepts), ...leases.concepts].map((concept) =>
-      contributor(concept),
-    ),
+    basis: total !== undefined && subtracted.length === 0 ? "total" : "components",
+    contributors: [
+      ...used.map((concept) => contributor(concept)),
+      ...subtracted.map((concept) => ({ ...contributor(concept), subtract: true as const })),
+    ],
     ...(incompleteReason !== undefined ? { incompleteReason } : {}),
+    ...(unadjusted.length > 0 ? { leaseInclusive: unadjusted } : {}),
   };
 }
 
@@ -380,10 +419,16 @@ export function unsupersededDebtResolutions<
   );
 }
 
-export function incompleteDebtNote(periodEnd: string, reason: string): FinancialStatementNote {
+export function incompleteDebtNote(
+  periodEnd: string,
+  reason: string,
+  publicAt: string,
+): FinancialStatementNote {
   return {
     code: "incomplete-composite-series",
     seriesKey: "debt",
+    periodKey: `instant|${periodEnd}`,
+    publicAt,
     message: `Debt composite for ${periodEnd} is incomplete: ${reason}.`,
   };
 }

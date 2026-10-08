@@ -28,7 +28,7 @@ export interface DebtTaxonomyConcepts {
   readonly current: DebtSideConcepts;
   readonly noncurrent: DebtSideConcepts;
   readonly financeLeases?: { readonly total: string; readonly split: readonly string[] };
-  readonly leaseInclusive?: readonly string[];
+  readonly leaseInclusive?: Readonly<Record<string, "current" | "noncurrent" | "total">>;
   readonly unrecognizedBorrowing?: RegExp;
 }
 
@@ -48,13 +48,12 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
         "LongTermDebtAndCapitalLeaseObligationsCurrent",
       ],
       instruments: [
-        ["ShortTermBorrowings", "ShortTermDebt"],
+        ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],
         ["NotesPayableCurrent"],
         ["LoansPayableCurrent"],
         ["LinesOfCreditCurrent"],
         ["ConvertibleDebtCurrent"],
         ["SecuredDebtCurrent"],
-        ["CommercialPaper"],
       ],
     },
     noncurrent: {
@@ -71,11 +70,13 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       total: "FinanceLeaseLiability",
       split: ["FinanceLeaseLiabilityCurrent", "FinanceLeaseLiabilityNoncurrent"],
     },
-    leaseInclusive: [
-      "DebtCurrent",
-      "LongTermDebtAndCapitalLeaseObligationsCurrent",
-      "LongTermDebtAndCapitalLeaseObligations",
-    ],
+    leaseInclusive: {
+      DebtCurrent: "current",
+      LongTermDebtAndCapitalLeaseObligationsCurrent: "current",
+      LongTermDebtAndCapitalLeaseObligations: "noncurrent",
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: "total",
+      DebtAndCapitalLeaseObligations: "total",
+    },
     unrecognizedBorrowing:
       /(?:Debt|Borrowings|Notes|NotesPayable|LoansPayable|LinesOfCredit|LineOfCredit|CommercialPaper|Debt\w*LeaseObligations)(?:Current|Noncurrent)?$/u,
   },

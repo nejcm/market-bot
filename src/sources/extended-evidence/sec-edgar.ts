@@ -601,7 +601,9 @@ function debtPeriodIdentity(value: SecFactValue): string {
 }
 
 function resolvedDebtFact(resolution: DebtResolution<SecFactValue>): SecFactValue | undefined {
-  const facts = resolution.contributors.map((contributor) => contributor.fact);
+  const facts = resolution.contributors.map(({ fact, subtract }) =>
+    subtract === true ? { ...fact, val: -fact.val } : fact,
+  );
   const [anchor] = facts;
   if (anchor === undefined || resolution.basis === "total") {
     return anchor;
@@ -626,6 +628,7 @@ interface SecDebtSelection {
   readonly selection?: SecMetricSelection;
   readonly composite?: SecDebtComposite;
   readonly grossPrincipal?: { readonly periodEnd: string; readonly netPeriodEnd: string };
+  readonly leaseInclusive?: { readonly periodEnd: string; readonly concepts: readonly string[] };
 }
 
 function selectDebtMetric(
@@ -690,7 +693,13 @@ function selectNetDebtMetric(
     [...instants.values()].map((tagged) => {
       const [anchor] = [...tagged.values()].toSorted(compareFactRecency);
       const instant = { periodEnd: anchor?.end ?? "", filedAt: anchor?.filed ?? "" };
-      const resolution = resolveDebtAtInstant("us-gaap", instant, tagged, history);
+      const resolution = resolveDebtAtInstant(
+        "us-gaap",
+        instant,
+        tagged,
+        history,
+        (fact) => fact.val,
+      );
       const fact =
         resolution.incompleteReason === undefined ? resolvedDebtFact(resolution) : undefined;
       return { ...instant, resolution, fact, anchor, incomplete: fact === undefined };
@@ -715,6 +724,7 @@ function selectNetDebtMetric(
           ),
         );
   const [primary] = latest?.resolution.contributors ?? [];
+  const leaseInclusive = latest?.resolution.leaseInclusive;
   const composite =
     newest?.resolution.basis === "components"
       ? {
@@ -743,7 +753,23 @@ function selectNetDebtMetric(
         }
       : {}),
     ...(composite !== undefined ? { composite } : {}),
+    ...(latest?.fact.end !== undefined && leaseInclusive !== undefined
+      ? { leaseInclusive: { periodEnd: latest.fact.end, concepts: leaseInclusive } }
+      : {}),
   };
+}
+
+export const DEBT_MAY_INCLUDE_FINANCE_LEASES = "may-include-finance-leases";
+
+export function leaseInclusiveDebtGap(periodEnd: string, concepts: readonly string[]): SourceGap {
+  return sourceGap({
+    source: "sec-edgar",
+    message: `SEC debt as of ${periodEnd} may include finance leases: ${concepts.join(", ")} is tagged without a matching finance-lease amount to remove`,
+    provider: "sec-edgar",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
 }
 
 export function grossPrincipalDebtGap(periodEnd: string, netPeriodEnd: string): SourceGap {
@@ -893,6 +919,18 @@ export function summarizeSecFundamentals(
   if (debtSelection?.grossPrincipal !== undefined) {
     metrics.debtBasis = "gross-principal" satisfies DebtBasis;
   }
+  if (debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined) {
+    metrics.debtLeaseScope = DEBT_MAY_INCLUDE_FINANCE_LEASES;
+  }
+  const incompleteDebt = debtSelection?.composite;
+  if (
+    debtSelection?.selection !== undefined &&
+    incompleteDebt?.incompleteReason !== undefined &&
+    incompleteDebt.periodEnd !== undefined
+  ) {
+    metrics.debtIncompletePeriodEnd = incompleteDebt.periodEnd;
+    metrics.debtIncompleteReason = incompleteDebt.incompleteReason;
+  }
 
   const summary = formatSecFundamentalsSummary(() => metrics);
   if (summary === undefined) {
@@ -927,6 +965,14 @@ export function summarizeSecFundamentals(
 
   const gaps: SourceGap[] = [
     ...grossPrincipalGap,
+    ...(debtSelection?.grossPrincipal === undefined && debtSelection?.leaseInclusive !== undefined
+      ? [
+          leaseInclusiveDebtGap(
+            debtSelection.leaseInclusive.periodEnd,
+            debtSelection.leaseInclusive.concepts,
+          ),
+        ]
+      : []),
     ...(missingFacts.length > 0
       ? [
           sourceGap({

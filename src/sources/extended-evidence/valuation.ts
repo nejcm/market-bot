@@ -9,8 +9,10 @@ import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
 import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
+import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-edgar";
 import {
   balanceSheetPeriodDivergence,
+  guardIncompleteDebtValuationItem,
   guardMixedPeriodValuationItem,
   mixedPeriodValuationGap,
 } from "./valuation-comps-support";
@@ -143,6 +145,10 @@ export function addValuationEvidence(
   const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(secItem.metrics, "debtPeriodEnd");
   const grossPrincipalDebt = readStringMetric(secItem.metrics, "debtBasis") === "gross-principal";
+  const debtLeaseScopeText =
+    readStringMetric(secItem.metrics, "debtLeaseScope") === DEBT_MAY_INCLUDE_FINANCE_LEASES
+      ? "enterprise value uses an SEC debt aggregate that may include finance leases"
+      : "enterprise value is borrowing-based and excludes finance leases";
   const quoteObservedAt = snapshot.observedAt;
   const sic = readStringMetric(secItem.metrics, "sic");
   const sicDescription = readStringMetric(secItem.metrics, "sicDescription");
@@ -176,7 +182,7 @@ export function addValuationEvidence(
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -203,9 +209,16 @@ export function addValuationEvidence(
     ...(secItem.identity !== undefined ? { identity: secItem.identity } : {}),
   };
   const divergence = balanceSheetPeriodDivergence(rawItem.metrics);
-  const item = guardMixedPeriodValuationItem(rawItem, divergence);
-  const sourceGaps =
-    divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)];
+  const incompleteDebt = guardIncompleteDebtValuationItem(
+    guardMixedPeriodValuationItem(rawItem, divergence),
+    command.symbol,
+    secItem.metrics,
+  );
+  const { item } = incompleteDebt;
+  const sourceGaps = [
+    ...(divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)]),
+    ...incompleteDebt.gaps,
+  ];
 
   return {
     extendedEvidence: {

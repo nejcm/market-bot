@@ -7,6 +7,7 @@ import type {
 } from "./financial-statements-contract";
 import { conceptScope } from "./financial-statement-definitions";
 import {
+  DEBT_MAY_INCLUDE_FINANCE_LEASES,
   formatSecFundamentalsSummary,
   type SecMetricDefinitionKey,
   type SecSicClassification,
@@ -20,6 +21,7 @@ import {
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
+  unadjustedLeaseInclusiveDebt,
 } from "./financial-statement-selection";
 
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION = 1;
@@ -312,6 +314,33 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
         metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
       }
     }
+  }
+  const { debtPeriodEnd } = metrics;
+  const [incompleteDebt] = artifact.omissionNotes
+    .filter(
+      (note) =>
+        note.code === "incomplete-composite-series" &&
+        note.seriesKey === "debt" &&
+        typeof debtPeriodEnd === "string" &&
+        (note.periodKey?.replace(/^instant\|/u, "") ?? "") > debtPeriodEnd,
+    )
+    .toSorted((left, right) => (right.periodKey ?? "").localeCompare(left.periodKey ?? ""));
+  const incompletePeriodEnd = incompleteDebt?.periodKey?.replace(/^instant\|/u, "");
+  if (incompleteDebt !== undefined && incompletePeriodEnd !== undefined) {
+    metrics.debtIncompletePeriodEnd = incompletePeriodEnd;
+    metrics.debtIncompleteReason =
+      /is incomplete: (?<reason>.*)\.$/u.exec(incompleteDebt.message)?.groups?.reason ??
+      incompleteDebt.message;
+  }
+  const latestDebt = latestFinancialStatementFact(
+    financialStatementFacts(artifact.statements.balanceSheet.debt),
+  );
+  if (
+    latestDebt !== undefined &&
+    latestDebt.basis === undefined &&
+    unadjustedLeaseInclusiveDebt(latestDebt.taxonomy, latestDebt.concept).length > 0
+  ) {
+    metrics.debtLeaseScope = DEBT_MAY_INCLUDE_FINANCE_LEASES;
   }
   if (Object.keys(metrics).length > 0) {
     metrics[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] =

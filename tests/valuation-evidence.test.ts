@@ -204,7 +204,9 @@ describe("addValuationEvidence", () => {
     const net = valuation(secEvidence({ revenue: 400, cash: 30, debt: 50 }));
 
     expect(gross?.metrics?.debtBasis).toBe("gross-principal");
-    expect(gross?.summary).toContain("; debt is gross principal.");
+    expect(gross?.summary).toContain(
+      "; debt is gross principal; enterprise value is borrowing-based and excludes finance leases.",
+    );
     expect(net?.metrics && "debtBasis" in net.metrics).toBe(false);
     expect(net?.summary).not.toContain("gross principal");
   });

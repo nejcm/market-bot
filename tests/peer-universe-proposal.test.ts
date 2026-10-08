@@ -45,11 +45,14 @@ function nasdaqListedPayload(symbols: readonly string[]): string {
 }
 
 function otherListedPayload(): string {
-  return "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n";
+  return [
+    "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol",
+    "IBM|International Business Machines Corporation Common Stock|N|IBM|N|100|N|IBM",
+  ].join("\n");
 }
 
 function cboeListedPayload(): string {
-  return "Name,Symbol\n";
+  return "Name,Symbol\nCboe Listed Example Inc,CBLX\n";
 }
 
 function secTickersExecutor(
@@ -396,6 +399,103 @@ describe("createPeerUniverseProposer", () => {
     expect((await empty("ZZZZ")).unavailable).toBeUndefined();
   });
 
+  function brokenCboeExecutor(listedSymbols?: string[]): SourceRequestExecutor {
+    const executor = secTickersExecutor(true, listedSymbols);
+    return {
+      ...executor,
+      text: async (input) =>
+        input.adapter === "cboe-listed"
+          ? {
+              source: "cboe-listed",
+              message: "cboe-listed unavailable",
+              capability: "market-data",
+              cause: "fetch-failed",
+              evidenceQualityImpact: "core-cap",
+            }
+          : executor.text(input),
+    };
+  }
+  const threePeers = peersJson([
+    { symbol: "AAPL", name: "Apple Inc.", role: "core", rationale: "tech peer" },
+    { symbol: "MSFT", name: "Microsoft", role: "core", rationale: "software peer" },
+    { symbol: "GOOGL", name: "Alphabet", role: "secondary", rationale: "platform peer" },
+  ]);
+
+  test("accepts survivors positively validated by healthy directories during a partial outage", async () => {
+    const proposal = await createPeerUniverseProposer({
+      provider: modelProvider(threePeers),
+      model: "test-model",
+      request: brokenCboeExecutor(),
+    })("ZZZZ");
+
+    expect(proposal.unavailable).toBeUndefined();
+    expect(proposal.universe?.peers.map((peer) => peer.symbol)).toEqual(["AAPL", "MSFT", "GOOGL"]);
+  });
+
+  test("reports unavailable when a broken directory may hold the unresolved candidates", async () => {
+    const proposal = await createPeerUniverseProposer({
+      provider: modelProvider(threePeers),
+      model: "test-model",
+      request: brokenCboeExecutor(["AAPL"]),
+    })("ZZZZ");
+
+    expect(proposal.universe).toBeUndefined();
+    expect(proposal.unavailable).toBe(true);
+  });
+
+  test("reports unavailable when candidates appear only in unclassified rows of a healthy directory", async () => {
+    const executor = secTickersExecutor(true, []);
+    const proposal = await createPeerUniverseProposer({
+      provider: modelProvider(threePeers),
+      model: "test-model",
+      request: {
+        ...executor,
+        text: async (input) => {
+          if (input.adapter === "nasdaq-listed") {
+            return {
+              source: "nasdaq-listed",
+              message: "nasdaq-listed unavailable",
+              capability: "market-data",
+              cause: "fetch-failed",
+              evidenceQualityImpact: "core-cap",
+            };
+          }
+          return input.adapter === "cboe-listed"
+            ? rawText(input.adapter, "Name,Symbol\nApple,AAPL\nMicrosoft,MSFT\nAlphabet,GOOGL\n")
+            : executor.text(input);
+        },
+      },
+    })("ZZZZ");
+
+    expect(proposal.universe).toBeUndefined();
+    expect(proposal.unavailable).toBe(true);
+  });
+
+  test("a shortfall with healthy directories stays an ordinary insufficient result", async () => {
+    const proposal = await createPeerUniverseProposer({
+      provider: modelProvider(threePeers),
+      model: "test-model",
+      request: secTickersExecutor(true, ["AAPL"]),
+    })("ZZZZ");
+
+    expect(proposal.universe).toBeUndefined();
+    expect(proposal.unavailable).toBeUndefined();
+  });
+
+  test("caps the proposal completion at 2000 tokens", async () => {
+    const provider = modelProvider(peersJson([]));
+    await createPeerUniverseProposer({
+      provider,
+      model: "test-model",
+      request: secTickersExecutor(),
+    })("ZZZZ");
+    const request = (provider.generate as ReturnType<typeof mock>).mock.calls[0]?.[0] as
+      | ModelRequest
+      | undefined;
+
+    expect(request?.params).toMatchObject({ max_completion_tokens: 2000 });
+  });
+
   test("caps survivors at MAX_PEERS (8)", async () => {
     const directory: Record<string, { cik_str: number; ticker: string; title: string }> = {};
     const peers: Record<string, unknown>[] = [];
@@ -411,11 +511,10 @@ describe("createPeerUniverseProposer", () => {
           : (() => {
               throw new Error("unexpected");
             })(),
-      text: async () =>
-        rawText(
-          "nasdaq-listed",
-          nasdaqListedPayload(Array.from({ length: 10 }, (_, index) => `PEER${String(index)}`)),
-        ),
+      text: secTickersExecutor(
+        true,
+        Array.from({ length: 10 }, (_, index) => `PEER${String(index)}`),
+      ).text,
     };
     const propose = createPeerUniverseProposer({
       provider: modelProvider(peersJson(peers)),

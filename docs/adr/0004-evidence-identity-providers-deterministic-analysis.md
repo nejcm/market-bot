@@ -256,20 +256,21 @@ without pretending the project has a global security master.
   totals. Matching period keys resolve by filed date, amendment status, and accession number; a
   later valid amendment supersedes only its matching period. Selected facts preserve form,
   canonical form, accession, filing and period metadata, fiscal identifiers, taxonomy, unit/currency,
-  unit scale, extraction method, and source IDs. Debt is resolved per balance-sheet instant by one
-  rule shared by the legacy and canonical selectors: a tagged standard total (including the
-  lease-inclusive aggregates, which are alternatives to their constituents) wins; otherwise the
-  selected fact is a deterministic same-instant sum (`extractionMethod: derived-sec-companyfacts`)
-  of disjoint borrowing line items plus finance leases, carrying every contributor. Aliases of one
-  line item, a total and its constituents, and a finance-lease total and its current/noncurrent
-  split are alternatives, never added; a generic current or noncurrent long-term-debt line
-  subsumes that side's instrument lines and, when the concept map marks it lease-inclusive (for
-  example `DebtCurrent`), that side's lease leg; operating leases are excluded. A component set is complete only when no unrecognized standard borrowing
-  concept is tagged at that instant, it has a borrowing line, finance leases are a full total or
-  both needed split legs, and every debt concept
-  whose latest earlier value (within the prior 400 days, or from an earlier filing of the same
-  instant) was nonzero is still covered, lease legs per side; when both sides are generic, earlier
-  borrowing details count as their constituents. A later filing's incomplete set supersedes an earlier
+  unit scale, extraction method, and source IDs. Debt is a lease-exclusive borrowing basis,
+  resolved per balance-sheet instant by one rule shared by the legacy and canonical selectors: a
+  tagged standard total wins; otherwise the selected fact is a deterministic same-instant sum
+  (`extractionMethod: derived-sec-companyfacts`) of disjoint borrowing line items, carrying every
+  contributor. Aliases of one line item and a total and its constituents (including short-term
+  borrowings and the commercial paper inside them) are alternatives, never added; a generic
+  current or noncurrent long-term-debt line subsumes that side's instrument lines; finance and
+  operating leases are excluded. A lease-inclusive aggregate (`DebtCurrent`, the
+  `LongTermDebtAndCapitalLeaseObligations*` lines, `DebtAndCapitalLeaseObligations`) has the
+  matching finance-lease leg or total tagged at the same instant subtracted; when none is tagged it
+  is kept and a `no-cap` Source Gap discloses that debt may include finance leases. A component set
+  is complete only when no unrecognized standard borrowing concept is tagged at that instant, it
+  has a borrowing line, and every borrowing concept whose latest earlier value (within the prior
+  400 days, or from an earlier filing of the same instant) was nonzero is still covered; when both
+  sides are generic, earlier borrowing details count as their constituents. A later filing's incomplete set supersedes an earlier
   complete one for the same instant. The canonical series keeps only instants on the latest
   complete instant's basis, and legacy priors never cross basis, so year-over-year comparisons stay
   on one measurement. Incomplete instants are never published as debt; when newer than the latest complete instant they produce an
@@ -411,7 +412,9 @@ without pretending the project has a global security master.
   never overwrites newer. A usable generation with fewer than three usable peers is re-proposed
   at most once per TTL window: the attempt is claimed under the cache lock before the model call
   and stays consumed if the proposal is insufficient, while the learned peers keep serving; it is
-  released when the SEC directory or model is unavailable, and an attempt recorded under a
+  released when the SEC directory or model is unavailable, or when the proposal falls short while a
+  failed listing directory could hold candidates it left unresolved (healthy directories still
+  validate survivors), and an attempt recorded under a
   superseded proposer revision does not count against the window. An
   expired or invalid entry has no peers to serve, so it re-proposes on each run like a cache miss
   without spending the allowance. Either re-proposal is deferred while target SIC or a positive
@@ -447,8 +450,12 @@ without pretending the project has a global security master.
   balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
   quote with cash/debt more than 92 days apart. Cash and debt more than 92 days apart are a
   different failure: target valuation evidence, peer rows, Financial Lens net debt, and historical
-  Workbench EV/revenue (`mixed-period-balance-sheet`) all withhold EV rather than pair them; the
+  Workbench EV/revenue (`mixed-period-balance-sheet`) all withhold EV rather than pair them, and
+  valuation evidence states that enterprise value is borrowing-based and excludes finance leases; the
   target valuation producer declares the mixed-period Source Gap itself, so brief runs carry it.
+  Older complete debt never stands in for a newer instant whose debt is incomplete: target valuation
+  withholds EV and net debt with a Source Gap, peer rows declare the incomplete basis, and Workbench
+  observations drop debt when such an instant falls at or before their cash instant.
 - For a depository issuer, enterprise value and every EV-derived surface are inapplicable, not
   unavailable: deposits and borrowings fund operations, so no defensible operating/financing split
   exists. The issuer is classified once from a well-formed four-digit SIC on its own `sec-edgar`

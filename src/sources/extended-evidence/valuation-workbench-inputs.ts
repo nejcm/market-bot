@@ -134,6 +134,30 @@ function deriveShares(
   };
 }
 
+// Older complete debt cannot stand in once a newer incomplete instant up to the cash instant is public.
+function debtInput(
+  artifact: FinancialStatementsArtifact,
+  debtFact: FinancialStatementFact | undefined,
+  cashFact: FinancialStatementFact | undefined,
+  publicAt: string,
+): { readonly debt?: ValuationFundamentalInput } {
+  if (debtFact === undefined) {
+    return {};
+  }
+  const masked = artifact.omissionNotes.some((note) => {
+    const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
+    return (
+      note.code === "incomplete-composite-series" &&
+      note.seriesKey === "debt" &&
+      periodEnd !== undefined &&
+      periodEnd > debtFact.periodEnd &&
+      periodEnd <= (cashFact?.periodEnd ?? debtFact.periodEnd) &&
+      (note.publicAt ?? "") <= publicAt
+    );
+  });
+  return masked ? {} : { debt: factInput("Debt", debtFact) };
+}
+
 function annualInputs(
   artifact: FinancialStatementsArtifact,
   revenueFact: FinancialStatementFact,
@@ -208,7 +232,7 @@ function annualInputs(
     ...(dilutedShares !== undefined ? { dilutedShares } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...(debtFact !== undefined ? { debt: factInput("Debt", debtFact) } : {}),
+    ...debtInput(artifact, debtFact, cashFact, publicAt),
   };
 }
 
@@ -286,7 +310,7 @@ function periodInputsFromTtm(
     ...(dilutedShares !== undefined ? { dilutedShares } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...(debtFact !== undefined ? { debt: factInput("Debt", debtFact) } : {}),
+    ...debtInput(artifact, debtFact, cashFact, publicAt),
   };
 }
 

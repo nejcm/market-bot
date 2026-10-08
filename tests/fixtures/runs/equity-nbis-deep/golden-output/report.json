@@ -641,7 +641,7 @@
       {
         "category": "valuation",
         "title": "NBIS Valuation Evidence",
-        "summary": "Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+        "summary": "Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
         "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
         "observedAt": "2026-07-22T16:16:13.510Z",
         "metrics": {

@@ -202,6 +202,7 @@ export interface FinancialStatementNote {
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
+  readonly publicAt?: string;
 }
 
 export interface StructuredFinancialGap {

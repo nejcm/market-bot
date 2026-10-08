@@ -255,6 +255,36 @@ export function mixedPeriodValuationGap(
   );
 }
 
+// Older complete debt must not stand in for a newer instant whose debt is incomplete.
+export function guardIncompleteDebtValuationItem(
+  item: ExtendedEvidenceItem,
+  symbol: string,
+  sec: Readonly<Record<string, number | string>> | undefined,
+): { readonly item: ExtendedEvidenceItem; readonly gaps: readonly SourceGap[] } {
+  const incompletePeriodEnd = readStringMetric(sec, "debtIncompletePeriodEnd");
+  if (incompletePeriodEnd === undefined || item.metrics?.netDebt === MIXED_PERIOD_METRIC) {
+    return { item, gaps: [] };
+  }
+  const message = `Incomplete SEC debt for ${symbol}: debt at ${incompletePeriodEnd} is incomplete (${readStringMetric(sec, "debtIncompleteReason") ?? "unknown reason"}); enterprise value and net debt withheld rather than using older debt`;
+  const metrics = Object.fromEntries(
+    Object.entries(item.metrics ?? {}).filter(
+      ([key]) => key !== "evToAnnualizedRevenue" && key !== "netDebtToMarketCap",
+    ),
+  );
+  return {
+    item: {
+      ...item,
+      summary: `Valuation Evidence: ${message}. Raw market cap, cash, debt, and revenue metrics are retained.`,
+      metrics: {
+        ...metrics,
+        netDebt: MIXED_PERIOD_METRIC,
+        ...(metrics.enterpriseValue === undefined ? {} : { enterpriseValue: MIXED_PERIOD_METRIC }),
+      },
+    },
+    gaps: [valuationCompsGap(message, "provider-data-missing", "valuation", symbol.toUpperCase())],
+  };
+}
+
 export function guardMixedPeriodValuationItem(
   item: ExtendedEvidenceItem,
   divergence: BalanceSheetPeriodDivergence | undefined,

@@ -203,6 +203,29 @@ describe("addFinancialLensEvidence", () => {
     expect(strength?.metrics.find((metric) => metric.key === "netDebtToMarketCap")).toBeUndefined();
   });
 
+  test("withholds SEC-only net debt when cash and debt periods diverge beyond 92 days", () => {
+    const netDebtFor = (debtPeriodEnd: string) => {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [secEvidenceWithRatios({ cashPeriodEnd: "2026-06-30", debtPeriodEnd })],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-08-22T00:00:00.000Z",
+      );
+      return lensByName(result, "Financial Strength")?.metrics.find(
+        (metric) => metric.key === "netDebt",
+      )?.value;
+    };
+
+    expect(netDebtFor("2025-06-30")).toBeUndefined();
+    expect(netDebtFor("2026-03-29")).toBeUndefined();
+    expect(netDebtFor("2026-03-30")).toBe(-15);
+  });
+
   test("flags stale EV date mixing and clamps negative zero lens values", () => {
     const baseEvidence = evidence();
     const datedEvidence: ExtendedEvidence = {

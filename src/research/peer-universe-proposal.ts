@@ -168,6 +168,16 @@ function isEligibleListedCommonStock(
   );
 }
 
+// A row without a stock classification (Cboe) cannot rule a candidate out; only classified rows can.
+function hasAffirmativeListing(
+  symbol: string,
+  listedEntries: readonly ListedUniverseEntry[],
+): boolean {
+  return listedEntries.some(
+    (entry) => entry.symbol === symbol && entry.isSupportedStock !== undefined,
+  );
+}
+
 // Runs the structured-JSON model call; null when the provider throws (network/timeout).
 async function generatePeerProposal(
   deps: ProposerDeps,
@@ -239,6 +249,7 @@ export function createPeerUniverseProposer(
     let rejectedByDirectory = 0;
     let rejectedByEtf = 0;
     let rejectedByListing = 0;
+    let unresolvedListings = 0;
     const seen = new Set<string>();
     const survivors: { peer: RawProposedPeer; secName: string }[] = [];
 
@@ -270,6 +281,9 @@ export function createPeerUniverseProposer(
 
       if (!isEligibleListedCommonStock(symbol, listedUniverse.entries)) {
         rejectedByListing++;
+        if (!hasAffirmativeListing(symbol, listedUniverse.entries)) {
+          unresolvedListings++;
+        }
         continue;
       }
 
@@ -302,7 +316,10 @@ export function createPeerUniverseProposer(
     };
 
     if (survivors.length < MIN_PROPOSED_PEERS) {
-      return { audit };
+      // A failed directory may hold the candidates it left unresolved, so this shortfall is an outage.
+      return listedUniverse.sourceGaps.length > 0 && unresolvedListings > 0
+        ? { audit, unavailable: true }
+        : { audit };
     }
 
     const peerSource: PeerUniverseSource = {

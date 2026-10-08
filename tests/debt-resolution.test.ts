@@ -1,11 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import {
+  deriveFinancialStatements,
+  financialStatementsDebtBasisGaps,
+} from "../src/sources/extended-evidence/financial-statements";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { balanceSheetPeriodDivergence } from "../src/sources/extended-evidence/valuation-comps-support";
+import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
+import { marketSnapshot } from "./support/fixtures";
 import type { ValuationFundamentalInput } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { metricResults } from "../src/sources/extended-evidence/valuation-workbench-metrics";
 
@@ -86,7 +93,7 @@ describe("debt resolution at the cash instant", () => {
     expect(legacy?.debtComposite?.incompleteReason).toBeUndefined();
   });
 
-  test("RFIL: a current line of credit plus an explicit zero finance lease beats stale zero LTD", () => {
+  test("RFIL: a current line of credit beats stale zero LTD", () => {
     const at = (value: number, end = "2026-07-31") =>
       instant(value, end, "2026-09-12", "10-Q", "Q3");
     const { canonical, legacy } = resolve({
@@ -98,16 +105,16 @@ describe("debt resolution at the cash instant", () => {
       LongTermDebtNoncurrent: [instant(0, "2024-10-31", "2025-01-28", "10-K", "FY")],
     });
 
-    expect(canonical).toMatchObject({ value: 5_718_000, periodEnd: "2026-07-31" });
-    expect(canonical?.composite?.components.map((component) => component.concept)).toEqual([
-      "LinesOfCreditCurrent",
-      "FinanceLeaseLiability",
-    ]);
+    expect(canonical).toMatchObject({
+      value: 5_718_000,
+      periodEnd: "2026-07-31",
+      concept: "LinesOfCreditCurrent",
+    });
     expect(legacy?.metrics.debt).toBe(5_718_000);
     expect(legacy?.metrics.debtPeriodEnd).toBe("2026-07-31");
   });
 
-  test("OCC: counts revolver, both term-loan legs and the finance-lease total once", () => {
+  test("OCC: counts the revolver and both term-loan legs, excluding finance leases", () => {
     const at = (value: number) => instant(value, "2026-07-31", "2026-09-10", "10-Q", "Q3");
     const { canonical, legacy } = resolve({
       CashAndCashEquivalentsAtCarryingValue: [at(297_193)],
@@ -122,8 +129,8 @@ describe("debt resolution at the cash instant", () => {
       LongTermDebtNoncurrent: [instant(2_540_622, "2025-04-30", "2025-06-12")],
     });
 
-    expect(canonical).toMatchObject({ value: 9_180_370, periodEnd: "2026-07-31" });
-    expect(legacy?.metrics.debt).toBe(9_180_370);
+    expect(canonical).toMatchObject({ value: 8_968_988, periodEnd: "2026-07-31" });
+    expect(legacy?.metrics.debt).toBe(8_968_988);
   });
 
   test("OCC-shaped partial set with an unrecognized borrowing concept stays incomplete", () => {
@@ -164,7 +171,7 @@ describe("debt resolution at the cash instant", () => {
     expect(legacy?.debtComposite?.incompleteReason).toContain("LongTermLoansPayable");
   });
 
-  test("REGN: a lone generic noncurrent line plus both lease legs is complete", () => {
+  test("REGN: a lone generic noncurrent line is complete and excludes finance leases", () => {
     const at = (value: number, end = "2026-06-30") => instant(value, end, "2026-07-30");
     const yearEnd = (value: number) => instant(value, "2025-12-31", "2026-02-04", "10-K", "FY");
     const { canonical, legacy } = resolve({
@@ -175,8 +182,8 @@ describe("debt resolution at the cash instant", () => {
       FinanceLeaseLiabilityNoncurrent: [yearEnd(720_000_000), at(0)],
     });
 
-    expect(canonical).toMatchObject({ value: 2_706_600_000, periodEnd: "2026-06-30" });
-    expect(legacy?.metrics.debt).toBe(2_706_600_000);
+    expect(canonical).toMatchObject({ value: 1_986_600_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(1_986_600_000);
   });
 
   test("CLFD: no debt tagged at the cash instant keeps the older debt rather than inferring zero", () => {
@@ -227,11 +234,7 @@ describe("debt resolution at the cash instant", () => {
         FinanceLeaseLiabilityCurrent: [at(1)],
         FinanceLeaseLiabilityNoncurrent: [at(2)],
       }).canonical,
-    ).toMatchObject({
-      value: 103,
-      concept:
-        "LongTermDebtCurrent+LongTermDebtNoncurrent+FinanceLeaseLiabilityCurrent+FinanceLeaseLiabilityNoncurrent",
-    });
+    ).toMatchObject({ value: 100, concept: "LongTermDebtCurrent+LongTermDebtNoncurrent" });
     expect(
       resolve({
         ShortTermBorrowings: [at(7)],
@@ -239,6 +242,17 @@ describe("debt resolution at the cash instant", () => {
         LongTermLoansPayable: [at(3)],
       }).canonical,
     ).toMatchObject({ value: 10 });
+  });
+
+  test("commercial paper is a constituent of short-term borrowings, never added to it", () => {
+    const at = (value: number) => instant(value, "2026-06-30", "2026-08-06");
+    expect(
+      resolve({
+        ShortTermBorrowings: [at(100)],
+        CommercialPaper: [at(80)],
+        LongTermNotesPayable: [at(200)],
+      }).canonical,
+    ).toMatchObject({ value: 300, concept: "ShortTermBorrowings+LongTermNotesPayable" });
   });
 
   test("explicit tagged zeros at the cash instant count as zero debt", () => {
@@ -313,33 +327,56 @@ describe("debt resolution refuses incomplete component sets", () => {
     );
   });
 
-  test("a finance-lease split with one leg missing is incomplete", () => {
-    expectRefused(
-      {
-        LongTermDebtCurrent: [original(10)],
-        LongTermDebtNoncurrent: [original(90)],
-        FinanceLeaseLiabilityCurrent: [original(1)],
-      },
-      "finance leases lack FinanceLeaseLiabilityNoncurrent",
+  test("a lease-inclusive side loses its own tagged lease leg, else the basis is disclosed", () => {
+    const adjusted = resolve({
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [original(11)],
+      FinanceLeaseLiabilityCurrent: [original(1)],
+      LongTermDebtNoncurrent: [original(90)],
+      FinanceLeaseLiabilityNoncurrent: [original(9)],
+    });
+    expect(adjusted.canonical).toMatchObject({
+      value: 100,
+      concept:
+        "LongTermDebtAndCapitalLeaseObligationsCurrent+LongTermDebtNoncurrent-FinanceLeaseLiabilityCurrent",
+    });
+    expect(adjusted.legacy?.metrics.debt).toBe(100);
+    expect(
+      adjusted.legacy?.gaps.some((gap) => gap.message.includes("may include finance leases")),
+    ).toBe(false);
+
+    const unadjusted = resolve({
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [original(11)],
+      LongTermDebtNoncurrent: [original(90)],
+      FinanceLeaseLiabilityNoncurrent: [original(9)],
+    });
+    expect(unadjusted.canonical).toMatchObject({ value: 101 });
+    expect(unadjusted.legacy?.gaps).toContainEqual(
+      expect.objectContaining({
+        evidenceQualityImpact: "no-cap",
+        message: expect.stringContaining(
+          "may include finance leases: LongTermDebtAndCapitalLeaseObligationsCurrent",
+        ),
+      }),
     );
+    expect(financialStatementsDebtBasisGaps(unadjusted.artifact)).toEqual([
+      expect.objectContaining({
+        message: unadjusted.legacy?.gaps.find((gap) => gap.message.includes("finance leases"))
+          ?.message,
+      }),
+    ]);
   });
 
-  test("lease inclusion is decided per side", () => {
+  test("a lease-inclusive total loses the finance-lease total tagged beside it", () => {
     expect(
       resolve({
-        LongTermDebtAndCapitalLeaseObligationsCurrent: [original(11)],
-        LongTermDebtNoncurrent: [original(90)],
-        FinanceLeaseLiabilityNoncurrent: [original(9)],
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [original(6_570_503_000)],
+        FinanceLeaseLiability: [original(142_678_000)],
       }).canonical,
-    ).toMatchObject({ value: 110 });
-    expectRefused(
-      {
-        LongTermDebtAndCapitalLeaseObligationsCurrent: [original(11)],
-        LongTermDebtNoncurrent: [original(90)],
-        FinanceLeaseLiability: [original(10)],
-      },
-      "finance leases lack FinanceLeaseLiabilityNoncurrent",
-    );
+    ).toMatchObject({
+      value: 6_427_825_000,
+      concept:
+        "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities-FinanceLeaseLiability",
+    });
   });
 
   test("a lease-inclusive aggregate is a total alternative, not an extra constituent", () => {
@@ -372,18 +409,7 @@ describe("debt resolution refuses incomplete component sets", () => {
     ).toMatchObject({ value: 8_424_000_000, periodEnd: "2026-06-30" });
   });
 
-  test("lease coverage stays per side when no fresh lease is tagged", () => {
-    expectRefused(
-      {
-        LongTermDebtAndCapitalLeaseObligationsCurrent: [original(11)],
-        LongTermDebtNoncurrent: [original(90)],
-        FinanceLeaseLiabilityNoncurrent: [priorQuarter(9)],
-      },
-      "omits FinanceLeaseLiabilityNoncurrent",
-    );
-  });
-
-  test("DebtCurrent already includes the current finance-lease leg", () => {
+  test("DebtCurrent loses its current finance-lease leg", () => {
     expect(
       resolve({
         DebtCurrent: [original(11)],
@@ -391,7 +417,7 @@ describe("debt resolution refuses incomplete component sets", () => {
         FinanceLeaseLiabilityCurrent: [original(1)],
         FinanceLeaseLiabilityNoncurrent: [original(9)],
       }).canonical,
-    ).toMatchObject({ value: 110 });
+    ).toMatchObject({ value: 100 });
   });
 
   test("an unrecognized borrowing tagged at the instant refuses even two generic sides", () => {
@@ -413,6 +439,195 @@ describe("debt resolution refuses incomplete component sets", () => {
       },
       "LongTermDebtAndFinanceLeaseObligationsCurrent",
     );
+  });
+});
+
+describe("older complete debt never stands in for a newer incomplete instant", () => {
+  const q3 = (value: number) => instant(value, "2025-09-30", "2025-11-05", "10-Q", "Q3");
+  const fy = (value: number) => instant(value, "2025-12-31", "2026-02-15", "10-K", "FY");
+  const gaap = {
+    CashAndCashEquivalentsAtCarryingValue: [fy(20)],
+    NotesPayableCurrent: [q3(30), fy(40)],
+    LongTermNotesPayable: [q3(70)],
+  };
+
+  test("target valuation withholds EV and declares a Source Gap", () => {
+    const { legacy } = resolve(gaap);
+    expect(legacy?.metrics).toMatchObject({
+      debt: 100,
+      debtPeriodEnd: "2025-09-30",
+      debtIncompletePeriodEnd: "2025-12-31",
+    });
+    const result = addValuationEvidence(
+      { jobType: "equity", assetClass: "equity", symbol: "TEST", depth: "deep" },
+      [marketSnapshot({ symbol: "TEST", marketCap: 100 })],
+      {
+        instrument: { symbol: "TEST", assetClass: "equity" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "TEST SEC Fundamental Evidence",
+            summary: "SEC Fundamental Evidence.",
+            sourceIds: ["sec"],
+            observedAt: "2026-03-01T00:00:00.000Z",
+            metrics: legacy?.metrics ?? {},
+          },
+        ],
+        gaps: [],
+      },
+    );
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+
+    expect(valuation?.metrics).toMatchObject({
+      enterpriseValue: "mixed-period",
+      netDebt: "mixed-period",
+    });
+    expect(valuation?.metrics?.evToAnnualizedRevenue).toBeUndefined();
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining("Incomplete SEC debt for TEST: debt at 2025-12-31"),
+      }),
+    );
+  });
+
+  test("the canonical replacement keeps the incomplete-debt metadata for valuation", () => {
+    const { artifact, legacy } = resolve(gaap);
+    const replaced = withCanonicalFinancialLensInputs(
+      {
+        instrument: { symbol: "TEST", assetClass: "equity" },
+        items: [
+          {
+            category: "sec-edgar",
+            title: "TEST SEC Fundamental Evidence",
+            summary: "SEC Fundamental Evidence.",
+            sourceIds: ["sec"],
+            observedAt: "2026-03-01T00:00:00.000Z",
+            metrics: legacy?.metrics ?? {},
+          },
+        ],
+        gaps: [],
+      },
+      artifact,
+    );
+    const result = addValuationEvidence(
+      { jobType: "equity", assetClass: "equity", symbol: "TEST", depth: "deep" },
+      [marketSnapshot({ symbol: "TEST", marketCap: 100 })],
+      replaced,
+    );
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+
+    expect(valuation?.metrics?.enterpriseValue).toBe("mixed-period");
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "debt at 2025-12-31 is incomplete (omits LongTermNotesPayable",
+        ),
+      }),
+    );
+  });
+
+  test("the Workbench ignores an incomplete filing published after the observation", () => {
+    const { artifact } = resolve({
+      ...gaap,
+      NotesPayableCurrent: [q3(30), instant(40, "2025-12-31", "2026-04-15", "10-K/A", "FY")],
+    });
+    expect(valuationPeriodInputs(artifact).periods.at(-1)?.debt).toMatchObject({
+      value: 100,
+      periodEnd: "2025-09-30",
+    });
+  });
+
+  test("the Workbench drops debt for the observation", () => {
+    const { artifact } = resolve(gaap);
+    const period = valuationPeriodInputs(artifact).periods.at(-1);
+    expect(period?.cash?.periodEnd).toBe("2025-12-31");
+    expect(period?.debt).toBeUndefined();
+  });
+});
+
+function secEvidenceFrom(metrics: Readonly<Record<string, number | string>> | undefined) {
+  return {
+    instrument: { symbol: "TEST", assetClass: "equity" as const },
+    items: [
+      {
+        category: "sec-edgar" as const,
+        title: "TEST SEC Fundamental Evidence",
+        summary: "SEC Fundamental Evidence.",
+        sourceIds: ["sec"],
+        observedAt: "2026-08-10T00:00:00.000Z",
+        metrics: metrics ?? {},
+      },
+    ],
+    gaps: [],
+  };
+}
+
+function valuationItemFor(evidence: ReturnType<typeof secEvidenceFrom>) {
+  return addValuationEvidence(
+    { jobType: "equity", assetClass: "equity", symbol: "TEST", depth: "deep" },
+    [marketSnapshot({ symbol: "TEST", marketCap: 100 })],
+    evidence,
+  ).extendedEvidence?.items.find((item) => item.category === "valuation");
+}
+
+describe("lease deductions and debt-scope disclosure", () => {
+  const at = (value: number) => instant(value, "2026-06-30", "2026-08-06");
+
+  test("a lease deduction larger than its aggregate is refused even beside a positive component", () => {
+    const { canonical, legacy } = resolve({
+      DebtCurrent: [at(10)],
+      FinanceLeaseLiabilityCurrent: [at(20)],
+      LongTermDebtNoncurrent: [at(90)],
+    });
+    expect(canonical).toBeUndefined();
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.debtComposite?.incompleteReason).toBe(
+      "finance-lease deduction FinanceLeaseLiabilityCurrent exceeds DebtCurrent",
+    );
+    expect(
+      resolve({
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [at(10)],
+        FinanceLeaseLiability: [at(20)],
+      }).canonical,
+    ).toBeUndefined();
+  });
+
+  test("an unmatched lease-inclusive aggregate changes the disclosure instead of contradicting it", () => {
+    const { artifact, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(5)],
+      DebtCurrent: [at(11)],
+      LongTermDebtNoncurrent: [at(90)],
+    });
+    for (const evidence of [
+      secEvidenceFrom(legacy?.metrics),
+      withCanonicalFinancialLensInputs(secEvidenceFrom(legacy?.metrics), artifact),
+    ]) {
+      const summary = valuationItemFor(evidence as ReturnType<typeof secEvidenceFrom>)?.summary;
+      expect(summary).toContain("may include finance leases");
+      expect(summary).not.toContain("excludes finance leases");
+    }
+  });
+});
+
+describe("newer valid debt is not withheld by an older incomplete instant", () => {
+  test("a calibrated gross-principal June fact outranks an incomplete March note", () => {
+    const fy = (value: number) => instant(value, "2025-12-31", "2026-02-15", "10-K", "FY");
+    const march = (value: number) => instant(value, "2026-03-31", "2026-05-06", "10-Q", "Q1");
+    const june = (value: number) => instant(value, "2026-06-30", "2026-08-06");
+    const { artifact, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [june(20)],
+      LongTermDebtCurrent: [fy(10), march(15)],
+      LongTermDebtNoncurrent: [fy(190)],
+      DebtInstrumentCarryingAmount: [fy(200), june(200)],
+    });
+    const replaced = withCanonicalFinancialLensInputs(secEvidenceFrom(legacy?.metrics), artifact);
+    const sec = replaced.items.find((item) => item.category === "sec-edgar");
+
+    expect(sec?.metrics).toMatchObject({ debt: 200, debtPeriodEnd: "2026-06-30" });
+    expect(sec?.metrics?.debtIncompletePeriodEnd).toBeUndefined();
+    expect(
+      valuationItemFor(replaced as ReturnType<typeof secEvidenceFrom>)?.metrics?.enterpriseValue,
+    ).toBe(280);
   });
 });
 

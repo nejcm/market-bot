@@ -389,8 +389,13 @@ export function makePeerUniverseCacheWriter(
     return withFileLock(`${path}.lock`, async () => {
       const entries = await readIndex(path);
       const previous = entries.find((e) => e.targetSymbol === target);
+      // A concurrent writer may have pruned the expired entry this run observed; that is not a newer generation.
+      const prunedAfterExpiry =
+        previous === undefined &&
+        observedGeneration !== undefined &&
+        isExpired(observedGeneration, now, ttlDays);
       if (
-        previous?.proposedAt !== observedGeneration ||
+        (previous?.proposedAt !== observedGeneration && !prunedAfterExpiry) ||
         (claimed === true && (previous === undefined || !ownsClaim(previous, now, revision)))
       ) {
         return;

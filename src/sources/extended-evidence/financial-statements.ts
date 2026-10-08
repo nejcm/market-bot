@@ -4,6 +4,7 @@ import type { CollectContext } from "../types";
 import {
   fetchSecCompanyFactsForSymbol,
   grossPrincipalDebtGap,
+  leaseInclusiveDebtGap,
   type SecCompanyFactsResult,
 } from "./sec-edgar";
 import {
@@ -22,6 +23,7 @@ import {
   financialStatementFacts,
   debtCandidateConcepts,
   incompleteDebtNote,
+  unadjustedLeaseInclusiveDebt,
   unsupersededDebtResolutions,
   incompleteFinancialStatementNotes,
   latestFinancialStatementFact,
@@ -284,7 +286,10 @@ function factsForDefinition(
   );
 }
 
-function compositeFromContributors(contributors: readonly ParsedFact[]): ParsedFact {
+function compositeFromContributors(
+  contributors: readonly ParsedFact[],
+  subtracted: ReadonlySet<string> = new Set(),
+): ParsedFact {
   const [anchor] = contributors;
   if (anchor === undefined) {
     throw new Error("compositeFromContributors requires at least one contributor");
@@ -301,7 +306,12 @@ function compositeFromContributors(contributors: readonly ParsedFact[]): ParsedF
     fiscalYear: anchor.fiscalYear,
     fiscalPeriod: anchor.fiscalPeriod,
     taxonomy: anchor.taxonomy,
-    concept: contributors.map((fact) => fact.concept).join("+"),
+    concept: contributors
+      .map(
+        (fact, index) =>
+          `${index === 0 ? "" : (subtracted.has(fact.concept) ? "-" : "+")}${fact.concept}`,
+      )
+      .join(""),
     unit: anchor.unit,
     composite: {
       formula: COMPOSITE_STATEMENT_FACT_FORMULA,
@@ -320,14 +330,17 @@ function withCompositeFirstPublicAt(
   composite: ParsedFact,
   definition: FinancialStatementSeriesDefinition,
   candidates: readonly ParsedFact[],
+  subtracted: ReadonlySet<string>,
 ): ParsedFact {
   const histories = (composite.composite?.components ?? []).map((component) =>
-    candidates.filter(
-      (fact) =>
-        fact.concept === component.concept &&
-        periodKey(fact) === periodKey(composite) &&
-        periodType(fact, definition) === periodType(composite, definition),
-    ),
+    candidates
+      .filter(
+        (fact) =>
+          fact.concept === component.concept &&
+          periodKey(fact) === periodKey(composite) &&
+          periodType(fact, definition) === periodType(composite, definition),
+      )
+      .map((fact) => (subtracted.has(fact.concept) ? { ...fact, value: -fact.value } : fact)),
   );
   return {
     ...composite,
@@ -391,8 +404,21 @@ function factsForDebt(
           .toSorted()
           .at(-1) ?? "",
     };
-    const resolution = resolveDebtAtInstant(taxonomy, instant, tagged, history);
-    const contributors = resolution.contributors.map((contributor) => contributor.fact);
+    const resolution = resolveDebtAtInstant(
+      taxonomy,
+      instant,
+      tagged,
+      history,
+      (fact) => fact.value,
+    );
+    const subtracted = new Set(
+      resolution.contributors.flatMap((contributor) =>
+        contributor.subtract === true ? [contributor.concept] : [],
+      ),
+    );
+    const contributors = resolution.contributors.map(({ fact, subtract }) =>
+      subtract === true ? { ...fact, value: -fact.value } : fact,
+    );
     const [anchor] = contributors;
     const incomplete = resolution.incompleteReason !== undefined || anchor === undefined;
     let fact: ParsedFact | undefined;
@@ -401,9 +427,10 @@ function factsForDebt(
         resolution.basis === "total"
           ? anchor
           : withCompositeFirstPublicAt(
-              compositeFromContributors(contributors),
+              compositeFromContributors(contributors, subtracted),
               definition,
               candidates,
+              subtracted,
             );
     }
     return {
@@ -421,13 +448,13 @@ function factsForDebt(
     .toSorted((left, right) => compareFinancialStatementFacts(left.fact, right.fact));
   const latestComplete = latest?.periodEnd ?? "";
   const notes = new Map(
-    current.flatMap(({ periodEnd, incompleteReason }) =>
+    current.flatMap(({ periodEnd, filedAt, incompleteReason }) =>
       incompleteReason === undefined || periodEnd <= latestComplete
         ? []
-        : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason)] as const],
+        : [[periodEnd, incompleteDebtNote(periodEnd, incompleteReason, filedAt)] as const],
     ),
   );
-  const ineligible = (latest?.fact.concept.split("+") ?? []).flatMap((concept) =>
+  const ineligible = (latest?.fact.concept.split(/[+-]/u) ?? []).flatMap((concept) =>
     unitFacts(taxonomy, root, concept).filter((fact) => !eligible(fact)),
   );
   const kept = new Set(
@@ -1378,17 +1405,22 @@ export function deriveFinancialStatements(
 export function financialStatementsDebtBasisGaps(
   artifact: FinancialStatementsArtifact,
 ): readonly SourceGap[] {
-  const gross = latestFinancialStatementFact(
+  const latest = latestFinancialStatementFact(
     financialStatementFacts(artifact.statements.balanceSheet.debt),
   );
-  return gross?.calibrationPeriodEnd === undefined
+  if (latest?.calibrationPeriodEnd !== undefined) {
+    return [
+      {
+        ...grossPrincipalDebtGap(latest.periodEnd, latest.calibrationPeriodEnd),
+        symbol: artifact.symbol,
+      },
+    ];
+  }
+  const leaseInclusive =
+    latest === undefined ? [] : unadjustedLeaseInclusiveDebt(latest.taxonomy, latest.concept);
+  return latest === undefined || leaseInclusive.length === 0
     ? []
-    : [
-        {
-          ...grossPrincipalDebtGap(gross.periodEnd, gross.calibrationPeriodEnd),
-          symbol: artifact.symbol,
-        },
-      ];
+    : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
 }
 
 export interface CollectedFinancialStatements {

@@ -336,6 +336,16 @@ describe("peer universe refresh policy", () => {
     expect((await storedEntry())?.proposedAt).toBe(day0.toISOString());
   });
 
+  test("a write over an expired generation survives a concurrent prune by another symbol", async () => {
+    const generation = await seed();
+    const day91 = new Date(day0.getTime() + 91 * 86_400_000);
+    await makePeerUniverseCacheWriter(cachePath, 90, "p", day91)("AAAA", universe("AAAA"), audit);
+    expect(await storedEntry()).toBeUndefined();
+
+    expect(await write(day91, generation)).toBe(day91.toISOString());
+    expect((await storedEntry())?.proposedAt).toBe(day91.toISOString());
+  });
+
   test("a delayed cache-miss write cannot overwrite a newer refresh", async () => {
     const generation = await seed();
     await record(day0, generation, 0);

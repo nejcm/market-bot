@@ -162,7 +162,10 @@ without pretending the project has a global security master.
   tokens. Rejections are audited as `duplicate-headline`; the rule cannot empty coverage and emits
   no gap.
 - Web Subject Profiles use fixed cited questions per subject kind and bounded reuse TTLs. Company
-  reuse also checks SEC filing freshness. Profiles may cite only web Sources and, for companies,
+  reuse also checks SEC filing freshness. A candidate profile is reused only if every cited Source already
+  collected before reuse selection carries identical text; a changed or text-less current copy skips that
+  candidate for an older compatible one, else the profile is re-extracted (later Web Gather collisions
+  keep the reused Source). Profiles may cite only web Sources and, for companies,
   10-K/10-Q Sources carrying filing text; the extraction prompt payload and the citation validator
   share that one selector, so the profile prompt omits every other citable evidence surface (8-K/6-K,
   fundamentals, news, snapshots, history, prior profiles).

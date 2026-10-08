@@ -197,6 +197,7 @@ export async function runWebEvidencePhase(input: WebEvidencePhaseInput): Promise
       now: input.now,
       reuseDaysBySubjectKind: input.config.webProfileReuseDaysBySubjectKind,
       ...(currentSecFilingDate !== undefined ? { currentSecFilingDate } : {}),
+      currentSources: collectedSources.extendedSources,
     });
     if (reusableWebSubjectProfile !== undefined) {
       collectedSources = attachReusableWebSubjectProfile({

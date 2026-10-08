@@ -46,7 +46,7 @@ Exact provider payload retained for audit and replay; never model-visible eviden
 
 ## Freshness-Budgeted Source Cache
 
-Replays same-day provider payloads only within adapter freshness budgets. Expired entries require a live refetch; a failed refetch leaves any stale payload raw-audit-only and records a stale-cache Source Gap.
+Replays same-day provider payloads only within adapter freshness budgets; accession-addressed SEC filing documents are reused across days for 30 days from their original fetch. Expired entries require a live refetch; a failed refetch leaves any stale payload raw-audit-only and records a stale-cache Source Gap.
 
 ## Model-Visible Web Text
 

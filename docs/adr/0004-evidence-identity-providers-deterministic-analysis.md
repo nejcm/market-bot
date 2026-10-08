@@ -35,7 +35,7 @@ Quality advisory reasons; amended 2026-08-29: canonical statement facts may be d
 same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured-registry and
 expectations entitlement completeness status; amended 2026-09-01: web-gather SEC coverage
 guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
-basis)
+basis; amended 2026-10-08: accession-addressed SEC document cache)
 
 ## Context
 
@@ -126,7 +126,13 @@ without pretending the project has a global security master.
 - Every model evidence payload carries `analysisAsOf`. Adapters exclude facts published, filed, or
   ending after that cutoff when their data supports those semantics.
 - Cache entries are freshness-budgeted and validated. A failed refresh may retain stale data in raw
-  audit snapshots, but stale data never enters normalized current evidence.
+  audit snapshots, but stale data never enters normalized current evidence. Accession-addressed SEC
+  archive documents (HTTPS GET `www.sec.gov/Archives/edgar/data/<cik>/<18-digit accession>/<document>`,
+  excluding generated filing indexes) are an archived-snapshot store outside the day directories:
+  reused across days for 30 days from the original fetch, then revalidated, because SEC permits
+  post-acceptance corrections. Hits keep the original fetch metadata and are re-parsed every run;
+  invalid entries are refetched, and an expired entry
+  is a raw-audit-only stale fallback like any other. `sec-companyfacts` keeps the 24-hour reference budget.
 - Deep instrument runs and all thematic research runs may gather bounded web results. Exa is
   primary; configured Exa failures or thin results may fall back to Firecrawl. Firecrawl never
   substitutes for a missing Exa key. Results are subject-constrained, cached, persisted as

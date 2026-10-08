@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import { createPeerUniverseProposer } from "../src/research/peer-universe-proposal";
+import { MAX_PEERS, MIN_PROPOSED_PEERS } from "../src/research/peer-universe";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import type { FetchJsonResult, FetchTextResult, SourceRequestExecutor } from "../src/sources/types";
 
@@ -142,7 +143,7 @@ describe("createPeerUniverseProposer", () => {
     return request?.messages.find((message) => message.role === "user")?.content ?? "";
   }
 
-  test("asks for peers inside the SIC group and 0.2x-5x cap and revenue bands", async () => {
+  test("requests a ranked candidate list with SIC group and 0.2x-5x cap and revenue target bands", async () => {
     const prompt = await userPromptFor({
       marketCap: 451_530_688,
       sic: "3661",
@@ -152,6 +153,19 @@ describe("createPeerUniverseProposer", () => {
     expect(prompt).toContain("two-digit group 36 (target SIC 3661)");
     expect(prompt).toContain("market capitalization between $90.3M and $2.3B (target $451.5M)");
     expect(prompt).toContain("annualized revenue between $30M and $750M (target $150M)");
+    expect(prompt).toContain(
+      `Propose ${String(MAX_PEERS)} distinct US-listed common-stock candidates`,
+    );
+    expect(prompt).toContain("ranked from strongest to weakest");
+    expect(prompt).toContain(`Aim for at least ${String(MIN_PROPOSED_PEERS)} plausible candidates`);
+    expect(prompt).toContain("Target comparability bands:");
+    expect(prompt).toContain("Downstream code verifies these facts");
+    expect(prompt).toContain(
+      "solely because its exact SIC classification or current size is uncertain",
+    );
+    expect(prompt).toContain("Do not invent companies");
+    expect(prompt).not.toContain("Only include");
+    expect(prompt).not.toContain("up to");
   });
 
   test("omits the band for absent or invalid target inputs", async () => {
@@ -161,12 +175,16 @@ describe("createPeerUniverseProposer", () => {
       { marketCap: 0, sic: "36", annualizedRevenue: Number.NaN },
     ]) {
       const prompt = await userPromptFor(target);
-      expect(prompt).toContain("comparable companies for ZZZZ. Return JSON");
-      expect(prompt).not.toContain("Only include");
+      expect(prompt).toContain("candidates for ZZZZ, ranked");
+      expect(prompt).toContain("Do not invent companies");
+      expect(prompt).not.toContain("comparability bands");
+      expect(prompt).not.toContain("Downstream code verifies");
+      expect(prompt).not.toContain("near-band");
     }
     const sicOnly = await userPromptFor({ sic: "3661" });
     expect(sicOnly).toContain("two-digit group 36");
     expect(sicOnly).not.toContain("market capitalization");
+    expect(sicOnly).toContain("Downstream code verifies");
   });
 
   test("rejects a hallucinated ticker not in the SEC directory", async () => {

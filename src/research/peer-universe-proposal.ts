@@ -79,7 +79,7 @@ function sizeBandClause(label: string, value: number | undefined): string | unde
   return `${label} between ${COMPACT_USD.format(value * SIZE_GATE_MIN_RATIO)} and ${COMPACT_USD.format(value * SIZE_GATE_MAX_RATIO)} (target ${COMPACT_USD.format(value)})`;
 }
 
-// Mirrors the deterministic comparability gates so proposed peers are not all rejected downstream.
+// Bands are targets, not a filter: the model cannot verify SIC or size, and downstream gates enforce them.
 function comparabilityBand(target: PeerUniverseTargetInputs | undefined): string {
   const clauses = [
     target?.sic !== undefined && /^\d{4}$/u.test(target.sic)
@@ -88,7 +88,12 @@ function comparabilityBand(target: PeerUniverseTargetInputs | undefined): string
     sizeBandClause("market capitalization", target?.marketCap),
     sizeBandClause("annualized revenue", target?.annualizedRevenue),
   ].filter((clause): clause is string => clause !== undefined);
-  return clauses.length === 0 ? "" : `Only include companies with ${clauses.join("; ")}. `;
+  return clauses.length === 0
+    ? ""
+    : `Target comparability bands: ${clauses.join("; ")}. ` +
+        "Downstream code verifies these facts and rejects candidates outside the applicable bands. " +
+        "Do not omit a plausible candidate solely because its exact SIC classification or current size is uncertain; " +
+        "include plausible near-band candidates after likely in-band candidates. ";
 }
 
 function buildUserPrompt(
@@ -98,9 +103,11 @@ function buildUserPrompt(
 ): string {
   const subject = targetName !== undefined ? `${targetName} (${targetSymbol})` : targetSymbol;
   return (
-    `List up to ${String(MAX_PEERS)} US-listed common-stock comparable companies for ${subject}. ${comparabilityBand(
-      target,
-    )}Return JSON with this exact shape: ` +
+    `Propose ${String(MAX_PEERS)} distinct US-listed common-stock candidates for ${subject}, ` +
+    "ranked from strongest to weakest business and likely sector/size fit. " +
+    `Aim for at least ${String(MIN_PROPOSED_PEERS)} plausible candidates. ${comparabilityBand(target)}` +
+    "Do not invent companies to reach the requested count. Give each a brief business-fit rationale. " +
+    "Return JSON with this exact shape: " +
     `{"peers":[{"symbol":"string","name":"string","role":"core"|"secondary","rationale":"string"}]}`
   );
 }
@@ -173,7 +180,8 @@ async function generatePeerProposal(
         top_p: 1,
         seed: symbolSeed(target),
         reasoningEffort: "medium",
-        max_completion_tokens: 400,
+        // Eight peer objects need ~600 tokens, and OpenAI reasoning tokens count against this cap.
+        max_completion_tokens: 2000,
       },
       messages: [
         { role: "system", content: withUntrustedModelInputRule(buildSystemPrompt()) },
@@ -219,7 +227,7 @@ export function createPeerUniverseProposer(
     }
     const tickersPayload = tickersResult.payload;
 
-    // Model call: structured JSON, low token budget, temperature:0 for reproducibility
+    // Model call: structured JSON, temperature:0 for reproducibility
     const modelContent = await generatePeerProposal(deps, target, targetInputs);
     const rawPeers = parseProposedPeers(modelContent);
     const modelId = deps.model;

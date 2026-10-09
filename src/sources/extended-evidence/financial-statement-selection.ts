@@ -1,9 +1,14 @@
-import type { FinancialStatementSeriesDefinition } from "./financial-statement-definitions";
+import {
+  DEBT_CONCEPTS,
+  type DebtTaxonomyConcepts,
+  type FinancialStatementSeriesDefinition,
+} from "./financial-statement-definitions";
 import {
   SEC_COMPANYFACTS_UNIT_SCALE,
   type FinancialStatementFact,
   type FinancialStatementName,
   type FinancialStatementNote,
+  type OriginalFiling,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
   type FinancialStatementTtm,
@@ -111,6 +116,23 @@ export function compareFinancialStatementFacts(
   );
 }
 
+// The original filing's value when a later filing (or same-day amendment) replaced it; same-day original filings tie.
+export function restatedFromOriginalFiling(
+  selectedValue: number,
+  history: readonly (OriginalFiling & { readonly amendment?: boolean })[],
+): OriginalFiling | undefined {
+  const [earliest] = history.toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
+  const sameDay = history.filter((fact) => fact.filedAt === earliest?.filedAt);
+  const unamended = sameDay.filter((fact) => fact.amendment !== true);
+  const originals = unamended.length === 0 ? sameDay : unamended;
+  const [original] = originals;
+  return original === undefined ||
+    originals.length === history.length ||
+    originals.some((fact) => fact.value === selectedValue)
+    ? undefined
+    : { value: original.value, filedAt: original.filedAt };
+}
+
 export function latestFinancialStatementFact(
   facts: readonly FinancialStatementFact[],
 ): FinancialStatementFact | undefined {
@@ -151,51 +173,352 @@ export function compositeStatementIdentity(
   };
 }
 
-export function isCompleteComposite(componentCount: number, componentSlotCount: number): boolean {
-  return componentCount === componentSlotCount;
+export interface DebtResolution<T> {
+  readonly basis: "total" | "components";
+  readonly contributors: readonly {
+    readonly concept: string;
+    readonly fact: T;
+    readonly subtract?: true;
+  }[];
+  readonly incompleteReason?: string;
+  readonly leaseInclusive?: readonly string[];
 }
 
-export function incompleteCompositeNote(
-  definition: FinancialStatementSeriesDefinition,
+export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): ReadonlySet<string> {
+  const concepts = DEBT_CONCEPTS[taxonomy];
+  return new Set([
+    ...concepts.totals,
+    ...[concepts.current, concepts.noncurrent].flatMap((side) => [
+      ...side.generic,
+      ...side.instruments.flat(),
+    ]),
+    ...(concepts.financeLeases === undefined
+      ? []
+      : [concepts.financeLeases.total, ...concepts.financeLeases.split]),
+    ...Object.keys(concepts.umbrellas ?? {}),
+  ]);
+}
+
+export function debtCandidateConcepts(
   taxonomy: FinancialStatementTaxonomy,
-  periodEnd: string,
-  selectedConcepts: readonly string[],
-): FinancialStatementNote | undefined {
-  const slots = definition.components;
-  if (slots === undefined) {
-    return undefined;
+  root: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  const concepts = DEBT_CONCEPTS[taxonomy];
+  const pattern = concepts.unrecognizedBorrowing;
+  return [
+    ...new Set([
+      ...recognizedDebtConcepts(taxonomy),
+      ...(pattern === undefined
+        ? []
+        : Object.keys(root).filter((concept) => pattern.test(concept))),
+    ]),
+  ];
+}
+
+export interface DebtHistoryFact {
+  readonly concept: string;
+  readonly amendment?: boolean;
+  readonly periodEnd: string;
+  readonly filedAt: string;
+  readonly value: number;
+}
+
+export interface DebtInstant {
+  readonly periodEnd: string;
+  readonly filedAt: string;
+}
+
+interface DebtSide {
+  readonly generic: string | undefined;
+  readonly concepts: readonly string[];
+  readonly instruments: readonly (readonly string[])[];
+}
+
+const DEBT_CONTINUITY_DAYS = 400;
+
+interface LeaseAdjustment {
+  readonly subtracted: readonly string[];
+  readonly unadjusted: readonly string[];
+  readonly deductions: readonly {
+    readonly aggregates: readonly string[];
+    readonly leases: readonly string[];
+  }[];
+}
+
+// Debt is borrowing-based: a lease-inclusive aggregate loses the matching finance lease tagged beside it.
+function leaseAdjustment(
+  concepts: DebtTaxonomyConcepts,
+  used: readonly string[],
+  isTagged: (concept: string) => boolean,
+): LeaseAdjustment {
+  const leases = concepts.financeLeases;
+  const inclusive = used.filter((concept) => concepts.leaseInclusive?.[concept] !== undefined);
+  if (leases === undefined) {
+    return { subtracted: [], unadjusted: inclusive, deductions: [] };
   }
-  const selected = new Set(selectedConcepts);
-  const missingSlots = slots
-    .map((slot) => slot[taxonomy])
-    .filter((aliases) => aliases.every((alias) => !selected.has(alias)));
-  if (missingSlots.length === 0) {
-    return undefined;
+  const splitLeases = leases.split.every((leg) => isTagged(leg)) ? leases.split : [];
+  const totalLeases = isTagged(leases.total) ? [leases.total] : splitLeases;
+  const deductions: { aggregates: readonly string[]; leases: readonly string[] }[] = [];
+  const pending: string[] = [];
+  for (const concept of inclusive) {
+    const scope = concepts.leaseInclusive?.[concept];
+    const leg = leases.split[scope === "current" ? 0 : 1];
+    const legLeases = leg !== undefined && isTagged(leg) ? [leg] : [];
+    const match = scope === "total" ? totalLeases : legLeases;
+    if (match.length > 0) {
+      deductions.push({ aggregates: [concept], leases: match });
+    } else {
+      pending.push(concept);
+    }
+  }
+  if (pending.length === 2 && isTagged(leases.total)) {
+    deductions.push({ aggregates: pending, leases: [leases.total] });
+    pending.length = 0;
   }
   return {
-    code: "incomplete-composite-series",
-    seriesKey: definition.key,
-    message: `${definition.label} composite for ${periodEnd} omits ${missingSlots.map((aliases) => aliases.join("/")).join(", ")} because no eligible fact was selected for that component slot.`,
+    subtracted: [...new Set(deductions.flatMap((deduction) => deduction.leases))],
+    unadjusted: pending,
+    deductions,
   };
 }
 
-export function incompleteCompositeNotes(
-  definition: FinancialStatementSeriesDefinition,
+// `expression` is a selected debt concept, e.g. `DebtCurrent+LongTermDebtNoncurrent-FinanceLeaseLiabilityCurrent`.
+export function unadjustedLeaseInclusiveDebt(
   taxonomy: FinancialStatementTaxonomy,
-  series: FinancialStatementSeries,
-): readonly FinancialStatementNote[] {
-  return financialStatementFacts(series).flatMap((fact) => {
-    if (fact.composite === undefined) {
-      return [];
+  expression: string,
+): readonly string[] {
+  const terms = expression.match(/[+-]?[^+-]+/gu) ?? [];
+  const subtracted = new Set(
+    terms.filter((term) => term.startsWith("-")).map((term) => term.slice(1)),
+  );
+  const used = terms
+    .filter((term) => !term.startsWith("-"))
+    .map((term) => term.replace(/^\+/u, ""));
+  return leaseAdjustment(DEBT_CONCEPTS[taxonomy], used, (concept) => subtracted.has(concept))
+    .unadjusted;
+}
+
+function coveredDebtConcepts(
+  concepts: DebtTaxonomyConcepts,
+  sides: readonly DebtSide[],
+  usedUmbrellas: readonly string[],
+  isTagged: (concept: string) => boolean,
+): ReadonlySet<string> {
+  const covered = new Set([
+    ...sides.flatMap((side, index) =>
+      side.generic === undefined
+        ? side.instruments.filter((group) => group.some((c) => side.concepts.includes(c))).flat()
+        : [
+            ...(index === 0 ? concepts.current : concepts.noncurrent).generic,
+            ...side.instruments.flat(),
+          ],
+    ),
+    ...(sides.every((side) => side.generic !== undefined) ? concepts.totals : []),
+    ...Object.values(concepts.financeLeases ?? {}).flat(),
+    ...usedUmbrellas.flatMap((umbrella) => [umbrella, ...(concepts.umbrellas?.[umbrella] ?? [])]),
+  ]);
+  for (const [umbrella, legs] of Object.entries(concepts.umbrellas ?? {})) {
+    if (legs.every((leg) => covered.has(leg)) || (isTagged(umbrella) && legs.some(isTagged))) {
+      covered.add(umbrella);
     }
-    const note = incompleteCompositeNote(
-      definition,
-      taxonomy,
-      fact.periodEnd,
-      fact.composite.components.map((component) => component.concept),
+  }
+  return covered;
+}
+
+// Every debt concept last reported nonzero within the prior year, or earlier for this instant, must be covered.
+function omittedDebtConcepts(
+  instant: DebtInstant,
+  covered: (concept: string) => boolean,
+  history: readonly DebtHistoryFact[],
+): readonly string[] {
+  const earliest = Date.parse(instant.periodEnd) - DEBT_CONTINUITY_DAYS * DAY_MS;
+  const latestPrior = new Map<string, DebtHistoryFact>();
+  for (const fact of history) {
+    const existing = latestPrior.get(fact.concept);
+    const prior =
+      fact.periodEnd < instant.periodEnd ||
+      (fact.periodEnd === instant.periodEnd && fact.filedAt < instant.filedAt);
+    if (
+      prior &&
+      (existing === undefined ||
+        fact.periodEnd > existing.periodEnd ||
+        (fact.periodEnd === existing.periodEnd && fact.filedAt > existing.filedAt))
+    ) {
+      latestPrior.set(fact.concept, fact);
+    }
+  }
+  return [...latestPrior.values()]
+    .filter(
+      (fact) =>
+        fact.value !== 0 && Date.parse(fact.periodEnd) >= earliest && !covered(fact.concept),
+    )
+    .map((fact) => fact.concept)
+    .toSorted();
+}
+
+function incompleteDebtReason(
+  taxonomy: FinancialStatementTaxonomy,
+  instant: DebtInstant,
+  sides: readonly DebtSide[],
+  usedUmbrellas: readonly string[],
+  tagged: ReadonlyMap<string, unknown>,
+  history: readonly DebtHistoryFact[],
+): string | undefined {
+  const recognized = recognizedDebtConcepts(taxonomy);
+  const unrecognized = [...tagged.keys()].filter((concept) => !recognized.has(concept));
+  if (unrecognized.length > 0) {
+    return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
+  }
+  if (usedUmbrellas.length === 0 && sides.every((side) => side.concepts.length === 0)) {
+    return "no borrowing line item is tagged";
+  }
+  const covered = coveredDebtConcepts(DEBT_CONCEPTS[taxonomy], sides, usedUmbrellas, (concept) =>
+    tagged.has(concept),
+  );
+  // Two generic side lines are the classified debt totals, so prior footnote borrowings are constituents.
+  const bothGeneric = sides.every((side) => side.generic !== undefined);
+  const omitted = omittedDebtConcepts(
+    instant,
+    (concept) => covered.has(concept) || bothGeneric,
+    history,
+  );
+  return omitted.length > 0
+    ? `omits ${omitted.join(", ")}, reported nonzero within the prior year or earlier for this instant`
+    : undefined;
+}
+
+const sumValues = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0);
+
+// A restated component sums only as a single-filing reclassification that keeps the original total.
+function restatedDebtComponentReason<T>(
+  instant: DebtInstant,
+  used: readonly string[],
+  tagged: ReadonlyMap<string, T>,
+  history: readonly DebtHistoryFact[],
+  valueOf: (fact: T) => number,
+): string | undefined {
+  const components = used.map((concept) => {
+    const value = valueOf(tagged.get(concept) as T);
+    const filings = history.filter(
+      (fact) => fact.concept === concept && fact.periodEnd === instant.periodEnd,
     );
-    return note === undefined ? [] : [note];
+    const original = restatedFromOriginalFiling(value, filings);
+    const filedAt = filings
+      .map((fact) => fact.filedAt)
+      .toSorted()
+      .at(-1);
+    return { concept, value, original, filedAt };
   });
+  const restated = components.filter((component) => component.original !== undefined);
+  const singleFiling = new Set(components.map((component) => component.filedAt)).size === 1;
+  if (
+    restated.length === 0 ||
+    (singleFiling &&
+      sumValues(components.map((component) => component.original?.value ?? component.value)) ===
+        sumValues(components.map((component) => component.value)))
+  ) {
+    return undefined;
+  }
+  return `a later filing restated ${restated.map(({ concept, original }) => `${concept} (originally ${String(original?.value)}, filed ${original?.filedAt ?? ""})`).join(", ")} without restating a debt total`;
+}
+
+// Shared by legacy SEC metrics and canonical statements; `tagged` holds one fact per concept at one instant.
+export function resolveDebtAtInstant<T>(
+  taxonomy: FinancialStatementTaxonomy,
+  instant: DebtInstant,
+  tagged: ReadonlyMap<string, T>,
+  history: readonly DebtHistoryFact[],
+  valueOf: (fact: T) => number,
+): DebtResolution<T> {
+  const concepts = DEBT_CONCEPTS[taxonomy];
+  const first = (aliases: readonly string[]) => aliases.find((alias) => tagged.has(alias));
+  const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
+  const total = first(concepts.totals);
+  const sides = [concepts.current, concepts.noncurrent].map((side) => {
+    const generic = first(side.generic);
+    return {
+      generic,
+      instruments: side.instruments,
+      concepts:
+        generic === undefined
+          ? side.instruments.flatMap((aliases) => first(aliases) ?? [])
+          : [generic],
+    };
+  });
+  const umbrellas = Object.entries(concepts.umbrellas ?? {})
+    .filter(([umbrella, legs]) => tagged.has(umbrella) && !legs.some((leg) => tagged.has(leg)))
+    .map(([umbrella]) => umbrella);
+  const mismatched = Object.entries(concepts.umbrellas ?? {})
+    .filter(([umbrella, legs]) => {
+      const tagLegs = legs.filter((leg) => tagged.has(leg));
+      const umbrellaValue = tagged.has(umbrella) ? valueOf(tagged.get(umbrella) as T) : 0;
+      const legSum = tagLegs.reduce((acc, leg) => acc + valueOf(tagged.get(leg) as T), 0);
+      return (
+        tagged.has(umbrella) &&
+        tagLegs.length > 0 &&
+        Math.abs(umbrellaValue - legSum) > 1e-9 * Math.max(1, Math.abs(umbrellaValue))
+      );
+    })
+    .map(([umbrella]) => umbrella);
+  const overlap = sides.some((side) => side.generic !== undefined) ? umbrellas : [];
+  const usedUmbrellas = overlap.length > 0 ? [] : umbrellas;
+  const used =
+    total === undefined ? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas] : [total];
+  const { subtracted, unadjusted, deductions } = leaseAdjustment(concepts, used, (concept) =>
+    tagged.has(concept),
+  );
+  const sum = (names: readonly string[]) =>
+    names.reduce((acc, name) => acc + valueOf(tagged.get(name) as T), 0);
+  const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
+  const componentReason =
+    total !== undefined
+      ? undefined
+      : mismatched.length > 0
+        ? `${mismatched.join(", ")} differs from the sum of its tagged legs`
+        : overlap.length > 0
+          ? `${overlap.join(", ")} may overlap a generic long-term-debt line`
+          : (incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
+            restatedDebtComponentReason(instant, used, tagged, history, valueOf));
+  const incompleteReason =
+    excess === undefined
+      ? componentReason
+      : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+  return {
+    basis: total !== undefined && subtracted.length === 0 ? "total" : "components",
+    contributors: [
+      ...used.map((concept) => contributor(concept)),
+      ...subtracted.map((concept) => ({ ...contributor(concept), subtract: true as const })),
+    ],
+    ...(incompleteReason !== undefined ? { incompleteReason } : {}),
+    ...(unadjusted.length > 0 ? { leaseInclusive: unadjusted } : {}),
+  };
+}
+
+// A later filing's incomplete resolution of an instant supersedes earlier complete ones (partial amendments).
+export function unsupersededDebtResolutions<
+  R extends { readonly periodEnd: string; readonly filedAt: string; readonly incomplete: boolean },
+>(resolved: readonly R[]): readonly R[] {
+  return resolved.filter(
+    (entry) =>
+      !resolved.some(
+        (other) =>
+          other.incomplete && other.periodEnd === entry.periodEnd && other.filedAt > entry.filedAt,
+      ),
+  );
+}
+
+export function incompleteDebtNote(
+  periodEnd: string,
+  reason: string,
+  publicAt: string,
+): FinancialStatementNote {
+  return {
+    code: "incomplete-composite-series",
+    seriesKey: "debt",
+    periodKey: `instant|${periodEnd}`,
+    publicAt,
+    message: `Debt composite for ${periodEnd} is incomplete: ${reason}.`,
+  };
 }
 
 export function financialStatementFactForPeriod(

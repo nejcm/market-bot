@@ -15,6 +15,10 @@ import type {
 } from "../../src/report/equity-reader-statements";
 import { compactNumber } from "../../src/report/equity-reader-trends";
 import {
+  conceptScope,
+  scopedLabel,
+} from "../../src/sources/extended-evidence/financial-statement-definitions";
+import {
   CURRENCY_SYMBOLS,
   formatLensValue,
   scaleCurrency,
@@ -52,6 +56,7 @@ export interface RunWorkspaceFundamentalHistoryCard {
   readonly filedAt: string;
   readonly pointCount: number;
   readonly disclosure?: string;
+  readonly scope?: string;
   readonly geometry: RunWorkspaceSparklineGeometry;
 }
 
@@ -68,10 +73,12 @@ interface RunWorkspaceFinancialTrendRow {
 }
 
 export interface RunWorkspaceFinancialTrendView {
-  readonly columns: readonly ["Period", "Revenue", "Net income", "Operating margin", "FCF"];
+  readonly columns: readonly ["Period", "Revenue", string, "Operating margin", "FCF"];
+  readonly freeCashFlowLabel: string;
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly RunWorkspaceFinancialTrendRow[];
+  readonly restatements?: readonly string[];
 }
 
 interface RunWorkspaceBalanceSheetHistoryRow {
@@ -196,6 +203,7 @@ export function fundamentalHistoryView(
   if (artifact === undefined) {
     return undefined;
   }
+  const cashFlowScope = conceptScope(artifact.series.operatingCashFlow?.concept);
   const cards = FUNDAMENTAL_HISTORY_CARD_KEYS.flatMap((key) => {
     const series = artifact.series[key];
     const latest = series.ttm ?? series.annual.at(-1);
@@ -231,6 +239,10 @@ export function fundamentalHistoryView(
                 "Approximation: diluted EPS TTM adds per-share periods without reweighting diluted shares.",
             }
           : {}),
+        ...(key === "freeCashFlowProxy" && cashFlowScope !== undefined
+          ? { scope: cashFlowScope }
+          : {}),
+        ...(series.scope === undefined ? {} : { scope: series.scope }),
         geometry: sparklineGeometry(points),
       },
     ];
@@ -245,12 +257,20 @@ export function financialTrendFromProjection(
     return undefined;
   }
   return {
-    columns: ["Period", "Revenue", "Net income", "Operating margin", "FCF"],
+    columns: [
+      "Period",
+      "Revenue",
+      scopedLabel("Net income", trends.netIncomeScope),
+      "Operating margin",
+      "FCF",
+    ],
+    freeCashFlowLabel: scopedLabel("FCF proxy", trends.freeCashFlowScope),
     ...(trends.reportingCurrency === undefined
       ? {}
       : { reportingCurrency: trends.reportingCurrency }),
     sourceIds: trends.sourceIds,
     rows: trends.rows,
+    ...(trends.restatements === undefined ? {} : { restatements: trends.restatements }),
   };
 }
 

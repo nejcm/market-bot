@@ -1099,8 +1099,6 @@ describe("canonical financial statements", () => {
         debt?.composite === undefined
           ? undefined
           : {
-              componentCount: debt.composite.components.length,
-              componentSlotCount: 2,
               selectedConcepts: debt.composite.components.map((component) => component.concept),
               periodEnd: debt.periodEnd,
             },
@@ -1150,21 +1148,18 @@ describe("canonical financial statements", () => {
       expect(debt).toMatchObject({ value: 120_000_000_000, concept: "LongTermDebt" });
     });
 
-    test("keeps a stale direct basis over a fresher one-legged notes-payable composite", () => {
-      const { artifact, debt } = selectBoth({
+    test("accepts a one-sided notes-payable set once the prior total is over a year old", () => {
+      const { debt } = selectBoth({
         CashAndCashEquivalentsAtCarryingValue: { USD: [fy2026(800_000_000)] },
         LongTermDebt: { USD: [fy2022(50_000_000)] },
         LongTermNotesPayable: { USD: [fy2026(3_976_000_000)] },
       });
 
       expect(debt).toMatchObject({
-        value: 50_000_000,
-        periodEnd: "2022-05-31",
-        concept: "LongTermDebt",
+        value: 3_976_000_000,
+        periodEnd: "2026-05-31",
+        concept: "LongTermNotesPayable",
       });
-      expect(artifact.omissionNotes).toContainEqual(
-        expect.objectContaining({ code: "stale-instant-series", seriesKey: "debt" }),
-      );
     });
 
     test("does not establish a debt basis from gross principal facts alone", () => {
@@ -1259,6 +1254,50 @@ describe("first-public dating of selected facts", () => {
     ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
   });
 
+  test("records the original filing's value when a later filing restates a fact", () => {
+    const revenue = (filings: readonly (readonly [number, string, string?])[]) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: filings.map(([value, filedAt, form = "10-K"]) =>
+                fact({
+                  value,
+                  form,
+                  fiscalYear: Number(filedAt.slice(0, 4)),
+                  fiscalPeriod: "FY",
+                  filedAt,
+                  periodStart: "2023-01-01",
+                  periodEnd: "2023-12-31",
+                }),
+              ),
+            },
+          },
+        }),
+      ).statements.incomeStatement.revenue.annual.map((selected) => selected.restatedFrom);
+
+    expect(
+      revenue([
+        [268, "2024-02-15"],
+        [268, "2025-02-15"],
+        [225, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 268, filedAt: "2024-02-15" }]);
+    expect(
+      revenue([
+        [268, "2024-02-15"],
+        [268, "2025-02-15"],
+      ]),
+    ).toEqual([undefined]);
+    expect(
+      revenue([
+        [100, "2024-02-15"],
+        [80, "2024-02-15", "10-K/A"],
+        [80, "2025-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2024-02-15" }]);
+  });
+
   const compositeDebt = (filings: readonly (readonly [number, number, string, string?])[]) => {
     const filing = (value: number, filedAt: string, form: string) => ({
       ...instant(value, 2024, form),
@@ -1297,13 +1336,13 @@ describe("first-public dating of selected facts", () => {
     ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2025-02-15" }]);
   });
 
-  test("dates a composite with a restated component to the restatement", () => {
+  test("refuses a composite whose later filing restates a component without a debt total", () => {
     expect(
       compositeDebt([
         [10, 90, "2025-02-15"],
         [10, 95, "2026-02-15"],
       ]),
-    ).toEqual([{ value: 105, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+    ).toEqual([]);
   });
 
   test("dates a composite restored after an amended composite to the restoration", () => {
@@ -1482,7 +1521,7 @@ describe("canonical debt basis selection", () => {
     });
   });
 
-  test("keeps a present direct basis over a fresher one-legged composite", () => {
+  test("accepts a one-sided generic line once the prior total is over a year old", () => {
     const artifact = derive(
       payload({
         "us-gaap": {
@@ -1499,17 +1538,13 @@ describe("canonical debt basis selection", () => {
     ]);
 
     expect(debt).toMatchObject({
-      value: 1_000_000,
-      periodEnd: "2021-12-25",
-      extractionMethod: "sec-companyfacts",
-      concept: "LongTermDebt",
+      value: 875_000_000,
+      periodEnd: "2026-06-27",
+      concept: "LongTermDebtCurrent",
     });
-    expect(artifact.omissionNotes).not.toContainEqual(
-      expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
-    );
   });
 
-  test("excludes incomplete composite history when a complete fresher basis wins", () => {
+  test("keeps an earlier one-sided instant that passes continuity in the composite history", () => {
     const priorCurrent = amdInstant({
       value: 700_000_000,
       form: "10-Q",
@@ -1539,8 +1574,9 @@ describe("canonical debt basis selection", () => {
       extractionMethod: "derived-sec-companyfacts",
       concept: "LongTermDebtCurrent+LongTermDebtNoncurrent",
     });
-    expect(artifact.statements.balanceSheet.debt.interim).toHaveLength(1);
-    expect(artifact.statements.balanceSheet.debt.interim[0]?.periodEnd).toBe("2026-06-27");
+    expect(
+      artifact.statements.balanceSheet.debt.interim.map((selected) => selected.periodEnd),
+    ).toEqual(["2025-06-28", "2026-06-27"]);
   });
 
   test("selects IFRS current plus noncurrent borrowings over stale Borrowings", () => {
@@ -1598,71 +1634,55 @@ describe("canonical debt basis selection", () => {
     });
   });
 
-  test("records a one-legged composite when only noncurrent debt is tagged", () => {
-    const artifact = derive(
-      payload({
-        "us-gaap": {
-          Revenues: { USD: [annual(100, 2025)] },
-          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
-        },
-      }),
-      amdAsOf,
-    );
-    const debt = latestFinancialStatementFact([
-      ...artifact.statements.balanceSheet.debt.annual,
-      ...artifact.statements.balanceSheet.debt.interim,
-    ]);
-
-    expect(debt).toMatchObject({
-      value: 2_351_000_000,
-      periodEnd: "2026-06-27",
-      extractionMethod: "derived-sec-companyfacts",
-      concept: "LongTermDebtNoncurrent",
+  test("accepts a one-sided generic line with no other-side history (Regeneron shape)", () => {
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+      },
     });
-    expect(debt?.composite?.components).toEqual([
-      expect.objectContaining({
-        concept: "LongTermDebtNoncurrent",
-        value: 2_351_000_000,
-        periodEnd: "2026-06-27",
-      }),
-    ]);
-    expect(artifact.omissionNotes).toContainEqual(
-      expect.objectContaining({
-        code: "incomplete-composite-series",
-        seriesKey: "debt",
-        message: expect.stringContaining(
-          "LongTermDebtCurrent/DebtCurrent/LongTermDebtAndCapitalLeaseObligationsCurrent/ShortTermBorrowings/ShortTermDebt",
-        ),
-      }),
-    );
+    const artifact = derive(companyFacts, amdAsOf);
+    const legacy = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
+
+    expect(
+      latestFinancialStatementFact(financialStatementFacts(artifact.statements.balanceSheet.debt)),
+    ).toMatchObject({ value: 2_351_000_000, periodEnd: "2026-06-27" });
+    expect(legacy?.metrics.debt).toBe(2_351_000_000);
+    expect(legacy?.debtComposite?.incompleteReason).toBeUndefined();
   });
 
-  test("records every incomplete period when composite is the only basis", () => {
+  test("refuses a one-sided generic line when the other side was nonzero within the prior year", () => {
     const priorCurrent = amdInstant({
       value: 700_000_000,
       form: "10-Q",
-      fiscalPeriod: "Q2",
-      filedAt: "2025-08-06",
-      periodEnd: "2025-06-28",
+      fiscalPeriod: "Q1",
+      filedAt: "2026-05-06",
+      periodEnd: "2026-03-28",
     });
-    const artifact = derive(
-      payload({
-        "us-gaap": {
-          Revenues: { USD: [annual(100, 2025)] },
-          LongTermDebtCurrent: { USD: [priorCurrent, currentDebt] },
-          LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
-        },
-      }),
-      amdAsOf,
-    );
+    const companyFacts = payload({
+      "us-gaap": {
+        Revenues: { USD: [annual(100, 2025)] },
+        LongTermDebtCurrent: { USD: [priorCurrent] },
+        LongTermDebtNoncurrent: { USD: [noncurrentDebt] },
+      },
+    });
+    const artifact = derive(companyFacts, amdAsOf);
+    const legacy = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
+    expect(
+      latestFinancialStatementFact(financialStatementFacts(artifact.statements.balanceSheet.debt))
+        ?.periodEnd,
+    ).not.toBe("2026-06-27");
     expect(artifact.omissionNotes).toContainEqual(
       expect.objectContaining({
         code: "incomplete-composite-series",
-        seriesKey: "debt",
-        message: expect.stringContaining("Debt composite for 2025-06-28"),
+        message: expect.stringContaining("omits LongTermDebtCurrent"),
       }),
     );
+    expect(legacy?.debtComposite).toMatchObject({
+      periodEnd: "2026-06-27",
+      incompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
+    });
   });
 
   test("records untagged-balance-sheet-series only for an empty debt series", () => {
@@ -1853,7 +1873,7 @@ describe("canonical debt basis selection", () => {
         observedAt: amdAsOf.analysisAsOf,
       }),
     ];
-    const valuation = addValuationEvidence(command, snapshots, canonical);
+    const valuation = addValuationEvidence(command, snapshots, canonical, amdAsOf.analysisAsOf);
     const comps = await collectValuationComps(
       {
         command,
@@ -1887,7 +1907,7 @@ describe("canonical debt basis selection", () => {
     expect(comps.artifact.summary.valuationSupportability).not.toBe("not-supportable");
   });
 
-  test("selects DebtCurrent when it is the only tagged current-debt alias", () => {
+  test("accepts DebtCurrent alone with no noncurrent history", () => {
     const onlyCurrent = amdInstant({
       value: 7_050_000_000,
       form: "10-Q",
@@ -1908,20 +1928,11 @@ describe("canonical debt basis selection", () => {
     ]);
     const summary = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
-    expect(debt).toMatchObject({
-      value: 7_050_000_000,
-      periodEnd: "2026-06-30",
-      extractionMethod: "derived-sec-companyfacts",
-      concept: "DebtCurrent",
-    });
-    expect(artifact.omissionNotes).toContainEqual(
-      expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
-    );
+    expect(debt).toMatchObject({ value: 7_050_000_000, periodEnd: "2026-06-30" });
     expect(summary?.metrics.debt).toBe(7_050_000_000);
-    expect(summary?.metrics.debtPeriodEnd).toBe("2026-06-30");
   });
 
-  test("selects LongTermDebtAndCapitalLeaseObligations when it is the only tagged debt alias", () => {
+  test("accepts LongTermDebtAndCapitalLeaseObligations alone with no current history", () => {
     const onlyLease = amdInstant({
       value: 62_481_000_000,
       form: "10-Q",
@@ -1942,17 +1953,8 @@ describe("canonical debt basis selection", () => {
     ]);
     const summary = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
-    expect(debt).toMatchObject({
-      value: 62_481_000_000,
-      periodEnd: "2026-06-30",
-      extractionMethod: "derived-sec-companyfacts",
-      concept: "LongTermDebtAndCapitalLeaseObligations",
-    });
-    expect(artifact.omissionNotes).toContainEqual(
-      expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
-    );
+    expect(debt).toMatchObject({ value: 62_481_000_000, periodEnd: "2026-06-30" });
     expect(summary?.metrics.debt).toBe(62_481_000_000);
-    expect(summary?.metrics.debtPeriodEnd).toBe("2026-06-30");
   });
 
   test("prefers a fresh DebtCurrent over a stale LongTermDebtCurrent in the LLY 2013-vs-2026 shape", () => {
@@ -2150,7 +2152,7 @@ describe("canonical debt basis selection", () => {
     expect(summary?.metrics.debtPeriodEnd).toBe("2025-12-31");
   });
 
-  test("still refuses a debt series and still records incomplete composites when neither new alias is tagged", () => {
+  test("still refuses a debt series when nothing is tagged and accepts a lone generic line", () => {
     const untagged = derive(
       payload({
         "us-gaap": {
@@ -2189,7 +2191,7 @@ describe("canonical debt basis selection", () => {
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
     expect(untaggedSummary?.metrics.debt).toBeUndefined();
-    expect(oneLegged.omissionNotes).toContainEqual(
+    expect(oneLegged.omissionNotes).not.toContainEqual(
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
   });
@@ -2393,7 +2395,7 @@ describe("canonical debt basis selection", () => {
     expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
   });
 
-  test("canonical and legacy writers agree on mixed original and amended components", () => {
+  test("canonical and legacy writers both refuse debt on mixed original and amended components", () => {
     const companyFacts = payload({
       "us-gaap": {
         Revenues: { USD: [annual(100, 2025)] },
@@ -2430,18 +2432,19 @@ describe("canonical debt basis selection", () => {
     ]);
     const legacy = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
-    expect(canonical).toMatchObject({
-      value: 70,
+    expect(canonical).toBeUndefined();
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
+    );
+    expect(legacy?.metrics.debt).toBeUndefined();
+    expect(legacy?.debtComposite).toMatchObject({
+      selectedConcepts: ["LongTermDebtNoncurrent"],
       periodEnd: "2026-06-30",
-      form: "10-Q/A",
-      amendment: true,
-      extractionMethod: "derived-sec-companyfacts",
+      incompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
     });
-    expect(legacy?.metrics.debt).toBe(canonical?.value);
-    expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
   });
 
-  test("canonical and legacy writers agree when a later amendment restates only one debt component", () => {
+  test("canonical and legacy writers both refuse debt when a later amendment restates only one debt component", () => {
     const companyFacts = payload({
       "us-gaap": {
         Revenues: { USD: [annual(100, 2025)] },
@@ -2486,22 +2489,15 @@ describe("canonical debt basis selection", () => {
     ]);
     const legacy = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
-    expect(canonical).toMatchObject({
-      value: 30,
-      periodEnd: "2026-06-30",
-      form: "10-Q/A",
-      amendment: true,
-      extractionMethod: "derived-sec-companyfacts",
-    });
+    expect(canonical).toBeUndefined();
     expect(artifact.omissionNotes).toContainEqual(
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
-    expect(legacy?.metrics.debt).toBe(canonical?.value);
-    expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
+    expect(legacy?.metrics.debt).toBeUndefined();
     expect(legacy?.debtComposite).toMatchObject({
-      componentCount: 1,
-      componentSlotCount: 2,
+      selectedConcepts: ["LongTermDebtCurrent"],
       periodEnd: "2026-06-30",
+      incompleteReason: expect.stringContaining("omits LongTermDebtNoncurrent"),
     });
   });
 
@@ -2572,7 +2568,7 @@ describe("canonical debt basis selection", () => {
     expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
   });
 
-  test("canonical and legacy writers agree when a current-debt alias omits fiscal period", () => {
+  test("canonical and legacy writers fall back to the prior quarter when a current-debt alias omits fiscal period", () => {
     const malformedCurrent = fact({
       value: 40,
       form: "10-Q",
@@ -2619,27 +2615,23 @@ describe("canonical debt basis selection", () => {
     ]);
     const legacy = summarizeSecFundamentals(companyFacts, amdAsOf.analysisAsOf);
 
-    expect(canonical).toMatchObject({
-      value: 70,
-      periodEnd: "2026-06-30",
-      extractionMethod: "derived-sec-companyfacts",
-      concept: "LongTermDebtNoncurrent",
-    });
+    expect(canonical).toMatchObject({ value: 20, periodEnd: "2026-03-31" });
     expect(artifact.omissionNotes).toContainEqual(
       expect.objectContaining({ code: "incomplete-composite-series", seriesKey: "debt" }),
     );
-    expect(legacy?.metrics.debt).toBe(canonical?.value);
-    expect(legacy?.metrics.debtPeriodEnd).toBe(canonical?.periodEnd);
+    expect(legacy?.metrics.debt).toBe(20);
     expect(legacy?.debtComposite).toMatchObject({
-      componentCount: 1,
-      componentSlotCount: 2,
+      selectedConcepts: ["LongTermDebtNoncurrent"],
       periodEnd: "2026-06-30",
+      incompleteReason: expect.stringContaining("omits LongTermDebtCurrent"),
     });
   });
 });
 
 function debtLabel(item: ExtendedEvidenceItem | undefined): string | undefined {
-  return strengthLens(item).metrics.find((metric) => metric.key === "debt")?.label;
+  return strengthLens(item, "2026-08-15T00:00:00.000Z").lens.metrics.find(
+    (metric) => metric.key === "debt",
+  )?.label;
 }
 
 function grossFallbackApplies(net: number, gross: number): boolean {
@@ -2957,7 +2949,7 @@ describe("gross-principal debt fallback", () => {
     ).toBeUndefined();
   });
 
-  test("takes a same-concept legacy debt prior; canonical instant series carry no prior", () => {
+  test("legacy and canonical both take the same-concept year-ago debt prior", () => {
     const { artifact, legacy } = selections(
       facts({
         LongTermDebt: [
@@ -2968,9 +2960,9 @@ describe("gross-principal debt fallback", () => {
     );
 
     expect(legacy?.metrics.debtPrior).toBe(1_000_000_000);
-    expect(
-      withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior,
-    ).toBeUndefined();
+    expect(withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics?.debtPrior).toBe(
+      1_000_000_000,
+    );
   });
 
   test("discloses a canonical-only gross fallback from foreign forms", () => {

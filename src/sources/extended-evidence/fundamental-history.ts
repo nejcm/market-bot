@@ -10,9 +10,17 @@ import {
   type SecFactValue,
   type SecMetricDefinition,
 } from "./sec-edgar";
-import { isRevenueConceptInRecencyBucket } from "./financial-statement-definitions";
-import { compareFinancialStatementFacts } from "./financial-statement-selection";
-import type { AnnualReportForm } from "./financial-statements-contract";
+import {
+  conceptScope,
+  isRevenueConceptInRecencyBucket,
+  scopedLabel,
+  TOTAL_OPERATIONS_SCOPE,
+} from "./financial-statement-definitions";
+import {
+  compareFinancialStatementFacts,
+  restatedFromOriginalFiling,
+} from "./financial-statement-selection";
+import type { AnnualReportForm, OriginalFiling } from "./financial-statements-contract";
 
 export type FundamentalHistorySeriesKey =
   | "revenue"
@@ -37,6 +45,7 @@ export interface FundamentalHistoryPoint {
   readonly periodMonths: number;
   readonly filedAt: string;
   readonly currency: string;
+  readonly restatedFrom?: OriginalFiling;
 }
 
 export interface FundamentalHistoryCagr {
@@ -58,6 +67,7 @@ export interface FundamentalHistorySeries {
   readonly label: string;
   readonly unit: "currency" | "per-share" | "ratio";
   readonly concept?: string;
+  readonly scope?: string;
   readonly annual: readonly FundamentalHistoryPoint[];
   readonly ttm?: FundamentalHistoryPoint;
   readonly cagr?: FundamentalHistoryCagr;
@@ -136,7 +146,7 @@ const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 const EPS_TTM_APPROXIMATION_NOTE =
   "ttm:eps-approximation: diluted EPS TTM adds per-share periods and does not reweight diluted shares";
 
-function metricDefinition(key: RawSeriesDefinition["key"]): SecMetricDefinition {
+function metricDefinition(key: string): SecMetricDefinition {
   const definition = SEC_METRIC_DEFINITIONS.find((candidate) => candidate.key === key);
   if (definition === undefined) {
     throw new Error(`Missing SEC metric definition for ${key}`);
@@ -166,9 +176,6 @@ function selectFacts(
         return parsed === undefined ? [] : [parsed];
       });
       if (facts.length > 0) {
-        if (definition.key !== "revenue") {
-          return { concept, currency, facts };
-        }
         const [latest] = facts
           .filter((candidate) => isFactObservableAsOf(candidate, analysisAsOf))
           .toSorted(
@@ -191,7 +198,9 @@ function selectFacts(
   }
   return ranked
     .filter((candidate) =>
-      isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd),
+      definition.key === "revenue"
+        ? isRevenueConceptInRecencyBucket(candidate.latest.end ?? "", latestPeriodEnd)
+        : candidate.latest.end === latestPeriodEnd,
     )
     .toSorted(
       (left, right) =>
@@ -260,7 +269,17 @@ function dedupeQuarterlyFacts(facts: readonly FactWithPeriod[]): readonly FactWi
   return [...byPeriod.values()].map((matches) => matches.toSorted(compareLatestFiled)[0]!);
 }
 
-function annualPoint(fact: FactWithPeriod, currency: string): FundamentalHistoryPoint {
+function annualPoint(
+  fact: FactWithPeriod,
+  currency: string,
+  peers: readonly FactWithPeriod[],
+): FundamentalHistoryPoint {
+  const restatedFrom = restatedFromOriginalFiling(
+    fact.val,
+    peers
+      .filter((peer) => peer.end === fact.end && peer.start === fact.start)
+      .map((peer) => ({ value: peer.val, filedAt: peer.filed, amendment: peer.amendment })),
+  );
   return {
     value: fact.val,
     form: "10-K",
@@ -271,6 +290,7 @@ function annualPoint(fact: FactWithPeriod, currency: string): FundamentalHistory
     periodMonths: fact.months,
     filedAt: fact.filed,
     currency,
+    ...(restatedFrom === undefined ? {} : { restatedFrom }),
   };
 }
 
@@ -492,7 +512,7 @@ function rawSeries(
   }
   const annual = chronological
     .slice(-MAX_ANNUAL_POINTS)
-    .map((fact) => annualPoint(fact, selected.currency));
+    .map((fact) => annualPoint(fact, selected.currency, annualCandidates));
   const ttm = ttmPoint(annual, observableFacts, selected.currency, notes);
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
@@ -626,6 +646,37 @@ function pairSeries(
   };
 }
 
+function latestObservableEnd(
+  payload: unknown,
+  key: string,
+  analysisAsOf: string | undefined,
+): string | undefined {
+  return selectFacts(payload, metricDefinition(key), analysisAsOf)
+    ?.facts.filter((fact) => isFactObservableAsOf(fact, analysisAsOf))
+    .map((fact) => fact.end ?? "")
+    .toSorted()
+    .at(-1);
+}
+
+// Total earnings carry a scope only while a continuing counterpart is as current as they are.
+export function totalOperationsScopes(
+  latestEnd: (key: EarningsHistoryKey) => string | undefined,
+): FundamentalHistoryEarningsScopes {
+  const scope = (total: EarningsHistoryKey, continuing: EarningsHistoryKey) => {
+    const totalEnd = latestEnd(total);
+    const continuingEnd = latestEnd(continuing);
+    return totalEnd !== undefined && continuingEnd !== undefined && continuingEnd >= totalEnd
+      ? TOTAL_OPERATIONS_SCOPE
+      : undefined;
+  };
+  const netIncome = scope("netIncome", "continuingIncome");
+  const dilutedEps = scope("dilutedEps", "continuingDilutedEps");
+  return {
+    ...(netIncome === undefined ? {} : { netIncome }),
+    ...(dilutedEps === undefined ? {} : { dilutedEps }),
+  };
+}
+
 export function deriveFundamentalHistory(
   payload: unknown,
   input: FundamentalHistoryDeriveInput,
@@ -636,14 +687,30 @@ export function deriveFundamentalHistory(
       rawSeries(payload, definition, input.analysisAsOf),
     ]),
   ) as Record<RawSeriesDefinition["key"], FundamentalHistorySeries>;
+  const scopes = totalOperationsScopes((key) =>
+    latestObservableEnd(payload, key, input.analysisAsOf),
+  );
   return {
     version: 1,
     generatedAt: input.generatedAt,
     symbol: input.symbol.toUpperCase(),
     sourceId: input.sourceId,
     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
-    series: buildFundamentalHistorySeries(raw),
+    series: buildFundamentalHistorySeries(raw, scopes),
   };
+}
+
+type EarningsHistoryKey = "netIncome" | "dilutedEps" | "continuingIncome" | "continuingDilutedEps";
+
+export type FundamentalHistoryEarningsScopes = Partial<Record<"netIncome" | "dilutedEps", string>>;
+
+function withEarningsScope(
+  series: FundamentalHistorySeries,
+  scope: string | undefined,
+): FundamentalHistorySeries {
+  return scope === undefined
+    ? series
+    : { ...series, label: scopedLabel(series.label, scope), scope };
 }
 
 export type FundamentalHistoryRawSeries = Readonly<
@@ -652,11 +719,17 @@ export type FundamentalHistoryRawSeries = Readonly<
 
 export function buildFundamentalHistorySeries(
   raw: FundamentalHistoryRawSeries,
+  scopes: FundamentalHistoryEarningsScopes,
 ): FundamentalHistoryArtifact["series"] {
+  const cashFlowScope = conceptScope(raw.operatingCashFlow.concept);
+  const scopedOperatingCashFlow = {
+    ...raw.operatingCashFlow,
+    label: scopedLabel(raw.operatingCashFlow.label, cashFlowScope),
+  };
   const freeCashFlowProxy = pairSeries(
     "freeCashFlowProxy",
-    "Free cash flow proxy",
-    raw.operatingCashFlow,
+    scopedLabel("Free cash flow proxy", cashFlowScope),
+    scopedOperatingCashFlow,
     raw.capex,
     (operatingCashFlow, capex) => operatingCashFlow - capex,
   );
@@ -686,9 +759,9 @@ export function buildFundamentalHistorySeries(
     revenue: raw.revenue,
     grossProfit: raw.grossProfit,
     operatingIncome: raw.operatingIncome,
-    netIncome: raw.netIncome,
-    dilutedEps: raw.dilutedEps,
-    operatingCashFlow: raw.operatingCashFlow,
+    netIncome: withEarningsScope(raw.netIncome, scopes.netIncome),
+    dilutedEps: withEarningsScope(raw.dilutedEps, scopes.dilutedEps),
+    operatingCashFlow: scopedOperatingCashFlow,
     capex: raw.capex,
     freeCashFlowProxy,
     grossMargin,

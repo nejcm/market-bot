@@ -9,8 +9,11 @@ import type {
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
+import { secFundamentalItem, secScope } from "./financial-lens-metrics";
+import { currentRatioIsCurrent } from "./financial-lens-builders";
+import { scopedLabel } from "./financial-statement-definitions";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { readNumberMetric } from "./utils";
+import { readNumberMetric, readStringMetric } from "./utils";
 import { formatLensValue, type LensValueUnit } from "./value-format";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
@@ -401,6 +404,14 @@ export function addBusinessFrameworkEvidence(
     ratio(operatingIncome, revenue),
   );
   const currentRatio = readNumberMetric(financialLensItem?.metrics, "currentRatio");
+  const currentRatioPeriodEnd = readStringMetric(
+    financialLensItem?.metrics,
+    "currentRatioPeriodEnd",
+  );
+  const currentRatioEligible = currentRatioIsCurrent(
+    secFundamentalItem(extendedEvidence),
+    generatedAt,
+  );
   const debtToMarketCap = readNumberMetric(financialLensItem?.metrics, "debtToMarketCap");
   const hasCapitalReturnEvidence = hasCapitalReturn({
     dividendsPaid,
@@ -545,7 +556,7 @@ export function addBusinessFrameworkEvidence(
         ),
         ...metric(
           "netIncomeDeltaPercent",
-          "Net income YoY",
+          scopedLabel("Net income YoY", secScope(secItem, "netIncome")),
           netIncomeDeltaPercent,
           "whole-percent",
           secSourceIds,
@@ -564,14 +575,16 @@ export function addBusinessFrameworkEvidence(
     section(
       "Risk",
       postureFrom([
-        currentRatio === undefined ? undefined : currentRatio >= 1,
+        currentRatio === undefined || !currentRatioEligible ? undefined : currentRatio >= 1,
         debtToMarketCap === undefined ? undefined : debtToMarketCap <= 0.5,
         revenueDeltaPercent === undefined ? undefined : revenueDeltaPercent >= 0,
       ]),
       [
         ...metric(
           "currentRatio",
-          "Current ratio",
+          currentRatioEligible
+            ? "Current ratio"
+            : `Current ratio (historical, ${currentRatioPeriodEnd ?? "undated"})`,
           currentRatio,
           "ratio",
           financialLensItem?.sourceIds ?? [],

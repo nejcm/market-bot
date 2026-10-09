@@ -83,6 +83,7 @@ import { auditPostSynthesisReport } from "./post-synthesis-audit";
 import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
+  currentIncompleteStatements,
   deriveEquityAnalysisCompleteness,
   equityAnalysisCompletenessGaps,
   type EquityAnalysisCompletenessInput,
@@ -714,6 +715,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           equityAnalysisCompleteness,
           collectedSources.reportingFreshness,
           isInstrumentCommand(command) ? command.symbol : undefined,
+          currentIncompleteStatements(
+            collectedSources.financialStatements,
+            equityAnalysisCompleteness.asOf,
+          ),
         ),
       ],
     };

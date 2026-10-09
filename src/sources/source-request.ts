@@ -5,9 +5,10 @@
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/types";
-import { fetchFailureSourceGap } from "../domain/source-gaps";
+import { fetchFailureSourceGap, type FetchFailureSourceGapCause } from "../domain/source-gaps";
 import { progressDetail } from "../progress";
 import { withCache, type CacheOptions } from "./cache";
+import { SourceResponseTooLargeError } from "./response-size-error";
 import {
   classifyTransientFailure,
   DEFAULT_RETRY_DELAYS_MS,
@@ -43,10 +44,7 @@ class SourceCircuitOpenError extends Error {
 const DEFAULT_HOST_MIN_DELAY_MS = 1000;
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_OPEN_MS = 60_000;
-// Global default response-byte ceiling, applied to every adapter unless a `SourceRequest`
-// Supplies its own `maxResponseBytes` (see `SourceRequest.maxResponseBytes`). Do not relax this
-// Default for a specific adapter's needs — pass a scoped `maxResponseBytes` on that adapter's
-// Request instead (see `SEC_FILING_TEXT_MAX_RESPONSE_BYTES` for the one adapter that needs it).
+// Relax per adapter with a scoped `SourceRequest.maxResponseBytes`, never here.
 const DEFAULT_MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
 // Scoped ceiling for the `sec-filing-text` adapter only. MSFT's FY2026 10-K decompresses to
 // 8.6M bytes; 16M gives ~2x headroom while bounding the transient memory a single filing fetch
@@ -56,6 +54,8 @@ const DEFAULT_MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
 // Per-section endpoint, and a byte Range has no relation to section boundaries (see the A2
 // Remediation plan).
 export const SEC_FILING_TEXT_MAX_RESPONSE_BYTES = 16_000_000;
+// Provisional ceiling for `sec-companyfacts` only: ADTN's facts exceeded the 5M default.
+export const SEC_COMPANYFACTS_MAX_RESPONSE_BYTES = 16_000_000;
 const hostStates = new Map<string, HostState>();
 
 let hostMinDelayMs = DEFAULT_HOST_MIN_DELAY_MS;
@@ -101,7 +101,7 @@ async function readCappedChunks(
   }
   const nextTotal = total + value.byteLength;
   if (nextTotal > maxResponseBytes) {
-    throw new Error(`${adapter} source response exceeded ${String(maxResponseBytes)} bytes`);
+    throw new SourceResponseTooLargeError(adapter, maxResponseBytes);
   }
   chunks.push(value);
   return readCappedChunks(reader, adapter, maxResponseBytes, chunks, nextTotal);
@@ -212,14 +212,14 @@ async function readCappedResponseText(
 ): Promise<string> {
   const contentLength = response.headers.get("content-length");
   if (contentLength !== null && Number(contentLength) > maxResponseBytes) {
-    throw new Error(`${adapter} source response exceeded ${String(maxResponseBytes)} bytes`);
+    throw new SourceResponseTooLargeError(adapter, maxResponseBytes);
   }
 
   const reader = response.body?.getReader();
   if (reader === undefined) {
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > maxResponseBytes) {
-      throw new Error(`${adapter} source response exceeded ${String(maxResponseBytes)} bytes`);
+      throw new SourceResponseTooLargeError(adapter, maxResponseBytes);
     }
     return text;
   }
@@ -240,6 +240,7 @@ async function fetchJson(
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  maxResponseBytes: number,
   init: RequestInit = {},
 ): Promise<FetchJsonResult> {
   return fetchPayload(
@@ -250,9 +251,7 @@ async function fetchJson(
     fetchImpl,
     "application/json",
     async (response) =>
-      JSON.parse(
-        await readCappedResponseText(response, adapter, DEFAULT_MAX_SOURCE_RESPONSE_BYTES),
-      ) as unknown,
+      JSON.parse(await readCappedResponseText(response, adapter, maxResponseBytes)) as unknown,
     init,
   );
 }
@@ -314,11 +313,9 @@ function recordRetryAttemptFailure(state: RetryAttemptState, error: unknown): vo
   });
 }
 
-// Only populated once at least one retry actually happened. A single failed attempt with no
-// Retry (the overwhelming majority of fetch-failure gaps today) carries no new information
-// Here, so it stays silent and every existing single-attempt gap is unchanged.
+// A lone failed attempt stays silent unless it is a size rejection, which readers must attribute.
 function retryAttemptsTelemetry(state: RetryAttemptState): SourceGapAttempts | undefined {
-  return state.failures.length > 1
+  return state.failures.length > 1 || state.failures.at(-1)?.classification === "response-too-large"
     ? {
         count: state.failures.length,
         elapsedMs: Math.round(performance.now() - state.startedAt),
@@ -333,12 +330,13 @@ async function fetchJsonWithRetry(
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  maxResponseBytes: number,
   remainingDelays: readonly number[],
   attemptState: RetryAttemptState,
   init?: RequestInit,
 ): Promise<FetchJsonResult> {
   try {
-    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl, init);
+    return await fetchJson(url, adapter, fetchedAt, timeoutMs, fetchImpl, maxResponseBytes, init);
   } catch (error: unknown) {
     recordRetryAttemptFailure(attemptState, error);
     const [nextDelay] = remainingDelays;
@@ -352,6 +350,7 @@ async function fetchJsonWithRetry(
       fetchedAt,
       timeoutMs,
       fetchImpl,
+      maxResponseBytes,
       remainingDelays.slice(1),
       attemptState,
       init,
@@ -393,12 +392,33 @@ async function fetchTextWithRetry(
   }
 }
 
+function requestFailureCause(error: unknown): FetchFailureSourceGapCause {
+  if (error instanceof SourceCircuitOpenError) {
+    return "circuit-open";
+  }
+  return error instanceof SourceResponseTooLargeError ? "validation-failed" : "fetch-failed";
+}
+
+function requestFailureGap(
+  adapter: string,
+  error: unknown,
+  attemptState: RetryAttemptState,
+): SourceGap {
+  return fetchFailureSourceGap(
+    adapter,
+    error instanceof Error ? error.message : "source request failed",
+    requestFailureCause(error),
+    retryAttemptsTelemetry(attemptState),
+  );
+}
+
 async function fetchJsonOrGap(
   url: string,
   adapter: string,
   fetchedAt: string,
   timeoutMs: number,
   fetchImpl: FetchLike,
+  maxResponseBytes: number,
   retryDelaysMs: readonly number[] = DEFAULT_RETRY_DELAYS_MS,
   init?: RequestInit,
 ): Promise<FetchJsonResult | SourceGap> {
@@ -410,18 +430,13 @@ async function fetchJsonOrGap(
       fetchedAt,
       timeoutMs,
       fetchImpl,
+      maxResponseBytes,
       retryDelaysMs,
       attemptState,
       init,
     );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "source request failed";
-    return fetchFailureSourceGap(
-      adapter,
-      message,
-      error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
-      retryAttemptsTelemetry(attemptState),
-    );
+    return requestFailureGap(adapter, error, attemptState);
   }
 }
 
@@ -449,13 +464,7 @@ async function fetchTextOrGap(
       init,
     );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "source request failed";
-    return fetchFailureSourceGap(
-      adapter,
-      message,
-      error instanceof SourceCircuitOpenError ? "circuit-open" : "fetch-failed",
-      retryAttemptsTelemetry(attemptState),
-    );
+    return requestFailureGap(adapter, error, attemptState);
   }
 }
 
@@ -491,6 +500,7 @@ function createSourceRequestExecutor(options: SourceRequestExecutorOptions): Sou
       options.fetchedAt,
       options.sourceTimeoutMs,
       request.fetch?.(options.fetchImpl) ?? options.fetchImpl,
+      request.maxResponseBytes ?? DEFAULT_MAX_SOURCE_RESPONSE_BYTES,
       options.retryDelaysMs,
       request.init,
     );

@@ -99,6 +99,7 @@ export type FinancialStatementSeriesKey =
   | "grossProfit"
   | "operatingIncome"
   | "netIncome"
+  | "continuingIncome"
   | "cash"
   | "currentAssets"
   | "currentLiabilities"
@@ -111,7 +112,13 @@ export type FinancialStatementSeriesKey =
   | "dividendsPaid"
   | "shareRepurchases"
   | "dilutedEps"
+  | "continuingDilutedEps"
   | "dilutedShares";
+
+export interface OriginalFiling {
+  readonly value: number;
+  readonly filedAt: string;
+}
 
 export interface FinancialStatementFact {
   readonly value: number;
@@ -123,6 +130,7 @@ export interface FinancialStatementFact {
   readonly accessionNumber: string | null;
   readonly filedAt: string;
   readonly firstPublicAt: string;
+  readonly restatedFrom?: OriginalFiling;
   readonly periodStart?: string;
   readonly periodEnd: string;
   readonly fiscalYear: number;
@@ -202,6 +210,7 @@ export interface FinancialStatementNote {
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
+  readonly publicAt?: string;
 }
 
 export interface StructuredFinancialGap {
@@ -225,7 +234,10 @@ export interface FinancialStatementsArtifact {
   readonly equityStack?: FinancialStatementEquityStack;
   readonly statements: {
     readonly incomeStatement: Readonly<
-      Record<"revenue" | "grossProfit" | "operatingIncome" | "netIncome", FinancialStatementSeries>
+      Record<
+        "revenue" | "grossProfit" | "operatingIncome" | "netIncome" | "continuingIncome",
+        FinancialStatementSeries
+      >
     >;
     readonly balanceSheet: Readonly<
       Record<
@@ -245,7 +257,9 @@ export interface FinancialStatementsArtifact {
         FinancialStatementSeries
       >
     >;
-    readonly perShare: Readonly<Record<"dilutedEps" | "dilutedShares", FinancialStatementSeries>>;
+    readonly perShare: Readonly<
+      Record<"dilutedEps" | "continuingDilutedEps" | "dilutedShares", FinancialStatementSeries>
+    >;
   };
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
@@ -259,6 +273,7 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "grossProfit",
   "operatingIncome",
   "netIncome",
+  "continuingIncome",
   "cash",
   "currentAssets",
   "currentLiabilities",
@@ -271,8 +286,22 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "dividendsPaid",
   "shareRepurchases",
   "dilutedEps",
+  "continuingDilutedEps",
   "dilutedShares",
 ];
+
+// Artifacts written before the continuing-operations series read them as empty, not as invalid.
+const LATER_SERIES: Readonly<
+  Partial<
+    Record<FinancialStatementSeriesKey, Pick<FinancialStatementSeries, "label" | "statement">>
+  >
+> = {
+  continuingIncome: { label: "Income from continuing operations", statement: "incomeStatement" },
+  continuingDilutedEps: {
+    label: "Diluted EPS from continuing operations",
+    statement: "perShare",
+  },
+};
 
 function stringField(value: Readonly<Record<string, unknown>>, key: string): string | undefined {
   return typeof value[key] === "string" ? value[key] : undefined;
@@ -327,6 +356,10 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     (value.accessionNumber === null || typeof value.accessionNumber === "string") &&
     stringField(value, "filedAt") !== undefined &&
     (value.firstPublicAt === undefined || typeof value.firstPublicAt === "string") &&
+    (value.restatedFrom === undefined ||
+      (isRecord(value.restatedFrom) &&
+        numberField(value.restatedFrom, "value") !== undefined &&
+        stringField(value.restatedFrom, "filedAt") !== undefined)) &&
     (value.periodStart === undefined || typeof value.periodStart === "string") &&
     stringField(value, "periodEnd") !== undefined &&
     numberField(value, "fiscalYear") !== undefined &&
@@ -577,6 +610,12 @@ export function readFinancialStatementsArtifact(
   const drops: ArtifactObservationDrop[] = [...(equityStack?.drops ?? [])];
   const backfills: ArtifactObservationDrop[] = [...(equityStack?.backfills ?? [])];
   for (const key of FINANCIAL_STATEMENT_SERIES_KEYS) {
+    const later = LATER_SERIES[key];
+    if (allSeries[key] === undefined && later !== undefined) {
+      series[key] = { key, ...later, annual: [], interim: [] };
+      (later.statement === "incomeStatement" ? income : perShare)[key] = series[key];
+      continue;
+    }
     const read = readFinancialStatementSeries(allSeries[key], key);
     if (read === undefined) {
       return undefined;

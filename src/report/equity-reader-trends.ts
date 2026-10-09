@@ -4,8 +4,28 @@ import type {
   FundamentalHistorySeries,
 } from "../sources/extended-evidence/fundamental-history";
 import type { ValuationMetricSuppressionReason } from "../sources/extended-evidence/valuation-workbench-contract";
+import { conceptScope } from "../sources/extended-evidence/financial-statement-definitions";
 import { periodLabel } from "./equity-reader-statements";
-import { metricCell } from "./valuation-workbench-markdown";
+
+export function metricCell(
+  metric:
+    | { readonly status: "populated"; readonly display: string }
+    | { readonly status: "not-meaningful"; readonly display: string }
+    | {
+        readonly status: "suppressed";
+        readonly display: string;
+        readonly reason: ValuationMetricSuppressionReason;
+      }
+    | { readonly status: "not-applicable"; readonly display: string; readonly rationale: string },
+): string {
+  if (metric.status === "populated" || metric.status === "not-meaningful") {
+    return metric.display;
+  }
+  if (metric.status === "not-applicable") {
+    return `${metric.display} (${metric.rationale})`;
+  }
+  return `${metric.display} (${metric.reason})`;
+}
 
 interface TrendPeriod {
   readonly kind: "annual" | "ttm";
@@ -23,8 +43,11 @@ interface FinancialTrendRow {
 
 export interface EquityReaderFinancialTrends {
   readonly reportingCurrency?: string;
+  readonly freeCashFlowScope?: string;
+  readonly netIncomeScope?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly FinancialTrendRow[];
+  readonly restatements?: readonly string[];
 }
 
 const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
@@ -189,6 +212,37 @@ function financialTrendRows(
   });
 }
 
+const RESTATEMENT_SERIES_KEYS = [
+  "revenue",
+  "netIncome",
+  "operatingIncome",
+  "operatingCashFlow",
+  "capex",
+] as const;
+
+function financialTrendRestatements(history: FundamentalHistoryArtifact): readonly string[] {
+  return trendPeriods(history).flatMap((period) => {
+    const originals = RESTATEMENT_SERIES_KEYS.flatMap((key) => {
+      const series = history.series[key] as FundamentalHistorySeries | undefined;
+      const point =
+        series === undefined ? undefined : historyPoint(series, period.periodEnd, period.kind);
+      const original = point?.restatedFrom;
+      return series === undefined ||
+        original === undefined ||
+        formatTrendAmount(original.value) === formatTrendAmount(point?.value)
+        ? []
+        : [
+            `${series.label.toLowerCase()} ${formatTrendAmount(original.value)} (filed ${original.filedAt})`,
+          ];
+    });
+    return originals.length === 0
+      ? []
+      : [
+          `${periodLabel(period)} shows restated values; as originally filed: ${originals.join(", ")}.`,
+        ];
+  });
+}
+
 function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {
   return history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
 }
@@ -205,9 +259,15 @@ export function financialTrends(
     return undefined;
   }
   const reportingCurrency = financialTrendCurrency(history);
+  const freeCashFlowScope = conceptScope(history.series.operatingCashFlow?.concept);
+  const netIncomeScope = history.series.netIncome.scope;
+  const restatements = financialTrendRestatements(history);
   return {
     ...(reportingCurrency === undefined ? {} : { reportingCurrency }),
+    ...(freeCashFlowScope === undefined ? {} : { freeCashFlowScope }),
+    ...(netIncomeScope === undefined ? {} : { netIncomeScope }),
     sourceIds: [history.sourceId],
     rows,
+    ...(restatements.length === 0 ? {} : { restatements }),
   };
 }

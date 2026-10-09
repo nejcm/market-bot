@@ -372,8 +372,8 @@ describe("run trace builder", () => {
         pruned: [],
         advisories: [
           {
-            code: "uncited-numeric-summary-sentence",
-            location: "summary[0]",
+            code: "weak-evidence-posture-missing",
+            location: "keyFindings[0]",
           },
         ],
       },
@@ -400,8 +400,8 @@ describe("run trace builder", () => {
     expect(trace.webSourceSynthesisInputs).toBeUndefined();
     expect(trace.reportIntegrityAudit?.advisories).toEqual([
       {
-        code: "uncited-numeric-summary-sentence",
-        location: "summary[0]",
+        code: "weak-evidence-posture-missing",
+        location: "keyFindings[0]",
       },
     ]);
   });

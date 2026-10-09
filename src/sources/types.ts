@@ -43,9 +43,7 @@ export interface SourceRequest {
   readonly adapter: string;
   readonly init?: RequestInit | undefined;
   readonly fetch?: ((baseFetch: FetchLike) => FetchLike) | undefined;
-  // Overrides the default response-byte ceiling (`DEFAULT_MAX_SOURCE_RESPONSE_BYTES` in
-  // Source-request.ts) for this request's text fetch only. Used by adapters whose payload is
-  // Known to legitimately exceed the global default (currently: sec-filing-text only).
+  // Overrides the default response-byte ceiling in source-request.ts for this text or JSON fetch.
   readonly maxResponseBytes?: number | undefined;
 }
 

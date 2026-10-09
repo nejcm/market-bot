@@ -8,6 +8,7 @@ import { promptBaselineCases } from "./support/prompt-baseline-matrix";
 // This golden map of SHA-256 hashes can. A deliberate prompt change refreshes the goldens
 // Explicitly: UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts
 const GOLDEN_PATH = join(import.meta.dir, "support", "prompt-baseline.golden.json");
+const PROMPTS_DIR = join(import.meta.dir, "..", "prompts");
 
 function sha256(text: string): string {
   return new Bun.CryptoHasher("sha256").update(text).digest("hex");
@@ -34,6 +35,10 @@ describe("prompt baseline", () => {
     for (const { key, text } of promptBaselineCases()) {
       expect(hashes[key]).toBeUndefined();
       hashes[key] = sha256(text);
+    }
+    // The matrix feeds stub LoadedPrompts, so pin the prompt and playbook files themselves.
+    for (const path of [...new Bun.Glob("**/*").scanSync(PROMPTS_DIR)].toSorted()) {
+      hashes[`file:prompts/${path}`] = sha256(await Bun.file(join(PROMPTS_DIR, path)).text());
     }
 
     if (process.env.UPDATE_PROMPT_BASELINE === "1") {

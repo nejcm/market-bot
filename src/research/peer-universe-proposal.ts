@@ -1,4 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
+import type { SourceGapCause } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types";
@@ -9,16 +10,27 @@ import { collectListedUniverse, type ListedUniverseEntry } from "../alpha-search
 import {
   MAX_PEERS,
   MIN_PROPOSED_PEERS,
+  type PeerExclusionFeedback,
   type PeerUniverse,
   type PeerUniversePeer,
+  type PeerUniverseProposal,
   type PeerUniverseSource,
+  type PeerUniverseTargetInputs,
   type ProposalAudit,
 } from "./peer-universe";
+import {
+  SIZE_GATE_MAX_RATIO,
+  SIZE_GATE_MIN_RATIO,
+} from "../sources/extended-evidence/valuation-comps-contract";
 
 const UNSUPPORTED_SECURITY_NAME_RE =
   /\b(ADR|ADS|AMERICAN DEPOSITARY|ETF|ETN|FUND|TRUST|INDEX|UNIT|WARRANT|RIGHT|PREFERRED|PREFERENCE|NOTE|NOTES|DEBENTURE|BOND)\b/iu;
 
 const SEC_TICKERS_SOURCE_ID = "sec-company-tickers";
+
+// Bump when the proposal prompt changes materially; a refresh spent under an older revision is
+// Granted again.
+export const PROPOSER_REVISION = 2;
 
 export interface ProposerDeps {
   readonly provider: ModelProvider;
@@ -60,11 +72,70 @@ function buildSystemPrompt(): string {
   );
 }
 
-function buildUserPrompt(targetSymbol: string, targetName?: string): string {
+const COMPACT_USD = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function sizeBandClause(label: string, value: number | undefined): string | undefined {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return `${label} between ${COMPACT_USD.format(value * SIZE_GATE_MIN_RATIO)} and ${COMPACT_USD.format(value * SIZE_GATE_MAX_RATIO)} (target ${COMPACT_USD.format(value)})`;
+}
+
+// Bands are targets, not a filter: the model cannot verify SIC or size, and downstream gates enforce them.
+function comparabilityBand(target: PeerUniverseTargetInputs | undefined): string {
+  const clauses = [
+    target?.sic !== undefined && /^\d{4}$/u.test(target.sic)
+      ? `an SEC SIC code in the two-digit group ${target.sic.slice(0, 2)} (target SIC ${target.sic})`
+      : undefined,
+    sizeBandClause("market capitalization", target?.marketCap),
+    sizeBandClause("annualized revenue", target?.annualizedRevenue),
+  ].filter((clause): clause is string => clause !== undefined);
+  return clauses.length === 0
+    ? ""
+    : `Target comparability bands: ${clauses.join("; ")}. ` +
+        "Downstream code verifies these facts and rejects candidates outside the applicable bands. " +
+        "Do not omit a plausible candidate solely because its exact SIC classification or current size is uncertain; " +
+        "include plausible near-band candidates after likely in-band candidates. ";
+}
+
+// Fixed labels only: exclusion reasons can carry provider text, which must not reach the prompt.
+const EXCLUSION_LABELS: Partial<Record<SourceGapCause, string>> = {
+  "suppressed-by-design": "outside a comparability gate",
+  "provider-data-missing": "required public data unavailable",
+};
+
+function exclusionFeedback(exclusions: readonly PeerExclusionFeedback[] | undefined): string {
+  const valid = (exclusions ?? []).filter(({ symbol }) => RESEARCH_SUBJECT_SYMBOL_RE.test(symbol));
+  if (valid.length === 0) {
+    return "";
+  }
+  const excluded = valid
+    .map(({ symbol, cause }) => `${symbol} (${EXCLUSION_LABELS[cause] ?? "excluded"})`)
+    .join("; ");
+  return (
+    `The previous evaluation excluded these candidates downstream: ${excluded}. ` +
+    "Do not repeat a candidate unless its exclusion reason is likely to no longer apply. "
+  );
+}
+
+function buildUserPrompt(
+  targetSymbol: string,
+  targetName?: string,
+  target?: PeerUniverseTargetInputs,
+  exclusions?: readonly PeerExclusionFeedback[],
+): string {
   const subject = targetName !== undefined ? `${targetName} (${targetSymbol})` : targetSymbol;
   return (
-    `List up to ${String(MAX_PEERS)} US-listed common-stock comparable companies for ${subject}. ` +
-    `Return JSON with this exact shape: ` +
+    `Propose ${String(MAX_PEERS)} distinct US-listed common-stock candidates for ${subject}, ` +
+    "ranked from strongest to weakest business and likely sector/size fit. " +
+    `Aim for at least ${String(MIN_PROPOSED_PEERS)} plausible candidates. ${comparabilityBand(target)}${exclusionFeedback(exclusions)}` +
+    "Do not invent companies to reach the requested count. Give each a brief business-fit rationale. " +
+    "Return JSON with this exact shape: " +
     `{"peers":[{"symbol":"string","name":"string","role":"core"|"secondary","rationale":"string"}]}`
   );
 }
@@ -120,10 +191,23 @@ function isEligibleListedCommonStock(
   );
 }
 
-// Runs the structured-JSON model call; returns the raw content, or an empty string
-// When the provider throws (network/timeout). Empty content parses to zero candidates,
-// So the caller degrades to the existing too-few-survivors gap without a special case.
-async function generatePeerProposal(deps: ProposerDeps, target: string): Promise<string> {
+// A row without a stock classification (Cboe) cannot rule a candidate out; only classified rows can.
+function hasAffirmativeListing(
+  symbol: string,
+  listedEntries: readonly ListedUniverseEntry[],
+): boolean {
+  return listedEntries.some(
+    (entry) => entry.symbol === symbol && entry.isSupportedStock !== undefined,
+  );
+}
+
+// Runs the structured-JSON model call; null when the provider throws (network/timeout).
+async function generatePeerProposal(
+  deps: ProposerDeps,
+  target: string,
+  targetInputs: PeerUniverseTargetInputs | undefined,
+  exclusions: readonly PeerExclusionFeedback[] | undefined,
+): Promise<string | null> {
   try {
     const response = await deps.provider.generate({
       model: deps.model,
@@ -133,16 +217,20 @@ async function generatePeerProposal(deps: ProposerDeps, target: string): Promise
         top_p: 1,
         seed: symbolSeed(target),
         reasoningEffort: "medium",
-        max_completion_tokens: 400,
+        // Eight peer objects need ~600 tokens, and OpenAI reasoning tokens count against this cap.
+        max_completion_tokens: 2000,
       },
       messages: [
         { role: "system", content: withUntrustedModelInputRule(buildSystemPrompt()) },
-        { role: "user", content: buildUserPrompt(target, deps.targetName) },
+        {
+          role: "user",
+          content: buildUserPrompt(target, deps.targetName, targetInputs, exclusions),
+        },
       ],
     });
     return response.content;
   } catch {
-    return "";
+    return null;
   }
 }
 
@@ -152,8 +240,12 @@ async function generatePeerProposal(deps: ProposerDeps, target: string): Promise
 // Undefined. Cache write is the caller's responsibility.
 export function createPeerUniverseProposer(
   deps: ProposerDeps,
-): (symbol: string) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }> {
-  return async (targetSymbol: string) => {
+): (
+  symbol: string,
+  targetInputs?: PeerUniverseTargetInputs,
+  exclusions?: readonly PeerExclusionFeedback[],
+) => Promise<PeerUniverseProposal> {
+  return async (targetSymbol, targetInputs, exclusions) => {
     const target = targetSymbol.trim().toUpperCase();
 
     // Fetch SEC company_tickers.json — reused (cached) from the peer fetch pipeline
@@ -168,16 +260,19 @@ export function createPeerUniverseProposer(
     });
     if (!isFetchJsonResult(tickersResult)) {
       // SEC directory unavailable — degrade to existing unsupported-coverage gap
-      return { audit: emptyAudit("(sec-fetch-failed)") };
+      return { audit: emptyAudit("(sec-fetch-failed)"), unavailable: true };
     }
     const listedUniverse = await collectListedUniverse(deps.request);
     if (listedUniverse.entries.length === 0) {
-      return { audit: emptyAudit("(listing-fetch-failed)") };
+      return { audit: emptyAudit("(listing-fetch-failed)"), unavailable: true };
     }
     const tickersPayload = tickersResult.payload;
 
-    // Model call: structured JSON, low token budget, temperature:0 for reproducibility
-    const modelContent = await generatePeerProposal(deps, target);
+    // Model call: structured JSON, temperature:0 for reproducibility
+    const modelContent = await generatePeerProposal(deps, target, targetInputs, exclusions);
+    if (modelContent === null) {
+      return { audit: emptyAudit(deps.model), unavailable: true };
+    }
     const rawPeers = parseProposedPeers(modelContent);
     const modelId = deps.model;
 
@@ -185,6 +280,7 @@ export function createPeerUniverseProposer(
     let rejectedByDirectory = 0;
     let rejectedByEtf = 0;
     let rejectedByListing = 0;
+    let unresolvedListings = 0;
     const seen = new Set<string>();
     const survivors: { peer: RawProposedPeer; secName: string }[] = [];
 
@@ -216,6 +312,9 @@ export function createPeerUniverseProposer(
 
       if (!isEligibleListedCommonStock(symbol, listedUniverse.entries)) {
         rejectedByListing++;
+        if (!hasAffirmativeListing(symbol, listedUniverse.entries)) {
+          unresolvedListings++;
+        }
         continue;
       }
 
@@ -248,7 +347,10 @@ export function createPeerUniverseProposer(
     };
 
     if (survivors.length < MIN_PROPOSED_PEERS) {
-      return { audit };
+      // A failed directory may hold the candidates it left unresolved, so this shortfall is an outage.
+      return listedUniverse.sourceGaps.length > 0 && unresolvedListings > 0
+        ? { audit, unavailable: true }
+        : { audit };
     }
 
     const peerSource: PeerUniverseSource = {

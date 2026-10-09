@@ -23,7 +23,7 @@ CLI parser normalizes new `daily` / `weekly` invocations into canonical
 | `alpha-search`    | fixed `--asset equity` | yes        | no         | no         | no           | no               |
 | `research`        | implied equity         | no         | no         | yes        | no           | yes              |
 
-Operational commands (`score`, `calibration`, `cache-prune`, `provider-health`,
+Operational commands (`score`, `score-repair`, `calibration`, `cache-prune`, `provider-health`,
 `history-*`, `index-rebuild`) are not research run types.
 
 ### Config Resolution
@@ -529,6 +529,34 @@ market-bot score
   cohorts, and feature attribution.
 - Then calls `buildAndWriteCalibration`.
 - Updates the run artifact index.
+- Equity close windows (policy v3 and legacy v2) grade only completed sessions: a bar whose
+  regular session had not closed at the scoring clock is withheld, and such windows are never
+  cached. A withheld in-progress session keeps the score `horizon-not-elapsed` without spending an
+  attempt only when it alone explains the unresolved result.
+
+### `score repair`
+
+```sh
+market-bot score repair --run <run-id> --prediction <id> [--apply]
+```
+
+- Calls `repairScore(config.dataDir, request)` for one explicitly selected score.
+- Detection replays the uncertified v2 close windows the score consumed, as stored and with the
+  completed-session rule applied at each window's `cachedAt`, using Yahoo schedules recorded in
+  the raw cache around the scoring day. Verdicts: `proven-premature` (removing only the bars a
+  recorded schedule shows were still trading changes the stored resolution), `suspect` (no schedule proves it closed), `unaffected`,
+  `unreproducible`, `not-resolved`, `already-repaired`, and `not-applicable` (non-equity runs).
+- The run id must name a directory directly under the runs directory (symlinks resolved), and the
+  Prediction id must select exactly one score row.
+- Without `--apply` it reads only: no lock, no fetch, no writes.
+- `--apply` holds `data/shared-state.lock`, rescores from verified sessions, and writes only when
+  the replacement resolves. Only the target row changes: other raw rows and top-level fields are
+  kept as written, and the replaced raw row is kept verbatim under `repair.original`.
+  `score.json` and `miss-autopsy.json` are written atomically (an empty autopsy list replaces a
+  miss that disappeared), then the Run Artifact Index and Calibration are refreshed. Rerunning
+  `--apply` on an already-repaired score redoes those derived steps without rescoring, so a
+  failure partway through is recovered by rerunning. `report.json` and model inputs are untouched; history rebuilds lazily from the
+  changed sidecars.
 
 ### `calibration`
 

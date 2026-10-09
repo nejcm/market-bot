@@ -43,6 +43,12 @@ const FRESHNESS_BUDGETS_MS = {
   news: 60 * MINUTE_MS,
   reference: DAY_MS,
 } as const;
+// Archived-snapshot reuse, not an immutability claim: SEC may correct filings, so refetch after the raw retention window.
+const ACCESSION_DOCUMENT_BUDGET_MS = 30 * DAY_MS;
+const ACCESSION_DIR = "accession";
+const SEC_ARCHIVE_DOCUMENT_PATH = /^\/Archives\/edgar\/data\/\d+\/\d{18}\/[^/](?:.*[^/])?$/u;
+const GENERATED_FILING_INDEX = /(?:^|[-/])index(?:-headers)?\.(?:html?|json|xml)$/iu;
+const DATE_DIR = /^\d{4}-\d{2}-\d{2}$/u;
 
 export interface PruneCacheOptions {
   readonly dir: string;
@@ -99,6 +105,29 @@ export function canonicalRequestUrl(url: string): string {
 
 function requestMethod(init: RequestInit | undefined): string {
   return (init?.method ?? "GET").toUpperCase();
+}
+
+function decodedPathname(url: URL): string | undefined {
+  try {
+    return decodeURIComponent(url.pathname);
+  } catch {
+    return undefined;
+  }
+}
+
+export function isAccessionDocumentRequest(request: SourceRequest): boolean {
+  const url = URL.parse(request.url);
+  const path = url === null ? undefined : decodedPathname(url);
+  return (
+    requestMethod(request.init) === "GET" &&
+    url !== null &&
+    url.protocol === "https:" &&
+    url.host === "www.sec.gov" &&
+    url.search === "" &&
+    path !== undefined &&
+    SEC_ARCHIVE_DOCUMENT_PATH.test(url.pathname) &&
+    !GENERATED_FILING_INDEX.test(path)
+  );
 }
 
 async function cacheableRequestFingerprint(request: SourceRequest): Promise<
@@ -164,7 +193,8 @@ async function readEntry(path: string): Promise<CacheEntry | undefined> {
       return undefined;
     }
 
-    return (await file.json()) as CacheEntry;
+    const entry: unknown = await file.json();
+    return typeof entry === "object" && entry !== null ? (entry as CacheEntry) : undefined;
   } catch {
     return undefined;
   }
@@ -187,6 +217,7 @@ function isValidCacheEntryMetadata(
     entry.cacheKey === expected.cacheKey &&
     entry.adapter === expected.adapter &&
     entry.cachedDate === expected.cachedDate &&
+    typeof entry.fetchedAt === "string" &&
     !Number.isNaN(new Date(entry.fetchedAt).getTime())
   );
 }
@@ -203,7 +234,7 @@ async function writeEntry(path: string, entry: CacheEntry): Promise<void> {
 function listDateDirs(dir: string): readonly string[] {
   try {
     return readdirSync(dir, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && /^\d{4}-\d{2}-\d{2}$/u.test(d.name))
+      .filter((d) => d.isDirectory() && DATE_DIR.test(d.name))
       .map((d) => d.name)
       .toSorted((a, b) => compareText(b, a));
   } catch {
@@ -217,22 +248,22 @@ async function findStaleFallback(
   today: string,
   fallbackDays: number,
   adapter: string,
-  sameDayEntry?: CacheEntry,
+  extraCandidates: readonly { readonly date: string; readonly entry: CacheEntry | undefined }[],
+  isPayload: (payload: unknown) => boolean,
 ): Promise<CacheEntry | undefined> {
-  const candidateDirs = listDateDirs(dir).filter(
-    (d) => d < today && dateDiffDays(today, d) <= fallbackDays,
-  );
+  const withinWindow = (d: string) => d <= today && dateDiffDays(today, d) <= fallbackDays;
+  const candidateDirs = listDateDirs(dir).filter((d) => d < today && withinWindow(d));
 
   const entries = await Promise.all(
     candidateDirs.map(async (d) => ({ date: d, entry: await readEntry(entryPath(dir, d, sha)) })),
   );
 
-  const sameDayCandidate =
-    sameDayEntry === undefined ? [] : ([{ date: today, entry: sameDayEntry }] as const);
-  return [...sameDayCandidate, ...entries]
+  return [...extraCandidates.filter(({ date }) => withinWindow(date)), ...entries]
+    .toSorted((left, right) => compareText(right.date, left.date))
     .map(({ date, entry }) =>
       entry !== undefined &&
-      isValidCacheEntryMetadata(entry, { cacheKey: sha, adapter, cachedDate: date })
+      isValidCacheEntryMetadata(entry, { cacheKey: sha, adapter, cachedDate: date }) &&
+      isPayload(entry.payload)
         ? entry
         : undefined,
     )
@@ -263,8 +294,8 @@ function freshnessBudgetMs(adapter: string): number {
   return FRESHNESS_BUDGETS_MS.live;
 }
 
-function isFresh(entry: CacheEntry, adapter: string, now: Date): boolean {
-  return now.getTime() - new Date(entry.fetchedAt).getTime() <= freshnessBudgetMs(adapter);
+function isFresh(entry: CacheEntry, budgetMs: number, now: Date): boolean {
+  return now.getTime() - new Date(entry.fetchedAt).getTime() <= budgetMs;
 }
 
 function toFetchResult<TPayload>(
@@ -323,19 +354,26 @@ export function withCache<TPayload = unknown>(
     if (sha === undefined) {
       return inner(request);
     }
-    const todayPath = entryPath(options.dir, today, sha);
+    const accession = isAccessionDocumentRequest(request);
+    const entryFile = accession
+      ? join(options.dir, ACCESSION_DIR, `${sha}.json`)
+      : entryPath(options.dir, today, sha);
 
-    const cached = await readEntry(todayPath);
+    const cached = await readEntry(entryFile);
     let validCached = cached;
     if (cached !== undefined) {
-      if (
-        isValidCacheEntryMetadata(cached, {
-          cacheKey: sha,
-          adapter,
-          cachedDate: today,
-        })
-      ) {
-        if (isFresh(cached, adapter, now)) {
+      const cachedDate =
+        accession && typeof cached.cachedDate === "string" && DATE_DIR.test(cached.cachedDate)
+          ? cached.cachedDate
+          : today;
+      if (isValidCacheEntryMetadata(cached, { cacheKey: sha, adapter, cachedDate })) {
+        if (accession) {
+          if (!(validator?.isPayload(cached.payload) ?? true)) {
+            validCached = undefined;
+          } else if (isFresh(cached, ACCESSION_DOCUMENT_BUDGET_MS, now)) {
+            return toFetchResult(cached, adapter, cached.payload as TPayload, "current");
+          }
+        } else if (isFresh(cached, freshnessBudgetMs(adapter), now)) {
           return toCachedResult(cached, adapter, validator, "current");
         }
       } else {
@@ -349,7 +387,7 @@ export function withCache<TPayload = unknown>(
     const result = await inner(request);
 
     if ("rawSnapshot" in result) {
-      await writeEntry(todayPath, {
+      await writeEntry(entryFile, {
         cacheKey: sha,
         adapter,
         fetchedAt: result.rawSnapshot.fetchedAt,
@@ -363,13 +401,20 @@ export function withCache<TPayload = unknown>(
     const effectiveFallbackDays = isYahooMarketDataAdapter(adapter)
       ? yahooCacheFallbackDays(options.fallbackDays)
       : options.fallbackDays;
+    const candidates = [
+      ...(validCached === undefined ? [] : [{ date: validCached.cachedDate, entry: validCached }]),
+      ...(accession
+        ? [{ date: today, entry: await readEntry(entryPath(options.dir, today, sha)) }]
+        : []),
+    ];
     const stale = await findStaleFallback(
       options.dir,
       sha,
       today,
       effectiveFallbackDays,
       adapter,
-      validCached,
+      candidates,
+      validator?.isPayload ?? (() => true),
     );
     if (stale !== undefined) {
       const ageDays = dateDiffDays(today, stale.cachedDate);

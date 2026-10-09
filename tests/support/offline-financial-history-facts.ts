@@ -123,13 +123,19 @@ export const RAW_HISTORY_DEFINITIONS: readonly RawHistoryDefinition[] = [
   {
     key: "operatingCashFlow",
     canonicalKey: "operatingCashFlow",
-    legacyConcepts: ["NetCashProvidedByUsedInOperatingActivities"],
+    legacyConcepts: [
+      "NetCashProvidedByUsedInOperatingActivities",
+      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    ],
     legacyUnit: "USD",
   },
   {
     key: "capex",
     canonicalKey: "capitalExpenditure",
-    legacyConcepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    legacyConcepts: [
+      "PaymentsToAcquirePropertyPlantAndEquipment",
+      "PaymentsToAcquireProductiveAssets",
+    ],
     legacyUnit: "USD",
   },
 ];
@@ -170,7 +176,10 @@ export const CANONICAL_DURATION_DEFINITIONS: readonly CanonicalDurationDefinitio
     key: "operatingCashFlow",
     unitKind: "monetary",
     concepts: {
-      "us-gaap": ["NetCashProvidedByUsedInOperatingActivities"],
+      "us-gaap": [
+        "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+      ],
       "ifrs-full": ["CashFlowsFromUsedInOperatingActivities"],
     },
   },
@@ -178,7 +187,10 @@ export const CANONICAL_DURATION_DEFINITIONS: readonly CanonicalDurationDefinitio
     key: "capitalExpenditure",
     unitKind: "monetary",
     concepts: {
-      "us-gaap": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+      "us-gaap": [
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+        "PaymentsToAcquireProductiveAssets",
+      ],
       "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
     },
   },
@@ -456,72 +468,10 @@ export function expectedSelectedConcept(
   definition: RawHistoryDefinition,
   side: HistorySide,
 ): string | undefined {
-  if (side === "legacy") {
-    if (definition.key !== "revenue") {
-      return definition.legacyConcepts.find((concept) =>
-        conceptUnitValues(
-          execution.input.companyFacts,
-          "us-gaap",
-          concept,
-          definition.legacyUnit,
-        ).some((value) => readSecFactValue(value) !== undefined),
-      );
-    }
-    const ranked = definition.legacyConcepts.flatMap((concept) => {
-      const [latest] = conceptUnitValues(
-        execution.input.companyFacts,
-        "us-gaap",
-        concept,
-        definition.legacyUnit,
-      )
-        .flatMap((value) => {
-          const fact = readSecFactValue(value);
-          return fact === undefined ? [] : [fact];
-        })
-        .filter((fact) => isFactObservableAsOf(fact, execution.input.analysisAsOf))
-        .toSorted(
-          (left, right) =>
-            (right.end ?? "").localeCompare(left.end ?? "") ||
-            (right.filed ?? "").localeCompare(left.filed ?? ""),
-        );
-      return latest?.end === undefined ? [] : [{ concept, latestPeriodEnd: latest.end }];
-    });
-    const latestPeriodEnd = ranked
-      .map((candidate) => candidate.latestPeriodEnd)
-      .toSorted()
-      .at(-1);
-    return latestPeriodEnd === undefined
-      ? undefined
-      : ranked.find((candidate) =>
-          isInRevenueRecencyBucket(candidate.latestPeriodEnd, latestPeriodEnd),
-        )?.concept;
-  }
-
-  const { taxonomy, reportingCurrency } = execution.artifact;
-  if (taxonomy === undefined || reportingCurrency === undefined) {
-    return undefined;
-  }
-  const canonicalDefinition = CANONICAL_DURATION_DEFINITIONS.find(
-    (candidate) => candidate.key === definition.canonicalKey,
-  )!;
-  const concepts = canonicalDefinition.concepts[taxonomy];
-  const unit = expectedCanonicalUnit(canonicalDefinition, reportingCurrency);
-  const eligibleFacts = (concept: string): readonly CanonicalFact[] => {
-    const cutoff = execution.input.analysisAsOf.slice(0, 10);
-    return conceptUnitValues(execution.input.companyFacts, taxonomy, concept, unit)
-      .flatMap((value) => {
-        const fact = parseCanonicalFact(value, concept, unit);
-        return fact === undefined ? [] : [fact];
-      })
-      .filter((fact) => fact.periodEnd <= cutoff && fact.filedAt <= cutoff);
-  };
-  if (definition.key !== "revenue") {
-    return concepts.find((concept) => eligibleFacts(concept).length > 0);
-  }
-  const ranked = concepts.flatMap((concept) => {
-    const [latest] = eligibleFacts(concept).toSorted(compareCanonicalFacts);
-    return latest === undefined ? [] : [{ concept, latestPeriodEnd: latest.periodEnd }];
-  });
+  const ranked =
+    side === "legacy"
+      ? legacyLatestPeriods(execution, definition)
+      : canonicalLatestPeriods(execution, definition);
   const latestPeriodEnd = ranked
     .map((candidate) => candidate.latestPeriodEnd)
     .toSorted()
@@ -529,8 +479,65 @@ export function expectedSelectedConcept(
   return latestPeriodEnd === undefined
     ? undefined
     : ranked.find((candidate) =>
-        isInRevenueRecencyBucket(candidate.latestPeriodEnd, latestPeriodEnd),
+        definition.key === "revenue"
+          ? isInRevenueRecencyBucket(candidate.latestPeriodEnd, latestPeriodEnd)
+          : candidate.latestPeriodEnd === latestPeriodEnd,
       )?.concept;
+}
+
+interface ConceptLatestPeriod {
+  readonly concept: string;
+  readonly latestPeriodEnd: string;
+}
+
+function legacyLatestPeriods(
+  execution: OfflineCorpusExecution,
+  definition: RawHistoryDefinition,
+): readonly ConceptLatestPeriod[] {
+  return definition.legacyConcepts.flatMap((concept) => {
+    const [latest] = conceptUnitValues(
+      execution.input.companyFacts,
+      "us-gaap",
+      concept,
+      definition.legacyUnit,
+    )
+      .flatMap((value) => {
+        const fact = readSecFactValue(value);
+        return fact === undefined ? [] : [fact];
+      })
+      .filter((fact) => isFactObservableAsOf(fact, execution.input.analysisAsOf))
+      .toSorted(
+        (left, right) =>
+          (right.end ?? "").localeCompare(left.end ?? "") ||
+          (right.filed ?? "").localeCompare(left.filed ?? ""),
+      );
+    return latest?.end === undefined ? [] : [{ concept, latestPeriodEnd: latest.end }];
+  });
+}
+
+function canonicalLatestPeriods(
+  execution: OfflineCorpusExecution,
+  definition: RawHistoryDefinition,
+): readonly ConceptLatestPeriod[] {
+  const { taxonomy, reportingCurrency } = execution.artifact;
+  if (taxonomy === undefined || reportingCurrency === undefined) {
+    return [];
+  }
+  const canonicalDefinition = CANONICAL_DURATION_DEFINITIONS.find(
+    (candidate) => candidate.key === definition.canonicalKey,
+  )!;
+  const unit = expectedCanonicalUnit(canonicalDefinition, reportingCurrency);
+  const cutoff = execution.input.analysisAsOf.slice(0, 10);
+  return canonicalDefinition.concepts[taxonomy].flatMap((concept) => {
+    const [latest] = conceptUnitValues(execution.input.companyFacts, taxonomy, concept, unit)
+      .flatMap((value) => {
+        const fact = parseCanonicalFact(value, concept, unit);
+        return fact === undefined ? [] : [fact];
+      })
+      .filter((fact) => fact.periodEnd <= cutoff && fact.filedAt <= cutoff)
+      .toSorted(compareCanonicalFacts);
+    return latest === undefined ? [] : [{ concept, latestPeriodEnd: latest.periodEnd }];
+  });
 }
 
 export function canonicalUnion(
@@ -560,7 +567,10 @@ export function canonicalUnion(
 }
 
 type RosterTuple = {
-  readonly [Field in keyof FundamentalHistoryPoint]-?: FundamentalHistoryPoint[Field];
+  readonly [Field in Exclude<
+    keyof FundamentalHistoryPoint,
+    "restatedFrom"
+  >]-?: FundamentalHistoryPoint[Field];
 };
 
 export function rosterTuple(point: FundamentalHistoryPoint): RosterTuple {

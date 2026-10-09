@@ -718,18 +718,42 @@
             "capexPeriodMonths": 12,
             "capexPrior": 807500000,
             "capexDeltaPercent": 403.52941176470586,
+            "continuingIncome": 9800000,
+            "continuingIncomePeriodEnd": "2025-12-31",
+            "continuingIncomeScope": "continuing operations, attributable to parent",
+            "continuingIncomePeriodMonths": 12,
+            "continuingIncomePrior": -352000000,
+            "continuingIncomeDeltaPercent": 102.7840909090909,
+            "continuingDilutedEps": 0.04,
+            "continuingDilutedEpsPeriodEnd": "2025-12-31",
+            "continuingDilutedEpsScope": "continuing operations",
+            "continuingDilutedEpsPeriodMonths": 12,
+            "continuingDilutedEpsPrior": -1.25,
+            "continuingDilutedEpsDeltaPercent": 103.2,
             "cash": 3678100000,
             "cashPeriodEnd": "2025-12-31",
+            "cashPrior": 2434700000,
+            "cashDeltaPercent": 51.06994701605947,
             "debt": 4103200000,
             "debtPeriodEnd": "2025-12-31",
             "currentAssets": 4711400000,
             "currentAssetsPeriodEnd": "2025-12-31",
+            "currentAssetsPrior": 2533300000,
+            "currentAssetsDeltaPercent": 85.97876287845892,
             "currentLiabilities": 1527800000,
             "currentLiabilitiesPeriodEnd": "2025-12-31",
+            "currentLiabilitiesPrior": 264000000,
+            "currentLiabilitiesDeltaPercent": 478.7121212121212,
             "stockholdersEquity": 4594000000,
             "stockholdersEquityPeriodEnd": "2025-12-31",
+            "stockholdersEquityPrior": 3253700000,
+            "stockholdersEquityDeltaPercent": 41.19310323631558,
             "assets": 12430600000,
             "assetsPeriodEnd": "2025-12-31",
+            "assetsPrior": 3548600000,
+            "assetsDeltaPercent": 250.29589133742886,
+            "netIncomeScope": "total operations",
+            "dilutedEpsScope": "total operations",
             "operatingMarginSelectedValue": -1.154586636466591,
             "operatingMarginSelectedPeriodEnd": "2025-12-31",
             "operatingMarginSelectedPeriodMonths": 12,
@@ -760,7 +784,7 @@
         {
           "category": "valuation",
           "title": "NBIS Valuation Evidence",
-          "summary": "Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap 0.07x, net debt/market cap 0.01x; market cap as of 2026-07-22; cash/debt as of 2025-12-31. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+          "summary": "Valuation Evidence: market cap $57.2B, enterprise value $57.6B, 12-month revenue $529.8M, annualized revenue $529.8M, EV/annualized revenue 108.77x, market cap/annualized revenue 107.97x, debt/market cap n/a, net debt/market cap n/a; market cap as of 2026-07-22; cash/debt as of 2025-12-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: not-meaningful; 0 usable peers. Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
           "sourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
           "observedAt": "2026-07-22T16:16:13.510Z",
           "metrics": {
@@ -772,6 +796,7 @@
             "latestPeriodRevenue": 529800000,
             "annualizedRevenue": 529800000,
             "quoteObservedAt": "2026-07-22T16:16:13.510Z",
+            "quoteTimeUtc": "2026-07-22T16:16:04.000Z",
             "revenuePeriodMonths": 12,
             "revenuePeriodEnd": "2025-12-31",
             "cashPeriodEnd": "2025-12-31",
@@ -780,8 +805,6 @@
             "sicDescription": "Services-Computer Programming, Data Processing, Etc.",
             "evToAnnualizedRevenue": 108.77380415251038,
             "marketCapToAnnualizedRevenue": 107.97142589656474,
-            "debtToMarketCap": 0.07173017581005954,
-            "netDebtToMarketCap": 0.007431394457217857,
             "corePeerCount": 0,
             "valuationSupportability": "not-meaningful",
             "valuationCaveat": "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only."
@@ -819,7 +842,7 @@
         {
           "category": "financial-lens",
           "title": "NBIS Financial Lens Evidence",
-          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $217, SMA50 225.23, SMA200 138.71, RSI14 50.25).",
+          "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change (total operations) 112.9%, Diluted EPS YoY (total operations) 114.5%); Financial Strength insufficient-data (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Current ratio 3.08x); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $217, SMA50 225.23, SMA200 138.71, RSI14 50.25).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -849,23 +872,21 @@
             "netIncomeDeltaPercentPeriodEnd": "2025-12-31",
             "dilutedEpsDeltaPercent": 114.47368421052633,
             "dilutedEpsDeltaPercentPeriodEnd": "2025-12-31",
+            "continuingIncomeDeltaPercent": 102.7840909090909,
+            "continuingIncomeDeltaPercentPeriodEnd": "2025-12-31",
+            "continuingDilutedEpsDeltaPercent": 103.2,
+            "continuingDilutedEpsDeltaPercentPeriodEnd": "2025-12-31",
             "operatingCashFlowDeltaPercent": 56.67752442996743,
             "operatingCashFlowDeltaPercentPeriodEnd": "2025-12-31",
-            "financialStrengthPosture": "criteria-mixed",
+            "financialStrengthPosture": "insufficient-data",
             "cash": 3678100000,
             "cashPeriodEnd": "2025-12-31",
             "debt": 4103200000,
             "debtPeriodEnd": "2025-12-31",
             "netDebt": 425100000,
             "netDebtPeriodEnd": "2025-12-31",
-            "debtToMarketCap": 0.07173017581005954,
-            "debtToMarketCapPeriodEnd": "2025-12-31",
-            "netDebtToMarketCap": 0.007431394457217857,
-            "netDebtToMarketCapPeriodEnd": "2025-12-31",
             "currentRatio": 3.0837805995549155,
             "currentRatioPeriodEnd": "2025-12-31",
-            "debtToEquity": 0.8931649978232478,
-            "debtToEquityPeriodEnd": "2025-12-31",
             "payoutRatio": 0,
             "payoutRatioPeriodEnd": "2026-07-22T16:16:13.510Z",
             "valuePosture": "insufficient-data",
@@ -911,7 +932,7 @@
         {
           "category": "business-framework",
           "title": "NBIS Business Framework Evidence",
-          "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%); Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x).",
+          "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY (total operations) 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio (historical, 2025-12-31) 3.08x); Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x).",
           "sourceIds": [
             "extended-sec-edgar-nbis-fundamentals",
             "market-yahoo-equity-nbis",
@@ -1143,6 +1164,15 @@
           "evidenceQualityImpact": "extended-evidence-cap"
         },
         {
+          "source": "valuation",
+          "message": "Non-current SEC balance-sheet inputs for NBIS: debt period end 2025-12-31, cash period end 2025-12-31 not within 180 days before analysis cutoff 2026-07-22 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld",
+          "symbol": "NBIS",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
           "source": "valuation-peers",
           "message": "Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match",
           "symbol": "NBIS",
@@ -1158,6 +1188,14 @@
           "provider": "market-bot",
           "capability": "extended-evidence",
           "cause": "suppressed-by-design",
+          "evidenceQualityImpact": "no-cap"
+        },
+        {
+          "source": "financial-lens",
+          "message": "Financial Strength for NBIS excludes non-current balance-sheet inputs at analysis cutoff 2026-07-22: net debt period end 2025-12-31, current ratio period end 2025-12-31, debt/equity period end 2025-12-31 not within 180 days before the cutoff and 92 days of the newest balance-sheet period end",
+          "provider": "market-bot",
+          "capability": "extended-evidence",
+          "cause": "provider-data-missing",
           "evidenceQualityImpact": "no-cap"
         },
         {
@@ -1543,6 +1581,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 8770700000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -1860,6 +1902,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 5467100000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -2177,6 +2223,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 3303400000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -2475,6 +2525,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 3303600000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -2828,6 +2882,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 7417100000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -2850,6 +2908,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 8921200000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -2872,6 +2934,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 117500000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -3063,6 +3129,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 188200000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -3085,6 +3155,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 317400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -3107,6 +3181,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -440700000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -3181,6 +3259,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 561100000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -3203,6 +3285,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 221500000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -3261,6 +3347,110 @@
               }
             ],
             "interim": []
+          },
+          "continuingIncome": {
+            "key": "continuingIncome",
+            "label": "Income from continuing operations",
+            "statement": "incomeStatement",
+            "annual": [
+              {
+                "value": -180000000,
+                "periodKey": "duration:12|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "firstPublicAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperations",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -299000000,
+                "periodKey": "duration:12|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -341500000,
+                  "filedAt": "2025-04-30"
+                },
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperations",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -352000000,
+                "periodKey": "duration:12|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -393500000,
+                  "filedAt": "2025-04-30"
+                },
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperations",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 9800000,
+                "periodKey": "duration:12|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "firstPublicAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperations",
+                "currency": "USD",
+                "unit": "USD",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
           }
         },
         "balanceSheet": {
@@ -3279,6 +3469,10 @@
                 "accessionNumber": "0001513845-18-000013",
                 "filedAt": "2018-03-27",
                 "firstPublicAt": "2018-03-27",
+                "restatedFrom": {
+                  "value": 465400000,
+                  "filedAt": "2017-03-22"
+                },
                 "periodEnd": "2016-12-31",
                 "fiscalYear": 2016,
                 "fiscalPeriod": "FY",
@@ -3300,6 +3494,10 @@
                 "accessionNumber": "0001513845-19-000009",
                 "filedAt": "2019-04-19",
                 "firstPublicAt": "2019-04-19",
+                "restatedFrom": {
+                  "value": 740700000,
+                  "filedAt": "2018-03-27"
+                },
                 "periodEnd": "2017-12-31",
                 "fiscalYear": 2017,
                 "fiscalPeriod": "FY",
@@ -3321,6 +3519,10 @@
                 "accessionNumber": "0001558370-20-003563",
                 "filedAt": "2020-04-02",
                 "firstPublicAt": "2020-04-02",
+                "restatedFrom": {
+                  "value": 990300000,
+                  "filedAt": "2019-04-19"
+                },
                 "periodEnd": "2018-12-31",
                 "fiscalYear": 2018,
                 "fiscalPeriod": "FY",
@@ -3342,6 +3544,10 @@
                 "accessionNumber": "0001513845-21-000014",
                 "filedAt": "2021-04-01",
                 "firstPublicAt": "2021-04-01",
+                "restatedFrom": {
+                  "value": 715500000,
+                  "filedAt": "2020-04-02"
+                },
                 "periodEnd": "2019-12-31",
                 "fiscalYear": 2019,
                 "fiscalPeriod": "FY",
@@ -3363,6 +3569,10 @@
                 "accessionNumber": "0001558370-22-005654",
                 "filedAt": "2022-04-20",
                 "firstPublicAt": "2022-04-20",
+                "restatedFrom": {
+                  "value": 1792200000,
+                  "filedAt": "2021-04-01"
+                },
                 "periodEnd": "2020-12-31",
                 "fiscalYear": 2020,
                 "fiscalPeriod": "FY",
@@ -3384,6 +3594,10 @@
                 "accessionNumber": "0001558370-23-006319",
                 "filedAt": "2023-04-20",
                 "firstPublicAt": "2023-04-20",
+                "restatedFrom": {
+                  "value": 1067100000,
+                  "filedAt": "2022-04-20"
+                },
                 "periodEnd": "2021-12-31",
                 "fiscalYear": 2021,
                 "fiscalPeriod": "FY",
@@ -3405,6 +3619,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 1181900000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
                 "fiscalPeriod": "FY",
@@ -3426,6 +3644,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 1076200000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3447,6 +3669,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 2449600000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
                 "fiscalPeriod": "FY",
@@ -3644,6 +3870,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 3466400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3862,6 +4092,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 3876300000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4080,6 +4314,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 8770700000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4298,6 +4536,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 5467100000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4516,6 +4758,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 3303400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4770,6 +5016,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 592800000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -4792,6 +5042,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 783400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -4998,6 +5252,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 718600000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -5020,6 +5278,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 1010600000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5042,6 +5304,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 807700000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -5265,6 +5531,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 1.17,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -5287,6 +5557,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 0.59,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5337,6 +5611,110 @@
                 "fiscalPeriod": "FY",
                 "taxonomy": "us-gaap",
                 "concept": "EarningsPerShareDiluted",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              }
+            ],
+            "interim": []
+          },
+          "continuingDilutedEps": {
+            "key": "continuingDilutedEps",
+            "label": "Diluted EPS from continuing operations",
+            "statement": "perShare",
+            "annual": [
+              {
+                "value": -0.49,
+                "periodKey": "duration:12|2022-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001558370-25-005991",
+                "filedAt": "2025-04-30",
+                "firstPublicAt": "2025-04-30",
+                "periodStart": "2022-01-01",
+                "periodEnd": "2022-12-31",
+                "fiscalYear": 2022,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperationsPerDilutedShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -0.81,
+                "periodKey": "duration:12|2023-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -0.92,
+                  "filedAt": "2025-04-30"
+                },
+                "periodStart": "2023-01-01",
+                "periodEnd": "2023-12-31",
+                "fiscalYear": 2023,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperationsPerDilutedShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": -1.25,
+                "periodKey": "duration:12|2024-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -1.4,
+                  "filedAt": "2025-04-30"
+                },
+                "periodStart": "2024-01-01",
+                "periodEnd": "2024-12-31",
+                "fiscalYear": 2024,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperationsPerDilutedShare",
+                "currency": "USD",
+                "unit": "USD/shares",
+                "unitScale": 1,
+                "extractionMethod": "sec-companyfacts",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
+              },
+              {
+                "value": 0.04,
+                "periodKey": "duration:12|2025-12-31",
+                "periodType": "annual",
+                "form": "20-F",
+                "canonicalForm": "20-F",
+                "amendment": false,
+                "accessionNumber": "0001104659-26-052948",
+                "filedAt": "2026-04-30",
+                "firstPublicAt": "2026-04-30",
+                "periodStart": "2025-01-01",
+                "periodEnd": "2025-12-31",
+                "fiscalYear": 2025,
+                "fiscalPeriod": "FY",
+                "taxonomy": "us-gaap",
+                "concept": "IncomeLossFromContinuingOperationsPerDilutedShare",
                 "currency": "USD",
                 "unit": "USD/shares",
                 "unitScale": 1,
@@ -5493,6 +5871,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 377020285,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -5515,6 +5897,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 373059228,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5644,6 +6030,23 @@
         {
           "code": "unreconciled-ttm",
           "seriesKey": "netIncome",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "continuingIncome",
+          "periodKey": "duration:12|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "continuingIncome",
+          "periodKey": "duration:12|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "continuingIncome",
           "message": "No complete post-FY interim duration fact is available"
         },
         {
@@ -5862,6 +6265,23 @@
         {
           "code": "unreconciled-ttm",
           "seriesKey": "dilutedEps",
+          "message": "No complete post-FY interim duration fact is available"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "continuingDilutedEps",
+          "periodKey": "duration:12|2023-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "duplicate-superseded",
+          "seriesKey": "continuingDilutedEps",
+          "periodKey": "duration:12|2024-12-31",
+          "message": "1 duplicate/restated fact(s) superseded by 0001104659-26-052948 filed 2026-04-30"
+        },
+        {
+          "code": "unreconciled-ttm",
+          "seriesKey": "continuingDilutedEps",
           "message": "No complete post-FY interim duration fact is available"
         },
         {
@@ -6214,7 +6634,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 7417100000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 9800000,
@@ -6225,7 +6649,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 8921200000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": 91500000,
@@ -6236,7 +6664,11 @@
               "periodEnd": "2024-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 117500000,
+                "filedAt": "2025-04-30"
+              }
             },
             {
               "value": 529800000,
@@ -6350,7 +6782,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 188200000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": -285700000,
@@ -6361,7 +6797,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 317400000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": -399600000,
@@ -6372,7 +6812,11 @@
               "periodEnd": "2024-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": -440700000,
+                "filedAt": "2025-04-30"
+              }
             },
             {
               "value": -611700000,
@@ -6393,7 +6837,7 @@
         },
         "netIncome": {
           "key": "netIncome",
-          "label": "Net income",
+          "label": "Net income (total operations)",
           "unit": "currency",
           "concept": "NetIncomeLoss",
           "annual": [
@@ -6417,7 +6861,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 561100000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 241300000,
@@ -6428,7 +6876,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 221500000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": -641400000,
@@ -6456,11 +6908,12 @@
           "notes": [
             "ttm:unreconciled: canonical TTM is unavailable",
             "cagr:non-positive-endpoint: both annual endpoints must be greater than zero"
-          ]
+          ],
+          "scope": "total operations"
         },
         "dilutedEps": {
           "key": "dilutedEps",
-          "label": "Diluted EPS",
+          "label": "Diluted EPS (total operations)",
           "unit": "per-share",
           "concept": "EarningsPerShareDiluted",
           "annual": [
@@ -6539,7 +6992,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD/shares"
+              "currency": "USD/shares",
+              "restatedFrom": {
+                "value": 1.17,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 0.65,
@@ -6550,7 +7007,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD/shares"
+              "currency": "USD/shares",
+              "restatedFrom": {
+                "value": 0.59,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": -2.28,
@@ -6581,7 +7042,8 @@
             "periodStart": "2020-12-31",
             "periodEnd": "2025-12-31"
           },
-          "notes": ["ttm:unreconciled: canonical TTM is unavailable"]
+          "notes": ["ttm:unreconciled: canonical TTM is unavailable"],
+          "scope": "total operations"
         },
         "operatingCashFlow": {
           "key": "operatingCashFlow",
@@ -6653,7 +7115,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 592800000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 829800000,
@@ -6664,7 +7130,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 783400000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": 245600000,
@@ -6778,7 +7248,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 718600000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 82900000,
@@ -6789,7 +7263,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 1010600000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": 807500000,
@@ -6800,7 +7278,11 @@
               "periodEnd": "2024-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 807700000,
+                "filedAt": "2025-04-30"
+              }
             },
             {
               "value": 4066000000,
@@ -7245,7 +7727,7 @@
             },
             {
               "key": "netIncomeDeltaPercent",
-              "label": "Net loss (attrib.) YoY change",
+              "label": "Net loss (attrib.) YoY change (total operations)",
               "value": 112.86248830682881,
               "unit": "whole-percent",
               "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
@@ -7254,8 +7736,26 @@
             },
             {
               "key": "dilutedEpsDeltaPercent",
-              "label": "Diluted EPS YoY",
+              "label": "Diluted EPS YoY (total operations)",
               "value": 114.47368421052633,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "continuingIncomeDeltaPercent",
+              "label": "Loss YoY change (continuing operations, attributable to parent)",
+              "value": 102.7840909090909,
+              "unit": "whole-percent",
+              "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
+              "periodEnd": "2025-12-31",
+              "periodMonths": 12
+            },
+            {
+              "key": "continuingDilutedEpsDeltaPercent",
+              "label": "Diluted EPS YoY (continuing operations)",
+              "value": 103.2,
               "unit": "whole-percent",
               "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
               "periodEnd": "2025-12-31",
@@ -7275,7 +7775,7 @@
         },
         {
           "name": "Financial Strength",
-          "posture": "criteria-mixed",
+          "posture": "insufficient-data",
           "metrics": [
             {
               "key": "cash",
@@ -7302,33 +7802,9 @@
               "periodEnd": "2025-12-31"
             },
             {
-              "key": "debtToMarketCap",
-              "label": "Debt/market cap",
-              "value": 0.07173017581005954,
-              "unit": "ratio-percent",
-              "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "market-yahoo-equity-nbis"],
-              "periodEnd": "2025-12-31"
-            },
-            {
-              "key": "netDebtToMarketCap",
-              "label": "Net debt/market cap",
-              "value": 0.007431394457217857,
-              "unit": "ratio-percent",
-              "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "market-yahoo-equity-nbis"],
-              "periodEnd": "2025-12-31"
-            },
-            {
               "key": "currentRatio",
               "label": "Current ratio",
               "value": 3.0837805995549155,
-              "unit": "ratio",
-              "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
-              "periodEnd": "2025-12-31"
-            },
-            {
-              "key": "debtToEquity",
-              "label": "Debt/equity",
-              "value": 0.8931649978232478,
               "unit": "ratio",
               "sourceIds": ["extended-sec-edgar-nbis-fundamentals"],
               "periodEnd": "2025-12-31"
@@ -8426,7 +8902,8 @@
               },
               "netIncome": {
                 "value": 745600000,
-                "label": "Net income",
+                "label": "Net income (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2022-12-31",
                 "publicAt": "2025-04-30",
                 "currency": "USD",
@@ -8435,7 +8912,8 @@
               },
               "dilutedEps": {
                 "value": 1.59,
-                "label": "Diluted EPS",
+                "label": "Diluted EPS (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2022-12-31",
                 "publicAt": "2025-04-30",
                 "currency": "USD",
@@ -8534,7 +9012,8 @@
               },
               "netIncome": {
                 "value": 241300000,
-                "label": "Net income",
+                "label": "Net income (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2023-12-31",
                 "publicAt": "2025-04-30",
                 "currency": "USD",
@@ -8543,7 +9022,8 @@
               },
               "dilutedEps": {
                 "value": 0.65,
-                "label": "Diluted EPS",
+                "label": "Diluted EPS (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2023-12-31",
                 "publicAt": "2025-04-30",
                 "currency": "USD",
@@ -8650,7 +9130,8 @@
               },
               "netIncome": {
                 "value": -641400000,
-                "label": "Net income",
+                "label": "Net income (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2024-12-31",
                 "publicAt": "2025-04-30",
                 "currency": "USD",
@@ -8659,7 +9140,8 @@
               },
               "dilutedEps": {
                 "value": -2.28,
-                "label": "Diluted EPS",
+                "label": "Diluted EPS (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2024-12-31",
                 "publicAt": "2025-04-30",
                 "currency": "USD",
@@ -8723,13 +9205,11 @@
                 "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
               },
               "enterpriseValueToRevenue": {
-                "status": "populated",
-                "value": 415.1491933267339,
-                "display": "415.15x",
-                "numerator": 37986151189.39615,
-                "denominator": 91500000,
-                "formula": "((close × diluted shares) + debt - cash) / revenue",
-                "sourceIds": ["extended-sec-edgar-nbis-fundamentals", "verified-snapshot-NBIS"]
+                "status": "suppressed",
+                "display": "—",
+                "reason": "mixed-period-balance-sheet",
+                "detail": "Cash (2024-12-31) and debt (2023-12-31) period ends diverge by 366 days.",
+                "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
               },
               "priceToFreeCashFlow": {
                 "status": "not-meaningful",
@@ -8764,7 +9244,8 @@
               },
               "netIncome": {
                 "value": 82500000,
-                "label": "Net income",
+                "label": "Net income (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2025-12-31",
                 "publicAt": "2026-04-30",
                 "currency": "USD",
@@ -8773,7 +9254,8 @@
               },
               "dilutedEps": {
                 "value": 0.33,
-                "label": "Diluted EPS",
+                "label": "Diluted EPS (total operations)",
+                "scope": "total operations",
                 "periodEnd": "2025-12-31",
                 "publicAt": "2026-04-30",
                 "currency": "USD",
@@ -9065,7 +9547,7 @@
         {
           "name": "Growth",
           "posture": "criteria-mixed",
-          "summary": "Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%)",
+          "summary": "Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY (total operations) 112.9%)",
           "metrics": [
             {
               "key": "revenueDeltaPercent",
@@ -9083,7 +9565,7 @@
             },
             {
               "key": "netIncomeDeltaPercent",
-              "label": "Net income YoY",
+              "label": "Net income YoY (total operations)",
               "value": 112.86248830682881,
               "unit": "whole-percent",
               "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]
@@ -9121,24 +9603,13 @@
         {
           "name": "Risk",
           "posture": "criteria-supported",
-          "summary": "Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%)",
+          "summary": "Risk criteria-supported (Current ratio (historical, 2025-12-31) 3.08x)",
           "metrics": [
             {
               "key": "currentRatio",
-              "label": "Current ratio",
+              "label": "Current ratio (historical, 2025-12-31)",
               "value": 3.0837805995549155,
               "unit": "ratio",
-              "sourceIds": [
-                "extended-sec-edgar-nbis-fundamentals",
-                "market-yahoo-equity-nbis",
-                "verified-snapshot-NBIS"
-              ]
-            },
-            {
-              "key": "debtToMarketCap",
-              "label": "Debt/market cap",
-              "value": 0.07173017581005954,
-              "unit": "ratio-percent",
               "sourceIds": [
                 "extended-sec-edgar-nbis-fundamentals",
                 "market-yahoo-equity-nbis",
@@ -9369,6 +9840,16 @@
         "triage": "diagnostic"
       },
       {
+        "source": "valuation",
+        "message": "Non-current SEC balance-sheet inputs for NBIS: debt period end 2025-12-31, cash period end 2025-12-31 not within 180 days before analysis cutoff 2026-07-22 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld",
+        "symbol": "NBIS",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
+        "evidenceQualityImpact": "no-cap",
+        "triage": "material"
+      },
+      {
         "source": "valuation-peers",
         "message": "Peer Universe unavailable for NBIS: No checked-in peer mapping or subject-registry representative match",
         "symbol": "NBIS",
@@ -9385,6 +9866,15 @@
         "provider": "market-bot",
         "capability": "extended-evidence",
         "cause": "suppressed-by-design",
+        "evidenceQualityImpact": "no-cap",
+        "triage": "material"
+      },
+      {
+        "source": "financial-lens",
+        "message": "Financial Strength for NBIS excludes non-current balance-sheet inputs at analysis cutoff 2026-07-22: net debt period end 2025-12-31, current ratio period end 2025-12-31, debt/equity period end 2025-12-31 not within 180 days before the cutoff and 92 days of the newest balance-sheet period end",
+        "provider": "market-bot",
+        "capability": "extended-evidence",
+        "cause": "provider-data-missing",
         "evidenceQualityImpact": "no-cap",
         "triage": "material"
       },
@@ -9749,11 +10239,12 @@
           "evidenceClass": "material",
           "status": "covered",
           "coveredSourceIds": ["market-yahoo-equity-nbis", "extended-sec-edgar-nbis-fundamentals"],
-          "gapIds": ["target-valuation:gap:1"],
+          "gapIds": ["target-valuation:gap:1", "target-valuation:gap:2"],
           "gapText": [
+            "valuation: Non-current SEC balance-sheet inputs for NBIS: debt period end 2025-12-31, cash period end 2025-12-31 not within 180 days before analysis cutoff 2026-07-22 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld",
             "valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported"
           ],
-          "gapCauses": ["suppressed-by-design"],
+          "gapCauses": ["provider-data-missing", "suppressed-by-design"],
           "freshnessNotes": ["latest evidence timestamp 2026-07-22T16:16:13.510Z"],
           "supportable": false
         },
@@ -9791,7 +10282,7 @@
         "coreGapLaneCount": 0,
         "materialGapLaneCount": 2,
         "sourceCount": 23,
-        "gapCount": 13,
+        "gapCount": 14,
         "coverageRatio": 0.45454545454545453
       }
     },
@@ -10014,7 +10505,7 @@
           "observedAt": "2026-07-22T16:16:13.510Z",
           "lane": "target-valuation",
           "posture": "covered",
-          "relatedGapIds": ["target-valuation:gap:1"]
+          "relatedGapIds": ["target-valuation:gap:1", "target-valuation:gap:2"]
         },
         {
           "id": "extended-sec-edgar-nbis-fundamentals",
@@ -10022,7 +10513,7 @@
           "provider": "yahoo",
           "lane": "target-valuation",
           "posture": "covered",
-          "relatedGapIds": ["target-valuation:gap:1"]
+          "relatedGapIds": ["target-valuation:gap:1", "target-valuation:gap:2"]
         }
       ]
     },

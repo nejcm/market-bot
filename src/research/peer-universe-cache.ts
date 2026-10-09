@@ -4,8 +4,14 @@ import { writeFileAtomic } from "../artifacts";
 import { withFileLock } from "../shared-state-lock";
 import { DAY_MS } from "../config/shared";
 import { isRecord } from "../guards";
+import { isSourceGapCause } from "../domain/source-gaps";
+import { MIN_USABLE_PEERS } from "../sources/extended-evidence/valuation-comps-contract";
+import { PROPOSER_REVISION } from "./peer-universe-proposal";
 import {
+  MAX_PEERS,
   validatePeerUniverse,
+  type LearnedPeerUniverse,
+  type PeerExclusionFeedback,
   type ProposalAudit,
   type PeerUniverse,
   type PeerUniversePeer,
@@ -24,6 +30,16 @@ interface PeerUniverseLearnedEntry {
   readonly modelId: string;
   readonly providerName: string;
   readonly audit: ProposalAudit;
+  readonly windowStartedAt?: string;
+  readonly refreshAttemptedAt?: string;
+  readonly refreshProposerRevision?: number;
+  readonly evaluation?: PeerUniverseEvaluation;
+}
+
+interface PeerUniverseEvaluation {
+  readonly usablePeerCount: number;
+  readonly evaluatedAt: string;
+  readonly exclusions?: readonly PeerExclusionFeedback[];
 }
 
 interface PeerUniverseLearnedIndex {
@@ -32,11 +48,89 @@ interface PeerUniverseLearnedIndex {
 }
 
 function isStale(entry: PeerUniverseLearnedEntry, now: Date, ttlDays: number): boolean {
-  const proposedMs = Date.parse(entry.proposedAt);
-  if (!Number.isFinite(proposedMs)) {
-    return true;
+  return isExpired(entry.proposedAt, now, ttlDays);
+}
+
+function isExpired(at: string, now: Date, ttlDays: number): boolean {
+  const ms = Date.parse(at);
+  return !Number.isFinite(ms) || now.getTime() - ms > ttlDays * DAY_MS;
+}
+
+function refreshWindowAnchor(entry: PeerUniverseLearnedEntry): string {
+  return entry.windowStartedAt ?? entry.proposedAt;
+}
+
+function refreshAllowed(
+  entry: PeerUniverseLearnedEntry,
+  now: Date,
+  ttlDays: number,
+  revision: number,
+): boolean {
+  return (
+    entry.refreshAttemptedAt === undefined ||
+    (entry.refreshProposerRevision ?? 0) < revision ||
+    isExpired(refreshWindowAnchor(entry), now, ttlDays)
+  );
+}
+
+function usableUniverse(
+  entry: PeerUniverseLearnedEntry,
+  now: Date,
+  ttlDays: number,
+): PeerUniverse | undefined {
+  if (isStale(entry, now, ttlDays)) {
+    return undefined;
   }
-  return now.getTime() - proposedMs > ttlDays * DAY_MS;
+  const universe: PeerUniverse = {
+    targetSymbol: entry.targetSymbol,
+    provenance: "model-proposed-validated",
+    peers: entry.peers,
+    sources: entry.sources,
+  };
+  return validatePeerUniverse(universe).valid ? universe : undefined;
+}
+
+// An expired or invalid entry re-proposes like a miss; the per-window cap guards quality refreshes.
+function refreshState(
+  entry: PeerUniverseLearnedEntry,
+  now: Date,
+  ttlDays: number,
+  revision: number,
+): LearnedPeerUniverse["refresh"] {
+  if (usableUniverse(entry, now, ttlDays) === undefined) {
+    return "due";
+  }
+  if (entry.evaluation === undefined || entry.evaluation.usablePeerCount >= MIN_USABLE_PEERS) {
+    return "not-needed";
+  }
+  return refreshAllowed(entry, now, ttlDays, revision) ? "due" : "used";
+}
+
+function readEvaluation(value: unknown): PeerUniverseEvaluation | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.usablePeerCount !== "number" ||
+    typeof value.evaluatedAt !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    usablePeerCount: value.usablePeerCount,
+    evaluatedAt: value.evaluatedAt,
+    ...(Array.isArray(value.exclusions)
+      ? { exclusions: boundedExclusions(value.exclusions.filter(isPeerExclusionFeedback)) }
+      : {}),
+  };
+}
+
+function isPeerExclusionFeedback(value: unknown): value is PeerExclusionFeedback {
+  return isRecord(value) && typeof value.symbol === "string" && isSourceGapCause(value.cause);
+}
+
+function boundedExclusions(
+  exclusions: readonly PeerExclusionFeedback[],
+): readonly PeerExclusionFeedback[] {
+  return exclusions.slice(0, MAX_PEERS).map(({ symbol, cause }) => ({ symbol, cause }));
 }
 
 function readPeer(value: unknown): PeerUniversePeer | undefined {
@@ -113,6 +207,7 @@ function readEntry(value: unknown): PeerUniverseLearnedEntry | undefined {
   if (peers.length === 0 || sources.length === 0 || audit === undefined) {
     return undefined;
   }
+  const evaluation = readEvaluation(value.evaluation);
   return {
     targetSymbol: value.targetSymbol,
     provenance: "model-proposed-validated",
@@ -122,6 +217,16 @@ function readEntry(value: unknown): PeerUniverseLearnedEntry | undefined {
     modelId: value.modelId,
     providerName: value.providerName,
     audit,
+    ...(typeof value.windowStartedAt === "string"
+      ? { windowStartedAt: value.windowStartedAt }
+      : {}),
+    ...(typeof value.refreshAttemptedAt === "string"
+      ? { refreshAttemptedAt: value.refreshAttemptedAt }
+      : {}),
+    ...(typeof value.refreshProposerRevision === "number"
+      ? { refreshProposerRevision: value.refreshProposerRevision }
+      : {}),
+    ...(evaluation !== undefined ? { evaluation } : {}),
   };
 }
 
@@ -144,48 +249,166 @@ async function writeIndex(path: string, index: PeerUniverseLearnedIndex): Promis
   await writeFileAtomic(path, `${JSON.stringify(index, null, 2)}\n`);
 }
 
-// Returns a cache-reader function that resolves a cached peer universe for the
-// Given symbol. Performs a staleness check and re-validates on every read (poison
-// Guard). Resolves undefined on miss, stale entry, or validation failure.
+// Resolves the learned entry for a symbol, re-validated on every read (poison guard); an
+// Expired or invalid entry resolves without a universe so a re-proposal can replace it.
 export function makePeerUniverseCacheReader(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   now: Date = new Date(),
-): (symbol: string) => Promise<PeerUniverse | undefined> {
-  return async (symbol: string): Promise<PeerUniverse | undefined> => {
+  revision: number = PROPOSER_REVISION,
+): (symbol: string) => Promise<LearnedPeerUniverse | undefined> {
+  return async (symbol: string): Promise<LearnedPeerUniverse | undefined> => {
     const entries = await readIndex(path);
     const target = symbol.trim().toUpperCase();
     const entry = entries.find((e) => e.targetSymbol === target);
     if (entry === undefined) {
       return undefined;
     }
-    if (isStale(entry, now, ttlDays)) {
-      return undefined;
-    }
-    const universe: PeerUniverse = {
-      targetSymbol: target,
-      provenance: "model-proposed-validated",
-      peers: entry.peers,
-      sources: entry.sources,
+    const universe = usableUniverse(entry, now, ttlDays);
+    const exclusions = entry.evaluation?.exclusions;
+    return {
+      ...(universe !== undefined ? { universe } : {}),
+      generation: entry.proposedAt,
+      refresh: refreshState(entry, now, ttlDays, revision),
+      ...(exclusions !== undefined ? { exclusions } : {}),
     };
-    const validation = validatePeerUniverse(universe);
-    if (!validation.valid) {
-      return undefined;
-    }
-    return universe;
   };
 }
 
-// Returns a cache-writer function that persists a validated peer universe for the
-// Given symbol. Prunes stale entries and sorts by symbol for stable diffs. The
-// Read-merge-write runs under a file lock so concurrent runs keep each other's entries.
+async function updateEntry(
+  path: string,
+  symbol: string,
+  generation: string,
+  update: (entry: PeerUniverseLearnedEntry) => PeerUniverseLearnedEntry | undefined,
+): Promise<boolean> {
+  const target = symbol.trim().toUpperCase();
+  return withFileLock(`${path}.lock`, async () => {
+    const entries = await readIndex(path);
+    const current = entries.find((e) => e.targetSymbol === target && e.proposedAt === generation);
+    const next = current === undefined ? undefined : update(current);
+    if (next === undefined) {
+      return false;
+    }
+    await writeIndex(path, {
+      version: CACHE_VERSION,
+      entries: entries.map((e) => (e === current ? next : e)),
+    });
+    return true;
+  });
+}
+
+// Records the valuation run's usable-peer count and exclusions against the generation it evaluated.
+export function makePeerUniverseEvaluationRecorder(
+  path: string,
+  now: Date = new Date(),
+): (
+  symbol: string,
+  generation: string,
+  usablePeerCount: number,
+  exclusions: readonly PeerExclusionFeedback[],
+) => Promise<void> {
+  return async (symbol, generation, usablePeerCount, exclusions) => {
+    await updateEntry(path, symbol, generation, (entry) =>
+      entry.evaluation !== undefined && Date.parse(entry.evaluation.evaluatedAt) > now.getTime()
+        ? undefined
+        : {
+            ...entry,
+            evaluation: {
+              usablePeerCount,
+              evaluatedAt: now.toISOString(),
+              exclusions: boundedExclusions(exclusions),
+            },
+          },
+    );
+  };
+}
+
+// Consumes the one refresh allowed per TTL window; true only for the run that claimed it.
+export function makePeerUniverseRefreshClaimer(
+  path: string,
+  ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
+  now: Date = new Date(),
+  revision: number = PROPOSER_REVISION,
+): (symbol: string, generation: string) => Promise<boolean> {
+  return async (symbol, generation) =>
+    updateEntry(path, symbol, generation, (entry) =>
+      usableUniverse(entry, now, ttlDays) !== undefined &&
+      refreshState(entry, now, ttlDays, revision) === "due"
+        ? {
+            ...entry,
+            windowStartedAt: isExpired(refreshWindowAnchor(entry), now, ttlDays)
+              ? now.toISOString()
+              : refreshWindowAnchor(entry),
+            refreshAttemptedAt: now.toISOString(),
+            refreshProposerRevision: revision,
+          }
+        : undefined,
+    );
+}
+
+// Returns the allowance this run claimed when the proposal could not run at all.
+export function makePeerUniverseRefreshReleaser(
+  path: string,
+  now: Date = new Date(),
+  revision: number = PROPOSER_REVISION,
+): (symbol: string, generation: string) => Promise<boolean> {
+  return async (symbol, generation) =>
+    updateEntry(path, symbol, generation, (entry) => {
+      if (!ownsClaim(entry, now, revision)) {
+        return undefined;
+      }
+      const {
+        refreshAttemptedAt: _attempt,
+        refreshProposerRevision: _revision,
+        ...released
+      } = entry;
+      return released;
+    });
+}
+
+function ownsClaim(entry: PeerUniverseLearnedEntry, now: Date, revision: number): boolean {
+  return (
+    entry.refreshAttemptedAt === now.toISOString() && entry.refreshProposerRevision === revision
+  );
+}
+
+function carriedRefreshWindow(
+  previous: PeerUniverseLearnedEntry | undefined,
+  now: Date,
+  ttlDays: number,
+): Pick<
+  PeerUniverseLearnedEntry,
+  "windowStartedAt" | "refreshAttemptedAt" | "refreshProposerRevision"
+> {
+  if (previous === undefined || isExpired(refreshWindowAnchor(previous), now, ttlDays)) {
+    return {};
+  }
+  return {
+    windowStartedAt: refreshWindowAnchor(previous),
+    ...(previous.refreshAttemptedAt !== undefined
+      ? { refreshAttemptedAt: previous.refreshAttemptedAt }
+      : {}),
+    ...(previous.refreshProposerRevision !== undefined
+      ? { refreshProposerRevision: previous.refreshProposerRevision }
+      : {}),
+  };
+}
+
+// Compare-and-set against the entry observed before proposing, and against this run's claim.
 export function makePeerUniverseCacheWriter(
   path: string,
   ttlDays: number = DEFAULT_PEER_UNIVERSE_TTL_DAYS,
   providerName = "unknown",
   now: Date = new Date(),
-): (symbol: string, universe: PeerUniverse, audit: ProposalAudit) => Promise<void> {
-  return async (symbol: string, universe: PeerUniverse, audit: ProposalAudit): Promise<void> => {
+  revision: number = PROPOSER_REVISION,
+): (
+  symbol: string,
+  universe: PeerUniverse,
+  audit: ProposalAudit,
+  observedGeneration?: string,
+  claimed?: boolean,
+) => Promise<string | undefined> {
+  return async (symbol, universe, audit, observedGeneration, claimed) => {
     const validation = validatePeerUniverse(universe);
     if (!validation.valid) {
       throw new Error(`Invalid learned peer universe: ${validation.errors.join("; ")}`);
@@ -196,24 +419,38 @@ export function makePeerUniverseCacheWriter(
         `Invalid learned peer universe: target mismatch ${universe.targetSymbol} != ${target}`,
       );
     }
-    const newEntry: PeerUniverseLearnedEntry = {
-      targetSymbol: target,
-      provenance: "model-proposed-validated",
-      peers: universe.peers,
-      sources: universe.sources,
-      proposedAt: now.toISOString(),
-      modelId: audit.modelId,
-      providerName,
-      audit,
-    };
-    await withFileLock(`${path}.lock`, async () => {
+    const proposedAt = now.toISOString();
+    return withFileLock(`${path}.lock`, async () => {
       const entries = await readIndex(path);
-      // Prune stale entries and remove any existing entry for this symbol (upsert)
+      const previous = entries.find((e) => e.targetSymbol === target);
+      // A concurrent writer may have pruned the expired entry this run observed; that is not a newer generation.
+      const prunedAfterExpiry =
+        previous === undefined &&
+        observedGeneration !== undefined &&
+        isExpired(observedGeneration, now, ttlDays);
+      if (
+        (previous?.proposedAt !== observedGeneration && !prunedAfterExpiry) ||
+        (claimed === true && (previous === undefined || !ownsClaim(previous, now, revision)))
+      ) {
+        return;
+      }
+      const newEntry: PeerUniverseLearnedEntry = {
+        targetSymbol: target,
+        provenance: "model-proposed-validated",
+        peers: universe.peers,
+        sources: universe.sources,
+        proposedAt,
+        modelId: audit.modelId,
+        providerName,
+        audit,
+        ...carriedRefreshWindow(previous, now, ttlDays),
+      };
       const pruned = entries.filter((e) => e.targetSymbol !== target && !isStale(e, now, ttlDays));
       const upserted = [...pruned, newEntry].toSorted((a, b) =>
         a.targetSymbol.localeCompare(b.targetSymbol),
       );
       await writeIndex(path, { version: CACHE_VERSION, entries: upserted });
+      return proposedAt;
     });
   };
 }

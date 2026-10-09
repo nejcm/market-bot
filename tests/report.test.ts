@@ -3160,12 +3160,39 @@ describe("report schema and rendering", () => {
       quoteTimeUtc: "2026-05-19T14:29:07.000Z",
     });
 
-    const fetchedMarkdown = renderMarkdownReport(cryptoReport, fetchedSnapshot);
+    const withValuationSummary = (summary: string): ResearchReport => ({
+      ...cryptoReport,
+      extendedEvidence: {
+        instrument: { assetClass: "crypto", symbol: "BTC" },
+        items: [{ ...cryptoReport.extendedEvidence!.items[0]!, summary }],
+        gaps: [],
+      },
+    });
+    const fetchedMarkdown = renderMarkdownReport(
+      withValuationSummary(
+        "Valuation Evidence: market cap as of 2026-05-19 (fetch time); cash/debt as of 2026-03-31.",
+      ),
+      fetchedSnapshot,
+    );
     const quotedMarkdown = renderMarkdownReport(cryptoReport, quotedSnapshot);
 
     expect(fetchedMarkdown).toContain("market cap fetch time 2026-05-19T14:31:00.000Z");
     expect(fetchedMarkdown).not.toContain("market cap quote time");
+    expect(fetchedMarkdown).not.toContain("(fetch time)");
     expect(quotedMarkdown).toContain("market cap quote time 2026-05-19T14:29:07.000Z");
+    const legacyMarkdown = renderMarkdownReport(
+      withValuationSummary(
+        "Valuation Evidence: market cap as of 2026-05-20; EV mixes market cap (quote 2026-05-20).",
+      ),
+      marketSnapshot({
+        sourceId: priceSourceId,
+        observedAt: "2026-05-20T00:48:00.000Z",
+        quoteTimeUtc: "2026-05-19T20:00:00.000Z",
+      }),
+    );
+    expect(legacyMarkdown).toContain(
+      String.raw`market cap quote time 2026-05-19T20:00:00.000Z; EV mixes market cap \(quote time 2026-05-19T20:00:00.000Z\)`,
+    );
   });
 
   test("escapes generic report metadata in Markdown", () => {

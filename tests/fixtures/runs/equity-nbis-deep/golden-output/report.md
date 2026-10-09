@@ -21,7 +21,7 @@ Observed price: 225.3 USD; price as of quote time 2026-07-22T16:16:04.000Z. [mar
 
 Amounts in USD. FCF, where applicable, is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-nbis-fundamentals]
 
-Period | Revenue | Net income | Operating margin | FCF
+Period | Revenue | Net income (total operations) | Operating margin | FCF
 --- | ---: | ---: | ---: | ---:
 FY ending 2021-12-31 (filed 2022-04-20) | 4.8B | -197.2M | -3.7% | -475.5M
 FY ending 2022-12-31 (filed 2025-04-30) | 13.5M | 745.6M | -1170.4% | 682.4M
@@ -29,11 +29,16 @@ FY ending 2023-12-31 (filed 2026-04-30) | 9.8M | 241.3M | -2915.3% | 746.9M
 FY ending 2024-12-31 (filed 2026-04-30) | 91.5M | -641.4M | -436.7% | -561.9M
 FY ending 2025-12-31 (filed 2026-04-30) | 529.8M | 82.5M | -115.5% | -3.7B
 
+- FY ending 2022-12-31 (filed 2025-04-30) shows restated values; as originally filed: revenue 7.4B (filed 2023-04-20), net income (total operations) 561.1M (filed 2023-04-20), operating income 188.2M (filed 2023-04-20), operating cash flow 592.8M (filed 2023-04-20), capital expenditure 718.6M (filed 2023-04-20).
+- FY ending 2023-12-31 (filed 2026-04-30) shows restated values; as originally filed: revenue 8.9B (filed 2024-04-26), net income (total operations) 221.5M (filed 2024-04-26), operating income 317.4M (filed 2024-04-26), operating cash flow 783.4M (filed 2024-04-26), capital expenditure 1.0B (filed 2024-04-26).
+- FY ending 2024-12-31 (filed 2026-04-30) shows restated values; as originally filed: revenue 117.5M (filed 2025-04-30), operating income -440.7M (filed 2025-04-30), capital expenditure 807.7M (filed 2025-04-30).
+
 ## Valuation Context
 
 Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/book 7.97x; this is valuation context, not a target price. [market-yahoo-equity-nbis]
 
 - **Observed metrics:** EPS TTM 2.58 [market-yahoo-equity-nbis]
+- **Earnings basis:** Provider trailing EPS 2.58 (Yahoo; accounting scope and period basis undisclosed). No SEC diluted EPS TTM is available to compare. [market-yahoo-equity-nbis]
 
 ## Catalysts
 
@@ -57,7 +62,9 @@ Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/b
 - **Material:** sec-edgar: SEC company facts for NBIS have no 10-K/10-Q rows \(foreign-filer forms such as 20-F/40-F\); legacy fundamentals summary unavailable
 - **Material:** sec-edgar: NBIS files as a foreign private issuer \(20-F, 6-K\); recent 6-K text is attempted, while annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
+- **Material:** valuation: Non-current SEC balance-sheet inputs for NBIS: debt period end 2025-12-31, cash period end 2025-12-31 not within 180 days before analysis cutoff 2026-07-22 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld
 - **Material:** valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported
+- **Material:** financial-lens: Financial Strength for NBIS excludes non-current balance-sheet inputs at analysis cutoff 2026-07-22: net debt period end 2025-12-31, current ratio period end 2025-12-31, debt/equity period end 2025-12-31 not within 180 days before the cutoff and 92 days of the newest balance-sheet period end
 - **Material:** business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources
 - **Material:** business-framework: Business Framework partial for NBIS: geographic-mix: Geographic revenue mix is not available from current normalized sources
 - **Material:** business-framework: Business Framework partial for NBIS: segment-mix: Segment mix is not available from current normalized sources
@@ -116,7 +123,7 @@ Phase: hyper-growth
 
 - **Moat** (criteria-not-supported): Moat criteria-not-supported \(Operating margin -115.5%\) [extended-sec-edgar-nbis-fundamentals]
 - **Management** (insufficient-data): Management insufficient-data
-- **Risk** (criteria-supported): Risk criteria-supported \(Current ratio 3.08x, Debt/market cap 7.2%\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]
+- **Risk** (criteria-supported): Risk criteria-supported \(Current ratio \(historical, 2025-12-31\) 3.08x\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]
 - **Valuation** (insufficient-data): Valuation insufficient-data \(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\) [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]
 
 #### Framework Data Gaps
@@ -165,6 +172,8 @@ No prior run artifacts matched this research scope.
 
 Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.
 
+- P/E uses diluted EPS (total operations) for annual 2022-12-31, annual 2023-12-31, annual 2024-12-31, annual 2025-12-31.
+
 Basis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF
 --- | --- | --- | --- | ---: | ---: | ---: | ---:
 ANNUAL | 2016-12-31 | 2017-03-22 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (cash-unavailable) | — (price-history-unavailable)
@@ -175,7 +184,7 @@ ANNUAL | 2020-12-31 | 2021-04-01 | — | — (price-history-unavailable) | — (
 ANNUAL | 2021-12-31 | 2022-04-20 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (debt-unavailable) | — (price-history-unavailable)
 ANNUAL | 2022-12-31 | 2025-04-30 | — | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable) | — (price-history-unavailable)
 ANNUAL | 2023-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 212.66x | 5230.73x | 5380.40x | 68.63x
-ANNUAL | 2024-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | N/M | 424.52x | 415.15x | N/M
+ANNUAL | 2024-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | N/M | 424.52x | — (mixed-period-balance-sheet) | N/M
 ANNUAL | 2025-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 418.88x | 64.62x | 65.42x | N/M
 
 #### Peer comparison
@@ -184,6 +193,6 @@ ANNUAL | 2025-12-31 | 2026-04-30 | 138.23 USD (2026-04-30) | 418.88x | 64.62x | 
 - Reference range: suppressed (peer supportability is not supported).
 - Excluded peers: none.
 
-Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates
---- | --- | --- | ---: | --- | ---
-NBIS | target | excluded | 108.77x | USD | quote time 2026-07-22T16:16:04.000Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31
+Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates | Sources
+--- | --- | --- | ---: | --- | --- | ---
+NBIS | target | excluded | 108.77x | USD | quote time 2026-07-22T16:16:04.000Z; revenue 2025-12-31; cash 2025-12-31; debt 2025-12-31 | [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]

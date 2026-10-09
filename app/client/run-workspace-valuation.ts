@@ -11,6 +11,9 @@ import type {
 } from "../../src/sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
+import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
+import { valuationScopeDisclosure } from "../../src/report/valuation-workbench-markdown";
+import { stringArrayValue } from "../../src/guards";
 import { priceAsOfLabel, projectEquityReaderForDetail } from "./run-workspace-detail";
 
 export interface RunWorkspacePeerImpliedRangeGeometry {
@@ -65,6 +68,7 @@ interface RunWorkspaceValuationPeerRow {
   readonly multiple: string;
   readonly currency: string;
   readonly inputDates: string;
+  readonly sourceIds: readonly string[];
 }
 
 export interface RunWorkspaceExcludedValuationPeerRow {
@@ -79,6 +83,7 @@ export interface RunWorkspaceValuationWorkbenchView {
   readonly quoteCurrency: string;
   readonly priceSelectionRule: string;
   readonly trailingDisclosure: string;
+  readonly scopeDisclosure?: string;
   readonly rows: readonly RunWorkspaceHistoricalValuationRow[];
   readonly suppressionReasons: readonly string[];
   readonly peerSupportability: string;
@@ -90,6 +95,7 @@ export interface RunWorkspaceValuationWorkbenchView {
 export type RunWorkspaceReverseDcfView =
   | {
       readonly status: "computed";
+      readonly startingFcfLabel: string;
       readonly startingFcf: string;
       readonly startingFcfDates: string;
       readonly enterpriseValue: string;
@@ -245,6 +251,7 @@ function valuationPeerRows(
       row.evToAnnualizedRevenue === undefined ? "N/M" : `${row.evToAnnualizedRevenue.toFixed(2)}x`,
     currency: row.quoteCurrency ?? "—",
     inputDates: valuationRowInputDates(row),
+    sourceIds: stringArrayValue(row.sourceIds),
   }));
 }
 
@@ -255,7 +262,8 @@ export function valuationWorkbenchView(
   if (artifact === undefined) {
     return undefined;
   }
-  const { trailingBasis } = artifact.historicalMultiples;
+  const { trailingBasis, observations } = artifact.historicalMultiples;
+  const scopeDisclosure = valuationScopeDisclosure(observations);
   const peerSupportability =
     artifact.peerComparison.status === "available"
       ? artifact.peerComparison.valuationComps.summary.valuationSupportability
@@ -268,7 +276,8 @@ export function valuationWorkbenchView(
       trailingBasis.status === "available"
         ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
         : trailingBasis.detail,
-    rows: artifact.historicalMultiples.observations.map((observation) => ({
+    ...(scopeDisclosure === undefined ? {} : { scopeDisclosure }),
+    rows: observations.map((observation) => ({
       basis: observation.basis.toUpperCase(),
       periodEnd: observation.periodEnd,
       publicAt: observation.publicAt,
@@ -293,7 +302,7 @@ export function valuationWorkbenchView(
             symbol: peer.symbol,
             role: peer.role,
             reason: peer.reason,
-            sourceIds: peer.sourceIds,
+            sourceIds: stringArrayValue(peer.sourceIds),
           }))
         : [],
   };
@@ -322,6 +331,7 @@ export function reverseDcfView(detail: RunDetail): RunWorkspaceReverseDcfView | 
   );
   return {
     status: "computed",
+    startingFcfLabel: scopedLabel("Starting FCF", artifact.assumptions.startingFcf.scope),
     startingFcf: formatReverseDcfAmount(
       artifact.assumptions.startingFcf.value,
       artifact.assumptions.startingFcf.currency,

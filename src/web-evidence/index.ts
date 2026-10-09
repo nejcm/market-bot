@@ -15,7 +15,7 @@ export {
   type WebSubjectProfileQuestionKey,
 } from "./contract";
 export {
-  isCompanyProfileSecSource,
+  profileCitableSources,
   subjectKindForCommand,
   webSubjectProfileRequiredShape,
 } from "./web-subject-profile";

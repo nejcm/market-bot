@@ -1,6 +1,7 @@
 import {
   buildFundamentalHistorySeries,
   fundamentalHistoryCagr,
+  totalOperationsScopes,
   type FundamentalHistoryArtifact,
   type FundamentalHistoryPoint,
   type FundamentalHistoryRawSeries,
@@ -17,6 +18,7 @@ import {
   financialStatementFacts,
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
+  latestFinancialStatementFact,
 } from "./financial-statement-selection";
 
 const EPS_TTM_APPROXIMATION_NOTE =
@@ -85,6 +87,7 @@ function annualPoint(fact: FinancialStatementFact): FundamentalHistoryPoint | un
     periodMonths: months,
     filedAt: fact.filedAt,
     currency: fact.unit,
+    ...(fact.restatedFrom === undefined ? {} : { restatedFrom: fact.restatedFrom }),
   };
 }
 
@@ -158,6 +161,14 @@ export function deriveFundamentalHistoryFromFinancialStatements(
     symbol: artifact.symbol,
     sourceId: artifact.sourceId,
     ...(artifact.sourceUrl !== undefined ? { sourceUrl: artifact.sourceUrl } : {}),
-    series: buildFundamentalHistorySeries(raw),
+    series: buildFundamentalHistorySeries(
+      raw,
+      totalOperationsScopes(
+        (key) =>
+          latestFinancialStatementFact(
+            financialStatementFacts(financialStatementSeriesByKey(artifact, key)!),
+          )?.periodEnd,
+      ),
+    ),
   };
 }

@@ -333,6 +333,7 @@ function verifyLensPosture(
   lensName: LensName,
   posture: string,
   canonicalInputCategories: readonly string[],
+  analysisAsOf: string,
 ): boolean {
   const metrics = projection.financialLens[lensName]?.metrics;
   if (metrics === undefined) {
@@ -381,8 +382,21 @@ function verifyLensPosture(
       `Offline financial-lens posture assertion: Financial Strength projected metrics unexpectedly contain ${forbidden.join(", ")}`,
     );
   }
-  const netDebt = metricValue(metrics, "netDebt");
-  const currentRatio = metricValue(metrics, "currentRatio");
+  const cutoffMs = Date.parse(analysisAsOf);
+  const periodMs = (key: string) => Date.parse(metrics[key]?.periodEnd ?? "");
+  const newestBalanceSheetMs = Math.max(
+    ...["cash", "debt", "currentRatio"]
+      .map((key) => periodMs(key))
+      .filter((ms) => cutoffMs - ms >= 0),
+  );
+  const currentValue = (key: string) =>
+    cutoffMs - periodMs(key) <= 180 * 86_400_000 &&
+    periodMs(key) <= cutoffMs &&
+    newestBalanceSheetMs - periodMs(key) <= 92 * 86_400_000
+      ? metricValue(metrics, key)
+      : undefined;
+  const netDebt = currentValue("netDebt");
+  const currentRatio = currentValue("currentRatio");
   return (
     posture ===
     postureFrom([
@@ -423,6 +437,7 @@ export function verifyLensAllowanceProperties(
           lensName,
           difference.canonical,
           execution.canonicalFinancialLensInputCategories,
+          execution.input.analysisAsOf,
         )
       : false;
   }

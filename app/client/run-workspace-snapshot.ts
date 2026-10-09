@@ -1,5 +1,6 @@
 import type { RunDetail } from "../types";
 import type { MarketSnapshotPriceAsOf } from "../../src/domain/types";
+import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
 import type {
   FinancialLensName,
   FinancialLensPosture,
@@ -224,7 +225,7 @@ function snapshotTtmMetric(
   }
   return {
     key: definition.key,
-    label: definition.label,
+    label: scopedLabel(definition.label, card.scope),
     state: "available",
     value: card.value,
     dateBasis: `period ${card.periodEnd} · filed ${card.filedAt}`,
@@ -394,7 +395,7 @@ export function composeEquitySnapshot(
     }
     return {
       key,
-      label,
+      label: scopedLabel(label, card.scope),
       state: card.pointCount < 2 ? "partial" : "available",
       sourceIds: card.sourceIds,
       value: card.value,

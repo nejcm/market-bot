@@ -16,7 +16,10 @@ import {
   qualityLens,
   strengthLens,
   valueLens,
+  type WithheldStrengthMetric,
 } from "./financial-lens-builders";
+import { SEC_FRESHNESS_DAYS } from "../../config/shared";
+import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 
 import type {
   ExtendedEvidence,
@@ -67,6 +70,24 @@ function financialLensGap(symbol: string, missing: readonly string[]): SourceGap
   });
 }
 
+function nonCurrentStrengthDebtGap(
+  symbol: string,
+  withheld: readonly WithheldStrengthMetric[],
+  analysisAsOf: string,
+): SourceGap {
+  const periods = withheld
+    .map((entry) => `${entry.label} period end ${entry.periodEnd ?? "undated"}`)
+    .join(", ");
+  return sourceGap({
+    source: "financial-lens",
+    message: `Financial Strength for ${symbol} excludes non-current balance-sheet inputs at analysis cutoff ${analysisAsOf.slice(0, 10)}: ${periods} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff and ${String(MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS)} days of the newest balance-sheet period end`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 function postureMetricKey(name: FinancialLensName): string {
   if (name === "Financial Strength") {
     return "financialStrengthPosture";
@@ -92,13 +113,11 @@ export function addFinancialLensEvidence(
   const yahooFundamentalsItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
   const snapshot = tickerSnapshot(command, marketSnapshots);
   const quoteCurrency = snapshot?.identity?.quoteCurrency ?? "USD";
+  const strength = strengthLens(secItem, generatedAt, valuationItem, yahooFundamentalsItem);
   const lenses = [
     qualityLens(secItem),
     growthLens(secItem),
-    applySubsequentFinancingCurrentness(
-      strengthLens(secItem, valuationItem, yahooFundamentalsItem),
-      subsequentFinancing,
-    ),
+    applySubsequentFinancingCurrentness(strength.lens, subsequentFinancing),
     valueLens(valuationItem, secItem, yahooFundamentalsItem, snapshot),
     momentumLens(verifiedMarketSnapshot, quoteCurrency),
   ];
@@ -159,7 +178,12 @@ export function addFinancialLensEvidence(
     ...(valuationItem === undefined ? ["valuation evidence"] : []),
     ...(verifiedMarketSnapshot === undefined ? ["verified market snapshot"] : []),
   ];
-  const gaps = missing.length === 0 ? [] : [financialLensGap(command.symbol, missing)];
+  const gaps = [
+    ...(missing.length === 0 ? [] : [financialLensGap(command.symbol, missing)]),
+    ...(strength.withheld.length === 0
+      ? []
+      : [nonCurrentStrengthDebtGap(command.symbol, strength.withheld, generatedAt)]),
+  ];
   const mergedEvidence: ExtendedEvidence = {
     instrument: extendedEvidence?.instrument ?? {
       symbol: command.symbol,

@@ -3,12 +3,24 @@ import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
   MarketSnapshot,
+  MarketSnapshotPriceAsOf,
   SourceGap,
 } from "../../domain/types";
+import { marketCapAsOfPhrase, resolveMarketSnapshotPriceAsOf } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
 import { depositoryIssuerSic } from "./industry-classification";
 import { readNumberMetric, readStringMetric } from "./utils";
+import { DEBT_MAY_INCLUDE_FINANCE_LEASES } from "./sec-edgar";
+import {
+  balanceSheetPeriodDivergence,
+  guardIncompleteDebtValuationItem,
+  guardMixedPeriodValuationItem,
+  isCurrentBalanceSheetPeriod,
+  mixedPeriodValuationGap,
+} from "./valuation-comps-support";
+import { SEC_FRESHNESS_DAYS } from "../../config/shared";
+import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps-contract";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -47,17 +59,37 @@ function fixed(value: number | undefined): string {
   return value === undefined ? "n/a" : `${clampRoundedZero(value, 2).toFixed(2)}x`;
 }
 
+function nonCurrentBalanceSheetGap(
+  symbol: string,
+  analysisAsOf: string,
+  stale: readonly (readonly [string, string | undefined])[],
+  withheld: readonly string[],
+): SourceGap {
+  const periods = stale
+    .map(([label, periodEnd]) => `${label} period end ${periodEnd ?? "undated"}`)
+    .join(", ");
+  return sourceGap({
+    source: "valuation",
+    message: `Non-current SEC balance-sheet inputs for ${symbol}: ${periods} not within ${String(SEC_FRESHNESS_DAYS)} days before analysis cutoff ${analysisAsOf.slice(0, 10)} and ${String(MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS)} days of the newest balance-sheet period end; ${withheld.join(" and ")} withheld`,
+    symbol: symbol.toUpperCase(),
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
 function valuationDateBasis(
-  quoteObservedAt: string,
+  priceAsOf: MarketSnapshotPriceAsOf,
   cashPeriodEnd: string | undefined,
   debtPeriodEnd: string | undefined,
 ): string {
-  const quoteDate = quoteObservedAt.slice(0, 10);
+  const marketCapAsOf = marketCapAsOfPhrase(priceAsOf);
   if (cashPeriodEnd !== undefined && cashPeriodEnd === debtPeriodEnd) {
-    return `market cap as of ${quoteDate}; cash/debt as of ${cashPeriodEnd}`;
+    return `${marketCapAsOf}; cash/debt as of ${cashPeriodEnd}`;
   }
   return [
-    `market cap as of ${quoteDate}`,
+    marketCapAsOf,
     ...(cashPeriodEnd !== undefined ? [`cash as of ${cashPeriodEnd}`] : []),
     ...(debtPeriodEnd !== undefined ? [`debt as of ${debtPeriodEnd}`] : []),
   ].join("; ");
@@ -87,6 +119,7 @@ export function addValuationEvidence(
   command: ResearchCommand,
   marketSnapshots: readonly MarketSnapshot[],
   extendedEvidence: ExtendedEvidence | undefined,
+  analysisAsOf: string,
 ): ValuationEvidenceResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -138,7 +171,12 @@ export function addValuationEvidence(
   const cashPeriodEnd = readStringMetric(secItem.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readStringMetric(secItem.metrics, "debtPeriodEnd");
   const grossPrincipalDebt = readStringMetric(secItem.metrics, "debtBasis") === "gross-principal";
+  const debtLeaseScopeText =
+    readStringMetric(secItem.metrics, "debtLeaseScope") === DEBT_MAY_INCLUDE_FINANCE_LEASES
+      ? "enterprise value uses an SEC debt aggregate that may include finance leases"
+      : "enterprise value is borrowing-based and excludes finance leases";
   const quoteObservedAt = snapshot.observedAt;
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
   const sic = readStringMetric(secItem.metrics, "sic");
   const sicDescription = readStringMetric(secItem.metrics, "sicDescription");
   const annualizationFactor =
@@ -153,9 +191,15 @@ export function addValuationEvidence(
   const evToAnnualizedRevenue =
     enterpriseValue === undefined ? undefined : ratio(enterpriseValue, annualizedRevenue);
   const marketCapToAnnualizedRevenue = ratio(marketCap, annualizedRevenue);
-  const debtToMarketCap = ratio(debt, marketCap);
+  const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
+  const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
+  const debtToMarketCap = debtCurrent ? ratio(debt, marketCap) : undefined;
   const netDebt = debt - cash;
-  const netDebtToMarketCap = ratio(netDebt, marketCap);
+  const netDebtToMarketCap = debtCurrent && cashCurrent ? ratio(netDebt, marketCap) : undefined;
+  const staleBalances = [
+    ...(debtCurrent ? [] : [["debt", debtPeriodEnd] as const]),
+    ...(cashCurrent ? [] : [["cash", cashPeriodEnd] as const]),
+  ];
   const revenuePeriodLabel =
     revenuePeriodMonths !== undefined
       ? `${revenuePeriodMonths}-month revenue ${formatUsd(revenue)}, `
@@ -168,10 +212,10 @@ export function addValuationEvidence(
     enterpriseValue === undefined
       ? "EV/annualized revenue not applicable"
       : `EV/annualized revenue ${fixed(evToAnnualizedRevenue)}`;
-  const item: ExtendedEvidenceItem = {
+  const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -183,6 +227,7 @@ export function addValuationEvidence(
       latestPeriodRevenue: revenue,
       annualizedRevenue,
       quoteObservedAt,
+      ...(snapshot.quoteTimeUtc !== undefined ? { quoteTimeUtc: snapshot.quoteTimeUtc } : {}),
       ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
       ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
       ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),
@@ -197,6 +242,27 @@ export function addValuationEvidence(
     },
     ...(secItem.identity !== undefined ? { identity: secItem.identity } : {}),
   };
+  const divergence = balanceSheetPeriodDivergence(rawItem.metrics);
+  const incompleteDebt = guardIncompleteDebtValuationItem(
+    guardMixedPeriodValuationItem(rawItem, divergence),
+    command.symbol,
+    secItem.metrics,
+  );
+  const { item } = incompleteDebt;
+  const sourceGaps = [
+    ...(staleBalances.length === 0
+      ? []
+      : [
+          nonCurrentBalanceSheetGap(
+            command.symbol,
+            analysisAsOf,
+            staleBalances,
+            debtCurrent ? ["net debt/market cap"] : ["debt/market cap", "net debt/market cap"],
+          ),
+        ]),
+    ...(divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)]),
+    ...incompleteDebt.gaps,
+  ];
 
   return {
     extendedEvidence: {
@@ -205,8 +271,8 @@ export function addValuationEvidence(
         assetClass: command.assetClass,
       },
       items: [...(extendedEvidence?.items ?? []), item],
-      gaps: extendedEvidence?.gaps ?? [],
+      gaps: [...(extendedEvidence?.gaps ?? []), ...sourceGaps],
     },
-    sourceGaps: [],
+    sourceGaps,
   };
 }

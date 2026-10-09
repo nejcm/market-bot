@@ -1,7 +1,13 @@
-import { excludedPeer, peerRow, targetRow } from "./valuation-comps-rows";
+import {
+  excludedPeer,
+  peerRow,
+  revenueMultipleMeaningful,
+  targetRow,
+} from "./valuation-comps-rows";
 import { buildArtifact } from "./valuation-comps-range";
 import {
   balanceSheetPeriodDivergence,
+  mixedPeriodValuationGap,
   enrichValuationItem,
   guardMixedPeriodValuationItem,
   peerImpliedRangeSuppressionGaps,
@@ -23,8 +29,14 @@ import {
   type ExtendedEvidence,
   type ExtendedEvidenceItem,
   type MarketSnapshot,
+  type SourceGap,
 } from "../../domain/types";
-import { resolvePeerUniverseWithFallback } from "../../research/peer-universe";
+import {
+  hasPeerBandInputs,
+  resolvePeerUniverseWithFallback,
+  type PeerUniverseRefreshNote,
+  type PeerUniverseTargetInputs,
+} from "../../research/peer-universe";
 import { isFetchJsonResult, type CollectContext } from "../types";
 import {
   normalizeYahooQuotePayload,
@@ -69,14 +81,7 @@ export async function collectValuationComps(
   const mixedPeriodGaps =
     targetPeriodDivergence === undefined
       ? []
-      : [
-          valuationCompsGap(
-            `Mixed-period valuation inputs for ${command.symbol}: cash period end ${targetPeriodDivergence.cashPeriodEnd} and debt period end ${targetPeriodDivergence.debtPeriodEnd} diverge by ${String(targetPeriodDivergence.divergenceDays)} days; enterprise value and net debt flagged as mixed-period`,
-            "provider-data-missing",
-            "valuation",
-            command.symbol.toUpperCase(),
-          ),
-        ];
+      : [mixedPeriodValuationGap(command.symbol, targetPeriodDivergence)];
 
   const targetSnapshot = marketSnapshots.find(
     (snapshot) =>
@@ -84,12 +89,30 @@ export async function collectValuationComps(
       snapshot.symbol.toUpperCase() === command.symbol.toUpperCase(),
   );
   const target = targetRow(command.symbol, guardedValuationItem, targetSnapshot, ctx.fetchedAt);
+  const targetInputs: PeerUniverseTargetInputs = {
+    ...(target.marketCap !== undefined ? { marketCap: target.marketCap } : {}),
+    ...(target.sic !== undefined ? { sic: target.sic } : {}),
+    ...(target.annualizedRevenue !== undefined && revenueMultipleMeaningful(target)
+      ? { annualizedRevenue: target.annualizedRevenue }
+      : {}),
+  };
   const resolution = await resolvePeerUniverseWithFallback(
     command.symbol,
     options.peerUniverseFallback,
     options.peerUniverseMappings,
     options.subjectRegistry,
+    targetInputs,
   );
+  const refreshGaps =
+    resolution.refresh === undefined
+      ? []
+      : [
+          peerUniverseRefreshGap(
+            command.symbol,
+            resolution.refresh,
+            resolution.status === "resolved",
+          ),
+        ];
   if (resolution.status !== "resolved" || resolution.universe === undefined) {
     const gap = valuationCompsGap(
       `Peer Universe unavailable for ${command.symbol}: ${resolution.reason}`,
@@ -97,7 +120,7 @@ export async function collectValuationComps(
       "valuation-peers",
       command.symbol.toUpperCase(),
     );
-    const baseGaps = [...mixedPeriodGaps, gap];
+    const baseGaps = [...mixedPeriodGaps, ...refreshGaps, gap];
     const artifact = buildArtifact(ctx.fetchedAt, target, [], [], undefined, baseGaps, []);
     const allGaps = [...baseGaps, ...peerImpliedRangeSuppressionGaps(artifact)];
     return {
@@ -161,6 +184,7 @@ export async function collectValuationComps(
   );
   const peerGaps = [
     ...mixedPeriodGaps,
+    ...refreshGaps,
     ...quoteGap,
     ...peerSecResults.flatMap((entry) =>
       // Every SEC gap here comes from fetching this peer's facts, so it is owned
@@ -187,6 +211,26 @@ export async function collectValuationComps(
     peerSources.map((source) => source.id),
   );
   const { valuationSupportability, usablePeerCount } = artifact.summary;
+  const rawSnapshots = [
+    ...(isFetchJsonResult(quoteResult) ? [quoteResult.rawSnapshot] : []),
+    ...peerSecResults.flatMap((entry) => entry.sec.rawSnapshots),
+  ];
+  // A stale fallback withholds its payload, so its peers read as missing data rather than an outage.
+  if (
+    resolution.learnedGeneration !== undefined &&
+    hasPeerBandInputs(targetInputs) &&
+    !peerGaps.some((gap) => isTransientFetchGap(gap)) &&
+    !rawSnapshots.some((snapshot) => snapshot.cacheStatus === "stale-fallback")
+  ) {
+    await options.peerUniverseFallback
+      ?.recordEvaluation?.(
+        command.symbol,
+        resolution.learnedGeneration,
+        usablePeerCount,
+        excludedPeers.map(({ symbol, cause }) => ({ symbol, cause })),
+      )
+      .catch(() => {});
+  }
   const usablePeers = usablePeersLabel(usablePeerCount);
   const supportabilityGaps =
     valuationSupportability === "supported"
@@ -217,12 +261,73 @@ export async function collectValuationComps(
     ),
     artifact,
     sources: peerSources,
-    rawSnapshots: [
-      ...(isFetchJsonResult(quoteResult) ? [quoteResult.rawSnapshot] : []),
-      ...peerSecResults.flatMap((entry) => entry.sec.rawSnapshots),
-    ],
+    rawSnapshots,
     gaps: allGaps,
   };
+}
+
+const REFRESH_NOTES: Record<
+  PeerUniverseRefreshNote["outcome"],
+  { readonly text: string; readonly cause: SourceGap["cause"] }
+> = {
+  insufficient: {
+    text: "the re-proposal did not yield a valid peer set",
+    cause: "validation-failed",
+  },
+  "claim-lost": {
+    text: "the refresh was not claimed by this run (already claimed or no longer due)",
+    cause: "suppressed-by-design",
+  },
+  "claim-error": {
+    text: "the refresh claim could not be persisted; allowance not consumed",
+    cause: "provider-data-missing",
+  },
+  "allowance-used": {
+    text: "the one refresh allowed per TTL window is already used",
+    cause: "suppressed-by-design",
+  },
+  unavailable: {
+    text: "the re-proposal could not run because the peer directory or model was unavailable",
+    cause: "provider-data-missing",
+  },
+  "missing-target-inputs": {
+    text: "target market cap or SIC is unavailable, so the re-proposal is deferred",
+    cause: "suppressed-by-design",
+  },
+};
+
+function peerUniverseRefreshGap(
+  symbol: string,
+  refresh: PeerUniverseRefreshNote,
+  reusedLearnedPeers: boolean,
+): SourceGap {
+  const note = REFRESH_NOTES[refresh.outcome];
+  const audit =
+    refresh.audit === undefined
+      ? ""
+      : ` (${String(refresh.audit.survived)} of ${String(refresh.audit.proposed)} proposed peers validated${reusedLearnedPeers ? "; allowance consumed" : ""})`;
+  const release =
+    refresh.allowanceReleased === undefined
+      ? ""
+      : `; allowance ${refresh.allowanceReleased ? "released" : "not released"}`;
+  const reuse = reusedLearnedPeers ? "; the previously learned peers were used" : "";
+  return {
+    ...valuationCompsGap(
+      `Peer Universe refresh for ${symbol}: ${note.text}${audit}${release}${reuse}`,
+      note.cause,
+      "valuation-peers",
+      symbol.toUpperCase(),
+    ),
+    triage: "diagnostic",
+  };
+}
+
+function isTransientFetchGap(gap: SourceGap): boolean {
+  return (
+    gap.cause === "fetch-failed" ||
+    gap.cause === "circuit-open" ||
+    gap.cause === "malformed-response"
+  );
 }
 
 function emptyResult(

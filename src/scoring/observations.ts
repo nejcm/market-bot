@@ -3,7 +3,11 @@ import type { Observation, PointObservationRequest } from "../forecast/observabl
 import { fetchCoinGeckoCloseWindow } from "../sources/coingecko";
 import { fetchFredObservation } from "../sources/fred";
 import { fetchTradierIvObservation } from "../sources/tradier";
-import { fetchYahooCloseWindow, fetchYahooSplitAdjustedCloseWindow } from "../sources/yahoo";
+import {
+  fetchYahooCloseWindow,
+  fetchYahooSplitAdjustedCloseWindow,
+  type CloseWindow,
+} from "../sources/yahoo";
 import {
   fetchCloseWithCache,
   fetchWindowWithCache,
@@ -26,7 +30,7 @@ export interface ObservationRepository {
     from: Date,
     to: Date,
     options?: WindowFetchOptions,
-  ): Promise<readonly Observation[]>;
+  ): Promise<CloseWindow>;
 }
 
 export interface ObservationRepositoryOptions {
@@ -99,7 +103,7 @@ function routeWindowFetch(report: ResearchReport, massiveApiKey?: string): Fetch
       if (options?.scoringPolicyVersion === 3) {
         return fetchYahooSplitAdjustedCloseWindow(subject, from, to);
       }
-      const fetched = await fetchYahooCloseWindow(subject, from, to, fetch, massiveApiKey);
+      const fetched = await fetchYahooCloseWindow(subject, from, to, fetch, massiveApiKey, to);
       return fetched.ok ? fetched.observations : [];
     }
 

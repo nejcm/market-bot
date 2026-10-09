@@ -159,6 +159,23 @@ describe("financial statement selection", () => {
         unitKeys: ["USD/shares"],
       },
       {
+        key: "continuingIncome",
+        label: "income",
+        concepts: [
+          "IncomeLossFromContinuingOperations",
+          "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        ],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
+        key: "continuingDilutedEps",
+        label: "diluted EPS",
+        concepts: ["IncomeLossFromContinuingOperationsPerDilutedShare"],
+        unitKeys: ["USD/shares"],
+        optional: true,
+      },
+      {
         key: "cash",
         label: "cash",
         concepts: [
@@ -170,13 +187,19 @@ describe("financial statement selection", () => {
       {
         key: "operatingCashFlow",
         label: "operating cash flow",
-        concepts: ["NetCashProvidedByUsedInOperatingActivities"],
+        concepts: [
+          "NetCashProvidedByUsedInOperatingActivities",
+          "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        ],
         unitKeys: ["USD"],
       },
       {
         key: "capex",
         label: "capex",
-        concepts: ["PaymentsToAcquirePropertyPlantAndEquipment"],
+        concepts: [
+          "PaymentsToAcquirePropertyPlantAndEquipment",
+          "PaymentsToAcquireProductiveAssets",
+        ],
         unitKeys: ["USD"],
       },
       {
@@ -282,6 +305,24 @@ describe("financial statement selection", () => {
         concepts: { "us-gaap": ["NetIncomeLoss"], "ifrs-full": ["ProfitLoss"] },
       },
       {
+        key: "continuingIncome",
+        label: "Income from continuing operations",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": [
+            "IncomeLossFromContinuingOperations",
+            "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+          ],
+          "ifrs-full": [
+            "ProfitLossFromContinuingOperationsAttributableToOwnersOfParent",
+            "ProfitLossFromContinuingOperations",
+          ],
+        },
+      },
+      {
         key: "cash",
         label: "Cash and cash equivalents",
         statement: "balanceSheet",
@@ -361,27 +402,6 @@ describe("financial statement selection", () => {
           "us-gaap": ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"],
           "ifrs-full": ["Borrowings"],
         },
-        components: [
-          {
-            "us-gaap": [
-              "LongTermDebtCurrent",
-              "DebtCurrent",
-              "LongTermDebtAndCapitalLeaseObligationsCurrent",
-              "ShortTermBorrowings",
-              "ShortTermDebt",
-              "NotesPayableCurrent",
-            ],
-            "ifrs-full": ["CurrentBorrowings"],
-          },
-          {
-            "us-gaap": [
-              "LongTermDebtNoncurrent",
-              "LongTermDebtAndCapitalLeaseObligations",
-              "LongTermNotesPayable",
-            ],
-            "ifrs-full": ["NoncurrentBorrowings"],
-          },
-        ],
       },
       {
         key: "operatingCashFlow",
@@ -391,7 +411,10 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: true,
         concepts: {
-          "us-gaap": ["NetCashProvidedByUsedInOperatingActivities"],
+          "us-gaap": [
+            "NetCashProvidedByUsedInOperatingActivities",
+            "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+          ],
           "ifrs-full": ["CashFlowsFromUsedInOperatingActivities"],
         },
       },
@@ -403,7 +426,10 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: true,
         concepts: {
-          "us-gaap": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+          "us-gaap": [
+            "PaymentsToAcquirePropertyPlantAndEquipment",
+            "PaymentsToAcquireProductiveAssets",
+          ],
           "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
         },
       },
@@ -444,6 +470,18 @@ describe("financial statement selection", () => {
         },
       },
       {
+        key: "continuingDilutedEps",
+        label: "Diluted EPS from continuing operations",
+        statement: "perShare",
+        kind: "duration",
+        unitKind: "per-share",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["IncomeLossFromContinuingOperationsPerDilutedShare"],
+          "ifrs-full": ["DilutedEarningsLossPerShareFromContinuingOperations"],
+        },
+      },
+      {
         key: "dilutedShares",
         label: "Diluted weighted-average shares",
         statement: "perShare",
@@ -458,15 +496,8 @@ describe("financial statement selection", () => {
     ]);
   });
 
-  test("pins roster-covered non-revenue series to one concept per taxonomy", () => {
-    const legacyKeys = new Set([
-      "grossProfit",
-      "operatingIncome",
-      "netIncome",
-      "dilutedEps",
-      "operatingCashFlow",
-      "capex",
-    ]);
+  test("pins roster-covered income-statement series to one concept per taxonomy", () => {
+    const legacyKeys = new Set(["grossProfit", "operatingIncome", "netIncome", "dilutedEps"]);
     const canonicalKeys = new Set(
       [...legacyKeys].map((key) => (key === "capex" ? "capitalExpenditure" : key)),
     );

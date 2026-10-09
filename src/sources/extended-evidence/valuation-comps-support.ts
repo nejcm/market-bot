@@ -136,6 +136,35 @@ export function isFreshPeriodEnd(periodEnd: string, generatedAt: string): boolea
   return ageMs >= 0 && ageMs <= SEC_FRESHNESS_DAYS * DAY_MS;
 }
 
+const BALANCE_SHEET_PERIOD_KEYS = [
+  "cash",
+  "debt",
+  "currentAssets",
+  "currentLiabilities",
+  "stockholdersEquity",
+  "assets",
+] as const;
+
+// Current: within SEC freshness of the cutoff and of the newest current balance-sheet instant.
+export function isCurrentBalanceSheetPeriod(
+  secMetrics: Readonly<Record<string, number | string>> | undefined,
+  periodEnd: string | undefined,
+  analysisAsOf: string,
+): boolean {
+  if (periodEnd === undefined || !isFreshPeriodEnd(periodEnd, analysisAsOf)) {
+    return false;
+  }
+  const newestBalanceSheetMs = Math.max(
+    ...BALANCE_SHEET_PERIOD_KEYS.map((key) => readStringMetric(secMetrics, `${key}PeriodEnd`))
+      .filter((end): end is string => end !== undefined && isFreshPeriodEnd(end, analysisAsOf))
+      .map((end) => Date.parse(end)),
+  );
+  return (
+    (newestBalanceSheetMs - Date.parse(periodEnd)) / DAY_MS <=
+    MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+  );
+}
+
 export function percentile(values: readonly number[], p: number): number {
   const sorted = values.toSorted((a, b) => a - b);
   const index = (sorted.length - 1) * p;
@@ -240,6 +269,48 @@ export function mixedPeriodMetrics(
     debtPeriodEnd: divergence.debtPeriodEnd,
     netDebt: MIXED_PERIOD_METRIC,
     enterpriseValue: MIXED_PERIOD_METRIC,
+  };
+}
+
+export function mixedPeriodValuationGap(
+  symbol: string,
+  divergence: BalanceSheetPeriodDivergence,
+): SourceGap {
+  return valuationCompsGap(
+    `Mixed-period valuation inputs for ${symbol}: cash period end ${divergence.cashPeriodEnd} and debt period end ${divergence.debtPeriodEnd} diverge by ${String(divergence.divergenceDays)} days; enterprise value and net debt flagged as mixed-period`,
+    "provider-data-missing",
+    "valuation",
+    symbol.toUpperCase(),
+  );
+}
+
+// Older complete debt must not stand in for a newer instant whose debt is incomplete.
+export function guardIncompleteDebtValuationItem(
+  item: ExtendedEvidenceItem,
+  symbol: string,
+  sec: Readonly<Record<string, number | string>> | undefined,
+): { readonly item: ExtendedEvidenceItem; readonly gaps: readonly SourceGap[] } {
+  const incompletePeriodEnd = readStringMetric(sec, "debtIncompletePeriodEnd");
+  if (incompletePeriodEnd === undefined || item.metrics?.netDebt === MIXED_PERIOD_METRIC) {
+    return { item, gaps: [] };
+  }
+  const message = `Incomplete SEC debt for ${symbol}: debt at ${incompletePeriodEnd} is incomplete (${readStringMetric(sec, "debtIncompleteReason") ?? "unknown reason"}); enterprise value and net debt withheld rather than using older debt`;
+  const metrics = Object.fromEntries(
+    Object.entries(item.metrics ?? {}).filter(
+      ([key]) => key !== "evToAnnualizedRevenue" && key !== "netDebtToMarketCap",
+    ),
+  );
+  return {
+    item: {
+      ...item,
+      summary: `Valuation Evidence: ${message}. Raw market cap, cash, debt, and revenue metrics are retained.`,
+      metrics: {
+        ...metrics,
+        netDebt: MIXED_PERIOD_METRIC,
+        ...(metrics.enterpriseValue === undefined ? {} : { enterpriseValue: MIXED_PERIOD_METRIC }),
+      },
+    },
+    gaps: [valuationCompsGap(message, "provider-data-missing", "valuation", symbol.toUpperCase())],
   };
 }
 

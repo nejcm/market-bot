@@ -173,7 +173,7 @@ export interface SourceGap {
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
   readonly triage?: SourceGapTriage;
-  // Present only for fetch-failed/circuit-open gaps that actually retried: how the retry
+  // Present for fetch-failed/circuit-open gaps that retried and for size rejections: how the retry
   // Loop unfolded and how each iteration failed, so a reader can tell "timed out after 3
   // Network attempts, then the local circuit breaker refused a 4th" from the artifact
   // Without inferring retry/breaker behavior from source. See `SourceGapAttempts` for what
@@ -190,6 +190,7 @@ export type SourceGapAttemptClassification =
   | "server-error"
   | "network"
   | "circuit-open"
+  | "response-too-large"
   | "non-transient";
 
 export interface SourceGapAttemptFailure {
@@ -356,7 +357,7 @@ interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly fallback?: WebGatherFallbackAudit;
   // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
   readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
-  // Present only on a rejected request whose Exa call exhausted retries (see `SourceGap.attempts`).
+  // Present on a rejected request whose Exa call retried or was size-rejected (see `SourceGap.attempts`).
   readonly attempts?: SourceGapAttempts;
 }
 
@@ -459,6 +460,15 @@ export function resolveMarketSnapshotPriceAsOf(
   return snapshot.quoteTimeUtc === undefined
     ? { kind: "fetch-time-only", instant: snapshot.observedAt }
     : { kind: "quote-time", instant: snapshot.quoteTimeUtc };
+}
+
+// Producers write these phrases and renderers find them by the same text to relabel the instant.
+export function marketCapAsOfPhrase(priceAsOf: MarketSnapshotPriceAsOf): string {
+  return `market cap as of ${priceAsOf.instant.slice(0, 10)}${priceAsOf.kind === "fetch-time-only" ? " (fetch time)" : ""}`;
+}
+
+export function marketCapQuotePhrase(priceAsOf: MarketSnapshotPriceAsOf): string {
+  return `market cap (${priceAsOf.kind === "quote-time" ? "quote" : "fetch time"} ${priceAsOf.instant.slice(0, 10)})`;
 }
 
 export interface MarketFundamentals {
@@ -706,9 +716,7 @@ export interface PredictionCompletionAudit {
   readonly failureReason?: string;
 }
 
-export type ReportIntegrityAdvisoryCode =
-  | "uncited-numeric-summary-sentence"
-  | "weak-evidence-posture-missing";
+export type ReportIntegrityAdvisoryCode = "weak-evidence-posture-missing";
 
 export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
 

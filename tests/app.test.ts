@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -178,6 +179,109 @@ describe("scorePassOptions", () => {
 });
 
 describe("runCli", () => {
+  test("runs score repair dry runs unlocked and refreshes index and Calibration only on apply", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-score-repair-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const calls: string[] = [];
+    const original = {
+      predictionId: "pred-2",
+      runId: "run-1",
+      resolved: true,
+      outcome: "miss" as const,
+      observedAt: "2026-10-08T15:58:52.674Z",
+      attemptCount: 1,
+      evidence: {},
+    };
+    const dependencies = {
+      repairScore: async (_dataDir: string, request: { readonly apply: boolean }) => {
+        calls.push(`repair:${String(request.apply)}`);
+        return {
+          runId: "run-1",
+          predictionId: "pred-2",
+          verdict: "proven-premature" as const,
+          detail: "detail",
+          withheldSessions: [],
+          original,
+          runDir: join(dataDir, "run-1"),
+          ...(request.apply ? { repaired: { ...original, outcome: "hit" as const } } : {}),
+        };
+      },
+      buildAndWriteCalibration: async () => {
+        calls.push("calibration");
+        return null;
+      },
+      writeThroughRunArtifactIndex: async (_dir: string, runDirs: readonly string[]) => {
+        calls.push(`index:${runDirs.join(",")}`);
+      },
+      rebuildRunArtifactIndexIfStale: async () => ({ rebuilt: false }),
+    };
+    const argv = ["score", "repair", "--run", "run-1", "--prediction", "pred-2"];
+
+    const dryRun = await runCli(argv, dependencies);
+    expect(calls).toEqual(["repair:false"]);
+    expect(dryRun).toContain("dry run: nothing written");
+    expect(existsSync(join(dataDir, "shared-state.lock"))).toBe(false);
+
+    await runCli([...argv, "--apply"], dependencies);
+    expect(calls).toEqual(["repair:false", "repair:true", "index:run-1", "calibration"]);
+    expect(existsSync(join(dataDir, "shared-state.lock"))).toBe(true);
+  });
+
+  test("holds the shared-state lock across a whole score repair --apply", async () => {
+    const dataDir = join(
+      tmpdir(),
+      `market-bot-score-repair-lock-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    dataDirs.push(dataDir);
+    process.env.MARKET_BOT_DATA_DIR = dataDir;
+    const events: string[] = [];
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const dependencies = {
+      repairScore: async () => {
+        events.push("start");
+        if (events.length === 1) {
+          await gate;
+        }
+        events.push("end");
+        return {
+          runId: "run-1",
+          predictionId: "pred-2",
+          verdict: "unaffected" as const,
+          detail: "detail",
+          withheldSessions: [],
+          original: {
+            predictionId: "pred-2",
+            runId: "run-1",
+            resolved: true,
+            outcome: "miss" as const,
+            observedAt: "2026-10-08T21:00:00.000Z",
+            attemptCount: 1,
+            evidence: {},
+          },
+          runDir: join(dataDir, "run-1"),
+        };
+      },
+    };
+    const argv = ["score", "repair", "--run", "run-1", "--prediction", "pred-2", "--apply"];
+
+    const first = runCli(argv, dependencies);
+    while (events.length === 0) {
+      // oxlint-disable-next-line no-await-in-loop -- Polls until the first repair holds the lock.
+      await Bun.sleep(5);
+    }
+    const second = runCli(argv, dependencies);
+    await Bun.sleep(100);
+    expect(events).toEqual(["start"]);
+
+    release();
+    await Promise.all([first, second]);
+    expect(events).toEqual(["start", "end", "start", "end"]);
+  });
+
   test("passes force only from the explicit score command", async () => {
     const dataDir = join(
       tmpdir(),

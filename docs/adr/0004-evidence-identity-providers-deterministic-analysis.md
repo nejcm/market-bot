@@ -35,7 +35,9 @@ Quality advisory reasons; amended 2026-08-29: canonical statement facts may be d
 same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured-registry and
 expectations entitlement completeness status; amended 2026-09-01: web-gather SEC coverage
 guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
-basis)
+basis; amended 2026-10-08: accession-addressed SEC document cache; amended 2026-10-08: per-instant
+debt resolution and same-period enterprise value; amended 2026-10-09: accounting scope and
+earnings-basis disclosure)
 
 ## Context
 
@@ -126,7 +128,19 @@ without pretending the project has a global security master.
 - Every model evidence payload carries `analysisAsOf`. Adapters exclude facts published, filed, or
   ending after that cutoff when their data supports those semantics.
 - Cache entries are freshness-budgeted and validated. A failed refresh may retain stale data in raw
-  audit snapshots, but stale data never enters normalized current evidence.
+  audit snapshots, but stale data never enters normalized current evidence. Accession-addressed SEC
+  archive documents (HTTPS GET `www.sec.gov/Archives/edgar/data/<cik>/<18-digit accession>/<document>`,
+  excluding generated filing indexes) are an archived-snapshot store outside the day directories:
+  reused across days for 30 days from the original fetch, then revalidated, because SEC permits
+  post-acceptance corrections. Hits keep the original fetch metadata and are re-parsed every run;
+  invalid entries are refetched, and an expired entry
+  is a raw-audit-only stale fallback like any other. `sec-companyfacts` keeps the 24-hour reference budget.
+- Every source read is bounded by a response-byte ceiling: 5,000,000 bytes by default and a
+  provisional 16,000,000 for SEC filing text, earnings-release exhibits, and `sec-companyfacts`.
+  A declared or streamed body over its ceiling is a `validation-failed` Source Gap carrying the
+  size message and a `response-too-large` attempt; it is not retried and does not count toward
+  the host circuit breaker, while Provider Health and the Exa failed-request audit still count it
+  as a failed fetch.
 - Deep instrument runs and all thematic research runs may gather bounded web results. Exa is
   primary; configured Exa failures or thin results may fall back to Firecrawl. Firecrawl never
   substitutes for a missing Exa key. Results are subject-constrained, cached, persisted as
@@ -156,7 +170,13 @@ without pretending the project has a global security master.
   tokens. Rejections are audited as `duplicate-headline`; the rule cannot empty coverage and emits
   no gap.
 - Web Subject Profiles use fixed cited questions per subject kind and bounded reuse TTLs. Company
-  reuse also checks SEC filing freshness.
+  reuse also checks SEC filing freshness. A candidate profile is reused only if every cited Source already
+  collected before reuse selection carries identical text; a changed or text-less current copy skips that
+  candidate for an older compatible one, else the profile is re-extracted (later Web Gather collisions
+  keep the reused Source). Profiles may cite only web Sources and, for companies,
+  10-K/10-Q Sources carrying filing text; the extraction prompt payload and the citation validator
+  share that one selector, so the profile prompt omits every other citable evidence surface (8-K/6-K,
+  fundamentals, news, snapshots, history, prior profiles).
 - Sanitize provider-controlled prose and short labels through one provider-neutral, profile-aware
   path before model exposure. This covers web, news, SEC sections, metadata, and prompt-bound legacy
   history. Raw payloads and historical artifacts remain unchanged.
@@ -208,14 +228,42 @@ without pretending the project has a global security master.
 - SEC `netIncome` maps to parent-attributable `NetIncomeLoss`; optional consolidated `ProfitLoss`
   is disclosure-only when it differs. ROE and ROA retain parent-attributable income and their
   existing balance-sheet scopes rather than mixing consolidated and parent measures.
+- Accounting scope has three independent axes, kept apart rather than inferred from equal values:
+  continuing versus total operations, parent-attributable versus including noncontrolling
+  interests (NCI), and SEC filing versus provider earnings basis. Income from continuing
+  operations and continuing diluted EPS are their own canonical series with explicit concept
+  mappings (parent-attributable before including-NCI on an equal period); they never replace
+  `netIncome` or `dilutedEps`, and ROE, ROA, net margin, and payout keep total parent income. A
+  continuing series older than its total counterpart is history, not a scope split, and adds no
+  metric. When a continuing counterpart is current, total `netIncome` and `dilutedEps` carry a
+  "total operations" scope label through the SEC summary, Growth lens, Business Framework, Financial
+  Trends, and Valuation Workbench P/E inputs, and every growth comparison is labelled by its scope.
+- Cash conversion divides operating cash flow by income of the same operations scope, sharing
+  period, currency, and unit: continuing OCF uses continuing income, total OCF uses net income.
+  When continuing OCF has no compatible continuing income the ratio is withheld and a declared
+  Source Gap says so; a zero denominator withholds the ratio without a gap.
+- One deterministic earnings-basis disclosure sits beside Yahoo trailing EPS and P/E in Markdown
+  Valuation Context and the Research Console header. It keeps both observations: the provider value
+  with its undisclosed accounting and period basis, and the SEC diluted EPS TTM (labelled as an
+  approximation, with its period end) plus continuing-operations EPS TTM when tagged. It states
+  agreement at two decimals, a mismatch, or a currency mismatch, and never substitutes one value for
+  the other or explains a difference no source states.
 - Equity runs persist deterministic SEC companyfacts Fundamental History without changing
   `report.json`: inside the bundle for deep equity and in `normalized/fundamental-history.json` for
   other equity runs. Each revenue series buckets concepts whose latest eligible period is within 100
   days of the most recent candidate, then selects the first by configured order; other series select
-  the first configured concept with facts. Configured concept order is load-bearing semantics rather
-  than a tie-break of convenience: it ranks total-revenue tags above narrower contract-revenue tags,
-  which for some issuers differ by an order of magnitude. Observed history depth never overrides
-  selection because a deeper tag may represent a narrower measure. Offline corpus roster
+  the concept with the most recent eligible period, configured order breaking ties. Configured concept
+  order is load-bearing semantics rather than a tie-break of convenience: it ranks total-revenue tags
+  above narrower contract-revenue tags, which for some issuers differ by an order of magnitude, and
+  total operating cash flow above its continuing-operations variant. Observed history depth never
+  overrides selection because a deeper tag may represent a narrower measure. A narrower alias wins
+  only when the broader tag has stopped at an older period (an issuer that re-tags after a
+  discontinued operation); the continuing-operations variant then carries a "(continuing
+  operations)" scope label through the SEC summary, Fundamental History, Financial Trends, OCF-derived
+  lens metrics, and the FCF inputs of the Valuation Workbench and reverse DCF. Configured order also
+  outranks prior availability on an equal period, so a missing total-tag comparative stays a gap
+  rather than a reason to switch scope. Selection stays whole-concept, so TTM never splices two
+  concepts. Offline corpus roster
   verification re-derives the selected concept for roster-covered series from this rule rather than
   checking allow-list membership alone. Selection then filters by the analysis cutoff, retains up to
   ten 10-14-month 10-K periods, and resolves duplicate period ends to the latest-filed restatement.
@@ -235,15 +283,43 @@ without pretending the project has a global security master.
   totals. Matching period keys resolve by filed date, amendment status, and accession number; a
   later valid amendment supersedes only its matching period. Selected facts preserve form,
   canonical form, accession, filing and period metadata, fiscal identifiers, taxonomy, unit/currency,
-  unit scale, extraction method, and source IDs. A series definition may name ordered component
-  slots; when those tagged facts are strictly fresher than the direct alias, the selected fact is a
-  deterministic same-period sum (`extractionMethod: derived-sec-companyfacts`) that carries every
-  contributor. Only a complete composite can displace a present direct basis, and it does so only
-  when its period end is strictly fresher. One basis is used for the whole series so year-over-year
-  comparisons stay on one measurement. When no direct basis exists, a one-legged composite remains
-  available: the missing slot is recorded by absence in `composite.components` and an omission note,
-  not by silently substituting another concept. Direct facts remain `sec-companyfacts` without a
-  `composite` field. The artifact-level extraction method stays `sec-companyfacts`.
+  unit scale, extraction method, and source IDs. Debt is a lease-exclusive borrowing basis,
+  resolved per balance-sheet instant by one rule shared by the legacy and canonical selectors: a
+  tagged standard total wins; otherwise the selected fact is a deterministic same-instant sum
+  (`extractionMethod: derived-sec-companyfacts`) of disjoint borrowing line items, carrying every
+  contributor. Aliases of one line item and a total and its constituents (including short-term
+  borrowings and the commercial paper inside them, or `ConvertibleDebtNoncurrent` and
+  `ConvertibleLongTermNotesPayable`, or `ConvertibleDebtCurrent` and
+  `ConvertibleNotesPayableCurrent`) are alternatives, never added; the `LineOfCredit` umbrella
+  spans both sides and counts only when neither line-of-credit leg (`LongTermLineOfCredit`,
+  `LinesOfCreditCurrent`) is tagged at that instant, so tagged legs replace the
+  umbrella only when it equals their tagged sum (otherwise the instant is refused); with no leg
+  tagged but a generic side line tagged, it is refused as a possible overlap; for continuity a
+  selected umbrella covers both legs and the umbrella is covered only by both legs or by legs
+  tagged beside it that sum to it; a generic
+  current or noncurrent long-term-debt line subsumes that side's instrument lines; finance and
+  operating leases are excluded. A lease-inclusive aggregate (`DebtCurrent`, the
+  `LongTermDebtAndCapitalLeaseObligations*` lines, `DebtAndCapitalLeaseObligations`) has the
+  matching finance-lease leg or total tagged at the same instant subtracted; when none is tagged it
+  is kept and a `no-cap` Source Gap discloses that debt may include finance leases. A component set
+  is complete only when no unrecognized standard borrowing concept is tagged at that instant, it
+  has a borrowing line, and every borrowing concept whose latest earlier value (within the prior
+  400 days, or from an earlier filing of the same instant) was nonzero is still covered; when both
+  sides are generic, earlier borrowing details count as their constituents. A component that a later filing
+  restated is summed only when every component's selected filing has the same filing date (same-day accessions count as one filing; debt history carries no accession) and the original filing's
+  component total holds (a reclassification);
+  any other restatement without a tagged debt total leaves the instant incomplete.
+  A later filing's incomplete set supersedes an earlier
+  complete one for the same instant. The canonical series keeps only instants on the latest
+  complete instant's basis, and legacy priors never cross basis, so year-over-year comparisons stay
+  on one measurement. Incomplete instants are never published as debt; when newer than the latest complete instant they produce an
+  `incomplete-composite-series` note, the legacy peer row declares the incomplete basis,
+  SEC fundamentals prose and the Financial Strength debt label date the older amount and name the
+  incomplete instant, and alpha-search drops it from debt features with a Source Gap.
+  Absence never establishes zero; explicit tagged zeros count. Companyfacts omits issuer-extension
+  and dimensional facts, so completeness is a rule over standard tags, not proof. Direct facts
+  remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays
+  `sec-companyfacts`.
 - Amendment: debt basis may be gross principal when net debt is untagged. Some filers tag current
   balance-sheet debt only with issuer extensions or dimensional members, which companyfacts omits,
   leaving the standard undimensioned `DebtInstrumentCarryingAmount` (principal before discount and
@@ -369,7 +445,28 @@ without pretending the project has a global security master.
 - Deep equity valuation uses deterministic peer mappings or subject-registry representatives
   first. If unresolved, a quick model may nominate peers, but code validates symbol existence,
   US-listing status, common-stock eligibility, quote/fact availability, and freshness before use.
-  Learned results are cached and revalidated.
+  The proposal prompt states the target's SIC group and 0.2x-5x market-cap and annualized-revenue
+  bands (each omitted when the input is absent) so nominations aim inside the comparability gates.
+  Learned results are cached and revalidated. Each run that resolves a learned universe records
+  its usable-peer count and up to eight per-peer exclusion causes against that cache
+  generation, except when target market cap is not positive, SIC is missing, or a peer fetch
+  failed transiently (`fetch-failed`, `circuit-open`, `malformed-response`) or fell back to stale
+  cache; a permanent rejection such as an over-ceiling response still records. Older feedback
+  never overwrites newer, and the next allowed re-proposal receives the recorded exclusions in
+  its prompt as symbols with fixed cause labels, never provider-derived reason text; recording
+  never changes the refresh allowance. A usable generation with fewer than
+  three usable peers is re-proposed
+  at most once per TTL window: the attempt is claimed under the cache lock before the model call
+  and stays consumed if the proposal is insufficient, while the learned peers keep serving; it is
+  released when the SEC directory or model is unavailable, or when the proposal falls short while a
+  failed listing directory could hold candidates it left unresolved (healthy directories still
+  validate survivors), and an attempt recorded under a
+  superseded proposer revision does not count against the window. An
+  expired or invalid entry has no peers to serve, so it re-proposes on each run like a cache miss
+  without spending the allowance. Either re-proposal is deferred while target SIC or a positive
+  market cap is unavailable. Every learned write is compare-and-set against the entry observed
+  before proposing, so a delayed writer cannot replace newer state. A refresh that is deferred,
+  not claimed, unavailable, or insufficient emits a diagnostic Source Gap.
 - Peer median/IQR aggregates include only candidates that pass deterministic comparability gates:
   a two-digit SEC SIC group matching the target's, and market cap and annualized revenue each
   inclusively within 0.2x-5x of the target's, in addition to the existing freshness and
@@ -395,9 +492,28 @@ without pretending the project has a global security master.
   formula remain auditable. Quotes equal to either endpoint are `within-range`; only strict
   inequality yields `below-range` or `above-range`. This remains research context, not a composite
   score.
-- Valuation evidence preserves quote, cash, and debt dates. It discloses the market-cap and
-  balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
-  quote with cash/debt more than 92 days apart.
+- Valuation evidence preserves quote, cash, and debt dates. It dates market cap from
+  `quoteTimeUtc` when present (persisted beside `quoteObservedAt`, which stays acquisition
+  provenance) and otherwise from the fetch time, labelled as such; the 92-day check below uses the
+  same date. It discloses the market-cap and balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
+  quote with cash/debt more than 92 days apart. Cash and debt more than 92 days apart are a
+  different failure: target valuation evidence, peer rows, Financial Lens net debt, and historical
+  Workbench EV/revenue (`mixed-period-balance-sheet`) all withhold EV rather than pair them, and
+  valuation evidence states that enterprise value is borrowing-based and excludes finance leases; the
+  target valuation producer declares the mixed-period Source Gap itself, so brief runs carry it.
+  Older complete debt never stands in for a newer instant whose debt is incomplete: target valuation
+  withholds EV and net debt with a Source Gap, peer rows declare the incomplete basis, and Workbench
+  observations drop debt when such an instant falls at or before their cash instant.
+- Financial Strength posture uses current balance-sheet criteria only. A balance-sheet period is
+  current when it ends within 180 days before the analysis cutoff (`SEC_FRESHNESS_DAYS`) and within
+  92 days of the newest current balance-sheet period end. Canonical ratios check their paired
+  selected period; the legacy fallback checks every input. Net debt and current ratio outside that
+  window are unknown, not failed, so the remaining current criteria still decide the posture, and
+  Business Framework Risk applies the same current-ratio eligibility while labelling the historical
+  value with its date. Debt/equity, debt/market cap, and net debt/market cap are withheld when an
+  input is not current. Dated raw debt, cash, and historical net debt stay displayed, and the
+  valuation and financial-lens producers each declare a no-cap Source Gap naming the withheld
+  inputs and their period ends.
 - For a depository issuer, enterprise value and every EV-derived surface are inapplicable, not
   unavailable: deposits and borrowings fund operations, so no defensible operating/financing split
   exists. The issuer is classified once from a well-formed four-digit SIC on its own `sec-edgar`
@@ -444,8 +560,8 @@ without pretending the project has a global security master.
   annualized metrics must preserve period metadata and be treated as screening evidence.
 - Fundamental history deliberately does not splice renamed or alternative SEC concepts within one
   series. Revenue buckets concepts whose latest eligible period is within 100 days of the most
-  recent candidate, then uses configured order; other series use the first configured concept with
-  facts. Because order encodes measure scope, reordering a concept list is a correctness change, not
+  recent candidate, then uses configured order; other series use the concept with the most recent
+  eligible period, configured order breaking ties. Because order encodes measure scope, reordering a concept list is a correctness change, not
   a preference change; exact definition contents and order are pinned by test. Accepting shortened
   history remains preferable to substituting a differently scoped series; when an alternative tag
   would extend history, the shortening stays silent by design and is not reported as a gap.

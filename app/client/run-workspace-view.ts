@@ -6,7 +6,13 @@ import {
   predictionShortfallCompactText,
   readPredictionShortfall,
 } from "../../src/report/prediction-shortfall";
-import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/types";
+import {
+  marketCapAsOfPhrase,
+  marketCapQuotePhrase,
+  resolveMarketSnapshotPriceAsOf,
+  type MarketSnapshot,
+} from "../../src/domain/types";
+import type { EquityReaderEarningsBasis } from "../../src/report/equity-reader-earnings-basis";
 import type {
   EquityReaderAppendixCompleteness,
   EquityReaderFinancialCoreStatus,
@@ -221,6 +227,7 @@ export interface RunWorkspaceEquityPresentationView {
     readonly financialPosition?: RunWorkspaceFinancialPositionView;
     readonly keyMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
     readonly valuationContext: RunWorkspaceEquitySnapshotReferenceRange;
+    readonly earningsBasis?: EquityReaderEarningsBasis;
     readonly findings: readonly RunWorkspaceTextItem[];
     readonly cases: readonly RunWorkspaceCaseSection[];
     readonly earningsConsensus: RunWorkspaceEarningsConsensusView;
@@ -275,10 +282,13 @@ function renderedPriceSummary(
   }
   const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
   const label = priceAsOfLabel(priceAsOf);
-  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  // Artifacts written before quote-instant dating used the fetch date in both phrases.
+  const legacyFetchDate = marketSnapshot.observedAt.slice(0, 10);
   return summary
-    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
-    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+    .replaceAll(marketCapAsOfPhrase(priceAsOf), `market cap ${label}`)
+    .replaceAll(marketCapQuotePhrase(priceAsOf), `market cap (${label})`)
+    .replaceAll(`market cap as of ${legacyFetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${legacyFetchDate})`, `market cap (${label})`);
 }
 
 function snapshotView(detail: RunDetail): RunWorkspaceSnapshotView | undefined {
@@ -396,6 +406,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
               ...equitySnapshot.peerReferenceRange,
               label: "Valuation context",
             },
+            ...(readerProjection.defaultView.earningsBasis === undefined
+              ? {}
+              : { earningsBasis: readerProjection.defaultView.earningsBasis }),
             findings,
             cases: ["risks", "catalysts", "bullCase", "bearCase"].flatMap((key) =>
               cases.filter((section) => section.key === key),

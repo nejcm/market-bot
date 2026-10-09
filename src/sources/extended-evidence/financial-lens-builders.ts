@@ -3,6 +3,7 @@ import {
   atOrBelow,
   metric,
   observedPeriod,
+  operatingCashFlowLabel,
   peIsClean,
   peMetricValue,
   percentChange,
@@ -12,6 +13,7 @@ import {
   readRawStringMetric,
   readSecMetric,
   secPeriod,
+  secScope,
   selectedDerivedPeriod,
   selectedRatioLabel,
   valuationDateBasisMetric,
@@ -24,8 +26,18 @@ import type {
   VerifiedMarketSnapshot,
 } from "../../domain/types";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
-import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
+import { isContinuingScope, scopedLabel } from "./financial-statement-definitions";
+import {
+  canonicalFinancialLensDerivedMetric,
+  selectedFinancialLensDerivedMetric,
+  type CanonicalDerivedMetricKey,
+  type SecFactMetricKey,
+} from "./financial-lens-canonical";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
+import {
+  balanceSheetPeriodDivergence,
+  isCurrentBalanceSheetPeriod,
+} from "./valuation-comps-support";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import { readNumberMetric, readStringMetric } from "./utils";
 
@@ -35,6 +47,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
   const grossProfit = readSecMetric(secItem?.metrics, "grossProfit");
   const operatingIncome = readSecMetric(secItem?.metrics, "operatingIncome");
   const netIncome = readSecMetric(secItem?.metrics, "netIncome");
+  const continuingIncome = readSecMetric(secItem?.metrics, "continuingIncome");
   const consolidatedNetIncome = readSecMetric(secItem?.metrics, "consolidatedNetIncome");
   const netIncomePeriodMonths = readSecMetric(secItem?.metrics, "netIncomePeriodMonths");
   const operatingCashFlow = readSecMetric(secItem?.metrics, "operatingCashFlow");
@@ -64,7 +77,10 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
   const cashConversion = selectedFinancialLensDerivedMetric(
     secItem,
     "cashConversion",
-    ratio(operatingCashFlow, netIncome),
+    ratio(
+      operatingCashFlow,
+      isContinuingScope(secScope(secItem, "operatingCashFlow")) ? continuingIncome : netIncome,
+    ),
   );
   // ROE/ROA are industry-relative (display-only): no universal threshold, no posture.
   // Annualized by net income's own periodMonths so a partial-year filing does not
@@ -111,7 +127,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
     ),
     ...metric(
       "freeCashFlowProxy",
-      "FCF proxy",
+      operatingCashFlowLabel(secItem, "FCF proxy"),
       freeCashFlowProxy,
       "currency",
       sourceIds,
@@ -119,7 +135,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
     ),
     ...metric(
       "cashConversion",
-      "Cash conversion",
+      operatingCashFlowLabel(secItem, "Cash conversion"),
       cashConversion,
       "ratio",
       sourceIds,
@@ -168,6 +184,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
 export function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const sourceIds = secItem?.sourceIds ?? [];
   const netIncomePrior = readSecMetric(secItem?.metrics, "netIncomePrior");
+  const continuingIncomePrior = readSecMetric(secItem?.metrics, "continuingIncomePrior");
   const metrics = [
     ...metric(
       "revenueDeltaPercent",
@@ -195,9 +212,12 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
     ),
     ...metric(
       "netIncomeDeltaPercent",
-      netIncomePrior !== undefined && netIncomePrior < 0
-        ? "Net loss (attrib.) YoY change"
-        : "Net income (attrib.) YoY",
+      scopedLabel(
+        netIncomePrior !== undefined && netIncomePrior < 0
+          ? "Net loss (attrib.) YoY change"
+          : "Net income (attrib.) YoY",
+        secScope(secItem, "netIncome"),
+      ),
       readSecMetric(secItem?.metrics, "netIncomeDeltaPercent"),
       "whole-percent",
       sourceIds,
@@ -205,15 +225,36 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
     ),
     ...metric(
       "dilutedEpsDeltaPercent",
-      "Diluted EPS YoY",
+      scopedLabel("Diluted EPS YoY", secScope(secItem, "dilutedEps")),
       readSecMetric(secItem?.metrics, "dilutedEpsDeltaPercent"),
       "whole-percent",
       sourceIds,
       secPeriod(secItem, "dilutedEps"),
     ),
     ...metric(
+      "continuingIncomeDeltaPercent",
+      scopedLabel(
+        continuingIncomePrior !== undefined && continuingIncomePrior < 0
+          ? "Loss YoY change"
+          : "Income YoY",
+        secScope(secItem, "continuingIncome"),
+      ),
+      readSecMetric(secItem?.metrics, "continuingIncomeDeltaPercent"),
+      "whole-percent",
+      sourceIds,
+      secPeriod(secItem, "continuingIncome"),
+    ),
+    ...metric(
+      "continuingDilutedEpsDeltaPercent",
+      scopedLabel("Diluted EPS YoY", secScope(secItem, "continuingDilutedEps")),
+      readSecMetric(secItem?.metrics, "continuingDilutedEpsDeltaPercent"),
+      "whole-percent",
+      sourceIds,
+      secPeriod(secItem, "continuingDilutedEps"),
+    ),
+    ...metric(
       "operatingCashFlowDeltaPercent",
-      "Operating cash flow YoY",
+      operatingCashFlowLabel(secItem, "Operating cash flow YoY"),
       readSecMetric(secItem?.metrics, "operatingCashFlowDeltaPercent"),
       "whole-percent",
       sourceIds,
@@ -238,11 +279,49 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
   };
 }
 
+// Canonical metrics carry one paired period; the legacy fallback must validate every input.
+function nonCurrentPeriods(
+  secItem: ExtendedEvidenceItem | undefined,
+  key: CanonicalDerivedMetricKey | undefined,
+  inputs: readonly SecFactMetricKey[],
+  analysisAsOf: string,
+): readonly (string | undefined)[] {
+  const selected =
+    key === undefined ? undefined : canonicalFinancialLensDerivedMetric(secItem, key);
+  const periods =
+    selected === undefined
+      ? inputs.map((input) => secPeriod(secItem, input).periodEnd)
+      : [selected.periodEnd];
+  return periods.filter(
+    (periodEnd) => !isCurrentBalanceSheetPeriod(secItem?.metrics, periodEnd, analysisAsOf),
+  );
+}
+
+export function currentRatioIsCurrent(
+  secItem: ExtendedEvidenceItem | undefined,
+  analysisAsOf: string,
+): boolean {
+  return (
+    nonCurrentPeriods(
+      secItem,
+      "currentRatio",
+      ["currentAssets", "currentLiabilities"],
+      analysisAsOf,
+    ).length === 0
+  );
+}
+
+export interface WithheldStrengthMetric {
+  readonly label: string;
+  readonly periodEnd: string | undefined;
+}
+
 export function strengthLens(
   secItem: ExtendedEvidenceItem | undefined,
+  analysisAsOf: string,
   valuationItem?: ExtendedEvidenceItem,
   yahooFundamentalsItem?: ExtendedEvidenceItem,
-): FinancialLens {
+): { readonly lens: FinancialLens; readonly withheld: readonly WithheldStrengthMetric[] } {
   const sourceIds = [
     ...new Set([
       ...(secItem?.sourceIds ?? []),
@@ -260,24 +339,62 @@ export function strengthLens(
   const selectedNetDebt = selectedFinancialLensDerivedMetric(
     secItem,
     "netDebt",
-    debt === undefined || cash === undefined ? undefined : debt - cash,
+    debt === undefined ||
+      cash === undefined ||
+      balanceSheetPeriodDivergence(secItem?.metrics) !== undefined
+      ? undefined
+      : debt - cash,
   );
   const netDebt =
     valuationItem?.metrics?.netDebt === MIXED_PERIOD_METRIC
       ? undefined
       : (readNumberMetric(valuationItem?.metrics, "netDebt") ?? selectedNetDebt);
-  const debtToMarketCap = readNumberMetric(valuationItem?.metrics, "debtToMarketCap");
-  const netDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "netDebtToMarketCap");
   const currentRatio = selectedFinancialLensDerivedMetric(
     secItem,
     "currentRatio",
     ratio(currentAssets, currentLiabilities),
   );
   // Debt-to-equity is industry-relative (display-only): no universal threshold.
-  const debtToEquity = selectedFinancialLensDerivedMetric(
+  const selectedDebtToEquity = selectedFinancialLensDerivedMetric(
     secItem,
     "debtToEquity",
     ratio(debt, stockholdersEquity),
+  );
+  const stale = {
+    netDebt: nonCurrentPeriods(secItem, "netDebt", ["debt", "cash"], analysisAsOf),
+    currentRatio: nonCurrentPeriods(
+      secItem,
+      "currentRatio",
+      ["currentAssets", "currentLiabilities"],
+      analysisAsOf,
+    ),
+    debtToEquity: nonCurrentPeriods(
+      secItem,
+      "debtToEquity",
+      ["debt", "stockholdersEquity"],
+      analysisAsOf,
+    ),
+    debtToMarketCap: nonCurrentPeriods(secItem, undefined, ["debt"], analysisAsOf),
+    netDebtToMarketCap: nonCurrentPeriods(secItem, undefined, ["debt", "cash"], analysisAsOf),
+  };
+  const rawDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "debtToMarketCap");
+  const rawNetDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "netDebtToMarketCap");
+  const debtToMarketCap = stale.debtToMarketCap.length === 0 ? rawDebtToMarketCap : undefined;
+  const netDebtToMarketCap =
+    stale.netDebtToMarketCap.length === 0 ? rawNetDebtToMarketCap : undefined;
+  const currentNetDebt =
+    netDebt !== undefined && stale.netDebt.length === 0 ? selectedNetDebt : undefined;
+  const debtToEquity = stale.debtToEquity.length === 0 ? selectedDebtToEquity : undefined;
+  const withheld: WithheldStrengthMetric[] = (
+    [
+      ["net debt", netDebt, stale.netDebt],
+      ["current ratio", currentRatio, stale.currentRatio],
+      ["debt/equity", selectedDebtToEquity, stale.debtToEquity],
+      ["debt/market cap", rawDebtToMarketCap, stale.debtToMarketCap],
+      ["net debt/market cap", rawNetDebtToMarketCap, stale.netDebtToMarketCap],
+    ] as const
+  ).flatMap(([label, value, periods]) =>
+    value === undefined || periods.length === 0 ? [] : [{ label, periodEnd: periods[0] }],
   );
   // Dividend Payout: SEC-preferred (abs(dividendsPaid)/netIncome) contributes the
   // Forbes <= 0.8 posture criterion; the Yahoo fallback (trailingAnnualDividendRate
@@ -316,9 +433,7 @@ export function strengthLens(
     ),
     ...metric(
       "debt",
-      readStringMetric(secItem?.metrics, "debtBasis") === "gross-principal"
-        ? "Debt (gross principal)"
-        : "Debt",
+      debtLabel(secItem),
       debt,
       "currency",
       secItem?.sourceIds ?? [],
@@ -383,13 +498,13 @@ export function strengthLens(
       observedPeriod(yahooFundamentalsItem?.observedAt),
     ),
   ];
-  return {
+  const lens: FinancialLens = {
     name: "Financial Strength",
     posture: postureFrom([
-      selectedNetDebt === undefined ? undefined : selectedNetDebt <= 0,
+      currentNetDebt === undefined ? undefined : currentNetDebt <= 0,
       netDebtToMarketCap === undefined ? undefined : netDebtToMarketCap <= 0.25,
       debtToMarketCap === undefined ? undefined : debtToMarketCap <= 0.5,
-      currentRatio === undefined ? undefined : currentRatio >= 1,
+      currentRatio === undefined || stale.currentRatio.length > 0 ? undefined : currentRatio >= 1,
       // SEC-derived payout only: <= 0.8 supports (Forbes "below 80%"). Yahoo-fallback
       // Payout is display-only and contributes no criterion (revision 3).
       payoutFromSec ? atOrBelow(payoutRatio, 0.8) : undefined,
@@ -397,6 +512,7 @@ export function strengthLens(
     metrics,
     sourceIds,
   };
+  return { lens, withheld };
 }
 
 export function applySubsequentFinancingCurrentness(
@@ -585,7 +701,7 @@ export function valueLens(
       ),
       ...metric(
         "pcfRatio",
-        "PCF",
+        operatingCashFlowLabel(secItem, "PCF"),
         pcfRatio,
         "ratio",
         pcfSourceIds,
@@ -641,4 +757,15 @@ export function momentumLens(
     ],
     sourceIds,
   };
+}
+
+function debtLabel(secItem: ExtendedEvidenceItem | undefined): string {
+  const label =
+    readStringMetric(secItem?.metrics, "debtBasis") === "gross-principal"
+      ? "Debt (gross principal)"
+      : "Debt";
+  const incomplete = readStringMetric(secItem?.metrics, "debtIncompletePeriodEnd");
+  return incomplete === undefined
+    ? label
+    : `${label} as of ${secPeriod(secItem, "debt").periodEnd ?? "an undated period"}; incomplete as of ${incomplete}`;
 }

@@ -1571,6 +1571,33 @@ describe("SEC latest filing evidence tool", () => {
     expect((result.sources[0]?.snippet ?? "").length).toBeLessThanOrEqual(3007);
   });
 
+  test("10-Q MD&A snippet starts at the results subheading past an inline Item reference", async () => {
+    const body = [
+      "<p>ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS</p>",
+      "<p>Forward-looking statements involve risks; see “Part II, Item 1A—Risk Factors” for detail.</p>",
+      `<p><b>Results of Continuing Operations</b></p>${"<p>Net revenue was $9.2 billion, up from $5.8 billion, on stronger data center demand. </p>".repeat(6)}`,
+      "<p>29</p><p>Table of Contents</p><p>ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK</p>",
+    ].join("");
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-Q"], ["a10q.htm"])),
+          text: async ({ adapter }) => textResult(adapter, body),
+        }),
+      }),
+    );
+
+    const snippet = result.sources[0]?.snippet ?? "";
+    expect(snippet).toContain(
+      "[MD&A] Results of Continuing Operations Net revenue was $9.2 billion",
+    );
+    expect(snippet).not.toContain("QUANTITATIVE AND QUALITATIVE");
+  });
+
   test("drops a fully unsafe filing packet with validation telemetry", async () => {
     // The whole Business section, once padded to clear the raw-selection floor
     // (SEC_SECTION_MIN_SELECTED_ALPHA_CHARS), is unsafe instruction text; the sanitizer strips
@@ -1740,6 +1767,34 @@ describe("SEC latest filing evidence tool", () => {
         ),
       }),
     );
+  });
+
+  test("keeps a short 10-Q no-material-changes Risk Factors section and gaps only the rest", async () => {
+    const riskFactors =
+      "ITEM 1A. RISK FACTORS The most significant risk factors applicable to the Company are described in Part II, Item 1A \u201CRisk Factors\u201D of our Annual Report on Form 10-K for the year ended September 30, 2025. There have been no material changes from the risk factors previously disclosed.";
+    const body = [
+      `ITEM 2. MANAGEMENT'S DISCUSSION ${repeatToMinAlpha(
+        "Actual MD&A discusses revenue growth, margins, liquidity, and segment trends.",
+      )}`,
+      riskFactors,
+      "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS None.",
+    ].join(" ");
+    const result = await executeEvidenceRequestTool(
+      "sec_latest_filing",
+      baseCtx({
+        request: requestExecutor({
+          json: async ({ adapter }) =>
+            adapter === "sec-tickers"
+              ? jsonResult(adapter, secTickersPayload())
+              : jsonResult(adapter, secSubmissionsPayload(["10-Q"])),
+          text: async ({ adapter }) => textResult(adapter, body),
+        }),
+      }),
+    );
+
+    expect(result.sources[0]?.snippet).toContain(`[Risk Factors] ${riskFactors}`);
+    expect(result.gaps).toContainEqual(sectionOmissionGap("10-Q", "AAPL", ["Segments", "Notes"]));
+    expect(result.gaps.some((item) => item.message.includes("Risk Factors"))).toBe(false);
   });
 
   test("a whitespace-tolerant anchor does not match letters separated by non-whitespace", async () => {

@@ -4,7 +4,7 @@ import { resolutionDate } from "./exchange-calendar";
 // Scoring Policy registry (ADR 0003). A Prediction's persisted
 // `scoringPolicyVersion` — not a global constant — selects how its horizon
 // Count maps onto a clock. Historical forecasts without a version resolve
-// Permanently under policy v2; already-resolved scores are never rewritten.
+// Permanently under policy v2; scoring passes never rewrite resolved scores (see scoring/repair).
 //
 // Policy v2 (legacy): every report-anchored forecast counts exchange trading
 // Days, including crypto closes and macro/IV point observations.

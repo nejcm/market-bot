@@ -3,7 +3,9 @@ import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
 import type { VerifiedMarketSnapshot } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
-import { isCompanyProfileSecSource, subjectKindForCommand } from "../../web-evidence";
+import { earningsBasis } from "../../report/equity-reader-earnings-basis";
+import { tickerSnapshot } from "../../sources/extended-evidence/financial-lens-metrics";
+import { profileCitableSources, subjectKindForCommand } from "../../web-evidence";
 import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 import {
   forPrompt,
@@ -85,11 +87,21 @@ const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSou
     ? { earningsSetup: collectedSources.earningsSetup }
     : {};
 
+const projectEarningsBasis: EvidenceProjector = (_options, command, collectedSources) => {
+  if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
+    return {};
+  }
+  const basis = earningsBasis(
+    tickerSnapshot(command, collectedSources.marketSnapshots),
+    collectedSources.financialStatements,
+  );
+  return basis === undefined ? {} : { earningsBasis: basis };
+};
+
 // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
 // The full bar series stays on disk (rawSnapshots / normalized sidecar).
-// The profile validator allowlist only admits web sources and company SEC filings; a snapshot citation would null the whole profile item.
-const projectVerifiedMarketSnapshot: EvidenceProjector = (options, _command, collectedSources) =>
-  options.webSourceText !== "profile" && collectedSources.verifiedMarketSnapshot !== undefined
+const projectVerifiedMarketSnapshot: EvidenceProjector = (_options, _command, collectedSources) =>
+  collectedSources.verifiedMarketSnapshot !== undefined
     ? verifiedMarketSnapshotEvidence(collectedSources.verifiedMarketSnapshot)
     : {};
 
@@ -139,11 +151,10 @@ const projectWebSources: EvidenceProjector = (options, command, collectedSources
     return {};
   }
   const isProfileStage = options.webSourceText === "profile";
-  // The company profile stage may cite SEC 10-K/10-Q filing text alongside web
-  // Sources, so surface their model-visible snippet/summary here too. SEC text is
-  // High-trust primary (normalized at fetch time), not the untrusted web content
-  // The stage prompt warns about.
-  const includeSecSources = isProfileStage && subjectKind === "company";
+  // Company profiles also cite 10-K/10-Q text: high-trust primary, unlike the untrusted web content.
+  const sources = isProfileStage
+    ? profileCitableSources(collectedSources.extendedSources, subjectKind)
+    : collectedSources.extendedSources.filter((source) => source.kind === "web");
   // At final-synthesis, fresh web sources gathered this run are otherwise projected
   // As bare metadata, so the model can only cite the reused-profile digest. Surface
   // Their sanitized summary here (snippet as a fallback) — but only for web sources
@@ -151,30 +162,25 @@ const projectWebSources: EvidenceProjector = (options, command, collectedSources
   // Low-trust text surface bounded.
   const profileCoveredIds = substantiveProfileSourceIds(collectedSources.webSubjectProfile);
   return {
-    webSources: collectedSources.extendedSources
-      .filter(
-        (source) =>
-          source.kind === "web" || (includeSecSources && isCompanyProfileSecSource(source)),
-      )
-      .map((source) => {
-        const includeFreshWebText =
-          options.webSourceText === "fresh-only" && isFreshWebSource(source, profileCoveredIds);
-        const includeSummary =
-          (isProfileStage || includeFreshWebText) && source.summary !== undefined;
-        // Profile stage carries both fields; fresh final-synthesis text uses snippet
-        // Only when summary is absent, to keep the added token surface small.
-        const includeSnippet =
-          source.snippet !== undefined &&
-          (isProfileStage || (includeFreshWebText && source.summary === undefined));
-        return {
-          id: source.id,
-          title: source.title,
-          ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
-          fetchedAt: source.fetchedAt,
-          ...(includeSummary ? { summary: source.summary } : {}),
-          ...(includeSnippet ? { snippet: source.snippet } : {}),
-        };
-      }),
+    webSources: sources.map((source) => {
+      const includeFreshWebText =
+        options.webSourceText === "fresh-only" && isFreshWebSource(source, profileCoveredIds);
+      const includeSummary =
+        (isProfileStage || includeFreshWebText) && source.summary !== undefined;
+      // Profile stage carries both fields; fresh final-synthesis text uses snippet
+      // Only when summary is absent, to keep the added token surface small.
+      const includeSnippet =
+        source.snippet !== undefined &&
+        (isProfileStage || (includeFreshWebText && source.summary === undefined));
+      return {
+        id: source.id,
+        title: source.title,
+        ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
+        fetchedAt: source.fetchedAt,
+        ...(includeSummary ? { summary: source.summary } : {}),
+        ...(includeSnippet ? { snippet: source.snippet } : {}),
+      };
+    }),
   };
 };
 
@@ -201,6 +207,7 @@ const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectMarketContext,
   projectExtendedEvidence,
   projectEarningsSetup,
+  projectEarningsBasis,
   projectVerifiedMarketSnapshot,
   projectVerifiedRepresentativeSnapshots,
   projectResolvedInstrumentIdentity,
@@ -212,7 +219,7 @@ function citationGuidanceFor(options: EvidencePayloadOptions): string {
   if (options.webSourceText === "profile") {
     return "Profile citations must come from sourceIds in evidence.webSources. Attribute numeric KPI claims to the filing or web source that states them.";
   }
-  return "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
+  return "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, earningsBasis, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 }
 
 export function buildEvidencePayload(
@@ -226,6 +233,18 @@ export function buildEvidencePayload(
   // The bottom read the stage's view, so new gap-bearing projectors are narrowed
   // By construction rather than by remembering to filter them.
   const collectedSources = collectedSourcesForGapView(options.sourceGapView, allCollectedSources);
+  if (options.webSourceText === "profile") {
+    // Only what the profile validator admits as citable, so no other sourceId reaches the model.
+    return {
+      analysisAsOf: resolveAnalysisAsOf(context),
+      command,
+      ...userSteeringField(command),
+      ...projectResolvedInstrumentIdentity(options, command, collectedSources),
+      ...projectWebSources(options, command, collectedSources),
+      sourceGaps: deterministicSourceGaps(command, collectedSources),
+      deterministicCitationGuidance: citationGuidanceFor(options),
+    };
+  }
   const { historicalContext } = context;
   // Movers embed the whole snapshot, so they need the same prompt projection.
   const movers = rankMovers(

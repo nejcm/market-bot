@@ -283,3 +283,17 @@ describe("loadStagePrompt — real prompt files", () => {
     expect(result.instruction).toContain("you should");
   });
 });
+
+describe("checked-in final-synthesis prompt", () => {
+  test("carries the accounting-scope guidance", async () => {
+    const { instruction } = await loadStagePrompt("final-synthesis", tickerCommand);
+
+    expect(instruction).toContain(
+      "Keep the accounting scope the evidence labels on every earnings and cash-flow figure",
+    );
+    expect(instruction).toContain("(evidence.earningsBasis)");
+    expect(instruction).toContain(
+      "Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.",
+    );
+  });
+});

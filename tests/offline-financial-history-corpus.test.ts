@@ -526,6 +526,38 @@ describe("offline financial-statement corpus — history rosters and alias fault
     });
   });
 
+  test("verifies stale-total/current-continuing OCF and productive-assets-only capex", async () => {
+    const aaplCase = await loadOfflineCorpusCase("aapl");
+    const { payload, usGaap } = cloneCompanyFactsWithMutableUsGaap(
+      aaplCase.execution.input.companyFacts,
+    );
+    const totalOcf = usGaap.NetCashProvidedByUsedInOperatingActivities;
+    const ppe = usGaap.PaymentsToAcquirePropertyPlantAndEquipment;
+    if (!isRecord(totalOcf) || !isRecord(totalOcf.units) || !Array.isArray(totalOcf.units.USD)) {
+      throw new Error("AAPL fixture is missing USD operating cash flow facts");
+    }
+    usGaap.NetCashProvidedByUsedInOperatingActivitiesContinuingOperations =
+      structuredClone(totalOcf);
+    totalOcf.units.USD = totalOcf.units.USD.filter(
+      (fact) => isRecord(fact) && typeof fact.end === "string" && fact.end <= "2023-12-31",
+    );
+    usGaap.PaymentsToAcquireProductiveAssets = ppe;
+    delete usGaap.PaymentsToAcquirePropertyPlantAndEquipment;
+    const { execution } = mutateOfflineCorpusCase(aaplCase, { input: { companyFacts: payload } });
+    const verdicts = verifyHistoryAnnualRosters(execution);
+
+    for (const side of ["canonical", "legacy"] as const) {
+      const history = execution.projection[side].fundamentalHistory;
+      expect(history.operatingCashFlow?.concept).toBe(
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+      );
+      expect(history.capex?.concept).toBe("PaymentsToAcquireProductiveAssets");
+      for (const key of ["operatingCashFlow", "capex", "freeCashFlowProxy"]) {
+        expect(verdicts.get(`${side}.${key}`)?.kind).toMatch(/^verified-/u);
+      }
+    }
+  });
+
   test("rejects source-derivable annual metadata corruption", async () => {
     const nbisCase = await loadOfflineCorpusCase("nbis");
     const { revenue } = nbisCase.execution.projection.canonical.fundamentalHistory;

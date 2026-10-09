@@ -254,7 +254,7 @@
         >
           {@render columnHeading(
             "Financial trends",
-            `${defaultView.financialTrends.reportingCurrency ?? "currency unavailable"} · FCF proxy`,
+            `${defaultView.financialTrends.reportingCurrency ?? "currency unavailable"} · ${defaultView.financialTrends.freeCashFlowLabel}`,
           )}
           <div class="overflow-x-auto">
             <table class="w-full min-w-125 border-collapse font-mono text-[12.5px]">
@@ -289,6 +289,11 @@
               </tbody>
             </table>
           </div>
+          {#if defaultView.financialTrends.restatements !== undefined}
+            <p class="mt-2 font-sans text-[11px] text-muted-foreground">
+              {defaultView.financialTrends.restatements.join(" ")}
+            </p>
+          {/if}
           {@render citeChips(defaultView.financialTrends.sourceIds)}
         </section>
       {/if}

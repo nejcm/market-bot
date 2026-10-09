@@ -17,7 +17,10 @@ import {
   type EquityReportingFreshness,
 } from "./extended-evidence/equity-analysis-completeness";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
-import { withCanonicalFinancialLensInputs } from "./extended-evidence/financial-lens-canonical";
+import {
+  cashConversionScopeGaps,
+  withCanonicalFinancialLensInputs,
+} from "./extended-evidence/financial-lens-canonical";
 import {
   collectSubsequentFinancingBridge,
   deriveSubsequentFinancingBridge,
@@ -57,6 +60,9 @@ import { createPeerUniverseProposer } from "../research/peer-universe-proposal";
 import {
   makePeerUniverseCacheReader,
   makePeerUniverseCacheWriter,
+  makePeerUniverseEvaluationRecorder,
+  makePeerUniverseRefreshClaimer,
+  makePeerUniverseRefreshReleaser,
 } from "../research/peer-universe-cache";
 import { parseNearEarningsEvent, computeImpliedMove } from "./extended-evidence/earnings-setup";
 import { evidenceSource } from "./extended-evidence/common";
@@ -107,6 +113,13 @@ function peerUniverseFallbackFor(
           peerUniverse.provider.name,
           now,
         ),
+        claimRefresh: makePeerUniverseRefreshClaimer(
+          peerUniverse.cachePath,
+          peerUniverse.ttlDays,
+          now,
+        ),
+        recordEvaluation: makePeerUniverseEvaluationRecorder(peerUniverse.cachePath, now),
+        releaseRefresh: makePeerUniverseRefreshReleaser(peerUniverse.cachePath, now),
         propose: createPeerUniverseProposer({
           provider: peerUniverse.provider,
           model: peerUniverse.model,
@@ -271,7 +284,12 @@ export async function collectEquityEnrichment(
   }
   const valuationResult =
     financialStatements === undefined
-      ? addValuationEvidence(input.command, input.marketSnapshots, input.extendedEvidence)
+      ? addValuationEvidence(
+          input.command,
+          input.marketSnapshots,
+          input.extendedEvidence,
+          input.fetchedAt,
+        )
       : addValuationEvidence(
           input.command,
           input.marketSnapshots,
@@ -280,6 +298,7 @@ export async function collectEquityEnrichment(
             financialStatements,
             input.secTargetPacket?.providerResult.sicClassification,
           ),
+          input.fetchedAt,
         );
   const peerUniverseFallback =
     input.command.depth === "deep"
@@ -398,7 +417,10 @@ export async function collectEquityEnrichment(
     financialStatementGaps:
       financialStatements === undefined
         ? []
-        : financialStatementsDebtBasisGaps(financialStatements),
+        : [
+            ...financialStatementsDebtBasisGaps(financialStatements),
+            ...cashConversionScopeGaps(financialStatements),
+          ],
     reportingFreshness,
     subsequentFinancing,
     capitalOwnership,

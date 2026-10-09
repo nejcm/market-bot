@@ -24,6 +24,7 @@ import { readRunSubsystemOutcomesFromDisk } from "./run-artifact-index-rows";
 import { pruneCache } from "./sources/cache";
 import { buildAndWriteCalibration, runScorePass, type ScorePassOptions } from "./scoring/index";
 import { renderCalibrationConsole } from "./scoring/calibration-console";
+import { renderScoreRepair, repairScore } from "./scoring/repair";
 import {
   buildThesisDelta,
   rebuildHistoryArtifacts,
@@ -49,6 +50,7 @@ export interface RunCliDependencies {
   readonly persistResearchJob?: typeof persistResearchJob;
   readonly runDeepEquity?: typeof runDeepEquity;
   readonly runScorePass?: typeof runScorePass;
+  readonly repairScore?: typeof repairScore;
   readonly buildAndWriteCalibration?: typeof buildAndWriteCalibration;
   readonly rebuildHistoryArtifacts?: typeof rebuildHistoryArtifacts;
   readonly rebuildRunArtifactIndex?: typeof rebuildRunArtifactIndex;
@@ -173,6 +175,34 @@ export async function runCli(
       return scored;
     });
     return `Score pass complete: ${String(result.scored)} run(s) scored, ${String(result.skipped)} skipped`;
+  }
+
+  if (command.jobType === "score-repair") {
+    const repair = () =>
+      (dependencies.repairScore ?? repairScore)(config.dataDir, {
+        runId: command.runId,
+        predictionId: command.predictionId,
+        apply: command.apply,
+        now: now(),
+        options: scorePassOptions(config.sourceOptions),
+      });
+    // A dry run reads only, so it takes no lock: even the lock file would be a write.
+    const result = command.apply
+      ? await locked(async () => {
+          const repaired = await repair();
+          if (repaired.repaired !== undefined) {
+            await updateRunArtifactIndex(
+              config.dataDir,
+              [repaired.runDir],
+              dependencies,
+              config.indexOptions?.dbPath,
+            );
+            await writeCalibration(config.dataDir);
+          }
+          return repaired;
+        })
+      : await repair();
+    return renderScoreRepair(result, command.apply);
   }
 
   if (command.jobType === "calibration") {

@@ -82,6 +82,28 @@ describe("frozen historical artifacts", () => {
     });
   });
 
+  test("drops a fact with a malformed restatedFrom and keeps a well-formed one", async () => {
+    const frozen: unknown = await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json();
+    const artifact = withFirstPublicAt(frozen) as FinancialStatementsArtifact;
+    const { revenue } = artifact.statements.incomeStatement;
+    const withRestatement = (restatedFrom: unknown) =>
+      readFinancialStatementsArtifact({
+        ...artifact,
+        statements: {
+          ...artifact.statements,
+          incomeStatement: {
+            ...artifact.statements.incomeStatement,
+            revenue: { ...revenue, annual: [{ ...revenue.annual[0], restatedFrom }] },
+          },
+        },
+      })?.statements.incomeStatement.revenue.annual;
+
+    expect(withRestatement(null)).toEqual([]);
+    expect(withRestatement({ value: 1, filedAt: "2025-01-01" })).toHaveLength(1);
+  });
+
   test("drops only an unreadable financial statement fact", async () => {
     const frozen: unknown = await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),

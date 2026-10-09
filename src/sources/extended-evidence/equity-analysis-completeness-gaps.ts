@@ -37,6 +37,17 @@ function freshnessDetail(freshness: EquityReportingFreshness | undefined): strin
   ].join("; ");
 }
 
+function gapMessage(
+  code: string,
+  subject: string,
+  detail: string,
+  incompleteStatements: readonly string[],
+): string {
+  return code === "current-primary-statements-incomplete" && incompleteStatements.length > 0
+    ? `${code}: ${subject} current primary statements are incomplete: ${incompleteStatements.join("; ")} (${detail})`
+    : `${code}: ${subject} reporting surface is not current (${detail})`;
+}
+
 // Freshness defects the model must see while it is still writing, as canonical Source Gaps.
 // `no-cap` by design: an unfiled quarter is an incomplete reporting surface, not a sourcing
 // Failure, so it must not dock Evidence Quality. `SourceGap` has no `code` field, so the reason
@@ -45,6 +56,7 @@ export function equityAnalysisCompletenessGaps(
   completeness: EquityAnalysisCompleteness,
   freshness: EquityReportingFreshness | undefined,
   symbol: string | undefined,
+  incompleteStatements: readonly string[] = [],
 ): readonly SourceGap[] {
   const detail = freshnessDetail(freshness);
   const subject = symbol?.toUpperCase() ?? "the subject";
@@ -57,7 +69,7 @@ export function equityAnalysisCompletenessGaps(
     .map((code) =>
       sourceGap({
         source: "equity-analysis-completeness",
-        message: `${code}: ${subject} reporting surface is not current (${detail})`,
+        message: gapMessage(code, subject, detail, incompleteStatements),
         ...(symbol !== undefined ? { symbol } : {}),
         provider: "market-bot",
         capability: "extended-evidence",

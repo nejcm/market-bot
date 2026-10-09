@@ -20,7 +20,10 @@ import {
 } from "./support/fixtures";
 import { config, stagePromptFromArgs } from "./support/research-context-helpers";
 
-function kindMixSynthesisInstruction(command: ResearchCommand): string {
+function kindMixSynthesisInstruction(
+  command: ResearchCommand,
+  sources: Partial<Parameters<typeof collectedSources>[0]> = {},
+): string {
   const depthProfile = buildDepthProfile(command, config);
   const prompt = stagePromptFromArgs(
     "final-synthesis",
@@ -30,6 +33,7 @@ function kindMixSynthesisInstruction(command: ResearchCommand): string {
       marketSnapshots: [marketSnapshot()],
       newsSources: [newsSource()],
       sourceGaps: [],
+      ...sources,
     }),
     config,
     {
@@ -62,6 +66,80 @@ function kindMixSynthesisInstruction(command: ResearchCommand): string {
   const parsed = JSON.parse(prompt) as { readonly instruction?: string };
   return parsed.instruction ?? "";
 }
+
+function rangeReferenceCloses(count: number, step = 0.02, jump?: { at: number; ratio: number }) {
+  let close = 100;
+  return Array.from({ length: count }, (_, index) => {
+    if (index > 0) {
+      close *= index % 2 === 0 ? 1 / (1 + step) : 1 + step;
+    }
+    if (jump !== undefined && index === jump.at) {
+      close *= jump.ratio;
+    }
+    return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
+  });
+}
+
+function closesFromReturns(returns: readonly number[]) {
+  let close = 100;
+  return [100, ...returns].map((value, index) => {
+    if (index > 0) {
+      close *= Math.exp(value);
+    }
+    return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
+  });
+}
+
+describe("range volatility reference", () => {
+  const command: ResearchCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "brief",
+  };
+  const reference = (recentCloses: readonly { date: string; close: number }[]) =>
+    kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses }),
+    });
+
+  test("anchors range probabilities to a vol-scaled band from recent closes", () => {
+    const instruction = reference(rangeReferenceCloses(21));
+
+    expect(instruction).toMatch(
+      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /,
+    );
+    expect(instruction).toContain("Daily returns are fat-tailed");
+    expect(instruction).not.toContain("32%");
+  });
+
+  test.each([
+    ["2:1", 0.5],
+    ["4:3", 0.75],
+  ])("omits the reference across a %s split in the unadjusted window", (_, ratio) => {
+    expect(reference(rangeReferenceCloses(21, 0.02, { at: 10, ratio }))).not.toContain(
+      "Range reference",
+    );
+  });
+
+  test("keeps a reference for a genuinely high-volatility series", () => {
+    expect(reference(rangeReferenceCloses(21, 0.1))).toContain("Range reference");
+  });
+
+  test("keeps jump risk when most days are flat", () => {
+    const returns = [
+      ...Array.from({ length: 12 }, () => 0),
+      ...Array.from({ length: 8 }, (_, index) => (index % 2 === 0 ? 0.2 : -0.2)),
+    ];
+    expect(reference(closesFromReturns(returns))).toContain(
+      "realized daily volatility (sample standard deviation) 12.98%",
+    );
+  });
+
+  test("omits the reference without enough closes or a verified snapshot", () => {
+    expect(reference(rangeReferenceCloses(10))).not.toContain("Range reference");
+    expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
+  });
+});
 
 describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
   test("daily-equity (market-update) instruction favors relative/macro/volatility over bare direction", () => {

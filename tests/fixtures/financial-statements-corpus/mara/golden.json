@@ -881,6 +881,13 @@
       ],
       "ttm": null
     },
+    "continuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -3045,6 +3052,13 @@
           }
         }
       }
+    },
+    "continuingDilutedEps": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
     },
     "dilutedShares": {
       "selectedConcept": "WeightedAverageNumberOfDilutedSharesOutstanding",

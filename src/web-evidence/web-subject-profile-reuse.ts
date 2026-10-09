@@ -85,6 +85,7 @@ export async function findReusableWebSubjectProfile(input: {
   readonly now: Date;
   readonly reuseDaysBySubjectKind: Readonly<Record<SubjectKind, number>>;
   readonly currentSecFilingDate?: string;
+  readonly currentSources?: readonly Source[];
 }): Promise<WebSubjectProfileReuse | undefined> {
   const subject = webSubjectProfileSubjectForCommand(input.command);
   if (
@@ -122,7 +123,7 @@ export async function findReusableWebSubjectProfile(input: {
       continue;
     }
     const sources = resolvedProfileSources(profile, artifact.report.sources);
-    if (sources === undefined) {
+    if (sources === undefined || !citedTextUnchanged(sources, input.currentSources ?? [])) {
       continue;
     }
     const ageDays = roundWebSubjectProfileAgeDays(
@@ -270,6 +271,15 @@ function resolvedProfileSources(
   const byId = new Map(sources.map((source) => [source.id, source]));
   const resolved = profile.sourceIds.map((sourceId) => byId.get(sourceId));
   return resolved.every((source): source is Source => source !== undefined) ? resolved : undefined;
+}
+
+// A cited Source this run re-collected must carry the same text, or the profile's claims lose their basis.
+function citedTextUnchanged(cited: readonly Source[], current: readonly Source[]): boolean {
+  const currentById = new Map(current.map((source) => [source.id, source]));
+  return cited.every((source) => {
+    const fresh = currentById.get(source.id);
+    return fresh === undefined || (fresh.snippet !== undefined && fresh.snippet === source.snippet);
+  });
 }
 
 function mergeSources(existing: readonly Source[], reused: readonly Source[]): readonly Source[] {

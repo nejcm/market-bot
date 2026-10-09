@@ -250,6 +250,13 @@
       "interim": [],
       "ttm": null
     },
+    "continuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -1011,6 +1018,13 @@
           "unit": "USD/shares"
         }
       ],
+      "interim": [],
+      "ttm": null
+    },
+    "continuingDilutedEps": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
       "interim": [],
       "ttm": null
     },
@@ -1814,7 +1828,7 @@
         }
       },
       "Financial Strength": {
-        "posture": "criteria-mixed",
+        "posture": "insufficient-data",
         "metrics": {
           "cash": {
             "key": "cash",
@@ -1844,14 +1858,6 @@
             "key": "currentRatio",
             "label": "Current ratio",
             "value": 3.0837805995549155,
-            "unit": "ratio",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31"
-          },
-          "debtToEquity": {
-            "key": "debtToEquity",
-            "label": "Debt/equity",
-            "value": 0.8931649978232478,
             "unit": "ratio",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
             "periodEnd": "2025-12-31"

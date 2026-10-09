@@ -368,7 +368,11 @@ function hasFundamentalHistoryPointShape(value: unknown): boolean {
     readString(value, "periodEnd") !== undefined &&
     readNumber(value, "periodMonths") !== undefined &&
     readString(value, "filedAt") !== undefined &&
-    readString(value, "currency") !== undefined
+    readString(value, "currency") !== undefined &&
+    (value.restatedFrom === undefined ||
+      (isRecord(value.restatedFrom) &&
+        readNumber(value.restatedFrom, "value") !== undefined &&
+        readString(value.restatedFrom, "filedAt") !== undefined))
   );
 }
 
@@ -402,6 +406,7 @@ function hasFundamentalHistorySeriesShape(
     readString(value, "label") !== undefined &&
     (value.unit === "currency" || value.unit === "per-share" || value.unit === "ratio") &&
     (value.concept === undefined || readString(value, "concept") !== undefined) &&
+    (value.scope === undefined || readString(value, "scope") !== undefined) &&
     Array.isArray(value.annual) &&
     value.annual.every(hasFundamentalHistoryPointShape) &&
     (value.ttm === undefined || hasFundamentalHistoryPointShape(value.ttm)) &&

@@ -1,4 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE } from "../config/shared";
+import type { SourceGapCause } from "../domain/types";
 import {
   DEFAULT_RESEARCH_SUBJECT_REGISTRY,
   type ResearchSubjectRegistryEntry,
@@ -37,6 +38,20 @@ export interface PeerUniverseResolution {
   readonly status: "resolved" | "unresolved";
   readonly universe?: PeerUniverse;
   readonly reason: string;
+  readonly learnedGeneration?: string;
+  readonly refresh?: PeerUniverseRefreshNote;
+}
+
+export interface PeerUniverseRefreshNote {
+  readonly outcome:
+    | "insufficient"
+    | "claim-lost"
+    | "claim-error"
+    | "allowance-used"
+    | "missing-target-inputs"
+    | "unavailable";
+  readonly audit?: ProposalAudit;
+  readonly allowanceReleased?: boolean;
 }
 
 export interface PeerUniverseValidationResult {
@@ -55,14 +70,53 @@ export interface ProposalAudit {
   readonly modelId: string;
 }
 
+export interface PeerExclusionFeedback {
+  readonly symbol: string;
+  readonly cause: SourceGapCause;
+}
+
+export interface LearnedPeerUniverse {
+  readonly universe?: PeerUniverse;
+  readonly generation: string;
+  readonly refresh: "due" | "used" | "not-needed";
+  readonly exclusions?: readonly PeerExclusionFeedback[];
+}
+
+// `unavailable` marks a proposal that could not run (directory or model failure), not a weak one.
+export interface PeerUniverseProposal {
+  readonly universe?: PeerUniverse;
+  readonly audit: ProposalAudit;
+  readonly unavailable?: boolean;
+}
+
+export interface PeerUniverseTargetInputs {
+  readonly marketCap?: number;
+  readonly sic?: string;
+  readonly annualizedRevenue?: number;
+}
+
 export interface PeerUniverseFallbackContext {
-  readonly cacheRead: (symbol: string) => Promise<PeerUniverse | undefined>;
+  readonly cacheRead: (symbol: string) => Promise<LearnedPeerUniverse | undefined>;
   readonly cacheWrite: (
     symbol: string,
     universe: PeerUniverse,
     audit: ProposalAudit,
+    observedGeneration?: string,
+    claimed?: boolean,
+  ) => Promise<string | undefined>;
+  readonly propose: (
+    symbol: string,
+    target?: PeerUniverseTargetInputs,
+    exclusions?: readonly PeerExclusionFeedback[],
+  ) => Promise<PeerUniverseProposal>;
+  readonly claimRefresh: (symbol: string, generation: string) => Promise<boolean>;
+  readonly releaseRefresh?: (symbol: string, generation: string) => Promise<boolean>;
+  readonly recordEvaluation?: (
+    symbol: string,
+    generation: string,
+    usablePeerCount: number,
+    exclusions: readonly PeerExclusionFeedback[],
   ) => Promise<void>;
-  readonly propose: (symbol: string) => Promise<{ universe?: PeerUniverse; audit: ProposalAudit }>;
 }
 
 const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse({
@@ -177,6 +231,7 @@ export async function resolvePeerUniverseWithFallback(
   fallback?: PeerUniverseFallbackContext,
   mappings?: PeerUniverseMapping,
   registry?: readonly ResearchSubjectRegistryEntry[],
+  targetInputs?: PeerUniverseTargetInputs,
 ): Promise<PeerUniverseResolution> {
   const resolution = resolvePeerUniverse(targetSymbol, mappings, registry);
   if (resolution.status === "resolved" || fallback === undefined) {
@@ -184,29 +239,126 @@ export async function resolvePeerUniverseWithFallback(
   }
   const target = normalizeSymbol(targetSymbol);
 
-  // Cache tier: re-validate on every read as a poison guard
   const cached = await fallback.cacheRead(target);
-  if (cached !== undefined) {
-    return resolvedPeerUniverse(target, cached, "Resolved from learned peer-universe cache");
-  }
-
-  // Live model tier: propose + validate; write to cache if enough survivors
-  const { universe, audit } = await fallback.propose(target);
-  if (universe !== undefined) {
-    const proposedResolution = resolvedPeerUniverse(
+  if (cached === undefined) {
+    const proposed = await proposeAndCache(
       target,
-      universe,
+      fallback,
+      targetInputs,
       "Resolved from model-proposed, code-validated peer universe",
     );
-    if (proposedResolution.status !== "resolved") {
-      return proposedResolution;
-    }
-    // Swallow cache-write errors; run succeeds even when disk is unavailable
-    await fallback.cacheWrite(target, universe, audit).catch(() => {});
-    return proposedResolution;
+    return proposed.resolution ?? resolution;
   }
 
-  return resolution;
+  const cachedResolution =
+    cached.universe === undefined
+      ? {
+          ...resolution,
+          reason: "Learned peer-universe entry expired or failed revalidation",
+        }
+      : learnedResolution(
+          resolvedPeerUniverse(
+            target,
+            cached.universe,
+            "Resolved from learned peer-universe cache",
+          ),
+          cached.generation,
+        );
+  const withRefresh = (refresh: PeerUniverseRefreshNote): PeerUniverseResolution => ({
+    ...cachedResolution,
+    refresh,
+  });
+  if (cached.refresh === "not-needed") {
+    return cachedResolution;
+  }
+  if (cached.refresh === "used") {
+    return withRefresh({ outcome: "allowance-used" });
+  }
+  // Without SIC and a positive cap, proposed peers cannot pass the gates, so defer at no cost.
+  if (!hasPeerBandInputs(targetInputs)) {
+    return withRefresh({ outcome: "missing-target-inputs" });
+  }
+  // Only a quality refresh of a usable universe spends the window allowance.
+  if (cached.universe !== undefined) {
+    const claimed = await fallback.claimRefresh(target, cached.generation).catch(() => undefined);
+    if (claimed === undefined) {
+      return withRefresh({ outcome: "claim-error" });
+    }
+    if (!claimed) {
+      return withRefresh({ outcome: "claim-lost" });
+    }
+  }
+  const proposed = await proposeAndCache(
+    target,
+    fallback,
+    targetInputs,
+    cached.universe === undefined
+      ? "Resolved from model-proposed, code-validated peer universe"
+      : "Resolved from refreshed model-proposed peer universe after too few usable peers",
+    cached.generation,
+    cached.universe !== undefined,
+    cached.exclusions,
+  );
+  if (proposed.resolution?.status === "resolved") {
+    return proposed.resolution;
+  }
+  if (!proposed.unavailable) {
+    return withRefresh({ outcome: "insufficient", audit: proposed.audit });
+  }
+  if (cached.universe === undefined) {
+    return withRefresh({ outcome: "unavailable" });
+  }
+  const allowanceReleased =
+    (await fallback.releaseRefresh?.(target, cached.generation).catch(() => false)) === true;
+  return withRefresh({ outcome: "unavailable", allowanceReleased });
+}
+
+// Target inputs that let a proposal and its feedback speak to the SIC and market-cap gates.
+export function hasPeerBandInputs(inputs: PeerUniverseTargetInputs | undefined): boolean {
+  return (
+    inputs?.marketCap !== undefined &&
+    Number.isFinite(inputs.marketCap) &&
+    inputs.marketCap > 0 &&
+    inputs.sic !== undefined &&
+    /^\d{4}$/u.test(inputs.sic)
+  );
+}
+
+async function proposeAndCache(
+  target: string,
+  fallback: PeerUniverseFallbackContext,
+  targetInputs: PeerUniverseTargetInputs | undefined,
+  reason: string,
+  observedGeneration?: string,
+  claimed = false,
+  exclusions?: readonly PeerExclusionFeedback[],
+): Promise<{
+  resolution?: PeerUniverseResolution;
+  audit: ProposalAudit;
+  unavailable?: boolean;
+}> {
+  const { universe, audit, unavailable } = await fallback.propose(target, targetInputs, exclusions);
+  if (universe === undefined) {
+    return { audit, ...(unavailable === true ? { unavailable } : {}) };
+  }
+  const proposedResolution = resolvedPeerUniverse(target, universe, reason);
+  if (proposedResolution.status !== "resolved") {
+    return { resolution: proposedResolution, audit };
+  }
+  // Swallow cache-write errors; run succeeds even when disk is unavailable
+  const generation = await fallback
+    .cacheWrite(target, universe, audit, observedGeneration, claimed)
+    .catch(() => undefined);
+  return { resolution: learnedResolution(proposedResolution, generation), audit };
+}
+
+function learnedResolution(
+  resolution: PeerUniverseResolution,
+  generation: string | undefined,
+): PeerUniverseResolution {
+  return resolution.status === "resolved" && generation !== undefined
+    ? { ...resolution, learnedGeneration: generation }
+    : resolution;
 }
 
 export function validatePeerUniverse(universe: PeerUniverse): PeerUniverseValidationResult {

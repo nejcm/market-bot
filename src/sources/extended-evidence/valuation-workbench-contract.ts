@@ -32,7 +32,8 @@ export type ValuationMetricSuppressionReason =
   | "diluted-shares-unavailable"
   | "numerator-unavailable"
   | "cash-unavailable"
-  | "debt-unavailable";
+  | "debt-unavailable"
+  | "mixed-period-balance-sheet";
 
 type ValuationMetricNotMeaningfulReason =
   | "negative-denominator"
@@ -48,6 +49,7 @@ export interface ValuationFundamentalInput {
   readonly unit: string;
   readonly sourceIds: readonly string[];
   readonly derivation?: string;
+  readonly scope?: string;
 }
 
 export interface ValuationPriceInput {
@@ -174,6 +176,7 @@ const METRIC_SUPPRESSION_REASONS = new Set<ValuationMetricSuppressionReason>([
   "numerator-unavailable",
   "cash-unavailable",
   "debt-unavailable",
+  "mixed-period-balance-sheet",
 ]);
 const RETIRED_METRIC_SUPPRESSION_REASONS = new Set(["quote-reporting-currency-mismatch"] as const);
 const READABLE_METRIC_SUPPRESSION_REASONS = new Set<string>([
@@ -209,7 +212,8 @@ function hasFundamentalInputShape(value: unknown): boolean {
     (value.currency === null || readString(value, "currency") !== undefined) &&
     readString(value, "unit") !== undefined &&
     readStringArray(value, "sourceIds") !== undefined &&
-    (value.derivation === undefined || readString(value, "derivation") !== undefined)
+    (value.derivation === undefined || readString(value, "derivation") !== undefined) &&
+    (value.scope === undefined || readString(value, "scope") !== undefined)
   );
 }
 

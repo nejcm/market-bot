@@ -210,7 +210,7 @@
       }
     },
     "sourceGaps": {
-      "total": 31,
+      "total": 33,
       "bySource": {
         "marketaux-news": 1,
         "finnhub-news": 1,
@@ -224,8 +224,9 @@
         "finnhub-insider-transactions": 1,
         "fred-macro": 1,
         "tradier-options": 1,
+        "valuation": 2,
         "valuation-peers": 1,
-        "valuation": 1,
+        "financial-lens": 1,
         "business-framework": 12,
         "yahoo-verified-chart": 1,
         "sec-untagged-financials": 1,
@@ -233,18 +234,18 @@
       },
       "byTriage": {
         "diagnostic": 13,
-        "material": 18
+        "material": 20
       }
     },
     "sourceGapsByCause": {
       "missing-credential": 11,
       "unsupported-coverage": 3,
+      "provider-data-missing": 16,
       "suppressed-by-design": 2,
-      "provider-data-missing": 14,
       "session-in-progress": 1
     },
     "dataGaps": {
-      "total": 33
+      "total": 35
     }
   },
   "providerEndpointAvailability": {
@@ -479,10 +480,10 @@
         "subject-profile: evidence missing or unusable"
       ]
     },
-    "dataGapCount": 33,
+    "dataGapCount": 35,
     "extendedEvidence": {
       "itemCount": 9,
-      "gapCount": 25,
+      "gapCount": 27,
       "itemsByCategory": {
         "sec-edgar": 5,
         "valuation": 1,
@@ -501,8 +502,9 @@
         "finnhub-insider-transactions": 1,
         "fred-macro": 1,
         "tradier-options": 1,
+        "valuation": 2,
         "valuation-peers": 1,
-        "valuation": 1,
+        "financial-lens": 1,
         "business-framework": 12
       }
     },
@@ -576,7 +578,7 @@
     "coreGapLaneCount": 0,
     "materialGapLaneCount": 2,
     "sourceCount": 23,
-    "gapCount": 13,
+    "gapCount": 14,
     "coverageRatio": 0.45454545454545453
   },
   "calibrationAtGeneration": {

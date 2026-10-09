@@ -1,5 +1,6 @@
 import type { ReverseDcfArtifact } from "../sources/extended-evidence/reverse-dcf";
 import type { MarketSnapshotPriceAsOf } from "../domain/types";
+import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
 
 function formatAmount(value: number, currency: string): string {
   return `${new Intl.NumberFormat("en-US", {
@@ -44,7 +45,7 @@ function renderComputed(
     "",
     "### Assumptions",
     "",
-    `- Starting FCF: ${formatAmount(assumptions.startingFcf.value, assumptions.startingFcf.currency)}; period ended ${assumptions.startingFcf.periodEnd}; public ${assumptions.startingFcf.publicAt}.`,
+    `- ${scopedLabel("Starting FCF", assumptions.startingFcf.scope)}: ${formatAmount(assumptions.startingFcf.value, assumptions.startingFcf.currency)}; period ended ${assumptions.startingFcf.periodEnd}; public ${assumptions.startingFcf.publicAt}.`,
     `- Enterprise value: ${formatAmount(assumptions.enterpriseValue.value, assumptions.enterpriseValue.currency)}; ${priceDate}.`,
     `- Horizon: ${assumptions.horizonYears} years.`,
     `- Discount rates: ${assumptions.discountRatesPct[0]}%–${assumptions.discountRatesPct.at(-1)}%.`,

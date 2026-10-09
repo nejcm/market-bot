@@ -71,6 +71,17 @@ export function isCompanyProfileSecSource(source: Source): boolean {
   );
 }
 
+// The one Source set a Web Subject Profile may cite: its prompt payload and validator both read it.
+export function profileCitableSources(
+  sources: readonly Source[],
+  subjectKind: SubjectKind,
+): readonly Source[] {
+  return sources.filter(
+    (source) =>
+      source.kind === "web" || (subjectKind === "company" && isCompanyProfileSecSource(source)),
+  );
+}
+
 export function subjectKindForCommand(command: ResearchCommand): SubjectKind | undefined {
   if (isInstrumentCommand(command)) {
     if (command.assetClass === "equity") {

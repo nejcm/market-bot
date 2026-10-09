@@ -231,6 +231,101 @@ describe("Web Evidence phase", () => {
     });
   });
 
+  test("reuses only when a re-collected cited Source keeps its text, else re-extracts", async () => {
+    const dataDir = tempRunsDir();
+    const runDir = join(dataDir, "prior-btc");
+    const source: Source = {
+      id: "web-btc-prior",
+      title: "Bitcoin protocol profile",
+      url: "https://example.com/bitcoin",
+      fetchedAt: "2026-05-17T00:00:00.000Z",
+      kind: "web",
+      assetClass: "crypto",
+      symbol: "BTC",
+      provider: "exa",
+      snippet: "Bitcoin is a decentralized monetary network.",
+    };
+    const answer = {
+      answer: "Bitcoin is a decentralized monetary network.",
+      sourceIds: [source.id],
+    };
+    await writeJson(join(runDir, "report.json"), {
+      runId: "prior-btc",
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "BTC",
+      generatedAt: "2026-05-17T00:00:00.000Z",
+      summary: "Prior Bitcoin profile.",
+      keyFindings: [],
+      bullCase: [],
+      bearCase: [],
+      risks: [],
+      catalysts: [],
+      scenarios: [],
+      confidence: "medium",
+      dataGaps: [],
+      predictions: [],
+      sources: [source],
+      notFinancialAdvice: true,
+      extras: { depth: "deep" },
+    });
+    await writeJson(join(runDir, "normalized", "web-subject-profile.json"), {
+      version: 2,
+      generatedAt: "2026-05-17T00:00:00.000Z",
+      subjectKind: "crypto-asset",
+      subjectId: "BTC",
+      subjectLabel: "Bitcoin",
+      symbol: "BTC",
+      subjectSummary: answer,
+      questions: {
+        whatItDoes: answer,
+        valueAccrual: answer,
+        supplyIssuance: answer,
+        usageAdoption: answer,
+        governanceBuilders: answer,
+        competitionMoat: answer,
+        keyRisks: answer,
+      },
+      recentMaterialEvents: [],
+      factLedger: [{ claim: answer.answer, sourceIds: answer.sourceIds }],
+      openGaps: [],
+      sourceIds: [source.id],
+    });
+
+    const runWith = async (snippet: string) => {
+      const stages: string[] = [];
+      const result = await runWebEvidencePhase({
+        command: { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
+        config: config(dataDir),
+        collectedSources: collectedSources({
+          marketSnapshots: [marketSnapshot({ assetClass: "crypto", symbol: "BTC" })],
+          extendedSources: [{ ...source, snippet }],
+        }),
+        context,
+        generatedAt: "2026-05-19T00:00:00.000Z",
+        runId: "current-run",
+        now: new Date("2026-05-19T00:00:00.000Z"),
+        generateStage: async (stage) => {
+          stages.push(stage);
+          return {
+            stage,
+            content: JSON.stringify({ requests: [] }),
+            tokenEstimate: 10,
+            costEstimateUsd: 0.001,
+          };
+        },
+      });
+      return { stages, reuse: result.collectedSources.webSubjectProfileReuse };
+    };
+
+    const changed = await runWith("Bitcoin fees rose this quarter.");
+    expect(changed.stages).toEqual(["web-gather", "web-subject-profile"]);
+    expect(changed.reuse).toBeUndefined();
+    const unchanged = await runWith(source.snippet ?? "");
+    expect(unchanged.stages).toEqual(["web-gather"]);
+    expect(unchanged.reuse?.runDirName).toBe("prior-btc");
+  });
+
   test("reuses deep theme profile using resolved subject identity", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "prior-biotech");

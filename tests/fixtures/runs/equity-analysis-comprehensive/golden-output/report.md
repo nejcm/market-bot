@@ -33,6 +33,7 @@ TTM (2026-03-31; filed 2026-05-01) | 426.0B | 116.0B | 32.9% | 118.0B
 The observed quote is within the peer-implied price reference range of 145.60–264.73 USD as of fetch time 2026-06-15T14:30:00.000Z; this is valuation context, not a target price. [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]
 
 - **Observed metrics:** near-term options implied volatility 0.330, price/book 45.00x, EPS TTM 6.40 [extended-tradier-iv-aapl] [market-yahoo-equity-aapl]
+- **Earnings basis:** Provider trailing EPS 6.40 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 7.60 USD through 2026-03-31. The SEC value is an approximation that adds per-share periods without reweighting diluted shares. The provider value matches no SEC value at two decimals, and the supplied evidence does not reconcile the difference. [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-fundamentals]
 
 ## Catalysts
 
@@ -259,14 +260,14 @@ TTM | 2026-03-31 | 2026-05-01 | 216.60 USD (2026-05-01) | 28.50x | 7.76x | 7.85x
 - Reference range: 145.60–264.73 USD; midpoint 204.77; observed position within-range; fetch time 2026-06-15T14:30:00.000Z.
 - Excluded peers: DELL (market cap outside 0.2x-5x of target).
 
-Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates
---- | --- | --- | ---: | --- | ---
-AAPL | target | usable | 7.24x | USD | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-MSFT | core | usable | 11.50x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-GOOGL | core | usable | 5.92x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-AMZN | core | usable | 3.43x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-META | core | usable | 8.90x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
-DELL | secondary | excluded | 1.00x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31
+Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates | Sources
+--- | --- | --- | ---: | --- | --- | ---
+AAPL | target | usable | 7.24x | USD | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31 | [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals]
+MSFT | core | usable | 11.50x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31 | [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings]
+GOOGL | core | usable | 5.92x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31 | [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings]
+AMZN | core | usable | 3.43x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31 | [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings]
+META | core | usable | 8.90x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31 | [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings]
+DELL | secondary | excluded | 1.00x | — | fetch time 2026-06-15T14:30:00.000Z; revenue 2026-03-31; cash 2026-03-31; debt 2026-03-31 | [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]
 
 
 

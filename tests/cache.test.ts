@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  isAccessionDocumentRequest,
   makeCacheKeyForTest,
   pruneCache,
   withCache,
@@ -443,6 +444,8 @@ describe("pruneCache", () => {
     mkdirSync(join(tmpDir, "close-windows", "equity", "spy"), { recursive: true });
     writeFileSync(join(oldRawDir, "old.json"), "{}");
     writeFileSync(join(freshRawDir, "fresh.json"), "{}");
+    mkdirSync(join(tmpDir, "accession"), { recursive: true });
+    writeFileSync(join(tmpDir, "accession", "doc.json"), "{}");
     writeFileSync(oldCloseFile, "{}");
     writeFileSync(freshCloseFile, "{}");
     writeFileSync(oldWindowFile, "{}");
@@ -462,6 +465,263 @@ describe("pruneCache", () => {
     expect(existsSync(freshCloseFile)).toBe(true);
     expect(existsSync(oldWindowFile)).toBe(false);
     expect(existsSync(freshWindowFile)).toBe(true);
+    expect(existsSync(join(tmpDir, "accession", "doc.json"))).toBe(true);
+  });
+});
+
+const filingUrl =
+  "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/aapl-20260627.htm";
+
+describe("accession-addressed SEC documents", () => {
+  test("classifies archived filing documents by canonical URL shape", () => {
+    const accepted = [
+      filingUrl,
+      "https://WWW.SEC.GOV/Archives/edgar/data/1171843/000117184326005241/ex99-1.htm",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/0000320193-26-000010.txt",
+    ];
+    const rejected = [
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/0000320193-26-000010-index.html",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/0000320193-26-000010-index.htm",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/index.json",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/%69ndex.json",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/index%2Ejson",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/index%2ejson",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/doc%E0%A4%A.htm",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/",
+      "https://www.sec.gov/Archives/edgar/data/320193/00003201932600001/doc.htm",
+      "https://www.sec.gov/Archives/edgar/data/aapl/000032019326000010/doc.htm",
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/doc.htm?x=1",
+      "http://www.sec.gov/Archives/edgar/data/320193/000032019326000010/doc.htm",
+      "https://www.sec.gov.evil.test/Archives/edgar/data/320193/000032019326000010/doc.htm",
+      "https://sec.gov/Archives/edgar/data/320193/000032019326000010/doc.htm",
+      "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "https://data.sec.gov/submissions/CIK0000320193.json",
+      "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=320193",
+      "not a url",
+    ];
+
+    expect(accepted.filter((url) => !isAccessionDocumentRequest(request(url)))).toEqual([]);
+    expect(rejected.filter((url) => isAccessionDocumentRequest(request(url)))).toEqual([]);
+    expect(
+      isAccessionDocumentRequest(request(filingUrl, "sec-filing-text", { method: "POST" })),
+    ).toBe(false);
+  });
+
+  test("hits across days without fetching and keeps the original snapshot metadata", async () => {
+    let calls = 0;
+    const fetchText = async () => {
+      calls += 1;
+      return makeFetchResult("<html>10-Q</html>", "sec-filing-text");
+    };
+    const write = withCache(fetchText, makeOptions(tmpDir));
+    await write(request(filingUrl, "sec-filing-text"));
+
+    const sha = await cacheKey(filingUrl, "sec-filing-text");
+    expect(existsSync(join(tmpDir, "accession", `${sha}.json`))).toBe(true);
+    expect(existsSync(join(tmpDir, today))).toBe(false);
+
+    const result = await withCache(
+      fetchText,
+      makeOptions(tmpDir, { now: makeNow("2026-06-18") }),
+    )(request(filingUrl, "sec-filing-text"));
+
+    expect(calls).toBe(1);
+    expect(result).toEqual({
+      payload: "<html>10-Q</html>",
+      rawSnapshot: {
+        id: `raw-sec-filing-text-${fetchedAt}`,
+        adapter: "sec-filing-text",
+        fetchedAt,
+        payload: "<html>10-Q</html>",
+        cacheStatus: "current",
+      },
+    });
+    const stored = await Bun.file(join(tmpDir, "accession", `${sha}.json`)).json();
+    expect(stored.cachedDate).toBe(today);
+  });
+
+  test("refetches and overwrites once the revalidation budget expires", async () => {
+    let calls = 0;
+    const fetchText = async () => {
+      calls += 1;
+      return makeFetchResult(`v${calls}`, "sec-filing-text");
+    };
+    await withCache(fetchText, makeOptions(tmpDir))(request(filingUrl, "sec-filing-text"));
+
+    const result = await withCache(
+      fetchText,
+      makeOptions(tmpDir, { now: makeNow("2026-06-20") }),
+    )(request(filingUrl, "sec-filing-text"));
+
+    expect(calls).toBe(2);
+    expect("rawSnapshot" in result && result.payload).toBe("v2");
+    const sha = await cacheKey(filingUrl, "sec-filing-text");
+    const stored = await Bun.file(join(tmpDir, "accession", `${sha}.json`)).json();
+    expect(stored).toMatchObject({ payload: "v2", cachedDate: "2026-06-20" });
+  });
+
+  test.each([
+    ["corrupt JSON", "{not json", 0],
+    ["null", "null", 0],
+    ["wrong metadata", { cacheKey: "wrong", adapter: "sec-filing-text", cachedDate: today }, 1],
+    ["bad cached date", { adapter: "sec-filing-text", cachedDate: "yesterday" }, 1],
+    ["object cached date", { adapter: "sec-filing-text", cachedDate: { toString: null } }, 1],
+    ["array cached date", { adapter: "sec-filing-text", cachedDate: [today] }, 1],
+    ["invalid payload", { adapter: "sec-filing-text", cachedDate: today, payload: 42 }, 0],
+  ] as const)("%s entry refetches and overwrites", async (_label, content, gaps) => {
+    const sha = await cacheKey(filingUrl, "sec-filing-text");
+    mkdirSync(join(tmpDir, "accession"), { recursive: true });
+    writeFileSync(
+      join(tmpDir, "accession", `${sha}.json`),
+      typeof content === "string"
+        ? content
+        : JSON.stringify({ cacheKey: sha, fetchedAt, payload: "old", ...content }),
+    );
+    let calls = 0;
+    const opts = makeOptions(tmpDir);
+    const result = await withCache(
+      async () => {
+        calls += 1;
+        return makeFetchResult("fresh", "sec-filing-text");
+      },
+      opts,
+      {
+        isPayload: (payload): payload is string => typeof payload === "string",
+        invalidMessage: "cached text payload was not a string",
+      },
+    )(request(filingUrl, "sec-filing-text"));
+
+    expect(calls).toBe(1);
+    expect("rawSnapshot" in result && result.payload).toBe("fresh");
+    expect(opts.staleFallbackGaps).toHaveLength(gaps);
+    const stored = await Bun.file(join(tmpDir, "accession", `${sha}.json`)).json();
+    expect(stored).toMatchObject({ payload: "fresh", cachedDate: today });
+  });
+
+  test.each([
+    ["outside the fallback window", 7, 0],
+    ["inside the fallback window", 40, 1],
+  ] as const)(
+    "failed refetch of an expired entry %s keeps stale-fallback semantics",
+    async (_label, fallbackDays, gaps) => {
+      await withCache(
+        async () => makeFetchResult("old", "sec-filing-text"),
+        makeOptions(tmpDir),
+      )(request(filingUrl, "sec-filing-text"));
+      const failure = { source: "sec-filing-text", message: "HTTP 503" } as const;
+      const opts = makeOptions(tmpDir, { now: makeNow("2026-06-20"), fallbackDays });
+
+      const result = await withCache(
+        async () => failure as never,
+        opts,
+      )(request(filingUrl, "sec-filing-text"));
+
+      expect(opts.staleFallbackGaps).toHaveLength(gaps);
+      if (gaps === 0) {
+        expect(result).toBe(failure);
+      } else {
+        expect(result).toMatchObject({
+          payload: "",
+          rawSnapshot: { payload: "old", cacheStatus: "stale-fallback" },
+        });
+        expect(opts.staleFallbackGaps[0]?.message).toContain("stalenessDays=31");
+      }
+    },
+  );
+
+  test("stale fallback skips a newer candidate whose payload is invalid", async () => {
+    await withCache(
+      async () => makeFetchResult("old", "sec-filing-text"),
+      makeOptions(tmpDir),
+    )(request(filingUrl, "sec-filing-text"));
+    const sha = await cacheKey(filingUrl, "sec-filing-text");
+    mkdirSync(join(tmpDir, "2026-06-20"), { recursive: true });
+    writeFileSync(
+      join(tmpDir, "2026-06-20", `${sha}.json`),
+      JSON.stringify({
+        cacheKey: sha,
+        adapter: "sec-filing-text",
+        fetchedAt,
+        cachedDate: "2026-06-20",
+        payload: null,
+      }),
+    );
+    const opts = makeOptions(tmpDir, { now: makeNow("2026-06-20"), fallbackDays: 40 });
+
+    const result = await withCache(
+      async () => ({ source: "sec-filing-text", message: "HTTP 503" }) as never,
+      opts,
+      {
+        isPayload: (payload): payload is string => typeof payload === "string",
+        invalidMessage: "cached text payload was not a string",
+      },
+    )(request(filingUrl, "sec-filing-text"));
+
+    expect(result).toMatchObject({
+      payload: "",
+      rawSnapshot: { payload: "old", cacheStatus: "stale-fallback" },
+    });
+    expect(opts.staleFallbackGaps.map((gap) => gap.message)).toEqual([
+      "cache-fallback adapter=sec-filing-text stalenessDays=31",
+    ]);
+  });
+
+  test("failed accession miss falls back to today's legacy day entry", async () => {
+    const sha = await cacheKey(filingUrl, "sec-filing-text");
+    mkdirSync(join(tmpDir, today), { recursive: true });
+    writeFileSync(
+      join(tmpDir, today, `${sha}.json`),
+      JSON.stringify({
+        cacheKey: sha,
+        adapter: "sec-filing-text",
+        fetchedAt,
+        cachedDate: today,
+        payload: "legacy",
+      }),
+    );
+    const opts = makeOptions(tmpDir);
+
+    const result = await withCache(
+      async () => ({ source: "sec-filing-text", message: "HTTP 503" }) as never,
+      opts,
+    )(request(filingUrl, "sec-filing-text"));
+
+    expect(result).toMatchObject({
+      payload: "",
+      rawSnapshot: { payload: "legacy", cacheStatus: "stale-fallback" },
+    });
+    expect(opts.staleFallbackGaps[0]?.message).toContain("stalenessDays=0");
+  });
+
+  test("respects a custom cache root and a disabled cache", async () => {
+    const root = join(tmpDir, "custom");
+    let calls = 0;
+    const fetchText = async () => {
+      calls += 1;
+      return makeFetchResult("doc", "sec-filing-text");
+    };
+    const disabled = withCache(fetchText, makeOptions(root, { disabled: true }));
+    await disabled(request(filingUrl, "sec-filing-text"));
+    await disabled(request(filingUrl, "sec-filing-text"));
+    expect(existsSync(root)).toBe(false);
+
+    await withCache(fetchText, makeOptions(root))(request(filingUrl, "sec-filing-text"));
+    const sha = await cacheKey(filingUrl, "sec-filing-text");
+    expect(existsSync(join(root, "accession", `${sha}.json`))).toBe(true);
+    expect(calls).toBe(3);
+  });
+
+  test("generated filing indexes stay day-scoped", async () => {
+    const indexUrl =
+      "https://www.sec.gov/Archives/edgar/data/320193/000032019326000010/0000320193-26-000010-index.html";
+    await withCache(
+      async () => makeFetchResult("<table/>", "sec-filing-index"),
+      makeOptions(tmpDir),
+    )(request(indexUrl, "sec-filing-index"));
+
+    const sha = await cacheKey(indexUrl, "sec-filing-index");
+    expect(existsSync(join(tmpDir, today, `${sha}.json`))).toBe(true);
+    expect(existsSync(join(tmpDir, "accession"))).toBe(false);
   });
 });
 

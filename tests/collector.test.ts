@@ -15,8 +15,10 @@ import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuat
 import {
   createCollectContext,
   resetSourceResilienceForTests,
+  SEC_COMPANYFACTS_MAX_RESPONSE_BYTES,
   setSourceHostMinDelayMsForTests,
 } from "../src/sources/source-request";
+import { fetchSecCompanyFactsForSymbol } from "../src/sources/extended-evidence/sec-edgar";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 import { researchReport } from "./support/fixtures";
 
@@ -26,6 +28,45 @@ function jsonResponse(payload: unknown): Response {
 
 function textResponse(payload: string): Response {
   return new Response(payload, { headers: { "content-type": "text/plain" } });
+}
+
+function jsonBody(bytes: number, char = "x"): string {
+  return `"${char.repeat((bytes - 2) / new TextEncoder().encode(char).byteLength)}"`;
+}
+
+async function requestJson(
+  body: string,
+  maxResponseBytes?: number,
+  headers: Record<string, string> = {},
+): Promise<{ readonly result: unknown; readonly calls: readonly string[] }> {
+  const calls: string[] = [];
+  const { context } = createCollectContext(
+    { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 5000 },
+    new Date("2026-05-20T00:00:00.000Z"),
+    async (input) => {
+      calls.push(String(input));
+      return new Response(body, { headers });
+    },
+    [0, 0],
+  );
+  const result = await context.request.json({
+    url: "https://example.test/json",
+    adapter: "json-source",
+    ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
+  });
+  return { result, calls };
+}
+
+function rejectedJson(limit: number): unknown {
+  return expect.objectContaining({
+    message: `json-source source response exceeded ${String(limit)} bytes`,
+    cause: "validation-failed",
+    attempts: expect.objectContaining({
+      count: 1,
+      failures: [expect.objectContaining({ classification: "response-too-large" })],
+    }),
+  });
 }
 
 function listedCommonStocksPayload(symbols: readonly string[]): string {
@@ -304,7 +345,7 @@ describe("collectSources", () => {
       expect.objectContaining({
         source: "oversized-source",
         message: "oversized-source source response exceeded 5000000 bytes",
-        cause: "fetch-failed",
+        cause: "validation-failed",
       }),
     );
   });
@@ -333,9 +374,86 @@ describe("collectSources", () => {
       expect.objectContaining({
         source: "oversized-source",
         message: "oversized-source source response exceeded 5000000 bytes",
-        cause: "fetch-failed",
+        cause: "validation-failed",
       }),
     );
+  });
+
+  describe("JSON response byte ceiling", () => {
+    test("keeps the 5MB default and accepts a streamed body at it", async () => {
+      const atLimit = await requestJson(jsonBody(5_000_000));
+      expect(atLimit.result).toHaveProperty("payload");
+      const over = await requestJson(jsonBody(5_000_001));
+      expect(over.result).toEqual(rejectedJson(5_000_000));
+      expect(over.calls).toHaveLength(1);
+    });
+
+    test("honors a request-scoped ceiling below, at, and above it", async () => {
+      const limit = SEC_COMPANYFACTS_MAX_RESPONSE_BYTES;
+      const below = await requestJson(jsonBody(5_000_001), limit);
+      expect(below.result).toHaveProperty("payload");
+      const atLimit = await requestJson(jsonBody(limit), limit);
+      expect(atLimit.result).toHaveProperty("payload");
+      const over = await requestJson(jsonBody(limit + 1), limit);
+      expect(over.result).toEqual(rejectedJson(limit));
+      expect(over.calls).toHaveLength(1);
+    });
+
+    test("counts multibyte bytes, not characters", async () => {
+      const atLimit = await requestJson(jsonBody(100, "é"), 100);
+      expect(atLimit.result).toHaveProperty("payload");
+      const over = await requestJson(jsonBody(102, "é"), 100);
+      expect(over.result).toEqual(rejectedJson(100));
+    });
+
+    test("rejects on content-length before reading the body", async () => {
+      const declared = await requestJson(jsonBody(10), 100, { "content-length": "101" });
+      expect(declared.result).toEqual(rejectedJson(100));
+    });
+
+    test("does not trust a foreign error that borrows the size-rejection name", async () => {
+      const impostor = new Error("json-source source response exceeded 100 bytes");
+      impostor.name = "SourceResponseTooLargeError";
+      const { context } = createCollectContext(
+        { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+        { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 1000 },
+        new Date("2026-05-20T00:00:00.000Z"),
+        async () => {
+          throw impostor;
+        },
+        [],
+      );
+      const result = await context.request.json({
+        url: "https://example.test/json",
+        adapter: "json-source",
+      });
+      expect(result).toEqual(expect.objectContaining({ cause: "fetch-failed" }));
+      expect(result).not.toHaveProperty("attempts");
+    });
+
+    test("keeps a malformed JSON body a conservative fetch failure", async () => {
+      const { result, calls } = await requestJson("{not json", 100);
+      expect(result).toEqual(expect.objectContaining({ cause: "fetch-failed" }));
+      expect(calls).toHaveLength(1);
+    });
+
+    test("fetches SEC companyfacts under its scoped ceiling", async () => {
+      const { context } = createCollectContext(
+        { jobType: "equity", assetClass: "equity", symbol: "ZZZZ", depth: "brief" },
+        { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 5000 },
+        new Date("2026-05-20T00:00:00.000Z"),
+        async (input) =>
+          String(input).includes("companyfacts")
+            ? new Response(`{"padding":${jsonBody(6_000_000)},"facts":{}}`)
+            : jsonResponse({}),
+        [],
+      );
+      const result = await fetchSecCompanyFactsForSymbol(context, "ZZZZ", {
+        "0": { cik_str: 1, ticker: "ZZZZ", title: "Zzzz Inc." },
+      });
+      expect(result.rawSnapshots.map((snapshot) => snapshot.adapter)).toContain("sec-companyfacts");
+      expect(result.gaps.some((gap) => gap.message.includes("exceeded"))).toBe(false);
+    });
   });
 
   test("uses canonical financial derivations without legacy comparison passes", async () => {
@@ -833,6 +951,7 @@ describe("collectSources", () => {
       command,
       result.marketSnapshots,
       nonDepositoryEvidence,
+      now.toISOString(),
     ).extendedEvidence;
     if (numericValuationEvidence === undefined) {
       throw new Error("complete peer inputs did not produce numeric valuation evidence");
@@ -1007,11 +1126,11 @@ describe("collectSources", () => {
       }
       if (url.includes("otherlisted.txt")) {
         return textResponse(
-          "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n",
+          "ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\nIBM|International Business Machines Corporation Common Stock|N|IBM|N|100|N|IBM\n",
         );
       }
       if (url.includes("listed_symbols/csv")) {
-        return textResponse("Name,Symbol\n");
+        return textResponse("Name,Symbol\nCboe Listed Example Inc,CBLX\n");
       }
       if (url.includes("companyfacts")) {
         return jsonResponse(collectorSecPayload());

@@ -39,6 +39,10 @@ import {
   type FundamentalHistoryArtifact,
   type FundamentalHistorySeries,
 } from "../../../src/sources/extended-evidence/fundamental-history";
+import {
+  conceptScope,
+  isContinuingScope,
+} from "../../../src/sources/extended-evidence/financial-statement-definitions";
 import { identityTolerance } from "../../../src/sources/extended-evidence/untagged-financial-table-validation";
 import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
@@ -56,7 +60,6 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   operatingMargin: ["operatingIncome", "revenue"],
   netMargin: ["netIncome", "revenue"],
   freeCashFlowProxy: ["operatingCashFlow", "capitalExpenditure"],
-  cashConversion: ["operatingCashFlow", "netIncome"],
   roe: ["netIncome", "stockholdersEquity"],
   roa: ["netIncome", "totalAssets"],
   payoutRatio: ["dividendsPaid", "netIncome"],
@@ -65,6 +68,8 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   operatingIncomeDeltaPercent: ["operatingIncome"],
   netIncomeDeltaPercent: ["netIncome"],
   dilutedEpsDeltaPercent: ["dilutedEps"],
+  continuingIncomeDeltaPercent: ["continuingIncome"],
+  continuingDilutedEpsDeltaPercent: ["continuingDilutedEps"],
   operatingCashFlowDeltaPercent: ["operatingCashFlow"],
   annualizedRevenue: ["revenue"],
   evToAnnualizedRevenue: ["revenue"],
@@ -525,6 +530,15 @@ function statementInputFact(
     )[0];
 }
 
+function cashConversionIncomeKey(
+  artifact: FinancialStatementsArtifact,
+): FinancialStatementSeriesKey {
+  const ocf = latestFinancialStatementFact(
+    financialStatementFacts(artifact.statements.cashFlowStatement.operatingCashFlow),
+  );
+  return isContinuingScope(conceptScope(ocf?.concept)) ? "continuingIncome" : "netIncome";
+}
+
 export function assertFinancialLensPeriodHygiene(
   artifact: FinancialStatementsArtifact,
   lenses: FinancialLensArtifact,
@@ -536,7 +550,10 @@ export function assertFinancialLensPeriodHygiene(
     if (metric.value === MIXED_PERIOD_METRIC) {
       continue;
     }
-    const inputKeys = FINANCIAL_LENS_INPUTS[metric.key];
+    const inputKeys =
+      metric.key === "cashConversion"
+        ? (["operatingCashFlow", cashConversionIncomeKey(artifact)] as const)
+        : FINANCIAL_LENS_INPUTS[metric.key];
     invariant(inputKeys !== undefined, "B8", `${metric.key} has no statement-input contract`);
     const flowOverInstant = FLOW_OVER_INSTANT_INPUTS[metric.key];
     const facts = inputKeys.map((key) =>

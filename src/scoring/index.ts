@@ -171,7 +171,7 @@ function observationRepositoryFor(
   );
 }
 
-async function scoreOnePrediction(
+export async function scoreOnePrediction(
   prediction: Prediction,
   report: ResearchReport,
   existingScore: PredictionScore | undefined,
@@ -361,7 +361,8 @@ function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-async function writeMissAutopsyRunDir(
+// An empty file replaces existing autopsies once a repaired score is no longer a miss.
+export async function writeMissAutopsyRunDir(
   runDir: string,
   report: ResearchReport,
   scores: readonly PredictionScore[],
@@ -369,17 +370,10 @@ async function writeMissAutopsyRunDir(
   now: Date,
 ): Promise<boolean> {
   const next = buildMissAutopsyFile(report, scores, now);
-  if (next.autopsies.length === 0) {
-    return false;
-  }
   if (sameJson(existingAutopsies, next.autopsies)) {
     return false;
   }
-  await writeFile(
-    join(runDir, MISS_AUTOPSY_FILE),
-    `${JSON.stringify(next, undefined, 2)}\n`,
-    "utf8",
-  );
+  await writeFileAtomic(join(runDir, MISS_AUTOPSY_FILE), `${JSON.stringify(next, undefined, 2)}\n`);
   return true;
 }
 

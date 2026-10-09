@@ -691,6 +691,22 @@ describe("loadRunArtifact", () => {
 
     expect(fundamentalHistory.series.revenue.annual[0]?.form).toBe("40-F");
     expect(artifact?.fundamentalHistory).toEqual(fundamentalHistory);
+
+    const [point] = fundamentalHistory.series.revenue.annual;
+    const withRestatement = (restatedFrom: unknown) => ({
+      ...fundamentalHistory,
+      series: {
+        ...fundamentalHistory.series,
+        revenue: { ...fundamentalHistory.series.revenue, annual: [{ ...point, restatedFrom }] },
+      },
+    });
+    await writeJson(join(runDir, "normalized", "fundamental-history.json"), withRestatement(null));
+    expect((await loadRunArtifact(runDir)).artifact?.fundamentalHistory).toBeUndefined();
+    const restated = withRestatement({ value: 90, filedAt: "2025-01-15" });
+    await writeJson(join(runDir, "normalized", "fundamental-history.json"), restated);
+    expect((await loadRunArtifact(runDir)).artifact?.fundamentalHistory).toEqual(
+      restated as unknown as typeof fundamentalHistory,
+    );
   });
 
   test("loads report, scores, and snapshots at full fidelity", async () => {

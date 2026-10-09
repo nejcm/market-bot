@@ -73,6 +73,30 @@ describe("deriveResearchQualityDriver", () => {
     );
   });
 
+  test("points summary-only pruning at qualitative summary wording", () => {
+    expect(
+      deriveResearchQualityDriver(assessment("high", []), {
+        reportIntegrity: "medium",
+        researchQuality: "medium",
+        pruned: [{ location: "summary[0]" }, { location: "summary[2]" }],
+      }),
+    ).toBe(
+      "report integrity pruning removed uncited figures from summary; remediation: keep figures in cited sections; write the summary qualitatively",
+    );
+  });
+
+  test("keeps coverage wording when summary pruning is mixed with other sections", () => {
+    expect(
+      deriveResearchQualityDriver(assessment("high", []), {
+        reportIntegrity: "medium",
+        researchQuality: "medium",
+        pruned: [{ location: "summary[0]" }, { location: "risks[1]" }],
+      }),
+    ).toBe(
+      "report integrity pruning removed unsupported content from summary, risks; remediation: improve source coverage for the pruned sections",
+    );
+  });
+
   test("combines evidence and integrity when both bind", () => {
     expect(
       deriveResearchQualityDriver(

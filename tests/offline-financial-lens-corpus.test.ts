@@ -101,14 +101,14 @@ const LENS_CLASSIFIER_FAULT_SCENARIOS: readonly LensClassifierFaultScenario[] = 
   ],
   [
     "rejects a corrupted instant-pair lens metric after its hash is regenerated",
-    "nbis",
+    "fpi-quarterly",
     [
       [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
       [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
     ],
     [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`, `${FINANCIAL_STRENGTH_PATH}.posture`],
     classifierPattern(
-      "nbis ",
+      "fpi-quarterly ",
       `${FINANCIAL_STRENGTH_PATH}.metrics.netDebt`,
       " is not reproduced by financial-lens properties",
     ),
@@ -236,20 +236,20 @@ describe("offline financial-statement corpus — financial-lens properties and c
       "fpi-quarterly:Financial Strength:criteria-not-supported",
       "fpi-quarterly:Growth:criteria-supported",
       "fpi-quarterly:Quality:criteria-supported",
-      "nbis:Financial Strength:criteria-mixed",
+      "nbis:Financial Strength:insufficient-data",
       "nbis:Growth:criteria-mixed",
       "nbis:Quality:criteria-mixed",
     ]);
   });
 
   test("fails loudly when a projected Financial Strength valuation criterion appears", async () => {
-    const nbisCase = await loadOfflineCorpusCase("nbis");
-    const strength = nbisCase.execution.projection.canonical.financialLens["Financial Strength"];
+    const fpiCase = await loadOfflineCorpusCase("fpi-quarterly");
+    const strength = fpiCase.execution.projection.canonical.financialLens["Financial Strength"];
     if (strength === undefined) {
-      throw new Error("NBIS golden is missing Financial Strength");
+      throw new Error("FPI golden is missing Financial Strength");
     }
     for (const criterion of ["netDebtToMarketCap", "debtToMarketCap", "payoutRatio"] as const) {
-      const mutated = mutateOfflineCorpusCase(nbisCase, {
+      const mutated = mutateOfflineCorpusCase(fpiCase, {
         mutations: [
           [
             `financialLens.Financial Strength.metrics.${criterion}`,
@@ -268,7 +268,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       const allowance = mutated.allowances.find((item) => item.path === path);
       const difference = mutated.execution.differences.find((item) => item.path === path);
       if (allowance === undefined || difference === undefined) {
-        throw new Error("NBIS Financial Strength posture allowance is missing");
+        throw new Error("FPI Financial Strength posture allowance is missing");
       }
 
       expect(() => verifyLensAllowanceProperties(mutated.execution, allowance, difference)).toThrow(
@@ -278,8 +278,8 @@ describe("offline financial-statement corpus — financial-lens properties and c
   });
 
   test("fails loudly when Financial Strength receives valuation net-debt input", async () => {
-    const nbisCase = await loadOfflineCorpusCase("nbis");
-    const mutated = mutateOfflineCorpusCase(nbisCase, {
+    const fpiCase = await loadOfflineCorpusCase("fpi-quarterly");
+    const mutated = mutateOfflineCorpusCase(fpiCase, {
       mutations: [
         [`${FINANCIAL_STRENGTH_PATH}.metrics.netDebt.value`, "set", -1],
         [`${FINANCIAL_STRENGTH_PATH}.posture`, "set", "criteria-supported"],
@@ -293,7 +293,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     const allowance = mutated.allowances.find((item) => item.path === path);
     const difference = mutated.execution.differences.find((item) => item.path === path);
     if (allowance === undefined || difference === undefined) {
-      throw new Error("NBIS Financial Strength posture allowance is missing");
+      throw new Error("FPI Financial Strength posture allowance is missing");
     }
 
     expect(() => verifyLensAllowanceProperties(valuationCoupled, allowance, difference)).toThrow(
@@ -301,7 +301,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 64 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 62 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -329,7 +329,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(64);
+    expect(lensAllowances).toHaveLength(62);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(

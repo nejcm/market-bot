@@ -694,10 +694,16 @@
             "dividendsPaidDeltaPercent": 3.3287101248266295,
             "cash": 8732000000,
             "cashPeriodEnd": "2026-01-31",
+            "cashPrior": 9897000000,
+            "cashDeltaPercent": -11.771243811255937,
             "stockholdersEquity": 89022000000,
             "stockholdersEquityPeriodEnd": "2026-01-31",
+            "stockholdersEquityPrior": 86421000000,
+            "stockholdersEquityDeltaPercent": 3.0096851459714653,
             "assets": 1475979000000,
             "assetsPeriodEnd": "2026-01-31",
+            "assetsPrior": 1439151000000,
+            "assetsDeltaPercent": 2.5590087489082105,
             "netMarginSelectedValue": 0.23833713456354966,
             "netMarginSelectedPeriodEnd": "2026-01-31",
             "netMarginSelectedPeriodMonths": 3,
@@ -1321,6 +1327,10 @@
                 "accessionNumber": "0001193125-24-269887",
                 "filedAt": "2024-12-03",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 32307000000,
+                  "filedAt": "2023-11-28"
+                },
                 "periodStart": "2022-11-01",
                 "periodEnd": "2023-10-31",
                 "fiscalYear": 2023,
@@ -1907,6 +1917,10 @@
                 "accessionNumber": "0001193125-24-269887",
                 "filedAt": "2024-12-03",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 7528000000,
+                  "filedAt": "2023-11-28"
+                },
                 "periodStart": "2022-11-01",
                 "periodEnd": "2023-10-31",
                 "fiscalYear": 2023,
@@ -2309,6 +2323,13 @@
                 }
               }
             }
+          },
+          "continuingIncome": {
+            "key": "continuingIncome",
+            "label": "Income from continuing operations",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
           }
         },
         "balanceSheet": {
@@ -2938,6 +2959,10 @@
                 "accessionNumber": "0001193125-24-269887",
                 "filedAt": "2024-12-03",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 1410789000000,
+                  "filedAt": "2023-11-28"
+                },
                 "periodEnd": "2023-10-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3388,6 +3413,10 @@
                 "accessionNumber": "0001193125-24-269887",
                 "filedAt": "2024-12-03",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 1332122000000,
+                  "filedAt": "2023-11-28"
+                },
                 "periodEnd": "2023-10-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3838,6 +3867,10 @@
                 "accessionNumber": "0001193125-24-269887",
                 "filedAt": "2024-12-03",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 74749000000,
+                  "filedAt": "2022-11-29"
+                },
                 "periodEnd": "2022-10-31",
                 "fiscalYear": 2022,
                 "fiscalPeriod": "FY",
@@ -3859,6 +3892,10 @@
                 "accessionNumber": "0001193125-25-304643",
                 "filedAt": "2025-12-02",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 78667000000,
+                  "filedAt": "2023-11-28"
+                },
                 "periodEnd": "2023-10-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3924,6 +3961,10 @@
                 "accessionNumber": "0001193125-24-147598",
                 "filedAt": "2024-05-28",
                 "firstPublicAt": "2024-05-28",
+                "restatedFrom": {
+                  "value": 78750000000,
+                  "filedAt": "2023-05-24"
+                },
                 "periodEnd": "2023-04-30",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "Q2",
@@ -3945,6 +3986,10 @@
                 "accessionNumber": "0001193125-24-207433",
                 "filedAt": "2024-08-27",
                 "firstPublicAt": "2024-08-27",
+                "restatedFrom": {
+                  "value": 77718000000,
+                  "filedAt": "2023-08-29"
+                },
                 "periodEnd": "2023-07-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "Q3",
@@ -5418,6 +5463,10 @@
                 "accessionNumber": "0001193125-24-269887",
                 "filedAt": "2024-12-03",
                 "firstPublicAt": "2024-12-03",
+                "restatedFrom": {
+                  "value": 5.78,
+                  "filedAt": "2023-11-28"
+                },
                 "periodStart": "2022-11-01",
                 "periodEnd": "2023-10-31",
                 "fiscalYear": 2023,
@@ -5820,6 +5869,13 @@
                 }
               }
             }
+          },
+          "continuingDilutedEps": {
+            "key": "continuingDilutedEps",
+            "label": "Diluted EPS from continuing operations",
+            "statement": "perShare",
+            "annual": [],
+            "interim": []
           },
           "dilutedShares": {
             "key": "dilutedShares",
@@ -9552,7 +9608,11 @@
               "periodEnd": "2023-10-31",
               "periodMonths": 12,
               "filedAt": "2024-12-03",
-              "currency": "CAD"
+              "currency": "CAD",
+              "restatedFrom": {
+                "value": 32307000000,
+                "filedAt": "2023-11-28"
+              }
             },
             {
               "value": 33670000000,
@@ -9710,7 +9770,11 @@
               "periodEnd": "2023-10-31",
               "periodMonths": 12,
               "filedAt": "2024-12-03",
-              "currency": "CAD"
+              "currency": "CAD",
+              "restatedFrom": {
+                "value": 7528000000,
+                "filedAt": "2023-11-28"
+              }
             },
             {
               "value": 7892000000,
@@ -9846,7 +9910,11 @@
               "periodEnd": "2023-10-31",
               "periodMonths": 12,
               "filedAt": "2024-12-03",
-              "currency": "CAD/shares"
+              "currency": "CAD/shares",
+              "restatedFrom": {
+                "value": 5.78,
+                "filedAt": "2023-11-28"
+              }
             },
             {
               "value": 5.87,

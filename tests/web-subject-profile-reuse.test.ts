@@ -277,6 +277,18 @@ async function writePriorRun(input: {
   }
 }
 
+function secSource(snippet?: string): Source {
+  return {
+    id: "extended-sec-edgar-aapl-10q",
+    title: "AAPL 10-Q",
+    fetchedAt: "2026-05-01T00:00:00.000Z",
+    kind: "extended-evidence",
+    provider: "sec-edgar",
+    assetClass: "equity",
+    ...(snippet !== undefined ? { snippet } : {}),
+  };
+}
+
 describe("Web Subject Profile reuse", () => {
   const reuseDaysBySubjectKind = {
     company: 30,
@@ -985,6 +997,38 @@ describe("Web Subject Profile reuse", () => {
     });
 
     expect(reuse).toBeUndefined();
+  });
+
+  test("reuses only when re-collected cited Sources carry the same text", async () => {
+    const priorSnippet = "[MD&A] ITEM 2. MANAGEMENT'S DISCUSSION International sales were 70%.";
+    const reuseWith = async (sourceIds: readonly string[], current: readonly Source[]) => {
+      const dataDir = tempRunsDir();
+      await writePriorRun({
+        dataDir,
+        runId: "prior-aapl",
+        symbol: "AAPL",
+        sourceIds,
+        sources: [webSource, secSource(priorSnippet)],
+      });
+      return findReusableWebSubjectProfile({
+        dataDir,
+        command,
+        now: new Date("2026-05-03T13:12:00.000Z"),
+        reuseDaysBySubjectKind,
+        currentSecFilingDate: "2026-04-25",
+        currentSources: current,
+      });
+    };
+    const secCited = [webSource.id, secSource().id];
+
+    expect(
+      await reuseWith(secCited, [secSource("[MD&A] Results of Operations $9.2 billion")]),
+    ).toBeUndefined();
+    expect(await reuseWith(secCited, [secSource()])).toBeUndefined();
+    const unchanged = await reuseWith(secCited, [secSource(priorSnippet)]);
+    expect(unchanged?.sources).toEqual([webSource, secSource(priorSnippet)]);
+    const webOnly = await reuseWith([webSource.id], [secSource()]);
+    expect(webOnly?.sources).toEqual([webSource]);
   });
 
   test("rejects profiles with unresolved source IDs", async () => {

@@ -393,6 +393,18 @@ describe("provider health", () => {
               cause: "missing-credential",
               message: "missing bundle credential",
             },
+            {
+              source: "attempts-without-failures",
+              cause: "validation-failed",
+              message: "malformed attempt metadata",
+              attempts: { count: 1, elapsedMs: 0 },
+            } as unknown as SourceGap,
+            {
+              source: "attempts-with-object-failures",
+              cause: "validation-failed",
+              message: "malformed attempt metadata",
+              attempts: { count: 1, elapsedMs: 0, failures: {} },
+            } as unknown as SourceGap,
           ],
           sourcePlan: { ...base.governance.sourcePlan, generatedAt },
           evidenceLanes: { ...base.governance.evidenceLanes, generatedAt },
@@ -411,6 +423,11 @@ describe("provider health", () => {
 
     expect(summary.routes.map((route) => route.route)).toContain("bundle-provider");
     expect(summary.routes.map((route) => route.route)).not.toContain("legacy-provider");
+    for (const route of ["attempts-without-failures", "attempts-with-object-failures"]) {
+      expect(summary.routes).toContainEqual(
+        expect.objectContaining({ route, fetchFailed: 0, other: 1 }),
+      );
+    }
   });
 
   test("emits degraded unknown coverage for absent and malformed deep-equity bundles", async () => {
@@ -825,6 +842,50 @@ describe("provider health", () => {
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain("## Validation");
     await expect(readFile(result.markdownPath, "utf8")).resolves.toContain(
       String.raw`provider returned a \| separated message`,
+    );
+  });
+
+  test("counts a typed size rejection as a failed fetch but not other validation failures", async () => {
+    await writeRun({
+      runId: "size-rejection",
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "CLFD",
+      depth: "deep",
+      gaps: [
+        {
+          source: "sec-companyfacts",
+          provider: "sec-edgar",
+          cause: "validation-failed",
+          message: "sec-companyfacts source response exceeded 16000000 bytes",
+          attempts: {
+            count: 1,
+            elapsedMs: 12,
+            failures: [
+              {
+                attempt: 1,
+                classification: "response-too-large",
+                message: "sec-companyfacts source response exceeded 16000000 bytes",
+              },
+            ],
+          },
+        },
+        {
+          source: "sec-filing-item",
+          provider: "sec-edgar",
+          cause: "validation-failed",
+          message: "SEC filing item did not validate",
+        },
+      ],
+    });
+
+    const summary = await buildProviderHealthSummary(dataDir, new Date("2026-06-02T12:00:00.000Z"));
+
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "sec-companyfacts", fetchFailed: 1, other: 0 }),
+    );
+    expect(summary.routes).toContainEqual(
+      expect.objectContaining({ route: "sec-filing-item", fetchFailed: 0, other: 1 }),
     );
   });
 

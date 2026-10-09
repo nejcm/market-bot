@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { EvidenceQualityAssessment } from "../src/domain/types";
+import { violatesResearchOnly } from "../src/domain/research-language";
 import { auditReportIntegrity, worseQuality } from "../src/research/report-integrity-audit";
 import { prediction, researchReport } from "./support/fixtures";
 
@@ -7,10 +8,8 @@ const CITED = ["market-yahoo-equity-aapl"];
 const HISTORY_ONLY = ["history-report-run-0"];
 const AMD_DATED_SUMMARY =
   "AMD's operating evidence supports a high-growth Data Center and AI infrastructure thesis, with substantial revenue, profit, and cash-flow expansion through 2026-06-27.";
-const UNCITED_NUMERIC_SUMMARY = {
-  code: "uncited-numeric-summary-sentence",
-  location: "summary[0]",
-} as const;
+const SUMMARY_FALLBACK =
+  "Summary withheld: every summary sentence carried an uncited numeric or technical claim. See the cited sections of this report.";
 
 function citedFinding(text: string) {
   return { text, sourceIds: CITED };
@@ -62,14 +61,14 @@ function auditUncitedPrediction(text: string) {
   );
 }
 
-function numericSummaryAdvisories(summary: string) {
-  return auditSummary(summary).advisories.filter(
-    (advisory) => advisory.code === "uncited-numeric-summary-sentence",
-  );
+function prunedSummaryLocations(summary: string): readonly string[] {
+  return auditSummary(summary)
+    .pruned.map((item) => item.location)
+    .filter((location) => location.startsWith("summary["));
 }
 
 function summaryClassifiesAsNumeric(summary: string): boolean {
-  return numericSummaryAdvisories(summary).length > 0;
+  return prunedSummaryLocations(summary).length > 0;
 }
 
 function evidenceAssessment(label: EvidenceQualityAssessment["label"]): EvidenceQualityAssessment {
@@ -228,9 +227,9 @@ describe("auditReportIntegrity", () => {
     expect(result.reportIntegrity).toBe("medium");
   });
 
-  test("summary sentences and posture warnings are advisory only and never pruned", () => {
+  test("prunes uncited numeric summary sentences and keeps posture warnings advisory", () => {
     const summary =
-      "Revenue grew 40% with no citation available here. Evidence remains mixed overall.";
+      "Backlog contracted.\n\nA disclosed $22 million order offers a potential growth path. Evidence remains mixed overall.";
     const report = researchReport({
       summary,
       keyFindings: [uncitedFinding("Qualitative uncited claim without numbers or indicators.")],
@@ -239,29 +238,145 @@ describe("auditReportIntegrity", () => {
 
     const result = auditReportIntegrity(report);
 
-    expect(result.prunedItemCount).toBe(0);
-    expect(result.report.summary).toBe(summary);
+    expect(result.pruned).toEqual([
+      {
+        location: "summary[1]",
+        text: "A disclosed $22 million order offers a potential growth path.",
+        sourceIds: [],
+      },
+    ]);
+    expect(result.prunedItemCount).toBe(1);
+    expect(result.reportIntegrity).toBe("medium");
+    expect(result.report.reportIntegrity).toBe("medium");
+    expect(result.report.researchQualityDriver).toBe(
+      "report integrity pruning removed uncited figures from summary; remediation: keep figures in cited sections; write the summary qualitatively",
+    );
+    expect(result.report.summary).toBe("Backlog contracted.\n\nEvidence remains mixed overall.");
+    expect(report.summary).toBe(summary);
     expect(result.report.keyFindings).toHaveLength(1);
-    expect(result.advisories).toContainEqual({
-      code: "uncited-numeric-summary-sentence",
-      location: "summary[0]",
-    });
-    expect(result.advisories).toContainEqual({
-      code: "weak-evidence-posture-missing",
-      location: "keyFindings[0]",
-    });
-    expect(result.advisoryWarningCount).toBe(result.advisories.length);
+    expect(result.advisories).toEqual([
+      {
+        code: "weak-evidence-posture-missing",
+        location: "keyFindings[0]",
+      },
+    ]);
+    expect(result.advisoryWarningCount).toBe(1);
   });
 
-  test("fiscal years and calendar dates alone do not create summary advisories", () => {
+  test("replaces a summary whose every sentence is pruned with the neutral fallback", () => {
+    const result = auditSummary("Revenue grew 40%. RSI sits near 70.");
+
+    expect(result.pruned.map((item) => item.location)).toEqual(["summary[0]", "summary[1]"]);
+    expect(result.report.summary).toBe(SUMMARY_FALLBACK);
+    expect(violatesResearchOnly(result.report.summary)).toBeNull();
+    expect(summaryClassifiesAsNumeric(SUMMARY_FALLBACK)).toBe(false);
+  });
+
+  test("keeps decimals inside a qualitative sentence intact when splitting", () => {
+    const summary = "Margins held. Revenue rose 4.5% on demand.";
+
+    expect(auditSummary(summary).report.summary).toBe("Margins held.");
+  });
+
+  test.each([
+    ["The U.S. market saw revenue grow 40%.", ["summary[0]"], SUMMARY_FALLBACK],
+    ["Acme Inc. reported 12% growth. Demand stays mixed.", ["summary[0]"], "Demand stays mixed."],
+    [
+      "Peers, e.g. Corp. rivals, trade at 3x sales. Demand stays mixed.",
+      ["summary[0]"],
+      "Demand stays mixed.",
+    ],
+    [
+      "Demand stays mixed. Margins rose 2%. Outlook is uncertain.",
+      ["summary[1]"],
+      "Demand stays mixed. Outlook is uncertain.",
+    ],
+    [
+      "Operations are concentrated in the U.S.\n\nRevenue grew 40%.\n\nEvidence remains mixed.",
+      ["summary[1]"],
+      "Operations are concentrated in the U.S.\n\nEvidence remains mixed.",
+    ],
+    [
+      "Operations are concentrated in the U.S. Revenue grew 40%.",
+      ["summary[1]"],
+      "Operations are concentrated in the U.S.",
+    ],
+    [
+      "Demand remains uncertain. iPhone revenue rose 10%.",
+      ["summary[1]"],
+      "Demand remains uncertain.",
+    ],
+    [
+      "The company competes with HP Inc. Revenue grew 40%.",
+      ["summary[1]"],
+      "The company competes with HP Inc.",
+    ],
+    ["Peers include Plan B. Revenue grew 40%.", ["summary[1]"], "Peers include Plan B."],
+    ["J. Smith said revenue rose 5%.", ["summary[0]", "summary[1]"], SUMMARY_FALLBACK],
+    [
+      'Management said, "Revenue rose 5%." Demand remains uncertain.',
+      ["summary[0]"],
+      "Demand remains uncertain.",
+    ],
+    [
+      "Management described demand as “soft.” Revenue fell 5%.",
+      ["summary[1]"],
+      "Management described demand as “soft.”",
+    ],
+    ["U.S. Steel reported 12% growth.", ["summary[0]", "summary[1]"], SUMMARY_FALLBACK],
+    ["Analyst J. Smith said revenue rose 5%.", ["summary[0]", "summary[1]"], SUMMARY_FALLBACK],
+    [
+      "Demand is soft. Analyst J. R. Smith said revenue rose 5%.",
+      ["summary[1]", "summary[2]", "summary[3]"],
+      "Demand is soft.",
+    ],
+    [
+      "Revenue rose 5%. U.S. Steel remains pressured.",
+      ["summary[0]"],
+      "U.S. Steel remains pressured.",
+    ],
+    [
+      "Operations are concentrated in the U.S. iPhone sales rose 10%.",
+      ["summary[1]"],
+      "Operations are concentrated in the U.S.",
+    ],
+    ["Peers, i.e. rivals, trade at 3x. Demand stays mixed.", ["summary[0]"], "Demand stays mixed."],
+  ] as const)("splits %p only at sentence ends", (summary, locations, expected) => {
+    const result = auditSummary(summary);
+
+    expect(result.pruned.map((item) => item.location)).toEqual([...locations]);
+    expect(result.report.summary).toBe(expected);
+  });
+
+  test("keeps the strongest separator around a pruned sentence", () => {
+    expect(
+      auditSummary("Evidence remains mixed. Revenue grew 40%.\n\nOutlook is uncertain.").report
+        .summary,
+    ).toBe("Evidence remains mixed.\n\nOutlook is uncertain.");
+    expect(
+      auditSummary("Evidence remains mixed.\n\nRevenue grew 40%. Outlook is uncertain.").report
+        .summary,
+    ).toBe("Evidence remains mixed.\n\nOutlook is uncertain.");
+  });
+
+  test("an empty summary stays empty", () => {
+    const result = auditSummary("");
+
+    expect(result.report.summary).toBe("");
+    expect(result.pruned).toEqual([]);
+  });
+
+  test("fiscal years and calendar dates alone do not prune summary sentences", () => {
     const summary =
       "FY2026 losses leave execution central. The September 28 close was weak relative to broad proxies.";
 
-    expect(auditSummary(summary).advisoryWarningCount).toBe(0);
-    expect(auditSummary("FY26 losses leave execution central.").advisoryWarningCount).toBe(0);
-    expect(auditSummary(`${summary} FY2026 capex was $3.00 billion.`).advisories).toEqual([
-      { code: "uncited-numeric-summary-sentence", location: "summary[2]" },
+    expect(auditSummary(summary).prunedItemCount).toBe(0);
+    expect(auditSummary(summary).report.summary).toBe(summary);
+    expect(auditSummary("FY26 losses leave execution central.").prunedItemCount).toBe(0);
+    expect(prunedSummaryLocations(`${summary} FY2026 capex was $3.00 billion.`)).toEqual([
+      "summary[2]",
     ]);
+    expect(auditSummary(`${summary} FY2026 capex was $3.00 billion.`).report.summary).toBe(summary);
     for (const year of ["FY26", "FY2026"]) {
       expect(auditUncitedFinding(`${year} losses leave execution central.`).pruned).toEqual([]);
     }
@@ -287,11 +402,11 @@ describe("auditReportIntegrity", () => {
     expect(auditUncitedFinding(`${text}.`).pruned.length > 0).toBe(numeric);
   });
 
-  test("NBIS secondary-coverage summary sentence carries no numeric advisory", () => {
+  test("NBIS secondary-coverage summary sentence is not pruned", () => {
     const summary =
       "NBIS evidence is mixed. Secondary coverage reports stronger Q2 2026 revenue and capacity plans; those figures are not validated in the supplied canonical statements.";
 
-    expect(numericSummaryAdvisories(summary)).toEqual([]);
+    expect(prunedSummaryLocations(summary)).toEqual([]);
   });
 
   test("keeps an uncited qualitative Q3 finding", () => {
@@ -304,7 +419,7 @@ describe("auditReportIntegrity", () => {
   test("lowercase may before a number is not treated as a date", () => {
     const claim = "Revenue may 10 percent rise.";
 
-    expect(numericSummaryAdvisories(claim)).toEqual([UNCITED_NUMERIC_SUMMARY]);
+    expect(prunedSummaryLocations(claim)).toEqual(["summary[0]"]);
     expect(auditUncitedFinding(claim).pruned.map((item) => item.location)).toEqual([
       "keyFindings[0]",
     ]);
@@ -421,7 +536,7 @@ describe("auditReportIntegrity", () => {
         expect(auditUncitedPrediction(text).pruned.map((item) => item.location)).toContain(
           "predictions[0]",
         );
-        expect(numericSummaryAdvisories(text)).toContainEqual(UNCITED_NUMERIC_SUMMARY);
+        expect(prunedSummaryLocations(text)).toContain("summary[0]");
       }
     });
 
@@ -500,11 +615,10 @@ describe("auditReportIntegrity", () => {
     ] as const)("summary numeric detection for %s", (_name, summary, expectBlocking) => {
       const result = auditSummary(summary);
 
-      expect(result.report.summary).toBe(summary);
-      expect(result.prunedItemCount).toBe(0);
       expect(result.advisoryWarningCount).toBe(result.advisories.length);
       if (expectBlocking) {
-        expect(result.advisories).toContainEqual(UNCITED_NUMERIC_SUMMARY);
+        expect(result.pruned.map((item) => item.location)).toEqual(["summary[0]"]);
+        expect(result.report.summary).toBe(SUMMARY_FALLBACK);
         expect(auditUncitedFinding(summary).pruned.map((item) => item.location)).toContain(
           "keyFindings[0]",
         );
@@ -515,14 +629,15 @@ describe("auditReportIntegrity", () => {
           "predictions[0]",
         );
       } else {
-        expect(result.advisories).not.toContainEqual(UNCITED_NUMERIC_SUMMARY);
+        expect(result.prunedItemCount).toBe(0);
+        expect(result.report.summary).toBe(summary);
       }
     });
 
     test.each(validStandaloneIsoDateCases)(
-      "emits no numeric summary advisory for a valid standalone ISO date: %s",
+      "does not prune a summary for a valid standalone ISO date: %s",
       (_name, summary) => {
-        expect(numericSummaryAdvisories(summary)).toEqual([]);
+        expect(prunedSummaryLocations(summary)).toEqual([]);
       },
     );
 

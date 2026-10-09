@@ -34,7 +34,8 @@
     </span>
   </div>
   <div class="mt-2 text-[10px] leading-snug text-muted-foreground">
-    {valuationWorkbench.priceSelectionRule}. {valuationWorkbench.trailingDisclosure}.
+    {valuationWorkbench.priceSelectionRule}. {valuationWorkbench.trailingDisclosure}.{#if valuationWorkbench.scopeDisclosure !== undefined}
+      {valuationWorkbench.scopeDisclosure}.{/if}
   </div>
   {#if valuationWorkbench.rows.length > 0}
     <div class="mt-3 overflow-x-auto rounded-lg border border-border">
@@ -90,7 +91,7 @@
   </div>
   {#if valuationWorkbench.peerRows.length > 0}
     <div class="mt-2 overflow-x-auto rounded-lg border border-border">
-      <table class="w-full min-w-[620px] border-collapse text-left">
+      <table class="w-full min-w-[720px] border-collapse text-left">
         <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
           <tr>
             <th class="px-2.5 py-2 font-semibold">Symbol</th>
@@ -99,6 +100,7 @@
             <th class="px-2.5 py-2 text-right font-semibold">EV/revenue</th>
             <th class="px-2.5 py-2 font-semibold">Currency</th>
             <th class="px-2.5 py-2 font-semibold">Input dates</th>
+            <th class="px-2.5 py-2 font-semibold">Sources</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-border font-mono text-[10px]">
@@ -110,6 +112,7 @@
               <td class="px-2.5 py-2 text-right">{row.multiple}</td>
               <td class="px-2.5 py-2">{row.currency}</td>
               <td class="px-2.5 py-2">{row.inputDates}</td>
+              <td class="px-2.5 py-2">{@render citeChips(row.sourceIds)}</td>
             </tr>
           {/each}
         </tbody>

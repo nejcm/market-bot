@@ -1,4 +1,6 @@
 import {
+  marketCapAsOfPhrase,
+  marketCapQuotePhrase,
   resolveMarketSnapshotPriceAsOf,
   type EquityAnalysisDimensionStatus,
   type ExtendedEvidenceItem,
@@ -6,6 +8,7 @@ import {
   type ResearchReport,
 } from "../domain/types";
 import { readNumber } from "../guards";
+import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
 import type { CollectedSources } from "../sources/types";
 import {
   projectEquityReader,
@@ -15,6 +18,7 @@ import {
   type EquityReaderMarketMultiple,
   type EquityReaderValuationContext,
 } from "./equity-reader";
+import type { EquityReaderEarningsBasis } from "./equity-reader-earnings-basis";
 import type { EquityReaderBalanceSheetHistory } from "./equity-reader-statements";
 import { compactNumber, type EquityReaderFinancialTrends } from "./equity-reader-trends";
 import { formatTrendAmount, knownSourceIds, markdownText, sourceRefs } from "./markdown-primitives";
@@ -64,10 +68,13 @@ export function renderPriceProvenance(
   }
   const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
   const label = `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
-  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  // Artifacts written before quote-instant dating used the fetch date in both phrases.
+  const legacyFetchDate = marketSnapshot.observedAt.slice(0, 10);
   return summary
-    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
-    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+    .replaceAll(marketCapAsOfPhrase(priceAsOf), `market cap ${label}`)
+    .replaceAll(marketCapQuotePhrase(priceAsOf), `market cap (${label})`)
+    .replaceAll(`market cap as of ${legacyFetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${legacyFetchDate})`, `market cap (${label})`);
 }
 
 export function renderCompanyDescription(description: EquityReaderCompanyDescription): string {
@@ -124,17 +131,17 @@ export function renderProjectedFinancialTrends(
   return [
     "## Financial Trends",
     "",
-    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported operating-cash-flow less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
+    `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported ${scopedLabel("operating-cash-flow", trends.freeCashFlowScope)} less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
     "",
-    "Period | Revenue | Net income | Operating margin | FCF",
+    `Period | Revenue | ${scopedLabel("Net income", trends.netIncomeScope)} | Operating margin | FCF`,
     "--- | ---: | ---: | ---: | ---:",
     ...rows,
-    "",
+    ...statementSurfaceNoteLines(trends.restatements?.map((message) => ({ message }))),
   ].join("\n");
 }
 
 function statementSurfaceNoteLines(
-  notes: EquityReaderBalanceSheetHistory["notes"],
+  notes: readonly { readonly message: string }[] | undefined,
 ): readonly string[] {
   const lines = (notes ?? []).map((note) => `- ${note.message}`);
   return lines.length === 0 ? [""] : ["", ...lines, ""];
@@ -168,9 +175,21 @@ export function renderBalanceSheetAndShareCount(
   ].join("\n");
 }
 
+function renderEarningsBasis(
+  report: ResearchReport,
+  basis: EquityReaderEarningsBasis | undefined,
+): readonly string[] {
+  if (basis === undefined) {
+    return [];
+  }
+  const refs = sourceRefs(knownSourceIds(report, basis.sourceIds));
+  return [`- **Earnings basis:** ${basis.text}${refs === "" ? "" : ` ${refs}`}`];
+}
+
 export function renderValuationContext(
   report: ResearchReport,
   valuation: EquityReaderValuationContext,
+  basis?: EquityReaderEarningsBasis,
 ): string {
   if (valuation.kind === "peer-range" && valuation.status === "derived") {
     const { range, priceAsOf } = valuation;
@@ -185,7 +204,10 @@ export function renderValuationContext(
         ? undefined
         : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
     const refs = sourceRefs(knownSourceIds(report, valuation.sourceIds));
-    const compactMetrics = renderCompactValuationMetrics(report);
+    const compactMetrics = [
+      ...renderCompactValuationMetrics(report),
+      ...renderEarningsBasis(report, basis),
+    ];
     return [
       "## Valuation Context",
       "",
@@ -212,7 +234,10 @@ export function renderValuationContext(
   });
   const refs = sourceRefs(knownSourceIds(report, sourceIds));
   const includePriceToBook = !metrics.some((metric) => metric.key === "priceToBook");
-  const compactMetrics = renderCompactValuationMetrics(report, includePriceToBook);
+  const compactMetrics = [
+    ...renderCompactValuationMetrics(report, includePriceToBook),
+    ...renderEarningsBasis(report, basis),
+  ];
   const compactPriceToBookAvailable =
     includePriceToBook &&
     firstEvidenceMetric(

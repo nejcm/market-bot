@@ -397,7 +397,7 @@
       {
         "category": "valuation",
         "title": "FPIQ Valuation Evidence",
-        "summary": "Valuation Evidence: market cap $20.0B, enterprise value $23.1B, 3-month revenue $420.0M, annualized revenue $1.7B, EV/annualized revenue 13.76x, market cap/annualized revenue 11.90x, debt/market cap 0.20x, net debt/market cap 0.16x; market cap as of 2026-06-15; cash/debt as of 2026-03-31. Peer comps supportability: screening-only; 0 usable peers.",
+        "summary": "Valuation Evidence: market cap $20.0B, enterprise value $23.1B, 3-month revenue $420.0M, annualized revenue $1.7B, EV/annualized revenue 13.76x, market cap/annualized revenue 11.90x, debt/market cap 0.20x, net debt/market cap 0.16x; market cap as of 2026-06-15 (fetch time); cash/debt as of 2026-03-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: screening-only; 0 usable peers.",
         "sourceIds": ["market-yahoo-equity-fpiq", "extended-sec-edgar-fpiq-fundamentals"],
         "observedAt": "2026-06-15T14:30:00.000Z",
         "metrics": {

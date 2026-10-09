@@ -37,6 +37,7 @@ interface ReverseDcfStartingFcfAssumption {
   readonly periodEnd: string;
   readonly publicAt: string;
   readonly sourceIds: readonly string[];
+  readonly scope?: string;
 }
 
 interface ReverseDcfEnterpriseValueAssumption {
@@ -323,6 +324,7 @@ export function buildReverseDcf(input: BuildReverseDcfInput): ReverseDcfArtifact
         periodEnd: startingFcf.periodEnd,
         publicAt: startingFcf.publicAt,
         sourceIds: startingFcf.sourceIds,
+        ...(startingFcf.scope !== undefined ? { scope: startingFcf.scope } : {}),
       },
       enterpriseValue: {
         value: enterpriseValue,
@@ -391,7 +393,15 @@ function hasComputedShape(value: Record<string, unknown>): boolean {
       "startingFcf",
       "terminalGrowthRatesPct",
     ]) &&
-    hasExactKeys(startingFcf, ["currency", "periodEnd", "publicAt", "sourceIds", "value"]) &&
+    hasExactKeys(startingFcf, [
+      "currency",
+      "periodEnd",
+      "publicAt",
+      ...(startingFcf.scope === undefined ? [] : ["scope"]),
+      "sourceIds",
+      "value",
+    ]) &&
+    (startingFcf.scope === undefined || readString(startingFcf, "scope") !== undefined) &&
     hasExactKeys(enterpriseValue, ["currency", "observedAt", "sourceIds", "value"]) &&
     hasExactKeys(value.grid, ["rows", "unit", "value"]) &&
     readNumber(startingFcf, "value") !== undefined &&

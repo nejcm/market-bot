@@ -13,6 +13,7 @@ import {
   type PlaybookStage,
 } from "../src/research/playbooks";
 import { DEFAULT_RESEARCH_SUBJECT_REGISTRY } from "../src/research/subject-registry";
+import { violatesResearchOnly } from "../src/domain/research-language";
 
 const registry: readonly PlaybookMetadata[] = [
   {
@@ -252,6 +253,25 @@ describe("loadPlaybookRegistry", () => {
     expect(instruction).toContain("base rate");
     expect(instruction).toContain("widen");
     expect(instruction).toContain("brier");
+  });
+
+  test("synthesis-discipline weighs a cited relative hypothesis without a quota", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    const [stage] = await loadPlaybooksByStage("prompts", realRegistry, [
+      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+    ]);
+    const instruction = stage?.playbooks[0]?.instruction ?? "";
+
+    expect(instruction).toContain(
+      "evaluate a `relative` forecast against a benchmark the cited evidence",
+    );
+    expect(instruction).toContain("Before settling on range-only");
+    expect(instruction).toContain(
+      "a bearish, underperforming, or stays-within-range view uses probability below 0.5",
+    );
+    expect(instruction).toContain("not a quota");
+    expect(instruction).toContain("skip it when none is cited or its probability stays near 0.5");
+    expect(violatesResearchOnly(instruction)).toBeNull();
   });
 
   test("critique-discipline demands prediction-specific disconfirmation", async () => {

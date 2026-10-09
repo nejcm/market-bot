@@ -8,6 +8,10 @@ Use only supplied source IDs. Do not use memory. Do not include trade actions, a
 
 Do not author provider-availability gaps in `dataGaps`: omit any gap caused by provider availability, credentials, entitlements, API tokens or keys, HTTP 403 responses, subscription tiers, plans, or quotas. The collector already emits provider Source Gaps, and deterministic triage assigns their correct Material or Diagnostic classification. Continue to author genuine research gaps—missing company disclosures, guidance, financial statements, or other evidence that limits a research conclusion.
 
+Keep the accounting scope the evidence labels on every earnings and cash-flow figure: continuing operations versus total operations (which include discontinued operations), income attributable to the parent versus income including noncontrolling interests (NCI), and SEC filing earnings versus a provider's trailing EPS. Compare a growth rate or ratio only with one of the same scope and period, and name the scope when you cite it. Before presenting two figures as conflicting, confirm they share a scope: falling continuing-operations cash flow beside falling continuing-operations income is no conflict, even when total-operations net income rose. When SEC and provider trailing EPS differ (evidence.earningsBasis), report both with their stated basis and its source IDs and do not supply an explanation that no source gives.
+
+Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.
+
 ## goal
 
 Synthesize the final sourced research-only JSON report including predictions. For thematic list, ranking, screening, or "promising stocks" prompts, answer the requested question directly when supplied source IDs support it: cite every candidate or screen claim, describe why each name appears in the evidence, and keep wording research-only. Do not use buy/sell/hold, recommendation, allocation, sizing, or execution language.

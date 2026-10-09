@@ -15,6 +15,7 @@ import {
   type IndexRebuildCommand,
   type MarketOverviewCommand,
   type ResearchSubjectCommand,
+  type ScoreRepairCommand,
 } from "./job-registry";
 
 export { commandBanner, commandLabel, isInstrumentCommand, isResearchCommand };
@@ -157,7 +158,7 @@ function readSection(value: string | undefined): HistorySection | undefined {
 }
 
 // Boolean flags stand alone; any other allowed flag consumes the next arg as its value.
-const BOOLEAN_FLAGS: ReadonlySet<string> = new Set(["--deep", "--narrative"]);
+const BOOLEAN_FLAGS: ReadonlySet<string> = new Set(["--deep", "--narrative", "--apply"]);
 
 function rejectUnknownHistoryArgs(
   args: readonly string[],
@@ -246,6 +247,21 @@ export function parseArgs(args: readonly string[]): CliCommand {
 
   if (command === "research") {
     return parseResearchArgs(args);
+  }
+
+  if (command === "score" && maybeSymbol === "repair") {
+    rejectUnknownArgs(args, 2, new Set(["--run", "--prediction", "--apply"]));
+    const runId = readFlagValue(args, "--run");
+    const predictionId = readFlagValue(args, "--prediction");
+    if (runId === undefined || predictionId === undefined) {
+      throw new Error("score repair requires --run <run-id> and --prediction <id>");
+    }
+    return {
+      jobType: "score-repair",
+      runId,
+      predictionId,
+      apply: args.includes("--apply"),
+    } satisfies ScoreRepairCommand;
   }
 
   if (command === "score") {

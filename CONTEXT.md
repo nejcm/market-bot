@@ -46,7 +46,7 @@ Exact provider payload retained for audit and replay; never model-visible eviden
 
 ## Freshness-Budgeted Source Cache
 
-Replays same-day provider payloads only within adapter freshness budgets. Expired entries require a live refetch; a failed refetch leaves any stale payload raw-audit-only and records a stale-cache Source Gap.
+Replays same-day provider payloads only within adapter freshness budgets; accession-addressed SEC filing documents are reused across days for 30 days from their original fetch. Expired entries require a live refetch; a failed refetch leaves any stale payload raw-audit-only and records a stale-cache Source Gap.
 
 ## Model-Visible Web Text
 
@@ -116,7 +116,11 @@ derives canonical reader text from those counts instead of storing a machine pro
 
 ## Scoring Policy
 
-Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and resolved scores never change. V3 uses provider-observed sessions for equity and earnings, target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and scoring passes never change a resolved score (only a Score Repair can). V3 uses provider-observed completed sessions for equity and earnings — a session still trading at the scoring clock is withheld, not graded — target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+
+## Score Repair
+
+Explicit, audited replacement of one resolved score that consumed an unfinished session. Proven premature means a recorded exchange schedule shows a bar the score consumed was still trading at acquisition; suspect means no schedule proves it had closed. Dry run by default; an applied repair keeps the original score and its provenance, and never touches the report.
 
 ## Prediction Trim
 
@@ -323,7 +327,7 @@ Narrative absence-of-evidence claim recognized by two consumer-specific predicat
 
 ## Report Integrity Audit
 
-No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, and Predictions, then validates/persists the result. Uncited numeric summary prose and missing posture labels remain advisory; pruned Predictions never score. See [ADR 0005](./docs/adr/0005-research-workflows-model-stage-pipeline.md).
+No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (the summary has no citation field; an emptied summary gets a fixed neutral fallback), then validates/persists the result. Missing posture labels remain advisory; pruned Predictions never score. See [ADR 0005](./docs/adr/0005-research-workflows-model-stage-pipeline.md).
 
 ## Report Integrity
 
@@ -426,6 +430,14 @@ Optional higher-specificity provider evidence for instrument Research Views.
 
 Sourced issuer operating and financial facts used as Extended Evidence.
 
+## Accounting Scope
+
+The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+
+## Earnings Basis Disclosure
+
+The deterministic line beside Yahoo trailing EPS and P/E that keeps both observations: the provider value with its undisclosed basis, and the SEC diluted EPS TTM approximation (plus continuing-operations EPS TTM when tagged), with agreement, mismatch, or currency mismatch stated and no explanation invented.
+
 ## Current Report Evidence
 
 Bounded text from up to two recent SEC current reports — 8-K for domestic filers, 6-K for foreign private issuers — filed within 120 days of collection. Routine 8-Ks must postdate the newest periodic filing, while the newest Item 2.02 earnings release within the window gets one of the two slots despite that floor because it normally precedes the periodic filing and carries nonduplicative results context. The no-periodic-basis path is foreign-private-issuer/6-K only; a domestic filer without a 10-K or 10-Q receives no current-report packet. A substantive EX-99 earnings-release exhibit is preferred over the primary document; a gap discloses when neither reports substantive results.
@@ -444,7 +456,7 @@ An isolated versioned equity sidecar that solves the five-year FCF growth input 
 
 ## Financial Lens Evidence
 
-Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. Financial Strength posture counts only current balance-sheet criteria: within 180 days of the analysis cutoff and 92 days of the newest balance-sheet period; older criteria stay displayed with their dates and are declared as a Source Gap. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
 
 ## Business Framework Evidence
 
@@ -472,4 +484,4 @@ Passive Market Overview list of narrative catalysts, observed macro context, and
 
 ## Peer Universe
 
-Deterministic, auditable comparable-Instrument set for peer valuation. It resolves in order from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches; the model never authors the set. All candidates face tier-scoped comparability gates, and insufficient valid peers yield a valuation Source Gap. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Deterministic, auditable comparable-Instrument set for peer valuation. It resolves in order from checked-in ticker mapping, Subject Registry, or model-proposed candidates that code validates and caches; the model never authors the set. All candidates face tier-scoped comparability gates, and insufficient valid peers yield a valuation Source Gap. A learned set's evaluation feedback (usable-peer count plus each excluded peer's cause) is recorded per cache generation and shown to the next allowed re-proposal; a transient fetch failure or stale fallback withholds it. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).

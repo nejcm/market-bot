@@ -9,6 +9,7 @@ import { resolveCoverageLevel } from "../../domain/equity-analysis-completeness"
 import type { EarningsSetupCollected } from "../types";
 import type {
   FinancialStatementFact,
+  FinancialStatementNote,
   FinancialStatementSeries,
   FinancialStatementsArtifact,
   InterimCadence,
@@ -64,6 +65,10 @@ export interface EquityAnalysisCompletenessInput {
 
 type PrimaryFinancialsDimension = EquityAnalysisCompletenessDimension & {
   readonly status: "complete" | "partial" | "blocked";
+};
+
+type PrimaryFinancialsAssessment = PrimaryFinancialsDimension & {
+  readonly incompleteStatements?: readonly string[];
 };
 
 function unique(values: readonly string[]): readonly string[] {
@@ -292,11 +297,11 @@ function quarterlyReasons(
   return reasons;
 }
 
-function currentStatementIncomplete(
+function currentIncompleteStatementNotes(
   artifact: FinancialStatementsArtifact,
   currentAnnual: FinancialStatementFact,
   expectedInterimEnd: string | undefined,
-): boolean {
+): readonly FinancialStatementNote[] {
   const currentDurationPeriodKeys = new Set([`annual|${currentAnnual.periodKey}`]);
   let currentBalancePeriodKey = `annual|${currentAnnual.periodKey}`;
   if (expectedInterimEnd !== undefined) {
@@ -319,7 +324,7 @@ function currentStatementIncomplete(
     "totalLiabilities",
     "stockholdersEquity",
   ] as const;
-  return artifact.validationNotes.some(
+  return artifact.validationNotes.filter(
     (note) =>
       note.code === "incomplete-statement" &&
       note.periodKey !== undefined &&
@@ -386,10 +391,10 @@ function irregularReasons(revenue: FinancialStatementSeries, annualEnd: string):
   ];
 }
 
-function primaryFinancialsDimension(
+function primaryFinancialsAssessment(
   artifact: FinancialStatementsArtifact | undefined,
   asOf: string,
-): PrimaryFinancialsDimension {
+): PrimaryFinancialsAssessment {
   if (artifact === undefined) {
     return {
       status: "blocked",
@@ -486,7 +491,12 @@ function primaryFinancialsDimension(
   if (perShareEvidenceMissing(artifact, currentAnnual.periodEnd, expectedInterimEnd)) {
     reasons.push("per-share-evidence-missing");
   }
-  if (currentStatementIncomplete(artifact, currentAnnual, expectedInterimEnd)) {
+  const incompleteStatements = currentIncompleteStatementNotes(
+    artifact,
+    currentAnnual,
+    expectedInterimEnd,
+  ).map((note) => note.message);
+  if (incompleteStatements.length > 0) {
     reasons.push("current-primary-statements-incomplete");
   }
   if (artifact.structuredFinancialGaps.some((gap) => gap.code === "untagged-6-k")) {
@@ -497,7 +507,16 @@ function primaryFinancialsDimension(
     reasonCodes: unique([...reasons, ...informationalReasons]),
     asOf: artifact.analysisAsOf,
     sourceIds,
+    ...(incompleteStatements.length > 0 ? { incompleteStatements } : {}),
   };
+}
+
+// The validation notes behind `current-primary-statements-incomplete`, for its gap message.
+export function currentIncompleteStatements(
+  artifact: FinancialStatementsArtifact | undefined,
+  asOf: string,
+): readonly string[] {
+  return primaryFinancialsAssessment(artifact, asOf).incompleteStatements ?? [];
 }
 
 function itemByCategory(
@@ -738,7 +757,8 @@ function nonCoreDimensions(
 export function deriveEquityAnalysisCompleteness(
   input: EquityAnalysisCompletenessInput,
 ): EquityAnalysisCompleteness {
-  const primaryFinancials = primaryFinancialsDimension(input.financialStatements, input.asOf);
+  const { incompleteStatements: _incompleteStatements, ...primaryFinancials } =
+    primaryFinancialsAssessment(input.financialStatements, input.asOf);
   const nonCore = nonCoreDimensions(input);
   const financialCoreStatus = primaryFinancials.status;
   const coverageLevel = resolveCoverageLevel(Object.values(nonCore), financialCoreStatus);

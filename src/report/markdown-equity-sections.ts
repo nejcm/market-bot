@@ -1,4 +1,6 @@
 import {
+  marketCapAsOfPhrase,
+  marketCapQuotePhrase,
   resolveMarketSnapshotPriceAsOf,
   type EquityAnalysisDimensionStatus,
   type ExtendedEvidenceItem,
@@ -66,10 +68,13 @@ export function renderPriceProvenance(
   }
   const priceAsOf = resolveMarketSnapshotPriceAsOf(marketSnapshot);
   const label = `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
-  const fetchDate = marketSnapshot.observedAt.slice(0, 10);
+  // Artifacts written before quote-instant dating used the fetch date in both phrases.
+  const legacyFetchDate = marketSnapshot.observedAt.slice(0, 10);
   return summary
-    .replaceAll(`market cap as of ${fetchDate}`, `market cap ${label}`)
-    .replaceAll(`market cap (quote ${fetchDate})`, `market cap (${label})`);
+    .replaceAll(marketCapAsOfPhrase(priceAsOf), `market cap ${label}`)
+    .replaceAll(marketCapQuotePhrase(priceAsOf), `market cap (${label})`)
+    .replaceAll(`market cap as of ${legacyFetchDate}`, `market cap ${label}`)
+    .replaceAll(`market cap (quote ${legacyFetchDate})`, `market cap (${label})`);
 }
 
 export function renderCompanyDescription(description: EquityReaderCompanyDescription): string {

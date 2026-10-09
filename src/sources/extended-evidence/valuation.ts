@@ -3,8 +3,10 @@ import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
   MarketSnapshot,
+  MarketSnapshotPriceAsOf,
   SourceGap,
 } from "../../domain/types";
+import { marketCapAsOfPhrase, resolveMarketSnapshotPriceAsOf } from "../../domain/types";
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
 import { depositoryIssuerSic } from "./industry-classification";
@@ -78,16 +80,16 @@ function nonCurrentBalanceSheetGap(
 }
 
 function valuationDateBasis(
-  quoteObservedAt: string,
+  priceAsOf: MarketSnapshotPriceAsOf,
   cashPeriodEnd: string | undefined,
   debtPeriodEnd: string | undefined,
 ): string {
-  const quoteDate = quoteObservedAt.slice(0, 10);
+  const marketCapAsOf = marketCapAsOfPhrase(priceAsOf);
   if (cashPeriodEnd !== undefined && cashPeriodEnd === debtPeriodEnd) {
-    return `market cap as of ${quoteDate}; cash/debt as of ${cashPeriodEnd}`;
+    return `${marketCapAsOf}; cash/debt as of ${cashPeriodEnd}`;
   }
   return [
-    `market cap as of ${quoteDate}`,
+    marketCapAsOf,
     ...(cashPeriodEnd !== undefined ? [`cash as of ${cashPeriodEnd}`] : []),
     ...(debtPeriodEnd !== undefined ? [`debt as of ${debtPeriodEnd}`] : []),
   ].join("; ");
@@ -174,6 +176,7 @@ export function addValuationEvidence(
       ? "enterprise value uses an SEC debt aggregate that may include finance leases"
       : "enterprise value is borrowing-based and excludes finance leases";
   const quoteObservedAt = snapshot.observedAt;
+  const priceAsOf = resolveMarketSnapshotPriceAsOf(snapshot);
   const sic = readStringMetric(secItem.metrics, "sic");
   const sicDescription = readStringMetric(secItem.metrics, "sicDescription");
   const annualizationFactor =
@@ -212,7 +215,7 @@ export function addValuationEvidence(
   const rawItem: ExtendedEvidenceItem = {
     category: "valuation",
     title: `${command.symbol} Valuation Evidence`,
-    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(quoteObservedAt, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
+    summary: `Valuation Evidence: market cap ${formatUsd(marketCap)}, ${enterpriseValueText}, ${revenuePeriodLabel}annualized revenue ${formatUsd(annualizedRevenue)}, ${evToRevenueText}, market cap/annualized revenue ${fixed(marketCapToAnnualizedRevenue)}, debt/market cap ${fixed(debtToMarketCap)}, net debt/market cap ${fixed(netDebtToMarketCap)}; ${valuationDateBasis(priceAsOf, cashPeriodEnd, debtPeriodEnd)}${grossPrincipalDebt ? "; debt is gross principal" : ""}; ${debtLeaseScopeText}.`,
     sourceIds: [snapshot.sourceId, ...secItem.sourceIds],
     observedAt: snapshot.observedAt > secItem.observedAt ? snapshot.observedAt : secItem.observedAt,
     metrics: {
@@ -224,6 +227,7 @@ export function addValuationEvidence(
       latestPeriodRevenue: revenue,
       annualizedRevenue,
       quoteObservedAt,
+      ...(snapshot.quoteTimeUtc !== undefined ? { quoteTimeUtc: snapshot.quoteTimeUtc } : {}),
       ...(revenuePeriodMonths !== undefined ? { revenuePeriodMonths } : {}),
       ...(revenuePeriodEnd !== undefined ? { revenuePeriodEnd } : {}),
       ...(cashPeriodEnd !== undefined ? { cashPeriodEnd } : {}),

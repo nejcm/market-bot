@@ -233,35 +233,56 @@ describe("addFinancialLensEvidence", () => {
 
   test("flags stale EV date mixing and clamps negative zero lens values", () => {
     const baseEvidence = evidence();
-    const datedEvidence: ExtendedEvidence = {
-      ...baseEvidence,
-      items: baseEvidence.items.map((item) =>
-        item.category === "valuation"
-          ? {
-              ...item,
-              metrics: {
-                ...item.metrics,
-                quoteObservedAt: "2026-06-21T00:00:00.000Z",
-                cashPeriodEnd: "2025-12-31",
-                debtPeriodEnd: "2025-12-31",
-              },
-            }
-          : item,
-      ),
-    };
-    const result = addFinancialLensEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
-      datedEvidence,
-      verifiedSnapshot(),
-      "2026-06-22T00:00:00.000Z",
-    );
+    const lensFor = (metrics: Record<string, string>) =>
+      addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          ...baseEvidence,
+          items: baseEvidence.items.map((item) =>
+            item.category === "valuation"
+              ? { ...item, metrics: { ...item.metrics, ...metrics } }
+              : item,
+          ),
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
 
-    expect(metricByKey(result, "Value", "evDateBasis")).toMatchObject({
+    expect(
+      metricByKey(
+        lensFor({
+          quoteObservedAt: "2026-06-21T00:00:00.000Z",
+          cashPeriodEnd: "2025-12-31",
+          debtPeriodEnd: "2025-12-31",
+        }),
+        "Value",
+        "evDateBasis",
+      ),
+    ).toMatchObject({
       label: "EV date basis",
-      value: "EV mixes market cap (quote 2026-06-21) with cash/debt (balance sheet 2025-12-31)",
+      value:
+        "EV mixes market cap (fetch time 2026-06-21) with cash/debt (balance sheet 2025-12-31)",
       unit: "text",
     });
+    const quoteDated = {
+      quoteObservedAt: "2026-06-21T00:48:00.000Z",
+      quoteTimeUtc: "2026-06-20T20:00:00.000Z",
+    };
+    expect(
+      metricByKey(
+        lensFor({ ...quoteDated, cashPeriodEnd: "2025-12-31", debtPeriodEnd: "2025-12-31" }),
+        "Value",
+        "evDateBasis",
+      )?.value,
+    ).toBe("EV mixes market cap (quote 2026-06-20) with cash/debt (balance sheet 2025-12-31)");
+    expect(
+      metricByKey(
+        lensFor({ ...quoteDated, cashPeriodEnd: "2026-03-20", debtPeriodEnd: "2026-03-20" }),
+        "Value",
+        "evDateBasis",
+      ),
+    ).toBeUndefined();
     expect(formatLensValue(-0.000_01, "ratio")).toBe("0.00x");
     expect(formatLensValue(-0.000_01, "number")).toBe("0.00");
     expect(formatLensValue(-0.000_01, "ratio-percent")).toBe("0.0%");

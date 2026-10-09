@@ -462,6 +462,15 @@ export function resolveMarketSnapshotPriceAsOf(
     : { kind: "quote-time", instant: snapshot.quoteTimeUtc };
 }
 
+// Producers write these phrases and renderers find them by the same text to relabel the instant.
+export function marketCapAsOfPhrase(priceAsOf: MarketSnapshotPriceAsOf): string {
+  return `market cap as of ${priceAsOf.instant.slice(0, 10)}${priceAsOf.kind === "fetch-time-only" ? " (fetch time)" : ""}`;
+}
+
+export function marketCapQuotePhrase(priceAsOf: MarketSnapshotPriceAsOf): string {
+  return `market cap (${priceAsOf.kind === "quote-time" ? "quote" : "fetch time"} ${priceAsOf.instant.slice(0, 10)})`;
+}
+
 export interface MarketFundamentals {
   readonly trailingPE?: number;
   readonly forwardPE?: number;

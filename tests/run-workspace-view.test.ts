@@ -1157,7 +1157,8 @@ describe("run workspace view", () => {
             {
               category: "valuation",
               title: "Market-cap timing",
-              summary: "market cap as of 2026-07-04; market cap (quote 2026-07-04).",
+              summary:
+                "market cap as of 2026-07-04 (fetch time); market cap (fetch time 2026-07-04).",
               sourceIds: ["market-yahoo-equity-aapl"],
             },
           ],
@@ -1203,6 +1204,32 @@ describe("run workspace view", () => {
     expect(view.evidence.extendedItems[0]?.title).toBe("Valuation");
     expect(view.evidence.extendedItems[1]?.summary).toBe(
       "market cap fetch time 2026-07-04T12:00:00.000Z; market cap (fetch time 2026-07-04T12:00:00.000Z).",
+    );
+    const legacyView = buildRunWorkspaceView({
+      ...detail,
+      report: {
+        ...detail.report!,
+        extendedEvidence: {
+          ...detail.report!.extendedEvidence!,
+          items: [
+            {
+              category: "valuation",
+              title: "Legacy market-cap timing",
+              summary: "market cap as of 2026-07-05; market cap (quote 2026-07-05).",
+              sourceIds: ["market-yahoo-equity-aapl"],
+            },
+          ],
+        },
+      },
+      marketSnapshots: [
+        marketSnapshot({
+          observedAt: "2026-07-05T00:48:00.000Z",
+          quoteTimeUtc: "2026-07-04T20:00:00.000Z",
+        }),
+      ],
+    });
+    expect(legacyView.evidence.extendedItems[0]?.summary).toBe(
+      "market cap quote time 2026-07-04T20:00:00.000Z; market cap (quote time 2026-07-04T20:00:00.000Z).",
     );
     expect(view.gaps).toMatchObject({
       shortfalls: [],

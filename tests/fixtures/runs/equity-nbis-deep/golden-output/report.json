@@ -669,6 +669,7 @@
           "latestPeriodRevenue": 529800000,
           "annualizedRevenue": 529800000,
           "quoteObservedAt": "2026-07-22T16:16:13.510Z",
+          "quoteTimeUtc": "2026-07-22T16:16:04.000Z",
           "revenuePeriodMonths": 12,
           "revenuePeriodEnd": "2025-12-31",
           "cashPeriodEnd": "2025-12-31",

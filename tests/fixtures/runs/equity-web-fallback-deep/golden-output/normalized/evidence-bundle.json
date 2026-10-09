@@ -1140,7 +1140,7 @@
         {
           "category": "valuation",
           "title": "AAPL Valuation Evidence",
-          "summary": "Valuation Evidence: market cap $3000.0B, enterprise value $3040.0B, 6-month revenue $210.0B, annualized revenue $420.0B, EV/annualized revenue 7.24x, market cap/annualized revenue 7.14x, debt/market cap 0.03x, net debt/market cap 0.01x; market cap as of 2026-06-15; cash/debt as of 2026-03-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: supported; median EV/annualized revenue 7.41x, IQR 5.30x-9.55x.",
+          "summary": "Valuation Evidence: market cap $3000.0B, enterprise value $3040.0B, 6-month revenue $210.0B, annualized revenue $420.0B, EV/annualized revenue 7.24x, market cap/annualized revenue 7.14x, debt/market cap 0.03x, net debt/market cap 0.01x; market cap as of 2026-06-15 (fetch time); cash/debt as of 2026-03-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: supported; median EV/annualized revenue 7.41x, IQR 5.30x-9.55x.",
           "sourceIds": [
             "market-yahoo-equity-aapl",
             "extended-sec-edgar-aapl-filings",

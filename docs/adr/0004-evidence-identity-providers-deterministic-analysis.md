@@ -478,8 +478,10 @@ without pretending the project has a global security master.
   formula remain auditable. Quotes equal to either endpoint are `within-range`; only strict
   inequality yields `below-range` or `above-range`. This remains research context, not a composite
   score.
-- Valuation evidence preserves quote, cash, and debt dates. It discloses the market-cap and
-  balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
+- Valuation evidence preserves quote, cash, and debt dates. It dates market cap from
+  `quoteTimeUtc` when present (persisted beside `quoteObservedAt`, which stays acquisition
+  provenance) and otherwise from the fetch time, labelled as such; the 92-day check below uses the
+  same date. It discloses the market-cap and balance-sheet date basis and flags, without suppressing the result, enterprise values that mix a
   quote with cash/debt more than 92 days apart. Cash and debt more than 92 days apart are a
   different failure: target valuation evidence, peer rows, Financial Lens net debt, and historical
   Workbench EV/revenue (`mixed-period-balance-sheet`) all withhold EV rather than pair them, and

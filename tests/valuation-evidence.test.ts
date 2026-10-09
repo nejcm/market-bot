@@ -1,3 +1,4 @@
+import { renderPriceProvenance } from "../src/report/markdown-equity-sections";
 import { describe, expect, test } from "bun:test";
 import type { ExtendedEvidence } from "../src/domain/types";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
@@ -287,7 +288,36 @@ describe("addValuationEvidence", () => {
       "market cap $1.0K, enterprise value $1.0K, 3-month revenue $100, annualized revenue $400",
     );
     expect(valuation?.summary).toContain("EV/annualized revenue 2.55x");
+    expect(valuation?.summary).toContain(
+      "market cap as of 2026-05-19 (fetch time); cash/debt as of 2026-03-31",
+    );
+    expect(valuation?.metrics).not.toHaveProperty("quoteTimeUtc");
+  });
+
+  test("dates market cap from the provider quote instant on a post-midnight fetch", () => {
+    const snapshot = marketSnapshot({
+      sourceId: "market-yahoo-equity-aapl",
+      symbol: "AAPL",
+      marketCap: 1000,
+      observedAt: "2026-05-20T00:48:00.000Z",
+      quoteTimeUtc: "2026-05-19T20:00:00.000Z",
+    });
+    const result = addValuationEvidence(
+      command,
+      [snapshot],
+      baseExtendedEvidence,
+      "2026-07-01T00:00:00.000Z",
+    );
+
+    const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
+    expect(valuation?.metrics).toMatchObject({
+      quoteObservedAt: "2026-05-20T00:48:00.000Z",
+      quoteTimeUtc: "2026-05-19T20:00:00.000Z",
+    });
     expect(valuation?.summary).toContain("market cap as of 2026-05-19; cash/debt as of 2026-03-31");
+    expect(renderPriceProvenance(valuation!.summary, valuation!.sourceIds, snapshot)).toContain(
+      "market cap quote time 2026-05-19T20:00:00.000Z; cash/debt as of 2026-03-31",
+    );
   });
 
   test("carries a gross-principal debt basis only when the SEC item declares it", () => {

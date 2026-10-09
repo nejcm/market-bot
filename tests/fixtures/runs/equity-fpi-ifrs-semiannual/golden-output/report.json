@@ -405,7 +405,7 @@
       {
         "category": "valuation",
         "title": "IFRSSA Valuation Evidence",
-        "summary": "Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15; cash/debt as of 2025-12-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: screening-only; 0 usable peers.",
+        "summary": "Valuation Evidence: market cap $20.0B, enterprise value $23.0B, 12-month revenue $1.5B, annualized revenue $1.5B, EV/annualized revenue 15.33x, market cap/annualized revenue 13.33x, debt/market cap 0.19x, net debt/market cap 0.15x; market cap as of 2026-06-15 (fetch time); cash/debt as of 2025-12-31; enterprise value is borrowing-based and excludes finance leases. Peer comps supportability: screening-only; 0 usable peers.",
         "sourceIds": ["market-yahoo-equity-ifrssa", "extended-sec-edgar-ifrssa-fundamentals"],
         "observedAt": "2026-06-15T14:30:00.000Z",
         "metrics": {
@@ -459,7 +459,7 @@
       {
         "category": "financial-lens",
         "title": "IFRSSA Financial Lens Evidence",
-        "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength criteria-mixed (Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%); Value criteria-not-supported (EV date basis EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x); Momentum criteria-supported (Latest close $217, SMA50 212.51, RSI14 52.73, MACD histogram 0.08).",
+        "summary": "Financial Lens Evidence: Quality criteria-supported (Gross margin 85.0%, Operating margin 70.0%, Net margin 55.0%, Cash conversion 1.09x); Growth criteria-supported (Revenue YoY 25.0%, Gross profit YoY 25.0%, Operating income YoY 25.0%, Net income (attrib.) YoY 25.0%); Financial Strength criteria-mixed (Cash $750.0M, Debt $3.8B, Net debt $3.0B, Debt/market cap 18.8%); Value criteria-not-supported (EV date basis EV mixes market cap (fetch time 2026-06-15) with cash/debt (balance sheet 2025-12-31), Enterprise value $23.0B, Annualized revenue $1.5B, EV/revenue 15.33x); Momentum criteria-supported (Latest close $217, SMA50 212.51, RSI14 52.73, MACD histogram 0.08).",
         "sourceIds": [
           "extended-sec-edgar-ifrssa-fundamentals",
           "market-yahoo-equity-ifrssa",
@@ -507,7 +507,7 @@
           "debtToEquity": 4.166666666666667,
           "debtToEquityPeriodEnd": "2025-12-31",
           "valuePosture": "criteria-not-supported",
-          "evDateBasis": "EV mixes market cap (quote 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
+          "evDateBasis": "EV mixes market cap (fetch time 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
           "evDateBasisPeriodEnd": "2025-12-31",
           "enterpriseValue": 23000000000,
           "enterpriseValuePeriodEnd": "2026-06-15T14:30:00.000Z",

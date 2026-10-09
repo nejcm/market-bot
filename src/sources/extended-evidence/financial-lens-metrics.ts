@@ -4,8 +4,10 @@ import type {
   ExtendedEvidence,
   ExtendedEvidenceItem,
   MarketSnapshot,
+  MarketSnapshotPriceAsOf,
   SourceGap,
 } from "../../domain/types";
+import { marketCapQuotePhrase } from "../../domain/types";
 import {
   canonicalFinancialLensDerivedMetric,
   type CanonicalDerivedMetricKey,
@@ -290,6 +292,7 @@ export function observedPeriod(
 export function valuationDateBasisMetric(
   valuationItem: ExtendedEvidenceItem | undefined,
 ): readonly FinancialLensMetric[] {
+  const quoteTimeUtc = readRawStringMetric(valuationItem?.metrics, "quoteTimeUtc");
   const quoteObservedAt = readRawStringMetric(valuationItem?.metrics, "quoteObservedAt");
   const cashPeriodEnd = readRawStringMetric(valuationItem?.metrics, "cashPeriodEnd");
   const debtPeriodEnd = readRawStringMetric(valuationItem?.metrics, "debtPeriodEnd");
@@ -302,7 +305,11 @@ export function valuationDateBasisMetric(
   if (quoteObservedAt === undefined || balanceSheetPeriodEnd === undefined) {
     return [];
   }
-  const quoteDate = quoteObservedAt.slice(0, 10);
+  const priceAsOf: MarketSnapshotPriceAsOf =
+    quoteTimeUtc === undefined
+      ? { kind: "fetch-time-only", instant: quoteObservedAt }
+      : { kind: "quote-time", instant: quoteTimeUtc };
+  const quoteDate = priceAsOf.instant.slice(0, 10);
   const divergenceDays =
     Math.abs(Date.parse(quoteDate) - Date.parse(balanceSheetPeriodEnd)) / DAY_MS;
   if (
@@ -314,7 +321,7 @@ export function valuationDateBasisMetric(
   return metric(
     "evDateBasis",
     "EV date basis",
-    `EV mixes market cap (quote ${quoteDate}) with cash/debt (balance sheet ${balanceSheetPeriodEnd})`,
+    `EV mixes ${marketCapQuotePhrase(priceAsOf)} with cash/debt (balance sheet ${balanceSheetPeriodEnd})`,
     "text",
     valuationItem?.sourceIds ?? [],
     { periodEnd: balanceSheetPeriodEnd },

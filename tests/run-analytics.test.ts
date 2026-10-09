@@ -628,6 +628,19 @@ describe("run analytics", () => {
   });
 });
 
+const singleViewWarning =
+  "all emitted predictions share one kind and one subject; they restate a single view rather than independent signal";
+
+function rangeOn(id: string, subject: string, horizonTradingDays: number) {
+  return prediction({
+    id,
+    kind: "range",
+    subject,
+    measurableAs: `close(${subject}, +${horizonTradingDays}) outside [170, 230]`,
+    horizonTradingDays,
+  });
+}
+
 describe("forecast quality telemetry (3.2)", () => {
   const baseTrace: RunTrace = {
     runId: "run-q",
@@ -818,6 +831,42 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.mixWarnings).not.toContain(
       "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
     );
+  });
+
+  test("same-kind same-subject set produces a single-view mix warning", () => {
+    const result = predictionsFor([
+      rangeOn("p1", "AMD", 1),
+      rangeOn("p2", "AMD", 5),
+      rangeOn("p3", "AMD", 10),
+    ]);
+
+    expect(result.mixWarnings).toContain(singleViewWarning);
+  });
+
+  test("same kind across subjects does not produce a single-view mix warning", () => {
+    const result = predictionsFor([rangeOn("p1", "AAPL", 5), rangeOn("p2", "QQQ", 10)]);
+
+    expect(result.mixWarnings).not.toContain(singleViewWarning);
+  });
+
+  test("different kinds on one subject do not produce a single-view mix warning", () => {
+    const result = predictionsFor([
+      rangeOn("p1", "AAPL", 5),
+      prediction({
+        id: "p2",
+        subject: "AAPL",
+        measurableAs: "close(AAPL, +10) > close(AAPL, 0)",
+        horizonTradingDays: 10,
+      }),
+    ]);
+
+    expect(result.mixWarnings).not.toContain(singleViewWarning);
+  });
+
+  test("a single prediction does not produce a single-view mix warning", () => {
+    const result = predictionsFor([rangeOn("p1", "AMD", 5)]);
+
+    expect(result.mixWarnings).not.toContain(singleViewWarning);
   });
 
   test("zero predictions yields signalTargetMet: true with empty warnings", () => {

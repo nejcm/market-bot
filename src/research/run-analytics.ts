@@ -180,7 +180,7 @@ export interface RunAnalytics {
     readonly informativeCount: number;
     /** True when informativeCount meets the SIGNAL_INFORMATIVE_FLOOR relative to emitted count. */
     readonly signalTargetMet: boolean;
-    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate, same horizon). */
+    /** Non-blocking warnings about prediction-mix quality (direction-only, all near base rate, same horizon, single kind on one subject). */
     readonly mixWarnings: readonly string[];
   };
   readonly earningsForecasts?: EarningsForecastTelemetry;
@@ -739,6 +739,18 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
   ) {
     mixWarnings.push(
       "all emitted predictions use the same horizon; consider evidence-supported horizon variety",
+    );
+  }
+  if (
+    emittedPredictions.length > 1 &&
+    emittedPredictions.every(
+      (prediction) =>
+        prediction.kind === emittedPredictions[0]?.kind &&
+        prediction.subject === emittedPredictions[0]?.subject,
+    )
+  ) {
+    mixWarnings.push(
+      "all emitted predictions share one kind and one subject; they restate a single view rather than independent signal",
     );
   }
   const calibrationSnapshot = calibrationAtGeneration(input);

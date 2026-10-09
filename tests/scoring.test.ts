@@ -1479,6 +1479,46 @@ describe("buildCalibrationSummary — Forecast Event dedupe", () => {
     expect(summary.duplicateForecastCount).toBe(0);
   });
 
+  test("keys calendar-day point forecasts by issuance date, without a session roll", () => {
+    const fred = { kind: "macro" as const, measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)" };
+    const summary = buildCalibrationSummary([
+      issuance("r-sat", "2026-05-02T13:00:00.000Z", 0.6, fred),
+      issuance("r-mon", "2026-05-04T13:00:00.000Z", 0.6, fred),
+    ]);
+
+    expect(summary.resolvedCount).toBe(2);
+    expect(summary.duplicateForecastCount).toBe(0);
+  });
+
+  test("keys earnings forecasts by the declared event, whatever the issuance date", () => {
+    const earnings = {
+      kind: "earnings-direction" as const,
+      measurableAs: "earningsReturn(AAPL, 2026-05-06, +1) > 0",
+    };
+    const summary = buildCalibrationSummary([
+      issuance("r-mon", "2026-05-04T13:00:00.000Z", 0.6, earnings),
+      issuance("r-tue", "2026-05-05T13:00:00.000Z", 0.7, earnings),
+    ]);
+
+    expect(summary.resolvedCount).toBe(1);
+    expect(summary.duplicateForecastCount).toBe(1);
+    expect(summary.bins.map(({ label }) => label)).toEqual(["0.6-0.7"]);
+  });
+
+  test("keys and orders issuances by instant, not by the written timestamp", () => {
+    const sameInstant = buildCalibrationSummary([
+      issuance("r-utc", "2026-05-04T16:30:00.000Z", 0.6),
+      issuance("r-offset", "2026-05-05T00:30:00+08:00", 0.6),
+    ]);
+    expect(sameInstant.duplicateForecastCount).toBe(1);
+
+    const ordered = buildCalibrationSummary([
+      issuance("r-a", "2026-05-04T09:00:00-04:00", 0.3),
+      issuance("r-b", "2026-05-04T12:00:00.000Z", 0.8),
+    ]);
+    expect(ordered.bins.map(({ label }) => label)).toEqual(["0.8-0.9"]);
+  });
+
   test("ten runs repeating three events cannot pass the outcome floor", () => {
     const pairs = Array.from({ length: 10 }, (_, run) =>
       ["+5", "+10", "+15"].map((horizon) =>

@@ -63,19 +63,23 @@ be mistaken for current market evidence.
 ### Scoring and calibration
 
 - Calibration reporting remains descriptive. Its unit is the Forecast Event: one per
-  `assetClass | canonical claim | origin session`, where the origin session is the report's UTC
-  date, rolled forward to the next exchange trading day for equity. Repeat issuances of one event —
-  a rerun on the same session, or a weekend run that opens on Monday — are collapsed before any
-  aggregate, keeping the earliest issuance (ties by Run ID, then Prediction ID) so a rerun cannot
-  overwrite the original commitment. Bounds are not fuzzy-matched: different bounds are different
-  events. Each slice keeps event-weighted Brier scoring and adds the distinct Run count among the
-  kept events plus a Run-clustered standard error when calculable. The summary publishes
-  `duplicateForecastCount` (collapsed issuances, 0 when none), and voided conditional counts are
-  deduplicated by the same key.
-- The origin session is recomputed from `generatedAt`, not read from the resolver's window, because
-  legacy resolved scores never record it and are never rescored. Known ceiling: a report the
-  resolver anchored through the unverified-session quarantine branch can split or merge
-  incorrectly. Persist the window identity in score evidence if that case appears.
+  `assetClass | canonical claim | origin`, where the origin follows the clock the resolver uses
+  for that observation strategy. Close-window claims take the report's UTC date, rolled forward
+  to the next exchange trading day for equity; calendar-day point claims (macro, IV) take the UTC
+  date unrolled; earnings claims take the declared event date regardless of issuance; conditional
+  claims join their antecedent and consequent origins. Repeat issuances of one event are collapsed
+  before any aggregate, keeping the earliest issuance by instant (ties by Run ID, then Prediction
+  ID) so a rerun cannot overwrite the original commitment. Bounds are not fuzzy-matched: different
+  bounds are different events. Each slice keeps event-weighted Brier scoring and adds the distinct
+  Run count among the kept events plus a Run-clustered standard error when calculable. The summary
+  publishes `duplicateForecastCount` (collapsed issuances, 0 when none), and voided conditional
+  counts are deduplicated by the same key. A report whose `generatedAt` does not parse is
+  unreadable at the report reader, so it never reaches Calibration.
+- The origin is recomputed from `generatedAt` and the claim, not read from the resolver's window,
+  because legacy resolved scores never record it and are never rescored. Known ceiling: a report
+  the resolver anchored through the unverified-session quarantine branch, or earnings issuances
+  whose BMO/AMC timing changed between reports, can split or merge incorrectly. Persist the window
+  identity in score evidence if either case appears.
 - Current calibration summaries aggregate resolved policy-v3 forecasts only and present resolved
   count, hit rate, Brier score, reliability, and explicit small-sample warnings. They do not emit
   an always-0.5 baseline-skill headline. Historical summaries containing that legacy field remain

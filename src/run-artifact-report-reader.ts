@@ -351,7 +351,7 @@ export function readReport(value: unknown): ResearchReport | undefined {
   }
   const runId = readString(value, "runId");
   const generatedAt = readString(value, "generatedAt");
-  if (runId === undefined || generatedAt === undefined) {
+  if (runId === undefined || generatedAt === undefined || Number.isNaN(Date.parse(generatedAt))) {
     return;
   }
   const extendedEvidence = readExtendedEvidence(value.extendedEvidence);

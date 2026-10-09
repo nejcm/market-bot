@@ -763,6 +763,31 @@ describe("run artifact index", () => {
     expect(existsSync(calibrationPath)).toBe(true);
   });
 
+  test("treats a report with an unparseable generatedAt as unreadable instead of aborting", async () => {
+    const { dataDir } = await tempDataDir();
+    for (const [runId, generatedAt] of [
+      ["run-valid", "2026-06-01T00:00:00.000Z"],
+      ["run-bad-clock", "not-a-date"],
+    ] as const) {
+      const runDir = join(dataDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeJson(
+        join(runDir, "report.json"),
+        researchReport({ runId, generatedAt, predictions: [prediction({ id: "p1" })] }),
+      );
+      writeJson(join(runDir, "score.json"), {
+        runId,
+        scores: [predictionScore("hit", { predictionId: "p1", runId, scoringVersion: 3 })],
+      });
+    }
+
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+
+    expect(summary?.resolvedCount).toBe(1);
+    expect(summary?.duplicateForecastCount).toBe(0);
+  });
+
   test("replaces a legacy-only calibration summary with an empty v3 summary", async () => {
     const { dataDir, dbPath, rootDir } = await tempDataDir();
     const runDir = join(dataDir, "run-legacy-calibration");

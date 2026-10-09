@@ -47,9 +47,7 @@ export {
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "./observable-redundancy";
 
-// Claim identity is the canonical measurableAs rendered from the parsed observable
-// Expression, so formatting drift between runs does not defeat the comparison.
-// Pre-DSL artifacts that fail to parse fall back to collapsed lowercase text.
+// Canonical DSL so formatting drift keeps one identity; pre-DSL text falls back to collapsed lowercase.
 export function claimKey(measurableAs: string): string {
   try {
     return measurableAsForExpression(parseObservableExpression(measurableAs));

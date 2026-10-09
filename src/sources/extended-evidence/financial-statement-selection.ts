@@ -177,6 +177,7 @@ export function recognizedDebtConcepts(taxonomy: FinancialStatementTaxonomy): Re
     ...(concepts.financeLeases === undefined
       ? []
       : [concepts.financeLeases.total, ...concepts.financeLeases.split]),
+    ...Object.keys(concepts.umbrellas ?? {}),
   ]);
 }
 
@@ -281,8 +282,10 @@ export function unadjustedLeaseInclusiveDebt(
 function coveredDebtConcepts(
   concepts: DebtTaxonomyConcepts,
   sides: readonly DebtSide[],
+  usedUmbrellas: readonly string[],
+  isTagged: (concept: string) => boolean,
 ): ReadonlySet<string> {
-  return new Set([
+  const covered = new Set([
     ...sides.flatMap((side, index) =>
       side.generic === undefined
         ? side.instruments.filter((group) => group.some((c) => side.concepts.includes(c))).flat()
@@ -293,7 +296,14 @@ function coveredDebtConcepts(
     ),
     ...(sides.every((side) => side.generic !== undefined) ? concepts.totals : []),
     ...Object.values(concepts.financeLeases ?? {}).flat(),
+    ...usedUmbrellas.flatMap((umbrella) => [umbrella, ...(concepts.umbrellas?.[umbrella] ?? [])]),
   ]);
+  for (const [umbrella, legs] of Object.entries(concepts.umbrellas ?? {})) {
+    if (legs.every((leg) => covered.has(leg)) || (isTagged(umbrella) && legs.some(isTagged))) {
+      covered.add(umbrella);
+    }
+  }
+  return covered;
 }
 
 // Every debt concept last reported nonzero within the prior year, or earlier for this instant, must be covered.
@@ -331,6 +341,7 @@ function incompleteDebtReason(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
   sides: readonly DebtSide[],
+  usedUmbrellas: readonly string[],
   tagged: ReadonlyMap<string, unknown>,
   history: readonly DebtHistoryFact[],
 ): string | undefined {
@@ -339,10 +350,12 @@ function incompleteDebtReason(
   if (unrecognized.length > 0) {
     return `unrecognized borrowing concepts are tagged: ${unrecognized.join(", ")}`;
   }
-  if (sides.every((side) => side.concepts.length === 0)) {
+  if (usedUmbrellas.length === 0 && sides.every((side) => side.concepts.length === 0)) {
     return "no borrowing line item is tagged";
   }
-  const covered = coveredDebtConcepts(DEBT_CONCEPTS[taxonomy], sides);
+  const covered = coveredDebtConcepts(DEBT_CONCEPTS[taxonomy], sides, usedUmbrellas, (concept) =>
+    tagged.has(concept),
+  );
   // Two generic side lines are the classified debt totals, so prior footnote borrowings are constituents.
   const bothGeneric = sides.every((side) => side.generic !== undefined);
   const omitted = omittedDebtConcepts(
@@ -378,7 +391,25 @@ export function resolveDebtAtInstant<T>(
           : [generic],
     };
   });
-  const used = total === undefined ? sides.flatMap((side) => side.concepts) : [total];
+  const umbrellas = Object.entries(concepts.umbrellas ?? {})
+    .filter(([umbrella, legs]) => tagged.has(umbrella) && !legs.some((leg) => tagged.has(leg)))
+    .map(([umbrella]) => umbrella);
+  const mismatched = Object.entries(concepts.umbrellas ?? {})
+    .filter(([umbrella, legs]) => {
+      const tagLegs = legs.filter((leg) => tagged.has(leg));
+      const umbrellaValue = tagged.has(umbrella) ? valueOf(tagged.get(umbrella) as T) : 0;
+      const legSum = tagLegs.reduce((acc, leg) => acc + valueOf(tagged.get(leg) as T), 0);
+      return (
+        tagged.has(umbrella) &&
+        tagLegs.length > 0 &&
+        Math.abs(umbrellaValue - legSum) > 1e-9 * Math.max(1, Math.abs(umbrellaValue))
+      );
+    })
+    .map(([umbrella]) => umbrella);
+  const overlap = sides.some((side) => side.generic !== undefined) ? umbrellas : [];
+  const usedUmbrellas = overlap.length > 0 ? [] : umbrellas;
+  const used =
+    total === undefined ? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas] : [total];
   const { subtracted, unadjusted, deductions } = leaseAdjustment(concepts, used, (concept) =>
     tagged.has(concept),
   );
@@ -386,9 +417,13 @@ export function resolveDebtAtInstant<T>(
     names.reduce((acc, name) => acc + valueOf(tagged.get(name) as T), 0);
   const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
   const componentReason =
-    total === undefined
-      ? incompleteDebtReason(taxonomy, instant, sides, tagged, history)
-      : undefined;
+    total !== undefined
+      ? undefined
+      : mismatched.length > 0
+        ? `${mismatched.join(", ")} differs from the sum of its tagged legs`
+        : overlap.length > 0
+          ? `${overlap.join(", ")} may overlap a generic long-term-debt line`
+          : incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history);
   const incompleteReason =
     excess === undefined
       ? componentReason

@@ -288,7 +288,14 @@ without pretending the project has a global security master.
   tagged standard total wins; otherwise the selected fact is a deterministic same-instant sum
   (`extractionMethod: derived-sec-companyfacts`) of disjoint borrowing line items, carrying every
   contributor. Aliases of one line item and a total and its constituents (including short-term
-  borrowings and the commercial paper inside them) are alternatives, never added; a generic
+  borrowings and the commercial paper inside them, or `ConvertibleDebtNoncurrent` and
+  `ConvertibleLongTermNotesPayable`) are alternatives, never added; the `LineOfCredit` umbrella
+  spans both sides and counts only when neither line-of-credit leg (`LongTermLineOfCredit`,
+  `LinesOfCreditCurrent`) is tagged at that instant, so tagged legs replace the
+  umbrella only when it equals their tagged sum (otherwise the instant is refused); with no leg
+  tagged but a generic side line tagged, it is refused as a possible overlap; for continuity a
+  selected umbrella covers both legs and the umbrella is covered only by both legs or by legs
+  tagged beside it that sum to it; a generic
   current or noncurrent long-term-debt line subsumes that side's instrument lines; finance and
   operating leases are excluded. A lease-inclusive aggregate (`DebtCurrent`, the
   `LongTermDebtAndCapitalLeaseObligations*` lines, `DebtAndCapitalLeaseObligations`) has the

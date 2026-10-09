@@ -114,6 +114,115 @@ describe("debt resolution at the cash instant", () => {
     expect(legacy?.metrics.debtPeriodEnd).toBe("2026-07-31");
   });
 
+  test("ADTN: convertible notes plus the line-of-credit leg, never its umbrella too", () => {
+    const at = (value: number, end = "2026-06-30") => instant(value, end, "2026-08-04");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(90_000_000)],
+      LongTermDebt: [instant(24_600_000, "2019-12-31", "2020-02-28", "10-K", "FY")],
+      LineOfCredit: [at(25_000_000, "2026-03-31"), at(25_000_000)],
+      LongTermLineOfCredit: [at(25_000_000, "2026-03-31"), at(25_000_000)],
+      ConvertibleLongTermNotesPayable: [at(193_425_000, "2026-03-31"), at(193_822_000)],
+    });
+
+    expect(canonical).toMatchObject({ value: 218_822_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(218_822_000);
+    expect(legacy?.metrics.debtPeriodEnd).toBe("2026-06-30");
+  });
+
+  test("a lone LineOfCredit umbrella stands in for its untagged legs", () => {
+    const at = (value: number, end = "2026-06-30") => instant(value, end, "2026-08-04");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      LineOfCredit: [at(40_000, "2026-03-31"), at(30_000)],
+    });
+
+    expect(canonical).toMatchObject({ value: 30_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(30_000);
+  });
+
+  test("a LineOfCredit umbrella that disagrees with its tagged legs is refused", () => {
+    const at = (value: number, end = "2026-06-30") => instant(value, end, "2026-08-04");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      LineOfCredit: [at(50_000, "2026-03-31"), at(50_000)],
+      LinesOfCreditCurrent: [at(10_000)],
+    });
+
+    expect(canonical).toMatchObject({ value: 50_000, periodEnd: "2026-03-31" });
+    expect(legacy?.debtComposite?.incompleteReason).toContain("differs from the sum");
+  });
+
+  test("an umbrella equal to its legs up to float roundoff is not refused", () => {
+    const at = (value: number) => instant(value, "2026-06-30", "2026-08-04");
+    const { canonical } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      LineOfCredit: [at(300.3)],
+      LinesOfCreditCurrent: [at(100.1)],
+      LongTermLineOfCredit: [at(200.2)],
+    });
+
+    expect(canonical?.periodEnd).toBe("2026-06-30");
+    expect(canonical?.value).toBeCloseTo(300.3);
+  });
+
+  test("a zero leg beside a nonzero LineOfCredit umbrella never publishes zero debt", () => {
+    const at = (value: number) => instant(value, "2026-06-30", "2026-08-04");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      LineOfCredit: [instant(50, "2026-03-31", "2026-05-05"), at(50)],
+      LinesOfCreditCurrent: [at(0)],
+    });
+
+    expect(canonical?.periodEnd).toBe("2026-03-31");
+    expect(legacy?.metrics.debt).toBe(50);
+  });
+
+  test("a LineOfCredit umbrella beside a generic side line is refused, never added", () => {
+    const at = (value: number) => instant(value, "2026-06-30", "2026-08-04");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      LongTermDebtCurrent: [at(10)],
+      LineOfCredit: [at(50)],
+    });
+
+    expect(canonical?.periodEnd).not.toBe("2026-06-30");
+    expect(legacy?.debtComposite?.incompleteReason).toContain("LineOfCredit may overlap");
+  });
+
+  test("a generic current line alone does not cover a prior LineOfCredit umbrella", () => {
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [instant(1000, "2026-06-30", "2026-08-04")],
+      LineOfCredit: [instant(50, "2026-03-31", "2026-05-05")],
+      LongTermDebtCurrent: [instant(10, "2026-06-30", "2026-08-04")],
+    });
+
+    expect(canonical).toMatchObject({ value: 50, periodEnd: "2026-03-31" });
+    expect(legacy?.debtComposite?.incompleteReason).toContain("omits LineOfCredit");
+  });
+
+  test("a selected LineOfCredit umbrella covers a prior current leg", () => {
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [instant(1000, "2026-06-30", "2026-08-04")],
+      LinesOfCreditCurrent: [instant(10, "2026-03-31", "2026-05-05")],
+      LineOfCredit: [instant(50, "2026-06-30", "2026-08-04")],
+    });
+
+    expect(canonical).toMatchObject({ value: 50, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(50);
+  });
+
+  test("both convertible noncurrent tags are alternatives, not additive", () => {
+    const at = (value: number) => instant(value, "2026-06-30", "2026-08-04");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      ConvertibleDebtNoncurrent: [at(500_000)],
+      ConvertibleLongTermNotesPayable: [at(500_000)],
+    });
+
+    expect(canonical).toMatchObject({ value: 500_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(500_000);
+  });
+
   test("OCC: counts the revolver and both term-loan legs, excluding finance leases", () => {
     const at = (value: number) => instant(value, "2026-07-31", "2026-09-10", "10-Q", "Q3");
     const { canonical, legacy } = resolve({

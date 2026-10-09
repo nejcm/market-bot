@@ -30,6 +30,7 @@ export interface DebtTaxonomyConcepts {
   readonly financeLeases?: { readonly total: string; readonly split: readonly string[] };
   readonly leaseInclusive?: Readonly<Record<string, "current" | "noncurrent" | "total">>;
   readonly unrecognizedBorrowing?: RegExp;
+  readonly umbrellas?: Readonly<Record<string, readonly string[]>>;
 }
 
 // Inner arrays are alternatives for one line item; separate entries are disjoint and add.
@@ -62,7 +63,7 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
         ["LongTermNotesPayable"],
         ["LongTermLoansPayable"],
         ["LongTermLineOfCredit"],
-        ["ConvertibleDebtNoncurrent"],
+        ["ConvertibleDebtNoncurrent", "ConvertibleLongTermNotesPayable"],
         ["SecuredLongTermDebt"],
       ],
     },
@@ -77,6 +78,8 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: "total",
       DebtAndCapitalLeaseObligations: "total",
     },
+    // An umbrella spans both sides: used only when no leg and no generic side line is tagged.
+    umbrellas: { LineOfCredit: ["LongTermLineOfCredit", "LinesOfCreditCurrent"] },
     unrecognizedBorrowing:
       /(?:Debt|Borrowings|Notes|NotesPayable|LoansPayable|LinesOfCredit|LineOfCredit|CommercialPaper|Debt\w*LeaseObligations)(?:Current|Noncurrent)?$/u,
   },

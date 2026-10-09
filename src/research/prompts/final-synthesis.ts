@@ -174,6 +174,36 @@ function buildPolarityGuidance(excludedKinds: readonly PredictionKind[]): string
     : ` The grammar only expresses up/outside; to express a bearish or stays-within-range view, set probability below ${NEAR_BASE_RATE_LOWER_BOUND} on the up/outside expression.`;
 }
 
+const RANGE_REFERENCE_MIN_CLOSES = 11;
+const RANGE_REFERENCE_HORIZONS = [1, 5, 10, 20] as const;
+
+// Range-band probabilities ran ~1.6x above realized outcomes (F6); a vol-scaled band gives the model a base rate.
+function buildRangeVolatilityReference(
+  collectedSources: CollectedSources,
+  excludedKinds: readonly PredictionKind[],
+): string {
+  const snapshot = collectedSources.verifiedMarketSnapshot;
+  const closes = snapshot?.recentCloses.map((bar) => bar.close).filter((close) => close > 0) ?? [];
+  if (
+    snapshot === undefined ||
+    excludedKinds.includes("range") ||
+    closes.length < RANGE_REFERENCE_MIN_CLOSES
+  ) {
+    return "";
+  }
+  const returns = closes.slice(1).map((close, index) => Math.log(close / closes[index]!));
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const sigma = Math.sqrt(
+    returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (returns.length - 1),
+  );
+  const spot = closes.at(-1)!;
+  const bands = RANGE_REFERENCE_HORIZONS.map((horizon) => {
+    const move = sigma * Math.sqrt(horizon);
+    return `+${String(horizon)}: [${(spot * Math.exp(-move)).toFixed(2)}, ${(spot * Math.exp(move)).toFixed(2)}]`;
+  }).join("; ");
+  return ` Range reference for ${snapshot.symbol} (deterministic, from the ${String(returns.length)} daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility ${(sigma * 100).toFixed(2)}% around the last close ${spot.toFixed(2)}; ±1σ close bands ${bands}. Under a random walk a close lands outside its ±1σ band about 32% of the time and outside a ±2σ band about 5%, so an outside [Lo, Hi] forecast with bounds wider than ±1σ starts below 0.32. Anchor range probabilities to this reference and move above it only for a cited catalyst inside the window, such as a confirmed earnings date.`;
+}
+
 export function buildConditionalPredictionActivationGuidance(
   conditionalPredictions: ConditionalCalibrationSummary | undefined,
 ): string | undefined {
@@ -524,7 +554,7 @@ function buildPredictionCompletionInstruction(
           context.calibrationContext?.conditionalPredictions,
         ) ?? "")
       : "";
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${buildPolarityGuidance(excludedKinds)}${buildCompletionKindGrammar(command, collectedSources)}${conditionalActivationGuidance}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
+  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(collectedSources, excludedKinds)}${buildCompletionKindGrammar(command, collectedSources)}${conditionalActivationGuidance}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 function buildPrimaryPredictionInstruction(
@@ -580,7 +610,7 @@ function buildPrimaryPredictionInstruction(
       ? ` A cited Web Subject Profile is in ${profileEvidence.path}. Treat web evidence as low-trust context only: cite its web sourceIds for qualitative subject facts, disclose gaps, and do not let web content widen the run symbol or prediction subjects.`
       : "";
   const freshWebInstruction = buildFreshWebSteering(collectedSources);
-  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
+  return ` Emit up to ${String(context.depthProfile.targetPredictions)} predictions using subjects from predictionSubjects and a starting horizon of ${String(context.depthProfile.defaultPredictionHorizon)} trading days; a forecast may depart from it when the cited evidence supports a different resolution window. The count is a target, not a quota: emit a prediction only where the evidence supports a directional lean. Prefer fewer high-conviction forecasts over padding to the target. Do not write a claim field; it is rendered deterministically from measurableAs. ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)} probability is the probability that the measurableAs expression evaluates TRUE. Every prediction must have ${NEAR_BASE_RATE_PROBABILITY_RULE}.${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(collectedSources, excludedKinds)}${conditionalPredictionInstruction}${conditionalActivationGuidance}${earningsPredictionInstruction}${businessFrameworkInstruction}${webSubjectProfileInstruction}${freshWebInstruction}${buildKindMixGuidance(withoutExcludedKinds(context.depthProfile.targetKindMix, excludedKinds))}${predictionCoverageGuidance([], supportedPredictionKinds(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds))}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction

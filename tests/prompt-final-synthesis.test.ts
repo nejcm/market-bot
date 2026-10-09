@@ -20,7 +20,10 @@ import {
 } from "./support/fixtures";
 import { config, stagePromptFromArgs } from "./support/research-context-helpers";
 
-function kindMixSynthesisInstruction(command: ResearchCommand): string {
+function kindMixSynthesisInstruction(
+  command: ResearchCommand,
+  sources: Partial<Parameters<typeof collectedSources>[0]> = {},
+): string {
   const depthProfile = buildDepthProfile(command, config);
   const prompt = stagePromptFromArgs(
     "final-synthesis",
@@ -30,6 +33,7 @@ function kindMixSynthesisInstruction(command: ResearchCommand): string {
       marketSnapshots: [marketSnapshot()],
       newsSources: [newsSource()],
       sourceGaps: [],
+      ...sources,
     }),
     config,
     {
@@ -62,6 +66,41 @@ function kindMixSynthesisInstruction(command: ResearchCommand): string {
   const parsed = JSON.parse(prompt) as { readonly instruction?: string };
   return parsed.instruction ?? "";
 }
+
+function rangeReferenceCloses(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+    close: index % 2 === 0 ? 100 : 102,
+  }));
+}
+
+describe("range volatility reference", () => {
+  const command: ResearchCommand = {
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    depth: "brief",
+  };
+  test("anchors range probabilities to a vol-scaled band from recent closes", () => {
+    const instruction = kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(21) }),
+    });
+
+    expect(instruction).toContain(
+      "Range reference for AAPL (deterministic, from the 20 daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility 2.03% around the last close 100.00; ±1σ close bands +1: [97.99, 102.05]; +5: [95.56, 104.65]",
+    );
+    expect(instruction).toContain("starts below 0.32");
+  });
+
+  test("omits the reference without enough closes or a verified snapshot", () => {
+    expect(
+      kindMixSynthesisInstruction(command, {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(10) }),
+      }),
+    ).not.toContain("Range reference");
+    expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
+  });
+});
 
 describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {
   test("daily-equity (market-update) instruction favors relative/macro/volatility over bare direction", () => {

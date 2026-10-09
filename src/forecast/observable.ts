@@ -6,6 +6,7 @@ import type {
   ObservableForecastReadResult,
 } from "./observable-types";
 import { resolveCandidate } from "./observable-candidates";
+import { measurableAsForExpression, parseObservableExpression } from "./observable-expression";
 import { rejectRedundantForecasts } from "./observable-redundancy";
 
 export type {
@@ -24,7 +25,6 @@ export {
   instrumentsForExpression,
   instrumentsForMeasurableAs,
   isPredictionKind,
-  measurableAsForExpression,
   observationStrategyForExpression,
   observationStrategyForForecast,
   parseObservableExpression,
@@ -46,6 +46,17 @@ export {
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "./observable-redundancy";
+
+// Claim identity is the canonical measurableAs rendered from the parsed observable
+// Expression, so formatting drift between runs does not defeat the comparison.
+// Pre-DSL artifacts that fail to parse fall back to collapsed lowercase text.
+export function claimKey(measurableAs: string): string {
+  try {
+    return measurableAsForExpression(parseObservableExpression(measurableAs));
+  } catch {
+    return measurableAs.trim().toLowerCase().replaceAll(/\s+/gu, " ");
+  }
+}
 
 export function observableForecastFromPrediction(
   prediction: Prediction,

@@ -1,5 +1,5 @@
 import type { ResearchReport } from "../domain/types";
-import { measurableAsForExpression, parseObservableExpression } from "../forecast/observable";
+import { claimKey } from "../forecast/observable";
 
 // Compact prior-run projection the historical-context reader hands to
 // BuildForecastPersistence: just enough to compare claim identity and probability.
@@ -22,17 +22,6 @@ export interface ForecastPersistence {
 }
 
 const PROBABILITY_DELTA_DECIMAL_PLACES = 4;
-
-// Claim identity is the canonical measurableAs rendered from the parsed observable
-// Expression, so formatting drift between runs does not defeat the comparison.
-// Pre-DSL artifacts that fail to parse fall back to collapsed lowercase text.
-function claimKey(measurableAs: string): string {
-  try {
-    return measurableAsForExpression(parseObservableExpression(measurableAs));
-  } catch {
-    return measurableAs.trim().toLowerCase().replaceAll(/\s+/gu, " ");
-  }
-}
 
 export function buildForecastPersistence(input: {
   readonly report: ResearchReport;

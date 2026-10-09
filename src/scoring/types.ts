@@ -94,7 +94,10 @@ export interface ConditionalCalibrationSummary {
 
 export interface CalibrationSummary {
   readonly generatedAt: string;
+  /** Resolved Forecast Events: duplicate issuances are collapsed before every aggregate. */
   readonly resolvedCount: number;
+  /** Resolved issuances collapsed into an earlier issuance of the same Forecast Event. */
+  readonly duplicateForecastCount: number;
   /**
    * Absent whenever `resolvedCount` is 0. There is no hit rate over zero
    * Resolved Predictions, and 0 would read as "never right" rather than

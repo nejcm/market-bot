@@ -62,8 +62,20 @@ be mistaken for current market evidence.
 
 ### Scoring and calibration
 
-- Calibration reporting remains descriptive. Each slice keeps prediction-weighted Brier scoring
-  and adds its distinct Run count plus a Run-clustered standard error when calculable.
+- Calibration reporting remains descriptive. Its unit is the Forecast Event: one per
+  `assetClass | canonical claim | origin session`, where the origin session is the report's UTC
+  date, rolled forward to the next exchange trading day for equity. Repeat issuances of one event —
+  a rerun on the same session, or a weekend run that opens on Monday — are collapsed before any
+  aggregate, keeping the earliest issuance (ties by Run ID, then Prediction ID) so a rerun cannot
+  overwrite the original commitment. Bounds are not fuzzy-matched: different bounds are different
+  events. Each slice keeps event-weighted Brier scoring and adds the distinct Run count among the
+  kept events plus a Run-clustered standard error when calculable. The summary publishes
+  `duplicateForecastCount` (collapsed issuances, 0 when none), and voided conditional counts are
+  deduplicated by the same key.
+- The origin session is recomputed from `generatedAt`, not read from the resolver's window, because
+  legacy resolved scores never record it and are never rescored. Known ceiling: a report the
+  resolver anchored through the unverified-session quarantine branch can split or merge
+  incorrectly. Persist the window identity in score evidence if that case appears.
 - Current calibration summaries aggregate resolved policy-v3 forecasts only and present resolved
   count, hit rate, Brier score, reliability, and explicit small-sample warnings. They do not emit
   an always-0.5 baseline-skill headline. Historical summaries containing that legacy field remain
@@ -96,8 +108,11 @@ be mistaken for current market evidence.
 - Calibration affects primary synthesis and Forecast Completion through two independently gated
   inputs. Actionable Negative Calibration assesses asset class, job type, default
   Prediction-horizon bucket, and current Market Regime independently. A slice qualifies only with
-  at least 30 resolved Predictions and 10 distinct Runs and when its Bonferroni-adjusted 98.75%
-  one-sided lower bound (`Brier - 2.2414 × standard error`) is strictly above the 0.25 baseline.
+  at least 30 resolved Forecast Events and 10 distinct Runs among those kept events, and when its
+  Bonferroni-adjusted 98.75% one-sided lower bound (`Brier - 2.2414 × standard error`) is strictly
+  above the 0.25 baseline. The prompt block also assesses Prediction-kind slices beyond these four
+  dimensions; whether kind belongs in the gate is an open decision, recorded here rather than
+  settled.
 - Conditional-activation guidance enters deep-run primary synthesis and Forecast Completion when
   at least 10 conditional forecasts have resolved and the aggregate void rate is at least 0.5.
   It uses activated and voided history to steer antecedents toward plausible events or observed

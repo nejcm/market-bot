@@ -6,6 +6,8 @@ import {
   type MarketRegimeLabel,
   type Prediction,
 } from "../domain/types";
+import { claimKey } from "../forecast/observable";
+import { isExchangeTradingDay } from "./exchange-calendar";
 import type {
   CalibrationBin,
   ConditionalCalibrationSummary,
@@ -22,6 +24,7 @@ export interface ResolvedPair {
   readonly jobType: JobType;
   readonly marketUpdateHorizonBucket?: string;
   readonly runId: string;
+  readonly generatedAt: string;
   readonly missAutopsyCause?: MissAutopsyCause;
   /** Market Regime label in effect at forecast time; undefined when absent/unparseable. */
   readonly marketRegimeLabel?: MarketRegimeLabel;
@@ -193,12 +196,56 @@ function buildMarketRegimeCoverage(pairs: readonly ResolvedPair[]): Record<strin
   return result;
 }
 
+// NOTE — ponytail: the origin session is recomputed from generatedAt, not the resolver's window, so a
+// Report anchored through the quarantine branch can split or merge; persist the window if that shows up.
+function originSession(assetClass: AssetClass, generatedAt: string): string {
+  const reportDate = generatedAt.slice(0, 10);
+  if (assetClass === "crypto") {
+    return reportDate;
+  }
+  let session = new Date(`${reportDate}T00:00:00.000Z`);
+  while (!isExchangeTradingDay(session)) {
+    session = new Date(session.getTime() + 86_400_000);
+  }
+  return session.toISOString().slice(0, 10);
+}
+
+export function forecastEventKey(
+  assetClass: AssetClass,
+  measurableAs: string,
+  generatedAt: string,
+): string {
+  return `${assetClass}|${claimKey(measurableAs)}|${originSession(assetClass, generatedAt)}`;
+}
+
+function compareIssuance(left: ResolvedPair, right: ResolvedPair): number {
+  return (
+    left.generatedAt.localeCompare(right.generatedAt) ||
+    left.runId.localeCompare(right.runId) ||
+    left.prediction.id.localeCompare(right.prediction.id)
+  );
+}
+
+// One Forecast Event per claim and origin session; the earliest issuance is the original commitment.
+function earliestIssuancePerEvent(pairs: readonly ResolvedPair[]): readonly ResolvedPair[] {
+  const events = new Map<string, ResolvedPair>();
+  for (const pair of pairs.toSorted(compareIssuance)) {
+    const key = forecastEventKey(pair.assetClass, pair.prediction.measurableAs, pair.generatedAt);
+    if (!events.has(key)) {
+      events.set(key, pair);
+    }
+  }
+  const kept = new Set(events.values());
+  return pairs.filter((pair) => kept.has(pair));
+}
+
 export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
   conditionalPredictions: ConditionalCalibrationSummary = EMPTY_CONDITIONAL_SUMMARY,
 ): CalibrationSummary {
-  const currentPairs = pairs.filter(({ score }) => score.scoringVersion === 3);
+  const issuedPairs = pairs.filter(({ score }) => score.scoringVersion === 3);
+  const currentPairs = earliestIssuancePerEvent(issuedPairs);
   const conditionalActivatedCount =
     conditionalPredictions.activatedCount +
     currentPairs.filter(({ prediction }) => prediction.kind === "conditional").length;
@@ -207,6 +254,7 @@ export function buildCalibrationSummary(
   return {
     generatedAt: now.toISOString(),
     resolvedCount: currentPairs.length,
+    duplicateForecastCount: issuedPairs.length - currentPairs.length,
     // Omitted, never 0, when nothing has resolved — see CalibrationSummary.
     ...(currentPairs.length === 0 ? {} : { hitRate: hitCount / currentPairs.length }),
     missAutopsyCount: currentPairs.filter(({ missAutopsyCause }) => missAutopsyCause !== undefined)

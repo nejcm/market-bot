@@ -66,6 +66,11 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   const generatedAt = readString(value, "generatedAt");
   const resolvedCount = readNumberWhere(value, "resolvedCount", isCalibrationCount);
   const missAutopsyCount = readNumberWhere(value, "missAutopsyCount", isCalibrationCount);
+  const duplicateForecastCount = readNumberWhere(
+    value,
+    "duplicateForecastCount",
+    isCalibrationCount,
+  );
   // Zero-resolution invariant, enforced at the disk boundary rather than assumed:
   // Summaries written before the producer omitted these still hold zeros, and a
   // Stored Brier of 0 would reach synthesis as perfect calibration.
@@ -95,6 +100,7 @@ export function parseCalibrationContext(value: unknown): CalibrationContext | un
   return {
     ...(generatedAt !== undefined ? { generatedAt } : {}),
     ...(resolvedCount !== undefined ? { resolvedCount } : {}),
+    ...(duplicateForecastCount !== undefined ? { duplicateForecastCount } : {}),
     ...(missAutopsyCount !== undefined ? { missAutopsyCount } : {}),
     ...(brierScore !== undefined ? { brierScore } : {}),
     ...(hitRate !== undefined ? { hitRate } : {}),

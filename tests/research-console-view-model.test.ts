@@ -917,8 +917,13 @@ describe("research console app view model", () => {
   });
 });
 
-function currentPair(id: string, probability: number, outcome: "hit" | "miss") {
-  const base = resolvedPair(id, probability, outcome);
+function currentPair(
+  id: string,
+  probability: number,
+  outcome: "hit" | "miss",
+  generatedAt: string,
+) {
+  const base = resolvedPair(id, probability, outcome, generatedAt);
   return { ...base, score: { ...base.score, scoringVersion: 3 as const } };
 }
 
@@ -992,6 +997,18 @@ describe("calibration view model", () => {
     expect(calibrationHeadline({ summary: { resolvedCount: "many", hitRate: 0 } })).toEqual({
       hitRate: 0,
     });
+  });
+
+  test("reads the duplicate issuance count, keeping a measured zero", () => {
+    for (const duplicateForecastCount of [0, 12]) {
+      expect(
+        calibrationHeadline({ summary: { resolvedCount: 31, duplicateForecastCount } }),
+      ).toEqual({ resolvedCount: 31, duplicateForecastCount });
+    }
+    // Pre-dedupe summaries carry no count; an invalid one is not a smaller one.
+    expect(
+      calibrationHeadline({ summary: { resolvedCount: 31, duplicateForecastCount: -1 } }),
+    ).toEqual({ resolvedCount: 31 });
   });
 
   test("drops a Brier score outside the achievable [0, 1] range", () => {
@@ -1193,12 +1210,13 @@ describe("calibration view model", () => {
 
   test("renders a producer-built summary in full", () => {
     const built = buildCalibrationSummary([
-      currentPair("pred-1", 0.65, "hit"),
-      currentPair("pred-2", 0.65, "miss"),
-      currentPair("pred-3", 0.25, "miss"),
+      currentPair("pred-1", 0.65, "hit", "2026-05-26T00:00:00.000Z"),
+      currentPair("pred-2", 0.65, "miss", "2026-05-27T00:00:00.000Z"),
+      currentPair("pred-3", 0.25, "miss", "2026-05-28T00:00:00.000Z"),
     ]);
     const summary = structuredClone(built) as unknown as Record<string, unknown>;
     expect(built.resolvedCount).toBe(3);
+    expect(calibrationHeadline({ summary }).duplicateForecastCount).toBe(0);
     expect(built.bins.length).toBeGreaterThan(0);
     expect(reliabilityBins({ summary })).toEqual(built.bins);
     expect(calibrationSlices({ summary }, "byKind")).toEqual(

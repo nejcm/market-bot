@@ -18,7 +18,8 @@ import {
   type ValuationWorkbenchArtifact,
 } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
-import { reverseDcfWorkbench } from "./support/fixtures";
+import { renderMarkdownReport } from "../src/report/markdown";
+import { researchReport, reverseDcfWorkbench } from "./support/fixtures";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 
@@ -387,7 +388,7 @@ describe("valuation workbench", () => {
       priceToFreeCashFlow: { status: "populated", display: "28.00x" },
     });
     expect(observation?.metrics.priceToEarnings.sourceIds).toContain("market-yahoo-fx-usdcad");
-    expect(renderValuationWorkbenchMarkdown(artifact)).toContain(
+    expect(renderValuationWorkbenchMarkdown(artifact, researchReport())).toContain(
       "24.00 USD (2025-02-18; converted at USD/CAD 1.4000 on 2025-02-17)",
     );
     expect(result.sources).toEqual([
@@ -430,7 +431,9 @@ describe("valuation workbench", () => {
     expect(observation?.metrics.priceToEarnings).not.toMatchObject({
       reason: "quote-reporting-currency-mismatch",
     });
-    expect(renderValuationWorkbenchMarkdown(result.artifact)).toContain("— (fx-rate-unavailable)");
+    expect(renderValuationWorkbenchMarkdown(result.artifact, researchReport())).toContain(
+      "— (fx-rate-unavailable)",
+    );
     expect(result.sources).toEqual([]);
     expect(result.sourceGaps).toEqual([
       expect.objectContaining({
@@ -518,7 +521,7 @@ describe("valuation workbench", () => {
       })),
     );
     // No EV cell renders a number, on any rendered row.
-    const evCells = renderValuationWorkbenchMarkdown(depository)
+    const evCells = renderValuationWorkbenchMarkdown(depository, researchReport())
       .split("\n")
       .filter((line) => line.startsWith("ANNUAL |") || line.startsWith("TTM |"))
       .map((line) => line.split(" | ")[6]);
@@ -751,7 +754,7 @@ describe("valuation workbench", () => {
       quoteCurrency: "USD",
     });
 
-    const markdown = renderValuationWorkbenchMarkdown(artifact);
+    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
 
     expect(markdown).toContain("## Valuation Workbench");
     expect(markdown).toContain("first verified close within 7 calendar days on or after publicAt");
@@ -759,6 +762,7 @@ describe("valuation workbench", () => {
     expect(markdown).not.toContain("converted at");
     expect(markdown).toContain("Reporting currency: USD. Quote currency: USD.");
     expect(markdown).toContain("Peer comparison data is unavailable for this run.");
+    expect(markdown).not.toContain("| Sources");
     expect(violatesResearchOnly(markdown)).toBeNull();
     expect(readValuationWorkbenchArtifact(artifact)).toEqual({
       ...artifact,
@@ -783,37 +787,97 @@ describe("valuation workbench", () => {
       usable: true,
     };
 
-    const markdown = renderValuationWorkbenchMarkdown({
-      ...base,
-      peerComparison: {
-        status: "available",
-        valuationComps: {
-          version: 1,
-          generatedAt: "2025-06-01T00:00:00.000Z",
-          target,
-          peers: [{ ...target, symbol: "PEER", debtBasis: "gross-principal" }],
-          excludedPeers: [],
-          peerUniverseSourceIds: [],
-          summary: {
-            corePeerCount: 1,
-            secondaryPeerCount: 0,
-            usablePeerCount: 1,
-            valuationSupportability: "screening-only",
-          },
-          sourceIds: [],
-          freshnessFlags: {
-            targetQuoteFresh: true,
-            targetSecFresh: true,
-            peerQuoteFresh: true,
-            peerSecFresh: true,
+    const markdown = renderValuationWorkbenchMarkdown(
+      {
+        ...base,
+        peerComparison: {
+          status: "available",
+          valuationComps: {
+            version: 1,
+            generatedAt: "2025-06-01T00:00:00.000Z",
+            target,
+            peers: [{ ...target, symbol: "PEER", debtBasis: "gross-principal" }],
+            excludedPeers: [],
+            peerUniverseSourceIds: [],
+            summary: {
+              corePeerCount: 1,
+              secondaryPeerCount: 0,
+              usablePeerCount: 1,
+              valuationSupportability: "screening-only",
+            },
+            sourceIds: [],
+            freshnessFlags: {
+              targetQuoteFresh: true,
+              targetSecFresh: true,
+              peerQuoteFresh: true,
+              peerSecFresh: true,
+            },
           },
         },
       },
-    });
+      researchReport(),
+    );
 
     expect(markdown).toContain("cash 2025-03-31; debt 2025-03-31 (gross principal)");
     expect(markdown.match(/\(gross principal\)/gu)).toHaveLength(1);
     expect(violatesResearchOnly(markdown)).toBeNull();
+  });
+
+  test("cites resolvable peer-row sources and closes every rendered reference in Sources", () => {
+    const base = reverseDcfWorkbench();
+    if (base.peerComparison.status !== "available") {
+      throw new Error("valuation workbench fixture peer comparison missing");
+    }
+    const { valuationComps } = base.peerComparison;
+    const persisted: unknown = JSON.parse(
+      JSON.stringify({
+        ...base,
+        peerComparison: {
+          ...base.peerComparison,
+          valuationComps: {
+            ...valuationComps,
+            target: { ...valuationComps.target, sourceIds: ["market-test", "sec-test"] },
+            peers: [
+              { symbol: "USE", sourceIds: ["market-use"], usable: true },
+              { symbol: "EXC", sourceIds: ["sec-exc", "missing-row-source"], usable: false },
+              { symbol: "NONE", sourceIds: [], usable: false },
+              { symbol: "BAD", usable: false },
+            ],
+          },
+        },
+      }),
+    );
+    const workbench = readValuationWorkbenchArtifact(persisted);
+    if (workbench === undefined) {
+      throw new Error("persisted workbench did not read back");
+    }
+    const report = researchReport({
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "TEST",
+      sources: ["market-test", "sec-test", "market-use", "sec-exc"].map((id) => ({
+        id,
+        title: id,
+        fetchedAt: "2025-06-01T00:00:00.000Z",
+        kind: "market-data" as const,
+      })),
+    });
+
+    const markdown = renderMarkdownReport(report, undefined, { valuationWorkbench: workbench });
+    const table = markdown.slice(markdown.indexOf("Symbol | Role | Screen status"));
+
+    expect(table).toContain("| Input dates | Sources\n--- | --- | --- | ---: | --- | --- | ---\n");
+    expect(table).toMatch(/\n[A-Z]+ \| target \| .* \| \[market-test\] \[sec-test\]\n/u);
+    expect(table).toContain("USE | peer | usable | N/M | — | — | [market-use]\n");
+    expect(table).toContain("EXC | peer | excluded | N/M | — | — | [sec-exc]\n");
+    expect(table).toContain("NONE | peer | excluded | N/M | — | — | —\n");
+    expect(table).toContain("BAD | peer | excluded | N/M | — | — | —\n");
+    const sources = markdown.slice(markdown.indexOf("### Sources"), markdown.indexOf(table));
+    const renderedRefs = [...table.matchAll(/\[([^\]]+)\]/gu)].map((match) => match[1]);
+    expect(renderedRefs.length).toBeGreaterThan(0);
+    for (const sourceId of renderedRefs) {
+      expect(sources).toContain(`- [${sourceId ?? ""}] `);
+    }
   });
 
   test("omits a suppressed trailing-basis disclosure from markdown", () => {
@@ -827,7 +891,9 @@ describe("valuation workbench", () => {
     });
 
     expect(artifact.historicalMultiples.trailingBasis.status).toBe("suppressed");
-    expect(renderValuationWorkbenchMarkdown(artifact)).not.toContain("Trailing basis suppressed");
+    expect(renderValuationWorkbenchMarkdown(artifact, researchReport())).not.toContain(
+      "Trailing basis suppressed",
+    );
   });
 
   test("labels a provider quote timestamp as quote time", () => {
@@ -850,7 +916,7 @@ describe("valuation workbench", () => {
       },
     };
 
-    const markdown = renderValuationWorkbenchMarkdown(artifact);
+    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
 
     expect(markdown).toContain("quote time 2026-05-19T14:29:07.000Z");
     expect(markdown).not.toContain("quote time 2026-05-19T14:31:00.000Z");
@@ -875,7 +941,7 @@ describe("valuation workbench", () => {
       },
     };
 
-    const markdown = renderValuationWorkbenchMarkdown(artifact);
+    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
 
     expect(markdown).toContain("fetch time 2026-05-19T14:31:00.000Z");
     expect(markdown).not.toContain("quote time 2026-05-19T14:31:00.000Z");

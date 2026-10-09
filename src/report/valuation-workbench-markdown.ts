@@ -1,36 +1,18 @@
 import type {
   HistoricalValuationObservation,
-  ValuationMetricSuppressionReason,
   ValuationWorkbenchArtifact,
 } from "../sources/extended-evidence/valuation-workbench-contract";
 import type {
   PeerImpliedRange,
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
-import type { MarketSnapshotPriceAsOf } from "../domain/types";
+import type { MarketSnapshotPriceAsOf, ResearchReport } from "../domain/types";
+import { metricCell } from "./equity-reader-trends";
+import { knownSourceIds, sourceRefs } from "./markdown-primitives";
+import { stringArrayValue } from "../guards";
 
 function cell(value: string): string {
   return value.replaceAll("|", String.raw`\|`).replaceAll("\n", " ");
-}
-
-export function metricCell(
-  metric:
-    | { readonly status: "populated"; readonly display: string }
-    | { readonly status: "not-meaningful"; readonly display: string }
-    | {
-        readonly status: "suppressed";
-        readonly display: string;
-        readonly reason: ValuationMetricSuppressionReason;
-      }
-    | { readonly status: "not-applicable"; readonly display: string; readonly rationale: string },
-): string {
-  if (metric.status === "populated" || metric.status === "not-meaningful") {
-    return metric.display;
-  }
-  if (metric.status === "not-applicable") {
-    return `${metric.display} (${metric.rationale})`;
-  }
-  return `${metric.display} (${metric.reason})`;
 }
 
 function fxNote(observation: HistoricalValuationObservation): string {
@@ -83,7 +65,7 @@ function priceAsOfLabel(priceAsOf: MarketSnapshotPriceAsOf | undefined): string 
   return `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
 }
 
-function peerRow(row: ValuationCompsRow, targetSymbol: string): string {
+function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchReport): string {
   const multiple =
     typeof row.evToAnnualizedRevenue === "number"
       ? `${row.evToAnnualizedRevenue.toFixed(2)}x`
@@ -108,10 +90,21 @@ function peerRow(row: ValuationCompsRow, targetSymbol: string): string {
     dates || "—",
   ]
     .map((value) => cell(value))
+    .concat(sourceRefs(knownSourceIds(report, row.sourceIds)) || "—")
     .join(" | ");
 }
 
-function peerSection(artifact: ValuationWorkbenchArtifact): string {
+export function peerRowSourceIds(
+  artifact: ValuationWorkbenchArtifact | undefined,
+): readonly string[] {
+  if (artifact?.peerComparison.status !== "available") {
+    return [];
+  }
+  const { target, peers } = artifact.peerComparison.valuationComps;
+  return [target, ...peers].flatMap((row) => stringArrayValue(row.sourceIds));
+}
+
+function peerSection(artifact: ValuationWorkbenchArtifact, report: ResearchReport): string {
   if (artifact.peerComparison.status === "suppressed") {
     return ["### Peer comparison", "", `- Suppressed: ${artifact.peerComparison.detail}`].join(
       "\n",
@@ -119,7 +112,7 @@ function peerSection(artifact: ValuationWorkbenchArtifact): string {
   }
   const { valuationComps } = artifact.peerComparison;
   const rows = [valuationComps.target, ...valuationComps.peers].map((row) =>
-    peerRow(row, valuationComps.target.symbol),
+    peerRow(row, valuationComps.target.symbol, report),
   );
   const rangeLine = peerReferenceRangeLine(
     valuationComps.impliedPriceRange,
@@ -138,8 +131,8 @@ function peerSection(artifact: ValuationWorkbenchArtifact): string {
     rangeLine,
     excluded,
     "",
-    "Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates",
-    "--- | --- | --- | ---: | --- | ---",
+    "Symbol | Role | Screen status | EV/revenue | Quote currency | Input dates | Sources",
+    "--- | --- | --- | ---: | --- | --- | ---",
     ...rows,
   ].join("\n");
 }
@@ -191,6 +184,7 @@ export function valuationScopeDisclosure(
 
 export function renderValuationWorkbenchMarkdown(
   artifact: ValuationWorkbenchArtifact | undefined,
+  report: ResearchReport,
 ): string {
   if (artifact === undefined) {
     return "";
@@ -222,7 +216,7 @@ export function renderValuationWorkbenchMarkdown(
     ...(scopeDisclosure === undefined ? [] : [`- ${scopeDisclosure}.`, ""]),
     historical,
     "",
-    peerSection(artifact),
+    peerSection(artifact, report),
     "",
   ].join("\n");
 }

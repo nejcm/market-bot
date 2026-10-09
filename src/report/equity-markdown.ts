@@ -11,7 +11,7 @@ import type { CollectedSources } from "../sources/types";
 import { projectEquityReader, type EquityReaderCompanyDescription } from "./equity-reader";
 import { renderReverseDcfMarkdown } from "./reverse-dcf-markdown";
 import { RESEARCH_ONLY_NOTE } from "./schema";
-import { renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
+import { peerRowSourceIds, renderValuationWorkbenchMarkdown } from "./valuation-workbench-markdown";
 
 export type MarkdownCollectedSources = Pick<
   CollectedSources,
@@ -131,6 +131,7 @@ export function renderEquityMarkdownReport(
     ...(projection.defaultView.earningsBasis?.sourceIds ?? []),
     ...projection.defaultView.earningsConsensus.flatMap((item) => item.sourceIds),
     ...projection.appendix.analystEstimateDistributions.flatMap((item) => item.sourceIds),
+    ...peerRowSourceIds(collectedSources?.valuationWorkbench),
   ];
   const priceAsOf =
     (collectedSources?.valuationWorkbench?.peerComparison.status === "available"
@@ -218,7 +219,7 @@ export function renderEquityMarkdownReport(
     sections.renderSources(report, additionalSourceIds),
     "",
     sections.renderAppendixSection(
-      renderValuationWorkbenchMarkdown(collectedSources?.valuationWorkbench),
+      renderValuationWorkbenchMarkdown(collectedSources?.valuationWorkbench, report),
     ),
     sections.renderAppendixSection(
       renderReverseDcfMarkdown(collectedSources?.reverseDcf, priceAsOf),

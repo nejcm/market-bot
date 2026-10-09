@@ -707,9 +707,7 @@ export interface PredictionCompletionAudit {
   readonly failureReason?: string;
 }
 
-export type ReportIntegrityAdvisoryCode =
-  | "uncited-numeric-summary-sentence"
-  | "weak-evidence-posture-missing";
+export type ReportIntegrityAdvisoryCode = "weak-evidence-posture-missing";
 
 export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
 

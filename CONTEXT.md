@@ -327,7 +327,7 @@ Narrative absence-of-evidence claim recognized by two consumer-specific predicat
 
 ## Report Integrity Audit
 
-No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, and Predictions, then validates/persists the result. Uncited numeric summary prose and missing posture labels remain advisory; pruned Predictions never score. See [ADR 0005](./docs/adr/0005-research-workflows-model-stage-pipeline.md).
+No-model pass after schema-valid synthesis and before forecast disagreement that prunes unsupported numeric/technical findings, scenarios, Predictions, and summary sentences (the summary has no citation field; an emptied summary gets a fixed neutral fallback), then validates/persists the result. Missing posture labels remain advisory; pruned Predictions never score. See [ADR 0005](./docs/adr/0005-research-workflows-model-stage-pipeline.md).
 
 ## Report Integrity
 

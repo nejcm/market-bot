@@ -20,13 +20,8 @@ import {
   shouldCarryPostureLabel,
 } from "./post-synthesis-audit";
 
-// Deterministic Report Integrity Audit (ADR 0011). Distinct from the warn-only
-// Post-Synthesis Audit: this pass prunes blocking violations — numeric or
-// Technical findings, scenarios, and predictions without an eligible supporting
-// Source (structural eligibility only; no semantic-entailment claims) — before
-// Forecast disagreement, then grades the outcome. Summary sentences (no
-// Citation field exists) and missing evidence-posture labels stay advisory
-// Telemetry and are never pruned.
+// Report Integrity Audit (ADR 0005): prunes uncited numeric/technical findings, scenarios,
+// Predictions, and summary sentences, then grades; posture labels stay advisory.
 
 interface ReportIntegrityPrunedItem {
   readonly location: string;
@@ -188,20 +183,110 @@ function partitionPredictions(predictions: readonly Prediction[]): Partition<Pre
   );
 }
 
-function summaryAdvisories(summary: string): readonly ReportIntegrityAdvisory[] {
-  return summary
-    .split(/(?<=[.!?])\s+/u)
-    .map((sentence, index) => ({ sentence: sentence.trim(), index }))
-    .filter(
-      ({ sentence }) =>
-        sentence !== "" &&
-        isBlockingNumericOrTechnical(sentence) &&
-        !isHistoricalForecastOutcome(sentence),
-    )
-    .map(({ index }) => ({
-      code: "uncited-numeric-summary-sentence" as const,
-      location: `summary[${String(index)}]`,
-    }));
+const SUMMARY_FALLBACK =
+  "Summary withheld: every summary sentence carried an uncited numeric or technical claim. See the cited sections of this report.";
+
+const NON_FINAL_ABBREVIATION = /^(?:e\.g|i\.e|vs|cf|Mr|Mrs|Ms|Dr|No|St)\.$/iu;
+const FINAL_CAPABLE_ABBREVIATION = /^(?:(?:[A-Za-z]\.)+|Inc\.|Corp\.|Co\.|Ltd\.|Jr\.|Sr\.)$/u;
+
+interface SummaryPiece {
+  readonly text: string;
+  readonly separator: string;
+  readonly ambiguousEnd: boolean;
+}
+
+function trailingToken(text: string): string {
+  return (/\S+$/u.exec(text)?.[0] ?? "").replace(/^[("'[]+/u, "");
+}
+
+// "U.S." or "Inc." ends a sentence only before a capitalized or camel-case word; "e.g." never does.
+function sentenceEnd(text: string, rest: string): "hard" | "ambiguous" | undefined {
+  if (!/[.!?]["'”’)\]]*$/u.test(text)) {
+    return undefined;
+  }
+  const token = trailingToken(text).replace(/["'”’)\]]+$/u, "");
+  if (NON_FINAL_ABBREVIATION.test(token)) {
+    return undefined;
+  }
+  if (!FINAL_CAPABLE_ABBREVIATION.test(token)) {
+    return "hard";
+  }
+  return /^(?:[A-Z\d"'(“‘]|[a-z]+[A-Z])/u.test(rest) ? "ambiguous" : undefined;
+}
+
+// Blank lines always separate.
+function splitSummarySentences(summary: string): readonly SummaryPiece[] {
+  const pieces: SummaryPiece[] = [];
+  let start = 0;
+  for (const match of summary.matchAll(/\s+/gu)) {
+    const separator = match[0];
+    const end = match.index + separator.length;
+    const text = summary.slice(start, match.index);
+    const kind = /\n\s*\n/u.test(separator) ? "hard" : sentenceEnd(text, summary.slice(end));
+    if (kind !== undefined) {
+      pieces.push({ text, separator, ambiguousEnd: kind === "ambiguous" });
+      start = end;
+    }
+  }
+  pieces.push({ text: summary.slice(start), separator: "", ambiguousEnd: false });
+  return pieces;
+}
+
+// At least three words besides the trailing abbreviation run, so "Analyst J." is not one.
+function readsAsSentence(text: string): boolean {
+  const words = text.trim().split(/\s+/u);
+  while (words.length > 0 && FINAL_CAPABLE_ABBREVIATION.test(trailingToken(words.at(-1) ?? ""))) {
+    words.pop();
+  }
+  return words.filter((word) => /\p{L}/u.test(word)).length >= 3;
+}
+
+function lineBreakCount(separator: string): number {
+  return separator.split("\n").length;
+}
+
+function partitionSummary(summary: string): {
+  readonly summary: string;
+  readonly pruned: readonly ReportIntegrityPrunedItem[];
+} {
+  const pieces = splitSummarySentences(summary);
+  const blocking = pieces.map(
+    ({ text }) => text.trim() !== "" && isBlockingViolation(text.trim(), []),
+  );
+  // Right to left so a chain of initials ("J. R. Smith ...") follows its pruned continuation.
+  for (let index = pieces.length - 2; index >= 0; index -= 1) {
+    const piece = pieces[index];
+    if (
+      piece?.ambiguousEnd === true &&
+      blocking[index + 1] === true &&
+      !readsAsSentence(piece.text)
+    ) {
+      blocking[index] = true;
+    }
+  }
+  const pruned: ReportIntegrityPrunedItem[] = [];
+  let kept = "";
+  let separator = "";
+  pieces.forEach((piece, index) => {
+    if (blocking[index] === true) {
+      pruned.push({
+        location: `summary[${String(index)}]`,
+        text: piece.text.trim(),
+        sourceIds: [],
+      });
+      if (lineBreakCount(piece.separator) > lineBreakCount(separator)) {
+        ({ separator } = piece);
+      }
+    } else {
+      kept += `${kept === "" ? "" : separator}${piece.text}`;
+      ({ separator } = piece);
+    }
+  });
+  if (pruned.length === 0) {
+    return { summary, pruned };
+  }
+  const trimmed = kept.trim();
+  return { summary: trimmed === "" ? SUMMARY_FALLBACK : trimmed, pruned };
 }
 
 function postureAdvisories(report: ResearchReport): readonly ReportIntegrityAdvisory[] {
@@ -278,8 +363,10 @@ export function auditReportIntegrity(
   const catalysts = partitionFindings("catalysts", report.catalysts);
   const scenarios = partitionScenarios(report.scenarios);
   const predictions = partitionPredictions(report.predictions);
+  const summary = partitionSummary(report.summary);
 
   const pruned = [
+    ...summary.pruned,
     ...keyFindings.pruned,
     ...bullCase.pruned,
     ...bearCase.pruned,
@@ -318,6 +405,7 @@ export function auditReportIntegrity(
   });
   const prunedReport: ResearchReport = {
     ...report,
+    summary: summary.summary,
     keyFindings: keyFindings.kept,
     bullCase: bullCase.kept,
     bearCase: bearCase.kept,
@@ -329,7 +417,7 @@ export function auditReportIntegrity(
     researchQuality,
     ...(researchQualityDriver !== undefined ? { researchQualityDriver } : {}),
   };
-  const advisories = [...summaryAdvisories(report.summary), ...postureAdvisories(prunedReport)];
+  const advisories = postureAdvisories(prunedReport);
 
   return {
     report: prunedReport,

@@ -40,10 +40,7 @@ const originalIndexDisable = process.env.MARKET_BOT_INDEX_DISABLE;
 
 const AMD_DATED_SUMMARY =
   "AMD's operating evidence supports a high-growth Data Center and AI infrastructure thesis, with substantial revenue, profit, and cash-flow expansion through 2026-06-27.";
-const DATE_ONLY_ADVISORY = {
-  code: "uncited-numeric-summary-sentence",
-  location: "summary[0]",
-} as const;
+const NUMERIC_SUMMARY_SENTENCE = "Data Center backlog included $10 billion.";
 const WEAK_POSTURE_ADVISORY = {
   code: "weak-evidence-posture-missing",
   location: "keyFindings[1]",
@@ -727,8 +724,8 @@ describe("runResearchJob artifact persistence", () => {
     });
   });
 
-  test("persists a dated summary with a real numeric claim as advisory and prunes unsupported quantities", async () => {
-    const summary = `${AMD_DATED_SUMMARY.slice(0, -1)}, including $10 billion.`;
+  test("persists a dated summary without its uncited numeric sentence and prunes unsupported quantities", async () => {
+    const summary = `${AMD_DATED_SUMMARY} ${NUMERIC_SUMMARY_SENTENCE}`;
     const { dataDir, result } = await persistDatedIntegrityJob(summary, [
       { text: NUMERIC_FINDING, sourceIds: [HISTORY_SOURCE] },
     ]);
@@ -743,15 +740,17 @@ describe("runResearchJob artifact persistence", () => {
       analyticsAdvisories,
     } = await readIntegrityArtifacts(result.artifacts.runDir);
 
-    expect(report.summary).toBe(summary);
-    expect(reportJson).toContain(summary);
-    expect(traceAdvisories).toContainEqual(DATE_ONLY_ADVISORY);
-    expect(analyticsAdvisories).toContainEqual(DATE_ONLY_ADVISORY);
+    expect(report.summary).toBe(AMD_DATED_SUMMARY);
+    expect(reportJson).not.toContain(NUMERIC_SUMMARY_SENTENCE);
+    expect(traceAdvisories).toEqual([WEAK_POSTURE_ADVISORY]);
     expect(traceAdvisories).toEqual(analyticsAdvisories);
     expect(traceAudit.advisoryWarningCount).toBe(traceAdvisories.length);
     expect(analyticsIntegrity.advisoryWarningCount).toBe(analyticsAdvisories.length);
     expect(analyticsIntegrity.advisoryWarningCount).toBe(traceAudit.advisoryWarningCount);
-    expect(traceAudit.pruned).toEqual([PRUNED_NUMERIC_ITEM]);
+    expect(traceAudit.pruned).toEqual([
+      { location: "summary[1]", text: NUMERIC_SUMMARY_SENTENCE, sourceIds: [] },
+      PRUNED_NUMERIC_ITEM,
+    ]);
     expect(report.keyFindings.map((finding) => finding.text)).toEqual([
       CITED_FINDING,
       POSTURE_FINDING,
@@ -771,6 +770,8 @@ describe("runResearchJob artifact persistence", () => {
       "utf8",
     );
     expect(markdown).not.toContain(NUMERIC_FINDING);
+    expect(markdown).not.toContain(NUMERIC_SUMMARY_SENTENCE);
+    expect(markdown).toContain(AMD_DATED_SUMMARY);
   });
 
   test("persists equity presentation gaps through markdown, Console Simple/Advanced, and index/disk parity", async () => {

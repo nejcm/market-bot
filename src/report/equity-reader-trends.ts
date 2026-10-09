@@ -6,7 +6,26 @@ import type {
 import type { ValuationMetricSuppressionReason } from "../sources/extended-evidence/valuation-workbench-contract";
 import { conceptScope } from "../sources/extended-evidence/financial-statement-definitions";
 import { periodLabel } from "./equity-reader-statements";
-import { metricCell } from "./valuation-workbench-markdown";
+
+export function metricCell(
+  metric:
+    | { readonly status: "populated"; readonly display: string }
+    | { readonly status: "not-meaningful"; readonly display: string }
+    | {
+        readonly status: "suppressed";
+        readonly display: string;
+        readonly reason: ValuationMetricSuppressionReason;
+      }
+    | { readonly status: "not-applicable"; readonly display: string; readonly rationale: string },
+): string {
+  if (metric.status === "populated" || metric.status === "not-meaningful") {
+    return metric.display;
+  }
+  if (metric.status === "not-applicable") {
+    return `${metric.display} (${metric.rationale})`;
+  }
+  return `${metric.display} (${metric.reason})`;
+}
 
 interface TrendPeriod {
   readonly kind: "annual" | "ttm";

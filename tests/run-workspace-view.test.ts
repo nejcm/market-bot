@@ -27,11 +27,17 @@ import {
   type FundamentalHistorySeriesKey,
 } from "../src/sources/extended-evidence/fundamental-history";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
 import { derivePeerImpliedRange } from "../src/sources/extended-evidence/valuation-comps";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { renderFinancialTrends, renderMarkdownReport } from "../src/report/markdown";
 import { projectEquityReader } from "../src/report/equity-reader";
-import { reverseDcfArtifact, valuationWorkbench } from "./support/fixtures";
+import {
+  researchReport,
+  reverseDcfArtifact,
+  reverseDcfWorkbench,
+  valuationWorkbench,
+} from "./support/fixtures";
 
 async function renderRunWorkspaceComponent(
   detail: RunDetail,
@@ -1649,6 +1655,8 @@ describe("run workspace view", () => {
               sourceIds: ["sec-msft", "market-msft"],
               usable: true,
             },
+            { symbol: "GOOG", role: "core", sourceIds: ["sec-goog"], usable: false },
+            { symbol: "IBM", role: "secondary", sourceIds: [], usable: false },
           ],
           excludedPeers: [
             {
@@ -1666,7 +1674,7 @@ describe("run workspace view", () => {
             usablePeerCount: 1,
             valuationSupportability: "screening-only",
           },
-          sourceIds: ["sec-fixture", "market-aapl", "sec-msft", "market-msft"],
+          sourceIds: ["sec-fixture", "market-aapl", "sec-msft", "market-msft", "sec-goog"],
           freshnessFlags: {
             targetQuoteFresh: true,
             targetSecFresh: true,
@@ -1704,6 +1712,7 @@ describe("run workspace view", () => {
           multiple: "8.50x",
           currency: "USD",
           inputDates: expect.stringMatching(/ · debt 2025-12-31$/u),
+          sourceIds: ["sec-fixture", "market-aapl"],
         },
         {
           symbol: "MSFT",
@@ -1711,7 +1720,10 @@ describe("run workspace view", () => {
           multiple: "10.00x",
           currency: "USD",
           inputDates: expect.stringMatching(/ · debt 2026-03-31 \(gross principal\)$/u),
+          sourceIds: ["sec-msft", "market-msft"],
         },
+        { symbol: "GOOG", status: "excluded", sourceIds: ["sec-goog"] },
+        { symbol: "IBM", status: "excluded", sourceIds: [] },
       ],
       excludedPeerRows: [
         {
@@ -1722,6 +1734,21 @@ describe("run workspace view", () => {
         },
       ],
     });
+    const report = researchReport({
+      sources: ["sec-fixture", "market-aapl", "sec-msft", "market-msft", "sec-goog"].map((id) => ({
+        id,
+        title: id,
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "market-data" as const,
+      })),
+    });
+    const markdownRows = renderValuationWorkbenchMarkdown(workbench, report).split("\n");
+    for (const row of view?.peerRows ?? []) {
+      const line = markdownRows.find((candidate) => candidate.startsWith(`${row.symbol} | `));
+      expect(line?.endsWith(` | ${row.sourceIds.map((id) => `[${id}]`).join(" ") || "—"}`)).toBe(
+        true,
+      );
+    }
     expect(tocKeys(workspace)).toEqual([
       "equityOverview",
       "summary",
@@ -1730,6 +1757,34 @@ describe("run workspace view", () => {
       "equityMetrics",
       "gaps",
     ]);
+  });
+
+  test("normalizes malformed peer-row source IDs to an empty citation list", () => {
+    const base = reverseDcfWorkbench();
+    if (base.peerComparison.status !== "available") {
+      throw new Error("valuation workbench fixture peer comparison missing");
+    }
+    const { valuationComps } = base.peerComparison;
+    const malformed = JSON.parse(
+      JSON.stringify({
+        ...base,
+        peerComparison: {
+          ...base.peerComparison,
+          valuationComps: {
+            ...valuationComps,
+            peers: [{ symbol: "BAD", usable: false }],
+            excludedPeers: [
+              { symbol: "BAD", role: "core", reason: "x", cause: "validation-failed" },
+            ],
+          },
+        },
+      }),
+    ) as typeof base;
+
+    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: malformed });
+
+    expect(view?.peerRows.find((row) => row.symbol === "BAD")?.sourceIds).toEqual([]);
+    expect(view?.excludedPeerRows[0]?.sourceIds).toEqual([]);
   });
 
   test("projects the solved-input matrix and disclosed assumptions", () => {

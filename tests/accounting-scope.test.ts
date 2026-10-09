@@ -329,7 +329,7 @@ describe("accounting scope", () => {
       priceHistory: [],
       quoteCurrency: "USD",
     });
-    const markdown = renderValuationWorkbenchMarkdown(workbench);
+    const markdown = renderValuationWorkbenchMarkdown(workbench, researchReport());
     const console = valuationWorkbenchView({
       summary: {} as RunSummary,
       valuationWorkbench: workbench,

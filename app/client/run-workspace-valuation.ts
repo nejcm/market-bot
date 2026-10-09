@@ -13,6 +13,7 @@ import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/rev
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
 import { valuationScopeDisclosure } from "../../src/report/valuation-workbench-markdown";
+import { stringArrayValue } from "../../src/guards";
 import { priceAsOfLabel, projectEquityReaderForDetail } from "./run-workspace-detail";
 
 export interface RunWorkspacePeerImpliedRangeGeometry {
@@ -67,6 +68,7 @@ interface RunWorkspaceValuationPeerRow {
   readonly multiple: string;
   readonly currency: string;
   readonly inputDates: string;
+  readonly sourceIds: readonly string[];
 }
 
 export interface RunWorkspaceExcludedValuationPeerRow {
@@ -249,6 +251,7 @@ function valuationPeerRows(
       row.evToAnnualizedRevenue === undefined ? "N/M" : `${row.evToAnnualizedRevenue.toFixed(2)}x`,
     currency: row.quoteCurrency ?? "—",
     inputDates: valuationRowInputDates(row),
+    sourceIds: stringArrayValue(row.sourceIds),
   }));
 }
 
@@ -299,7 +302,7 @@ export function valuationWorkbenchView(
             symbol: peer.symbol,
             role: peer.role,
             reason: peer.reason,
-            sourceIds: peer.sourceIds,
+            sourceIds: stringArrayValue(peer.sourceIds),
           }))
         : [],
   };

@@ -534,7 +534,7 @@ describe("continuing-operations scope in reader views", () => {
       scope: "continuing operations",
     });
     expect(readValuationWorkbenchArtifact(workbench)).toBeDefined();
-    expect(renderValuationWorkbenchMarkdown(workbench)).toContain(
+    expect(renderValuationWorkbenchMarkdown(workbench, researchReport())).toContain(
       `- P/FCF uses free cash flow proxy (continuing operations) for annual 2025-09-30, ttm ${ttm.periodEnd}.`,
     );
     expect(

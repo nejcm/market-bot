@@ -10,7 +10,8 @@ Accepted
 amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 2026-07-15:
 incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping;
 amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit;
-amended 2026-08-02: untagged extractor evaluation and production execution policy)
+amended 2026-08-02: untagged extractor evaluation and production execution policy;
+amended 2026-10-09: summary-sentence pruning)
 
 ## Context
 
@@ -79,9 +80,12 @@ research boundaries without sharing persistence or scoring semantics.
   predictions without an eligible supporting source (structural eligibility only — no
   semantic-entailment claims; bare years, FY26/FY2026 labels, calendar-valid ISO and
   capitalized month-name dates, and forecast-horizon wording do not count as numeric
-  claims; cited historical forecast outcomes are exempt). Uncited numeric summary sentences
-  (the summary has no citation field) and missing evidence-posture labels remain advisory
-  telemetry and are never pruned.
+  claims; cited historical forecast outcomes are exempt). Summary sentences go through the same
+  classifier and are pruned when numeric or technical, because the summary has no citation field
+  to carry support; qualitative sentences stay, and a summary left empty becomes a fixed neutral
+  sentence pointing at the cited sections. Pruned sentences are recorded as `summary[i]` pruned
+  items and grade like any other pruning. Citations are never inferred for the summary from
+  similar findings. Missing evidence-posture labels remain advisory telemetry and are never pruned.
 - Every new report is stamped with `reportIntegrity` (`high` with no pruning; `medium` when
   pruning occurred but required analytical sections remain; `low` when pruning empties a
   previously populated required section) and `researchQuality` (the worse of Evidence Quality and
@@ -93,8 +97,11 @@ research boundaries without sharing persistence or scoring semantics.
   stamp `researchQualityDriver`: a deterministic explanation and remediation derived from
   structured Evidence Quality checks and integrity-pruning metadata. Alpha-search reports do not
   carry this field because they do not run the Report Integrity Audit.
-- A model repair call and summary-sentence pruning remain explicitly deferred until real runs show
-  deterministic pruning fires often enough to justify a repair pass.
+- A model repair call remains explicitly deferred until real runs show deterministic pruning fires
+  often enough to justify a repair pass. Summary-sentence pruning, previously deferred alongside it,
+  is adopted (2026-10-09): advisory-only telemetry let an uncited figure (CLFD's `$22 million`
+  order) reach `report.md` while the audit flagged it, and the supported figure remains available
+  in the cited finding or catalyst it summarized.
 
 ### Market overview workflow
 

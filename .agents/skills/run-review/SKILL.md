@@ -1,6 +1,6 @@
 ---
 name: run-review
-description: Analyze market-bot runs and produce a ranked, evidence-backed list of fixes and improvements (output only, no code changes).
+description: Analyze market-bot runs, produce a ranked, evidence-backed list of fixes and improvements, then deep-dive the single most important one (output only, no code changes).
 ---
 
 # Role
@@ -44,10 +44,8 @@ are not reusable. A fresh deep equity run costs ~12 minutes and ~438k live model
 (a recent NBIS deep run: 584s); state the total before starting.
 
 **Single-run mode.** Review exactly one run. **Never** execute the CLI when the
-user supplied a run dir, or when you were invoked by another skill or subagent —
-notably `improve-market-runs`, whose Review subagent calls this skill _after_ it
-has already run the CLI, so running here would double-run and recurse; no
-request wording overrides either case. When the user named one subject, review
+user supplied a run dir, or when you were invoked by another skill or subagent
+that already ran it; no request wording overrides either case. When the user named one subject, review
 its newest comparable run; run it only when it has none, or when the user
 explicitly asked for a fresh run (e.g. "run fresh AMD") — that request wins over
 an existing run.
@@ -182,15 +180,51 @@ staleness command against the target commit. When the bands are stale, say
 "no valid variance band" in the Code delta line and treat every run-vs-run metric delta as unproven unless independent
 artifact evidence corroborates it.
 
+# Step 4 — Focus finding deep dive (mandatory, after ranking)
+
+Once the Recommendations are ranked, pick **one** as the Focus finding:
+normally the highest-ranked `fixable` item; pick a lower one only when it
+clearly matters more to downstream run quality, and say why in one line. If
+nothing is `fixable`, say so and skip this step. Fixing several findings at
+once has produced interacting regressions, so the review steers toward one fix
+per cycle. Step 4 reads existing artifacts and code only — no fresh runs,
+`--live`, recorders, or golden writes.
+
+Investigate only that finding, in depth:
+
+1. **Cross-run validation.** Check the symptom in the 1–3 most recent prior
+   comparable runs of each reviewed subject (Step 2 rules), plus any cohort
+   run on another subject where it would show. The Step 1 12-run cap does not
+   apply here; disclose any run read beyond the cohort. Report present /
+   absent / unknown per run with `file:field` values, each run's
+   `codeVersion.commit`, and the Step 3 attribution label. If it is absent in
+   an older run, read the producing subsystem's diff hunks between that run's
+   commit and the first run showing it.
+2. **Cause.** Debug the producing code path end to end and cite
+   `path/file.ts:symbolName` for each step that matters. Report the cause as
+   `verified` or `unresolved`; when unresolved, name the missing evidence
+   (artifact, log, or code path) and mark the fix sketch provisional.
+3. **Reproduction.** Give the offline replay
+   (`bun run scripts/replay-fixture-run.ts <fixture>`) or proposed unit-test
+   inputs that exercise the path, the failing assertion, and the expected
+   behavior. Say whether the symptom was seen in an inspected golden or only
+   inferred; if no fixture reaches the path, the fix needs one or a unit test
+   at the seam.
+4. **Fix sketch.** The smallest change at the root cause, the files it
+   touches, and the surfaces from AGENTS.md "Hit every surface" it must reach
+   (console, goldens, docs). No code.
+
 # Output
 
-Produce a compact review with two evidence-backed sections:
+Produce a compact review with three evidence-backed sections:
 
 1. **Improvements** — material things that improved versus the selected
    baseline; in pair mode, label each with its subject.
 2. **Recommendations** — a single ranked list of everything worth doing: bugs,
    regressions, evidence/coverage gaps, prediction-quality or calibration issues,
    determinism concerns, and telemetry blind spots.
+3. **Focus finding** — the Recommendation's rank, Step 4 results, and its
+   objective check.
 
 For each Improvement item:
 
@@ -246,11 +280,6 @@ comparable baseline exists.
 Keep Improvements separate from Recommendations. A positive delta can coexist
 with a remaining issue, but it should not be framed as work to do unless there
 is still a concrete fix or follow-up.
-
-The Category / Severity / Disposition / Objective-check fields and the `delta:`
-line are the return contract consumed by `improve-market-runs`, whose
-orchestrator selects the top two `fixable` findings. Omitting them forces the
-caller to guess.
 
 # Cause verification (mandatory)
 
@@ -387,7 +416,7 @@ Check these explicitly before final ranking:
 
 # Rules
 
-- Output the Improvements section and the ranked Recommendations section only,
+- Output the Improvements, ranked Recommendations, and Focus finding sections only,
   preceded by the scope/cohort/code-delta disclosure. Do NOT edit code, write
   fixes, or change anything outside the permitted CLI runs in Step 0.
 - Every finding must cite evidence from the artifacts. Don't guess.

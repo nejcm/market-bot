@@ -9,10 +9,7 @@ import { join } from "node:path";
  * are scanned; bare field names are not path-qualified and go unchecked — cite
  * them as `file.ts:field` if they need coverage.
  */
-const SKILL_FILES = [
-  ".claude/skills/run-review/SKILL.md",
-  ".claude/skills/improve-market-runs/SKILL.md",
-];
+const SKILL_FILES = [".claude/skills/run-review/SKILL.md"];
 
 const REPO_ROOT = join(import.meta.dir, "..");
 

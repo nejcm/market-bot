@@ -10,7 +10,7 @@ Bun + TypeScript CLI that turns public market data into sourced research artifac
 - [docs/configuration.md](./docs/configuration.md) — env vars.
 - [docs/adr/README.md](./docs/adr/README.md) — canonical ADR index.
 
-The orchestration skills (`improve-market-runs`, `run-review`) are heavy on purpose — invoke them only when I name them. If parallel agents run, one owns `data/` writes and each owns disjoint `src/` paths; never two at once in `report-extras-contract.ts`.
+The `run-review` skill is heavy on purpose — invoke it only when I name it. If parallel agents run, one owns `data/` writes and each owns disjoint `src/` paths; never two at once in `report-extras-contract.ts`.
 
 ## Non-negotiables
 

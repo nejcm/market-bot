@@ -80,6 +80,16 @@ function rangeReferenceCloses(count: number, step = 0.02, jump?: { at: number; r
   });
 }
 
+function closesFromReturns(returns: readonly number[]) {
+  let close = 100;
+  return [100, ...returns].map((value, index) => {
+    if (index > 0) {
+      close *= Math.exp(value);
+    }
+    return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
+  });
+}
+
 describe("range volatility reference", () => {
   const command: ResearchCommand = {
     jobType: "equity",
@@ -87,7 +97,7 @@ describe("range volatility reference", () => {
     symbol: "AAPL",
     depth: "brief",
   };
-  const reference = (recentCloses: ReturnType<typeof rangeReferenceCloses>) =>
+  const reference = (recentCloses: readonly { date: string; close: number }[]) =>
     kindMixSynthesisInstruction(command, {
       verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses }),
     });
@@ -95,23 +105,34 @@ describe("range volatility reference", () => {
   test("anchors range probabilities to a vol-scaled band from recent closes", () => {
     const instruction = reference(rangeReferenceCloses(21));
 
-    expect(instruction).toContain(
-      "Range reference for AAPL (deterministic, from the 20 daily log returns in verifiedMarketSnapshot.recentCloses): robust (median absolute deviation) daily volatility 2.94% around the last close 100.00; ±1σ close bands +1: [97.11, 102.98]",
+    expect(instruction).toMatch(
+      /Range reference for AAPL \(deterministic, from the 20 daily log returns in verifiedMarketSnapshot\.recentCloses\): realized daily volatility \(sample standard deviation\) \d+\.\d{2}% around the last close 100\.00; ±1σ close bands \+1: /,
     );
-    expect(instruction).toContain("starts below 0.32");
+    expect(instruction).toContain("Daily returns are fat-tailed");
+    expect(instruction).not.toContain("32%");
   });
 
   test.each([
     ["2:1", 0.5],
     ["4:3", 0.75],
-  ])("a %s split in the unadjusted window does not move the volatility", (_, ratio) => {
-    expect(reference(rangeReferenceCloses(21, 0.02, { at: 10, ratio }))).toContain(
-      "daily volatility 2.94%",
+  ])("omits the reference across a %s split in the unadjusted window", (_, ratio) => {
+    expect(reference(rangeReferenceCloses(21, 0.02, { at: 10, ratio }))).not.toContain(
+      "Range reference",
     );
   });
 
   test("keeps a reference for a genuinely high-volatility series", () => {
-    expect(reference(rangeReferenceCloses(21, 0.1))).toContain("daily volatility 14.13%");
+    expect(reference(rangeReferenceCloses(21, 0.1))).toContain("Range reference");
+  });
+
+  test("keeps jump risk when most days are flat", () => {
+    const returns = [
+      ...Array.from({ length: 12 }, () => 0),
+      ...Array.from({ length: 8 }, (_, index) => (index % 2 === 0 ? 0.2 : -0.2)),
+    ];
+    expect(reference(closesFromReturns(returns))).toContain(
+      "realized daily volatility (sample standard deviation) 12.98%",
+    );
   });
 
   test("omits the reference without enough closes or a verified snapshot", () => {

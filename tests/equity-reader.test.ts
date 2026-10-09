@@ -370,6 +370,30 @@ describe("equity reader projection", () => {
         fundamentalHistory: history,
       }).defaultView.financialTrends,
     ).not.toHaveProperty("restatements");
+
+    const precisionOnly = {
+      ...history,
+      series: {
+        ...history.series,
+        revenue: {
+          ...history.series.revenue,
+          annual: [
+            {
+              ...first!,
+              value: 140_755_000,
+              restatedFrom: { value: 140_755_399, filedAt: "2021-11-10" },
+            },
+            ...rest,
+          ],
+        },
+      },
+    } as FundamentalHistoryArtifact;
+    expect(
+      projectEquityReader({
+        report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+        fundamentalHistory: precisionOnly,
+      }).defaultView.financialTrends,
+    ).not.toHaveProperty("restatements");
   });
 
   test("suppresses the whole inapplicable trend column for a depository issuer, tagged periods included", () => {

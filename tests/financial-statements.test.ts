@@ -1255,15 +1255,15 @@ describe("first-public dating of selected facts", () => {
   });
 
   test("records the original filing's value when a later filing restates a fact", () => {
-    const revenue = (filings: readonly (readonly [number, string])[]) =>
+    const revenue = (filings: readonly (readonly [number, string, string?])[]) =>
       derive(
         payload({
           "us-gaap": {
             Revenues: {
-              USD: filings.map(([value, filedAt]) =>
+              USD: filings.map(([value, filedAt, form = "10-K"]) =>
                 fact({
                   value,
-                  form: "10-K",
+                  form,
                   fiscalYear: Number(filedAt.slice(0, 4)),
                   fiscalPeriod: "FY",
                   filedAt,
@@ -1289,6 +1289,13 @@ describe("first-public dating of selected facts", () => {
         [268, "2025-02-15"],
       ]),
     ).toEqual([undefined]);
+    expect(
+      revenue([
+        [100, "2024-02-15"],
+        [80, "2024-02-15", "10-K/A"],
+        [80, "2025-02-15"],
+      ]),
+    ).toEqual([{ value: 100, filedAt: "2024-02-15" }]);
   });
 
   const compositeDebt = (filings: readonly (readonly [number, number, string, string?])[]) => {

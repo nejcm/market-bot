@@ -703,6 +703,7 @@ function selectNetDebtMetric(
     for (const value of values.toSorted(compareFactRecency)) {
       history.push({
         concept,
+        amendment: value.amendment,
         periodEnd: value.end ?? "",
         filedAt: value.filed ?? "",
         value: value.val,

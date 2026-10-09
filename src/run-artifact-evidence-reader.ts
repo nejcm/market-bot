@@ -368,7 +368,11 @@ function hasFundamentalHistoryPointShape(value: unknown): boolean {
     readString(value, "periodEnd") !== undefined &&
     readNumber(value, "periodMonths") !== undefined &&
     readString(value, "filedAt") !== undefined &&
-    readString(value, "currency") !== undefined
+    readString(value, "currency") !== undefined &&
+    (value.restatedFrom === undefined ||
+      (isRecord(value.restatedFrom) &&
+        readNumber(value.restatedFrom, "value") !== undefined &&
+        readString(value.restatedFrom, "filedAt") !== undefined))
   );
 }
 

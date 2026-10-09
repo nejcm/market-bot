@@ -278,7 +278,7 @@ function annualPoint(
     fact.val,
     peers
       .filter((peer) => peer.end === fact.end && peer.start === fact.start)
-      .map((peer) => ({ value: peer.val, filedAt: peer.filed })),
+      .map((peer) => ({ value: peer.val, filedAt: peer.filed, amendment: peer.amendment })),
   );
   return {
     value: fact.val,

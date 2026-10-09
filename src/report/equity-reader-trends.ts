@@ -224,11 +224,12 @@ function financialTrendRestatements(history: FundamentalHistoryArtifact): readon
   return trendPeriods(history).flatMap((period) => {
     const originals = RESTATEMENT_SERIES_KEYS.flatMap((key) => {
       const series = history.series[key] as FundamentalHistorySeries | undefined;
-      const original =
-        series === undefined
-          ? undefined
-          : historyPoint(series, period.periodEnd, period.kind)?.restatedFrom;
-      return series === undefined || original === undefined
+      const point =
+        series === undefined ? undefined : historyPoint(series, period.periodEnd, period.kind);
+      const original = point?.restatedFrom;
+      return series === undefined ||
+        original === undefined ||
+        formatTrendAmount(original.value) === formatTrendAmount(point?.value)
         ? []
         : [
             `${series.label.toLowerCase()} ${formatTrendAmount(original.value)} (filed ${original.filedAt})`,

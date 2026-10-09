@@ -388,8 +388,9 @@ function factsForDebt(
     }
     instants.set(key, tagged);
   }
-  const history = candidates.map(({ concept, periodEnd, filedAt, value }) => ({
+  const history = candidates.map(({ concept, periodEnd, filedAt, value, amendment }) => ({
     concept,
+    amendment,
     periodEnd,
     filedAt,
     value,

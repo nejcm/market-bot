@@ -116,13 +116,16 @@ export function compareFinancialStatementFacts(
   );
 }
 
-// The earliest filing's value for the same concept and period, when a later filing replaced it with the selected value.
+// The original filing's value when a later filing (or same-day amendment) replaced it; same-day original filings tie.
 export function restatedFromOriginalFiling(
   selectedValue: number,
-  history: readonly OriginalFiling[],
+  history: readonly (OriginalFiling & { readonly amendment?: boolean })[],
 ): OriginalFiling | undefined {
-  const [original] = history.toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
-  const originals = history.filter((fact) => fact.filedAt === original?.filedAt);
+  const [earliest] = history.toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
+  const sameDay = history.filter((fact) => fact.filedAt === earliest?.filedAt);
+  const unamended = sameDay.filter((fact) => fact.amendment !== true);
+  const originals = unamended.length === 0 ? sameDay : unamended;
+  const [original] = originals;
   return original === undefined ||
     originals.length === history.length ||
     originals.some((fact) => fact.value === selectedValue)
@@ -214,6 +217,7 @@ export function debtCandidateConcepts(
 
 export interface DebtHistoryFact {
   readonly concept: string;
+  readonly amendment?: boolean;
   readonly periodEnd: string;
   readonly filedAt: string;
   readonly value: number;
@@ -383,7 +387,9 @@ function incompleteDebtReason(
     : undefined;
 }
 
-// A component sum mixes filing vintages once a later filing changes a component its original filing reported.
+const sumValues = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0);
+
+// A component restatement is a reclassification only while the original filing's component total holds.
 function restatedDebtComponentReason<T>(
   instant: DebtInstant,
   used: readonly string[],
@@ -391,18 +397,23 @@ function restatedDebtComponentReason<T>(
   history: readonly DebtHistoryFact[],
   valueOf: (fact: T) => number,
 ): string | undefined {
-  const restated = used.flatMap((concept) => {
+  const components = used.map((concept) => {
+    const value = valueOf(tagged.get(concept) as T);
     const original = restatedFromOriginalFiling(
-      valueOf(tagged.get(concept) as T),
+      value,
       history.filter((fact) => fact.concept === concept && fact.periodEnd === instant.periodEnd),
     );
-    return original === undefined
-      ? []
-      : [`${concept} (originally ${String(original.value)}, filed ${original.filedAt})`];
+    return { concept, value, original };
   });
-  return restated.length === 0
-    ? undefined
-    : `a later filing restated ${restated.join(", ")} without restating a debt total`;
+  const restated = components.filter((component) => component.original !== undefined);
+  if (
+    restated.length === 0 ||
+    sumValues(components.map((component) => component.original?.value ?? component.value)) ===
+      sumValues(components.map((component) => component.value))
+  ) {
+    return undefined;
+  }
+  return `a later filing restated ${restated.map(({ concept, original }) => `${concept} (originally ${String(original?.value)}, filed ${original?.filedAt ?? ""})`).join(", ")} without restating a debt total`;
 }
 
 // Shared by legacy SEC metrics and canonical statements; `tagged` holds one fact per concept at one instant.

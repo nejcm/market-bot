@@ -305,7 +305,10 @@ without pretending the project has a global security master.
   is complete only when no unrecognized standard borrowing concept is tagged at that instant, it
   has a borrowing line, and every borrowing concept whose latest earlier value (within the prior
   400 days, or from an earlier filing of the same instant) was nonzero is still covered; when both
-  sides are generic, earlier borrowing details count as their constituents. A later filing's incomplete set supersedes an earlier
+  sides are generic, earlier borrowing details count as their constituents. A component that a later filing
+  restated is summed only while the original filing's component total holds (a reclassification);
+  a restatement that changes that total without a tagged debt total leaves the instant incomplete.
+  A later filing's incomplete set supersedes an earlier
   complete one for the same instant. The canonical series keeps only instants on the latest
   complete instant's basis, and legacy priors never cross basis, so year-over-year comparisons stay
   on one measurement. Incomplete instants are never published as debt; when newer than the latest complete instant they produce an

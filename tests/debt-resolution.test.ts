@@ -428,6 +428,17 @@ describe("debt resolution refuses incomplete component sets", () => {
     );
   });
 
+  test("a later filing that reclassifies components without changing their total keeps the sum", () => {
+    const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
+    const { canonical, legacy } = resolve({
+      LongTermDebtCurrent: [original(10), later(15)],
+      LongTermDebtNoncurrent: [original(90), later(85)],
+    });
+
+    expect(canonical).toMatchObject({ value: 100, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(100);
+  });
+
   test("an amendment tagging only an unrecognized concept supersedes the original", () => {
     expectRefused(
       {

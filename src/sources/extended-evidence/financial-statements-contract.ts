@@ -356,6 +356,10 @@ function hasFinancialStatementFactShape(value: unknown): boolean {
     (value.accessionNumber === null || typeof value.accessionNumber === "string") &&
     stringField(value, "filedAt") !== undefined &&
     (value.firstPublicAt === undefined || typeof value.firstPublicAt === "string") &&
+    (value.restatedFrom === undefined ||
+      (isRecord(value.restatedFrom) &&
+        numberField(value.restatedFrom, "value") !== undefined &&
+        stringField(value.restatedFrom, "filedAt") !== undefined)) &&
     (value.periodStart === undefined || typeof value.periodStart === "string") &&
     stringField(value, "periodEnd") !== undefined &&
     numberField(value, "fiscalYear") !== undefined &&

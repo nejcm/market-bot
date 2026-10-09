@@ -66,7 +66,7 @@ export interface HistorySearchEntry {
 }
 
 interface HistoryIndex {
-  readonly version: 1 | 2 | 3;
+  readonly version: 1 | 2 | 3 | 4;
   readonly generatedAt: string;
   readonly sourceRunCount: number;
   readonly malformedRunCount: number;
@@ -175,7 +175,7 @@ export interface ThesisDelta {
 
 const HISTORY_DIR = "history";
 const INDEX_FILE = "index.json";
-const HISTORY_INDEX_VERSION = 3;
+const HISTORY_INDEX_VERSION = 4;
 const MAX_SEARCH_RESULTS = 100;
 
 export function historyDir(dataDir: string): string {
@@ -563,7 +563,7 @@ async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefi
   } catch {
     throw new Error("Malformed derived history index; run `history rebuild`");
   }
-  if (!isRecord(parsed) || ![1, 2, 3].includes(parsed.version as number)) {
+  if (!isRecord(parsed) || ![1, 2, 3, 4].includes(parsed.version as number)) {
     throw new Error("Unsupported derived history index schema; run `history rebuild`");
   }
   if (
@@ -575,14 +575,14 @@ async function readIndexForDrift(dataDir: string): Promise<HistoryIndex | undefi
     throw new TypeError("Malformed derived history index; run `history rebuild`");
   }
   if (
-    (parsed.version === 2 || parsed.version === 3) &&
+    (parsed.version === 2 || parsed.version === 3 || parsed.version === 4) &&
     (!Array.isArray(parsed.sourceRunIds) ||
       !parsed.sourceRunIds.every((runId) => typeof runId === "string"))
   ) {
     throw new Error("Malformed derived history index; run `history rebuild`");
   }
   if (
-    parsed.version === 3 &&
+    (parsed.version === 3 || parsed.version === 4) &&
     (!Array.isArray(parsed.sourceSidecars) ||
       !parsed.sourceSidecars.every(
         (sidecar) =>
@@ -618,7 +618,10 @@ export async function rebuildHistoryArtifactsIfStale(
 async function readIndex(dataDir: string): Promise<HistoryIndex | undefined> {
   const parsed = await readJson(join(historyDir(dataDir), INDEX_FILE));
   return isRecord(parsed) &&
-    (parsed.version === 1 || parsed.version === 2 || parsed.version === 3) &&
+    (parsed.version === 1 ||
+      parsed.version === 2 ||
+      parsed.version === 3 ||
+      parsed.version === 4) &&
     Array.isArray(parsed.entries)
     ? (parsed as unknown as HistoryIndex)
     : undefined;

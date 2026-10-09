@@ -21,6 +21,7 @@
     "sort-imports": "off",
     "no-continue": "off",
     "no-ternary": "off",
+    "unicorn/no-nested-ternary": "off",
     "no-negated-condition": "off",
     "unicorn/no-negated-condition": "off",
     "max-statements": "off",

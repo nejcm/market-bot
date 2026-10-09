@@ -784,6 +784,88 @@ describe("canonical financial statements", () => {
     });
   });
 
+  test.each([{ hasLatestYtd: true }, { hasLatestYtd: false }])(
+    "selects YTD beside rolling-year facts without falling back to an older end, latest YTD: $hasLatestYtd",
+    ({ hasLatestYtd }) => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: [
+                annual(100, 2024),
+                interim({
+                  value: 9,
+                  year: 2024,
+                  endMonthDay: "03-31",
+                  form: "10-Q",
+                  fiscalPeriod: "Q1",
+                }),
+                interim({
+                  value: 20,
+                  year: 2024,
+                  endMonthDay: "06-30",
+                  form: "10-Q",
+                  fiscalPeriod: "Q2",
+                }),
+                interim({
+                  value: 14,
+                  year: 2025,
+                  endMonthDay: "03-31",
+                  form: "10-Q",
+                  fiscalPeriod: "Q1",
+                }),
+                ...(hasLatestYtd
+                  ? [
+                      interim({
+                        value: 30,
+                        year: 2025,
+                        endMonthDay: "06-30",
+                        form: "10-Q",
+                        fiscalPeriod: "Q2",
+                      }),
+                    ]
+                  : []),
+                ...["2024-07-01", "2025-04-01"].map((periodStart) =>
+                  fact({
+                    value: 110,
+                    form: "10-Q",
+                    fiscalYear: 2025,
+                    fiscalPeriod: "Q2",
+                    filedAt: "2025-08-15",
+                    periodStart,
+                    periodEnd: "2025-06-30",
+                  }),
+                ),
+              ],
+            },
+          },
+        }),
+      );
+      const { ttm } = artifact.statements.incomeStatement.revenue;
+      if (hasLatestYtd) {
+        expect(ttm).toMatchObject({
+          value: 110,
+          periodStart: "2024-07-01",
+          periodEnd: "2025-06-30",
+          components: {
+            fiscalYear: { value: 100 },
+            latestYearToDate: { value: 30, periodStart: "2025-01-01" },
+            priorYearToDate: { value: 20 },
+          },
+        });
+      } else {
+        expect(ttm).toBeUndefined();
+        expect(artifact.validationNotes).toContainEqual(
+          expect.objectContaining({
+            code: "unreconciled-ttm",
+            seriesKey: "revenue",
+            message: "No latest-end interim duration fact starts at the fiscal-year boundary",
+          }),
+        );
+      }
+    },
+  );
+
   test("detects quarterly 6-K cadence across quarter-only and year-to-date contexts", () => {
     const artifact = derive(
       payload({

@@ -416,9 +416,9 @@ export function strengthLens(
   // A loss-period payout is not a ratio; a non-current one is history, not current strength.
   const nonPositiveIncomePeriodEnd = hasCanonicalFinancialLensSelection(secItem)
     ? readRawStringMetric(secItem?.metrics, PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY)
-    : (dividendsPaid !== undefined && netIncome !== undefined && netIncome <= 0
+    : dividendsPaid !== undefined && netIncome !== undefined && netIncome <= 0
       ? (secPeriod(secItem, "netIncome").periodEnd ?? "undated")
-      : undefined);
+      : undefined;
   const selectedSecPayout = selectedFinancialLensDerivedMetric(
     secItem,
     "payoutRatio",

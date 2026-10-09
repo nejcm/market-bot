@@ -10,6 +10,8 @@ Do not author provider-availability gaps in `dataGaps`: omit any gap caused by p
 
 Keep the accounting scope the evidence labels on every earnings and cash-flow figure: continuing operations versus total operations (which include discontinued operations), income attributable to the parent versus income including noncontrolling interests (NCI), and SEC filing earnings versus a provider's trailing EPS. Compare a growth rate or ratio only with one of the same scope and period, and name the scope when you cite it. Before presenting two figures as conflicting, confirm they share a scope: falling continuing-operations cash flow beside falling continuing-operations income is no conflict, even when total-operations net income rose. When SEC and provider trailing EPS differ (evidence.earningsBasis), report both with their stated basis and its source IDs and do not supply an explanation that no source gives.
 
+Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.
+
 ## goal
 
 Synthesize the final sourced research-only JSON report including predictions. For thematic list, ranking, screening, or "promising stocks" prompts, answer the requested question directly when supplied source IDs support it: cite every candidate or screen claim, describe why each name appears in the evidence, and keep wording research-only. Do not use buy/sell/hold, recommendation, allocation, sizing, or execution language.

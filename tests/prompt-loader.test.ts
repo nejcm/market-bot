@@ -292,5 +292,8 @@ describe("checked-in final-synthesis prompt", () => {
       "Keep the accounting scope the evidence labels on every earnings and cash-flow figure",
     );
     expect(instruction).toContain("(evidence.earningsBasis)");
+    expect(instruction).toContain(
+      "Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.",
+    );
   });
 });

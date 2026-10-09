@@ -69,13 +69,8 @@ export function earningsBasis(
       sourceIds: [marketSnapshot.sourceId],
     };
   }
-  const sec = filed
-    .map(([, clause], index) =>
-      index === 0
-        ? `${clause}; an approximation that adds per-share periods without reweighting diluted shares.`
-        : `${clause}.`,
-    )
-    .join(" ");
+  const approximation = `${filed.length === 1 ? "The SEC value is an approximation that adds" : "Both SEC values are approximations that add"} per-share periods without reweighting diluted shares.`;
+  const sec = `${filed.map(([, clause]) => `${clause}.`).join(" ")} ${approximation}`;
   return {
     text: `${provider} ${sec} ${comparison(providerEps, marketSnapshot.identity?.quoteCurrency, first[2].currency, filed)}`,
     sourceIds: [marketSnapshot.sourceId, financialStatements.sourceId],

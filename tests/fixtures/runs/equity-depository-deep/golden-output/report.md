@@ -35,7 +35,7 @@ TTM (2026-01-31; filed 2026-02-24) | 38.0B | 9.1B | not applicable (depository i
 Observed market multiples are trailing P/E 17.60x, forward P/E 13.76x, price/book 1.81x; this is valuation context, not a target price. [market-yahoo-equity-bns]
 
 - **Observed metrics:** EPS TTM 5.20 [market-yahoo-equity-bns]
-- **Earnings basis:** Provider trailing EPS 5.20 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 6.74 CAD through 2026-01-31; an approximation that adds per-share periods without reweighting diluted shares. The provider quote currency (USD) differs from the CAD filing currency, so the values are not compared. [market-yahoo-equity-bns] [extended-sec-edgar-bns-fundamentals]
+- **Earnings basis:** Provider trailing EPS 5.20 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 6.74 CAD through 2026-01-31. The SEC value is an approximation that adds per-share periods without reweighting diluted shares. The provider quote currency (USD) differs from the CAD filing currency, so the values are not compared. [market-yahoo-equity-bns] [extended-sec-edgar-bns-fundamentals]
 
 ## Catalysts
 

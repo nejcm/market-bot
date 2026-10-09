@@ -249,7 +249,7 @@ describe("auditReportIntegrity", () => {
     expect(result.reportIntegrity).toBe("medium");
     expect(result.report.reportIntegrity).toBe("medium");
     expect(result.report.researchQualityDriver).toBe(
-      "report integrity pruning removed unsupported content from summary; remediation: improve source coverage for the pruned sections",
+      "report integrity pruning removed uncited figures from summary; remediation: keep figures in cited sections; write the summary qualitatively",
     );
     expect(result.report.summary).toBe("Backlog contracted.\n\nEvidence remains mixed overall.");
     expect(report.summary).toBe(summary);

@@ -187,6 +187,12 @@ function integrityDriverParts(integrity: QualityDriverIntegrityResult): {
 } {
   const sections = [...new Set(integrity.pruned.map((item) => sectionName(item.location)))];
   const target = sections.join(", ");
+  if (sections.length === 1 && sections[0] === "summary") {
+    return {
+      drivers: ["report integrity pruning removed uncited figures from summary"],
+      remediations: ["keep figures in cited sections; write the summary qualitatively"],
+    };
+  }
   return {
     drivers: [`report integrity pruning removed unsupported content from ${target}`],
     remediations: ["improve source coverage for the pruned sections"],

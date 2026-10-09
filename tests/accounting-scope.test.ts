@@ -434,7 +434,7 @@ describe("earnings basis disclosure", () => {
     const basis = earningsBasis(yahoo(), artifact);
 
     expect(basis).toEqual({
-      text: "Provider trailing EPS 0.54 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM -0.51 USD through 2026-06-30 (total operations); an approximation that adds per-share periods without reweighting diluted shares. SEC diluted EPS TTM from continuing operations 0.29 USD through 2026-06-30. The provider value matches neither SEC value at two decimals, and the supplied evidence does not reconcile the difference.",
+      text: "Provider trailing EPS 0.54 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM -0.51 USD through 2026-06-30 (total operations). SEC diluted EPS TTM from continuing operations 0.29 USD through 2026-06-30. Both SEC values are approximations that add per-share periods without reweighting diluted shares. The provider value matches neither SEC value at two decimals, and the supplied evidence does not reconcile the difference.",
       sourceIds: ["market-yahoo-equity-clfd", "sec-clfd"],
     });
   });
@@ -457,9 +457,18 @@ describe("earnings basis disclosure", () => {
     const basis = earningsBasis(yahoo(), statements(concepts));
 
     expect(basis).toEqual({
-      text: "Provider trailing EPS 0.54 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM from continuing operations 0.29 USD through 2026-06-30; an approximation that adds per-share periods without reweighting diluted shares. The provider value matches no SEC value at two decimals, and the supplied evidence does not reconcile the difference.",
+      text: "Provider trailing EPS 0.54 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM from continuing operations 0.29 USD through 2026-06-30. The SEC value is an approximation that adds per-share periods without reweighting diluted shares. The provider value matches no SEC value at two decimals, and the supplied evidence does not reconcile the difference.",
       sourceIds: ["market-yahoo-equity-clfd", "sec-clfd"],
     });
+  });
+
+  test("applies the approximation note to total EPS shown alone", () => {
+    const { [CONTINUING_EPS]: _continuing, ...concepts } = clfd();
+    const basis = earningsBasis(yahoo(), statements(concepts));
+
+    expect(basis?.text).toContain(
+      "SEC diluted EPS TTM -0.51 USD through 2026-06-30. The SEC value is an approximation that adds per-share periods without reweighting diluted shares.",
+    );
   });
 
   test("projects the disclosure and its citations into the synthesis evidence", () => {

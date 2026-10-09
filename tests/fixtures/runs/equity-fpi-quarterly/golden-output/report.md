@@ -33,7 +33,7 @@ TTM (2026-03-31; filed 2026-05-10) | 1.6B | 891.0M | 70.0% | — (free-cash-flow
 Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/book 45.00x; this is valuation context, not a target price. [market-yahoo-equity-fpiq]
 
 - **Observed metrics:** EPS TTM 6.40 [market-yahoo-equity-fpiq]
-- **Earnings basis:** Provider trailing EPS 6.40 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 16.20 USD through 2026-03-31; an approximation that adds per-share periods without reweighting diluted shares. The provider value matches no SEC value at two decimals, and the supplied evidence does not reconcile the difference. [market-yahoo-equity-fpiq] [extended-sec-edgar-fpiq-fundamentals]
+- **Earnings basis:** Provider trailing EPS 6.40 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 16.20 USD through 2026-03-31. The SEC value is an approximation that adds per-share periods without reweighting diluted shares. The provider value matches no SEC value at two decimals, and the supplied evidence does not reconcile the difference. [market-yahoo-equity-fpiq] [extended-sec-edgar-fpiq-fundamentals]
 
 ## Catalysts
 

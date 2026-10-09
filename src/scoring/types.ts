@@ -1,3 +1,5 @@
+import type { WithheldSession } from "../sources/yahoo";
+
 export type ScoreOutcome = "hit" | "miss";
 
 export const ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY = "originAnchorQuarantine" as const;
@@ -31,6 +33,22 @@ export interface PredictionScore {
   /** Undefined for legacy score files written before scoring logic versioning. */
   readonly scoringVersion?: number;
   readonly evidence: Record<string, unknown>;
+  readonly repair?: ScoreRepair;
+}
+
+export type ScoreRepairVerdict = "proven-premature" | "suspect";
+
+export type AuditedWithheldSession = WithheldSession & {
+  readonly subject: string;
+  readonly acquiredAt: string;
+};
+
+/** Provenance of an explicitly audited `score repair`; `original` is the replaced raw row. */
+export interface ScoreRepair {
+  readonly repairedAt: string;
+  readonly verdict: ScoreRepairVerdict;
+  readonly withheldSessions: readonly AuditedWithheldSession[];
+  readonly original: Record<string, unknown>;
 }
 
 export interface MissAutopsyEntry {

@@ -50,6 +50,13 @@ interface ScoreCommand {
   readonly force?: true;
 }
 
+export interface ScoreRepairCommand {
+  readonly jobType: "score-repair";
+  readonly runId: string;
+  readonly predictionId: string;
+  readonly apply: boolean;
+}
+
 interface CalibrationCommand {
   readonly jobType: "calibration";
 }
@@ -104,6 +111,7 @@ export type CliCommand =
   | ResearchCommand
   | AlphaSearchCommand
   | ScoreCommand
+  | ScoreRepairCommand
   | CalibrationCommand
   | CachePruneCommand
   | ProviderHealthCommand
@@ -151,7 +159,7 @@ export const SEARCH_JOB_TYPE_OPTIONS = [
 ] as const;
 
 export const USAGE =
-  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> | market-bot alpha-search --asset equity [--deep] | market-bot score [--force] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
+  "Usage: market-bot market-overview --asset equity|crypto [--horizon trading-days] [--deep] [prompt] | market-bot daily --asset equity|crypto [--deep] | market-bot weekly --asset equity|crypto [--deep] | market-bot equity <symbol> [--deep] | market-bot crypto <symbol> [--deep] | market-bot research <subject> | market-bot alpha-search --asset equity [--deep] | market-bot score [--force] | market-bot score repair --run <run-id> --prediction <id> [--apply] | market-bot calibration | market-bot cache prune | market-bot provider-health | market-bot index rebuild | market-bot history rebuild | market-bot history search --query <text> | market-bot history thesis-delta <symbol> [--asset equity|crypto] [--since <date|run-id>] [--to <date|run-id>] [--narrative]";
 
 function readPositiveIntegerString(
   record: Record<string, unknown>,
@@ -211,6 +219,9 @@ export function commandLabel(command: CliCommand): string {
     command.jobType === "index-rebuild"
   ) {
     return command.jobType;
+  }
+  if (command.jobType === "score-repair") {
+    return `score repair ${command.runId} ${command.predictionId}${command.apply ? " apply" : ""}`;
   }
   if (command.jobType === "history-search") {
     return `history search ${command.query}`;

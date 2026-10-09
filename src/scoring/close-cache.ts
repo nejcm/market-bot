@@ -210,6 +210,18 @@ async function readWindowEntry(
   }
 }
 
+// Read-only access to pre-certification windows, for auditing scores that consumed them.
+export function readLegacyWindowEntry(
+  cacheDir: string,
+  symbol: string,
+  assetClass: AssetClass,
+  from: Date,
+  to: Date,
+  options?: WindowFetchOptions,
+): Promise<Pick<CloseWindowCacheEntry, "observations" | "cachedAt"> | undefined> {
+  return readWindowEntry(cacheDir, symbol, assetClass, from, to, options, 2);
+}
+
 async function writeClose(path: string, entry: CloseCacheEntry): Promise<void> {
   try {
     await mkdir(dirname(path), { recursive: true });

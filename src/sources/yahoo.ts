@@ -682,7 +682,7 @@ interface YahooRegularSessionWindow {
  * a provider defect, and the caller must declare it rather than fall back to any heuristic that
  * could silently accept an in-progress bar as a completed session.
  */
-type YahooRegularSessionRead =
+export type YahooRegularSessionRead =
   | { readonly status: "ok"; readonly window: YahooRegularSessionWindow }
   | { readonly status: "absent" }
   | { readonly status: "unusable"; readonly detail: string };
@@ -851,7 +851,7 @@ export type CloseWindow = readonly Observation[] & {
 
 // Scoring withholds what the snapshot keeps. A scheduled session that has not closed and has no
 // Bar yet (pre-open) is reported too, so the window is never cached as covering that date.
-function withholdUnfinishedSessions(
+export function withholdUnfinishedSessions(
   observations: readonly Observation[],
   schedule: YahooRegularSessionRead,
   cutoff: string,

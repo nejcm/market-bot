@@ -130,7 +130,9 @@ be mistaken for current market evidence.
   explicit policy registry (`src/scoring/policy.ts`), not a global constant. Report assembly
   deterministically stamps the current version (3) on every accepted Prediction; model-provided
   policy metadata never survives assembly. A missing version resolves permanently under policy v2,
-  historical forecasts and already-resolved scores are never rewritten, and each score result
+  historical forecasts and already-resolved scores are never rewritten by scoring passes — only an
+  explicitly audited `score repair --apply` may replace one, keeping the original and its repair
+  provenance on the score — and each score result
   persists the policy version that produced it. `horizonTradingDays` keeps its legacy name; under
   policy v3 it is the horizon count whose clock the policy defines per forecast family.
 - Confirmed-date eligibility changes which new earnings forecasts may be emitted, not how a

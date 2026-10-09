@@ -2,7 +2,11 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { fetchCloseWithCache, fetchWindowWithCache } from "../src/scoring/close-cache";
+import {
+  fetchCloseWithCache,
+  fetchWindowWithCache,
+  readLegacyWindowEntry,
+} from "../src/scoring/close-cache";
 
 let tmpDir = "";
 
@@ -276,6 +280,12 @@ describe("fetchCloseWithCache", () => {
 
     expect(observations).toEqual([{ subject: "CLFD", date: "2026-10-08", value: 33.1 }]);
     expect(existsSync(legacyPath)).toBe(true);
+    expect(
+      await readLegacyWindowEntry(tmpDir, "CLFD", "equity", from, to, { scoringPolicyVersion: 3 }),
+    ).toMatchObject({
+      observations: [{ subject: "CLFD", date: "2026-10-08", value: 32.45 }],
+      cachedAt: "2026-10-08T15:58:52.674Z",
+    });
   });
 
   test("never caches a window that withheld an unfinished session", async () => {

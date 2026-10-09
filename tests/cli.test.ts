@@ -156,6 +156,22 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["score", "--unknown"])).toThrow("Unknown flag: --unknown");
   });
 
+  test("parses score repair as a dry run unless --apply is explicit", () => {
+    const base = ["score", "repair", "--run", "run-1", "--prediction", "pred-2"];
+    expect(parseArgs(base)).toEqual({
+      jobType: "score-repair",
+      runId: "run-1",
+      predictionId: "pred-2",
+      apply: false,
+    });
+    expect(parseArgs([...base, "--apply"])).toMatchObject({ apply: true });
+    expect(commandLabel(parseArgs([...base, "--apply"]))).toBe("score repair run-1 pred-2 apply");
+    expect(() => parseArgs(["score", "repair", "--run", "run-1"])).toThrow(
+      "score repair requires --run <run-id> and --prediction <id>",
+    );
+    expect(() => parseArgs([...base, "--force"])).toThrow("Unknown flag: --force");
+  });
+
   test("parses calibration command", () => {
     expect(parseArgs(["calibration"])).toEqual({ jobType: "calibration" });
   });

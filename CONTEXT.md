@@ -116,7 +116,11 @@ derives canonical reader text from those counts instead of storing a machine pro
 
 ## Scoring Policy
 
-Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and resolved scores never change. V3 uses provider-observed completed sessions for equity and earnings — a session still trading at the scoring clock is withheld, not graded — target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+Versioned, persisted Prediction clock contract selected through a registry. New Predictions are stamped v3; unversioned legacy forecasts remain v2 and scoring passes never change a resolved score (only a Score Repair can). V3 uses provider-observed completed sessions for equity and earnings — a session still trading at the scoring clock is withheld, not graded — target UTC date for crypto, and calendar days for macro/IV. See [ADR 0003](./docs/adr/0003-forecasts-scoring-calibration-cross-run-intelligence.md).
+
+## Score Repair
+
+Explicit, audited replacement of one resolved score that consumed an unfinished session. Proven premature means a recorded exchange schedule shows a bar the score consumed was still trading at acquisition; suspect means no schedule proves it had closed. Dry run by default; an applied repair keeps the original score and its provenance, and never touches the report.
 
 ## Prediction Trim
 

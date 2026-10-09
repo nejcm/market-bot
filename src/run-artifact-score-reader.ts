@@ -3,6 +3,7 @@ import type {
   MissAutopsyEntry,
   PredictionScore,
   PredictionScoreStatus,
+  ScoreRepair,
 } from "./scoring/types";
 import { readPrimitiveEvidence } from "./run-artifact-value-guards";
 import { isRecord, stringArrayValue } from "./guards";
@@ -59,6 +60,7 @@ export function readScores(value: unknown): readonly PredictionScore[] | undefin
         // Preserve the version stamped on already-resolved scores. Undefined for legacy files.
         ...(typeof item.scoringVersion === "number" ? { scoringVersion: item.scoringVersion } : {}),
         evidence: item.evidence,
+        ...(isRecord(item.repair) ? { repair: item.repair as unknown as ScoreRepair } : {}),
       },
     ];
   });

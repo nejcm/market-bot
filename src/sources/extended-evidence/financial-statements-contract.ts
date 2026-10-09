@@ -207,7 +207,8 @@ export interface FinancialStatementNote {
     | "unreconciled-ttm"
     | "untagged-balance-sheet-series"
     | "incomplete-composite-series"
-    | "stale-instant-series";
+    | "stale-instant-series"
+    | "stale-concept-history";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;

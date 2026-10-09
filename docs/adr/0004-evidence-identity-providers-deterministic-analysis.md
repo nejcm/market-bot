@@ -37,7 +37,7 @@ expectations entitlement completeness status; amended 2026-09-01: web-gather SEC
 guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
 basis; amended 2026-10-08: accession-addressed SEC document cache; amended 2026-10-08: per-instant
 debt resolution and same-period enterprise value; amended 2026-10-09: accounting scope and
-earnings-basis disclosure)
+earnings-basis disclosure; amended 2026-10-10: stale concept-history Source Gap)
 
 ## Context
 
@@ -565,7 +565,10 @@ without pretending the project has a global security master.
   eligible period, configured order breaking ties. Because order encodes measure scope, reordering a concept list is a correctness change, not
   a preference change; exact definition contents and order are pinned by test. Accepting shortened
   history remains preferable to substituting a differently scoped series; when an alternative tag
-  would extend history, the shortening stays silent by design and is not reported as a gap.
+  would extend history, the shortening stays silent by design and is not reported as a gap, except
+  that an alias reporting an annual period newer than the selected concept's latest, or any annual
+  period when the selected concept has no annual period, declares a `stale-concept-history` Source
+  Gap; the tags are still not combined.
   Offline corpus verification now enumerates the interchangeable-alias shape — a lower-priority
   allow-listed tag whose eligible annual periods strictly contain the selected tag's with exact
   agreement on every shared period — and pins it at zero occurrences among the nine corpus sides

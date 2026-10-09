@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   deriveFinancialStatements,
   financialStatementsDebtBasisGaps,
+  financialStatementsStaleConceptGaps,
 } from "../src/sources/extended-evidence/financial-statements";
 import { grossPrincipalDebtFallbackApplies } from "../src/sources/extended-evidence/financial-statement-period-identity";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
@@ -721,6 +722,102 @@ describe("canonical financial statements", () => {
     expect(artifact.statements.cashFlowStatement.dividendsPaid.annual).toEqual([
       expect.objectContaining({ value: 40, concept: "PaymentsOfDividends" }),
     ]);
+  });
+
+  describe("stale concept history", () => {
+    const ytd = (value: number, year: number) =>
+      interim({ value, year, endMonthDay: "06-30", form: "10-Q", fiscalPeriod: "Q2" });
+    const staleGapMessages = (companyFacts: unknown) =>
+      financialStatementsStaleConceptGaps(derive(companyFacts, { analysisAsOf: "2026-09-01" })).map(
+        (gap) => gap.message,
+      );
+
+    test("declares an alias whose annual history runs past the selected concept, unchanged", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          PaymentsToAcquirePropertyPlantAndEquipment: {
+            USD: [annual(10, 2018), annual(12, 2019), ytd(3, 2025), ytd(5, 2026)],
+          },
+          PaymentsToAcquireProductiveAssets: {
+            USD: [annual(10, 2018), annual(12, 2019), annual(15, 2020), annual(20, 2025)],
+          },
+        },
+      });
+      const { capitalExpenditure } = derive(companyFacts, {
+        analysisAsOf: "2026-09-01",
+      }).statements.cashFlowStatement;
+
+      expect(capitalExpenditure.annual.map((item) => item.value)).toEqual([10, 12]);
+      expect(capitalExpenditure.interim.map((item) => item.value)).toEqual([3, 5]);
+      expect(
+        new Set(
+          [...capitalExpenditure.annual, ...capitalExpenditure.interim].map((item) => item.concept),
+        ),
+      ).toEqual(new Set(["PaymentsToAcquirePropertyPlantAndEquipment"]));
+      expect(staleGapMessages(companyFacts)).toEqual([
+        "SEC capital expenditure annual history under PaymentsToAcquirePropertyPlantAndEquipment ends 2019-12-31, while PaymentsToAcquireProductiveAssets reports annual periods to 2025-12-31; the tags are not combined because their scope may differ",
+      ]);
+    });
+
+    test("keeps still-current total revenue and declares the newer contract-revenue year", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2023), ytd(500, 2024), ytd(600, 2025)] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: {
+            USD: [annual(100, 2024), ytd(50, 2024), ytd(60, 2025)],
+          },
+        },
+      });
+      const { revenue } = derive(companyFacts, {
+        analysisAsOf: "2026-09-01",
+      }).statements.incomeStatement;
+
+      expect(revenue.interim.at(-1)).toMatchObject({ concept: "Revenues", value: 600 });
+      expect(staleGapMessages(companyFacts)).toHaveLength(1);
+    });
+
+    test("keeps current cash rather than older restricted-inclusive cash", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          CashAndCashEquivalentsAtCarryingValue: {
+            USD: [
+              instant(100, 2023),
+              fact({
+                value: 120,
+                form: "10-Q",
+                fiscalYear: 2025,
+                fiscalPeriod: "Q2",
+                filedAt: "2025-08-15",
+                periodEnd: "2025-06-30",
+              }),
+            ],
+          },
+          CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents: {
+            USD: [instant(1000, 2024)],
+          },
+        },
+      });
+      const { cash } = derive(companyFacts, { analysisAsOf: "2026-09-01" }).statements.balanceSheet;
+
+      expect(cash.interim.at(-1)).toMatchObject({
+        concept: "CashAndCashEquivalentsAtCarryingValue",
+        value: 120,
+      });
+      expect(staleGapMessages(companyFacts)).toHaveLength(1);
+    });
+
+    test("leaves an alias holding only older annual periods to the history cap", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          PaymentsToAcquirePropertyPlantAndEquipment: {
+            USD: [annual(10, 2019), annual(12, 2020), ytd(3, 2020), ytd(5, 2021)],
+          },
+          PaymentsToAcquireProductiveAssets: { USD: [annual(8, 2017), annual(9, 2018)] },
+        },
+      });
+
+      expect(staleGapMessages(companyFacts)).toEqual([]);
+    });
   });
 
   test("keeps total revenue for MARA/TeraWulf-class competing concepts", () => {

@@ -1,4 +1,5 @@
 import { isRecord, readNumber, readString } from "../../guards";
+import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/types";
 import type { CollectContext } from "../types";
 import {
@@ -1055,6 +1056,40 @@ function withGrossPrincipalDebt(
   };
 }
 
+function staleConceptHistoryNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  selected: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+): readonly FinancialStatementNote[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  const concept = selected[0]?.concept;
+  if (root === undefined || concept === undefined) {
+    return [];
+  }
+  const latestAnnualEnd = (facts: readonly ParsedFact[]) =>
+    facts
+      .filter((fact) => eligible(fact) && periodType(fact, definition) === "annual")
+      .map((fact) => fact.periodEnd)
+      .toSorted()
+      .at(-1);
+  const selectedEnd = latestAnnualEnd(selected);
+  return definition.concepts[taxonomy].flatMap((alias): FinancialStatementNote[] => {
+    const aliasEnd =
+      alias === concept ? undefined : latestAnnualEnd(unitFacts(taxonomy, root, alias));
+    return aliasEnd === undefined || (selectedEnd !== undefined && aliasEnd <= selectedEnd)
+      ? []
+      : [
+          {
+            code: "stale-concept-history",
+            seriesKey: definition.key,
+            message: `SEC ${definition.label.toLowerCase()} annual history under ${concept} ${selectedEnd === undefined ? "has no annual period" : `ends ${selectedEnd}`}, while ${alias} reports annual periods to ${aliasEnd}; the tags are not combined because their scope may differ`,
+          },
+        ];
+  });
+}
+
 function selectSeries(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -1067,8 +1102,9 @@ function selectSeries(
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
   const debt =
     definition.key === "debt" ? factsForDebt(payload, taxonomy, definition, eligible) : undefined;
+  const facts = debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible);
   const selected = materializeBasis(
-    debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible),
+    facts,
     definition,
     reportingCurrency,
     input.sourceId,
@@ -1076,7 +1112,13 @@ function selectSeries(
     unit,
   );
   if (debt === undefined) {
-    return selected;
+    return {
+      ...selected,
+      omissionNotes: [
+        ...selected.omissionNotes,
+        ...staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible),
+      ],
+    };
   }
   const withGross =
     taxonomy === "us-gaap"
@@ -1437,6 +1479,24 @@ export function financialStatementsDebtBasisGaps(
   return latest === undefined || leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
+}
+
+export function financialStatementsStaleConceptGaps(
+  artifact: FinancialStatementsArtifact,
+): readonly SourceGap[] {
+  return artifact.omissionNotes
+    .filter((note) => note.code === "stale-concept-history")
+    .map((note) =>
+      sourceGap({
+        source: "sec-edgar",
+        message: note.message,
+        symbol: artifact.symbol,
+        provider: "sec-edgar",
+        capability: "extended-evidence",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
 }
 
 export interface CollectedFinancialStatements {

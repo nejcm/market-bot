@@ -866,6 +866,60 @@ describe("collectSources", () => {
     );
   });
 
+  test("declares a stale capex concept history as a collected source gap", async () => {
+    const companyFacts = collectorSecPayload() as {
+      facts: { "us-gaap": Record<string, unknown> };
+    };
+    companyFacts.facts["us-gaap"].PaymentsToAcquireProductiveAssets = {
+      units: {
+        USD: [
+          collectorSecFact(20, {
+            form: "10-K",
+            fp: "FY",
+            fy: 2025,
+            filed: "2026-02-15",
+            start: "2025-01-01",
+            end: "2025-12-31",
+          }),
+        ],
+      },
+    };
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(companyFacts);
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      return jsonResponse(url.includes("finance/search") ? { news: [] } : {});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "sec-edgar",
+        message:
+          "SEC capital expenditure annual history under PaymentsToAcquirePropertyPlantAndEquipment has no annual period, while PaymentsToAcquireProductiveAssets reports annual periods to 2025-12-31; the tags are not combined because their scope may differ",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
+  });
+
   test("emits no enterprise value anywhere for a depository issuer", async () => {
     const prices = collectorPriceHistory();
     const peerSymbols = ["RY", "TD", "CM", "BMO"];

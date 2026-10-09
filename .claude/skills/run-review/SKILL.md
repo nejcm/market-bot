@@ -1,6 +1,6 @@
 ---
 name: run-review
-description: Analyze market-bot runs, produce a ranked, evidence-backed list of fixes and improvements, then deep-dive the single most important one (output only, no code changes).
+description: Analyze market-bot runs, produce a ranked, evidence-backed list of fixes and improvements, and recommend the one to investigate next (output only, no code changes).
 ---
 
 # Role
@@ -14,21 +14,17 @@ the docs it links (architecture, conventions, ADRs) for context and constraints.
 - **Natural request:** resolve phrases like "latest AAPL run" by listing
   `data/runs/` newest-first and inspecting compact JSON fields, not large raw
   artifact text.
-- **Nothing supplied:** review the reference pair per Step 0.
+- **Nothing supplied:** review the reference run per Step 0.
 
 # Step 0 — Resolve the target run(s)
 
-**Pair mode (default when nothing is supplied).** Review two deep equity runs
-on the same code: a high-coverage subject, `equity AMD --deep`, and a
-thin-coverage subject, `equity CLFD --deep` (Clearfield, a small-cap domestic
-10-K filer, so the difference is online coverage, not filing path). The pair is
-fixed so each subject builds its own baseline history; change it only on
-request. Where a finding shows up is a lead toward systemic versus
-coverage-path causes, not a verdict; the Output **Scope** rule decides.
+**Reference mode (default when nothing is supplied).** Review one deep equity
+run, `equity AMD --deep`. The subject is fixed so it builds its own baseline
+history, and Steps 1-2 compare it against prior runs; change it only on
+request.
 
-A pair member is reusable only when its newest run executed the source now in
-the workspace, read from its `analytics.json`, and the two runs share
-`reproducibility.effectiveConfigHash`:
+The newest AMD deep run is reused only when it executed the source now in the
+workspace, read from its `analytics.json`:
 
 - **Clean run, clean workspace** — `codeVersion.dirty` is `false`, `git status
 --porcelain` is empty, and `git diff --quiet <codeVersion.commit> HEAD`
@@ -39,9 +35,9 @@ the workspace, read from its `analytics.json`, and the two runs share
   no CLI call).
 
 Anything else — a dirty run without `dirtySourceHash`, a dirty run against a
-clean workspace or the reverse — is not reusable. Run only the members that
-are not reusable. A fresh deep equity run costs ~12 minutes and ~438k live model tokens
-(a recent NBIS deep run: 584s); state the total before starting.
+clean workspace or the reverse — is not reusable; run it fresh then. A fresh
+deep equity run costs ~12 minutes and ~438k live model tokens (a recent NBIS
+deep run: 584s); state the cost before starting.
 
 **Single-run mode.** Review exactly one run. **Never** execute the CLI when the
 user supplied a run dir, or when you were invoked by another skill or subagent
@@ -59,23 +55,20 @@ When running:
   isolation** — keeping run logs out of the review — not model savings; the
   cost is market-bot's own model calls, which the driving agent does not
   change. Say so plainly if asked.
-- **Run pair members in parallel.** Run dirs publish atomically and the
-  shared-state phases (score pass, calibration, index, history, news-seen)
-  serialize on a lock under `data/`; provider rate-limit queues are per process,
-  so two runs double the request rate. A member that exits non-zero without a
-  run dir (e.g. a model-provider 429 / capacity error in its stderr tail) is
-  reported as failed with that tail — not rerun. A rerun needs explicit user
-  approval after you state its cost (~12 minutes, ~438k tokens per deep run).
-  Source-provider throttling usually surfaces instead as Source Gaps inside a
-  successful run; review those as findings.
+- **A run that exits non-zero without a run dir** (e.g. a model-provider 429 /
+  capacity error in its stderr tail) is reported as failed with that tail —
+  not rerun. A rerun needs explicit user approval after you state its cost
+  (~12 minutes, ~438k tokens per deep run). Source-provider throttling usually
+  surfaces instead as Source Gaps inside a successful run; review those as
+  findings.
 - **One run per subject.** Repeat same-subject runs discriminate run-to-run
   variance, but that is the most expensive axis; older runs of the same subject
   (Step 2) cover most of it for free. Do N repeats only on explicit request, and
   state the total cost before starting.
-- **A failed pair member** with a run dir (`failure.json`, written only for a
+- **A failed run** with a run dir (`failure.json`, written only for a
   rejected final synthesis) is still reviewed from its `outcomes.json`; one
   without a run dir is reviewed from its stderr tail only. Either way say the
-  pair comparison is partial.
+  baseline comparison is partial.
 
 Map requests to commands via `src/cli/job-registry.ts`, e.g.
 `bun run src/cli.ts equity NBIS --deep`, `bun run src/cli.ts crypto BTC`,
@@ -103,11 +96,10 @@ runs. Per run read only:
 - `report.json`: prediction `kind`/`subject`/`probability` tuples, and counts of
   any gap text your candidate findings rest on
 
-Runs sharing one commit across different subjects are the highest-value slice
-(in pair mode, the pair itself is that slice),
+Runs sharing one commit across different subjects are the highest-value slice,
 but a shared commit alone does not hold code constant: `jobType`, `assetClass`,
 `reproducibility.effectiveConfigHash`, and provider availability must also
-match, or the pair differs by configuration rather than subject. Say which of
+match, or the runs differ by configuration rather than subject. Say which of
 those held when you lean on a cohort comparison.
 
 Report the cohort as a compact table in the output. Findings are classified
@@ -126,8 +118,6 @@ the job type produces dated horizons — the same prediction horizon bucket.
 Resolve the subject from `analytics.json:symbol`, `report.json:symbol`, or
 prediction subjects if the report schema differs. Prefer the newest comparable
 prior run; inspect older candidates only when needed to establish comparability.
-In pair mode each member gets its own same-subject baseline; the other pair
-member is never a baseline.
 
 Older same-subject runs are the noise check. Before calling a metric delta a
 change, look at that metric across earlier runs of the subject whose code delta
@@ -180,51 +170,22 @@ staleness command against the target commit. When the bands are stale, say
 "no valid variance band" in the Code delta line and treat every run-vs-run metric delta as unproven unless independent
 artifact evidence corroborates it.
 
-# Step 4 — Focus finding deep dive (mandatory, after ranking)
-
-Once the Recommendations are ranked, pick **one** as the Focus finding:
-normally the highest-ranked `fixable` item; pick a lower one only when it
-clearly matters more to downstream run quality, and say why in one line. If
-nothing is `fixable`, say so and skip this step. Fixing several findings at
-once has produced interacting regressions, so the review steers toward one fix
-per cycle. Step 4 reads existing artifacts and code only — no fresh runs,
-`--live`, recorders, or golden writes.
-
-Investigate only that finding, in depth:
-
-1. **Cross-run validation.** Check the symptom in the 1–3 most recent prior
-   comparable runs of each reviewed subject (Step 2 rules), plus any cohort
-   run on another subject where it would show. The Step 1 12-run cap does not
-   apply here; disclose any run read beyond the cohort. Report present /
-   absent / unknown per run with `file:field` values, each run's
-   `codeVersion.commit`, and the Step 3 attribution label. If it is absent in
-   an older run, read the producing subsystem's diff hunks between that run's
-   commit and the first run showing it.
-2. **Cause.** Debug the producing code path end to end and cite
-   `path/file.ts:symbolName` for each step that matters. Report the cause as
-   `verified` or `unresolved`; when unresolved, name the missing evidence
-   (artifact, log, or code path) and mark the fix sketch provisional.
-3. **Reproduction.** Give the offline replay
-   (`bun run scripts/replay-fixture-run.ts <fixture>`) or proposed unit-test
-   inputs that exercise the path, the failing assertion, and the expected
-   behavior. Say whether the symptom was seen in an inspected golden or only
-   inferred; if no fixture reaches the path, the fix needs one or a unit test
-   at the seam.
-4. **Fix sketch.** The smallest change at the root cause, the files it
-   touches, and the surfaces from AGENTS.md "Hit every surface" it must reach
-   (console, goldens, docs). No code.
-
 # Output
 
-Produce a compact review with three evidence-backed sections:
+Produce a compact review with these evidence-backed sections:
 
 1. **Improvements** — material things that improved versus the selected
-   baseline; in pair mode, label each with its subject.
+   baseline.
 2. **Recommendations** — a single ranked list of everything worth doing: bugs,
    regressions, evidence/coverage gaps, prediction-quality or calibration issues,
    determinism concerns, and telemetry blind spots.
-3. **Focus finding** — the Recommendation's rank, Step 4 results, and its
-   objective check.
+3. **Next investigation** — one Recommendation, by rank, to investigate and
+   fix next: normally the top `fixable` item; a lower one only when it clearly
+   matters more to run quality. One line on why it beat the runner-up, and the
+   open questions an investigation must answer. Do not investigate it further
+   here — the user debugs it separately, one fix per cycle, because fixing
+   several findings at once has produced interacting regressions. If nothing
+   is `fixable`, say so.
 
 For each Improvement item:
 
@@ -240,18 +201,16 @@ For each Recommendation item, **at most 8, ranked**:
 - **Category** — e.g. `bug`, `regression`, `evidence-coverage`,
   `prediction-quality`, `calibration`, `determinism`, `telemetry`,
   `provider-incident`, `adr-conflict`
-- **Observed in** — the run(s) showing the symptom (in pair mode `AMD`,
-  `CLFD`, or both). This is a fact, not a classification.
+- **Observed in** — the run(s) showing the symptom: the target and any prior
+  or cohort runs checked. This is a fact, not a classification.
 - **Scope** — `subject-specific` / `systemic` / `unknown`, inferred separately
   from **Observed in** against the Step 1 cohort: `subject-specific` when
   present only for this subject, `systemic` when present across subjects on the
   same commit and config hash, `unknown` when the cohort is too thin to tell.
-  One pair is a thin cohort: a symptom in one member is not `subject-specific`
-  by that alone (a provider incident can hit one run at random), and the same
-  symptom in both is not `systemic` unless the cause is the same. Attribute it
-  to the high- or thin-coverage path only with corroborating evidence — the
-  same symptom in older runs of that subject, or a code path that branches on
-  coverage — and otherwise say `unknown`. A systemic finding outranks a
+  A symptom in the target alone is not `subject-specific` by that alone (a
+  provider incident can hit one run at random): check it in older runs of the
+  subject and in other-subject cohort runs, and otherwise say `unknown`. A
+  systemic finding outranks a
   subject-specific one of equal severity.
 - **Suspected cause** — subject to the cause-verification rule below
 - **Severity** — `high` / `medium` / `low`
@@ -270,8 +229,7 @@ For each Recommendation item, **at most 8, ranked**:
   (e.g. "`analytics.json:sourceFunnel.sourceGaps.total` has no duplicate
   `(source, message)` pair"). Not a test name — an assertion over run artifacts.
 
-Close with a single **`delta:`** line (pair mode: one per subject, prefixed
-with the symbol) — `improved` / `regressed` / `stagnant` /
+Close with a single **`delta:`** line — `improved` / `regressed` / `stagnant` /
 `inconclusive` versus the baseline, with the artifact evidence behind the verdict.
 When `regressed`, state whether the cause is a code change (per Step 3) or
 live-data/model variance. `inconclusive` is the required verdict when no
@@ -416,11 +374,11 @@ Check these explicitly before final ranking:
 
 # Rules
 
-- Output the Improvements, ranked Recommendations, and Focus finding sections only,
+- Output the Improvements, ranked Recommendations, and Next investigation sections only,
   preceded by the scope/cohort/code-delta disclosure. Do NOT edit code, write
   fixes, or change anything outside the permitted CLI runs in Step 0.
 - Every finding must cite evidence from the artifacts. Don't guess.
-- State the mode (pair or single), each run reviewed, whether it was reused,
+- State the mode (reference or single), each run reviewed, whether it was reused,
   supplied, or freshly executed, the cohort scanned, each baseline, and the
   "Code delta" line(s).
 - Use exact `file:field` citations and compact extracted values. Avoid pasting

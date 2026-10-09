@@ -3,6 +3,8 @@ import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
 import type { VerifiedMarketSnapshot } from "../../domain/types";
 import type { CollectedSources } from "../../sources/types";
+import { earningsBasis } from "../../report/equity-reader-earnings-basis";
+import { tickerSnapshot } from "../../sources/extended-evidence/financial-lens-metrics";
 import { profileCitableSources, subjectKindForCommand } from "../../web-evidence";
 import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 import {
@@ -84,6 +86,17 @@ const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSou
   isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined
     ? { earningsSetup: collectedSources.earningsSetup }
     : {};
+
+const projectEarningsBasis: EvidenceProjector = (_options, command, collectedSources) => {
+  if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
+    return {};
+  }
+  const basis = earningsBasis(
+    tickerSnapshot(command, collectedSources.marketSnapshots),
+    collectedSources.financialStatements,
+  );
+  return basis === undefined ? {} : { earningsBasis: basis };
+};
 
 // Compact verified snapshot for prompts: latest OHLCV, indicators, recent closes only.
 // The full bar series stays on disk (rawSnapshots / normalized sidecar).
@@ -194,6 +207,7 @@ const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectMarketContext,
   projectExtendedEvidence,
   projectEarningsSetup,
+  projectEarningsBasis,
   projectVerifiedMarketSnapshot,
   projectVerifiedRepresentativeSnapshots,
   projectResolvedInstrumentIdentity,
@@ -205,7 +219,7 @@ function citationGuidanceFor(options: EvidencePayloadOptions): string {
   if (options.webSourceText === "profile") {
     return "Profile citations must come from sourceIds in evidence.webSources. Attribute numeric KPI claims to the filing or web source that states them.";
   }
-  return "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
+  return "For exact numeric market claims, cite deterministic snapshot sourceIds from marketSnapshots, supplementalMarketSnapshots, marketContext, extendedEvidence, earningsBasis, verifiedMarketSnapshot, or verifiedRepresentativeSnapshots when available. Use history-report-* sources for narrative prior-context claims, not as the only citation for a specific number.";
 }
 
 export function buildEvidencePayload(

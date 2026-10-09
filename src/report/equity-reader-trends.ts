@@ -25,6 +25,7 @@ interface FinancialTrendRow {
 export interface EquityReaderFinancialTrends {
   readonly reportingCurrency?: string;
   readonly freeCashFlowScope?: string;
+  readonly netIncomeScope?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly FinancialTrendRow[];
 }
@@ -208,9 +209,11 @@ export function financialTrends(
   }
   const reportingCurrency = financialTrendCurrency(history);
   const freeCashFlowScope = conceptScope(history.series.operatingCashFlow?.concept);
+  const netIncomeScope = history.series.netIncome.scope;
   return {
     ...(reportingCurrency === undefined ? {} : { reportingCurrency }),
     ...(freeCashFlowScope === undefined ? {} : { freeCashFlowScope }),
+    ...(netIncomeScope === undefined ? {} : { netIncomeScope }),
     sourceIds: [history.sourceId],
     rows,
   };

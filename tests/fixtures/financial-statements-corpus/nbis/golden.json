@@ -250,6 +250,13 @@
       "interim": [],
       "ttm": null
     },
+    "continuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -1011,6 +1018,13 @@
           "unit": "USD/shares"
         }
       ],
+      "interim": [],
+      "ttm": null
+    },
+    "continuingDilutedEps": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
       "interim": [],
       "ttm": null
     },

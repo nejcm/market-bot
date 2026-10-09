@@ -34,8 +34,8 @@
     </span>
   </div>
   <div class="mt-2 text-[10px] leading-snug text-muted-foreground">
-    {valuationWorkbench.priceSelectionRule}. {valuationWorkbench.trailingDisclosure}.{#if valuationWorkbench.freeCashFlowDisclosure !== undefined}
-      {valuationWorkbench.freeCashFlowDisclosure}.{/if}
+    {valuationWorkbench.priceSelectionRule}. {valuationWorkbench.trailingDisclosure}.{#if valuationWorkbench.scopeDisclosure !== undefined}
+      {valuationWorkbench.scopeDisclosure}.{/if}
   </div>
   {#if valuationWorkbench.rows.length > 0}
     <div class="mt-3 overflow-x-auto rounded-lg border border-border">

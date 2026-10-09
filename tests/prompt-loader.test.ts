@@ -283,3 +283,14 @@ describe("loadStagePrompt — real prompt files", () => {
     expect(result.instruction).toContain("you should");
   });
 });
+
+describe("checked-in final-synthesis prompt", () => {
+  test("carries the accounting-scope guidance", async () => {
+    const { instruction } = await loadStagePrompt("final-synthesis", tickerCommand);
+
+    expect(instruction).toContain(
+      "Keep the accounting scope the evidence labels on every earnings and cash-flow figure",
+    );
+    expect(instruction).toContain("(evidence.earningsBasis)");
+  });
+});

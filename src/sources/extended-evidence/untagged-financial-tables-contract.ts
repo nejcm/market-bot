@@ -77,7 +77,7 @@ type FinancialTableValidationField =
   | "foreignExchangeEffect";
 
 export type FinancialTableSemanticField =
-  | FinancialStatementSeriesKey
+  | Exclude<FinancialStatementSeriesKey, "continuingIncome" | "continuingDilutedEps">
   | FinancialTableValidationField
   | "mezzanineEquity";
 

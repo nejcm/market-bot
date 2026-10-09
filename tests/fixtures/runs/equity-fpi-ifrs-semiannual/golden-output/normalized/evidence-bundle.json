@@ -1296,6 +1296,13 @@
                 "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
               }
             ]
+          },
+          "continuingIncome": {
+            "key": "continuingIncome",
+            "label": "Income from continuing operations",
+            "statement": "incomeStatement",
+            "annual": [],
+            "interim": []
           }
         },
         "balanceSheet": {
@@ -1886,6 +1893,13 @@
                 "sourceIds": ["extended-sec-edgar-ifrssa-fundamentals"]
               }
             ]
+          },
+          "continuingDilutedEps": {
+            "key": "continuingDilutedEps",
+            "label": "Diluted EPS from continuing operations",
+            "statement": "perShare",
+            "annual": [],
+            "interim": []
           },
           "dilutedShares": {
             "key": "dilutedShares",

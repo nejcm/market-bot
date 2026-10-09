@@ -36,6 +36,13 @@
         "statement": "incomeStatement",
         "annual": [],
         "interim": []
+      },
+      "continuingIncome": {
+        "key": "continuingIncome",
+        "label": "Income from continuing operations",
+        "statement": "incomeStatement",
+        "annual": [],
+        "interim": []
       }
     },
     "balanceSheet": {
@@ -123,6 +130,13 @@
       "dilutedEps": {
         "key": "dilutedEps",
         "label": "Diluted EPS",
+        "statement": "perShare",
+        "annual": [],
+        "interim": []
+      },
+      "continuingDilutedEps": {
+        "key": "continuingDilutedEps",
+        "label": "Diluted EPS from continuing operations",
         "statement": "perShare",
         "annual": [],
         "interim": []

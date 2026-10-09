@@ -26,6 +26,7 @@ Observed price: 198.5 USD; price as of fetch time 2026-06-15T14:30:00.000Z. [mar
 Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/book 45.00x; this is valuation context, not a target price. [market-yahoo-equity-aapl]
 
 - **Observed metrics:** EPS TTM 6.40 [market-yahoo-equity-aapl]
+- **Earnings basis:** Provider trailing EPS 6.40 (Yahoo; accounting scope and period basis undisclosed). No SEC diluted EPS TTM is available to compare. [market-yahoo-equity-aapl]
 
 ## Catalysts
 

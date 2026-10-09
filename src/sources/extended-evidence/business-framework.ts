@@ -9,6 +9,8 @@ import type {
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
+import { secScope } from "./financial-lens-metrics";
+import { scopedLabel } from "./financial-statement-definitions";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { readNumberMetric } from "./utils";
 import { formatLensValue, type LensValueUnit } from "./value-format";
@@ -545,7 +547,7 @@ export function addBusinessFrameworkEvidence(
         ),
         ...metric(
           "netIncomeDeltaPercent",
-          "Net income YoY",
+          scopedLabel("Net income YoY", secScope(secItem, "netIncome")),
           netIncomeDeltaPercent,
           "whole-percent",
           secSourceIds,

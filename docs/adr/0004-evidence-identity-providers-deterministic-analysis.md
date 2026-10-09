@@ -36,7 +36,8 @@ same-period composites; amended 2026-08-31: clarified operating-KPI unconfigured
 expectations entitlement completeness status; amended 2026-09-01: web-gather SEC coverage
 guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
 basis; amended 2026-10-08: accession-addressed SEC document cache; amended 2026-10-08: per-instant
-debt resolution and same-period enterprise value)
+debt resolution and same-period enterprise value; amended 2026-10-09: accounting scope and
+earnings-basis disclosure)
 
 ## Context
 
@@ -221,6 +222,26 @@ without pretending the project has a global security master.
 - SEC `netIncome` maps to parent-attributable `NetIncomeLoss`; optional consolidated `ProfitLoss`
   is disclosure-only when it differs. ROE and ROA retain parent-attributable income and their
   existing balance-sheet scopes rather than mixing consolidated and parent measures.
+- Accounting scope has three independent axes, kept apart rather than inferred from equal values:
+  continuing versus total operations, parent-attributable versus including noncontrolling
+  interests (NCI), and SEC filing versus provider earnings basis. Income from continuing
+  operations and continuing diluted EPS are their own canonical series with explicit concept
+  mappings (parent-attributable before including-NCI on an equal period); they never replace
+  `netIncome` or `dilutedEps`, and ROE, ROA, net margin, and payout keep total parent income. A
+  continuing series older than its total counterpart is history, not a scope split, and adds no
+  metric. When a continuing counterpart is current, total `netIncome` and `dilutedEps` carry a
+  "total operations" scope label through the SEC summary, Growth lens, Business Framework, Financial
+  Trends, and Valuation Workbench P/E inputs, and every growth comparison is labelled by its scope.
+- Cash conversion divides operating cash flow by income of the same operations scope, sharing
+  period, currency, and unit: continuing OCF uses continuing income, total OCF uses net income.
+  When continuing OCF has no compatible continuing income the ratio is withheld and a declared
+  Source Gap says so; a zero denominator withholds the ratio without a gap.
+- One deterministic earnings-basis disclosure sits beside Yahoo trailing EPS and P/E in Markdown
+  Valuation Context and the Research Console header. It keeps both observations: the provider value
+  with its undisclosed accounting and period basis, and the SEC diluted EPS TTM (labelled as an
+  approximation, with its period end) plus continuing-operations EPS TTM when tagged. It states
+  agreement at two decimals, a mismatch, or a currency mismatch, and never substitutes one value for
+  the other or explains a difference no source states.
 - Equity runs persist deterministic SEC companyfacts Fundamental History without changing
   `report.json`: inside the bundle for deep equity and in `normalized/fundamental-history.json` for
   other equity runs. Each revenue series buckets concepts whose latest eligible period is within 100

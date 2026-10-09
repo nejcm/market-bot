@@ -98,8 +98,33 @@ export function isRevenueConceptInRecencyBucket(
   return Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= REVENUE_CONCEPT_RECENCY_BUCKET_DAYS;
 }
 
+const CONTINUING_OPERATIONS_SCOPE = "continuing operations";
+
+export const TOTAL_OPERATIONS_SCOPE = "total operations";
+
+const CONCEPT_SCOPES: Readonly<Record<string, string>> = {
+  IncomeLossFromContinuingOperations: "continuing operations, attributable to parent",
+  IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest:
+    "continuing operations, including NCI",
+  ProfitLossFromContinuingOperationsAttributableToOwnersOfParent:
+    "continuing operations, attributable to parent",
+  ProfitLossFromContinuingOperations: "continuing operations, including NCI",
+  IncomeLossFromContinuingOperationsPerDilutedShare: CONTINUING_OPERATIONS_SCOPE,
+  DilutedEarningsLossPerShareFromContinuingOperations: CONTINUING_OPERATIONS_SCOPE,
+};
+
 export function conceptScope(concept: string | undefined): string | undefined {
-  return concept?.endsWith("ContinuingOperations") === true ? "continuing operations" : undefined;
+  if (concept === undefined) {
+    return undefined;
+  }
+  return (
+    CONCEPT_SCOPES[concept] ??
+    (concept.endsWith("ContinuingOperations") ? CONTINUING_OPERATIONS_SCOPE : undefined)
+  );
+}
+
+export function isContinuingScope(scope: string | undefined): boolean {
+  return scope?.startsWith(CONTINUING_OPERATIONS_SCOPE) === true;
 }
 
 export function scopedLabel(label: string, scope: string | undefined): string {
@@ -154,6 +179,24 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: true,
       concepts: { "us-gaap": ["NetIncomeLoss"], "ifrs-full": ["ProfitLoss"] },
+    },
+    {
+      key: "continuingIncome",
+      label: "Income from continuing operations",
+      statement: "incomeStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: true,
+      concepts: {
+        "us-gaap": [
+          "IncomeLossFromContinuingOperations",
+          "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        ],
+        "ifrs-full": [
+          "ProfitLossFromContinuingOperationsAttributableToOwnersOfParent",
+          "ProfitLossFromContinuingOperations",
+        ],
+      },
     },
     {
       key: "cash",
@@ -300,6 +343,18 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       concepts: {
         "us-gaap": ["EarningsPerShareDiluted"],
         "ifrs-full": ["DilutedEarningsLossPerShare"],
+      },
+    },
+    {
+      key: "continuingDilutedEps",
+      label: "Diluted EPS from continuing operations",
+      statement: "perShare",
+      kind: "duration",
+      unitKind: "per-share",
+      deriveTtm: true,
+      concepts: {
+        "us-gaap": ["IncomeLossFromContinuingOperationsPerDilutedShare"],
+        "ifrs-full": ["DilutedEarningsLossPerShareFromContinuingOperations"],
       },
     },
     {

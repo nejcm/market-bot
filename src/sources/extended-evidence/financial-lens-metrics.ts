@@ -104,7 +104,14 @@ export function operatingCashFlowLabel(
   item: ExtendedEvidenceItem | undefined,
   label: string,
 ): string {
-  return scopedLabel(label, readSecStringMetric(item?.metrics, "operatingCashFlowScope"));
+  return scopedLabel(label, secScope(item, "operatingCashFlow"));
+}
+
+export function secScope(
+  item: ExtendedEvidenceItem | undefined,
+  key: SecFactMetricKey,
+): string | undefined {
+  return readSecStringMetric(item?.metrics, `${key}Scope`);
 }
 
 export function tickerSnapshot(

@@ -203,6 +203,8 @@ function assessFinancialLensMetric(
     case "operatingIncomeDeltaPercent":
     case "netIncomeDeltaPercent":
     case "dilutedEpsDeltaPercent":
+    case "continuingIncomeDeltaPercent":
+    case "continuingDilutedEpsDeltaPercent":
     case "operatingCashFlowDeltaPercent": {
       return assessment(
         rawValue,

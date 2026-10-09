@@ -33,6 +33,7 @@ TTM (2026-03-31; filed 2026-05-01) | 426.0B | 116.0B | 32.9% | 118.0B
 The observed quote is within the peer-implied price reference range of 145.60–264.73 USD as of fetch time 2026-06-15T14:30:00.000Z; this is valuation context, not a target price. [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-filings] [extended-sec-edgar-aapl-fundamentals] [market-yahoo-equity-msft] [extended-sec-edgar-msft-fundamentals] [extended-sec-edgar-msft-filings] [market-yahoo-equity-googl] [extended-sec-edgar-googl-fundamentals] [extended-sec-edgar-googl-filings] [market-yahoo-equity-amzn] [extended-sec-edgar-amzn-fundamentals] [extended-sec-edgar-amzn-filings] [market-yahoo-equity-meta] [extended-sec-edgar-meta-fundamentals] [extended-sec-edgar-meta-filings] [market-yahoo-equity-dell] [extended-sec-edgar-dell-fundamentals] [extended-sec-edgar-dell-filings]
 
 - **Observed metrics:** price/book 45.00x, EPS TTM 6.40 [market-yahoo-equity-aapl]
+- **Earnings basis:** Provider trailing EPS 6.40 (Yahoo; accounting scope and period basis undisclosed). SEC diluted EPS TTM 7.60 USD through 2026-03-31; an approximation that adds per-share periods without reweighting diluted shares. The provider value matches no SEC value at two decimals, and the supplied evidence does not reconcile the difference. [market-yahoo-equity-aapl] [extended-sec-edgar-aapl-fundamentals]
 
 ## Catalysts
 

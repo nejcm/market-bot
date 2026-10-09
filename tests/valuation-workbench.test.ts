@@ -145,6 +145,7 @@ function statements(): FinancialStatementsArtifact {
         grossProfit: series("grossProfit", "incomeStatement"),
         operatingIncome: series("operatingIncome", "incomeStatement"),
         netIncome: series("netIncome", "incomeStatement", [10, 12], 13),
+        continuingIncome: series("continuingIncome", "incomeStatement"),
       },
       balanceSheet: {
         cash: series("cash", "balanceSheet", [5, 6]),
@@ -163,6 +164,7 @@ function statements(): FinancialStatementsArtifact {
       },
       perShare: {
         dilutedEps: series("dilutedEps", "perShare", [1, 1.2], 1.3, "USD/shares"),
+        continuingDilutedEps: series("continuingDilutedEps", "perShare"),
         dilutedShares: series("dilutedShares", "perShare", [10, 10], undefined, "shares"),
       },
     },

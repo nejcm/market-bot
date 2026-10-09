@@ -159,6 +159,23 @@ describe("financial statement selection", () => {
         unitKeys: ["USD/shares"],
       },
       {
+        key: "continuingIncome",
+        label: "income",
+        concepts: [
+          "IncomeLossFromContinuingOperations",
+          "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        ],
+        unitKeys: ["USD"],
+        optional: true,
+      },
+      {
+        key: "continuingDilutedEps",
+        label: "diluted EPS",
+        concepts: ["IncomeLossFromContinuingOperationsPerDilutedShare"],
+        unitKeys: ["USD/shares"],
+        optional: true,
+      },
+      {
         key: "cash",
         label: "cash",
         concepts: [
@@ -286,6 +303,24 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: true,
         concepts: { "us-gaap": ["NetIncomeLoss"], "ifrs-full": ["ProfitLoss"] },
+      },
+      {
+        key: "continuingIncome",
+        label: "Income from continuing operations",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": [
+            "IncomeLossFromContinuingOperations",
+            "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+          ],
+          "ifrs-full": [
+            "ProfitLossFromContinuingOperationsAttributableToOwnersOfParent",
+            "ProfitLossFromContinuingOperations",
+          ],
+        },
       },
       {
         key: "cash",
@@ -432,6 +467,18 @@ describe("financial statement selection", () => {
         concepts: {
           "us-gaap": ["EarningsPerShareDiluted"],
           "ifrs-full": ["DilutedEarningsLossPerShare"],
+        },
+      },
+      {
+        key: "continuingDilutedEps",
+        label: "Diluted EPS from continuing operations",
+        statement: "perShare",
+        kind: "duration",
+        unitKind: "per-share",
+        deriveTtm: true,
+        concepts: {
+          "us-gaap": ["IncomeLossFromContinuingOperationsPerDilutedShare"],
+          "ifrs-full": ["DilutedEarningsLossPerShareFromContinuingOperations"],
         },
       },
       {

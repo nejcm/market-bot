@@ -6,7 +6,12 @@ import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
-import { conceptScope, DEBT_CONCEPTS, scopedLabel } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  DEBT_CONCEPTS,
+  scopedLabel,
+  TOTAL_OPERATIONS_SCOPE,
+} from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
   compositeStatementIdentity,
@@ -155,6 +160,23 @@ export const SEC_METRIC_DEFINITIONS = [
     unitKeys: ["USD/shares"],
   },
   {
+    key: "continuingIncome",
+    label: "income",
+    concepts: [
+      "IncomeLossFromContinuingOperations",
+      "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+    unitKeys: ["USD"],
+    optional: true,
+  },
+  {
+    key: "continuingDilutedEps",
+    label: "diluted EPS",
+    concepts: ["IncomeLossFromContinuingOperationsPerDilutedShare"],
+    unitKeys: ["USD/shares"],
+    optional: true,
+  },
+  {
     key: "cash",
     label: "cash",
     concepts: [
@@ -251,6 +273,8 @@ const FLOW_METRIC_KEYS = new Set([
   "netIncome",
   "consolidatedNetIncome",
   "dilutedEps",
+  "continuingIncome",
+  "continuingDilutedEps",
   "operatingCashFlow",
   "capex",
   "dilutedShares",
@@ -916,6 +940,14 @@ export function summarizeSecFundamentals(
     }
   }
 
+  for (const [continuingKey, totalKey] of [
+    ["continuingIncome", "netIncome"],
+    ["continuingDilutedEps", "dilutedEps"],
+  ] as const) {
+    if (metrics[continuingKey] !== undefined && metrics[`${totalKey}Scope`] === undefined) {
+      metrics[`${totalKey}Scope`] = TOTAL_OPERATIONS_SCOPE;
+    }
+  }
   if (debtSelection?.grossPrincipal !== undefined) {
     metrics.debtBasis = "gross-principal" satisfies DebtBasis;
   }

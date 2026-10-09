@@ -32,6 +32,7 @@ FY ending 2025-12-31 (filed 2026-03-15) | 1.5B | 825.0M | 70.0% | — (free-cash
 Observed market multiples are trailing P/E 31.00x, forward P/E 28.00x, price/book 45.00x; this is valuation context, not a target price. [market-yahoo-equity-ifrssa]
 
 - **Observed metrics:** EPS TTM 6.40 [market-yahoo-equity-ifrssa]
+- **Earnings basis:** Provider trailing EPS 6.40 (Yahoo; accounting scope and period basis undisclosed). No SEC diluted EPS TTM is available to compare. [market-yahoo-equity-ifrssa]
 
 ## Catalysts
 

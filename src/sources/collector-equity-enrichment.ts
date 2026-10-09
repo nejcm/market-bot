@@ -17,7 +17,10 @@ import {
   type EquityReportingFreshness,
 } from "./extended-evidence/equity-analysis-completeness";
 import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
-import { withCanonicalFinancialLensInputs } from "./extended-evidence/financial-lens-canonical";
+import {
+  cashConversionScopeGaps,
+  withCanonicalFinancialLensInputs,
+} from "./extended-evidence/financial-lens-canonical";
 import {
   collectSubsequentFinancingBridge,
   deriveSubsequentFinancingBridge,
@@ -408,7 +411,10 @@ export async function collectEquityEnrichment(
     financialStatementGaps:
       financialStatements === undefined
         ? []
-        : financialStatementsDebtBasisGaps(financialStatements),
+        : [
+            ...financialStatementsDebtBasisGaps(financialStatements),
+            ...cashConversionScopeGaps(financialStatements),
+          ],
     reportingFreshness,
     subsequentFinancing,
     capitalOwnership,

@@ -12,6 +12,7 @@ import { depositoryIssuerSic } from "../sources/extended-evidence/industry-class
 import type { PeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
 import { isWebSubjectProfileWithheldAnswer } from "../web-evidence/contract";
+import { earningsBasis, type EquityReaderEarningsBasis } from "./equity-reader-earnings-basis";
 import {
   balanceSheetHistory,
   financialPosition,
@@ -143,6 +144,7 @@ export interface EquityReaderProjection {
     readonly financialTrends?: EquityReaderFinancialTrends;
     readonly financialPosition?: EquityReaderFinancialPosition;
     readonly valuationContext: EquityReaderValuationContext;
+    readonly earningsBasis?: EquityReaderEarningsBasis;
     readonly earningsConsensus: readonly EquityReaderConsensusItem[];
     readonly materialGaps: readonly string[];
   };
@@ -440,6 +442,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   const projectedFinancialPosition = financialPosition(input.financialStatements, generatedAt);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
   const completeness = completenessProjection(input.report);
+  const projectedEarningsBasis = earningsBasis(input.marketSnapshot, input.financialStatements);
   return {
     defaultView: {
       companyDescription: companyDescription(record ?? {}),
@@ -457,6 +460,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
         input.valuationWorkbench,
         input.peerImpliedRange,
       ),
+      ...(projectedEarningsBasis === undefined ? {} : { earningsBasis: projectedEarningsBasis }),
       earningsConsensus: earningsConsensus(input.report),
       materialGaps: gaps.material,
     },

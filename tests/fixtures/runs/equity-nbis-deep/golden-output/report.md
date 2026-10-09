@@ -21,7 +21,7 @@ Observed price: 225.3 USD; price as of quote time 2026-07-22T16:16:04.000Z. [mar
 
 Amounts in USD. FCF, where applicable, is the reported operating-cash-flow less capex proxy. [extended-sec-edgar-nbis-fundamentals]
 
-Period | Revenue | Net income | Operating margin | FCF
+Period | Revenue | Net income (total operations) | Operating margin | FCF
 --- | ---: | ---: | ---: | ---:
 FY ending 2021-12-31 (filed 2022-04-20) | 4.8B | -197.2M | -3.7% | -475.5M
 FY ending 2022-12-31 (filed 2025-04-30) | 13.5M | 745.6M | -1170.4% | 682.4M
@@ -34,6 +34,7 @@ FY ending 2025-12-31 (filed 2026-04-30) | 529.8M | 82.5M | -115.5% | -3.7B
 Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/book 7.97x; this is valuation context, not a target price. [market-yahoo-equity-nbis]
 
 - **Observed metrics:** EPS TTM 2.58 [market-yahoo-equity-nbis]
+- **Earnings basis:** Provider trailing EPS 2.58 (Yahoo; accounting scope and period basis undisclosed). No SEC diluted EPS TTM is available to compare. [market-yahoo-equity-nbis]
 
 ## Catalysts
 
@@ -164,6 +165,8 @@ No prior run artifacts matched this research scope.
 ### Valuation Workbench
 
 Historical multiples use the selected (possibly restated) fundamentals, with publicAt the first filing that reported each selected value, priced at the first verified close within 7 calendar days on or after publicAt; statement period ends do not establish public availability. Reporting currency: USD. Quote currency: USD.
+
+- P/E uses diluted EPS (total operations) for annual 2022-12-31, annual 2023-12-31, annual 2024-12-31, annual 2025-12-31.
 
 Basis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF
 --- | --- | --- | --- | ---: | ---: | ---: | ---:

@@ -7,6 +7,7 @@ import {
   readPredictionShortfall,
 } from "../../src/report/prediction-shortfall";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/types";
+import type { EquityReaderEarningsBasis } from "../../src/report/equity-reader-earnings-basis";
 import type {
   EquityReaderAppendixCompleteness,
   EquityReaderFinancialCoreStatus,
@@ -221,6 +222,7 @@ export interface RunWorkspaceEquityPresentationView {
     readonly financialPosition?: RunWorkspaceFinancialPositionView;
     readonly keyMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
     readonly valuationContext: RunWorkspaceEquitySnapshotReferenceRange;
+    readonly earningsBasis?: EquityReaderEarningsBasis;
     readonly findings: readonly RunWorkspaceTextItem[];
     readonly cases: readonly RunWorkspaceCaseSection[];
     readonly earningsConsensus: RunWorkspaceEarningsConsensusView;
@@ -396,6 +398,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
               ...equitySnapshot.peerReferenceRange,
               label: "Valuation context",
             },
+            ...(readerProjection.defaultView.earningsBasis === undefined
+              ? {}
+              : { earningsBasis: readerProjection.defaultView.earningsBasis }),
             findings,
             cases: ["risks", "catalysts", "bullCase", "bearCase"].flatMap((key) =>
               cases.filter((section) => section.key === key),

@@ -278,6 +278,13 @@
       ],
       "ttm": null
     },
+    "continuingIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalents",
       "selectedFact": {
@@ -702,6 +709,13 @@
           "unit": "USD/shares"
         }
       ],
+      "ttm": null
+    },
+    "continuingDilutedEps": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
       "ttm": null
     },
     "dilutedShares": {

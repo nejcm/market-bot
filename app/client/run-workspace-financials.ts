@@ -73,7 +73,7 @@ interface RunWorkspaceFinancialTrendRow {
 }
 
 export interface RunWorkspaceFinancialTrendView {
-  readonly columns: readonly ["Period", "Revenue", "Net income", "Operating margin", "FCF"];
+  readonly columns: readonly ["Period", "Revenue", string, "Operating margin", "FCF"];
   readonly freeCashFlowLabel: string;
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
@@ -241,6 +241,7 @@ export function fundamentalHistoryView(
         ...(key === "freeCashFlowProxy" && cashFlowScope !== undefined
           ? { scope: cashFlowScope }
           : {}),
+        ...(series.scope === undefined ? {} : { scope: series.scope }),
         geometry: sparklineGeometry(points),
       },
     ];
@@ -255,7 +256,13 @@ export function financialTrendFromProjection(
     return undefined;
   }
   return {
-    columns: ["Period", "Revenue", "Net income", "Operating margin", "FCF"],
+    columns: [
+      "Period",
+      "Revenue",
+      scopedLabel("Net income", trends.netIncomeScope),
+      "Operating margin",
+      "FCF",
+    ],
     freeCashFlowLabel: scopedLabel("FCF proxy", trends.freeCashFlowScope),
     ...(trends.reportingCurrency === undefined
       ? {}

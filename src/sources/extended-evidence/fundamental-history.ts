@@ -14,6 +14,7 @@ import {
   conceptScope,
   isRevenueConceptInRecencyBucket,
   scopedLabel,
+  TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
 import { compareFinancialStatementFacts } from "./financial-statement-selection";
 import type { AnnualReportForm } from "./financial-statements-contract";
@@ -62,6 +63,7 @@ export interface FundamentalHistorySeries {
   readonly label: string;
   readonly unit: "currency" | "per-share" | "ratio";
   readonly concept?: string;
+  readonly scope?: string;
   readonly annual: readonly FundamentalHistoryPoint[];
   readonly ttm?: FundamentalHistoryPoint;
   readonly cagr?: FundamentalHistoryCagr;
@@ -140,7 +142,7 @@ const FY_BOUNDARY_TOLERANCE_DAYS = 10;
 const EPS_TTM_APPROXIMATION_NOTE =
   "ttm:eps-approximation: diluted EPS TTM adds per-share periods and does not reweight diluted shares";
 
-function metricDefinition(key: RawSeriesDefinition["key"]): SecMetricDefinition {
+function metricDefinition(key: string): SecMetricDefinition {
   const definition = SEC_METRIC_DEFINITIONS.find((candidate) => candidate.key === key);
   if (definition === undefined) {
     throw new Error(`Missing SEC metric definition for ${key}`);
@@ -629,6 +631,37 @@ function pairSeries(
   };
 }
 
+function latestObservableEnd(
+  payload: unknown,
+  key: string,
+  analysisAsOf: string | undefined,
+): string | undefined {
+  return selectFacts(payload, metricDefinition(key), analysisAsOf)
+    ?.facts.filter((fact) => isFactObservableAsOf(fact, analysisAsOf))
+    .map((fact) => fact.end ?? "")
+    .toSorted()
+    .at(-1);
+}
+
+// Total earnings carry a scope only while a continuing counterpart is as current as they are.
+export function totalOperationsScopes(
+  latestEnd: (key: EarningsHistoryKey) => string | undefined,
+): FundamentalHistoryEarningsScopes {
+  const scope = (total: EarningsHistoryKey, continuing: EarningsHistoryKey) => {
+    const totalEnd = latestEnd(total);
+    const continuingEnd = latestEnd(continuing);
+    return totalEnd !== undefined && continuingEnd !== undefined && continuingEnd >= totalEnd
+      ? TOTAL_OPERATIONS_SCOPE
+      : undefined;
+  };
+  const netIncome = scope("netIncome", "continuingIncome");
+  const dilutedEps = scope("dilutedEps", "continuingDilutedEps");
+  return {
+    ...(netIncome === undefined ? {} : { netIncome }),
+    ...(dilutedEps === undefined ? {} : { dilutedEps }),
+  };
+}
+
 export function deriveFundamentalHistory(
   payload: unknown,
   input: FundamentalHistoryDeriveInput,
@@ -639,14 +672,30 @@ export function deriveFundamentalHistory(
       rawSeries(payload, definition, input.analysisAsOf),
     ]),
   ) as Record<RawSeriesDefinition["key"], FundamentalHistorySeries>;
+  const scopes = totalOperationsScopes((key) =>
+    latestObservableEnd(payload, key, input.analysisAsOf),
+  );
   return {
     version: 1,
     generatedAt: input.generatedAt,
     symbol: input.symbol.toUpperCase(),
     sourceId: input.sourceId,
     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
-    series: buildFundamentalHistorySeries(raw),
+    series: buildFundamentalHistorySeries(raw, scopes),
   };
+}
+
+type EarningsHistoryKey = "netIncome" | "dilutedEps" | "continuingIncome" | "continuingDilutedEps";
+
+export type FundamentalHistoryEarningsScopes = Partial<Record<"netIncome" | "dilutedEps", string>>;
+
+function withEarningsScope(
+  series: FundamentalHistorySeries,
+  scope: string | undefined,
+): FundamentalHistorySeries {
+  return scope === undefined
+    ? series
+    : { ...series, label: scopedLabel(series.label, scope), scope };
 }
 
 export type FundamentalHistoryRawSeries = Readonly<
@@ -655,6 +704,7 @@ export type FundamentalHistoryRawSeries = Readonly<
 
 export function buildFundamentalHistorySeries(
   raw: FundamentalHistoryRawSeries,
+  scopes: FundamentalHistoryEarningsScopes,
 ): FundamentalHistoryArtifact["series"] {
   const cashFlowScope = conceptScope(raw.operatingCashFlow.concept);
   const scopedOperatingCashFlow = {
@@ -694,8 +744,8 @@ export function buildFundamentalHistorySeries(
     revenue: raw.revenue,
     grossProfit: raw.grossProfit,
     operatingIncome: raw.operatingIncome,
-    netIncome: raw.netIncome,
-    dilutedEps: raw.dilutedEps,
+    netIncome: withEarningsScope(raw.netIncome, scopes.netIncome),
+    dilutedEps: withEarningsScope(raw.dilutedEps, scopes.dilutedEps),
     operatingCashFlow: scopedOperatingCashFlow,
     capex: raw.capex,
     freeCashFlowProxy,

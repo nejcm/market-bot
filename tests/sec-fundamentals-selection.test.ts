@@ -538,7 +538,7 @@ describe("continuing-operations scope in reader views", () => {
       `- P/FCF uses free cash flow proxy (continuing operations) for annual 2025-09-30, ttm ${ttm.periodEnd}.`,
     );
     expect(
-      valuationWorkbenchView(detail({ valuationWorkbench: workbench }))?.freeCashFlowDisclosure,
+      valuationWorkbenchView(detail({ valuationWorkbench: workbench }))?.scopeDisclosure,
     ).toContain("P/FCF uses free cash flow proxy (continuing operations)");
     expect(reverseDcf.status).toBe("computed");
     expect(readReverseDcfArtifact(reverseDcf)).toBeDefined();

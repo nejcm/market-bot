@@ -8,6 +8,7 @@ import {
   conceptScope,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   scopedLabel,
+  TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
 import {
   deriveFinancialStatementTtm,
@@ -45,17 +46,23 @@ function latest(values: readonly string[]): string {
 function withScope(
   label: string,
   concept: string,
+  totalOperations = false,
 ): Pick<ValuationFundamentalInput, "label" | "scope"> {
-  const scope = conceptScope(concept);
+  const scope = conceptScope(concept) ?? (totalOperations ? TOTAL_OPERATIONS_SCOPE : undefined);
   return { label: scopedLabel(label, scope), ...(scope !== undefined ? { scope } : {}) };
 }
 
-function factInput(label: string, fact: FinancialStatementFact): ValuationFundamentalInput {
+function factInput(
+  label: string,
+  fact: FinancialStatementFact,
+  totalOperations = false,
+): ValuationFundamentalInput {
   return {
     value: fact.value,
     ...withScope(
       fact.basis === "gross-principal" ? `${label} (gross principal)` : label,
       fact.concept,
+      totalOperations,
     ),
     periodEnd: fact.periodEnd,
     publicAt: fact.firstPublicAt,
@@ -65,10 +72,14 @@ function factInput(label: string, fact: FinancialStatementFact): ValuationFundam
   };
 }
 
-function ttmInput(label: string, ttm: FinancialStatementTtm): ValuationFundamentalInput {
+function ttmInput(
+  label: string,
+  ttm: FinancialStatementTtm,
+  totalOperations = false,
+): ValuationFundamentalInput {
   return {
     value: ttm.value,
-    ...withScope(label, ttm.components.fiscalYear.concept),
+    ...withScope(label, ttm.components.fiscalYear.concept, totalOperations),
     periodEnd: ttm.periodEnd,
     publicAt: latest(Object.values(ttm.components).map((fact) => fact.firstPublicAt)),
     currency: ttm.currency,
@@ -190,10 +201,17 @@ function annualInputs(
     periodKey,
     periodType,
   );
+  const hasContinuing = (series: FinancialStatementSeries) =>
+    financialStatementFactForPeriod(financialStatementFacts(series), periodKey, periodType) !==
+    undefined;
   const netIncome =
-    netIncomeFact === undefined ? undefined : factInput("Net income", netIncomeFact);
+    netIncomeFact === undefined
+      ? undefined
+      : factInput("Net income", netIncomeFact, hasContinuing(incomeStatement.continuingIncome));
   const dilutedEps =
-    dilutedEpsFact === undefined ? undefined : factInput("Diluted EPS", dilutedEpsFact);
+    dilutedEpsFact === undefined
+      ? undefined
+      : factInput("Diluted EPS", dilutedEpsFact, hasContinuing(perShare.continuingDilutedEps));
   const directShares =
     dilutedSharesFact === undefined
       ? undefined
@@ -240,8 +258,17 @@ interface ValuationTtmInputs {
   readonly revenue: FinancialStatementTtm;
   readonly netIncome?: FinancialStatementTtm;
   readonly dilutedEps?: FinancialStatementTtm;
+  readonly continuingIncome?: FinancialStatementTtm;
+  readonly continuingDilutedEps?: FinancialStatementTtm;
   readonly operatingCashFlow?: FinancialStatementTtm;
   readonly capitalExpenditure?: FinancialStatementTtm;
+}
+
+function sharesTtmPeriod(
+  total: FinancialStatementTtm,
+  continuing: FinancialStatementTtm | undefined,
+): boolean {
+  return continuing !== undefined && financialStatementTtmsSharePeriod([total, continuing]);
 }
 
 function periodInputsFromTtm(
@@ -273,9 +300,21 @@ function periodInputsFromTtm(
       ? values.capitalExpenditure
       : undefined;
   const netIncome =
-    compatibleNetIncome === undefined ? undefined : ttmInput("Net income", compatibleNetIncome);
+    compatibleNetIncome === undefined
+      ? undefined
+      : ttmInput(
+          "Net income",
+          compatibleNetIncome,
+          sharesTtmPeriod(compatibleNetIncome, values.continuingIncome),
+        );
   const dilutedEps =
-    compatibleDilutedEps === undefined ? undefined : ttmInput("Diluted EPS", compatibleDilutedEps);
+    compatibleDilutedEps === undefined
+      ? undefined
+      : ttmInput(
+          "Diluted EPS",
+          compatibleDilutedEps,
+          sharesTtmPeriod(compatibleDilutedEps, values.continuingDilutedEps),
+        );
   const operatingCashFlow =
     compatibleOperatingCashFlow === undefined
       ? undefined
@@ -326,6 +365,12 @@ function ttmInputs(artifact: FinancialStatementsArtifact): ValuationPeriodInputs
       ? { netIncome: incomeStatement.netIncome.ttm }
       : {}),
     ...(perShare.dilutedEps.ttm !== undefined ? { dilutedEps: perShare.dilutedEps.ttm } : {}),
+    ...(incomeStatement.continuingIncome.ttm !== undefined
+      ? { continuingIncome: incomeStatement.continuingIncome.ttm }
+      : {}),
+    ...(perShare.continuingDilutedEps.ttm !== undefined
+      ? { continuingDilutedEps: perShare.continuingDilutedEps.ttm }
+      : {}),
     ...(cashFlowStatement.operatingCashFlow.ttm !== undefined
       ? { operatingCashFlow: cashFlowStatement.operatingCashFlow.ttm }
       : {}),
@@ -368,6 +413,8 @@ function historicalTtmInputs(
     }
     const netIncome = derivedTtmAt(artifact, incomeStatement.netIncome, cutoff);
     const dilutedEps = derivedTtmAt(artifact, perShare.dilutedEps, cutoff);
+    const continuingIncome = derivedTtmAt(artifact, incomeStatement.continuingIncome, cutoff);
+    const continuingDilutedEps = derivedTtmAt(artifact, perShare.continuingDilutedEps, cutoff);
     const operatingCashFlow = derivedTtmAt(artifact, cashFlowStatement.operatingCashFlow, cutoff);
     const capitalExpenditure = derivedTtmAt(artifact, cashFlowStatement.capitalExpenditure, cutoff);
     return [
@@ -375,6 +422,8 @@ function historicalTtmInputs(
         revenue,
         ...(netIncome !== undefined ? { netIncome } : {}),
         ...(dilutedEps !== undefined ? { dilutedEps } : {}),
+        ...(continuingIncome !== undefined ? { continuingIncome } : {}),
+        ...(continuingDilutedEps !== undefined ? { continuingDilutedEps } : {}),
         ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
         ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
       }),

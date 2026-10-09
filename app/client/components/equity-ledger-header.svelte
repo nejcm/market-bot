@@ -167,4 +167,12 @@
       </div>
     </div>
   </div>
+  {#if defaultView.earningsBasis !== undefined}
+    <div
+      class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-[10px] leading-snug text-muted-foreground sm:px-7"
+    >
+      <span>{defaultView.earningsBasis.text}</span>
+      {@render citeChips(defaultView.earningsBasis.sourceIds)}
+    </div>
+  {/if}
 {/if}

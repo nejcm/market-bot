@@ -13,6 +13,7 @@ import {
   readRawStringMetric,
   readSecMetric,
   secPeriod,
+  secScope,
   selectedDerivedPeriod,
   selectedRatioLabel,
   valuationDateBasisMetric,
@@ -25,6 +26,7 @@ import type {
   VerifiedMarketSnapshot,
 } from "../../domain/types";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { isContinuingScope, scopedLabel } from "./financial-statement-definitions";
 import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
 import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
@@ -37,6 +39,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
   const grossProfit = readSecMetric(secItem?.metrics, "grossProfit");
   const operatingIncome = readSecMetric(secItem?.metrics, "operatingIncome");
   const netIncome = readSecMetric(secItem?.metrics, "netIncome");
+  const continuingIncome = readSecMetric(secItem?.metrics, "continuingIncome");
   const consolidatedNetIncome = readSecMetric(secItem?.metrics, "consolidatedNetIncome");
   const netIncomePeriodMonths = readSecMetric(secItem?.metrics, "netIncomePeriodMonths");
   const operatingCashFlow = readSecMetric(secItem?.metrics, "operatingCashFlow");
@@ -66,7 +69,10 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
   const cashConversion = selectedFinancialLensDerivedMetric(
     secItem,
     "cashConversion",
-    ratio(operatingCashFlow, netIncome),
+    ratio(
+      operatingCashFlow,
+      isContinuingScope(secScope(secItem, "operatingCashFlow")) ? continuingIncome : netIncome,
+    ),
   );
   // ROE/ROA are industry-relative (display-only): no universal threshold, no posture.
   // Annualized by net income's own periodMonths so a partial-year filing does not
@@ -170,6 +176,7 @@ export function qualityLens(secItem: ExtendedEvidenceItem | undefined): Financia
 export function growthLens(secItem: ExtendedEvidenceItem | undefined): FinancialLens {
   const sourceIds = secItem?.sourceIds ?? [];
   const netIncomePrior = readSecMetric(secItem?.metrics, "netIncomePrior");
+  const continuingIncomePrior = readSecMetric(secItem?.metrics, "continuingIncomePrior");
   const metrics = [
     ...metric(
       "revenueDeltaPercent",
@@ -197,9 +204,12 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
     ),
     ...metric(
       "netIncomeDeltaPercent",
-      netIncomePrior !== undefined && netIncomePrior < 0
-        ? "Net loss (attrib.) YoY change"
-        : "Net income (attrib.) YoY",
+      scopedLabel(
+        netIncomePrior !== undefined && netIncomePrior < 0
+          ? "Net loss (attrib.) YoY change"
+          : "Net income (attrib.) YoY",
+        secScope(secItem, "netIncome"),
+      ),
       readSecMetric(secItem?.metrics, "netIncomeDeltaPercent"),
       "whole-percent",
       sourceIds,
@@ -207,11 +217,32 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
     ),
     ...metric(
       "dilutedEpsDeltaPercent",
-      "Diluted EPS YoY",
+      scopedLabel("Diluted EPS YoY", secScope(secItem, "dilutedEps")),
       readSecMetric(secItem?.metrics, "dilutedEpsDeltaPercent"),
       "whole-percent",
       sourceIds,
       secPeriod(secItem, "dilutedEps"),
+    ),
+    ...metric(
+      "continuingIncomeDeltaPercent",
+      scopedLabel(
+        continuingIncomePrior !== undefined && continuingIncomePrior < 0
+          ? "Loss YoY change"
+          : "Income YoY",
+        secScope(secItem, "continuingIncome"),
+      ),
+      readSecMetric(secItem?.metrics, "continuingIncomeDeltaPercent"),
+      "whole-percent",
+      sourceIds,
+      secPeriod(secItem, "continuingIncome"),
+    ),
+    ...metric(
+      "continuingDilutedEpsDeltaPercent",
+      scopedLabel("Diluted EPS YoY", secScope(secItem, "continuingDilutedEps")),
+      readSecMetric(secItem?.metrics, "continuingDilutedEpsDeltaPercent"),
+      "whole-percent",
+      sourceIds,
+      secPeriod(secItem, "continuingDilutedEps"),
     ),
     ...metric(
       "operatingCashFlowDeltaPercent",

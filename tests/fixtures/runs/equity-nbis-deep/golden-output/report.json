@@ -589,6 +589,18 @@
           "capexPeriodMonths": 12,
           "capexPrior": 807500000,
           "capexDeltaPercent": 403.52941176470586,
+          "continuingIncome": 9800000,
+          "continuingIncomePeriodEnd": "2025-12-31",
+          "continuingIncomeScope": "continuing operations, attributable to parent",
+          "continuingIncomePeriodMonths": 12,
+          "continuingIncomePrior": -352000000,
+          "continuingIncomeDeltaPercent": 102.7840909090909,
+          "continuingDilutedEps": 0.04,
+          "continuingDilutedEpsPeriodEnd": "2025-12-31",
+          "continuingDilutedEpsScope": "continuing operations",
+          "continuingDilutedEpsPeriodMonths": 12,
+          "continuingDilutedEpsPrior": -1.25,
+          "continuingDilutedEpsDeltaPercent": 103.2,
           "cash": 3678100000,
           "cashPeriodEnd": "2025-12-31",
           "cashPrior": 2434700000,
@@ -611,6 +623,8 @@
           "assetsPeriodEnd": "2025-12-31",
           "assetsPrior": 3548600000,
           "assetsDeltaPercent": 250.29589133742886,
+          "netIncomeScope": "total operations",
+          "dilutedEpsScope": "total operations",
           "operatingMarginSelectedValue": -1.154586636466591,
           "operatingMarginSelectedPeriodEnd": "2025-12-31",
           "operatingMarginSelectedPeriodMonths": 12,
@@ -700,7 +714,7 @@
       {
         "category": "financial-lens",
         "title": "NBIS Financial Lens Evidence",
-        "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change 112.9%, Diluted EPS YoY 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $217, SMA50 225.23, SMA200 138.71, RSI14 50.25).",
+        "summary": "Financial Lens Evidence: Quality criteria-mixed (Operating margin -115.5%, Net margin 15.6%, FCF proxy $-3.7B, Cash conversion 4.66x); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net loss (attrib.) YoY change (total operations) 112.9%, Diluted EPS YoY (total operations) 114.5%); Financial Strength criteria-mixed (Cash $3.7B, Debt $4.1B, Net debt $425.1M, Debt/market cap 7.2%); Value insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., EV date basis EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31), Enterprise value $57.6B, Annualized revenue $529.8M); Momentum criteria-mixed (Latest close $217, SMA50 225.23, SMA200 138.71, RSI14 50.25).",
         "sourceIds": [
           "extended-sec-edgar-nbis-fundamentals",
           "market-yahoo-equity-nbis",
@@ -730,6 +744,10 @@
           "netIncomeDeltaPercentPeriodEnd": "2025-12-31",
           "dilutedEpsDeltaPercent": 114.47368421052633,
           "dilutedEpsDeltaPercentPeriodEnd": "2025-12-31",
+          "continuingIncomeDeltaPercent": 102.7840909090909,
+          "continuingIncomeDeltaPercentPeriodEnd": "2025-12-31",
+          "continuingDilutedEpsDeltaPercent": 103.2,
+          "continuingDilutedEpsDeltaPercentPeriodEnd": "2025-12-31",
           "operatingCashFlowDeltaPercent": 56.67752442996743,
           "operatingCashFlowDeltaPercentPeriodEnd": "2025-12-31",
           "financialStrengthPosture": "criteria-mixed",
@@ -792,7 +810,7 @@
       {
         "category": "business-framework",
         "title": "NBIS Business Framework Evidence",
-        "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%); Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x).",
+        "summary": "Business Framework: Business criteria-supported (Revenue $529.8M, Operating income $-611.7M); Phase classification (Phase hyper-growth, Revenue YoY 479.0%); Moat criteria-not-supported (Operating margin -115.5%); Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY (total operations) 112.9%); Management insufficient-data; Risk criteria-supported (Current ratio 3.08x, Debt/market cap 7.2%); Valuation insufficient-data (Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x).",
         "sourceIds": [
           "extended-sec-edgar-nbis-fundamentals",
           "market-yahoo-equity-nbis",
@@ -1318,7 +1336,7 @@
         {
           "name": "Growth",
           "posture": "criteria-mixed",
-          "summary": "Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY 112.9%)",
+          "summary": "Growth criteria-mixed (Revenue YoY 479.0%, Operating income YoY -53.1%, Net income YoY (total operations) 112.9%)",
           "metrics": [
             {
               "key": "revenueDeltaPercent",
@@ -1336,7 +1354,7 @@
             },
             {
               "key": "netIncomeDeltaPercent",
-              "label": "Net income YoY",
+              "label": "Net income YoY (total operations)",
               "value": 112.86248830682881,
               "unit": "whole-percent",
               "sourceIds": ["extended-sec-edgar-nbis-fundamentals"]

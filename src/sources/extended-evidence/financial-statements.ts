@@ -1288,6 +1288,7 @@ function seriesRecord(
       grossProfit: get("grossProfit"),
       operatingIncome: get("operatingIncome"),
       netIncome: get("netIncome"),
+      continuingIncome: get("continuingIncome"),
     },
     balanceSheet: {
       cash: get("cash"),
@@ -1304,7 +1305,11 @@ function seriesRecord(
       dividendsPaid: get("dividendsPaid"),
       shareRepurchases: get("shareRepurchases"),
     },
-    perShare: { dilutedEps: get("dilutedEps"), dilutedShares: get("dilutedShares") },
+    perShare: {
+      dilutedEps: get("dilutedEps"),
+      continuingDilutedEps: get("continuingDilutedEps"),
+      dilutedShares: get("dilutedShares"),
+    },
   };
 }
 

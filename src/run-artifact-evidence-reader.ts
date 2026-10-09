@@ -402,6 +402,7 @@ function hasFundamentalHistorySeriesShape(
     readString(value, "label") !== undefined &&
     (value.unit === "currency" || value.unit === "per-share" || value.unit === "ratio") &&
     (value.concept === undefined || readString(value, "concept") !== undefined) &&
+    (value.scope === undefined || readString(value, "scope") !== undefined) &&
     Array.isArray(value.annual) &&
     value.annual.every(hasFundamentalHistoryPointShape) &&
     (value.ttm === undefined || hasFundamentalHistoryPointShape(value.ttm)) &&

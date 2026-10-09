@@ -12,7 +12,7 @@ import type {
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
-import { freeCashFlowScopeDisclosure } from "../../src/report/valuation-workbench-markdown";
+import { valuationScopeDisclosure } from "../../src/report/valuation-workbench-markdown";
 import { priceAsOfLabel, projectEquityReaderForDetail } from "./run-workspace-detail";
 
 export interface RunWorkspacePeerImpliedRangeGeometry {
@@ -81,7 +81,7 @@ export interface RunWorkspaceValuationWorkbenchView {
   readonly quoteCurrency: string;
   readonly priceSelectionRule: string;
   readonly trailingDisclosure: string;
-  readonly freeCashFlowDisclosure?: string;
+  readonly scopeDisclosure?: string;
   readonly rows: readonly RunWorkspaceHistoricalValuationRow[];
   readonly suppressionReasons: readonly string[];
   readonly peerSupportability: string;
@@ -260,7 +260,7 @@ export function valuationWorkbenchView(
     return undefined;
   }
   const { trailingBasis, observations } = artifact.historicalMultiples;
-  const freeCashFlowDisclosure = freeCashFlowScopeDisclosure(observations);
+  const scopeDisclosure = valuationScopeDisclosure(observations);
   const peerSupportability =
     artifact.peerComparison.status === "available"
       ? artifact.peerComparison.valuationComps.summary.valuationSupportability
@@ -273,7 +273,7 @@ export function valuationWorkbenchView(
       trailingBasis.status === "available"
         ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
         : trailingBasis.detail,
-    ...(freeCashFlowDisclosure === undefined ? {} : { freeCashFlowDisclosure }),
+    ...(scopeDisclosure === undefined ? {} : { scopeDisclosure }),
     rows: observations.map((observation) => ({
       basis: observation.basis.toUpperCase(),
       periodEnd: observation.periodEnd,

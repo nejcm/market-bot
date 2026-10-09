@@ -77,6 +77,7 @@ function equityProjectionRendererFactory() {
     valuationContext: (
       _report: ResearchReport,
       _value: typeof projection.defaultView.valuationContext,
+      _earningsBasis: typeof projection.defaultView.earningsBasis,
     ) => "",
     earningsConsensus: (
       _report: ResearchReport,
@@ -127,6 +128,7 @@ export function renderEquityMarkdownReport(
     ...(projection.defaultView.financialTrends?.sourceIds ?? []),
     ...(projection.appendix.balanceSheetHistory?.sourceIds ?? []),
     ...projection.defaultView.valuationContext.sourceIds,
+    ...(projection.defaultView.earningsBasis?.sourceIds ?? []),
     ...projection.defaultView.earningsConsensus.flatMap((item) => item.sourceIds),
     ...projection.appendix.analystEstimateDistributions.flatMap((item) => item.sourceIds),
   ];
@@ -157,7 +159,11 @@ export function renderEquityMarkdownReport(
     sections.renderCompanyDescription(projection.defaultView.companyDescription),
     sections.renderPriceAndMarketDate(report, marketSnapshot),
     sections.renderFinancialTrends(report, projection.defaultView.financialTrends),
-    sections.renderValuationContext(report, projection.defaultView.valuationContext),
+    sections.renderValuationContext(
+      report,
+      projection.defaultView.valuationContext,
+      projection.defaultView.earningsBasis,
+    ),
     sections.renderFindings("Catalysts", report.catalysts),
     sections.renderCatalystCalendar(report),
     sections.renderFindings("Key Findings", report.keyFindings),

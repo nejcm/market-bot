@@ -16,6 +16,7 @@ import {
   type EquityReaderMarketMultiple,
   type EquityReaderValuationContext,
 } from "./equity-reader";
+import type { EquityReaderEarningsBasis } from "./equity-reader-earnings-basis";
 import type { EquityReaderBalanceSheetHistory } from "./equity-reader-statements";
 import { compactNumber, type EquityReaderFinancialTrends } from "./equity-reader-trends";
 import { formatTrendAmount, knownSourceIds, markdownText, sourceRefs } from "./markdown-primitives";
@@ -127,7 +128,7 @@ export function renderProjectedFinancialTrends(
     "",
     `Amounts${trends.reportingCurrency === undefined ? "" : ` in ${markdownText(trends.reportingCurrency)}`}. FCF, where applicable, is the reported ${scopedLabel("operating-cash-flow", trends.freeCashFlowScope)} less capex proxy.${refs === "" ? "" : ` ${refs}`}`,
     "",
-    "Period | Revenue | Net income | Operating margin | FCF",
+    `Period | Revenue | ${scopedLabel("Net income", trends.netIncomeScope)} | Operating margin | FCF`,
     "--- | ---: | ---: | ---: | ---:",
     ...rows,
     "",
@@ -169,9 +170,21 @@ export function renderBalanceSheetAndShareCount(
   ].join("\n");
 }
 
+function renderEarningsBasis(
+  report: ResearchReport,
+  basis: EquityReaderEarningsBasis | undefined,
+): readonly string[] {
+  if (basis === undefined) {
+    return [];
+  }
+  const refs = sourceRefs(knownSourceIds(report, basis.sourceIds));
+  return [`- **Earnings basis:** ${basis.text}${refs === "" ? "" : ` ${refs}`}`];
+}
+
 export function renderValuationContext(
   report: ResearchReport,
   valuation: EquityReaderValuationContext,
+  basis?: EquityReaderEarningsBasis,
 ): string {
   if (valuation.kind === "peer-range" && valuation.status === "derived") {
     const { range, priceAsOf } = valuation;
@@ -186,7 +199,10 @@ export function renderValuationContext(
         ? undefined
         : `${priceAsOf.kind === "quote-time" ? "quote time" : "fetch time"} ${priceAsOf.instant}`;
     const refs = sourceRefs(knownSourceIds(report, valuation.sourceIds));
-    const compactMetrics = renderCompactValuationMetrics(report);
+    const compactMetrics = [
+      ...renderCompactValuationMetrics(report),
+      ...renderEarningsBasis(report, basis),
+    ];
     return [
       "## Valuation Context",
       "",
@@ -213,7 +229,10 @@ export function renderValuationContext(
   });
   const refs = sourceRefs(knownSourceIds(report, sourceIds));
   const includePriceToBook = !metrics.some((metric) => metric.key === "priceToBook");
-  const compactMetrics = renderCompactValuationMetrics(report, includePriceToBook);
+  const compactMetrics = [
+    ...renderCompactValuationMetrics(report, includePriceToBook),
+    ...renderEarningsBasis(report, basis),
+  ];
   const compactPriceToBookAvailable =
     includePriceToBook &&
     firstEvidenceMetric(

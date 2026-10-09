@@ -162,11 +162,13 @@ function peerReferenceRangeLine(
   return `- Reference range: ${referenceRange.low.toFixed(2)}–${referenceRange.high.toFixed(2)} ${referenceRange.inputs.quoteCurrency}; midpoint ${referenceRange.mid.toFixed(2)}; observed position ${referenceRange.position}; ${priceDate}.`;
 }
 
-export function freeCashFlowScopeDisclosure(
+function inputScopeDisclosure(
   observations: readonly HistoricalValuationObservation[],
+  key: "freeCashFlow" | "dilutedEps",
+  prefix: string,
 ): string | undefined {
   const scoped = observations.flatMap((observation) => {
-    const scope = observation.inputs.freeCashFlow?.scope;
+    const scope = observation.inputs[key]?.scope;
     return scope === undefined
       ? []
       : [{ scope, period: `${observation.basis} ${observation.periodEnd}` }];
@@ -174,7 +176,17 @@ export function freeCashFlowScopeDisclosure(
   const [first] = scoped;
   return first === undefined
     ? undefined
-    : `P/FCF uses free cash flow proxy (${first.scope}) for ${scoped.map(({ period }) => period).join(", ")}`;
+    : `${prefix} (${first.scope}) for ${scoped.map(({ period }) => period).join(", ")}`;
+}
+
+export function valuationScopeDisclosure(
+  observations: readonly HistoricalValuationObservation[],
+): string | undefined {
+  const parts = [
+    inputScopeDisclosure(observations, "dilutedEps", "P/E uses diluted EPS"),
+    inputScopeDisclosure(observations, "freeCashFlow", "P/FCF uses free cash flow proxy"),
+  ].filter((part) => part !== undefined);
+  return parts.length === 0 ? undefined : parts.join("; ");
 }
 
 export function renderValuationWorkbenchMarkdown(
@@ -192,7 +204,7 @@ export function renderValuationWorkbenchMarkdown(
           "--- | --- | --- | --- | ---: | ---: | ---: | ---:",
           ...observations.map((observation) => historicalRow(observation)),
         ].join("\n");
-  const scopeDisclosure = freeCashFlowScopeDisclosure(observations);
+  const scopeDisclosure = valuationScopeDisclosure(observations);
   const trailing =
     artifact.historicalMultiples.trailingBasis.status === "available"
       ? [

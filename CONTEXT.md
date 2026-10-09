@@ -430,6 +430,14 @@ Optional higher-specificity provider evidence for instrument Research Views.
 
 Sourced issuer operating and financial facts used as Extended Evidence.
 
+## Accounting Scope
+
+The basis an earnings or cash-flow figure is measured on, along three independent axes: continuing versus total operations (total includes discontinued operations), parent-attributable versus including noncontrolling interests (NCI), and SEC filing versus provider earnings basis. Figures are compared, divided, or called conflicting only within one scope; equal values never imply equal scope. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+
+## Earnings Basis Disclosure
+
+The deterministic line beside Yahoo trailing EPS and P/E that keeps both observations: the provider value with its undisclosed basis, and the SEC diluted EPS TTM approximation (plus continuing-operations EPS TTM when tagged), with agreement, mismatch, or currency mismatch stated and no explanation invented.
+
 ## Current Report Evidence
 
 Bounded text from up to two recent SEC current reports — 8-K for domestic filers, 6-K for foreign private issuers — filed within 120 days of collection. Routine 8-Ks must postdate the newest periodic filing, while the newest Item 2.02 earnings release within the window gets one of the two slots despite that floor because it normally precedes the periodic filing and carries nonduplicative results context. The no-periodic-basis path is foreign-private-issuer/6-K only; a domestic filer without a 10-K or 10-Q receives no current-report packet. A substantive EX-99 earnings-release exhibit is preferred over the primary document; a gap discloses when neither reports substantive results.

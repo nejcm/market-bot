@@ -320,7 +320,13 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: true,
       concepts: {
-        "us-gaap": ["PaymentsForDividends", "DividendsPaid"],
+        "us-gaap": [
+          "PaymentsOfDividends",
+          "PaymentsOfDividendsCommonStock",
+          "PaymentsOfOrdinaryDividends",
+          "PaymentsForDividends",
+          "DividendsPaid",
+        ],
         "ifrs-full": ["DividendsPaidClassifiedAsFinancingActivities"],
       },
     },

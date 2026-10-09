@@ -84,6 +84,8 @@ const BUYBACK_CONCEPTS: readonly ConceptDefinition[] = [
 
 const DIVIDEND_CONCEPTS: readonly ConceptDefinition[] = [
   { taxonomy: "us-gaap", concept: "PaymentsOfDividends" },
+  { taxonomy: "us-gaap", concept: "PaymentsOfDividendsCommonStock" },
+  { taxonomy: "us-gaap", concept: "PaymentsOfOrdinaryDividends" },
   { taxonomy: "us-gaap", concept: "PaymentsForDividends" },
   { taxonomy: "us-gaap", concept: "DividendsPaid" },
   { taxonomy: "ifrs-full", concept: "DividendsPaidClassifiedAsFinancingActivities" },

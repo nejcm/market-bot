@@ -135,6 +135,27 @@ describe("capital ownership artifact", () => {
     }
   });
 
+  test.each(["PaymentsOfDividendsCommonStock", "PaymentsOfOrdinaryDividends"])(
+    "derives dividends paid from %s when the total is absent",
+    (dividendConcept) => {
+      const payload = {
+        facts: {
+          "us-gaap": {
+            RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [
+              annual(100, 2025),
+            ]),
+            [dividendConcept]: concept("USD", [annual(7, 2025)]),
+          },
+        },
+      };
+      const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+      expect(artifact.dividendsPaid).toEqual([
+        expect.objectContaining({ value: 7, concept: dividendConcept, periodEnd: "2025-12-31" }),
+      ]);
+    },
+  );
+
   test("derives filed annual histories and debt maturity buckets", () => {
     const payload = companyfacts();
 

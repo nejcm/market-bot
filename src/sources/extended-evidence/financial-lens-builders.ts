@@ -29,6 +29,8 @@ import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contr
 import { isContinuingScope, scopedLabel } from "./financial-statement-definitions";
 import {
   canonicalFinancialLensDerivedMetric,
+  hasCanonicalFinancialLensSelection,
+  PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY,
   selectedFinancialLensDerivedMetric,
   type CanonicalDerivedMetricKey,
   type SecFactMetricKey,
@@ -37,6 +39,7 @@ import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./v
 import {
   balanceSheetPeriodDivergence,
   isCurrentBalanceSheetPeriod,
+  isFreshPeriodEnd,
 } from "./valuation-comps-support";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import { readNumberMetric, readStringMetric } from "./utils";
@@ -316,12 +319,21 @@ export interface WithheldStrengthMetric {
   readonly periodEnd: string | undefined;
 }
 
+export interface WithheldPayout {
+  readonly reason: "non-positive-income" | "non-current";
+  readonly periodEnd: string | undefined;
+}
+
 export function strengthLens(
   secItem: ExtendedEvidenceItem | undefined,
   analysisAsOf: string,
   valuationItem?: ExtendedEvidenceItem,
   yahooFundamentalsItem?: ExtendedEvidenceItem,
-): { readonly lens: FinancialLens; readonly withheld: readonly WithheldStrengthMetric[] } {
+): {
+  readonly lens: FinancialLens;
+  readonly withheld: readonly WithheldStrengthMetric[];
+  readonly withheldPayout?: WithheldPayout;
+} {
   const sourceIds = [
     ...new Set([
       ...(secItem?.sourceIds ?? []),
@@ -400,15 +412,41 @@ export function strengthLens(
   // Forbes <= 0.8 posture criterion; the Yahoo fallback (trailingAnnualDividendRate
   // / epsTtm) is display-only so a non-US listing with no SEC data does not flip
   // Financial Strength out of insufficient-data on one Yahoo-sourced criterion.
-  // See plan revisions 3 / Q4. dividendsPaid is negative in XBRL (cash outflow);
-  // The lens uses abs() to handle both signs. See plan risk "Dividend Payout sign".
-  const secPayout = selectedFinancialLensDerivedMetric(
+  // PaymentsOfDividends* facts are positive in XBRL; abs() tolerates a filer tagging the outflow negative.
+  // A loss-period payout is not a ratio; a non-current one is history, not current strength.
+  const nonPositiveIncomePeriodEnd = hasCanonicalFinancialLensSelection(secItem)
+    ? readRawStringMetric(secItem?.metrics, PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY)
+    : (dividendsPaid !== undefined && netIncome !== undefined && netIncome <= 0
+      ? (secPeriod(secItem, "netIncome").periodEnd ?? "undated")
+      : undefined);
+  const selectedSecPayout = selectedFinancialLensDerivedMetric(
     secItem,
     "payoutRatio",
-    dividendsPaid !== undefined && netIncome !== undefined
-      ? ratio(Math.abs(dividendsPaid), netIncome)
+    dividendsPaid !== undefined && netIncome !== undefined && netIncome > 0
+      ? Math.abs(dividendsPaid) / netIncome
       : undefined,
   );
+  const selectedPayoutPeriodEnd = canonicalFinancialLensDerivedMetric(
+    secItem,
+    "payoutRatio",
+  )?.periodEnd;
+  const payoutPeriodEnds =
+    selectedPayoutPeriodEnd === undefined
+      ? [secPeriod(secItem, "dividendsPaid").periodEnd, secPeriod(secItem, "netIncome").periodEnd]
+      : [selectedPayoutPeriodEnd];
+  const stalePayout =
+    selectedSecPayout === undefined
+      ? []
+      : payoutPeriodEnds.filter(
+          (periodEnd) => periodEnd === undefined || !isFreshPeriodEnd(periodEnd, analysisAsOf),
+        );
+  const secPayout = stalePayout.length === 0 ? selectedSecPayout : undefined;
+  let withheldPayout: WithheldPayout | undefined;
+  if (nonPositiveIncomePeriodEnd !== undefined) {
+    withheldPayout = { reason: "non-positive-income", periodEnd: nonPositiveIncomePeriodEnd };
+  } else if (stalePayout.length > 0) {
+    withheldPayout = { reason: "non-current", periodEnd: stalePayout[0] };
+  }
   const yahooDividendRate = readNumberMetric(
     yahooFundamentalsItem?.metrics,
     "trailingAnnualDividendRate",
@@ -512,7 +550,7 @@ export function strengthLens(
     metrics,
     sourceIds,
   };
-  return { lens, withheld };
+  return { lens, withheld, ...(withheldPayout !== undefined ? { withheldPayout } : {}) };
 }
 
 export function applySubsequentFinancingCurrentness(

@@ -16,6 +16,7 @@ import {
   qualityLens,
   strengthLens,
   valueLens,
+  type WithheldPayout,
   type WithheldStrengthMetric,
 } from "./financial-lens-builders";
 import { SEC_FRESHNESS_DAYS } from "../../config/shared";
@@ -81,6 +82,25 @@ function nonCurrentStrengthDebtGap(
   return sourceGap({
     source: "financial-lens",
     message: `Financial Strength for ${symbol} excludes non-current balance-sheet inputs at analysis cutoff ${analysisAsOf.slice(0, 10)}: ${periods} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff and ${String(MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS)} days of the newest balance-sheet period end`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+function withheldPayoutGap(
+  symbol: string,
+  withheld: WithheldPayout,
+  analysisAsOf: string,
+): SourceGap {
+  const periodEnd = withheld.periodEnd ?? "undated";
+  return sourceGap({
+    source: "financial-lens",
+    message:
+      withheld.reason === "non-positive-income"
+        ? `SEC-derived payout ratio for ${symbol} withheld: net income for the period ending ${periodEnd} is zero or negative`
+        : `SEC-derived payout ratio for ${symbol} withheld at analysis cutoff ${analysisAsOf.slice(0, 10)}: period end ${periodEnd} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff`,
     provider: "market-bot",
     capability: "extended-evidence",
     cause: "provider-data-missing",
@@ -183,6 +203,9 @@ export function addFinancialLensEvidence(
     ...(strength.withheld.length === 0
       ? []
       : [nonCurrentStrengthDebtGap(command.symbol, strength.withheld, generatedAt)]),
+    ...(strength.withheldPayout === undefined
+      ? []
+      : [withheldPayoutGap(command.symbol, strength.withheldPayout, generatedAt)]),
   ];
   const mergedEvidence: ExtendedEvidence = {
     instrument: extendedEvidence?.instrument ?? {

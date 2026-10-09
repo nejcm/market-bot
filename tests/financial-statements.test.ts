@@ -696,6 +696,33 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  test.each([
+    "PaymentsOfDividends",
+    "PaymentsOfDividendsCommonStock",
+    "PaymentsOfOrdinaryDividends",
+  ])("selects %s as dividends paid", (concept) => {
+    const artifact = derive(payload({ "us-gaap": { [concept]: { USD: [annual(40, 2025)] } } }));
+
+    expect(artifact.statements.cashFlowStatement.dividendsPaid.annual).toEqual([
+      expect.objectContaining({ value: 40, concept }),
+    ]);
+  });
+
+  test("prefers the cash-flow dividend total over the common-only concept on the same period", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          PaymentsOfDividendsCommonStock: { USD: [annual(30, 2025)] },
+          PaymentsOfDividends: { USD: [annual(40, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.cashFlowStatement.dividendsPaid.annual).toEqual([
+      expect.objectContaining({ value: 40, concept: "PaymentsOfDividends" }),
+    ]);
+  });
+
   test("keeps total revenue for MARA/TeraWulf-class competing concepts", () => {
     const artifact = derive(
       payload({

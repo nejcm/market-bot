@@ -198,7 +198,13 @@ export const CANONICAL_DURATION_DEFINITIONS: readonly CanonicalDurationDefinitio
     key: "dividendsPaid",
     unitKind: "monetary",
     concepts: {
-      "us-gaap": ["PaymentsForDividends", "DividendsPaid"],
+      "us-gaap": [
+        "PaymentsOfDividends",
+        "PaymentsOfDividendsCommonStock",
+        "PaymentsOfOrdinaryDividends",
+        "PaymentsForDividends",
+        "DividendsPaid",
+      ],
       "ifrs-full": ["DividendsPaidClassifiedAsFinancingActivities"],
     },
   },

@@ -1818,6 +1818,34 @@ describe("SEC fundamental evidence", () => {
     expect(result?.gaps.some((gap) => gap.message.includes("dividendsPaid"))).toBe(false);
   });
 
+  test.each([
+    "PaymentsOfDividends",
+    "PaymentsOfDividendsCommonStock",
+    "PaymentsOfOrdinaryDividends",
+  ])("selects %s as dividendsPaid", (concept) => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": { Revenues: secFactUnits(100, 90), [concept]: secFactUnits(5, 4) },
+      },
+    });
+
+    expect(result?.metrics.dividendsPaid).toBe(5);
+  });
+
+  test("prefers the cash-flow dividend total over the common-only concept on the same period", () => {
+    const result = summarizeSecFundamentals({
+      facts: {
+        "us-gaap": {
+          Revenues: secFactUnits(100, 90),
+          PaymentsOfDividendsCommonStock: secFactUnits(3, 2),
+          PaymentsOfDividends: secFactUnits(5, 4),
+        },
+      },
+    });
+
+    expect(result?.metrics.dividendsPaid).toBe(5);
+  });
+
   test("does not cap evidence quality when optional balance-sheet/dividend metrics are absent", () => {
     const result = summarizeSecFundamentals(secCompanyFactsPayload());
 

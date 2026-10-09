@@ -64,7 +64,9 @@ export function canonicalFinancialLensDerivedMetric(
   };
 }
 
-function hasCanonicalFinancialLensSelection(item: ExtendedEvidenceItem | undefined): boolean {
+export function hasCanonicalFinancialLensSelection(
+  item: ExtendedEvidenceItem | undefined,
+): boolean {
   return (
     item?.metrics?.[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] ===
     CANONICAL_FINANCIAL_LENS_SELECTION_VERSION
@@ -239,6 +241,8 @@ function dividedBy(left: number, right: number): number | undefined {
   return right === 0 ? undefined : left / right;
 }
 
+export const PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY = "payoutRatioNonPositiveIncomePeriodEnd";
+
 const COMMON_DERIVED_SERIES = [
   ["grossMargin", "grossProfit", "revenue", dividedBy],
   ["operatingMargin", "operatingIncome", "revenue", dividedBy],
@@ -257,7 +261,7 @@ const COMMON_DERIVED_SERIES = [
     "payoutRatio",
     "dividendsPaid",
     "netIncome",
-    (left: number, right: number) => dividedBy(Math.abs(left), right),
+    (left: number, right: number) => (right > 0 ? Math.abs(left) / right : undefined),
   ],
 ] as const;
 
@@ -351,6 +355,13 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       ),
       derive,
     );
+  }
+  const payoutIncome = latestCommonFinancialStatementFacts([
+    byMetric.get("dividendsPaid"),
+    byMetric.get("netIncome"),
+  ])?.[1];
+  if (payoutIncome !== undefined && payoutIncome.value <= 0) {
+    metrics[PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY] = payoutIncome.periodEnd;
   }
   for (const [key, selected] of Object.entries(derivedMetrics)) {
     metrics[`${key}SelectedValue`] = selected.value;

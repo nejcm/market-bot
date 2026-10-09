@@ -240,7 +240,13 @@ describe("financial statement selection", () => {
       {
         key: "dividendsPaid",
         label: "dividends paid",
-        concepts: ["PaymentsForDividends", "DividendsPaid"],
+        concepts: [
+          "PaymentsOfDividends",
+          "PaymentsOfDividendsCommonStock",
+          "PaymentsOfOrdinaryDividends",
+          "PaymentsForDividends",
+          "DividendsPaid",
+        ],
         unitKeys: ["USD"],
         optional: true,
       },
@@ -441,7 +447,13 @@ describe("financial statement selection", () => {
         unitKind: "monetary",
         deriveTtm: true,
         concepts: {
-          "us-gaap": ["PaymentsForDividends", "DividendsPaid"],
+          "us-gaap": [
+            "PaymentsOfDividends",
+            "PaymentsOfDividendsCommonStock",
+            "PaymentsOfOrdinaryDividends",
+            "PaymentsForDividends",
+            "DividendsPaid",
+          ],
           "ifrs-full": ["DividendsPaidClassifiedAsFinancingActivities"],
         },
       },

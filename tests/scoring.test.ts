@@ -1446,6 +1446,17 @@ describe("buildCalibrationSummary — Forecast Event dedupe", () => {
     expect(renderCalibrationConsole(summary)).toContain("1 duplicate issuances collapsed");
   });
 
+  test("orders horizon buckets ascending regardless of first-seen order", () => {
+    const summary = buildCalibrationSummary([
+      issuance("r-16", "2026-05-04T13:00:00.000Z", 0.3, { horizonTradingDays: 18 }),
+      issuance("r-2", "2026-05-05T13:00:00.000Z", 0.3, { horizonTradingDays: 3 }),
+      issuance("r-11", "2026-05-06T13:00:00.000Z", 0.3, { horizonTradingDays: 12 }),
+      issuance("r-1", "2026-05-07T13:00:00.000Z", 0.3, { horizonTradingDays: 1 }),
+    ]);
+
+    expect(Object.keys(summary.byHorizonBucket)).toEqual(["1d", "2-5d", "11-15d", "16-20d"]);
+  });
+
   test("rolls a weekend equity issuance to the Monday origin session", () => {
     const summary = buildCalibrationSummary([
       issuance("r-sat", "2026-05-02T13:00:00.000Z", 0.6),

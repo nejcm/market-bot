@@ -150,6 +150,14 @@ function groupMetrics(
   return result;
 }
 
+function ascendingHorizon(
+  metrics: Record<string, CalibrationMetric>,
+): Record<string, CalibrationMetric> {
+  return Object.fromEntries(
+    Object.entries(metrics).toSorted(([left], [right]) => parseInt(left, 10) - parseInt(right, 10)),
+  );
+}
+
 function horizonBucket({ prediction }: ResolvedPair): string {
   return marketUpdateHorizonBucket(prediction.horizonTradingDays);
 }
@@ -310,11 +318,13 @@ export function buildCalibrationSummary(
     byKind: groupMetrics(currentPairs, ({ prediction }) => prediction.kind),
     byAssetClass: groupMetrics(currentPairs, ({ assetClass }) => assetClass),
     byJobType: groupMetrics(currentPairs, ({ jobType }) => jobType),
-    byMarketUpdateHorizonBucket: groupMetrics(
-      currentPairs.filter((pair) => pair.marketUpdateHorizonBucket !== undefined),
-      (pair) => pair.marketUpdateHorizonBucket ?? "unknown",
+    byMarketUpdateHorizonBucket: ascendingHorizon(
+      groupMetrics(
+        currentPairs.filter((pair) => pair.marketUpdateHorizonBucket !== undefined),
+        (pair) => pair.marketUpdateHorizonBucket ?? "unknown",
+      ),
     ),
-    byHorizonBucket: groupMetrics(currentPairs, horizonBucket),
+    byHorizonBucket: ascendingHorizon(groupMetrics(currentPairs, horizonBucket)),
     byMarketRegime: buildByMarketRegime(currentPairs),
     marketRegimeCoverage: buildMarketRegimeCoverage(currentPairs),
     byMissAutopsyCause: countMissAutopsies(currentPairs),

@@ -67,11 +67,17 @@ function kindMixSynthesisInstruction(
   return parsed.instruction ?? "";
 }
 
-function rangeReferenceCloses(count: number) {
-  return Array.from({ length: count }, (_, index) => ({
-    date: `2026-05-${String(index + 1).padStart(2, "0")}`,
-    close: index % 2 === 0 ? 100 : 102,
-  }));
+function rangeReferenceCloses(count: number, step = 0.02, jump?: { at: number; ratio: number }) {
+  let close = 100;
+  return Array.from({ length: count }, (_, index) => {
+    if (index > 0) {
+      close *= index % 2 === 0 ? 1 / (1 + step) : 1 + step;
+    }
+    if (jump !== undefined && index === jump.at) {
+      close *= jump.ratio;
+    }
+    return { date: `2026-05-${String(index + 1).padStart(2, "0")}`, close };
+  });
 }
 
 describe("range volatility reference", () => {
@@ -81,36 +87,36 @@ describe("range volatility reference", () => {
     symbol: "AAPL",
     depth: "brief",
   };
-  test("anchors range probabilities to a vol-scaled band from recent closes", () => {
-    const instruction = kindMixSynthesisInstruction(command, {
-      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(21) }),
+  const reference = (recentCloses: ReturnType<typeof rangeReferenceCloses>) =>
+    kindMixSynthesisInstruction(command, {
+      verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses }),
     });
 
+  test("anchors range probabilities to a vol-scaled band from recent closes", () => {
+    const instruction = reference(rangeReferenceCloses(21));
+
     expect(instruction).toContain(
-      "Range reference for AAPL (deterministic, from the 20 daily log returns in verifiedMarketSnapshot.recentCloses): realized daily volatility 2.03% around the last close 100.00; ±1σ close bands +1: [97.99, 102.05]; +5: [95.56, 104.65]",
+      "Range reference for AAPL (deterministic, from the 20 daily log returns in verifiedMarketSnapshot.recentCloses): robust (median absolute deviation) daily volatility 2.94% around the last close 100.00; ±1σ close bands +1: [97.11, 102.98]",
     );
     expect(instruction).toContain("starts below 0.32");
   });
 
-  test("omits the reference without enough closes or a verified snapshot", () => {
-    expect(
-      kindMixSynthesisInstruction(command, {
-        verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: rangeReferenceCloses(10) }),
-      }),
-    ).not.toContain("Range reference");
-    expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
+  test.each([
+    ["2:1", 0.5],
+    ["4:3", 0.75],
+  ])("a %s split in the unadjusted window does not move the volatility", (_, ratio) => {
+    expect(reference(rangeReferenceCloses(21, 0.02, { at: 10, ratio }))).toContain(
+      "daily volatility 2.94%",
+    );
   });
 
-  test("omits the reference when a split-sized jump sits in the unadjusted window", () => {
-    const splitWindow = rangeReferenceCloses(21).map((bar, index) => ({
-      ...bar,
-      close: index < 10 ? 100 : 50,
-    }));
-    expect(
-      kindMixSynthesisInstruction(command, {
-        verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: splitWindow }),
-      }),
-    ).not.toContain("Range reference");
+  test("keeps a reference for a genuinely high-volatility series", () => {
+    expect(reference(rangeReferenceCloses(21, 0.1))).toContain("daily volatility 14.13%");
+  });
+
+  test("omits the reference without enough closes or a verified snapshot", () => {
+    expect(reference(rangeReferenceCloses(10))).not.toContain("Range reference");
+    expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
   });
 });
 

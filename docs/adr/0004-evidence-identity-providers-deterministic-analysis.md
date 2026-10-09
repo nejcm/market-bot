@@ -306,7 +306,7 @@ without pretending the project has a global security master.
   has a borrowing line, and every borrowing concept whose latest earlier value (within the prior
   400 days, or from an earlier filing of the same instant) was nonzero is still covered; when both
   sides are generic, earlier borrowing details count as their constituents. A component that a later filing
-  restated is summed only when every component comes from one filing and the original filing's
+  restated is summed only when every component's selected filing has the same filing date (same-day accessions count as one filing; debt history carries no accession) and the original filing's
   component total holds (a reclassification);
   any other restatement without a tagged debt total leaves the instant incomplete.
   A later filing's incomplete set supersedes an earlier

@@ -219,7 +219,7 @@ function splitSummarySentences(summary: string): readonly SummaryPiece[] {
   const pieces: SummaryPiece[] = [];
   let start = 0;
   for (const match of summary.matchAll(/\s+/gu)) {
-    const separator = match[0];
+    const [separator] = match;
     const end = match.index + separator.length;
     const text = summary.slice(start, match.index);
     const kind = /\n\s*\n/u.test(separator) ? "hard" : sentenceEnd(text, summary.slice(end));

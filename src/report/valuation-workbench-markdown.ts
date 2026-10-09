@@ -82,16 +82,16 @@ function peerRow(row: ValuationCompsRow, targetSymbol: string, report: ResearchR
         ]),
   ].join("; ");
   return [
-    row.symbol,
-    peerRole(row, targetSymbol),
-    row.usable ? "usable" : "excluded",
-    multiple,
-    row.quoteCurrency ?? "—",
-    dates || "—",
-  ]
-    .map((value) => cell(value))
-    .concat(sourceRefs(knownSourceIds(report, row.sourceIds)) || "—")
-    .join(" | ");
+    ...[
+      row.symbol,
+      peerRole(row, targetSymbol),
+      row.usable ? "usable" : "excluded",
+      multiple,
+      row.quoteCurrency ?? "—",
+      dates || "—",
+    ].map((value) => cell(value)),
+    sourceRefs(knownSourceIds(report, row.sourceIds)) || "—",
+  ].join(" | ");
 }
 
 export function peerRowSourceIds(

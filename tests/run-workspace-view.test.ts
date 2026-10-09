@@ -1765,21 +1765,18 @@ describe("run workspace view", () => {
       throw new Error("valuation workbench fixture peer comparison missing");
     }
     const { valuationComps } = base.peerComparison;
-    const malformed = JSON.parse(
-      JSON.stringify({
-        ...base,
-        peerComparison: {
-          ...base.peerComparison,
-          valuationComps: {
-            ...valuationComps,
-            peers: [{ symbol: "BAD", usable: false }],
-            excludedPeers: [
-              { symbol: "BAD", role: "core", reason: "x", cause: "validation-failed" },
-            ],
-          },
+    const json = JSON.stringify({
+      ...base,
+      peerComparison: {
+        ...base.peerComparison,
+        valuationComps: {
+          ...valuationComps,
+          peers: [{ symbol: "BAD", usable: false }],
+          excludedPeers: [{ symbol: "BAD", role: "core", reason: "x", cause: "validation-failed" }],
         },
-      }),
-    ) as typeof base;
+      },
+    });
+    const malformed = JSON.parse(json) as typeof base;
 
     const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: malformed });
 

@@ -31,13 +31,12 @@ import {
 import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
 import { deriveFundamentalHistory } from "../src/sources/extended-evidence/fundamental-history";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
-import { collectedSources } from "./support/fixtures";
 import { config, contextWithHistory } from "./support/research-context-helpers";
 import type { ResearchCommand } from "../src/cli/args";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
-import { marketSnapshot, researchReport } from "./support/fixtures";
+import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
 
 const AS_OF = "2026-10-07T00:00:00.000Z";
 const CONTINUING_OCF = "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";

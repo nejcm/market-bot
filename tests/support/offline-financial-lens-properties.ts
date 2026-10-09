@@ -385,7 +385,9 @@ function verifyLensPosture(
   const cutoffMs = Date.parse(analysisAsOf);
   const periodMs = (key: string) => Date.parse(metrics[key]?.periodEnd ?? "");
   const newestBalanceSheetMs = Math.max(
-    ...["cash", "debt", "currentRatio"].map(periodMs).filter((ms) => cutoffMs - ms >= 0),
+    ...["cash", "debt", "currentRatio"]
+      .map((key) => periodMs(key))
+      .filter((ms) => cutoffMs - ms >= 0),
   );
   const currentValue = (key: string) =>
     cutoffMs - periodMs(key) <= 180 * 86_400_000 &&

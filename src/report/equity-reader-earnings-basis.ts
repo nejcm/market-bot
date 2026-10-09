@@ -22,7 +22,7 @@ function comparison(
   if (quoteCurrency !== filingCurrency) {
     return `The provider quote currency (${quoteCurrency ?? "undisclosed"}) differs from the ${filingCurrency} filing currency, so the values are not compared.`;
   }
-  const matched = filed.find(([, , ttm]) => eps(ttm.value) === eps(providerEps));
+  const matched = filed.find((entry) => eps(entry[2].value) === eps(providerEps));
   if (matched !== undefined) {
     return `The provider value matches the SEC ${matched[0]} value at two decimals.`;
   }

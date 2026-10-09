@@ -829,24 +829,23 @@ describe("valuation workbench", () => {
       throw new Error("valuation workbench fixture peer comparison missing");
     }
     const { valuationComps } = base.peerComparison;
-    const persisted: unknown = JSON.parse(
-      JSON.stringify({
-        ...base,
-        peerComparison: {
-          ...base.peerComparison,
-          valuationComps: {
-            ...valuationComps,
-            target: { ...valuationComps.target, sourceIds: ["market-test", "sec-test"] },
-            peers: [
-              { symbol: "USE", sourceIds: ["market-use"], usable: true },
-              { symbol: "EXC", sourceIds: ["sec-exc", "missing-row-source"], usable: false },
-              { symbol: "NONE", sourceIds: [], usable: false },
-              { symbol: "BAD", usable: false },
-            ],
-          },
+    const json = JSON.stringify({
+      ...base,
+      peerComparison: {
+        ...base.peerComparison,
+        valuationComps: {
+          ...valuationComps,
+          target: { ...valuationComps.target, sourceIds: ["market-test", "sec-test"] },
+          peers: [
+            { symbol: "USE", sourceIds: ["market-use"], usable: true },
+            { symbol: "EXC", sourceIds: ["sec-exc", "missing-row-source"], usable: false },
+            { symbol: "NONE", sourceIds: [], usable: false },
+            { symbol: "BAD", usable: false },
+          ],
         },
-      }),
-    );
+      },
+    });
+    const persisted: unknown = JSON.parse(json);
     const workbench = readValuationWorkbenchArtifact(persisted);
     if (workbench === undefined) {
       throw new Error("persisted workbench did not read back");

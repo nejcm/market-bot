@@ -306,8 +306,9 @@ without pretending the project has a global security master.
   has a borrowing line, and every borrowing concept whose latest earlier value (within the prior
   400 days, or from an earlier filing of the same instant) was nonzero is still covered; when both
   sides are generic, earlier borrowing details count as their constituents. A component that a later filing
-  restated is summed only while the original filing's component total holds (a reclassification);
-  a restatement that changes that total without a tagged debt total leaves the instant incomplete.
+  restated is summed only when every component comes from one filing and the original filing's
+  component total holds (a reclassification);
+  any other restatement without a tagged debt total leaves the instant incomplete.
   A later filing's incomplete set supersedes an earlier
   complete one for the same instant. The canonical series keeps only instants on the latest
   complete instant's basis, and legacy priors never cross basis, so year-over-year comparisons stay

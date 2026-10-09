@@ -389,7 +389,7 @@ function incompleteDebtReason(
 
 const sumValues = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0);
 
-// A component restatement is a reclassification only while the original filing's component total holds.
+// A restated component sums only as a single-filing reclassification that keeps the original total.
 function restatedDebtComponentReason<T>(
   instant: DebtInstant,
   used: readonly string[],
@@ -399,17 +399,23 @@ function restatedDebtComponentReason<T>(
 ): string | undefined {
   const components = used.map((concept) => {
     const value = valueOf(tagged.get(concept) as T);
-    const original = restatedFromOriginalFiling(
-      value,
-      history.filter((fact) => fact.concept === concept && fact.periodEnd === instant.periodEnd),
+    const filings = history.filter(
+      (fact) => fact.concept === concept && fact.periodEnd === instant.periodEnd,
     );
-    return { concept, value, original };
+    const original = restatedFromOriginalFiling(value, filings);
+    const filedAt = filings
+      .map((fact) => fact.filedAt)
+      .toSorted()
+      .at(-1);
+    return { concept, value, original, filedAt };
   });
   const restated = components.filter((component) => component.original !== undefined);
+  const singleFiling = new Set(components.map((component) => component.filedAt)).size === 1;
   if (
     restated.length === 0 ||
-    sumValues(components.map((component) => component.original?.value ?? component.value)) ===
-      sumValues(components.map((component) => component.value))
+    (singleFiling &&
+      sumValues(components.map((component) => component.original?.value ?? component.value)) ===
+        sumValues(components.map((component) => component.value)))
   ) {
     return undefined;
   }

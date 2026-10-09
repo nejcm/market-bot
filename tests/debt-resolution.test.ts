@@ -439,6 +439,18 @@ describe("debt resolution refuses incomplete component sets", () => {
     expect(legacy?.metrics.debt).toBe(100);
   });
 
+  test("offsetting restatements from different filings cannot be summed", () => {
+    const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
+    const latest = (value: number) => instant(value, "2026-06-30", "2026-09-10");
+    expectRefused(
+      {
+        LongTermDebtCurrent: [original(10), later(25), latest(15)],
+        LongTermDebtNoncurrent: [original(90), later(85)],
+      },
+      "a later filing restated LongTermDebtCurrent",
+    );
+  });
+
   test("an amendment tagging only an unrecognized concept supersedes the original", () => {
     expectRefused(
       {

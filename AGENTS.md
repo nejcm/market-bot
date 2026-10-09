@@ -77,6 +77,8 @@ To find a cached payload, filter by adapter: `jq -r 'select(.adapter=="sec-compa
 
 The recurring defect is a change that lands only on the path you tested (see `684e454`). Walk the chain end to end.
 
+SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a sweep delta with `bun run sweep:sec`.
+
 **Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the golden fixtures (`tests/fixtures/runs/<name>/golden-output/`, replayed and compared by `bun run check` for every fixture listed in `tests/equity-fixture/run.test.ts`; use `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — only for a readable diff or `--write-golden`; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "reran goldens, no diff expected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
 
 **A new evidence field or report section:**

@@ -26,6 +26,7 @@
     "app:build": "vite build --config app/vite.config.ts",
     "app:check": "svelte-check --tsconfig ./tsconfig.json --config ./app/svelte.config.js --fail-on-warnings",
     "test": "bun test",
+    "sweep:sec": "bun run scripts/sec-cache-sweep.ts",
     "test:coverage": "bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit && bun run app:check",
     "lint": "oxlint",

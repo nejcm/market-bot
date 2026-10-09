@@ -833,6 +833,7 @@ describe("collectSources", () => {
       command,
       result.marketSnapshots,
       nonDepositoryEvidence,
+      now.toISOString(),
     ).extendedEvidence;
     if (numericValuationEvidence === undefined) {
       throw new Error("complete peer inputs did not produce numeric valuation evidence");

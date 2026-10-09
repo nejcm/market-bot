@@ -2464,6 +2464,36 @@ describe("report artifact parsers", () => {
             },
           ],
         },
+        {
+          name: "Financial Strength",
+          posture: "insufficient-data",
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+          metrics: [
+            {
+              key: "netDebt",
+              label: "Net debt",
+              value: 425,
+              unit: "currency",
+              sourceIds: ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
+              periodEnd: "2025-12-31",
+            },
+          ],
+        },
+        {
+          name: "Growth",
+          posture: "criteria-supported",
+          sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+          metrics: [
+            {
+              key: "revenueDeltaPercent",
+              label: "Revenue YoY",
+              value: 12,
+              unit: "whole-percent",
+              sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+              periodEnd: "2026-06-30",
+            },
+          ],
+        },
       ],
       sourceIds: ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
     });
@@ -2471,6 +2501,8 @@ describe("report artifact parsers", () => {
     expect(tiles.map((tile) => tile.caption)).toEqual([
       "SEC EDGAR · FY period ended 2025-06-28",
       "Yahoo quote · fetch time 2026-06-21T14:30:00.000Z",
+      "SEC EDGAR + Yahoo quote · balance sheet 2025-12-31",
+      "SEC EDGAR · period ending 2026-06-30",
     ]);
   });
 

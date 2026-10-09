@@ -1829,7 +1829,7 @@ describe("canonical debt basis selection", () => {
         observedAt: amdAsOf.analysisAsOf,
       }),
     ];
-    const valuation = addValuationEvidence(command, snapshots, canonical);
+    const valuation = addValuationEvidence(command, snapshots, canonical, amdAsOf.analysisAsOf);
     const comps = await collectValuationComps(
       {
         command,
@@ -2585,7 +2585,9 @@ describe("canonical debt basis selection", () => {
 });
 
 function debtLabel(item: ExtendedEvidenceItem | undefined): string | undefined {
-  return strengthLens(item).metrics.find((metric) => metric.key === "debt")?.label;
+  return strengthLens(item, "2026-08-15T00:00:00.000Z").lens.metrics.find(
+    (metric) => metric.key === "debt",
+  )?.label;
 }
 
 function grossFallbackApplies(net: number, gross: number): boolean {

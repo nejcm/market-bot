@@ -12,7 +12,7 @@ describe("offline financial-statement corpus", () => {
       aapl: { matched: 74, allowances: 0 },
       msft: { matched: 78, allowances: 0 },
       mara: { matched: 69, allowances: 9 },
-      nbis: { matched: 37, allowances: 39 },
+      nbis: { matched: 38, allowances: 37 },
       "fpi-quarterly": { matched: 24, allowances: 52 },
       "fpi-ifrs-semiannual": { matched: 33, allowances: 43 },
     } as const;

@@ -281,6 +281,14 @@ function financialLensSourceLabel(sourceIds: readonly string[]): string | undefi
   return undefined;
 }
 
+const BALANCE_SHEET_LENS_METRICS = new Set([
+  "cash",
+  "debt",
+  "netDebt",
+  "currentRatio",
+  "debtToEquity",
+]);
+
 function financialLensMetricCaption(
   metric: FinancialLensMetric,
   marketSnapshots: readonly MarketSnapshot[],
@@ -293,6 +301,11 @@ function financialLensMetricCaption(
     return source;
   }
   const date = metric.periodEnd.slice(0, 10);
+  if (metric.periodMonths === undefined && metric.periodEnd === date && source.startsWith("SEC")) {
+    return BALANCE_SHEET_LENS_METRICS.has(metric.key)
+      ? `${source} · balance sheet ${date}`
+      : `${source} · period ending ${date}`;
+  }
   if (metric.periodMonths === undefined) {
     const marketSnapshot = marketSnapshots.find((snapshot) =>
       metric.sourceIds.includes(snapshot.sourceId),

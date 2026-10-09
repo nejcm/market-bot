@@ -456,7 +456,7 @@ An isolated versioned equity sidecar that solves the five-year FCF growth input 
 
 ## Financial Lens Evidence
 
-Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
+Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, and Momentum with a posture, never a composite score or rank. Deep equity can add peer supportability; industry-relative ratios are display-only except Dividend Payout ≤0.8. Financial Strength posture counts only current balance-sheet criteria: within 180 days of the analysis cutoff and 92 days of the newest balance-sheet period; older criteria stay displayed with their dates and are declared as a Source Gap. See [ADR 0004](./docs/adr/0004-evidence-identity-providers-deterministic-analysis.md).
 
 ## Business Framework Evidence
 

@@ -14,8 +14,11 @@ import {
   balanceSheetPeriodDivergence,
   guardIncompleteDebtValuationItem,
   guardMixedPeriodValuationItem,
+  isCurrentBalanceSheetPeriod,
   mixedPeriodValuationGap,
 } from "./valuation-comps-support";
+import { SEC_FRESHNESS_DAYS } from "../../config/shared";
+import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps-contract";
 
 interface ValuationEvidenceResult {
   readonly extendedEvidence?: ExtendedEvidence;
@@ -52,6 +55,26 @@ function ratio(numerator: number, denominator: number): number | undefined {
 
 function fixed(value: number | undefined): string {
   return value === undefined ? "n/a" : `${clampRoundedZero(value, 2).toFixed(2)}x`;
+}
+
+function nonCurrentBalanceSheetGap(
+  symbol: string,
+  analysisAsOf: string,
+  stale: readonly (readonly [string, string | undefined])[],
+  withheld: readonly string[],
+): SourceGap {
+  const periods = stale
+    .map(([label, periodEnd]) => `${label} period end ${periodEnd ?? "undated"}`)
+    .join(", ");
+  return sourceGap({
+    source: "valuation",
+    message: `Non-current SEC balance-sheet inputs for ${symbol}: ${periods} not within ${String(SEC_FRESHNESS_DAYS)} days before analysis cutoff ${analysisAsOf.slice(0, 10)} and ${String(MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS)} days of the newest balance-sheet period end; ${withheld.join(" and ")} withheld`,
+    symbol: symbol.toUpperCase(),
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
 }
 
 function valuationDateBasis(
@@ -94,6 +117,7 @@ export function addValuationEvidence(
   command: ResearchCommand,
   marketSnapshots: readonly MarketSnapshot[],
   extendedEvidence: ExtendedEvidence | undefined,
+  analysisAsOf: string,
 ): ValuationEvidenceResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -164,9 +188,15 @@ export function addValuationEvidence(
   const evToAnnualizedRevenue =
     enterpriseValue === undefined ? undefined : ratio(enterpriseValue, annualizedRevenue);
   const marketCapToAnnualizedRevenue = ratio(marketCap, annualizedRevenue);
-  const debtToMarketCap = ratio(debt, marketCap);
+  const debtCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, debtPeriodEnd, analysisAsOf);
+  const cashCurrent = isCurrentBalanceSheetPeriod(secItem.metrics, cashPeriodEnd, analysisAsOf);
+  const debtToMarketCap = debtCurrent ? ratio(debt, marketCap) : undefined;
   const netDebt = debt - cash;
-  const netDebtToMarketCap = ratio(netDebt, marketCap);
+  const netDebtToMarketCap = debtCurrent && cashCurrent ? ratio(netDebt, marketCap) : undefined;
+  const staleBalances = [
+    ...(debtCurrent ? [] : [["debt", debtPeriodEnd] as const]),
+    ...(cashCurrent ? [] : [["cash", cashPeriodEnd] as const]),
+  ];
   const revenuePeriodLabel =
     revenuePeriodMonths !== undefined
       ? `${revenuePeriodMonths}-month revenue ${formatUsd(revenue)}, `
@@ -216,6 +246,16 @@ export function addValuationEvidence(
   );
   const { item } = incompleteDebt;
   const sourceGaps = [
+    ...(staleBalances.length === 0
+      ? []
+      : [
+          nonCurrentBalanceSheetGap(
+            command.symbol,
+            analysisAsOf,
+            staleBalances,
+            debtCurrent ? ["net debt/market cap"] : ["debt/market cap", "net debt/market cap"],
+          ),
+        ]),
     ...(divergence === undefined ? [] : [mixedPeriodValuationGap(command.symbol, divergence)]),
     ...incompleteDebt.gaps,
   ];

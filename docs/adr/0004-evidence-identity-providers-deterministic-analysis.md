@@ -477,6 +477,16 @@ without pretending the project has a global security master.
   Older complete debt never stands in for a newer instant whose debt is incomplete: target valuation
   withholds EV and net debt with a Source Gap, peer rows declare the incomplete basis, and Workbench
   observations drop debt when such an instant falls at or before their cash instant.
+- Financial Strength posture uses current balance-sheet criteria only. A balance-sheet period is
+  current when it ends within 180 days before the analysis cutoff (`SEC_FRESHNESS_DAYS`) and within
+  92 days of the newest current balance-sheet period end. Canonical ratios check their paired
+  selected period; the legacy fallback checks every input. Net debt and current ratio outside that
+  window are unknown, not failed, so the remaining current criteria still decide the posture, and
+  Business Framework Risk applies the same current-ratio eligibility while labelling the historical
+  value with its date. Debt/equity, debt/market cap, and net debt/market cap are withheld when an
+  input is not current. Dated raw debt, cash, and historical net debt stay displayed, and the
+  valuation and financial-lens producers each declare a no-cap Source Gap naming the withheld
+  inputs and their period ends.
 - For a depository issuer, enterprise value and every EV-derived surface are inapplicable, not
   unavailable: deposits and borrowings fund operations, so no defensible operating/financing split
   exists. The issuer is classified once from a well-formed four-digit SIC on its own `sec-edgar`

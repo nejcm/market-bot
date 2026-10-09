@@ -475,6 +475,7 @@ describe("older complete debt never stands in for a newer incomplete instant", (
         ],
         gaps: [],
       },
+      "2026-08-15T00:00:00.000Z",
     );
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
 
@@ -513,6 +514,7 @@ describe("older complete debt never stands in for a newer incomplete instant", (
       { jobType: "equity", assetClass: "equity", symbol: "TEST", depth: "deep" },
       [marketSnapshot({ symbol: "TEST", marketCap: 100 })],
       replaced,
+      "2026-08-15T00:00:00.000Z",
     );
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
 
@@ -567,6 +569,7 @@ function valuationItemFor(evidence: ReturnType<typeof secEvidenceFrom>) {
     { jobType: "equity", assetClass: "equity", symbol: "TEST", depth: "deep" },
     [marketSnapshot({ symbol: "TEST", marketCap: 100 })],
     evidence,
+    "2026-08-15T00:00:00.000Z",
   ).extendedEvidence?.items.find((item) => item.category === "valuation");
 }
 

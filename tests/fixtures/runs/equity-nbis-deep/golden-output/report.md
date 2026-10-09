@@ -58,7 +58,9 @@ Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/b
 - **Material:** sec-edgar: SEC company facts for NBIS have no 10-K/10-Q rows \(foreign-filer forms such as 20-F/40-F\); legacy fundamentals summary unavailable
 - **Material:** sec-edgar: NBIS files as a foreign private issuer \(20-F, 6-K\); recent 6-K text is attempted, while annual-report section parsing remains unsupported
 - **Material:** Synthetic FPI inputs exercise unsupported current filing forms.
+- **Material:** valuation: Non-current SEC balance-sheet inputs for NBIS: debt period end 2025-12-31, cash period end 2025-12-31 not within 180 days before analysis cutoff 2026-07-22 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld
 - **Material:** valuation: Peer-implied price reference range suppressed for NBIS: peer supportability is not supported
+- **Material:** financial-lens: Financial Strength for NBIS excludes non-current balance-sheet inputs at analysis cutoff 2026-07-22: net debt period end 2025-12-31, current ratio period end 2025-12-31, debt/equity period end 2025-12-31 not within 180 days before the cutoff and 92 days of the newest balance-sheet period end
 - **Material:** business-framework: Business Framework partial for NBIS: business-description: Business description is not available from current normalized sources
 - **Material:** business-framework: Business Framework partial for NBIS: geographic-mix: Geographic revenue mix is not available from current normalized sources
 - **Material:** business-framework: Business Framework partial for NBIS: segment-mix: Segment mix is not available from current normalized sources
@@ -117,7 +119,7 @@ Phase: hyper-growth
 
 - **Moat** (criteria-not-supported): Moat criteria-not-supported \(Operating margin -115.5%\) [extended-sec-edgar-nbis-fundamentals]
 - **Management** (insufficient-data): Management insufficient-data
-- **Risk** (criteria-supported): Risk criteria-supported \(Current ratio 3.08x, Debt/market cap 7.2%\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]
+- **Risk** (criteria-supported): Risk criteria-supported \(Current ratio \(historical, 2025-12-31\) 3.08x\) [extended-sec-edgar-nbis-fundamentals] [market-yahoo-equity-nbis] [verified-snapshot-NBIS]
 - **Valuation** (insufficient-data): Valuation insufficient-data \(Valuation caveat Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only., Trailing PE 87.33x, Forward PE -139.64x\) [market-yahoo-equity-nbis] [extended-sec-edgar-nbis-fundamentals]
 
 #### Framework Data Gaps

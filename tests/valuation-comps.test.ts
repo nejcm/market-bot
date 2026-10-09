@@ -1686,6 +1686,7 @@ describe("collectValuationComps", () => {
       astsCommand,
       [snapshot],
       canonicalEvidence,
+      generatedAt,
     ).extendedEvidence;
     expect(targetEvidence?.items.find((item) => item.category === "valuation")?.metrics?.sic).toBe(
       "4899",

@@ -11,6 +11,7 @@ import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
+import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import {
@@ -100,9 +101,13 @@ function evidence(): ExtendedEvidence {
           operatingCashFlowDeltaPercent: 4,
           capex: 5,
           cash: 35,
+          cashPeriodEnd: "2026-03-28",
           debt: 20,
+          debtPeriodEnd: "2026-03-28",
           currentAssets: 80,
+          currentAssetsPeriodEnd: "2026-03-28",
           currentLiabilities: 40,
+          currentLiabilitiesPeriodEnd: "2026-03-28",
         },
       },
       {
@@ -656,10 +661,15 @@ function secEvidenceWithRatios(
       operatingCashFlow: 30,
       capex: 5,
       cash: 35,
+      cashPeriodEnd: "2026-03-28",
       debt: 20,
+      debtPeriodEnd: "2026-03-28",
       currentAssets: 80,
+      currentAssetsPeriodEnd: "2026-03-28",
       currentLiabilities: 40,
+      currentLiabilitiesPeriodEnd: "2026-03-28",
       stockholdersEquity: 50,
+      stockholdersEquityPeriodEnd: "2026-03-28",
       assets: 120,
       dividendsPaid: -5,
       ...overrides,
@@ -1519,6 +1529,233 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     // No SEC -> no ROE/ROA/D-E/PCF metrics.
     expect(metricByKey(result, "Quality", "roe")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
+  });
+});
+
+// Canonical selection pins net debt and debt/equity to one period, cash/current ratio to another.
+function selectedDebtPeriods(debtPeriodEnd: string, currentPeriodEnd = "2026-06-30") {
+  return {
+    financialLensSelectionVersion: 1,
+    cashPeriodEnd: currentPeriodEnd,
+    debtPeriodEnd,
+    stockholdersEquityPeriodEnd: currentPeriodEnd,
+    currentAssetsPeriodEnd: currentPeriodEnd,
+    netDebtSelectedValue: -15,
+    netDebtSelectedPeriodEnd: debtPeriodEnd,
+    debtToEquitySelectedValue: 0.4,
+    debtToEquitySelectedPeriodEnd: debtPeriodEnd,
+    currentRatioSelectedValue: 0.8,
+    currentRatioSelectedPeriodEnd: currentPeriodEnd,
+  };
+}
+
+function strengthGap(result: ReturnType<typeof addFinancialLensEvidence>) {
+  return result.sourceGaps.find((gap) => gap.message.startsWith("Financial Strength for AAPL"));
+}
+
+describe("addFinancialLensEvidence — Financial Strength debt currentness", () => {
+  const cutoff = "2026-10-08T00:00:00.000Z";
+  const strengthAt = (
+    analysisAsOf: string,
+    secOverrides: Record<string, number | string>,
+    valuationMetrics?: Record<string, number | string>,
+  ) =>
+    addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({ dividendsPaid: 0, netIncome: 0, ...secOverrides }),
+          ...(valuationMetrics === undefined
+            ? []
+            : [{ ...valuationEvidence(), metrics: valuationMetrics }]),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      analysisAsOf,
+    );
+  test("year-old debt with withheld net debt cannot support posture (run f569559f shape)", () => {
+    const result = strengthAt(cutoff, selectedDebtPeriods("2025-06-30"), {
+      netDebt: MIXED_PERIOD_METRIC,
+      cashPeriodEnd: "2026-06-30",
+      debtPeriodEnd: "2025-06-30",
+    });
+    const strength = lensByName(result, "Financial Strength");
+    expect(strength?.posture).toBe("criteria-not-supported");
+    expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
+    expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
+    expect(metricByKey(result, "Financial Strength", "debt")).toMatchObject({
+      value: 20,
+      periodEnd: "2025-06-30",
+    });
+    expect(strengthGap(result)?.message).toBe(
+      "Financial Strength for AAPL excludes non-current balance-sheet inputs at analysis cutoff 2026-10-08: debt/equity period end 2025-06-30 not within 180 days before the cutoff and 92 days of the newest balance-sheet period end",
+    );
+  });
+
+  test("selected historical net debt stays displayed but leaves no remaining criteria", () => {
+    const { currentRatioSelectedValue: _currentRatio, ...noCurrentRatio } = selectedDebtPeriods(
+      "2025-06-30",
+      "2025-06-30",
+    );
+    const result = strengthAt(cutoff, noCurrentRatio);
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+    expect(metricByKey(result, "Financial Strength", "netDebt")).toMatchObject({
+      value: -15,
+      periodEnd: "2025-06-30",
+    });
+    expect(strengthGap(result)?.message).toContain(
+      "net debt period end 2025-06-30, debt/equity period end 2025-06-30 not within",
+    );
+  });
+
+  test("fresh aligned balances keep net debt and debt/equity", () => {
+    const result = strengthAt(cutoff, selectedDebtPeriods("2026-06-30"));
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-mixed");
+    expect(metricByKey(result, "Financial Strength", "debtToEquity")?.value).toBe(0.4);
+    expect(strengthGap(result)).toBeUndefined();
+  });
+
+  test.each([
+    ["exactly 180 days before the cutoff", "2026-04-11", "2026-04-11", "criteria-mixed"],
+    ["181 days before the cutoff", "2026-04-10", "2026-04-10", "insufficient-data"],
+    ["92 days behind the newest balance sheet", "2026-03-30", "2026-06-30", "criteria-mixed"],
+    [
+      "93 days behind the newest balance sheet",
+      "2026-03-29",
+      "2026-06-30",
+      "criteria-not-supported",
+    ],
+    ["future-dated", "2026-10-09", "2026-06-30", "criteria-not-supported"],
+  ] as const)("net debt %s", (_label, debtPeriodEnd, currentPeriodEnd, posture) => {
+    const current = posture === "criteria-mixed";
+    const analysisAsOf = currentPeriodEnd === "2026-06-30" ? "2026-07-01T00:00:00.000Z" : cutoff;
+    const result = strengthAt(
+      debtPeriodEnd === "2026-10-09" ? cutoff : analysisAsOf,
+      selectedDebtPeriods(debtPeriodEnd, currentPeriodEnd),
+    );
+    expect(lensByName(result, "Financial Strength")?.posture).toBe(posture);
+    expect(strengthGap(result) === undefined).toBe(current);
+  });
+
+  test("quote-mixed debt ratios follow the 92-day rule (canonical)", () => {
+    const result = strengthAt(
+      "2026-07-01T00:00:00.000Z",
+      {
+        ...selectedDebtPeriods("2026-03-29"),
+        cashPeriodEnd: "2026-03-29",
+        currentRatioSelectedValue: 2,
+      },
+      { netDebt: -15, debtToMarketCap: 0.02, netDebtToMarketCap: -0.015 },
+    );
+    expect(metricByKey(result, "Financial Strength", "debtToMarketCap")).toBeUndefined();
+    expect(metricByKey(result, "Financial Strength", "netDebtToMarketCap")).toBeUndefined();
+    expect(strengthGap(result)?.message).toContain(
+      "debt/market cap period end 2026-03-29, net debt/market cap period end 2026-03-29",
+    );
+    const valuation = addValuationEvidence(
+      command,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            cashPeriodEnd: "2026-03-29",
+            debtPeriodEnd: "2026-03-29",
+            stockholdersEquityPeriodEnd: "2026-06-30",
+          }),
+        ],
+        gaps: [],
+      },
+      "2026-07-01T00:00:00.000Z",
+    );
+    const valuationMetrics = valuation.extendedEvidence?.items.find(
+      (item) => item.category === "valuation",
+    )?.metrics;
+    expect(valuationMetrics?.debtToMarketCap).toBeUndefined();
+    expect(valuationMetrics?.netDebtToMarketCap).toBeUndefined();
+    expect(valuation.sourceGaps[0]?.message).toStartWith("Non-current SEC balance-sheet inputs");
+  });
+
+  test("legacy ratios require every input period to be current", () => {
+    const result = strengthAt(cutoff, {
+      cashPeriodEnd: "2026-06-30",
+      debtPeriodEnd: "2026-06-30",
+      currentAssetsPeriodEnd: "2026-06-30",
+      currentLiabilitiesPeriodEnd: "2025-06-30",
+      stockholdersEquityPeriodEnd: "2025-06-30",
+    });
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(metricByKey(result, "Financial Strength", "currentRatio")?.value).toBe(2);
+    expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
+    expect(strengthGap(result)?.message).toContain(
+      "current ratio period end 2025-06-30, debt/equity period end 2025-06-30",
+    );
+  });
+
+  test("undated legacy debt cannot support posture", () => {
+    const {
+      debtPeriodEnd: _debt,
+      cashPeriodEnd: _cash,
+      ...undated
+    } = secEvidenceWithRatios({ dividendsPaid: 0, netIncome: 0 }).metrics ?? {};
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [{ ...secEvidenceWithRatios(), metrics: undated }],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-07-01T00:00:00.000Z",
+    );
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(strengthGap(result)?.message).toContain(
+      "at analysis cutoff 2026-07-01: net debt period end undated, debt/equity period end undated",
+    );
+  });
+
+  test("brief path: producer and lens both withhold year-old debt without peer comps", () => {
+    const briefCommand = { ...command, depth: "brief" } as const;
+    const valuation = addValuationEvidence(
+      briefCommand,
+      [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            dividendsPaid: 0,
+            netIncome: 0,
+            cashPeriodEnd: "2025-06-30",
+            debtPeriodEnd: "2025-06-30",
+            currentAssetsPeriodEnd: "2025-06-30",
+          }),
+        ],
+        gaps: [],
+      },
+      cutoff,
+    );
+    const result = addFinancialLensEvidence(
+      briefCommand,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      valuation.extendedEvidence,
+      verifiedSnapshot(),
+      cutoff,
+    );
+    expect(metricByKey(result, "Financial Strength", "debtToMarketCap")).toBeUndefined();
+    expect(metricByKey(result, "Financial Strength", "netDebtToMarketCap")).toBeUndefined();
+    expect(metricByKey(result, "Financial Strength", "netDebt")).toMatchObject({
+      value: -15,
+      periodEnd: "2025-06-30",
+    });
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+    expect(valuation.sourceGaps[0]?.message).toStartWith("Non-current SEC balance-sheet inputs");
+    expect(strengthGap(result)?.message).toContain(
+      "net debt period end 2025-06-30, current ratio period end 2025-06-30",
+    );
   });
 });
 

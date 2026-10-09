@@ -40,6 +40,8 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
           netIncome: 18,
           netIncomeDeltaPercent: 5,
           shareRepurchases: 10,
+          currentAssetsPeriodEnd: "2026-03-31",
+          currentLiabilitiesPeriodEnd: "2026-03-31",
         },
       },
       {
@@ -72,6 +74,7 @@ function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
         observedAt: "2026-06-21T00:00:00.000Z",
         metrics: {
           currentRatio: 1.5,
+          currentRatioPeriodEnd: "2026-03-31",
           debtToMarketCap: 0.1,
         },
       },
@@ -224,6 +227,24 @@ describe("business framework evidence", () => {
       expect(classifyBusinessLifecyclePhase(phaseCase.input)).toBe(phaseCase.expected);
     });
   }
+
+  test("Risk counts the current ratio only while its balance-sheet period is current", () => {
+    const risk = (generatedAt: string) =>
+      addBusinessFrameworkEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-aapl" })],
+        evidence(),
+        undefined,
+        generatedAt,
+      ).artifact?.sections.find((section) => section.name === "Risk");
+
+    expect(risk("2026-06-22T00:00:00.000Z")?.summary).toBe(
+      "Risk criteria-supported (Current ratio 1.50x, Debt/market cap 10.0%)",
+    );
+    const stale = risk("2026-12-01T00:00:00.000Z");
+    expect(stale?.metrics[0]?.label).toBe("Current ratio (historical, 2026-03-31)");
+    expect(stale?.posture).toBe("criteria-supported");
+  });
 
   test("derives seven neutral framework sections and a sidecar artifact", () => {
     const result = addBusinessFrameworkEvidence(

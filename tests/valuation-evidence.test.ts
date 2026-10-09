@@ -49,16 +49,107 @@ describe("addValuationEvidence", () => {
         debt: 50,
         debtPeriodEnd: "2025-06-30",
       }),
+      "2026-07-01T00:00:00.000Z",
     );
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
 
     expect(valuation?.metrics?.enterpriseValue).toBe("mixed-period");
+    expect(valuation?.metrics?.debtToMarketCap).toBeUndefined();
     expect(result.sourceGaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("debt period end 2025-06-30 not within 180 days"),
+      }),
       expect.objectContaining({
         symbol: "AAPL",
         message: expect.stringContaining("Mixed-period valuation inputs for AAPL"),
       }),
     ]);
+  });
+
+  describe("debt currentness at the analysis cutoff", () => {
+    const valuationAt = (
+      cutoff: string,
+      periods: { readonly cashPeriodEnd?: string; readonly debtPeriodEnd?: string },
+    ) => {
+      const result = addValuationEvidence(
+        command,
+        [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
+        secEvidence({ revenue: 100, cash: 30, debt: 50, ...periods }),
+        cutoff,
+      );
+      return {
+        metrics: result.extendedEvidence?.items.find((item) => item.category === "valuation")
+          ?.metrics,
+        gaps: result.sourceGaps,
+      };
+    };
+
+    test("keeps debt ratios for fresh aligned balances", () => {
+      const { metrics, gaps } = valuationAt("2026-10-08T00:00:00.000Z", {
+        cashPeriodEnd: "2026-06-30",
+        debtPeriodEnd: "2026-06-30",
+      });
+      expect(metrics).toMatchObject({ debtToMarketCap: 0.05, netDebtToMarketCap: 0.02 });
+      expect(gaps).toEqual([]);
+    });
+
+    test("withholds quote-mixed debt ratios for year-old aligned balances but keeps dated debt", () => {
+      const { metrics, gaps } = valuationAt("2026-10-08T00:00:00.000Z", {
+        cashPeriodEnd: "2025-06-30",
+        debtPeriodEnd: "2025-06-30",
+      });
+      expect(metrics).toMatchObject({ debt: 50, debtPeriodEnd: "2025-06-30", netDebt: 20 });
+      expect(metrics?.debtToMarketCap).toBeUndefined();
+      expect(metrics?.netDebtToMarketCap).toBeUndefined();
+      expect(gaps).toEqual([
+        expect.objectContaining({
+          source: "valuation",
+          message:
+            "Non-current SEC balance-sheet inputs for AAPL: debt period end 2025-06-30, cash period end 2025-06-30 not within 180 days before analysis cutoff 2026-10-08 and 92 days of the newest balance-sheet period end; debt/market cap and net debt/market cap withheld",
+        }),
+      ]);
+    });
+
+    test.each([
+      ["exactly 180 days old", "2026-04-11", true],
+      ["181 days old", "2026-04-10", false],
+      ["future-dated", "2026-10-09", false],
+      ["undated", undefined, false],
+    ])("debt %s", (_label, debtPeriodEnd, current) => {
+      const { metrics, gaps } = valuationAt("2026-10-08T00:00:00.000Z", {
+        cashPeriodEnd: "2026-06-30",
+        ...(debtPeriodEnd === undefined ? {} : { debtPeriodEnd }),
+      });
+      expect(metrics?.debtToMarketCap).toBe(current ? 0.05 : undefined);
+      expect(gaps.some((gap) => gap.message.startsWith("Non-current SEC balance-sheet"))).toBe(
+        !current,
+      );
+    });
+
+    test("withholds only net debt/market cap when cash alone is not current", () => {
+      const { metrics, gaps } = valuationAt("2026-10-08T00:00:00.000Z", {
+        cashPeriodEnd: "2026-04-10",
+        debtPeriodEnd: "2026-06-30",
+      });
+      expect(metrics?.debtToMarketCap).toBe(0.05);
+      expect(metrics?.netDebtToMarketCap).toBeUndefined();
+      expect(gaps[0]?.message).toEndWith("; net debt/market cap withheld");
+    });
+
+    test.each([
+      ["lags", "2026-06-30", "2026-03-29", undefined],
+      ["leads", "2026-03-29", "2026-06-30", 0.05],
+    ])(
+      "mixed-period guard when fresh debt %s cash",
+      (_label, cashPeriodEnd, debtPeriodEnd, ratio) => {
+        const { metrics } = valuationAt("2026-07-01T00:00:00.000Z", {
+          cashPeriodEnd,
+          debtPeriodEnd,
+        });
+        expect(metrics?.netDebt).toBe("mixed-period");
+        expect(metrics?.debtToMarketCap).toBe(ratio);
+      },
+    );
   });
 
   test("preserves populated valuation values at the canonical input seam", () => {
@@ -134,11 +225,17 @@ describe("addValuationEvidence", () => {
       debt: 50,
       debtPeriodEnd: "2026-03-31",
     });
-    const legacy = addValuationEvidence(command, snapshots, legacyInputs);
+    const legacy = addValuationEvidence(
+      command,
+      snapshots,
+      legacyInputs,
+      "2026-07-01T00:00:00.000Z",
+    );
     const canonical = addValuationEvidence(
       command,
       snapshots,
       withCanonicalFinancialLensInputs(legacyInputs, artifact),
+      "2026-07-01T00:00:00.000Z",
     );
 
     expect(canonical.extendedEvidence?.items.find((item) => item.category === "valuation")).toEqual(
@@ -158,6 +255,7 @@ describe("addValuationEvidence", () => {
         }),
       ],
       baseExtendedEvidence,
+      "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
@@ -195,9 +293,12 @@ describe("addValuationEvidence", () => {
   test("carries a gross-principal debt basis only when the SEC item declares it", () => {
     const snapshots = [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })];
     const valuation = (evidence: ExtendedEvidence) =>
-      addValuationEvidence(command, snapshots, evidence).extendedEvidence?.items.find(
-        (item) => item.category === "valuation",
-      );
+      addValuationEvidence(
+        command,
+        snapshots,
+        evidence,
+        "2026-07-01T00:00:00.000Z",
+      ).extendedEvidence?.items.find((item) => item.category === "valuation");
     const gross = valuation(
       secEvidence({ revenue: 400, cash: 30, debt: 50, debtBasis: "gross-principal" }),
     );
@@ -215,7 +316,14 @@ describe("addValuationEvidence", () => {
     const result = addValuationEvidence(
       command,
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
-      secEvidence({ revenue: 400, cash: 50.0001, debt: 50 }),
+      secEvidence({
+        revenue: 400,
+        cash: 50.0001,
+        cashPeriodEnd: "2026-03-31",
+        debt: 50,
+        debtPeriodEnd: "2026-03-31",
+      }),
+      "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
@@ -228,6 +336,7 @@ describe("addValuationEvidence", () => {
       command,
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
       secEvidence({ revenue: 400, revenuePeriodMonths: 12, cash: 30, debt: 50 }),
+      "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
@@ -243,6 +352,7 @@ describe("addValuationEvidence", () => {
       command,
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
       secEvidence({ revenue: 300, revenuePeriodMonths: 9, cash: 30, debt: 50 }),
+      "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
@@ -254,6 +364,7 @@ describe("addValuationEvidence", () => {
       command,
       [marketSnapshot({ symbol: "AAPL", marketCap: 1000 })],
       secEvidence({ revenue: 400, cash: 30, debt: 50 }),
+      "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
@@ -285,11 +396,19 @@ describe("addValuationEvidence", () => {
               summary: "SEC Fundamental Evidence.",
               sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
               observedAt: "2026-05-18T00:00:00.000Z",
-              metrics: { revenue: 100, revenuePeriodMonths: 3, cash: 30, debt: 50 },
+              metrics: {
+                revenue: 100,
+                revenuePeriodMonths: 3,
+                cash: 30,
+                cashPeriodEnd: "2026-03-31",
+                debt: 50,
+                debtPeriodEnd: "2026-03-31",
+              },
             },
           ],
         },
       ),
+      "2026-07-01T00:00:00.000Z",
     );
 
     const valuation = result.extendedEvidence?.items.find((item) => item.category === "valuation");
@@ -303,6 +422,7 @@ describe("addValuationEvidence", () => {
       command,
       [marketSnapshot({ symbol: "AAPL" })],
       baseExtendedEvidence,
+      "2026-07-01T00:00:00.000Z",
     );
 
     expect(result.extendedEvidence?.items.map((item) => item.category)).toEqual(["sec-edgar"]);

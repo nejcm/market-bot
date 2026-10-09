@@ -284,7 +284,12 @@ export async function collectEquityEnrichment(
   }
   const valuationResult =
     financialStatements === undefined
-      ? addValuationEvidence(input.command, input.marketSnapshots, input.extendedEvidence)
+      ? addValuationEvidence(
+          input.command,
+          input.marketSnapshots,
+          input.extendedEvidence,
+          input.fetchedAt,
+        )
       : addValuationEvidence(
           input.command,
           input.marketSnapshots,
@@ -293,6 +298,7 @@ export async function collectEquityEnrichment(
             financialStatements,
             input.secTargetPacket?.providerResult.sicClassification,
           ),
+          input.fetchedAt,
         );
   const peerUniverseFallback =
     input.command.depth === "deep"

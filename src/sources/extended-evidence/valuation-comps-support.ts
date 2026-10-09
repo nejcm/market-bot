@@ -136,6 +136,35 @@ export function isFreshPeriodEnd(periodEnd: string, generatedAt: string): boolea
   return ageMs >= 0 && ageMs <= SEC_FRESHNESS_DAYS * DAY_MS;
 }
 
+const BALANCE_SHEET_PERIOD_KEYS = [
+  "cash",
+  "debt",
+  "currentAssets",
+  "currentLiabilities",
+  "stockholdersEquity",
+  "assets",
+] as const;
+
+// Current: within SEC freshness of the cutoff and of the newest current balance-sheet instant.
+export function isCurrentBalanceSheetPeriod(
+  secMetrics: Readonly<Record<string, number | string>> | undefined,
+  periodEnd: string | undefined,
+  analysisAsOf: string,
+): boolean {
+  if (periodEnd === undefined || !isFreshPeriodEnd(periodEnd, analysisAsOf)) {
+    return false;
+  }
+  const newestBalanceSheetMs = Math.max(
+    ...BALANCE_SHEET_PERIOD_KEYS.map((key) => readStringMetric(secMetrics, `${key}PeriodEnd`))
+      .filter((end): end is string => end !== undefined && isFreshPeriodEnd(end, analysisAsOf))
+      .map((end) => Date.parse(end)),
+  );
+  return (
+    (newestBalanceSheetMs - Date.parse(periodEnd)) / DAY_MS <=
+    MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+  );
+}
+
 export function percentile(values: readonly number[], p: number): number {
   const sorted = values.toSorted((a, b) => a - b);
   const index = (sorted.length - 1) * p;

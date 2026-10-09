@@ -27,9 +27,17 @@ import type {
 } from "../../domain/types";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { isContinuingScope, scopedLabel } from "./financial-statement-definitions";
-import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
+import {
+  canonicalFinancialLensDerivedMetric,
+  selectedFinancialLensDerivedMetric,
+  type CanonicalDerivedMetricKey,
+  type SecFactMetricKey,
+} from "./financial-lens-canonical";
 import { MIXED_PERIOD_METRIC, REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
+import {
+  balanceSheetPeriodDivergence,
+  isCurrentBalanceSheetPeriod,
+} from "./valuation-comps-support";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import { readNumberMetric, readStringMetric } from "./utils";
 
@@ -271,11 +279,49 @@ export function growthLens(secItem: ExtendedEvidenceItem | undefined): Financial
   };
 }
 
+// Canonical metrics carry one paired period; the legacy fallback must validate every input.
+function nonCurrentPeriods(
+  secItem: ExtendedEvidenceItem | undefined,
+  key: CanonicalDerivedMetricKey | undefined,
+  inputs: readonly SecFactMetricKey[],
+  analysisAsOf: string,
+): readonly (string | undefined)[] {
+  const selected =
+    key === undefined ? undefined : canonicalFinancialLensDerivedMetric(secItem, key);
+  const periods =
+    selected === undefined
+      ? inputs.map((input) => secPeriod(secItem, input).periodEnd)
+      : [selected.periodEnd];
+  return periods.filter(
+    (periodEnd) => !isCurrentBalanceSheetPeriod(secItem?.metrics, periodEnd, analysisAsOf),
+  );
+}
+
+export function currentRatioIsCurrent(
+  secItem: ExtendedEvidenceItem | undefined,
+  analysisAsOf: string,
+): boolean {
+  return (
+    nonCurrentPeriods(
+      secItem,
+      "currentRatio",
+      ["currentAssets", "currentLiabilities"],
+      analysisAsOf,
+    ).length === 0
+  );
+}
+
+export interface WithheldStrengthMetric {
+  readonly label: string;
+  readonly periodEnd: string | undefined;
+}
+
 export function strengthLens(
   secItem: ExtendedEvidenceItem | undefined,
+  analysisAsOf: string,
   valuationItem?: ExtendedEvidenceItem,
   yahooFundamentalsItem?: ExtendedEvidenceItem,
-): FinancialLens {
+): { readonly lens: FinancialLens; readonly withheld: readonly WithheldStrengthMetric[] } {
   const sourceIds = [
     ...new Set([
       ...(secItem?.sourceIds ?? []),
@@ -303,18 +349,52 @@ export function strengthLens(
     valuationItem?.metrics?.netDebt === MIXED_PERIOD_METRIC
       ? undefined
       : (readNumberMetric(valuationItem?.metrics, "netDebt") ?? selectedNetDebt);
-  const debtToMarketCap = readNumberMetric(valuationItem?.metrics, "debtToMarketCap");
-  const netDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "netDebtToMarketCap");
   const currentRatio = selectedFinancialLensDerivedMetric(
     secItem,
     "currentRatio",
     ratio(currentAssets, currentLiabilities),
   );
   // Debt-to-equity is industry-relative (display-only): no universal threshold.
-  const debtToEquity = selectedFinancialLensDerivedMetric(
+  const selectedDebtToEquity = selectedFinancialLensDerivedMetric(
     secItem,
     "debtToEquity",
     ratio(debt, stockholdersEquity),
+  );
+  const stale = {
+    netDebt: nonCurrentPeriods(secItem, "netDebt", ["debt", "cash"], analysisAsOf),
+    currentRatio: nonCurrentPeriods(
+      secItem,
+      "currentRatio",
+      ["currentAssets", "currentLiabilities"],
+      analysisAsOf,
+    ),
+    debtToEquity: nonCurrentPeriods(
+      secItem,
+      "debtToEquity",
+      ["debt", "stockholdersEquity"],
+      analysisAsOf,
+    ),
+    debtToMarketCap: nonCurrentPeriods(secItem, undefined, ["debt"], analysisAsOf),
+    netDebtToMarketCap: nonCurrentPeriods(secItem, undefined, ["debt", "cash"], analysisAsOf),
+  };
+  const rawDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "debtToMarketCap");
+  const rawNetDebtToMarketCap = readNumberMetric(valuationItem?.metrics, "netDebtToMarketCap");
+  const debtToMarketCap = stale.debtToMarketCap.length === 0 ? rawDebtToMarketCap : undefined;
+  const netDebtToMarketCap =
+    stale.netDebtToMarketCap.length === 0 ? rawNetDebtToMarketCap : undefined;
+  const currentNetDebt =
+    netDebt !== undefined && stale.netDebt.length === 0 ? selectedNetDebt : undefined;
+  const debtToEquity = stale.debtToEquity.length === 0 ? selectedDebtToEquity : undefined;
+  const withheld: WithheldStrengthMetric[] = (
+    [
+      ["net debt", netDebt, stale.netDebt],
+      ["current ratio", currentRatio, stale.currentRatio],
+      ["debt/equity", selectedDebtToEquity, stale.debtToEquity],
+      ["debt/market cap", rawDebtToMarketCap, stale.debtToMarketCap],
+      ["net debt/market cap", rawNetDebtToMarketCap, stale.netDebtToMarketCap],
+    ] as const
+  ).flatMap(([label, value, periods]) =>
+    value === undefined || periods.length === 0 ? [] : [{ label, periodEnd: periods[0] }],
   );
   // Dividend Payout: SEC-preferred (abs(dividendsPaid)/netIncome) contributes the
   // Forbes <= 0.8 posture criterion; the Yahoo fallback (trailingAnnualDividendRate
@@ -420,13 +500,13 @@ export function strengthLens(
       observedPeriod(yahooFundamentalsItem?.observedAt),
     ),
   ];
-  return {
+  const lens: FinancialLens = {
     name: "Financial Strength",
     posture: postureFrom([
-      selectedNetDebt === undefined ? undefined : selectedNetDebt <= 0,
+      currentNetDebt === undefined ? undefined : currentNetDebt <= 0,
       netDebtToMarketCap === undefined ? undefined : netDebtToMarketCap <= 0.25,
       debtToMarketCap === undefined ? undefined : debtToMarketCap <= 0.5,
-      currentRatio === undefined ? undefined : currentRatio >= 1,
+      currentRatio === undefined || stale.currentRatio.length > 0 ? undefined : currentRatio >= 1,
       // SEC-derived payout only: <= 0.8 supports (Forbes "below 80%"). Yahoo-fallback
       // Payout is display-only and contributes no criterion (revision 3).
       payoutFromSec ? atOrBelow(payoutRatio, 0.8) : undefined,
@@ -434,6 +514,7 @@ export function strengthLens(
     metrics,
     sourceIds,
   };
+  return { lens, withheld };
 }
 
 export function applySubsequentFinancingCurrentness(

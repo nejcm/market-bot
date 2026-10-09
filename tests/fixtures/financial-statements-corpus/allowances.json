@@ -233,14 +233,6 @@
   },
   {
     "fixture": "nbis",
-    "path": "financialLens.Financial Strength.posture",
-    "canonicalSha256": "8e4dc849451103e05fcbac90d49addbdca72f34bf77d8146feb4f618d9611334",
-    "legacySha256": "664fbc7d28652a5d615db5026767ec834049a0c53941f40f311039fda6416bda",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Financial Strength.posture comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
     "path": "financialLens.Financial Strength.metrics.cash",
     "canonicalSha256": "7b8f2d3ea98ab74957c8966d21be39aca469dc97ed88c21fddbc03d8b1b98a51",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
@@ -262,14 +254,6 @@
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
     "kind": "legacy-form-unsupported",
     "justification": "nbis canonical Financial Strength.metrics.debt comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
-  },
-  {
-    "fixture": "nbis",
-    "path": "financialLens.Financial Strength.metrics.debtToEquity",
-    "canonicalSha256": "da678f1220bc2fcd1d1c343d30ca555e02ec62e5cb4b122f8265a1ce7391b8f5",
-    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-    "kind": "legacy-form-unsupported",
-    "justification": "nbis canonical Financial Strength.metrics.debtToEquity comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
   },
   {
     "fixture": "nbis",

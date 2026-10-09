@@ -581,7 +581,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
     });
     const existingPrediction = {
       id: "pred-1",
-      claim: "SPY closes higher than today over 5 trading days",
+      claim: "SPY closes above its origin close over 5 trading days",
       kind: "direction" as const,
       subject: "SPY",
       measurableAs: "close(SPY, +5) > close(SPY, 0)",

@@ -22,7 +22,7 @@ describe("validatePredictions", () => {
   test("accepts a valid direction prediction", () => {
     const result = validatePredictions([validPrediction], knownIds);
     expect(result.valid).toHaveLength(1);
-    expect(result.valid[0]?.claim).toBe("SPY closes higher than today over 5 trading days");
+    expect(result.valid[0]?.claim).toBe("SPY closes above its origin close over 5 trading days");
     expect(result.errors).toHaveLength(0);
   });
 
@@ -32,7 +32,7 @@ describe("validatePredictions", () => {
     const result = validatePredictions([withoutClaim], knownIds);
 
     expect(result.valid).toHaveLength(1);
-    expect(result.valid[0]?.claim).toBe("SPY closes higher than today over 5 trading days");
+    expect(result.valid[0]?.claim).toBe("SPY closes above its origin close over 5 trading days");
     expect(result.errors).toHaveLength(0);
   });
 
@@ -69,7 +69,7 @@ describe("validatePredictions", () => {
       knownIds,
     );
     expect(result.valid).toHaveLength(1);
-    expect(result.valid[0]?.claim).toBe("SPY closes higher than today over 5 trading days");
+    expect(result.valid[0]?.claim).toBe("SPY closes above its origin close over 5 trading days");
     expect(result.errors).toHaveLength(0);
   });
 
@@ -573,7 +573,7 @@ describe("validatePredictions", () => {
     );
     expect(result.valid).toEqual([
       expect.objectContaining({
-        claim: "SPY closes higher than today over 5 trading days",
+        claim: "SPY closes above its origin close over 5 trading days",
         probability: 0.3,
       }),
     ]);
@@ -600,7 +600,7 @@ describe("validatePredictions", () => {
         subject: "QQQ",
         horizonTradingDays: 10,
         claim:
-          "If SPY closes higher than today over 5 trading days, then QQQ closes higher than today over 10 trading days",
+          "If SPY closes above its origin close over 5 trading days, then QQQ closes above its origin close over 10 trading days",
       }),
     ]);
   });
@@ -684,7 +684,7 @@ describe("missing-sources rejection (emission vs re-parse)", () => {
   test("re-parse path: observableForecastFromPrediction accepts empty sourceIds (no regression for historical artifacts)", () => {
     const prediction = {
       id: "hist-1",
-      claim: "SPY closes higher than today over 5 trading days",
+      claim: "SPY closes above its origin close over 5 trading days",
       kind: "direction" as const,
       subject: "SPY",
       measurableAs: "close(SPY, +5) > close(SPY, 0)",

@@ -952,12 +952,12 @@ describe("run artifact index", () => {
     expect(result.sourceRunCount).toBe(1);
     expect(result.malformedRunCount).toBe(0);
     const historyResults = await searchHistoryEntriesFromIndex(dataDir, {
-      query: "QQQ closes higher",
+      query: "QQQ closes above",
       section: "predictions",
     });
     expect(
       historyResults?.some((entry) =>
-        entry.text.includes("QQQ closes higher than today over 5 trading days"),
+        entry.text.includes("QQQ closes above its origin close over 5 trading days"),
       ),
     ).toBe(true);
   });

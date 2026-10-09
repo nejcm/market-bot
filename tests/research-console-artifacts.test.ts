@@ -679,7 +679,9 @@ describe("research console app artifacts", () => {
     ]);
     expect(results.map((result) => result.sourceIds)).toEqual([[], ["s1"], ["s3"], []]);
 
-    const predictionResults = await searchRunReports(dataDir, { query: "SPY closes higher" });
+    const predictionResults = await searchRunReports(dataDir, {
+      query: "SPY closes above its origin close",
+    });
     expect(predictionResults.map((result) => result.section)).toEqual(["predictions"]);
     expect(predictionResults.map((result) => result.sourceIds)).toEqual([["s2"]]);
   });

@@ -93,7 +93,7 @@ export const directionShape: PredictionShape<"direction"> = {
   },
 
   renderClaim(expression) {
-    return `${expression.subject} closes higher than today over ${String(expression.horizonTradingDays)} trading days`;
+    return `${expression.subject} closes above its origin close over ${String(expression.horizonTradingDays)} trading days`;
   },
 
   subject(expression) {

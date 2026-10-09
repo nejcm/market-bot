@@ -298,7 +298,7 @@ describe("renderClaim", () => {
     }[] = [
       {
         expression: { kind: "direction", subject: "SPY", horizonTradingDays: 5 },
-        expected: "SPY closes higher than today over 5 trading days",
+        expected: "SPY closes above its origin close over 5 trading days",
       },
       {
         expression: {
@@ -349,7 +349,7 @@ describe("renderClaim", () => {
           horizonTradingDays: 10,
         },
         expected:
-          "If SPY closes higher than today over 5 trading days, then QQQ closes higher than today over 10 trading days",
+          "If SPY closes above its origin close over 5 trading days, then QQQ closes above its origin close over 10 trading days",
       },
     ];
 

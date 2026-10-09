@@ -2533,7 +2533,7 @@ describe("run workspace view", () => {
 
   // Balance sheet is deliberately out of scope here. Markdown formats those cells with
   // `compactNumber`, the Console uses `scaleCurrency` (K tier, toFixed(0), currency prefix).
-  // Unifying them needs a ladder/currency decision that would churn goldens.
+  // Unifying them needs a ladder/currency decision that would change both rendered outputs.
   test("uses identical consensus and estimate-distribution numbers in Console and report markdown", () => {
     const report: ResearchReport = {
       ...financialTrendReport("source-bull"),

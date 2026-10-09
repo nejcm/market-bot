@@ -6,7 +6,7 @@ import { reverseDcfArtifact } from "./support/fixtures";
 
 function report(summary = "Evidence is sourced and caveated."): ResearchReport {
   return {
-    runId: "golden",
+    runId: "report-contract",
     jobType: "daily",
     assetClass: "equity",
     generatedAt: "2026-05-19T00:00:00.000Z",
@@ -35,7 +35,7 @@ function report(summary = "Evidence is sourced and caveated."): ResearchReport {
   };
 }
 
-describe("golden report contracts", () => {
+describe("report contracts", () => {
   test("Markdown includes source references, caveats, and one research-only note", () => {
     const markdown = renderMarkdownReport(validateResearchReport(report()));
 

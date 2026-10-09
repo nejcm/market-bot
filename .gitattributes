@@ -2,8 +2,6 @@
 *.ts linguist-language=TypeScript
 
 # Machine-generated fixture data: collapsed by default in GitHub PR diffs.
-# ADR 0007 still requires reviewing golden diffs on regeneration - expand as needed.
-tests/fixtures/runs/**/golden-output/** linguist-generated=true
 tests/fixtures/runs/**/data-cassette.json linguist-generated=true
 tests/fixtures/runs/**/llm-cassette.json linguist-generated=true
 tests/fixtures/financial-statements-corpus/**/input.json linguist-generated=true

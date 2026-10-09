@@ -8,7 +8,7 @@ Accepted
 
 2026-06-30 (consolidated 2026-07-15; amended 2026-07-25: bundle-only deep-equity
 persistence and migration; amended 2026-08-26: failed-run diagnostics; amended 2026-08-28:
-Subsystem Outcomes)
+Subsystem Outcomes; amended 2026-10-10: no run-output goldens)
 
 ## Context
 
@@ -102,8 +102,9 @@ derived indexes, and pipeline fixtures were previously split across several reco
   configured model provider and may incur cost.
 - Direct `CollectedSources` injection remains appropriate for narrow unit tests, not the primary
   pipeline fixture tier.
-- Recording is dev-only, stores canonicalized requests and scrubbed golden output, and fails when
-  known token values appear in written fixtures.
+- Recording is dev-only, stores canonicalized requests, and fails when known token values appear in
+  written fixtures. Replays assert invariants, not byte-exact output
+  ([ADR 0008](./0008-replay-invariants-no-output-snapshots.md)).
 
 ## Consequences
 
@@ -113,8 +114,7 @@ derived indexes, and pipeline fixtures were previously split across several reco
 - Correctness never depends on SQLite availability, though freshness checks remain O(run-count)
   and stale healing may require a full rebuild.
 - Index schema changes require a version bump and manual rebuild for existing databases.
-- Golden fixture changes are explicit review points; adapter request or parser changes can require
-  cassette refreshes. Eval mode remains an explicit local action.
+- Adapter request or parser changes can require cassette refreshes. Eval mode remains an explicit local action.
 - Deep-equity evidence has one normalized persistence contract and one production read path.
   Legacy component sidecars may remain on disk for audit and migration verification but have no
   production authority after cutover.

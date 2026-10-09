@@ -54,7 +54,6 @@ Live runs cost real money and time — a deep equity run is ~12 minutes and ~438
 
 - **Never run the CLI to "check something."** Read an existing artifact under `data/runs/` (newest first) or replay a fixture. Fixture replays are free.
 - **Never pass `--live`**, and never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.
-- **Never `--write-golden`** unless the change was intentionally output-changing, and say so in the commit body.
 - **Never delete or prune under `data/`.** `cache prune`, `index rebuild`, `history rebuild` throw away derived state that costs provider calls to rebuild. Ask instead.
 - **Never read or echo `.env`.** It holds live keys; `.env.example` has the names.
 - **Never kill a running CLI process.** The spend is already sunk; a killed run leaves only a hidden `data/.runs-<run-id>.partial` stage dir, never a run dir. Parallel runs are supported: run dirs publish whole, and score passes, calibration, index and history writes serialize on `data/shared-state.lock` (news-seen and learned-peer merges on their own `.lock` files). Source-provider rate limits are per process, so parallel runs double the request rate.
@@ -79,7 +78,7 @@ The recurring defect is a change that lands only on the path you tested (see `68
 
 SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`, `sec-filing-text.ts`) report a sweep delta with `bun run sweep:sec`.
 
-**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the golden fixtures (`tests/fixtures/runs/<name>/golden-output/`, replayed and compared by `bun run check` for every fixture listed in `tests/equity-fixture/run.test.ts`; use `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — only for a readable diff or `--write-golden`; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "reran goldens, no diff expected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
+**Every change, not just the ones below:** before calling a task done, check whether the Svelte Research Console (`app/client/**`) or the fixture invariants (`tests/equity-fixture/run.test.ts` and `tests/support/run-fixtures/assertions.ts`, replayed by `bun run check` for every listed fixture; there are no output snapshots, so a behavior worth keeping needs its own assertion — [ADR 0008](./docs/adr/0008-replay-invariants-no-output-snapshots.md); `bun run scripts/replay-fixture-run.ts <name>` — a fixture name, not a path — prints a replayed run directory to read; prompt text is pinned separately in `tests/support/prompt-baseline.golden.json`, refreshed with `UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts`) need updating too — and say so either way ("console unaffected because X" / "updated console view-model Y" / "fixture invariants unaffected because Z"). The checklists below are the common cases; use them as a starting point, not a ceiling — think about any other surface (docs, CLI help, index projections) the change could touch.
 
 **A new evidence field or report section:**
 
@@ -92,7 +91,7 @@ SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`,
 7. Console view model — `app/client/view-model-*.ts` and the run-workspace modules.
 8. Console component — `app/client/components/*.svelte`.
 9. Index projection — the `src/run-artifact-index-*` modules, if the field should be searchable.
-10. Tests and goldens — a unit test at the adapter seam, then `bun run check`, which replays every fixture listed in `tests/equity-fixture/run.test.ts` against its golden (a new fixture must be added to that list).
+10. Tests — a unit test at the adapter seam, a fixture assertion if the field should be pinned, then `bun run check`, which replays every fixture listed in `tests/equity-fixture/run.test.ts` and asserts its invariants (a new fixture must be added to that list).
 
 **A new env var:** `src/config.ts` → `.env.example` → `docs/configuration.md` → the run profiles under `src/config/runs/profiles/` if it is run-type-scoped. All four.
 

@@ -12,7 +12,8 @@ ADRs record accepted architecture and material implementation constraints.
 | [0004](./0004-evidence-identity-providers-deterministic-analysis.md)   | Evidence, identity, providers, and deterministic analysis |
 | [0005](./0005-research-workflows-model-stage-pipeline.md)              | Research workflows, model stages, and table mapping       |
 | [0006](./0006-deep-equity-legacy-reasoning-retained.md)                | Deep-equity legacy reasoning retained                     |
-| [0007](./0007-golden-invariance-live-correctness-invariants.md)        | Golden invariance and live correctness invariants         |
+| [0007](./0007-golden-invariance-live-correctness-invariants.md)        | Live correctness invariants (golden layer superseded)     |
+| [0008](./0008-replay-invariants-no-output-snapshots.md)                | Replay and invariants, no byte-exact output snapshots     |
 
 ## Conventions
 

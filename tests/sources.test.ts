@@ -39,9 +39,9 @@ import type {
   SourceRequestExecutor,
 } from "../src/sources/types";
 import type { MarketSnapshot } from "../src/domain/types";
-import { readGoldenOutput } from "./support/run-fixtures/artifacts";
+import { replayedRunOutput } from "./support/run-fixtures/artifacts";
 
-interface GoldenEvidenceBundle {
+interface ReplayedEvidenceBundle {
   readonly normalized: {
     readonly "evidence-bundle.json": {
       readonly evidence: {
@@ -393,8 +393,10 @@ describe("source normalization", () => {
   });
 
   test("preserves sanitized snapshot bytes while stripping quoteTimeUtc for prompts", async () => {
-    const golden = (await readGoldenOutput("equity-nbis-deep")) as unknown as GoldenEvidenceBundle;
-    const [snapshot] = golden.normalized["evidence-bundle.json"].evidence.marketSnapshots;
+    const replayed = (await replayedRunOutput(
+      "equity-nbis-deep",
+    )) as unknown as ReplayedEvidenceBundle;
+    const [snapshot] = replayed.normalized["evidence-bundle.json"].evidence.marketSnapshots;
     expect(snapshot).toBeDefined();
 
     const expected = Object.fromEntries(

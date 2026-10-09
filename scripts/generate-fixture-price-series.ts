@@ -129,7 +129,7 @@ function standardNormals(count: number): readonly number[] {
 
 function generatePriceSeries(): PriceSeries {
   const normals = standardNormals(BAR_COUNT * 2);
-  // The normals[0] draw is intentionally unused because L[0] is fixed at zero; shifting indices changes every regenerated golden.
+  // The normals[0] draw is intentionally unused because L[0] is fixed at zero; shifting indices changes every regenerated series.
   const logPath = [0];
   for (let index = 1; index < BAR_COUNT; index += 1) {
     logPath.push(

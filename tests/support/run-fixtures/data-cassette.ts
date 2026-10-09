@@ -59,20 +59,8 @@ export async function dataCassetteKey(
   ].join(" ");
 }
 
-// Yahoo mints a fresh crumb per credential fetch, so an authed quote URL recorded with one crumb
-// Can never be requested again: replay reads the cassette's single getcrumb entry, builds a URL
-// That matches nothing, dead-ends at 401 and degrades in ways the recorded golden never saw.
-// Both record and replay therefore pin the crumb to one placeholder. Pinning rather than deleting
-// Keeps the un-authed 401 and its authed 200 in separate entries — they differ only by this
-// Parameter, since headers are not part of the key — so replay still walks the credential path
-// Instead of being handed the authed response on the first, un-authed call.
-// The canonicalRequestUrl helper already drops credential parameters proper (api_key, api_token,
-// Token, access_token); the crumb is the only rotating value that survives it.
-// Replay looks the exact key up first and falls back to the pinned one, which needs no flag and
-// Cannot misfire in either direction: a legacy cassette stores real crumbs, so it can only be hit
-// Exactly — the fallback key is absent from it, leaving its recorded dead-ends intact — while a
-// Pinned cassette stores the placeholder, which no live crumb can equal, so its authed entries are
-// Only ever reached through the fallback.
+// Yahoo mints a fresh crumb per credential fetch, so record and replay pin it to one placeholder;
+// Replay tries the exact key first, then the pinned one (see docs/testing.md).
 const CRUMB_PLACEHOLDER = "fixture-crumb";
 
 function pinnedCrumb(key: string): string {

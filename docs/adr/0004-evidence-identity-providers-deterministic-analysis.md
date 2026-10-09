@@ -226,7 +226,8 @@ without pretending the project has a global security master.
   filing-intrinsic metrics; Yahoo snapshot fundamentals supply price-relative metrics and
   non-US fallback coverage.
 - SEC `netIncome` maps to parent-attributable `NetIncomeLoss`; optional consolidated `ProfitLoss`
-  is disclosure-only when it differs. ROE and ROA retain parent-attributable income and their
+  is its own canonical series, read only on net income's selected period and disclosure-only when
+  it differs. ROE and ROA retain parent-attributable income and their
   existing balance-sheet scopes rather than mixing consolidated and parent measures.
 - Accounting scope has three independent axes, kept apart rather than inferred from equal values:
   continuing versus total operations, parent-attributable versus including noncontrolling

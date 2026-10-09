@@ -111,7 +111,10 @@ const INSTANT_SERIES = [
   ["assets", "totalAssets"],
 ] as const satisfies readonly (readonly [string, FinancialStatementSeriesKey])[];
 
-type CanonicalFactMetricKey = (typeof FLOW_SERIES)[number][0] | (typeof INSTANT_SERIES)[number][0];
+type CanonicalFactMetricKey =
+  | (typeof FLOW_SERIES)[number][0]
+  | (typeof INSTANT_SERIES)[number][0]
+  | "consolidatedNetIncome";
 
 export type SecFactMetricKey = CanonicalFactMetricKey | SecMetricDefinitionKey;
 
@@ -343,6 +346,18 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       metrics[`${totalKey}Scope`] = TOTAL_OPERATIONS_SCOPE;
     }
   }
+  const income = artifact.statements.incomeStatement;
+  const [netIncomeFact, consolidatedNetIncomeFact] =
+    latestCommonFinancialStatementFacts([income.netIncome, income.consolidatedNetIncome]) ?? [];
+  // Consolidated income is read against net income, so only net income's own period qualifies.
+  if (netIncomeFact === latestFinancialStatementFact(financialStatementFacts(income.netIncome))) {
+    addFactMetrics(
+      metrics,
+      "consolidatedNetIncome",
+      consolidatedNetIncomeFact,
+      income.consolidatedNetIncome,
+    );
+  }
   const byMetric = new Map(inputs);
   for (const [key, leftKey, rightKey, derive] of COMMON_DERIVED_SERIES) {
     const left = byMetric.get(leftKey);
@@ -436,9 +451,10 @@ function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }
 
-const CANONICAL_FACT_METRIC_KEYS = new Set<string>(
-  [...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey]) => metricKey),
-);
+const CANONICAL_FACT_METRIC_KEYS = new Set<string>([
+  ...[...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey]) => metricKey),
+  "consolidatedNetIncome",
+]);
 
 function canonicalSummary(
   legacy: ExtendedEvidenceItem | undefined,

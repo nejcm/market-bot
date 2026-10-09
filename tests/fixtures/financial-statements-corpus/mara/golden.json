@@ -881,6 +881,230 @@
       ],
       "ttm": null
     },
+    "consolidatedNetIncome": {
+      "selectedConcept": "ProfitLoss",
+      "selectedFact": {
+        "concept": "ProfitLoss",
+        "periodKey": "duration:3|2026-03-31",
+        "periodStart": "2026-01-01",
+        "periodEnd": "2026-03-31",
+        "form": "10-Q",
+        "filingDate": "2026-05-11",
+        "accession": "0001507605-26-000016",
+        "value": -1262397000,
+        "currency": "USD",
+        "unit": "USD"
+      },
+      "annual": [
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:12|2020-12-31",
+          "periodStart": "2020-01-01",
+          "periodEnd": "2020-12-31",
+          "form": "10-K",
+          "filingDate": "2023-03-16",
+          "accession": "0001493152-23-007879",
+          "value": -10448000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:12|2021-12-31",
+          "periodStart": "2021-01-01",
+          "periodEnd": "2021-12-31",
+          "form": "10-K/A",
+          "filingDate": "2024-05-24",
+          "accession": "0001628280-24-025261",
+          "value": -29813000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:12|2022-12-31",
+          "periodStart": "2022-01-01",
+          "periodEnd": "2022-12-31",
+          "form": "10-K",
+          "filingDate": "2025-03-03",
+          "accession": "0001507605-25-000003",
+          "value": -694022000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:12|2023-12-31",
+          "periodStart": "2023-01-01",
+          "periodEnd": "2023-12-31",
+          "form": "10-K",
+          "filingDate": "2026-03-02",
+          "accession": "0001507605-26-000007",
+          "value": 261173000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:12|2024-12-31",
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-12-31",
+          "form": "10-K",
+          "filingDate": "2026-03-02",
+          "accession": "0001507605-26-000007",
+          "value": 541008000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:12|2025-12-31",
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-12-31",
+          "form": "10-K",
+          "filingDate": "2026-03-02",
+          "accession": "0001507605-26-000007",
+          "value": -1311892000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "interim": [
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2024-03-31",
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-03-31",
+          "form": "10-Q",
+          "filingDate": "2025-05-08",
+          "accession": "0001507605-25-000009",
+          "value": 337173000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:6|2024-06-30",
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-06-30",
+          "form": "10-Q",
+          "filingDate": "2025-07-29",
+          "accession": "0001507605-25-000018",
+          "value": 137514000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2024-06-30",
+          "periodStart": "2024-04-01",
+          "periodEnd": "2024-06-30",
+          "form": "10-Q",
+          "filingDate": "2025-07-29",
+          "accession": "0001507605-25-000018",
+          "value": -199659000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:9|2024-09-30",
+          "periodStart": "2024-01-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-Q",
+          "filingDate": "2025-11-04",
+          "accession": "0001507605-25-000028",
+          "value": 12725000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2024-09-30",
+          "periodStart": "2024-07-01",
+          "periodEnd": "2024-09-30",
+          "form": "10-Q",
+          "filingDate": "2025-11-04",
+          "accession": "0001507605-25-000028",
+          "value": -124789000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2025-03-31",
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-11",
+          "accession": "0001507605-26-000016",
+          "value": -533443000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:6|2025-06-30",
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-06-30",
+          "form": "10-Q",
+          "filingDate": "2025-07-29",
+          "accession": "0001507605-25-000018",
+          "value": 274762000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2025-06-30",
+          "periodStart": "2025-04-01",
+          "periodEnd": "2025-06-30",
+          "form": "10-Q",
+          "filingDate": "2025-07-29",
+          "accession": "0001507605-25-000018",
+          "value": 808205000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:9|2025-09-30",
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-Q",
+          "filingDate": "2025-11-04",
+          "accession": "0001507605-25-000028",
+          "value": 397896000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2025-09-30",
+          "periodStart": "2025-07-01",
+          "periodEnd": "2025-09-30",
+          "form": "10-Q",
+          "filingDate": "2025-11-04",
+          "accession": "0001507605-25-000028",
+          "value": 123134000,
+          "currency": "USD",
+          "unit": "USD"
+        },
+        {
+          "concept": "ProfitLoss",
+          "periodKey": "duration:3|2026-03-31",
+          "periodStart": "2026-01-01",
+          "periodEnd": "2026-03-31",
+          "form": "10-Q",
+          "filingDate": "2026-05-11",
+          "accession": "0001507605-26-000016",
+          "value": -1262397000,
+          "currency": "USD",
+          "unit": "USD"
+        }
+      ],
+      "ttm": null
+    },
     "continuingIncome": {
       "selectedConcept": null,
       "selectedFact": null,
@@ -4447,6 +4671,15 @@
             "label": "ROA",
             "value": -0.17997779302279338,
             "unit": "ratio-percent",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "periodEnd": "2025-12-31",
+            "periodMonths": 12
+          },
+          "consolidatedNetIncome": {
+            "key": "consolidatedNetIncome",
+            "label": "Net income (consolidated incl. NCI)",
+            "value": -1311892000,
+            "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-mara"],
             "periodEnd": "2025-12-31",
             "periodMonths": 12

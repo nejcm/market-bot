@@ -59,6 +59,7 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   grossMargin: ["grossProfit", "revenue"],
   operatingMargin: ["operatingIncome", "revenue"],
   netMargin: ["netIncome", "revenue"],
+  consolidatedNetIncome: ["netIncome", "consolidatedNetIncome"],
   freeCashFlowProxy: ["operatingCashFlow", "capitalExpenditure"],
   roe: ["netIncome", "stockholdersEquity"],
   roa: ["netIncome", "totalAssets"],

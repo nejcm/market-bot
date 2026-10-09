@@ -1298,6 +1298,7 @@ function seriesRecord(
       grossProfit: get("grossProfit"),
       operatingIncome: get("operatingIncome"),
       netIncome: get("netIncome"),
+      consolidatedNetIncome: get("consolidatedNetIncome"),
       continuingIncome: get("continuingIncome"),
     },
     balanceSheet: {

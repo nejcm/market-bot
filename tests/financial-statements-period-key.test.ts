@@ -252,8 +252,11 @@ describe("financial statement period keys", () => {
     ]);
     let inputRows = 0;
     const concepts = Object.fromEntries(
-      FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map((definition, definitionIndex) => {
-        const concept = definition.concepts["ifrs-full"][0]!;
+      FINANCIAL_STATEMENT_SERIES_DEFINITIONS.flatMap((definition, definitionIndex) => {
+        const [concept] = definition.concepts["ifrs-full"];
+        if (concept === undefined) {
+          return [];
+        }
         const unit = { monetary: "CAD", shares: "shares", "per-share": "CAD/shares" }[
           definition.unitKind
         ];
@@ -286,7 +289,7 @@ describe("financial statement period keys", () => {
           );
         }
         inputRows += facts.length;
-        return [concept, { [unit]: facts }];
+        return [[concept, { [unit]: facts }]];
       }),
     );
 

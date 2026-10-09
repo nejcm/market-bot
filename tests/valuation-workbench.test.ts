@@ -146,6 +146,7 @@ function statements(): FinancialStatementsArtifact {
         grossProfit: series("grossProfit", "incomeStatement"),
         operatingIncome: series("operatingIncome", "incomeStatement"),
         netIncome: series("netIncome", "incomeStatement", [10, 12], 13),
+        consolidatedNetIncome: series("consolidatedNetIncome", "incomeStatement"),
         continuingIncome: series("continuingIncome", "incomeStatement"),
       },
       balanceSheet: {

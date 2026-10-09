@@ -41,6 +41,14 @@
   },
   {
     "fixture": "mara",
+    "path": "financialLens.Quality.metrics.consolidatedNetIncome",
+    "canonicalSha256": "b8e42523c3b9dcd8070f6f753c7f4efdbefe6f8e7e46eecad1faf4a2f8c8939f",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "canonical-exact-period-correction",
+    "justification": "MARA canonical consolidated net income reads the 2025 annual ProfitLoss fact on net income's own exact period; the legacy revenue-anchored selector finds no 2026 NetIncomeLoss fact, omits net income, and so withholds the consolidated figure."
+  },
+  {
+    "fixture": "mara",
     "path": "financialLens.Quality.metrics.grossMargin",
     "canonicalSha256": "badb1339058cf12c974606a1a25220f66cf2c5ed8ed17ff19c63075d7c8d8e01",
     "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",

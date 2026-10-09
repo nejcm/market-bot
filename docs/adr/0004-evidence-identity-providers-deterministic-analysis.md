@@ -289,7 +289,8 @@ without pretending the project has a global security master.
   (`extractionMethod: derived-sec-companyfacts`) of disjoint borrowing line items, carrying every
   contributor. Aliases of one line item and a total and its constituents (including short-term
   borrowings and the commercial paper inside them, or `ConvertibleDebtNoncurrent` and
-  `ConvertibleLongTermNotesPayable`) are alternatives, never added; the `LineOfCredit` umbrella
+  `ConvertibleLongTermNotesPayable`, or `ConvertibleDebtCurrent` and
+  `ConvertibleNotesPayableCurrent`) are alternatives, never added; the `LineOfCredit` umbrella
   spans both sides and counts only when neither line-of-credit leg (`LongTermLineOfCredit`,
   `LinesOfCreditCurrent`) is tagged at that instant, so tagged legs replace the
   umbrella only when it equals their tagged sum (otherwise the instant is refused); with no leg

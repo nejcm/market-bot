@@ -53,7 +53,7 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
         ["NotesPayableCurrent"],
         ["LoansPayableCurrent"],
         ["LinesOfCreditCurrent"],
-        ["ConvertibleDebtCurrent"],
+        ["ConvertibleDebtCurrent", "ConvertibleNotesPayableCurrent"],
         ["SecuredDebtCurrent"],
       ],
     },

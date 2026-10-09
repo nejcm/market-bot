@@ -211,6 +211,19 @@ describe("debt resolution at the cash instant", () => {
     expect(legacy?.metrics.debt).toBe(50);
   });
 
+  test("Akamai: current and noncurrent convertible notes add; current aliases never do", () => {
+    const at = (value: number, end = "2026-06-30") => instant(value, end, "2026-08-07");
+    const { canonical, legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [at(1000)],
+      ConvertibleLongTermNotesPayable: [at(4_107_607_000, "2026-03-31"), at(5_857_252_000)],
+      ConvertibleNotesPayableCurrent: [at(0, "2025-12-31"), at(1_705_576_000)],
+      ConvertibleDebtCurrent: [at(1_705_576_000)],
+    });
+
+    expect(canonical).toMatchObject({ value: 7_562_828_000, periodEnd: "2026-06-30" });
+    expect(legacy?.metrics.debt).toBe(7_562_828_000);
+  });
+
   test("both convertible noncurrent tags are alternatives, not additive", () => {
     const at = (value: number) => instant(value, "2026-06-30", "2026-08-04");
     const { canonical, legacy } = resolve({

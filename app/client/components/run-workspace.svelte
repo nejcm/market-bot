@@ -563,8 +563,8 @@
           WARN
         </span>
         <span class="text-[12.5px] leading-normal text-[#4a4334]">
-          report.json fails the strict report reader, so scoring, Calibration and the run index skip
-          this run. The view below renders the raw file.
+          report.json fails the strict report reader, so scoring and Calibration exclude this run.
+          {#if detail.report !== undefined}The view below renders the raw file.{/if}
         </span>
       </div>
     {/if}

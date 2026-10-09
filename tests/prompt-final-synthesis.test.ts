@@ -100,6 +100,18 @@ describe("range volatility reference", () => {
     ).not.toContain("Range reference");
     expect(kindMixSynthesisInstruction(command)).not.toContain("Range reference");
   });
+
+  test("omits the reference when a split-sized jump sits in the unadjusted window", () => {
+    const splitWindow = rangeReferenceCloses(21).map((bar, index) => ({
+      ...bar,
+      close: index < 10 ? 100 : 50,
+    }));
+    expect(
+      kindMixSynthesisInstruction(command, {
+        verifiedMarketSnapshot: verifiedMarketSnapshot({ recentCloses: splitWindow }),
+      }),
+    ).not.toContain("Range reference");
+  });
 });
 
 describe("buildStagePrompt prediction kind-mix guidance (#10)", () => {

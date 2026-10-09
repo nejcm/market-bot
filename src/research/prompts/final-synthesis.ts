@@ -176,6 +176,8 @@ function buildPolarityGuidance(excludedKinds: readonly PredictionKind[]): string
 
 const RANGE_REFERENCE_MIN_CLOSES = 11;
 const RANGE_REFERENCE_HORIZONS = [1, 5, 10, 20] as const;
+// Ponytail: closes are split-unadjusted (ADR 0004); a >=3:2 one-day jump is treated as a possible split and omits the reference. Use adjusted closes if the snapshot ever carries them.
+const RANGE_REFERENCE_MAX_DAILY_LOG_MOVE = Math.log(1.5);
 
 // Range-band probabilities ran ~1.6x above realized outcomes (F6); a vol-scaled band gives the model a base rate.
 function buildRangeVolatilityReference(
@@ -192,6 +194,9 @@ function buildRangeVolatilityReference(
     return "";
   }
   const returns = closes.slice(1).map((close, index) => Math.log(close / closes[index]!));
+  if (returns.some((value) => Math.abs(value) >= RANGE_REFERENCE_MAX_DAILY_LOG_MOVE)) {
+    return "";
+  }
   const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
   const sigma = Math.sqrt(
     returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (returns.length - 1),

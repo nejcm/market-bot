@@ -271,7 +271,7 @@ export function valuationWorkbenchView(
   return {
     reportingCurrency: artifact.reportingCurrency ?? "unavailable",
     quoteCurrency: artifact.quoteCurrency ?? "unavailable",
-    priceSelectionRule: artifact.historicalMultiples.priceSelectionRule,
+    priceSelectionRule: `Selected (possibly restated) fundamentals, publicAt the first filing that reported each value, priced at the ${artifact.historicalMultiples.priceSelectionRule}`,
     trailingDisclosure:
       trailingBasis.status === "available"
         ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`

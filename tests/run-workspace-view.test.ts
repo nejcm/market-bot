@@ -1721,6 +1721,9 @@ describe("run workspace view", () => {
     expect(view).toMatchObject({
       reportingCurrency: "USD",
       quoteCurrency: "USD",
+      priceSelectionRule: expect.stringContaining(
+        "possibly restated) fundamentals, publicAt the first filing that reported each value",
+      ),
       trailingDisclosure: expect.stringContaining("Canonical reconciled TTM is unavailable"),
       rows: [
         {

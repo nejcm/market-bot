@@ -29,6 +29,10 @@ FY ending 2023-12-31 (filed 2026-04-30) | 9.8M | 241.3M | -2915.3% | 746.9M
 FY ending 2024-12-31 (filed 2026-04-30) | 91.5M | -641.4M | -436.7% | -561.9M
 FY ending 2025-12-31 (filed 2026-04-30) | 529.8M | 82.5M | -115.5% | -3.7B
 
+- FY ending 2022-12-31 (filed 2025-04-30) shows restated values; as originally filed: revenue 7.4B (filed 2023-04-20), net income (total operations) 561.1M (filed 2023-04-20), operating income 188.2M (filed 2023-04-20), operating cash flow 592.8M (filed 2023-04-20), capital expenditure 718.6M (filed 2023-04-20).
+- FY ending 2023-12-31 (filed 2026-04-30) shows restated values; as originally filed: revenue 8.9B (filed 2024-04-26), net income (total operations) 221.5M (filed 2024-04-26), operating income 317.4M (filed 2024-04-26), operating cash flow 783.4M (filed 2024-04-26), capital expenditure 1.0B (filed 2024-04-26).
+- FY ending 2024-12-31 (filed 2026-04-30) shows restated values; as originally filed: revenue 117.5M (filed 2025-04-30), operating income -440.7M (filed 2025-04-30), capital expenditure 807.7M (filed 2025-04-30).
+
 ## Valuation Context
 
 Observed market multiples are trailing P/E 87.33x, forward P/E -139.64x, price/book 7.97x; this is valuation context, not a target price. [market-yahoo-equity-nbis]

@@ -30,6 +30,8 @@ FY ending 2024-10-31 (filed 2025-12-02) | 33.7B | 7.9B | not applicable (deposit
 FY ending 2025-10-31 (filed 2025-12-02) | 37.7B | 7.8B | not applicable (depository issuer; no operating income in the industrial sense) | not applicable (depository issuer; capex-based free cash flow is not defined)
 TTM (2026-01-31; filed 2026-02-24) | 38.0B | 9.1B | not applicable (depository issuer; no operating income in the industrial sense) | not applicable (depository issuer; capex-based free cash flow is not defined)
 
+- FY ending 2023-10-31 (filed 2024-12-03) shows restated values; as originally filed: revenue 32.3B (filed 2023-11-28), net income 7.5B (filed 2023-11-28).
+
 ## Valuation Context
 
 Observed market multiples are trailing P/E 17.60x, forward P/E 13.76x, price/book 1.81x; this is valuation context, not a target price. [market-yahoo-equity-bns]

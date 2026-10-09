@@ -1581,6 +1581,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 8770700000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -1898,6 +1902,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 5467100000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -2215,6 +2223,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 3303400000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -2513,6 +2525,10 @@
             "accessionNumber": "0001558370-25-005991",
             "filedAt": "2025-04-30",
             "firstPublicAt": "2025-04-30",
+            "restatedFrom": {
+              "value": 3303600000,
+              "filedAt": "2024-04-26"
+            },
             "periodEnd": "2023-12-31",
             "fiscalYear": 2023,
             "fiscalPeriod": "FY",
@@ -2866,6 +2882,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 7417100000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -2888,6 +2908,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 8921200000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -2910,6 +2934,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 117500000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -3101,6 +3129,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 188200000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -3123,6 +3155,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 317400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -3145,6 +3181,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -440700000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -3219,6 +3259,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 561100000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -3241,6 +3285,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 221500000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -3337,6 +3385,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -341500000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -3359,6 +3411,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -393500000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -3413,6 +3469,10 @@
                 "accessionNumber": "0001513845-18-000013",
                 "filedAt": "2018-03-27",
                 "firstPublicAt": "2018-03-27",
+                "restatedFrom": {
+                  "value": 465400000,
+                  "filedAt": "2017-03-22"
+                },
                 "periodEnd": "2016-12-31",
                 "fiscalYear": 2016,
                 "fiscalPeriod": "FY",
@@ -3434,6 +3494,10 @@
                 "accessionNumber": "0001513845-19-000009",
                 "filedAt": "2019-04-19",
                 "firstPublicAt": "2019-04-19",
+                "restatedFrom": {
+                  "value": 740700000,
+                  "filedAt": "2018-03-27"
+                },
                 "periodEnd": "2017-12-31",
                 "fiscalYear": 2017,
                 "fiscalPeriod": "FY",
@@ -3455,6 +3519,10 @@
                 "accessionNumber": "0001558370-20-003563",
                 "filedAt": "2020-04-02",
                 "firstPublicAt": "2020-04-02",
+                "restatedFrom": {
+                  "value": 990300000,
+                  "filedAt": "2019-04-19"
+                },
                 "periodEnd": "2018-12-31",
                 "fiscalYear": 2018,
                 "fiscalPeriod": "FY",
@@ -3476,6 +3544,10 @@
                 "accessionNumber": "0001513845-21-000014",
                 "filedAt": "2021-04-01",
                 "firstPublicAt": "2021-04-01",
+                "restatedFrom": {
+                  "value": 715500000,
+                  "filedAt": "2020-04-02"
+                },
                 "periodEnd": "2019-12-31",
                 "fiscalYear": 2019,
                 "fiscalPeriod": "FY",
@@ -3497,6 +3569,10 @@
                 "accessionNumber": "0001558370-22-005654",
                 "filedAt": "2022-04-20",
                 "firstPublicAt": "2022-04-20",
+                "restatedFrom": {
+                  "value": 1792200000,
+                  "filedAt": "2021-04-01"
+                },
                 "periodEnd": "2020-12-31",
                 "fiscalYear": 2020,
                 "fiscalPeriod": "FY",
@@ -3518,6 +3594,10 @@
                 "accessionNumber": "0001558370-23-006319",
                 "filedAt": "2023-04-20",
                 "firstPublicAt": "2023-04-20",
+                "restatedFrom": {
+                  "value": 1067100000,
+                  "filedAt": "2022-04-20"
+                },
                 "periodEnd": "2021-12-31",
                 "fiscalYear": 2021,
                 "fiscalPeriod": "FY",
@@ -3539,6 +3619,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 1181900000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
                 "fiscalPeriod": "FY",
@@ -3560,6 +3644,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 1076200000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3581,6 +3669,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 2449600000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
                 "fiscalPeriod": "FY",
@@ -3778,6 +3870,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 3466400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -3996,6 +4092,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 3876300000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4214,6 +4314,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 8770700000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4432,6 +4536,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 5467100000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4650,6 +4758,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 3303400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
                 "fiscalPeriod": "FY",
@@ -4904,6 +5016,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 592800000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -4926,6 +5042,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 783400000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5132,6 +5252,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 718600000,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -5154,6 +5278,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 1010600000,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5176,6 +5304,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": 807700000,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -5399,6 +5531,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 1.17,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -5421,6 +5557,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 0.59,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5517,6 +5657,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -0.92,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -5539,6 +5683,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2026-04-30",
+                "restatedFrom": {
+                  "value": -1.4,
+                  "filedAt": "2025-04-30"
+                },
                 "periodStart": "2024-01-01",
                 "periodEnd": "2024-12-31",
                 "fiscalYear": 2024,
@@ -5723,6 +5871,10 @@
                 "accessionNumber": "0001558370-25-005991",
                 "filedAt": "2025-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 377020285,
+                  "filedAt": "2023-04-20"
+                },
                 "periodStart": "2022-01-01",
                 "periodEnd": "2022-12-31",
                 "fiscalYear": 2022,
@@ -5745,6 +5897,10 @@
                 "accessionNumber": "0001104659-26-052948",
                 "filedAt": "2026-04-30",
                 "firstPublicAt": "2025-04-30",
+                "restatedFrom": {
+                  "value": 373059228,
+                  "filedAt": "2024-04-26"
+                },
                 "periodStart": "2023-01-01",
                 "periodEnd": "2023-12-31",
                 "fiscalYear": 2023,
@@ -6478,7 +6634,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 7417100000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 9800000,
@@ -6489,7 +6649,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 8921200000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": 91500000,
@@ -6500,7 +6664,11 @@
               "periodEnd": "2024-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 117500000,
+                "filedAt": "2025-04-30"
+              }
             },
             {
               "value": 529800000,
@@ -6614,7 +6782,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 188200000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": -285700000,
@@ -6625,7 +6797,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 317400000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": -399600000,
@@ -6636,7 +6812,11 @@
               "periodEnd": "2024-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": -440700000,
+                "filedAt": "2025-04-30"
+              }
             },
             {
               "value": -611700000,
@@ -6681,7 +6861,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 561100000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 241300000,
@@ -6692,7 +6876,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 221500000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": -641400000,
@@ -6804,7 +6992,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD/shares"
+              "currency": "USD/shares",
+              "restatedFrom": {
+                "value": 1.17,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 0.65,
@@ -6815,7 +7007,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD/shares"
+              "currency": "USD/shares",
+              "restatedFrom": {
+                "value": 0.59,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": -2.28,
@@ -6919,7 +7115,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 592800000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 829800000,
@@ -6930,7 +7130,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 783400000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": 245600000,
@@ -7044,7 +7248,11 @@
               "periodEnd": "2022-12-31",
               "periodMonths": 12,
               "filedAt": "2025-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 718600000,
+                "filedAt": "2023-04-20"
+              }
             },
             {
               "value": 82900000,
@@ -7055,7 +7263,11 @@
               "periodEnd": "2023-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 1010600000,
+                "filedAt": "2024-04-26"
+              }
             },
             {
               "value": 807500000,
@@ -7066,7 +7278,11 @@
               "periodEnd": "2024-12-31",
               "periodMonths": 12,
               "filedAt": "2026-04-30",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 807700000,
+                "filedAt": "2025-04-30"
+              }
             },
             {
               "value": 4066000000,

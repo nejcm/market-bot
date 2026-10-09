@@ -136,12 +136,12 @@ export function renderProjectedFinancialTrends(
     `Period | Revenue | ${scopedLabel("Net income", trends.netIncomeScope)} | Operating margin | FCF`,
     "--- | ---: | ---: | ---: | ---:",
     ...rows,
-    "",
+    ...statementSurfaceNoteLines(trends.restatements?.map((message) => ({ message }))),
   ].join("\n");
 }
 
 function statementSurfaceNoteLines(
-  notes: EquityReaderBalanceSheetHistory["notes"],
+  notes: readonly { readonly message: string }[] | undefined,
 ): readonly string[] {
   const lines = (notes ?? []).map((note) => `- ${note.message}`);
   return lines.length === 0 ? [""] : ["", ...lines, ""];

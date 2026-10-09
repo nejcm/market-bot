@@ -1254,6 +1254,43 @@ describe("first-public dating of selected facts", () => {
     ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
   });
 
+  test("records the original filing's value when a later filing restates a fact", () => {
+    const revenue = (filings: readonly (readonly [number, string])[]) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: filings.map(([value, filedAt]) =>
+                fact({
+                  value,
+                  form: "10-K",
+                  fiscalYear: Number(filedAt.slice(0, 4)),
+                  fiscalPeriod: "FY",
+                  filedAt,
+                  periodStart: "2023-01-01",
+                  periodEnd: "2023-12-31",
+                }),
+              ),
+            },
+          },
+        }),
+      ).statements.incomeStatement.revenue.annual.map((selected) => selected.restatedFrom);
+
+    expect(
+      revenue([
+        [268, "2024-02-15"],
+        [268, "2025-02-15"],
+        [225, "2026-02-15"],
+      ]),
+    ).toEqual([{ value: 268, filedAt: "2024-02-15" }]);
+    expect(
+      revenue([
+        [268, "2024-02-15"],
+        [268, "2025-02-15"],
+      ]),
+    ).toEqual([undefined]);
+  });
+
   const compositeDebt = (filings: readonly (readonly [number, number, string, string?])[]) => {
     const filing = (value: number, filedAt: string, form: string) => ({
       ...instant(value, 2024, form),
@@ -1292,13 +1329,13 @@ describe("first-public dating of selected facts", () => {
     ).toEqual([{ value: 100, filedAt: "2026-02-15", firstPublicAt: "2025-02-15" }]);
   });
 
-  test("dates a composite with a restated component to the restatement", () => {
+  test("refuses a composite whose later filing restates a component without a debt total", () => {
     expect(
       compositeDebt([
         [10, 90, "2025-02-15"],
         [10, 95, "2026-02-15"],
       ]),
-    ).toEqual([{ value: 105, filedAt: "2026-02-15", firstPublicAt: "2026-02-15" }]);
+    ).toEqual([]);
   });
 
   test("dates a composite restored after an amended composite to the restoration", () => {

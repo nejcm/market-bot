@@ -16,6 +16,7 @@ import {
   capFinancialStatementPeriods,
   compareFinancialStatementFacts,
   compositeStatementIdentity,
+  restatedFromOriginalFiling,
   deriveFinancialStatementTtm,
   detectFinancialStatementCadence,
   financialStatementPeriodKey,
@@ -51,6 +52,7 @@ import {
   type FinancialStatementsArtifact,
   type FinancialStatementTaxonomy,
   type InterimCadence,
+  type OriginalFiling,
   type StructuredFinancialGap,
   type SupportedSecForm,
 } from "./financial-statements-contract";
@@ -635,7 +637,10 @@ function periodKey(fact: ParsedFact): string {
   return financialStatementPeriodKey(fact);
 }
 
-type DatedFact = ParsedFact & { readonly firstPublicAt: string };
+type DatedFact = ParsedFact & {
+  readonly firstPublicAt: string;
+  readonly restatedFrom?: OriginalFiling;
+};
 
 // Earliest filing date from which the selected value stayed effective, so A -> B -> A dates to the later A.
 function firstPublicDate(
@@ -659,9 +664,12 @@ function firstPublicDate(
 
 function withFirstPublicAt(winner: ParsedFact, candidates: readonly ParsedFact[]): DatedFact {
   const peers = candidates.filter((fact) => periodKey(fact) === periodKey(winner));
+  const restatedFrom =
+    winner.composite === undefined ? restatedFromOriginalFiling(winner.value, peers) : undefined;
   return {
     ...winner,
     firstPublicAt: winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [peers]),
+    ...(restatedFrom === undefined ? {} : { restatedFrom }),
   };
 }
 
@@ -692,6 +700,7 @@ function toSelectedFact(
     accessionNumber: fact.accessionNumber,
     filedAt: fact.filedAt,
     firstPublicAt: fact.firstPublicAt,
+    ...(fact.restatedFrom !== undefined ? { restatedFrom: fact.restatedFrom } : {}),
     ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
     periodEnd: fact.periodEnd,
     fiscalYear: fact.fiscalYear,

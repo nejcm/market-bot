@@ -78,6 +78,7 @@ export interface RunWorkspaceFinancialTrendView {
   readonly reportingCurrency?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly RunWorkspaceFinancialTrendRow[];
+  readonly restatements?: readonly string[];
 }
 
 interface RunWorkspaceBalanceSheetHistoryRow {
@@ -269,6 +270,7 @@ export function financialTrendFromProjection(
       : { reportingCurrency: trends.reportingCurrency }),
     sourceIds: trends.sourceIds,
     rows: trends.rows,
+    ...(trends.restatements === undefined ? {} : { restatements: trends.restatements }),
   };
 }
 

@@ -280,7 +280,7 @@ function projectHistory(
       key,
       {
         concept: series.concept ?? null,
-        annual: series.annual,
+        annual: series.annual.map(({ restatedFrom: _restatedFrom, ...point }) => point),
         ttm: series.ttm ?? null,
         cagr: series.cagr ?? null,
         marginChange: series.marginChange ?? null,

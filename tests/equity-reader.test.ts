@@ -335,6 +335,43 @@ describe("equity reader projection", () => {
     ]);
   });
 
+  test("labels a restated annual trend value with the original filing's value", () => {
+    const history = annualAndTtmHistory();
+    const [first, ...rest] = history.series.revenue.annual.slice(-5);
+    const restated = {
+      ...history,
+      series: {
+        ...history.series,
+        revenue: {
+          ...history.series.revenue,
+          annual: [
+            {
+              ...first!,
+              filedAt: "2024-02-01",
+              restatedFrom: { value: 2_500_000, filedAt: "2021-02-01" },
+            },
+            ...rest,
+          ],
+        },
+      },
+    } as FundamentalHistoryArtifact;
+
+    expect(
+      projectEquityReader({
+        report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+        fundamentalHistory: restated,
+      }).defaultView.financialTrends?.restatements,
+    ).toEqual([
+      "FY ending 2020-12-31 (filed 2024-02-01) shows restated values; as originally filed: revenue 2.5M (filed 2021-02-01).",
+    ]);
+    expect(
+      projectEquityReader({
+        report: { generatedAt: "2026-02-02T00:00:00.000Z" },
+        fundamentalHistory: history,
+      }).defaultView.financialTrends,
+    ).not.toHaveProperty("restatements");
+  });
+
   test("suppresses the whole inapplicable trend column for a depository issuer, tagged periods included", () => {
     const history = annualAndTtmHistory();
     // Capex is tagged for the first three years and untagged after: a per-cell decision would

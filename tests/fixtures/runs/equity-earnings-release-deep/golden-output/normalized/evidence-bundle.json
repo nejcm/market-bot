@@ -4156,6 +4156,10 @@
                 "accessionNumber": "0000320193-19-000119",
                 "filedAt": "2019-10-31",
                 "firstPublicAt": "2019-10-31",
+                "restatedFrom": {
+                  "value": 116866000000,
+                  "filedAt": "2018-11-05"
+                },
                 "periodEnd": "2018-09-29",
                 "fiscalYear": 2018,
                 "fiscalPeriod": "FY",
@@ -6345,6 +6349,10 @@
                 "accessionNumber": "0000320193-18-000145",
                 "filedAt": "2018-11-05",
                 "firstPublicAt": "2018-11-05",
+                "restatedFrom": {
+                  "value": 65824000000,
+                  "filedAt": "2017-11-03"
+                },
                 "periodStart": "2015-09-27",
                 "periodEnd": "2016-09-24",
                 "fiscalYear": 2016,
@@ -6367,6 +6375,10 @@
                 "accessionNumber": "0000320193-19-000119",
                 "filedAt": "2019-10-31",
                 "firstPublicAt": "2018-11-05",
+                "restatedFrom": {
+                  "value": 63598000000,
+                  "filedAt": "2017-11-03"
+                },
                 "periodStart": "2016-09-25",
                 "periodEnd": "2017-09-30",
                 "fiscalYear": 2017,
@@ -7784,6 +7796,10 @@
                 "accessionNumber": "0000320193-20-000096",
                 "filedAt": "2020-10-30",
                 "firstPublicAt": "2020-10-30",
+                "restatedFrom": {
+                  "value": 11.91,
+                  "filedAt": "2018-11-05"
+                },
                 "periodStart": "2017-10-01",
                 "periodEnd": "2018-09-29",
                 "fiscalYear": 2018,
@@ -7806,6 +7822,10 @@
                 "accessionNumber": "0000320193-21-000105",
                 "filedAt": "2021-10-29",
                 "firstPublicAt": "2020-10-30",
+                "restatedFrom": {
+                  "value": 11.89,
+                  "filedAt": "2019-10-31"
+                },
                 "periodStart": "2018-09-30",
                 "periodEnd": "2019-09-28",
                 "fiscalYear": 2019,
@@ -8363,6 +8383,10 @@
                 "accessionNumber": "0000320193-20-000096",
                 "filedAt": "2020-10-30",
                 "firstPublicAt": "2020-10-30",
+                "restatedFrom": {
+                  "value": 5000109000,
+                  "filedAt": "2018-11-05"
+                },
                 "periodStart": "2017-10-01",
                 "periodEnd": "2018-09-29",
                 "fiscalYear": 2018,
@@ -8385,6 +8409,10 @@
                 "accessionNumber": "0000320193-21-000105",
                 "filedAt": "2021-10-29",
                 "firstPublicAt": "2020-10-30",
+                "restatedFrom": {
+                  "value": 4648913000,
+                  "filedAt": "2019-10-31"
+                },
                 "periodStart": "2018-09-30",
                 "periodEnd": "2019-09-28",
                 "fiscalYear": 2019,
@@ -17298,7 +17326,11 @@
               "periodEnd": "2018-09-29",
               "periodMonths": 12,
               "filedAt": "2020-10-30",
-              "currency": "USD/shares"
+              "currency": "USD/shares",
+              "restatedFrom": {
+                "value": 11.91,
+                "filedAt": "2018-11-05"
+              }
             },
             {
               "value": 2.97,
@@ -17309,7 +17341,11 @@
               "periodEnd": "2019-09-28",
               "periodMonths": 12,
               "filedAt": "2021-10-29",
-              "currency": "USD/shares"
+              "currency": "USD/shares",
+              "restatedFrom": {
+                "value": 11.89,
+                "filedAt": "2019-10-31"
+              }
             },
             {
               "value": 3.28,
@@ -17414,7 +17450,11 @@
               "periodEnd": "2016-09-24",
               "periodMonths": 12,
               "filedAt": "2018-11-05",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 65824000000,
+                "filedAt": "2017-11-03"
+              }
             },
             {
               "value": 64225000000,
@@ -17425,7 +17465,11 @@
               "periodEnd": "2017-09-30",
               "periodMonths": 12,
               "filedAt": "2019-10-31",
-              "currency": "USD"
+              "currency": "USD",
+              "restatedFrom": {
+                "value": 63598000000,
+                "filedAt": "2017-11-03"
+              }
             },
             {
               "value": 77434000000,

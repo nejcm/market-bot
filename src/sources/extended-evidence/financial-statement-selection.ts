@@ -8,6 +8,7 @@ import {
   type FinancialStatementFact,
   type FinancialStatementName,
   type FinancialStatementNote,
+  type OriginalFiling,
   type FinancialStatementSeries,
   type FinancialStatementSeriesKey,
   type FinancialStatementTtm,
@@ -113,6 +114,20 @@ export function compareFinancialStatementFacts(
     Number(right.amendment) - Number(left.amendment) ||
     (right.accessionNumber ?? "").localeCompare(left.accessionNumber ?? "")
   );
+}
+
+// The earliest filing's value for the same concept and period, when a later filing replaced it with the selected value.
+export function restatedFromOriginalFiling(
+  selectedValue: number,
+  history: readonly OriginalFiling[],
+): OriginalFiling | undefined {
+  const [original] = history.toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
+  const originals = history.filter((fact) => fact.filedAt === original?.filedAt);
+  return original === undefined ||
+    originals.length === history.length ||
+    originals.some((fact) => fact.value === selectedValue)
+    ? undefined
+    : { value: original.value, filedAt: original.filedAt };
 }
 
 export function latestFinancialStatementFact(
@@ -368,6 +383,28 @@ function incompleteDebtReason(
     : undefined;
 }
 
+// A component sum mixes filing vintages once a later filing changes a component its original filing reported.
+function restatedDebtComponentReason<T>(
+  instant: DebtInstant,
+  used: readonly string[],
+  tagged: ReadonlyMap<string, T>,
+  history: readonly DebtHistoryFact[],
+  valueOf: (fact: T) => number,
+): string | undefined {
+  const restated = used.flatMap((concept) => {
+    const original = restatedFromOriginalFiling(
+      valueOf(tagged.get(concept) as T),
+      history.filter((fact) => fact.concept === concept && fact.periodEnd === instant.periodEnd),
+    );
+    return original === undefined
+      ? []
+      : [`${concept} (originally ${String(original.value)}, filed ${original.filedAt})`];
+  });
+  return restated.length === 0
+    ? undefined
+    : `a later filing restated ${restated.join(", ")} without restating a debt total`;
+}
+
 // Shared by legacy SEC metrics and canonical statements; `tagged` holds one fact per concept at one instant.
 export function resolveDebtAtInstant<T>(
   taxonomy: FinancialStatementTaxonomy,
@@ -423,7 +460,8 @@ export function resolveDebtAtInstant<T>(
         ? `${mismatched.join(", ")} differs from the sum of its tagged legs`
         : overlap.length > 0
           ? `${overlap.join(", ")} may overlap a generic long-term-debt line`
-          : incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history);
+          : (incompleteDebtReason(taxonomy, instant, sides, usedUmbrellas, tagged, history) ??
+            restatedDebtComponentReason(instant, used, tagged, history, valueOf));
   const incompleteReason =
     excess === undefined
       ? componentReason

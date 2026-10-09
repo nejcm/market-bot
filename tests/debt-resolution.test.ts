@@ -417,6 +417,17 @@ describe("debt resolution refuses incomplete component sets", () => {
     );
   });
 
+  test("a later filing that restates a component the original reported cannot be summed without a total", () => {
+    const later = (value: number) => instant(value, "2026-06-30", "2026-08-20");
+    expectRefused(
+      {
+        ConvertibleNotesPayableCurrent: [original(353), later(353)],
+        ConvertibleLongTermNotesPayable: [original(0), later(353)],
+      },
+      "a later filing restated ConvertibleLongTermNotesPayable (originally 0, filed 2026-08-06)",
+    );
+  });
+
   test("an amendment tagging only an unrecognized concept supersedes the original", () => {
     expectRefused(
       {

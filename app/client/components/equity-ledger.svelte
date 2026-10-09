@@ -289,6 +289,11 @@
               </tbody>
             </table>
           </div>
+          {#if defaultView.financialTrends.restatements !== undefined}
+            <p class="mt-2 font-sans text-[11px] text-muted-foreground">
+              {defaultView.financialTrends.restatements.join(" ")}
+            </p>
+          {/if}
           {@render citeChips(defaultView.financialTrends.sourceIds)}
         </section>
       {/if}

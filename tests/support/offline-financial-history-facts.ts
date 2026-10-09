@@ -567,7 +567,10 @@ export function canonicalUnion(
 }
 
 type RosterTuple = {
-  readonly [Field in keyof FundamentalHistoryPoint]-?: FundamentalHistoryPoint[Field];
+  readonly [Field in Exclude<
+    keyof FundamentalHistoryPoint,
+    "restatedFrom"
+  >]-?: FundamentalHistoryPoint[Field];
 };
 
 export function rosterTuple(point: FundamentalHistoryPoint): RosterTuple {

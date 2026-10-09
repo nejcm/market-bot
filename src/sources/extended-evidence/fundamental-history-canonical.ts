@@ -87,6 +87,7 @@ function annualPoint(fact: FinancialStatementFact): FundamentalHistoryPoint | un
     periodMonths: months,
     filedAt: fact.filedAt,
     currency: fact.unit,
+    ...(fact.restatedFrom === undefined ? {} : { restatedFrom: fact.restatedFrom }),
   };
 }
 

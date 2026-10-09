@@ -16,8 +16,11 @@ import {
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
-import { compareFinancialStatementFacts } from "./financial-statement-selection";
-import type { AnnualReportForm } from "./financial-statements-contract";
+import {
+  compareFinancialStatementFacts,
+  restatedFromOriginalFiling,
+} from "./financial-statement-selection";
+import type { AnnualReportForm, OriginalFiling } from "./financial-statements-contract";
 
 export type FundamentalHistorySeriesKey =
   | "revenue"
@@ -42,6 +45,7 @@ export interface FundamentalHistoryPoint {
   readonly periodMonths: number;
   readonly filedAt: string;
   readonly currency: string;
+  readonly restatedFrom?: OriginalFiling;
 }
 
 export interface FundamentalHistoryCagr {
@@ -265,7 +269,17 @@ function dedupeQuarterlyFacts(facts: readonly FactWithPeriod[]): readonly FactWi
   return [...byPeriod.values()].map((matches) => matches.toSorted(compareLatestFiled)[0]!);
 }
 
-function annualPoint(fact: FactWithPeriod, currency: string): FundamentalHistoryPoint {
+function annualPoint(
+  fact: FactWithPeriod,
+  currency: string,
+  peers: readonly FactWithPeriod[],
+): FundamentalHistoryPoint {
+  const restatedFrom = restatedFromOriginalFiling(
+    fact.val,
+    peers
+      .filter((peer) => peer.end === fact.end && peer.start === fact.start)
+      .map((peer) => ({ value: peer.val, filedAt: peer.filed })),
+  );
   return {
     value: fact.val,
     form: "10-K",
@@ -276,6 +290,7 @@ function annualPoint(fact: FactWithPeriod, currency: string): FundamentalHistory
     periodMonths: fact.months,
     filedAt: fact.filed,
     currency,
+    ...(restatedFrom === undefined ? {} : { restatedFrom }),
   };
 }
 
@@ -497,7 +512,7 @@ function rawSeries(
   }
   const annual = chronological
     .slice(-MAX_ANNUAL_POINTS)
-    .map((fact) => annualPoint(fact, selected.currency));
+    .map((fact) => annualPoint(fact, selected.currency, annualCandidates));
   const ttm = ttmPoint(annual, observableFacts, selected.currency, notes);
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);

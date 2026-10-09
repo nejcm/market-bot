@@ -47,6 +47,7 @@ export interface EquityReaderFinancialTrends {
   readonly netIncomeScope?: string;
   readonly sourceIds: readonly string[];
   readonly rows: readonly FinancialTrendRow[];
+  readonly restatements?: readonly string[];
 }
 
 const TREND_SERIES_KEYS = ["revenue", "netIncome", "operatingMargin", "freeCashFlowProxy"] as const;
@@ -211,6 +212,36 @@ function financialTrendRows(
   });
 }
 
+const RESTATEMENT_SERIES_KEYS = [
+  "revenue",
+  "netIncome",
+  "operatingIncome",
+  "operatingCashFlow",
+  "capex",
+] as const;
+
+function financialTrendRestatements(history: FundamentalHistoryArtifact): readonly string[] {
+  return trendPeriods(history).flatMap((period) => {
+    const originals = RESTATEMENT_SERIES_KEYS.flatMap((key) => {
+      const series = history.series[key] as FundamentalHistorySeries | undefined;
+      const original =
+        series === undefined
+          ? undefined
+          : historyPoint(series, period.periodEnd, period.kind)?.restatedFrom;
+      return series === undefined || original === undefined
+        ? []
+        : [
+            `${series.label.toLowerCase()} ${formatTrendAmount(original.value)} (filed ${original.filedAt})`,
+          ];
+    });
+    return originals.length === 0
+      ? []
+      : [
+          `${periodLabel(period)} shows restated values; as originally filed: ${originals.join(", ")}.`,
+        ];
+  });
+}
+
 function financialTrendCurrency(history: FundamentalHistoryArtifact): string | undefined {
   return history.series.revenue.ttm?.currency ?? history.series.revenue.annual.at(-1)?.currency;
 }
@@ -229,11 +260,13 @@ export function financialTrends(
   const reportingCurrency = financialTrendCurrency(history);
   const freeCashFlowScope = conceptScope(history.series.operatingCashFlow?.concept);
   const netIncomeScope = history.series.netIncome.scope;
+  const restatements = financialTrendRestatements(history);
   return {
     ...(reportingCurrency === undefined ? {} : { reportingCurrency }),
     ...(freeCashFlowScope === undefined ? {} : { freeCashFlowScope }),
     ...(netIncomeScope === undefined ? {} : { netIncomeScope }),
     sourceIds: [history.sourceId],
     rows,
+    ...(restatements.length === 0 ? {} : { restatements }),
   };
 }

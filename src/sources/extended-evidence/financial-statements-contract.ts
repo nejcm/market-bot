@@ -115,6 +115,11 @@ export type FinancialStatementSeriesKey =
   | "continuingDilutedEps"
   | "dilutedShares";
 
+export interface OriginalFiling {
+  readonly value: number;
+  readonly filedAt: string;
+}
+
 export interface FinancialStatementFact {
   readonly value: number;
   readonly periodKey: string;
@@ -125,6 +130,7 @@ export interface FinancialStatementFact {
   readonly accessionNumber: string | null;
   readonly filedAt: string;
   readonly firstPublicAt: string;
+  readonly restatedFrom?: OriginalFiling;
   readonly periodStart?: string;
   readonly periodEnd: string;
   readonly fiscalYear: number;

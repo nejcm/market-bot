@@ -433,9 +433,7 @@ export function strengthLens(
     ),
     ...metric(
       "debt",
-      readStringMetric(secItem?.metrics, "debtBasis") === "gross-principal"
-        ? "Debt (gross principal)"
-        : "Debt",
+      debtLabel(secItem),
       debt,
       "currency",
       secItem?.sourceIds ?? [],
@@ -759,4 +757,15 @@ export function momentumLens(
     ],
     sourceIds,
   };
+}
+
+function debtLabel(secItem: ExtendedEvidenceItem | undefined): string {
+  const label =
+    readStringMetric(secItem?.metrics, "debtBasis") === "gross-principal"
+      ? "Debt (gross principal)"
+      : "Debt";
+  const incomplete = readStringMetric(secItem?.metrics, "debtIncompletePeriodEnd");
+  return incomplete === undefined
+    ? label
+    : `${label} as of ${secPeriod(secItem, "debt").periodEnd ?? "an undated period"}; incomplete as of ${incomplete}`;
 }

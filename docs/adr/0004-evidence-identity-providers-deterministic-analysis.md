@@ -313,7 +313,9 @@ without pretending the project has a global security master.
   complete one for the same instant. The canonical series keeps only instants on the latest
   complete instant's basis, and legacy priors never cross basis, so year-over-year comparisons stay
   on one measurement. Incomplete instants are never published as debt; when newer than the latest complete instant they produce an
-  `incomplete-composite-series` note, and the legacy peer row declares the incomplete basis.
+  `incomplete-composite-series` note, the legacy peer row declares the incomplete basis,
+  SEC fundamentals prose and the Financial Strength debt label date the older amount and name the
+  incomplete instant, and alpha-search drops it from debt features with a Source Gap.
   Absence never establishes zero; explicit tagged zeros count. Companyfacts omits issuer-extension
   and dimensional facts, so completeness is a rule over standard tags, not proof. Direct facts
   remain `sec-companyfacts` without a `composite` field. The artifact-level extraction method stays

@@ -852,6 +852,12 @@ export function formatSecFundamentalsSummary(
     const scope = metrics?.[`${key}Scope`];
     const basisLabel =
       metrics?.[`${key}Basis`] === "gross-principal" ? `${label} (gross principal)` : label;
+    const incompleteDebtPeriodEnd = metrics?.debtIncompletePeriodEnd;
+    if (key === "debt" && typeof incompleteDebtPeriodEnd === "string") {
+      return [
+        `${basisLabel} ${String(latest)} as of ${String(metrics?.debtPeriodEnd ?? "an undated period")}; incomplete as of ${incompleteDebtPeriodEnd}`,
+      ];
+    }
     return [
       formatMetric(
         scopedLabel(basisLabel, typeof scope === "string" ? scope : undefined),

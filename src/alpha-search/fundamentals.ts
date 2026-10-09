@@ -47,6 +47,22 @@ function noSecMappingGap(symbol: string): SourceGap {
   });
 }
 
+function incompleteDebtGap(
+  symbol: string,
+  periodEnd: string,
+  reason: number | string | undefined,
+): SourceGap {
+  return sourceGap({
+    source: "sec-alpha-fundamentals",
+    symbol,
+    provider: "sec-edgar",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+    message: `Incomplete SEC debt for alpha-search candidate ${symbol}: debt at ${periodEnd} is incomplete (${String(reason ?? "unknown reason")}); older debt withheld from debt features`,
+  });
+}
+
 function noFundamentalsGap(symbol: string, payload: unknown): SourceGap {
   return sourceGap({
     source: "sec-alpha-fundamentals",
@@ -117,11 +133,17 @@ export async function collectAlphaSearchFundamentals(options: {
       continue;
     }
     fundamentalGaps.push(...summary.gaps.map((gap) => ({ ...gap, symbol: entry.symbol })));
+    const incompleteDebt = summary.metrics.debtIncompletePeriodEnd;
+    if (typeof incompleteDebt === "string") {
+      fundamentalGaps.push(
+        incompleteDebtGap(entry.symbol, incompleteDebt, summary.metrics.debtIncompleteReason),
+      );
+    }
     fundamentals.push({
       symbol: entry.symbol,
       secCik: entry.cik,
       sourceIds: [entry.sourceId],
-      metrics: numericMetrics(summary.metrics),
+      metrics: numericMetrics(withoutStaleDebt(summary.metrics)),
     });
   }
 
@@ -130,6 +152,17 @@ export async function collectAlphaSearchFundamentals(options: {
     fundamentals,
     sourceGaps: [...missingMappingGaps, ...fetchGaps, ...missingFactsGaps, ...fundamentalGaps],
   };
+}
+
+// Older complete debt must not stand in for a newer incomplete instant.
+function withoutStaleDebt(
+  metrics: Readonly<Record<string, number | string>>,
+): Readonly<Record<string, number | string>> {
+  if (metrics.debtIncompletePeriodEnd === undefined) {
+    return metrics;
+  }
+  const { debt: _stale, ...rest } = metrics;
+  return rest;
 }
 
 function numericMetrics(

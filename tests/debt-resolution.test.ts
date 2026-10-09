@@ -7,7 +7,11 @@ import {
   financialStatementFacts,
   latestFinancialStatementFact,
 } from "../src/sources/extended-evidence/financial-statement-selection";
-import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
+import {
+  formatSecFundamentalsSummary,
+  summarizeSecFundamentals,
+} from "../src/sources/extended-evidence/sec-edgar";
+import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { balanceSheetPeriodDivergence } from "../src/sources/extended-evidence/valuation-comps-support";
@@ -830,5 +834,56 @@ describe("valuation workbench balance-sheet period gate", () => {
       reason: "mixed-period-balance-sheet",
       detail: "Cash (2026-06-30) and debt (2026-03-29) period ends diverge by 93 days.",
     });
+  });
+});
+
+describe("SEC fundamentals prose dates older debt behind a newer incomplete instant", () => {
+  const fy = (value: number) => instant(value, "2025-12-31", "2026-02-13", "10-K", "FY");
+
+  test("VRTX shape: finance leases only at the newest instant, a borrowing tag last in 2014", () => {
+    const { legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy(6_143_500_000)],
+      LongTermDebt: [instant(33_500_000, "2014-06-30", "2014-08-01")],
+      FinanceLeaseLiabilityCurrent: [fy(80_000_000)],
+      FinanceLeaseLiabilityNoncurrent: [fy(400_000_000)],
+    });
+
+    expect(legacy?.metrics).toMatchObject({ debtIncompletePeriodEnd: "2025-12-31" });
+    expect(legacy?.summary).toContain(
+      "debt 33500000 as of 2014-06-30; incomplete as of 2025-12-31",
+    );
+    const lensDebt = strengthLens(
+      secEvidenceFrom(legacy?.metrics).items[0],
+      ANALYSIS_AS_OF,
+    ).lens.metrics.find((metric) => metric.key === "debt");
+    expect(lensDebt?.label).toBe("Debt as of 2014-06-30; incomplete as of 2025-12-31");
+  });
+
+  test("dated debt keeps its gross-principal basis behind a newer incomplete instant", () => {
+    const metrics = {
+      debt: 200,
+      debtPeriodEnd: "2026-03-31",
+      debtBasis: "gross-principal",
+      debtIncompletePeriodEnd: "2026-06-30",
+    };
+
+    expect(formatSecFundamentalsSummary(() => metrics)).toContain(
+      "debt (gross principal) 200 as of 2026-03-31; incomplete as of 2026-06-30",
+    );
+  });
+
+  test("a resolvable newest instant still renders its debt", () => {
+    const { legacy } = resolve({
+      CashAndCashEquivalentsAtCarryingValue: [fy(20)],
+      LongTermDebt: [fy(100)],
+    });
+
+    expect(legacy?.metrics.debtIncompletePeriodEnd).toBeUndefined();
+    expect(legacy?.summary).toContain("debt 100");
+    expect(
+      strengthLens(secEvidenceFrom(legacy?.metrics).items[0], ANALYSIS_AS_OF).lens.metrics.find(
+        (metric) => metric.key === "debt",
+      )?.label,
+    ).toBe("Debt");
   });
 });

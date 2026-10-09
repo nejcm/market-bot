@@ -553,6 +553,22 @@
       </div>
     {/if}
 
+    {#if detail.reportStatus === "malformed"}
+      <div
+        class="mt-3 flex items-start gap-3 rounded-lg border border-[#d9c89a] bg-[#fbf6ea] px-4 py-3"
+      >
+        <span
+          class="mt-px shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+        >
+          WARN
+        </span>
+        <span class="text-[12.5px] leading-normal text-[#4a4334]">
+          report.json fails the strict report reader, so scoring, Calibration and the run index skip
+          this run. The view below renders the raw file.
+        </span>
+      </div>
+    {/if}
+
     {#if activeTab === "report" && failed}
       {@render failureSummary()}
     {:else if activeTab === "report"}

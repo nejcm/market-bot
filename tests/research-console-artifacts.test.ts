@@ -95,6 +95,25 @@ describe("research console app artifacts", () => {
     expect(detail?.report).toBeUndefined();
   });
 
+  test("flags a report the strict reader rejects while still serving the raw record", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
+    for (const [runId, generatedAt] of [
+      ["run-valid", "2026-06-01T00:00:00.000Z"],
+      ["run-bad-clock", "not-a-date"],
+    ] as const) {
+      mkdirSync(join(dataDir, runId), { recursive: true });
+      writeJson(
+        join(dataDir, runId, RUN_ARTIFACT_FILES.report),
+        researchReport({ runId, generatedAt }),
+      );
+    }
+
+    const malformed = await readRunDetail(dataDir, "run-bad-clock");
+    expect(malformed?.reportStatus).toBe("malformed");
+    expect(malformed?.report?.generatedAt).toBe("not-a-date");
+    expect((await readRunDetail(dataDir, "run-valid"))?.reportStatus).toBeUndefined();
+  });
+
   test("projects deep-equity detail evidence from the bundle", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "research-console-runs-"));
     const runDir = join(dataDir, "deep-detail");

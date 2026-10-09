@@ -53,6 +53,8 @@ export interface FailedRunArtifactFailure {
 export interface RunDetail {
   readonly summary: RunSummary;
   readonly failure?: FailedRunArtifactFailure;
+  /** Present when report.json fails the strict reader; `report` is then the raw record. */
+  readonly reportStatus?: "malformed";
   readonly report?: Record<string, unknown>;
   readonly markdown?: string;
   readonly analytics?: Record<string, unknown>;

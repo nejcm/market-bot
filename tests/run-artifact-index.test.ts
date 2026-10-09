@@ -788,6 +788,60 @@ describe("run artifact index", () => {
     expect(summary?.duplicateForecastCount).toBe(0);
   });
 
+  test("skips unparseable timestamps left in an index built before reader validation", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    for (const runId of ["run-valid", "run-bad-clock"]) {
+      const runDir = join(dataDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeJson(
+        join(runDir, "report.json"),
+        researchReport({
+          runId,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          predictions: [
+            prediction({ id: "p1", horizonTradingDays: 5 }),
+            prediction({
+              id: "p-void",
+              kind: "conditional",
+              subject: "QQQ",
+              measurableAs:
+                "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+              horizonTradingDays: 10,
+            }),
+          ],
+        }),
+      );
+      writeJson(join(runDir, "score.json"), {
+        runId,
+        scores: [
+          predictionScore("hit", { predictionId: "p1", runId, scoringVersion: 3 }),
+          {
+            predictionId: "p-void",
+            runId,
+            status: "voided",
+            resolved: true,
+            outcome: undefined,
+            observedAt: "2026-06-02T00:00:00.000Z",
+            attemptCount: 1,
+            scoringVersion: 3,
+            evidence: { reason: "conditional antecedent did not occur" },
+          },
+        ],
+      });
+    }
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const legacyIndex = new Database(dbPath);
+    legacyIndex.exec("UPDATE runs SET generated_at = 'not-a-date' WHERE run_id = 'run-bad-clock'");
+    legacyIndex.close();
+
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    expect(pairs?.map(({ runId }) => runId)).toEqual(["run-valid"]);
+    await expect(loadConditionalCalibrationCountsFromIndex(dataDir)).resolves.toEqual({
+      activatedCount: 0,
+      voidedCount: 1,
+    });
+  });
+
   test("replaces a legacy-only calibration summary with an empty v3 summary", async () => {
     const { dataDir, dbPath, rootDir } = await tempDataDir();
     const runDir = join(dataDir, "run-legacy-calibration");

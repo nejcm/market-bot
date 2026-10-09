@@ -878,6 +878,11 @@ function marketUpdateBucketForRow(jobType: JobType, runHorizon: number | null): 
   return marketUpdateHorizonBucketOf({ jobType, horizonTradingDays: runHorizon ?? undefined });
 }
 
+// Indexes built before readReport rejected unparseable timestamps still hold those runs' rows.
+function hasParseableGeneratedAt(row: { readonly generated_at: string }): boolean {
+  return !Number.isNaN(Date.parse(row.generated_at));
+}
+
 export async function loadResolvedPairsFromIndex(
   dataDir: string,
 ): Promise<readonly ResolvedPair[] | undefined> {
@@ -898,7 +903,7 @@ export async function loadResolvedPairsFromIndex(
       )
       .all() as readonly ResolvedPairQueryRow[];
 
-    return rows.map((row) => {
+    return rows.filter(hasParseableGeneratedAt).map((row) => {
       const jobType = row.job_type as JobType;
       const claim = predictionClaimFromRow(row);
       const horizonBucket = marketUpdateBucketForRow(jobType, row.run_horizon_trading_days);
@@ -958,7 +963,9 @@ export async function loadConditionalCalibrationCountsFromIndex(
       readonly generated_at: string;
     }[];
     const voidedEvents = new Set(
-      rows.map((row) => forecastEventKey(row.asset_class, row.measurable_as, row.generated_at)),
+      rows
+        .filter(hasParseableGeneratedAt)
+        .map((row) => forecastEventKey(row.asset_class, row.measurable_as, row.generated_at)),
     );
     // Activated conditionals are the resolved conditional pairs already passed
     // Into buildCalibrationSummary; this query only supplies excluded voids.

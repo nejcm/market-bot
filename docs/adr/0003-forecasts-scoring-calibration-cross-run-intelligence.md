@@ -73,8 +73,10 @@ be mistaken for current market evidence.
   bounds are different events. Each slice keeps event-weighted Brier scoring and adds the distinct
   Run count among the kept events plus a Run-clustered standard error when calculable. The summary
   publishes `duplicateForecastCount` (collapsed issuances, 0 when none), and voided conditional
-  counts are deduplicated by the same key. A report whose `generatedAt` does not parse is
-  unreadable at the report reader, so it never reaches Calibration.
+  counts are deduplicated by the same key. A report whose `generatedAt` does not parse fails the
+  strict report reader, so scoring and disk-backed Calibration skip it; the index-backed loader
+  skips the same rows left in indexes built before that check. The Research Console still serves
+  the raw record but flags the run's report as malformed.
 - The origin is recomputed from `generatedAt` and the claim, not read from the resolver's window,
   because legacy resolved scores never record it and are never rescored. Known ceiling: a report
   the resolver anchored through the unverified-session quarantine branch, or earnings issuances

@@ -1,4 +1,5 @@
 import type { SourceGapAttemptClassification } from "../domain/types";
+import { SourceResponseTooLargeError } from "./response-size-error";
 
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];
 
@@ -31,6 +32,9 @@ export function classifyTransientFailure(error: unknown): TransientFailureClassi
   // Never retried immediately, and never attributable to the remote provider.
   if (error.name === "SourceCircuitOpenError") {
     return "circuit-open";
+  }
+  if (error instanceof SourceResponseTooLargeError) {
+    return "response-too-large";
   }
   if (error.name === "AbortError" || error.name === "TimeoutError") {
     return "timeout";

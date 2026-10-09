@@ -135,6 +135,12 @@ without pretending the project has a global security master.
   post-acceptance corrections. Hits keep the original fetch metadata and are re-parsed every run;
   invalid entries are refetched, and an expired entry
   is a raw-audit-only stale fallback like any other. `sec-companyfacts` keeps the 24-hour reference budget.
+- Every source read is bounded by a response-byte ceiling: 5,000,000 bytes by default and a
+  provisional 16,000,000 for SEC filing text, earnings-release exhibits, and `sec-companyfacts`.
+  A declared or streamed body over its ceiling is a `validation-failed` Source Gap carrying the
+  size message and a `response-too-large` attempt; it is not retried and does not count toward
+  the host circuit breaker, while Provider Health and the Exa failed-request audit still count it
+  as a failed fetch.
 - Deep instrument runs and all thematic research runs may gather bounded web results. Exa is
   primary; configured Exa failures or thin results may fall back to Firecrawl. Firecrawl never
   substitutes for a missing Exa key. Results are subject-constrained, cached, persisted as
@@ -428,9 +434,14 @@ without pretending the project has a global security master.
   The proposal prompt states the target's SIC group and 0.2x-5x market-cap and annualized-revenue
   bands (each omitted when the input is absent) so nominations aim inside the comparability gates.
   Learned results are cached and revalidated. Each run that resolves a learned universe records
-  its usable-peer count against that cache generation, except when target market cap is not
-  positive, SIC is missing, or a peer fetch failed or fell back to stale cache; older feedback
-  never overwrites newer. A usable generation with fewer than three usable peers is re-proposed
+  its usable-peer count and up to eight per-peer exclusion causes against that cache
+  generation, except when target market cap is not positive, SIC is missing, or a peer fetch
+  failed transiently (`fetch-failed`, `circuit-open`, `malformed-response`) or fell back to stale
+  cache; a permanent rejection such as an over-ceiling response still records. Older feedback
+  never overwrites newer, and the next allowed re-proposal receives the recorded exclusions in
+  its prompt as symbols with fixed cause labels, never provider-derived reason text; recording
+  never changes the refresh allowance. A usable generation with fewer than
+  three usable peers is re-proposed
   at most once per TTL window: the attempt is claimed under the cache lock before the model call
   and stays consumed if the proposal is insufficient, while the learned peers keep serving; it is
   released when the SEC directory or model is unavailable, or when the proposal falls short while a

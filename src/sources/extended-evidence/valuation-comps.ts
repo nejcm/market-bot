@@ -223,7 +223,12 @@ export async function collectValuationComps(
     !rawSnapshots.some((snapshot) => snapshot.cacheStatus === "stale-fallback")
   ) {
     await options.peerUniverseFallback
-      ?.recordEvaluation?.(command.symbol, resolution.learnedGeneration, usablePeerCount)
+      ?.recordEvaluation?.(
+        command.symbol,
+        resolution.learnedGeneration,
+        usablePeerCount,
+        excludedPeers.map(({ symbol, cause }) => ({ symbol, cause })),
+      )
       .catch(() => {});
   }
   const usablePeers = usablePeersLabel(usablePeerCount);

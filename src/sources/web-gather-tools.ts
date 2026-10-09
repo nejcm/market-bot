@@ -5,7 +5,7 @@ import type {
   WebGatherToolName,
   WebSearchType,
 } from "../domain/types";
-import { sourceGapWithContext } from "../domain/source-gaps";
+import { isResponseSizeRejectionGap, sourceGapWithContext } from "../domain/source-gaps";
 import {
   FIRECRAWL_PROVIDER,
   firecrawlTbsForSearchType,
@@ -466,13 +466,17 @@ function failedExaRequestAudit(exa: ExaWebOutcome): Pick<WebGatherToolOutput, "f
   const failure = exa.gaps.find(
     (gap) =>
       gap.provider === EXA_PROVIDER &&
-      (gap.cause === "fetch-failed" || gap.cause === "circuit-open"),
+      (gap.cause === "fetch-failed" ||
+        gap.cause === "circuit-open" ||
+        isResponseSizeRejectionGap(gap)),
   );
-  return failure?.cause === "fetch-failed" || failure?.cause === "circuit-open"
+  const cause = failure?.cause;
+  return failure !== undefined &&
+    (cause === "fetch-failed" || cause === "circuit-open" || cause === "validation-failed")
     ? {
         failedExaRequest: {
           reason: failure.message,
-          cause: failure.cause,
+          cause,
           ...(failure.attempts !== undefined ? { attempts: failure.attempts } : {}),
         },
       }

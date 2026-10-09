@@ -173,7 +173,7 @@ export interface SourceGap {
   readonly cause?: SourceGapCause;
   readonly evidenceQualityImpact?: SourceGapEvidenceQualityImpact;
   readonly triage?: SourceGapTriage;
-  // Present only for fetch-failed/circuit-open gaps that actually retried: how the retry
+  // Present for fetch-failed/circuit-open gaps that retried and for size rejections: how the retry
   // Loop unfolded and how each iteration failed, so a reader can tell "timed out after 3
   // Network attempts, then the local circuit breaker refused a 4th" from the artifact
   // Without inferring retry/breaker behavior from source. See `SourceGapAttempts` for what
@@ -190,6 +190,7 @@ export type SourceGapAttemptClassification =
   | "server-error"
   | "network"
   | "circuit-open"
+  | "response-too-large"
   | "non-transient";
 
 export interface SourceGapAttemptFailure {
@@ -356,7 +357,7 @@ interface WebGatherAuditEntry extends JsonToolLoopAuditEntry {
   readonly fallback?: WebGatherFallbackAudit;
   // Present only when this request's results included near-duplicate headlines of already-accepted web sources; those results were rejected, not merged.
   readonly duplicateResults?: readonly WebGatherDuplicateResultAudit[];
-  // Present only on a rejected request whose Exa call exhausted retries (see `SourceGap.attempts`).
+  // Present on a rejected request whose Exa call retried or was size-rejected (see `SourceGap.attempts`).
   readonly attempts?: SourceGapAttempts;
 }
 

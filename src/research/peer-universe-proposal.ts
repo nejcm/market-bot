@@ -1,4 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
+import type { SourceGapCause } from "../domain/types";
 import type { ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types";
@@ -9,6 +10,7 @@ import { collectListedUniverse, type ListedUniverseEntry } from "../alpha-search
 import {
   MAX_PEERS,
   MIN_PROPOSED_PEERS,
+  type PeerExclusionFeedback,
   type PeerUniverse,
   type PeerUniversePeer,
   type PeerUniverseProposal,
@@ -101,16 +103,37 @@ function comparabilityBand(target: PeerUniverseTargetInputs | undefined): string
         "include plausible near-band candidates after likely in-band candidates. ";
 }
 
+// Fixed labels only: exclusion reasons can carry provider text, which must not reach the prompt.
+const EXCLUSION_LABELS: Partial<Record<SourceGapCause, string>> = {
+  "suppressed-by-design": "outside a comparability gate",
+  "provider-data-missing": "required public data unavailable",
+};
+
+function exclusionFeedback(exclusions: readonly PeerExclusionFeedback[] | undefined): string {
+  const valid = (exclusions ?? []).filter(({ symbol }) => RESEARCH_SUBJECT_SYMBOL_RE.test(symbol));
+  if (valid.length === 0) {
+    return "";
+  }
+  const excluded = valid
+    .map(({ symbol, cause }) => `${symbol} (${EXCLUSION_LABELS[cause] ?? "excluded"})`)
+    .join("; ");
+  return (
+    `The previous evaluation excluded these candidates downstream: ${excluded}. ` +
+    "Do not repeat a candidate unless its exclusion reason is likely to no longer apply. "
+  );
+}
+
 function buildUserPrompt(
   targetSymbol: string,
   targetName?: string,
   target?: PeerUniverseTargetInputs,
+  exclusions?: readonly PeerExclusionFeedback[],
 ): string {
   const subject = targetName !== undefined ? `${targetName} (${targetSymbol})` : targetSymbol;
   return (
     `Propose ${String(MAX_PEERS)} distinct US-listed common-stock candidates for ${subject}, ` +
     "ranked from strongest to weakest business and likely sector/size fit. " +
-    `Aim for at least ${String(MIN_PROPOSED_PEERS)} plausible candidates. ${comparabilityBand(target)}` +
+    `Aim for at least ${String(MIN_PROPOSED_PEERS)} plausible candidates. ${comparabilityBand(target)}${exclusionFeedback(exclusions)}` +
     "Do not invent companies to reach the requested count. Give each a brief business-fit rationale. " +
     "Return JSON with this exact shape: " +
     `{"peers":[{"symbol":"string","name":"string","role":"core"|"secondary","rationale":"string"}]}`
@@ -183,6 +206,7 @@ async function generatePeerProposal(
   deps: ProposerDeps,
   target: string,
   targetInputs: PeerUniverseTargetInputs | undefined,
+  exclusions: readonly PeerExclusionFeedback[] | undefined,
 ): Promise<string | null> {
   try {
     const response = await deps.provider.generate({
@@ -198,7 +222,10 @@ async function generatePeerProposal(
       },
       messages: [
         { role: "system", content: withUntrustedModelInputRule(buildSystemPrompt()) },
-        { role: "user", content: buildUserPrompt(target, deps.targetName, targetInputs) },
+        {
+          role: "user",
+          content: buildUserPrompt(target, deps.targetName, targetInputs, exclusions),
+        },
       ],
     });
     return response.content;
@@ -213,8 +240,12 @@ async function generatePeerProposal(
 // Undefined. Cache write is the caller's responsibility.
 export function createPeerUniverseProposer(
   deps: ProposerDeps,
-): (symbol: string, targetInputs?: PeerUniverseTargetInputs) => Promise<PeerUniverseProposal> {
-  return async (targetSymbol, targetInputs) => {
+): (
+  symbol: string,
+  targetInputs?: PeerUniverseTargetInputs,
+  exclusions?: readonly PeerExclusionFeedback[],
+) => Promise<PeerUniverseProposal> {
+  return async (targetSymbol, targetInputs, exclusions) => {
     const target = targetSymbol.trim().toUpperCase();
 
     // Fetch SEC company_tickers.json — reused (cached) from the peer fetch pipeline
@@ -238,7 +269,7 @@ export function createPeerUniverseProposer(
     const tickersPayload = tickersResult.payload;
 
     // Model call: structured JSON, temperature:0 for reproducibility
-    const modelContent = await generatePeerProposal(deps, target, targetInputs);
+    const modelContent = await generatePeerProposal(deps, target, targetInputs, exclusions);
     if (modelContent === null) {
       return { audit: emptyAudit(deps.model), unavailable: true };
     }

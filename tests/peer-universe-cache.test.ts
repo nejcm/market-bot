@@ -11,6 +11,7 @@ import {
 } from "../src/research/peer-universe-cache";
 import {
   resolvePeerUniverseWithFallback,
+  type PeerExclusionFeedback,
   type PeerUniverse,
   type ProposalAudit,
 } from "../src/research/peer-universe";
@@ -246,8 +247,18 @@ describe("peer universe refresh policy", () => {
       { ...audit, survived },
       observed,
     );
-  const record = (now: Date, generation: string, usablePeerCount: number) =>
-    makePeerUniverseEvaluationRecorder(cachePath, now)("ZZZZ", generation, usablePeerCount);
+  const record = (
+    now: Date,
+    generation: string,
+    usablePeerCount: number,
+    exclusions: readonly PeerExclusionFeedback[] = [],
+  ) =>
+    makePeerUniverseEvaluationRecorder(cachePath, now)(
+      "ZZZZ",
+      generation,
+      usablePeerCount,
+      exclusions,
+    );
   const claim = (now: Date, generation: string) =>
     makePeerUniverseRefreshClaimer(cachePath, 90, now)("ZZZZ", generation);
   const refreshAt = async (now: Date) => {
@@ -285,6 +296,60 @@ describe("peer universe refresh policy", () => {
     expect(read?.generation).toBe(generation);
   });
 
+  test("exclusion feedback persists bounded and reaches the next allowed proposal", async () => {
+    const generation = await seed();
+    const exclusions = Array.from({ length: 10 }, (_, index) => ({
+      symbol: `P${String(index)}`,
+      cause: "provider-data-missing" as const,
+    }));
+    await record(day0, generation, 1, exclusions);
+    const read = await makePeerUniverseCacheReader(cachePath, 90, day1)("ZZZZ");
+    expect(read?.exclusions).toHaveLength(8);
+    expect(read?.exclusions?.[0]).toEqual(exclusions[0]);
+
+    const proposals: unknown[] = [];
+    const refreshed = await resolvePeerUniverseWithFallback(
+      "ZZZZ",
+      {
+        cacheRead: makePeerUniverseCacheReader(cachePath, 90, day1),
+        cacheWrite: makePeerUniverseCacheWriter(cachePath, 90, "p", day1),
+        claimRefresh: makePeerUniverseRefreshClaimer(cachePath, 90, day1),
+        propose: async (_symbol, _target, feedback) => {
+          proposals.push(feedback);
+          return { audit };
+        },
+      },
+      undefined,
+      undefined,
+      { marketCap: 450e6, sic: "3661" },
+    );
+    expect(proposals).toEqual([read?.exclusions]);
+    expect(refreshed.refresh).toMatchObject({ outcome: "insufficient" });
+    expect(await refreshAt(day2)).toBe("used");
+  });
+
+  test("an entry evaluated before exclusion feedback reads without exclusions", async () => {
+    const generation = await seed();
+    await record(day0, generation, 1);
+    const parsed = JSON.parse(await readFile(cachePath, "utf8")) as {
+      entries: { evaluation?: Record<string, unknown> }[];
+    };
+    await writeFile(
+      cachePath,
+      JSON.stringify({
+        ...parsed,
+        entries: parsed.entries.map((entry) => ({
+          ...entry,
+          evaluation: { usablePeerCount: 1, evaluatedAt: day0.toISOString() },
+        })),
+      }),
+      "utf8",
+    );
+    const read = await makePeerUniverseCacheReader(cachePath, 90, day1)("ZZZZ");
+    expect(read?.refresh).toBe("due");
+    expect(read).not.toHaveProperty("exclusions");
+  });
+
   test("feedback for a superseded generation is ignored", async () => {
     await seed();
     await record(day1, oldGeneration, 0);
@@ -298,6 +363,7 @@ describe("peer universe refresh policy", () => {
     expect(await storedEntry()).toHaveProperty("evaluation", {
       usablePeerCount: 0,
       evaluatedAt: day2.toISOString(),
+      exclusions: [],
     });
     await record(day2, generation, 3);
     await record(day1, generation, 0);

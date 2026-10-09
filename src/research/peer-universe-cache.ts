@@ -4,11 +4,14 @@ import { writeFileAtomic } from "../artifacts";
 import { withFileLock } from "../shared-state-lock";
 import { DAY_MS } from "../config/shared";
 import { isRecord } from "../guards";
+import { isSourceGapCause } from "../domain/source-gaps";
 import { MIN_USABLE_PEERS } from "../sources/extended-evidence/valuation-comps-contract";
 import { PROPOSER_REVISION } from "./peer-universe-proposal";
 import {
+  MAX_PEERS,
   validatePeerUniverse,
   type LearnedPeerUniverse,
+  type PeerExclusionFeedback,
   type ProposalAudit,
   type PeerUniverse,
   type PeerUniversePeer,
@@ -36,6 +39,7 @@ interface PeerUniverseLearnedEntry {
 interface PeerUniverseEvaluation {
   readonly usablePeerCount: number;
   readonly evaluatedAt: string;
+  readonly exclusions?: readonly PeerExclusionFeedback[];
 }
 
 interface PeerUniverseLearnedIndex {
@@ -110,7 +114,23 @@ function readEvaluation(value: unknown): PeerUniverseEvaluation | undefined {
   ) {
     return undefined;
   }
-  return { usablePeerCount: value.usablePeerCount, evaluatedAt: value.evaluatedAt };
+  return {
+    usablePeerCount: value.usablePeerCount,
+    evaluatedAt: value.evaluatedAt,
+    ...(Array.isArray(value.exclusions)
+      ? { exclusions: boundedExclusions(value.exclusions.filter(isPeerExclusionFeedback)) }
+      : {}),
+  };
+}
+
+function isPeerExclusionFeedback(value: unknown): value is PeerExclusionFeedback {
+  return isRecord(value) && typeof value.symbol === "string" && isSourceGapCause(value.cause);
+}
+
+function boundedExclusions(
+  exclusions: readonly PeerExclusionFeedback[],
+): readonly PeerExclusionFeedback[] {
+  return exclusions.slice(0, MAX_PEERS).map(({ symbol, cause }) => ({ symbol, cause }));
 }
 
 function readPeer(value: unknown): PeerUniversePeer | undefined {
@@ -245,10 +265,12 @@ export function makePeerUniverseCacheReader(
       return undefined;
     }
     const universe = usableUniverse(entry, now, ttlDays);
+    const exclusions = entry.evaluation?.exclusions;
     return {
       ...(universe !== undefined ? { universe } : {}),
       generation: entry.proposedAt,
       refresh: refreshState(entry, now, ttlDays, revision),
+      ...(exclusions !== undefined ? { exclusions } : {}),
     };
   };
 }
@@ -275,16 +297,28 @@ async function updateEntry(
   });
 }
 
-// Records the valuation run's usable-peer count against the cache generation it evaluated.
+// Records the valuation run's usable-peer count and exclusions against the generation it evaluated.
 export function makePeerUniverseEvaluationRecorder(
   path: string,
   now: Date = new Date(),
-): (symbol: string, generation: string, usablePeerCount: number) => Promise<void> {
-  return async (symbol, generation, usablePeerCount) => {
+): (
+  symbol: string,
+  generation: string,
+  usablePeerCount: number,
+  exclusions: readonly PeerExclusionFeedback[],
+) => Promise<void> {
+  return async (symbol, generation, usablePeerCount, exclusions) => {
     await updateEntry(path, symbol, generation, (entry) =>
       entry.evaluation !== undefined && Date.parse(entry.evaluation.evaluatedAt) > now.getTime()
         ? undefined
-        : { ...entry, evaluation: { usablePeerCount, evaluatedAt: now.toISOString() } },
+        : {
+            ...entry,
+            evaluation: {
+              usablePeerCount,
+              evaluatedAt: now.toISOString(),
+              exclusions: boundedExclusions(exclusions),
+            },
+          },
     );
   };
 }

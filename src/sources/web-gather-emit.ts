@@ -52,7 +52,7 @@ export interface WebGatherToolOutput {
   readonly fallback?: WebGatherFallbackAudit;
   readonly failedExaRequest?: {
     readonly reason: string;
-    readonly cause: "fetch-failed" | "circuit-open";
+    readonly cause: "fetch-failed" | "circuit-open" | "validation-failed";
     readonly attempts?: SourceGapAttempts;
   };
 }

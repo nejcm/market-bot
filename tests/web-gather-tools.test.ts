@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 import type { SourceGap } from "../src/domain/types";
 import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../src/sources/web-gather-tools";
+import { createSourceRequestContext } from "../src/sources/source-request";
 import type {
   CollectContext,
   FetchJsonResult,
@@ -923,6 +924,31 @@ describe("firecrawl fallback", () => {
     // A recovered request must not surface the Exa shortfall as a data gap.
     expect(result.gaps).toEqual([]);
     expect(surfacedUrls.has("https://firecrawl.example/aapl-1")).toBe(true);
+  });
+
+  test("audits an oversized Exa response as a failed request after a Firecrawl recovery", async () => {
+    const { request } = createSourceRequestContext(
+      { equityMoverLimit: 5, cryptoMoverLimit: 5, newsLimit: 5, sourceTimeoutMs: 1000 },
+      new Date(fetchedAt),
+      async (input) =>
+        String(input).startsWith("https://api.exa.ai")
+          ? new Response("{}", { headers: { "content-length": "5000001" } })
+          : Response.json(firecrawlSearchPayload),
+      [],
+    );
+    const result = await executeWebGatherTool(
+      "web_search",
+      { query: "AAPL business model", searchType: "background" },
+      baseCtx({ firecrawlApiKey: "firecrawl-key", request }),
+      surfacedUrlGate(new Set()),
+    );
+
+    expect(result.sources).toHaveLength(2);
+    expect(result.failedExaRequest).toMatchObject({
+      reason: "exa-search source response exceeded 5000000 bytes",
+      cause: "validation-failed",
+      attempts: { count: 1, failures: [{ classification: "response-too-large" }] },
+    });
   });
 
   test("selects late Firecrawl passages before model input sanitization", async () => {

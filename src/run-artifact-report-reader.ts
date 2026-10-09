@@ -252,6 +252,7 @@ function isSourceGapAttemptClassification(value: unknown): value is SourceGapAtt
     value === "server-error" ||
     value === "network" ||
     value === "circuit-open" ||
+    value === "response-too-large" ||
     value === "non-transient"
   );
 }

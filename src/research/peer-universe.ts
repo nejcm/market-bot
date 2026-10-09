@@ -1,4 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE } from "../config/shared";
+import type { SourceGapCause } from "../domain/types";
 import {
   DEFAULT_RESEARCH_SUBJECT_REGISTRY,
   type ResearchSubjectRegistryEntry,
@@ -69,10 +70,16 @@ export interface ProposalAudit {
   readonly modelId: string;
 }
 
+export interface PeerExclusionFeedback {
+  readonly symbol: string;
+  readonly cause: SourceGapCause;
+}
+
 export interface LearnedPeerUniverse {
   readonly universe?: PeerUniverse;
   readonly generation: string;
   readonly refresh: "due" | "used" | "not-needed";
+  readonly exclusions?: readonly PeerExclusionFeedback[];
 }
 
 // `unavailable` marks a proposal that could not run (directory or model failure), not a weak one.
@@ -100,6 +107,7 @@ export interface PeerUniverseFallbackContext {
   readonly propose: (
     symbol: string,
     target?: PeerUniverseTargetInputs,
+    exclusions?: readonly PeerExclusionFeedback[],
   ) => Promise<PeerUniverseProposal>;
   readonly claimRefresh: (symbol: string, generation: string) => Promise<boolean>;
   readonly releaseRefresh?: (symbol: string, generation: string) => Promise<boolean>;
@@ -107,6 +115,7 @@ export interface PeerUniverseFallbackContext {
     symbol: string,
     generation: string,
     usablePeerCount: number,
+    exclusions: readonly PeerExclusionFeedback[],
   ) => Promise<void>;
 }
 
@@ -288,6 +297,7 @@ export async function resolvePeerUniverseWithFallback(
       : "Resolved from refreshed model-proposed peer universe after too few usable peers",
     cached.generation,
     cached.universe !== undefined,
+    cached.exclusions,
   );
   if (proposed.resolution?.status === "resolved") {
     return proposed.resolution;
@@ -321,12 +331,13 @@ async function proposeAndCache(
   reason: string,
   observedGeneration?: string,
   claimed = false,
+  exclusions?: readonly PeerExclusionFeedback[],
 ): Promise<{
   resolution?: PeerUniverseResolution;
   audit: ProposalAudit;
   unavailable?: boolean;
 }> {
-  const { universe, audit, unavailable } = await fallback.propose(target, targetInputs);
+  const { universe, audit, unavailable } = await fallback.propose(target, targetInputs, exclusions);
   if (universe === undefined) {
     return { audit, ...(unavailable === true ? { unavailable } : {}) };
   }

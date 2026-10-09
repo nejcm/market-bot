@@ -5,6 +5,7 @@ import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
+import { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES } from "../source-request";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
 import {
   conceptScope,
@@ -1139,6 +1140,7 @@ export async function fetchSecCompanyFactsForSymbol(
   const facts = await ctx.request.json({
     url: factsUrl,
     adapter: "sec-companyfacts",
+    maxResponseBytes: SEC_COMPANYFACTS_MAX_RESPONSE_BYTES,
     init: secInit,
   });
   const submissionsUrl = `https://data.sec.gov/submissions/CIK${match.cik}.json`;

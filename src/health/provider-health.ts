@@ -6,6 +6,7 @@ import {
   isSourceGapCapability,
   isSourceGapCause,
   isSourceGapEvidenceQualityImpact,
+  isResponseSizeRejectionGap,
   isSourceGapTriage,
   sourceGapStatusCode,
 } from "../domain/source-gaps";
@@ -449,6 +450,7 @@ function issueClass(gap: SourceGap): IssueClass {
   if (
     gap.cause === "fetch-failed" ||
     gap.cause === "circuit-open" ||
+    isResponseSizeRejectionGap(gap) ||
     sourceGapStatusCode(gap.message)
   ) {
     return "fetchFailed";

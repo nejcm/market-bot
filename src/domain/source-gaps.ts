@@ -7,7 +7,10 @@ import type {
   SourceGapTriage,
 } from "./types";
 
-type FetchFailureSourceGapCause = Extract<SourceGapCause, "fetch-failed" | "circuit-open">;
+export type FetchFailureSourceGapCause = Extract<
+  SourceGapCause,
+  "fetch-failed" | "circuit-open" | "validation-failed"
+>;
 
 // Exhaustive membership tables keyed by every union member.
 // The `satisfies Record<Union, true>` constraint fails typecheck if a member is missing.
@@ -187,6 +190,12 @@ export function fetchFailureSourceGap(
     evidenceQualityImpact: "core-cap",
     ...(attempts !== undefined ? { attempts } : {}),
   });
+}
+
+// Bundle gaps reach Provider Health unnormalized, so `attempts` may be malformed.
+export function isResponseSizeRejectionGap(gap: SourceGap): boolean {
+  const failures: unknown = gap.attempts?.failures;
+  return Array.isArray(failures) && failures.at(-1)?.classification === "response-too-large";
 }
 
 // Matches unmapped SEC filing messages produced by the alpha-search SEC discovery path.

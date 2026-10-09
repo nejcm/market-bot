@@ -51,6 +51,16 @@ function fetchPayload(payload: unknown): FetchLike {
   return async () => Response.json(payload);
 }
 
+const sessionOpen = (iso: string) => Date.parse(iso) / 1000;
+
+const window = (fetchImpl: FetchLike, cutoff: string) =>
+  fetchYahooSplitAdjustedCloseWindow(
+    "CLFD",
+    new Date("2026-10-06T00:00:00.000Z"),
+    new Date(cutoff),
+    fetchImpl,
+  );
+
 const yahooFailsAndMassiveThrows: FetchLike = async (input) => {
   if (String(input).includes("massive")) {
     throw new Error("massive network down");
@@ -317,7 +327,7 @@ describe("ObservationRepository window routing", () => {
     const result = await fetchYahooSplitAdjustedCloseWindow(
       "AAPL",
       new Date("2026-05-19T18:00:00.000Z"),
-      new Date("2026-05-21T18:00:00.000Z"),
+      new Date("2026-05-23T18:00:00.000Z"),
       fetchImpl,
     );
 
@@ -332,6 +342,149 @@ describe("ObservationRepository window routing", () => {
     expect(requestUrl.searchParams.get("period1")).toBe(
       String(Date.parse("2026-05-19T00:00:00.000Z") / 1000),
     );
+  });
+
+  describe("completed-session withholding", () => {
+    const clfdOpens = [
+      sessionOpen("2026-10-06T13:30:00.000Z"),
+      sessionOpen("2026-10-07T13:30:00.000Z"),
+      sessionOpen("2026-10-08T13:30:00.000Z"),
+    ];
+    const chart = (
+      timestamps: readonly number[],
+      regular: unknown,
+      events?: Record<string, unknown>,
+    ): FetchLike =>
+      fetchPayload({
+        chart: {
+          result: [
+            {
+              meta: regular === undefined ? {} : { currentTradingPeriod: { regular } },
+              timestamp: timestamps,
+              indicators: { quote: [{ close: timestamps.map((_, index) => 32 + index) }] },
+              ...(events === undefined ? {} : { events }),
+            },
+          ],
+        },
+      });
+    const schedule = (start: string, end: string) => ({
+      timezone: "EDT",
+      start: sessionOpen(start),
+      end: sessionOpen(end),
+      gmtoffset: -14_400,
+    });
+    const oct8 = schedule("2026-10-08T13:30:00.000Z", "2026-10-08T20:00:00.000Z");
+
+    test("withholds the October 8 close observed at 15:58:52Z, before the 20:00Z regular close", async () => {
+      const result = await window(chart(clfdOpens, oct8), "2026-10-08T15:58:52.674Z");
+
+      expect(result.map((observation) => observation.date)).toEqual(["2026-10-06", "2026-10-07"]);
+      expect(result.withheldSessions).toEqual([
+        { date: "2026-10-08", status: "in-progress", closesAt: "2026-10-08T20:00:00.000Z" },
+      ]);
+    });
+
+    const scenarios: readonly (readonly [string, readonly number[], unknown, string, string[]])[] =
+      [
+        ["at the regular close", clfdOpens, oct8, "2026-10-08T20:00:00.000Z", []],
+        ["after the regular close", clfdOpens, oct8, "2026-10-08T21:00:00.000Z", []],
+        [
+          "a half day read from the supplied 17:00Z close",
+          [sessionOpen("2026-11-25T14:30:00.000Z"), sessionOpen("2026-11-27T14:30:00.000Z")],
+          schedule("2026-11-27T14:30:00.000Z", "2026-11-27T18:00:00.000Z"),
+          "2026-11-27T18:30:00.000Z",
+          [],
+        ],
+        [
+          "a half day before its supplied close",
+          [sessionOpen("2026-11-25T14:30:00.000Z"), sessionOpen("2026-11-27T14:30:00.000Z")],
+          schedule("2026-11-27T14:30:00.000Z", "2026-11-27T18:00:00.000Z"),
+          "2026-11-27T17:59:00.000Z",
+          ["2026-11-27"],
+        ],
+        [
+          "a standard-time session still open at 20:30Z",
+          [sessionOpen("2026-10-30T13:30:00.000Z"), sessionOpen("2026-11-02T14:30:00.000Z")],
+          schedule("2026-11-02T14:30:00.000Z", "2026-11-02T21:00:00.000Z"),
+          "2026-11-02T20:30:00.000Z",
+          ["2026-11-02"],
+        ],
+        [
+          "an international session after its 06:30Z close",
+          [sessionOpen("2026-10-07T00:00:00.000Z"), sessionOpen("2026-10-08T00:00:00.000Z")],
+          schedule("2026-10-08T00:00:00.000Z", "2026-10-08T06:30:00.000Z"),
+          "2026-10-08T07:00:00.000Z",
+          [],
+        ],
+        [
+          "an international session before its 06:30Z close",
+          [sessionOpen("2026-10-07T00:00:00.000Z"), sessionOpen("2026-10-08T00:00:00.000Z")],
+          schedule("2026-10-08T00:00:00.000Z", "2026-10-08T06:30:00.000Z"),
+          "2026-10-08T05:00:00.000Z",
+          ["2026-10-08"],
+        ],
+        [
+          "an absent schedule, accepting only bars before the previous UTC day",
+          clfdOpens,
+          undefined,
+          "2026-10-08T21:00:00.000Z",
+          ["2026-10-07", "2026-10-08"],
+        ],
+        [
+          "a malformed schedule",
+          clfdOpens,
+          { start: "13:30", end: 1_791_489_600 },
+          "2026-10-08T21:00:00.000Z",
+          ["2026-10-07", "2026-10-08"],
+        ],
+        [
+          "a stale schedule older than the newest bar",
+          clfdOpens,
+          schedule("2026-10-07T13:30:00.000Z", "2026-10-07T20:00:00.000Z"),
+          "2026-10-08T21:00:00.000Z",
+          ["2026-10-08"],
+        ],
+        ["historical bars", clfdOpens, undefined, "2026-10-12T21:00:00.000Z", []],
+        [
+          "a valid schedule for a session opening after the cutoff",
+          clfdOpens,
+          schedule("2026-10-09T13:30:00.000Z", "2026-10-09T20:00:00.000Z"),
+          "2026-10-08T15:58:52.674Z",
+          ["2026-10-07", "2026-10-08"],
+        ],
+      ];
+    for (const [name, timestamps, regular, cutoff, withheldDates] of scenarios) {
+      test(`withholds exactly the unproven sessions for ${name}`, async () => {
+        const result = await window(chart(timestamps, regular), cutoff);
+
+        expect(result.withheldSessions?.map((session) => session.date) ?? []).toEqual(
+          withheldDates,
+        );
+        expect(result).toHaveLength(timestamps.length - withheldDates.length);
+      });
+    }
+
+    test("adjusts for a split on the withheld session before withholding it", async () => {
+      const splitOpen = sessionOpen("2026-10-08T13:30:00.000Z");
+      const result = await window(
+        chart(clfdOpens, oct8, {
+          splits: {
+            [String(splitOpen)]: {
+              date: splitOpen,
+              numerator: 2,
+              denominator: 1,
+              splitRatio: "2:1",
+            },
+          },
+        }),
+        "2026-10-08T15:58:52.674Z",
+      );
+
+      expect([...result]).toEqual([
+        { subject: "CLFD", date: "2026-10-06", value: 16 },
+        { subject: "CLFD", date: "2026-10-07", value: 16.5 },
+      ]);
+    });
   });
 
   test("rejects malformed or inconsistent Yahoo split metadata and incomplete close arrays", async () => {
@@ -482,6 +635,7 @@ describe("ObservationRepository caching", () => {
     const repo = createObservationRepository({
       report: report(),
       cacheDir: tmpDir,
+      now: to,
       fetchWindow: async () => {
         calls += 1;
         return [

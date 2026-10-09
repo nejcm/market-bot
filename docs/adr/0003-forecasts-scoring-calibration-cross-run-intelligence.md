@@ -111,6 +111,21 @@ be mistaken for current market evidence.
   listed proxy and emits no predictions when no proxy resolves.
 - Scoring resolves observations through the repository and close cache, then aggregates Brier
   metrics and calibration slices.
+- Equity close windows grade only completed sessions, under policy v3 (split-adjusted Yahoo) and
+  legacy policy v2 (raw Yahoo, or Massive with no schedule) alike. A bar in Yahoo's
+  `currentTradingPeriod.regular` session is unfinished while the scoring clock is before that
+  session's supplied end (so half days, DST, and foreign exchanges come from the schedule); with no
+  usable schedule only bars dated before the previous UTC day count. A later session's schedule
+  certifies an earlier recent bar only if that later session had opened by the cutoff; until then
+  the bar is withheld as awaiting-open when that session opens within 10 days (the longest routine
+  exchange closure plus margin), otherwise as unverified. Unfinished bars are withheld after split
+  adjustment and before caching and session selection. A withheld in-progress or awaiting-open
+  session (or a scheduled session that has not opened) is a horizon wait only when filling exactly
+  those sessions would resolve the one unresolved base expression — for a conditional, the
+  antecedent alone until it resolves, so placeholder prices never decide activation; any other
+  missing observation spends an attempt. Windows that withheld anything are never cached, cached
+  windows acquired after a request's cutoff are refused, and the window cache is versioned (v3) so
+  uncertified v2 entries are bypassed, never deleted.
 - Scoring interpretation is keyed by the Prediction's persisted `scoringPolicyVersion` through an
   explicit policy registry (`src/scoring/policy.ts`), not a global constant. Report assembly
   deterministically stamps the current version (3) on every accepted Prediction; model-provided

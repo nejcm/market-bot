@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
 import type { AssetClass } from "../domain/types";
 import type { Observation } from "../forecast/observable";
+import type { CloseWindow } from "../sources/yahoo";
 import type { ScoringPolicyVersion } from "./policy";
 
 export interface WindowFetchOptions {
@@ -21,7 +22,7 @@ export type FetchWindowFn = (
   from: Date,
   to: Date,
   options?: WindowFetchOptions,
-) => Promise<readonly Observation[]>;
+) => Promise<CloseWindow>;
 
 interface CloseCacheEntry {
   readonly schemaVersion: 2;
@@ -34,8 +35,11 @@ interface CloseCacheEntry {
   readonly cachedAt: string;
 }
 
+// V3 stores only windows whose every session was certified complete; v2 entries are never read.
+const WINDOW_SCHEMA_VERSION = 3;
+
 interface CloseWindowCacheEntry {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: number;
   readonly symbol: string;
   readonly assetClass: AssetClass;
   readonly providerSet: string;
@@ -101,12 +105,13 @@ function closeWindowCachePath(
   from: Date,
   to: Date,
   options?: WindowFetchOptions,
+  schemaVersion = WINDOW_SCHEMA_VERSION,
 ): string {
   const semantics = closeCacheSemantics(assetClass, options);
   return join(
     cacheDir,
     "close-windows",
-    "v2",
+    `v${String(schemaVersion)}`,
     cacheComponent(semantics.priceMode),
     cacheComponent(semantics.providerSet),
     assetClass,
@@ -165,35 +170,40 @@ function windowEntryMatches(
   assetClass: AssetClass,
   from: Date,
   to: Date,
-  options?: WindowFetchOptions,
+  options: WindowFetchOptions | undefined,
+  schemaVersion: number,
 ): boolean {
   const semantics = closeCacheSemantics(assetClass, options);
   return (
-    entry.schemaVersion === 2 &&
+    entry.schemaVersion === schemaVersion &&
     cacheSymbol(entry.symbol) === cacheSymbol(symbol) &&
     entry.assetClass === assetClass &&
     entry.providerSet === semantics.providerSet &&
     entry.priceMode === semantics.priceMode &&
     entry.from === ymd(from) &&
-    entry.to === ymd(to)
+    entry.to === ymd(to) &&
+    // An entry acquired after this request's cutoff would grade data the request could not see.
+    Date.parse(entry.cachedAt) <= to.getTime()
   );
 }
 
-async function readWindow(
-  path: string,
+async function readWindowEntry(
+  cacheDir: string,
   symbol: string,
   assetClass: AssetClass,
   from: Date,
   to: Date,
-  options?: WindowFetchOptions,
-): Promise<readonly Observation[] | undefined> {
+  options: WindowFetchOptions | undefined,
+  schemaVersion: number,
+): Promise<CloseWindowCacheEntry | undefined> {
+  const path = closeWindowCachePath(cacheDir, symbol, assetClass, from, to, options, schemaVersion);
   try {
     const raw = await readFile(path, "utf8");
     const entry = JSON.parse(raw) as CloseWindowCacheEntry;
-    return windowEntryMatches(entry, symbol, assetClass, from, to, options) &&
+    return windowEntryMatches(entry, symbol, assetClass, from, to, options, schemaVersion) &&
       Array.isArray(entry.observations) &&
       entry.observations.every(isObservation)
-      ? entry.observations
+      ? entry
       : undefined;
   } catch {
     return undefined;
@@ -261,21 +271,28 @@ export async function fetchWindowWithCache(
   fetchWindow: FetchWindowFn,
   now: Date = new Date(),
   options?: WindowFetchOptions,
-): Promise<readonly Observation[]> {
+): Promise<CloseWindow> {
   if (cacheDir === undefined) {
     return fetchWindow(symbol, assetClass, from, to, options);
   }
 
-  const path = closeWindowCachePath(cacheDir, symbol, assetClass, from, to, options);
-  const cached = await readWindow(path, symbol, assetClass, from, to, options);
+  const cached = await readWindowEntry(
+    cacheDir,
+    symbol,
+    assetClass,
+    from,
+    to,
+    options,
+    WINDOW_SCHEMA_VERSION,
+  );
   if (cached !== undefined) {
-    return cached;
+    return cached.observations;
   }
 
   const observations = await fetchWindow(symbol, assetClass, from, to, options);
-  if (observations.length > 0) {
-    await writeWindow(path, {
-      schemaVersion: 2,
+  if (observations.length > 0 && observations.withheldSessions === undefined) {
+    await writeWindow(closeWindowCachePath(cacheDir, symbol, assetClass, from, to, options), {
+      schemaVersion: WINDOW_SCHEMA_VERSION,
       symbol,
       assetClass,
       ...closeCacheSemantics(assetClass, options),

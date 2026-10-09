@@ -529,6 +529,10 @@ market-bot score
   cohorts, and feature attribution.
 - Then calls `buildAndWriteCalibration`.
 - Updates the run artifact index.
+- Equity close windows (policy v3 and legacy v2) grade only completed sessions: a bar whose
+  regular session had not closed at the scoring clock is withheld, and such windows are never
+  cached. A withheld in-progress session keeps the score `horizon-not-elapsed` without spending an
+  attempt only when it alone explains the unresolved result.
 
 ### `calibration`
 

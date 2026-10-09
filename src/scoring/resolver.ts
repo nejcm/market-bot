@@ -16,6 +16,7 @@ import { scoringPolicyFor, type ScoringPolicy } from "./policy";
 import { ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY, type ScoreOutcome } from "./types";
 import { isRecord } from "../guards";
 import { verifiedSnapshotSourceId } from "../research/verified-snapshot-contract";
+import type { CloseWindow } from "../sources/yahoo";
 
 export type { Observation };
 
@@ -545,7 +546,83 @@ async function resolveBaseExpression(
   };
 }
 
+function withPendingPlaceholders(subject: string, window: CloseWindow): readonly Observation[] {
+  const pending = (window.withheldSessions ?? []).filter(
+    (session) => session.status === "in-progress" || session.status === "awaiting-open",
+  );
+  const placeholders = pending.map(({ date }) => ({
+    subject,
+    date,
+    value:
+      window.findLast((observation) => observation.date < date)?.value ?? window[0]?.value ?? 1,
+  }));
+  return [...window, ...placeholders].toSorted((left, right) =>
+    left.date.localeCompare(right.date),
+  );
+}
+
+// A still-trading session is a wait only when filling exactly those sessions would resolve the one
+// Unresolved base expression; placeholders never decide a conditional's antecedent or activation.
 export async function resolveOutcome(
+  prediction: Prediction,
+  report: ResearchReport,
+  repo: ObservationRepository,
+  now: Date,
+): Promise<ResolveOutcomeResult> {
+  const windows = new Map<string, Promise<CloseWindow>>();
+  const points = new Map<string, Promise<Observation | undefined>>();
+  const memoized: ObservationRepository = {
+    point(request, assetClass, date) {
+      const key = JSON.stringify([request, assetClass, date]);
+      const cached = points.get(key) ?? repo.point(request, assetClass, date);
+      points.set(key, cached);
+      return cached;
+    },
+    window(subject, assetClass, from, to, options) {
+      const key = JSON.stringify([subject, assetClass, from, to, options]);
+      const cached = windows.get(key) ?? repo.window(subject, assetClass, from, to, options);
+      windows.set(key, cached);
+      return cached;
+    },
+  };
+  const result = await resolveWithRepository(prediction, report, memoized, now);
+  if (result.status !== "unresolved" || result.reason !== "observation-unavailable") {
+    return result;
+  }
+  const fetched = await Promise.all(windows.values());
+  const withheld = fetched.flatMap((window) => window.withheldSessions ?? []);
+  if (withheld.length === 0) {
+    return result;
+  }
+  const forecast = observableForecastFromPrediction(prediction);
+  if (!("prediction" in forecast)) {
+    return result;
+  }
+  const { expression } = forecast;
+  const conditionalSide = result.scoreStatus === "active-pending" ? "consequent" : "antecedent";
+  const unresolvedExpression =
+    expression.kind === "conditional" ? expression[conditionalSide] : expression;
+  const counterfactual = await resolveBaseExpression(
+    unresolvedExpression,
+    report,
+    {
+      point: memoized.point,
+      async window(subject, assetClass, from, to, options) {
+        return withPendingPlaceholders(
+          subject,
+          await memoized.window(subject, assetClass, from, to, options),
+        );
+      },
+    },
+    now,
+    scoringPolicyFor(prediction),
+  );
+  return counterfactual.resolution.status === "unresolved"
+    ? { ...result, evidence: { ...result.evidence, withheldSessions: withheld } }
+    : { ...result, reason: "horizon-not-elapsed" };
+}
+
+async function resolveWithRepository(
   prediction: Prediction,
   report: ResearchReport,
   repo: ObservationRepository,

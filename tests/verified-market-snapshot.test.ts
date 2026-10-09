@@ -299,6 +299,7 @@ describe("readYahooRegularSession", () => {
       status: "ok",
       window: {
         startDate: "2024-03-20",
+        startSeconds: sessionEpoch("2024-03-20T13:30:00Z"),
         endSeconds: sessionEpoch("2024-03-20T20:00:00Z"),
         endsAt: "2024-03-20T20:00:00.000Z",
       },

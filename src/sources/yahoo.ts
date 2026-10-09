@@ -667,6 +667,7 @@ function observationsFromYahooChartPayload(
 interface YahooRegularSessionWindow {
   /** UTC date the session's daily bar is stamped with (Yahoo timestamps a bar at its open). */
   readonly startDate: string;
+  readonly startSeconds: number;
   /** Epoch seconds at which the regular session closes. */
   readonly endSeconds: number;
   /** ISO timestamp of the regular close, for gap prose. */
@@ -681,7 +682,7 @@ interface YahooRegularSessionWindow {
  * a provider defect, and the caller must declare it rather than fall back to any heuristic that
  * could silently accept an in-progress bar as a completed session.
  */
-export type YahooRegularSessionRead =
+type YahooRegularSessionRead =
   | { readonly status: "ok"; readonly window: YahooRegularSessionWindow }
   | { readonly status: "absent" }
   | { readonly status: "unusable"; readonly detail: string };
@@ -751,7 +752,7 @@ export function readYahooRegularSession(payload: unknown): YahooRegularSessionRe
   if (startDate === undefined || endsAt === undefined) {
     return { status: "unusable", detail: "start/end do not convert to a calendar date" };
   }
-  return { status: "ok", window: { startDate, endSeconds: end, endsAt } };
+  return { status: "ok", window: { startDate, startSeconds: start, endSeconds: end, endsAt } };
 }
 
 /*
@@ -785,6 +786,130 @@ function readScheduleContainer(
 function isoTimestampFromUnixSeconds(value: number): string | undefined {
   const date = new Date(value * 1000);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+// `unverified` bars are kept by the snapshot with a declared gap, never re-read as complete.
+export type LatestSessionVerdict =
+  | { readonly status: "complete" }
+  | { readonly status: "in-progress"; readonly closesAt: string }
+  | { readonly status: "unverified"; readonly reason: string };
+
+// Bars are stamped at session open, so a bar dated like the current regular period is still
+// Forming until its supplied end; an implausible schedule never gets the age shortcut.
+export function classifyLatestSession(
+  read: YahooRegularSessionRead,
+  latestBarDate: string,
+  fetchedAt: string,
+): LatestSessionVerdict {
+  const fetchedAtSeconds = Date.parse(fetchedAt) / 1000;
+  if (!Number.isFinite(fetchedAtSeconds)) {
+    return {
+      status: "unverified",
+      reason: `the fetch timestamp ${fetchedAt} is not a readable date`,
+    };
+  }
+  if (read.status === "unusable") {
+    return {
+      status: "unverified",
+      reason: `the regular trading-period schedule was implausible: ${read.detail}`,
+    };
+  }
+  if (read.status === "absent") {
+    return latestBarDate >= utcDateDaysBefore(fetchedAtSeconds, 1)
+      ? { status: "unverified", reason: "the payload carried no regular trading-period schedule" }
+      : { status: "complete" };
+  }
+  // A schedule older than the bar never described its session; a newer one is the pre-open case.
+  if (latestBarDate > read.window.startDate) {
+    return {
+      status: "unverified",
+      reason: `the regular trading-period schedule is stale: it describes ${read.window.startDate}, older than the newest bar ${latestBarDate}`,
+    };
+  }
+  return latestBarDate === read.window.startDate && fetchedAtSeconds < read.window.endSeconds
+    ? { status: "in-progress", closesAt: read.window.endsAt }
+    : { status: "complete" };
+}
+
+function utcDateDaysBefore(epochSeconds: number, days: number): string {
+  return new Date((epochSeconds - days * 86_400) * 1000).toISOString().slice(0, 10);
+}
+
+// `awaiting-open`: only a later session opening after the cutoff could prove this bar closed.
+export type WithheldSession = { readonly date: string } & (
+  | Exclude<LatestSessionVerdict, { readonly status: "complete" }>
+  | { readonly status: "awaiting-open"; readonly opensAt: string }
+);
+
+// Longest routine exchange closure (Golden Week, Lunar New Year) plus margin; anything further is
+// A stale or inconsistent schedule, not an upcoming session.
+const MAX_AWAITED_OPEN_SECONDS = 10 * 86_400;
+
+export type CloseWindow = readonly Observation[] & {
+  readonly withheldSessions?: readonly WithheldSession[];
+};
+
+// Scoring withholds what the snapshot keeps. A scheduled session that has not closed and has no
+// Bar yet (pre-open) is reported too, so the window is never cached as covering that date.
+function withholdUnfinishedSessions(
+  observations: readonly Observation[],
+  schedule: YahooRegularSessionRead,
+  cutoff: string,
+): CloseWindow {
+  const cutoffSeconds = Date.parse(cutoff) / 1000;
+  const settledBefore = Number.isFinite(cutoffSeconds) ? utcDateDaysBefore(cutoffSeconds, 1) : "";
+  const withheld = observations.flatMap((observation): readonly WithheldSession[] => {
+    if (observation.date < settledBefore) {
+      return [];
+    }
+    const verdict = classifyLatestSession(schedule, observation.date, cutoff);
+    if (verdict.status !== "complete") {
+      return [{ date: observation.date, ...verdict }];
+    }
+    // A later session proves this one closed only if it had already opened by the cutoff.
+    if (
+      schedule.status !== "ok" ||
+      observation.date >= schedule.window.startDate ||
+      schedule.window.startSeconds <= cutoffSeconds
+    ) {
+      return [];
+    }
+    return schedule.window.startSeconds - cutoffSeconds <= MAX_AWAITED_OPEN_SECONDS
+      ? [
+          {
+            date: observation.date,
+            status: "awaiting-open",
+            opensAt: new Date(schedule.window.startSeconds * 1000).toISOString(),
+          },
+        ]
+      : [
+          {
+            date: observation.date,
+            status: "unverified",
+            reason: `the schedule describes a session opening more than 10 days after the cutoff ${cutoff}`,
+          },
+        ];
+  });
+  if (
+    schedule.status === "ok" &&
+    cutoffSeconds < schedule.window.endSeconds &&
+    schedule.window.startDate <= cutoff.slice(0, 10) &&
+    !observations.some((observation) => observation.date === schedule.window.startDate)
+  ) {
+    withheld.push({
+      date: schedule.window.startDate,
+      status: "in-progress",
+      closesAt: schedule.window.endsAt,
+    });
+  }
+  if (withheld.length === 0) {
+    return observations;
+  }
+  const withheldDates = new Set(withheld.map((session) => session.date));
+  return Object.assign(
+    observations.filter((observation) => !withheldDates.has(observation.date)),
+    { withheldSessions: withheld },
+  );
 }
 
 function describeSessionBound(value: unknown): string {
@@ -884,7 +1009,7 @@ export function parseYahooChartOhlcv(
  * reason need the difference — HTTP success alone does not prove the payload was usable.
  */
 export type YahooCloseWindowResult =
-  | { readonly ok: true; readonly observations: readonly Observation[] }
+  | { readonly ok: true; readonly observations: CloseWindow }
   | { readonly ok: false; readonly cause: "fetch-failed" | "malformed-response" };
 
 // Yahoo states "there is genuinely no series here" in the response body, and pairs it with a
@@ -965,16 +1090,24 @@ export async function fetchYahooCloseWindow(
   to: Date,
   fetchImpl: FetchLike = fetch,
   massiveApiKey?: string,
+  scoringCutoff?: Date,
 ): Promise<YahooCloseWindowResult> {
   const fetched = await fetchYahooChartWindowPayload(
     yahooChartWindowUrl(symbol, from, to),
     fetchImpl,
   );
+  const completed = (observations: readonly Observation[], schedule: YahooRegularSessionRead) =>
+    scoringCutoff === undefined
+      ? observations
+      : withholdUnfinishedSessions(observations, schedule, scoringCutoff.toISOString());
 
   if (fetched.kind === "payload") {
     const observations = observationsFromYahooChartPayload(symbol, fetched.payload);
     if (observations.length > 0) {
-      return { ok: true, observations };
+      return {
+        ok: true,
+        observations: completed(observations, readYahooRegularSession(fetched.payload)),
+      };
     }
   }
 
@@ -986,7 +1119,7 @@ export async function fetchYahooCloseWindow(
     fetchImpl,
   );
   if (massiveObservations !== undefined) {
-    return { ok: true, observations: massiveObservations };
+    return { ok: true, observations: completed(massiveObservations, { status: "absent" }) };
   }
   if (fetched.kind === "no-series") {
     return { ok: true, observations: [] };
@@ -1120,7 +1253,7 @@ export async function fetchYahooSplitAdjustedCloseWindow(
   from: Date,
   to: Date,
   fetchImpl: FetchLike = fetch,
-): Promise<readonly Observation[]> {
+): Promise<CloseWindow> {
   const fetched = await fetchYahooJsonWithResilience(
     yahooScoringWindowUrl(symbol, from, to),
     fetchImpl,
@@ -1129,5 +1262,12 @@ export async function fetchYahooSplitAdjustedCloseWindow(
       headers: { accept: "application/json", "user-agent": "market-bot/0.1 research-cli" },
     },
   );
-  return fetched.ok ? splitAdjustedObservationsFromYahooChart(symbol, fetched.payload) : [];
+  return fetched.ok
+    ? withholdUnfinishedSessions(
+        splitAdjustedObservationsFromYahooChart(symbol, fetched.payload),
+        readYahooRegularSession(fetched.payload),
+        // Scoring passes its clock as `to`, captured before this request: a conservative cutoff.
+        to.toISOString(),
+      )
+    : [];
 }

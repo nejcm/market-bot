@@ -107,7 +107,8 @@ describe("fetchCloseWithCache", () => {
   test("caches successful close windows by symbol, asset class, and date range", async () => {
     let calls = 0;
     const from = new Date("2026-05-19T00:00:00.000Z");
-    const to = new Date("2026-05-21T00:00:00.000Z");
+    const to = new Date("2026-05-21T21:00:00.000Z");
+    const earlier = new Date("2026-05-21T15:00:00.000Z");
     const fetchWindow = async () => {
       calls += 1;
       return [
@@ -116,17 +117,19 @@ describe("fetchCloseWithCache", () => {
       ];
     };
 
-    const first = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow);
-    const second = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow);
+    const first = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow, to);
+    const second = await fetchWindowWithCache("SPY", "equity", from, to, tmpDir, fetchWindow, to);
+    // Same key, earlier cutoff: the 21:00 acquisition must not answer a 15:00 request.
+    await fetchWindowWithCache("SPY", "equity", from, earlier, tmpDir, fetchWindow, earlier);
 
     expect(first).toEqual(second);
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
     expect(
       existsSync(
         join(
           tmpDir,
           "close-windows",
-          "v2",
+          "v3",
           "raw-close",
           "yahoo-massive",
           "equity",
@@ -137,14 +140,14 @@ describe("fetchCloseWithCache", () => {
     ).toBe(true);
   });
 
-  test("ignores invalid v2 close window entries at the expected path", async () => {
+  test("ignores invalid close window entries at the expected path", async () => {
     let calls = 0;
     const from = new Date("2026-05-19T00:00:00.000Z");
     const to = new Date("2026-05-21T00:00:00.000Z");
     const cacheDir = join(
       tmpDir,
       "close-windows",
-      "v2",
+      "v3",
       "raw-close",
       "yahoo-massive",
       "equity",
@@ -219,7 +222,7 @@ describe("fetchCloseWithCache", () => {
         join(
           tmpDir,
           "close-windows",
-          "v2",
+          "v3",
           "split-adjusted-close",
           "yahoo",
           "equity",
@@ -228,5 +231,74 @@ describe("fetchCloseWithCache", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  test("bypasses uncertified v2 split-adjusted windows without deleting them", async () => {
+    const from = new Date("2026-10-07T00:00:00.000Z");
+    const to = new Date("2026-10-08T21:00:00.000Z");
+    const legacyDir = join(
+      tmpDir,
+      "close-windows",
+      "v2",
+      "split-adjusted-close",
+      "yahoo",
+      "equity",
+      "clfd",
+    );
+    const legacyPath = join(legacyDir, "2026-10-07_2026-10-08.json");
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(
+      legacyPath,
+      JSON.stringify({
+        schemaVersion: 2,
+        symbol: "CLFD",
+        assetClass: "equity",
+        providerSet: "yahoo",
+        priceMode: "split-adjusted-close",
+        from: "2026-10-07",
+        to: "2026-10-08",
+        observations: [{ subject: "CLFD", date: "2026-10-08", value: 32.45 }],
+        cachedAt: "2026-10-08T15:58:52.674Z",
+      }),
+      "utf8",
+    );
+
+    const observations = await fetchWindowWithCache(
+      "CLFD",
+      "equity",
+      from,
+      to,
+      tmpDir,
+      async () => [{ subject: "CLFD", date: "2026-10-08", value: 33.1 }],
+      new Date(),
+      { scoringPolicyVersion: 3 },
+    );
+
+    expect(observations).toEqual([{ subject: "CLFD", date: "2026-10-08", value: 33.1 }]);
+    expect(existsSync(legacyPath)).toBe(true);
+  });
+
+  test("never caches a window that withheld an unfinished session", async () => {
+    let calls = 0;
+    const from = new Date("2026-10-07T00:00:00.000Z");
+    const to = new Date("2026-10-08T15:58:52.674Z");
+    const fetchWindow = async () => {
+      calls += 1;
+      return Object.assign([{ subject: "CLFD", date: "2026-10-07", value: 32.9 }], {
+        withheldSessions: [
+          {
+            date: "2026-10-08",
+            status: "in-progress" as const,
+            closesAt: "2026-10-08T20:00:00.000Z",
+          },
+        ],
+      });
+    };
+
+    await fetchWindowWithCache("CLFD", "equity", from, to, tmpDir, fetchWindow);
+    const second = await fetchWindowWithCache("CLFD", "equity", from, to, tmpDir, fetchWindow);
+
+    expect(calls).toBe(2);
+    expect(second.withheldSessions?.[0]?.date).toBe("2026-10-08");
   });
 });

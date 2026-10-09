@@ -22,11 +22,12 @@ import type { OhlcvBar, SourceGap, VerifiedMarketSnapshot } from "../domain/type
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "./types";
 import {
+  classifyLatestSession,
   parseYahooChartOhlcv,
   readYahooRegularSession,
   yahooChartWindowUrl,
   yahooResilientFetchWrapper,
-  type YahooRegularSessionRead,
+  type LatestSessionVerdict,
 } from "./yahoo";
 import { computeIndicators, MIN_BARS_FOR_SNAPSHOT } from "./indicators";
 
@@ -170,81 +171,6 @@ export async function collectVerifiedMarketSnapshot(
       ...droppedFieldGaps,
     ],
   };
-}
-
-/**
- * Completeness of the newest parsed bar's trading session.
- *
- * - `complete` — the session provably closed before the payload was fetched.
- * - `in-progress` — the session was still open at fetch time; the bar is a running partial.
- * - `unverified` — completeness could not be established, and `reason` says why. The bar is kept
- *   and the ambiguity is declared; it is never re-read as "complete".
- */
-type LatestSessionVerdict =
-  | { readonly status: "complete" }
-  | { readonly status: "in-progress"; readonly closesAt: string }
-  | { readonly status: "unverified"; readonly reason: string };
-
-/*
- * A daily bar is stamped at its session open, so the newest bar belongs to the current regular
- * trading period exactly when their dates match. That bar is still forming whenever the payload
- * was fetched before the period's close.
- *
- * Off-path, the bar is KEPT — dropping a provably-complete session over broken metadata would
- * discard real evidence — and the ambiguity is declared instead:
- *
- * - Schedule absent (older cassettes, a truncated payload, a non-Yahoo shape): silence is only
- *   allowed once the bar is provably closed by age. No exchange session spans more than a day, so
- *   a bar dated before the previous UTC day is closed regardless of what any schedule says.
- * - Schedule present but implausible: always declared. The age heuristic is not applied, because a
- *   provider emitting nonsense here is exactly the case where "old enough" reasoning about its
- *   other fields is least trustworthy — and a declared gap costs far less than a silently accepted
- *   partial bar.
- */
-function classifyLatestSession(
-  read: YahooRegularSessionRead,
-  latestBarDate: string,
-  fetchedAt: string,
-): LatestSessionVerdict {
-  const fetchedAtSeconds = Date.parse(fetchedAt) / 1000;
-  if (!Number.isFinite(fetchedAtSeconds)) {
-    return {
-      status: "unverified",
-      reason: `the fetch timestamp ${fetchedAt} is not a readable date`,
-    };
-  }
-  if (read.status === "unusable") {
-    return {
-      status: "unverified",
-      reason: `the regular trading-period schedule was implausible: ${read.detail}`,
-    };
-  }
-  if (read.status === "absent") {
-    return latestBarDate >= utcDateDaysBefore(fetchedAtSeconds, 1)
-      ? { status: "unverified", reason: "the payload carried no regular trading-period schedule" }
-      : { status: "complete" };
-  }
-  /*
-   * A schedule OLDER than the newest bar is stale: the bar belongs to a session the payload never
-   * described, so nothing here proves that session closed. Equality-only comparison read this as
-   * complete, which is the same silent acceptance a malformed window would have caused.
-   *
-   * A schedule NEWER than the newest bar is the legitimate pre-open case — the exchange has already
-   * rolled to the next session while the last bar is the previous, provably closed one.
-   */
-  if (latestBarDate > read.window.startDate) {
-    return {
-      status: "unverified",
-      reason: `the regular trading-period schedule is stale: it describes ${read.window.startDate}, older than the newest bar ${latestBarDate}`,
-    };
-  }
-  return latestBarDate === read.window.startDate && fetchedAtSeconds < read.window.endSeconds
-    ? { status: "in-progress", closesAt: read.window.endsAt }
-    : { status: "complete" };
-}
-
-function utcDateDaysBefore(epochSeconds: number, days: number): string {
-  return new Date((epochSeconds - days * 86_400) * 1000).toISOString().slice(0, 10);
 }
 
 /**

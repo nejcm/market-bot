@@ -256,6 +256,38 @@ describe("fundamental history", () => {
     });
   });
 
+  test.each([
+    { name: "fiscal year", comparative: { fy: 2025, filed: "2025-07-25" } },
+    { name: "fiscal period", comparative: { fy: 2025, fp: "Q1", filed: "2025-04-25" } },
+  ])(
+    "derives TTM from the latest-filed prior-year YTD whatever its filing $name",
+    ({ comparative }) => {
+      const companyFacts = payload({
+        Revenues: { facts: annualFacts() },
+        EarningsPerShareDiluted: {
+          unit: "USD/shares",
+          facts: [
+            ...annualFacts([2, 2.5, 3]),
+            priorYtd(),
+            { ...priorYtd(comparative), val: 21 },
+            latestYtd(),
+          ],
+        },
+      });
+      const canonical = deriveFundamentalHistoryFromFinancialStatements(
+        deriveFinancialStatements(companyFacts, {
+          symbol: "TEST",
+          generatedAt: "2025-08-01T00:00:00.000Z",
+          analysisAsOf: "2025-08-01T00:00:00.000Z",
+          sourceId: "extended-sec-edgar-test-fundamentals",
+        }),
+      );
+
+      expect(derive(companyFacts).series.dilutedEps.ttm?.value).toBe(3 + 130 - 21);
+      expect(canonical.series.dilutedEps.ttm?.value).toBe(3 + 130 - 21);
+    },
+  );
+
   test("prefers Apple's current revenue concept over stale legacy revenue facts", () => {
     const companyFacts = payload({
       Revenues: {
@@ -363,7 +395,7 @@ describe("fundamental history", () => {
     },
     {
       name: "misaligned YTD periods",
-      facts: [...annualFacts(), priorYtd(), latestYtd({ fp: "Q2" })],
+      facts: [...annualFacts(), priorYtd(), latestYtd({ start: "2025-01-01" })],
       note: "ttm:ytd-period-misaligned:",
     },
     {

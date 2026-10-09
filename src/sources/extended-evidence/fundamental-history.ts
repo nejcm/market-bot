@@ -263,7 +263,7 @@ function dedupeFactsByPeriodEnd(facts: readonly FactWithPeriod[]): readonly Fact
 function dedupeQuarterlyFacts(facts: readonly FactWithPeriod[]): readonly FactWithPeriod[] {
   const byPeriod = new Map<string, FactWithPeriod[]>();
   for (const fact of facts) {
-    const key = `${fact.start}|${fact.end}|${fact.fp}|${String(fact.fy)}`;
+    const key = `${fact.start}|${fact.end}`;
     byPeriod.set(key, [...(byPeriod.get(key) ?? []), fact]);
   }
   return [...byPeriod.values()].map((matches) => matches.toSorted(compareLatestFiled)[0]!);
@@ -348,7 +348,7 @@ function ttmPoint(
   }
 
   const [priorYtd] = dedupeQuarterlyFacts(completeQuarterly)
-    .filter((fact) => fact.fy === latestYtd.fy - 1 && fact.end < fullFy.periodEnd)
+    .filter((fact) => fact.end < fullFy.periodEnd)
     .toSorted((left, right) => {
       const leftEndAlignment = Math.abs(
         (daysBetween(left.end, latestYtd.end) ?? Infinity) - DAYS_PER_YEAR,
@@ -371,7 +371,6 @@ function ttmPoint(
     return undefined;
   }
   if (
-    latestYtd.fp !== priorYtd.fp ||
     latestYtd.months !== priorYtd.months ||
     !isYearAligned(priorYtd.start, latestYtd.start) ||
     !isYearAligned(priorYtd.end, latestYtd.end)
@@ -383,7 +382,6 @@ function ttmPoint(
   const startAlignment = Math.abs(daysBetween(fullFy.periodStart, priorYtd.start) ?? Infinity);
   const boundaryAlignment = Math.abs(daysBetween(fullFy.periodEnd, latestYtd.start) ?? Infinity);
   if (
-    fullFy.fy !== priorYtd.fy ||
     startAlignment > FY_BOUNDARY_TOLERANCE_DAYS ||
     boundaryAlignment > FY_BOUNDARY_TOLERANCE_DAYS ||
     priorYtd.end >= fullFy.periodEnd

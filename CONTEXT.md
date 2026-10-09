@@ -158,13 +158,17 @@ Deep-run uncertainty signal summarizing configured challenger-model probability 
 
 Per-run comparison with the newest comparable prior run, counting repeated canonical claims and unchanged probabilities, plus `changedProbabilityCount` and `maxAbsProbabilityDelta`. It is descriptive Cross-run Intelligence only.
 
+## Forecast Event
+
+The unit Calibration counts: one canonical claim per asset class and origin, where the origin follows the claim's resolution clock — the report's UTC date rolled to the next exchange trading day for equity close windows, the unrolled UTC date for crypto and calendar-day macro/IV claims, and the declared event date for earnings claims. Repeat issuances of the same claim on the same session collapse to the earliest one; the summary reports how many collapsed as `duplicateForecastCount`. Per-run views still count issuances.
+
 ## Calibration
 
-Aggregate measurement of stated probabilities against resolved outcomes: resolved count, hit rate, Brier score, reliability bins, slices, and small-sample warnings. New dashboards use policy-v3 forecasts; legacy summaries remain readable.
+Aggregate measurement of stated probabilities against resolved outcomes, counted in Forecast Events: resolved count, hit rate, Brier score, reliability bins, slices, and small-sample warnings. New dashboards use policy-v3 forecasts; legacy summaries remain readable.
 
 ## Actionable Negative Calibration
 
-Underperforming Calibration slice with at least 30 resolved Predictions, 10 Runs, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound above 0.25. Qualifying asset-class, job-type, default-horizon, and Market-Regime slices can guide probability discipline, never count, shape, or evidence rules.
+Underperforming Calibration slice with at least 30 resolved Forecast Events, 10 distinct Runs among them, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound above 0.25. Qualifying asset-class, job-type, default-horizon, and Market-Regime slices can guide probability discipline, never count, shape, or evidence rules.
 
 ## Regime-Sliced Calibration
 

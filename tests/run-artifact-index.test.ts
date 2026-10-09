@@ -678,14 +678,62 @@ describe("run artifact index", () => {
       ],
     });
 
+    // A later same-session reissue of both claims: one more issuance, no new Forecast Event.
+    const dupDir = join(dataDir, "run-cal-dup");
+    mkdirSync(dupDir, { recursive: true });
+    writeJson(
+      join(dupDir, "report.json"),
+      researchReport({
+        runId: "run-cal-dup",
+        jobType: "daily",
+        assetClass: "equity",
+        generatedAt: "2026-06-01T15:00:00.000Z",
+        predictions: [
+          prediction({ id: "p-cal", probability: 0.4, horizonTradingDays: 5 }),
+          prediction({
+            id: "p-void",
+            kind: "conditional",
+            subject: "QQQ",
+            measurableAs:
+              "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+            horizonTradingDays: 10,
+          }),
+        ],
+      }),
+    );
+    writeJson(join(dupDir, "score.json"), {
+      runId: "run-cal-dup",
+      scores: [
+        predictionScore("hit", {
+          predictionId: "p-cal",
+          runId: "run-cal-dup",
+          observedAt: "2026-06-02T00:00:00.000Z",
+          scoringVersion: 3,
+        }),
+        {
+          predictionId: "p-void",
+          runId: "run-cal-dup",
+          status: "voided",
+          resolved: true,
+          outcome: undefined,
+          observedAt: "2026-06-02T00:00:00.000Z",
+          attemptCount: 1,
+          scoringVersion: 3,
+          evidence: { reason: "conditional antecedent did not occur" },
+        },
+      ],
+    });
+
     await rebuildRunArtifactIndex(dataDir, { dbPath });
     const pairs = await loadResolvedPairsFromIndex(dataDir);
-    expect(pairs).toHaveLength(1);
-    expect(pairs?.[0]?.prediction.id).toBe("p-cal");
-    expect(pairs?.[0]?.score.outcome).toBe("hit");
+    expect(pairs).toHaveLength(2);
+    const original = pairs?.find((pair) => pair.runId === "run-cal");
+    expect(original?.prediction.id).toBe("p-cal");
+    expect(original?.generatedAt).toBe("2026-06-01T00:00:00.000Z");
+    expect(original?.score.outcome).toBe("hit");
     // The index row itself carries the autopsy cause, so a warm index never
     // Re-reads run directories to recover it.
-    expect(pairs?.[0]?.missAutopsyCause).toBe("insufficient_evidence");
+    expect(original?.missAutopsyCause).toBe("insufficient_evidence");
     await expect(loadConditionalCalibrationCountsFromIndex(dataDir)).resolves.toEqual({
       activatedCount: 0,
       voidedCount: 1,
@@ -694,6 +742,7 @@ describe("run artifact index", () => {
     process.env.MARKET_BOT_INDEX_DISABLE = "1";
     const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
     expect(summary?.resolvedCount).toBe(1);
+    expect(summary?.duplicateForecastCount).toBe(1);
     expect(summary?.brierScore).toBeCloseTo(0.09, 2);
     expect(summary?.byMissAutopsyCause).toEqual({ insufficient_evidence: 1 });
     expect(summary?.conditionalPredictions).toEqual({ activatedCount: 0, voidedCount: 1 });
@@ -704,12 +753,93 @@ describe("run artifact index", () => {
       new Date("2026-06-03T00:00:00.000Z"),
     );
     expect(indexedSummary?.resolvedCount).toBe(summary?.resolvedCount);
+    expect(indexedSummary?.duplicateForecastCount).toBe(summary?.duplicateForecastCount);
+    expect(indexedSummary?.byAssetClass).toEqual(summary?.byAssetClass);
     expect(indexedSummary?.brierScore).toBe(summary?.brierScore);
     expect(indexedSummary?.byMissAutopsyCause).toEqual(summary?.byMissAutopsyCause);
     expect(indexedSummary?.conditionalPredictions).toEqual(summary?.conditionalPredictions);
 
     const calibrationPath = join(rootDir, "calibration", "summary.json");
     expect(existsSync(calibrationPath)).toBe(true);
+  });
+
+  test("treats a report with an unparseable generatedAt as unreadable instead of aborting", async () => {
+    const { dataDir } = await tempDataDir();
+    for (const [runId, generatedAt] of [
+      ["run-valid", "2026-06-01T00:00:00.000Z"],
+      ["run-bad-clock", "not-a-date"],
+    ] as const) {
+      const runDir = join(dataDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeJson(
+        join(runDir, "report.json"),
+        researchReport({ runId, generatedAt, predictions: [prediction({ id: "p1" })] }),
+      );
+      writeJson(join(runDir, "score.json"), {
+        runId,
+        scores: [predictionScore("hit", { predictionId: "p1", runId, scoringVersion: 3 })],
+      });
+    }
+
+    process.env.MARKET_BOT_INDEX_DISABLE = "1";
+    const summary = await buildAndWriteCalibration(dataDir, new Date("2026-06-03T00:00:00.000Z"));
+
+    expect(summary?.resolvedCount).toBe(1);
+    expect(summary?.duplicateForecastCount).toBe(0);
+  });
+
+  test("skips unparseable timestamps left in an index built before reader validation", async () => {
+    const { dataDir, dbPath } = await tempDataDir();
+    for (const runId of ["run-valid", "run-bad-clock"]) {
+      const runDir = join(dataDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeJson(
+        join(runDir, "report.json"),
+        researchReport({
+          runId,
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          predictions: [
+            prediction({ id: "p1", horizonTradingDays: 5 }),
+            prediction({
+              id: "p-void",
+              kind: "conditional",
+              subject: "QQQ",
+              measurableAs:
+                "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+              horizonTradingDays: 10,
+            }),
+          ],
+        }),
+      );
+      writeJson(join(runDir, "score.json"), {
+        runId,
+        scores: [
+          predictionScore("hit", { predictionId: "p1", runId, scoringVersion: 3 }),
+          {
+            predictionId: "p-void",
+            runId,
+            status: "voided",
+            resolved: true,
+            outcome: undefined,
+            observedAt: "2026-06-02T00:00:00.000Z",
+            attemptCount: 1,
+            scoringVersion: 3,
+            evidence: { reason: "conditional antecedent did not occur" },
+          },
+        ],
+      });
+    }
+    await rebuildRunArtifactIndex(dataDir, { dbPath });
+    const legacyIndex = new Database(dbPath);
+    legacyIndex.exec("UPDATE runs SET generated_at = 'not-a-date' WHERE run_id = 'run-bad-clock'");
+    legacyIndex.close();
+
+    const pairs = await loadResolvedPairsFromIndex(dataDir);
+    expect(pairs?.map(({ runId }) => runId)).toEqual(["run-valid"]);
+    await expect(loadConditionalCalibrationCountsFromIndex(dataDir)).resolves.toEqual({
+      activatedCount: 0,
+      voidedCount: 1,
+    });
   });
 
   test("replaces a legacy-only calibration summary with an empty v3 summary", async () => {

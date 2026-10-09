@@ -26,7 +26,8 @@ export function renderCalibrationConsole(summary: CalibrationSummary): string {
   const lines: string[] = [
     `Calibration dashboard — ${summary.generatedAt}`,
     "",
-    `  Resolved:    ${String(summary.resolvedCount)} predictions`,
+    `  Resolved:    ${String(summary.resolvedCount)} forecast events`,
+    `               ${String(summary.duplicateForecastCount)} duplicate issuances collapsed`,
     `  Hit rate:    ${summary.hitRate === undefined ? NO_RESOLVED_METRIC_TEXT : fmtRate(summary.hitRate)}`,
     `  Brier score: ${summary.brierScore === undefined ? NO_RESOLVED_METRIC_TEXT : fmtBrier(summary.brierScore)}`,
     `  Conditional: ${String(summary.conditionalPredictions.activatedCount)} activated; ${String(summary.conditionalPredictions.voidedCount)} voided/excluded`,

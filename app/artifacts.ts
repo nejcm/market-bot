@@ -413,6 +413,7 @@ export async function readRunDetail(
   return {
     summary: indexedSummary ?? runSummaryFromReport(runId, report, availableFiles),
     ...(failure !== undefined ? { failure } : {}),
+    ...(artifact.status.report === "malformed" ? { reportStatus: "malformed" as const } : {}),
     ...(detailReport !== undefined ? { report: detailReport } : {}),
     ...(markdown !== undefined ? { markdown } : {}),
     ...(analytics !== undefined ? { analytics } : {}),

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { resolveOutcome, type Observation } from "../src/scoring/resolver";
 import { buildCalibrationSummary } from "../src/scoring/calibration";
+import { resolutionDate } from "../src/scoring/exchange-calendar";
+import { assessNegativeCalibration } from "../src/research/calibration-guidance";
 import { renderCalibrationMarkdown } from "../src/scoring/calibration-markdown";
 import {
   renderCalibrationConsole,
@@ -19,6 +21,12 @@ import {
 } from "./support/fixtures";
 
 const basePrediction: Prediction = prediction();
+let issuanceCount = 0;
+// Each call is a new origin session, so fixtures sharing basePrediction stay distinct Forecast Events.
+function distinctIssuance(): string {
+  issuanceCount += 1;
+  return resolutionDate("2026-01-02T12:00:00.000Z", issuanceCount).toISOString();
+}
 const report = researchReport({ generatedAt: "2026-05-01T00:00:00.000Z" });
 const now = new Date("2026-05-20T00:00:00.000Z");
 
@@ -945,6 +953,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, probability: 0 },
@@ -952,6 +961,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r2",
+        generatedAt: distinctIssuance(),
       },
     ];
     const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
@@ -966,6 +976,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, probability: 0 },
@@ -973,6 +984,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r2",
+        generatedAt: distinctIssuance(),
       },
     ];
     const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
@@ -1004,6 +1016,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r1",
+          generatedAt: distinctIssuance(),
         },
       ],
       new Date("2026-05-19T00:00:00.000Z"),
@@ -1033,6 +1046,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r1",
+          generatedAt: distinctIssuance(),
         },
       ],
       new Date("2026-05-19T00:00:00.000Z"),
@@ -1052,6 +1066,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r1",
+          generatedAt: distinctIssuance(),
         },
         {
           prediction: { ...basePrediction, probability: 1 },
@@ -1059,6 +1074,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r2",
+          generatedAt: distinctIssuance(),
         },
       ],
       at,
@@ -1075,6 +1091,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r-v3",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, id: "v2" },
@@ -1082,6 +1099,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r-v2",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, id: "legacy" },
@@ -1089,6 +1107,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r-legacy",
+        generatedAt: distinctIssuance(),
       },
     ];
 
@@ -1107,6 +1126,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, kind: "volatility" as const, probability: 0.4 },
@@ -1114,6 +1134,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "crypto" as const,
         jobType: "crypto" as const,
         runId: "r2",
+        generatedAt: distinctIssuance(),
       },
     ];
     const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
@@ -1131,6 +1152,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, probability: 1 },
@@ -1138,6 +1160,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, probability: 0 },
@@ -1145,6 +1168,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r2",
+        generatedAt: distinctIssuance(),
       },
     ];
 
@@ -1162,6 +1186,7 @@ describe("buildCalibrationSummary", () => {
       assetClass: "equity" as const,
       jobType: "daily" as const,
       runId: "r1",
+      generatedAt: distinctIssuance(),
     }));
 
     expect(buildCalibrationSummary(pairs).byAssetClass.equity).toMatchObject({
@@ -1183,6 +1208,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
     ];
 
@@ -1205,6 +1231,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "equity" as const,
         runId: "r0",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, horizonTradingDays: 5 },
@@ -1213,6 +1240,7 @@ describe("buildCalibrationSummary", () => {
         jobType: "daily" as const,
         marketUpdateHorizonBucket: "2-5d",
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, horizonTradingDays: 15 },
@@ -1221,6 +1249,7 @@ describe("buildCalibrationSummary", () => {
         jobType: "weekly" as const,
         marketUpdateHorizonBucket: "11-15d",
         runId: "r2",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, horizonTradingDays: 20 },
@@ -1228,6 +1257,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "equity" as const,
         runId: "r3",
+        generatedAt: distinctIssuance(),
       },
     ];
 
@@ -1253,6 +1283,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r1",
+          generatedAt: distinctIssuance(),
           missAutopsyCause: "source_gap" as const,
         },
         {
@@ -1261,6 +1292,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r2",
+          generatedAt: distinctIssuance(),
           missAutopsyCause: "model_overconfidence" as const,
         },
       ],
@@ -1284,6 +1316,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "equity" as const,
           runId: "r1",
+          generatedAt: distinctIssuance(),
         },
       ],
       new Date("2026-05-19T00:00:00.000Z"),
@@ -1319,6 +1352,7 @@ describe("buildCalibrationSummary", () => {
           assetClass: "equity" as const,
           jobType: "daily" as const,
           runId: "r1",
+          generatedAt: distinctIssuance(),
         },
       ],
       new Date("2026-05-19T00:00:00.000Z"),
@@ -1338,6 +1372,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r1",
+        generatedAt: distinctIssuance(),
       },
       {
         prediction: { ...basePrediction, probability: 1 },
@@ -1345,6 +1380,7 @@ describe("buildCalibrationSummary", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: "r2",
+        generatedAt: distinctIssuance(),
       },
     ];
     const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
@@ -1360,11 +1396,147 @@ describe("buildCalibrationSummary", () => {
       assetClass: "equity" as const,
       jobType: "daily" as const,
       runId: `r${String(idx)}`,
+      generatedAt: distinctIssuance(),
     }));
     const summary = buildCalibrationSummary(pairs, new Date("2026-05-19T00:00:00.000Z"));
     const bin = summary.bins.find((b) => b.pLow === 0.6);
     expect(bin).toBeDefined();
     expect(bin?.hitRate).toBeCloseTo(0.7, 2);
+  });
+});
+
+describe("buildCalibrationSummary — Forecast Event dedupe", () => {
+  function issuance(
+    runId: string,
+    generatedAt: string,
+    probability: number,
+    overrides: Partial<Prediction> = {},
+  ) {
+    return {
+      prediction: { ...basePrediction, id: `${runId}-p`, probability, ...overrides },
+      score: makeScore("miss"),
+      assetClass: "equity" as const,
+      jobType: "equity" as const,
+      runId,
+      generatedAt,
+    };
+  }
+
+  test("counts each event once, keeping the earliest issuance whatever the input order", () => {
+    const summary = buildCalibrationSummary([
+      issuance("r-a-late", "2026-05-04T15:00:00.000Z", 0.3),
+      issuance("r-b", "2026-05-05T13:00:00.000Z", 0.8),
+      issuance("r-a-early", "2026-05-04T13:00:00.000Z", 0.2),
+    ]);
+
+    expect(summary.resolvedCount).toBe(2);
+    expect(summary.duplicateForecastCount).toBe(1);
+    expect(summary.brierScore).toBeCloseTo(0.34, 10);
+    expect(summary.byAssetClass.equity?.runCount).toBe(2);
+    expect(summary.byAssetClass.equity?.brierStandardError).toBeCloseTo(0.3, 10);
+    expect(summary.bins.map(({ label, totalCount }) => [label, totalCount])).toEqual([
+      ["0.2-0.3", 1],
+      ["0.8-0.9", 1],
+    ]);
+    expect(summary.byKind.direction?.count).toBe(2);
+    expect(summary.byJobType.equity?.count).toBe(2);
+    expect(renderCalibrationMarkdown(summary)).toContain(
+      "Resolved forecast events: 2\n\n1 duplicate issuances collapsed",
+    );
+    expect(renderCalibrationConsole(summary)).toContain("1 duplicate issuances collapsed");
+  });
+
+  test("rolls a weekend equity issuance to the Monday origin session", () => {
+    const summary = buildCalibrationSummary([
+      issuance("r-sat", "2026-05-02T13:00:00.000Z", 0.6),
+      issuance("r-mon", "2026-05-04T13:00:00.000Z", 0.7),
+    ]);
+
+    expect(summary.resolvedCount).toBe(1);
+    expect(summary.duplicateForecastCount).toBe(1);
+    expect(summary.bins.map(({ label }) => label)).toEqual(["0.6-0.7"]);
+  });
+
+  test("keeps distinct origin sessions and distinct claims as separate events", () => {
+    const qqq = "close(AMD, +5) / close(AMD, 0) > close(QQQ, +5) / close(QQQ, 0)";
+    const spy = "close(AMD, +5) / close(AMD, 0) > close(SPY, +5) / close(SPY, 0)";
+    const summary = buildCalibrationSummary([
+      issuance("r-mon", "2026-05-04T13:00:00.000Z", 0.6),
+      issuance("r-tue", "2026-05-05T13:00:00.000Z", 0.6),
+      issuance("r-qqq", "2026-05-06T13:00:00.000Z", 0.6, { measurableAs: qqq }),
+      issuance("r-spy", "2026-05-06T13:00:00.000Z", 0.6, { measurableAs: spy }),
+      {
+        ...issuance("r-crypto-sat", "2026-05-02T13:00:00.000Z", 0.6),
+        assetClass: "crypto" as const,
+      },
+      {
+        ...issuance("r-crypto-mon", "2026-05-04T13:00:00.000Z", 0.6),
+        assetClass: "crypto" as const,
+      },
+    ]);
+
+    expect(summary.resolvedCount).toBe(6);
+    expect(summary.duplicateForecastCount).toBe(0);
+  });
+
+  test("keys calendar-day point forecasts by issuance date, without a session roll", () => {
+    const fred = { kind: "macro" as const, measurableAs: "fred(DGS10, +5) > fred(DGS10, 0)" };
+    const summary = buildCalibrationSummary([
+      issuance("r-sat", "2026-05-02T13:00:00.000Z", 0.6, fred),
+      issuance("r-mon", "2026-05-04T13:00:00.000Z", 0.6, fred),
+    ]);
+
+    expect(summary.resolvedCount).toBe(2);
+    expect(summary.duplicateForecastCount).toBe(0);
+  });
+
+  test("keys earnings forecasts by the declared event, whatever the issuance date", () => {
+    const earnings = {
+      kind: "earnings-direction" as const,
+      measurableAs: "earningsReturn(AAPL, 2026-05-06, +1) > 0",
+    };
+    const summary = buildCalibrationSummary([
+      issuance("r-mon", "2026-05-04T13:00:00.000Z", 0.6, earnings),
+      issuance("r-tue", "2026-05-05T13:00:00.000Z", 0.7, earnings),
+    ]);
+
+    expect(summary.resolvedCount).toBe(1);
+    expect(summary.duplicateForecastCount).toBe(1);
+    expect(summary.bins.map(({ label }) => label)).toEqual(["0.6-0.7"]);
+  });
+
+  test("keys and orders issuances by instant, not by the written timestamp", () => {
+    const sameInstant = buildCalibrationSummary([
+      issuance("r-utc", "2026-05-04T16:30:00.000Z", 0.6),
+      issuance("r-offset", "2026-05-05T00:30:00+08:00", 0.6),
+    ]);
+    expect(sameInstant.duplicateForecastCount).toBe(1);
+
+    const ordered = buildCalibrationSummary([
+      issuance("r-a", "2026-05-04T09:00:00-04:00", 0.3),
+      issuance("r-b", "2026-05-04T12:00:00.000Z", 0.8),
+    ]);
+    expect(ordered.bins.map(({ label }) => label)).toEqual(["0.8-0.9"]);
+  });
+
+  test("ten runs repeating three events cannot pass the outcome floor", () => {
+    const pairs = Array.from({ length: 10 }, (_, run) =>
+      ["+5", "+10", "+15"].map((horizon) =>
+        issuance(`r${String(run)}`, "2026-05-04T13:00:00.000Z", 0.9, {
+          id: `r${String(run)}-${horizon}`,
+          measurableAs: `close(SPY, ${horizon}) > close(SPY, 0)`,
+        }),
+      ),
+    ).flat();
+
+    const summary = buildCalibrationSummary(pairs);
+
+    expect(summary.duplicateForecastCount).toBe(27);
+    expect(summary.byAssetClass.equity?.count).toBe(3);
+    expect(assessNegativeCalibration(summary.byAssetClass.equity)).toMatchObject({
+      actionable: false,
+      reason: "below-outcome-floor",
+    });
   });
 });
 
@@ -1503,6 +1675,7 @@ describe("buildCalibrationSummary — market regime slice", () => {
       assetClass: "equity" as const,
       jobType: "daily" as const,
       runId: `${idPrefix}r${String(idx)}`,
+      generatedAt: distinctIssuance(),
       ...(label !== undefined ? { marketRegimeLabel: label } : {}),
     }));
   }
@@ -1583,6 +1756,7 @@ describe("renderCalibrationConsole", () => {
       jobType: "daily" as const,
       marketUpdateHorizonBucket: "1-5d",
       runId: `r${String(idx)}`,
+      generatedAt: distinctIssuance(),
     }));
   }
 
@@ -1653,6 +1827,7 @@ describe("renderCalibrationConsole", () => {
       assetClass: "equity" as const,
       jobType: "daily" as const,
       runId: `r${String(idx)}`,
+      generatedAt: distinctIssuance(),
     }));
     const summary = buildCalibrationSummary(pairs, at);
     const output = renderCalibrationConsole(summary);
@@ -1667,6 +1842,7 @@ describe("renderCalibrationConsole", () => {
       assetClass: "equity" as const,
       jobType: "daily" as const,
       runId: `r${String(idx)}`,
+      generatedAt: distinctIssuance(),
       marketRegimeLabel: "risk-on" as const,
     }));
     const output = renderCalibrationConsole(buildCalibrationSummary(pairs, at));
@@ -1688,6 +1864,7 @@ describe("renderCalibrationConsole", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: `r${String(i)}`,
+        generatedAt: distinctIssuance(),
       })),
       ...Array.from({ length: 3 }, (_, i) => ({
         prediction: {
@@ -1701,6 +1878,7 @@ describe("renderCalibrationConsole", () => {
         assetClass: "equity" as const,
         jobType: "daily" as const,
         runId: `rv${String(i)}`,
+        generatedAt: distinctIssuance(),
       })),
     ];
     const summary = buildCalibrationSummary(pairs, at);

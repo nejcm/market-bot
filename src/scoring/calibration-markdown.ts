@@ -83,7 +83,9 @@ export function renderCalibrationMarkdown(summary: CalibrationSummary): string {
     "",
     `Generated at: ${summary.generatedAt}`,
     "",
-    `Resolved predictions: ${String(summary.resolvedCount)}`,
+    `Resolved forecast events: ${String(summary.resolvedCount)}`,
+    "",
+    `${String(summary.duplicateForecastCount)} duplicate issuances collapsed`,
     "",
   ];
 

@@ -6,6 +6,13 @@ import {
   type MarketRegimeLabel,
   type Prediction,
 } from "../domain/types";
+import {
+  claimKey,
+  observationStrategyForExpression,
+  parseObservableExpression,
+  type ObservationStrategy,
+} from "../forecast/observable";
+import { isExchangeTradingDay } from "./exchange-calendar";
 import type {
   CalibrationBin,
   ConditionalCalibrationSummary,
@@ -22,6 +29,7 @@ export interface ResolvedPair {
   readonly jobType: JobType;
   readonly marketUpdateHorizonBucket?: string;
   readonly runId: string;
+  readonly generatedAt: string;
   readonly missAutopsyCause?: MissAutopsyCause;
   /** Market Regime label in effect at forecast time; undefined when absent/unparseable. */
   readonly marketRegimeLabel?: MarketRegimeLabel;
@@ -193,12 +201,97 @@ function buildMarketRegimeCoverage(pairs: readonly ResolvedPair[]): Record<strin
   return result;
 }
 
+function utcDate(instant: Date): string {
+  return instant.toISOString().slice(0, 10);
+}
+
+function closeWindowOrigin(assetClass: AssetClass, issuedAt: Date): string {
+  if (assetClass === "crypto") {
+    return utcDate(issuedAt);
+  }
+  let session = new Date(`${utcDate(issuedAt)}T00:00:00.000Z`);
+  while (!isExchangeTradingDay(session)) {
+    session = new Date(session.getTime() + 86_400_000);
+  }
+  return utcDate(session);
+}
+
+// Mirrors the clock each family resolves on in resolver.ts: sessions, calendar days, or the event.
+function strategyOrigin(
+  strategy: ObservationStrategy,
+  assetClass: AssetClass,
+  issuedAt: Date,
+): string {
+  switch (strategy.mode) {
+    case "close-window": {
+      return closeWindowOrigin(assetClass, issuedAt);
+    }
+    case "point": {
+      return utcDate(issuedAt);
+    }
+    case "earnings-close-window": {
+      return `event ${strategy.eventDate}`;
+    }
+    case "composite": {
+      return strategy.strategies
+        .map((nested) => strategyOrigin(nested, assetClass, issuedAt))
+        .join(" & ");
+    }
+  }
+}
+
+function observationStrategy(measurableAs: string): ObservationStrategy | undefined {
+  try {
+    return observationStrategyForExpression(parseObservableExpression(measurableAs));
+  } catch {
+    return undefined;
+  }
+}
+
+// NOTE — ponytail: origins are recomputed, not read from the resolver's window, so quarantine-anchored
+// Reports and earnings timing that changes between issuances can split or merge; persist the window then.
+export function forecastEventKey(
+  assetClass: AssetClass,
+  measurableAs: string,
+  generatedAt: string,
+): string {
+  const issuedAt = new Date(generatedAt);
+  const strategy = observationStrategy(measurableAs);
+  const origin =
+    strategy === undefined
+      ? closeWindowOrigin(assetClass, issuedAt)
+      : strategyOrigin(strategy, assetClass, issuedAt);
+  return `${assetClass}|${claimKey(measurableAs)}|${origin}`;
+}
+
+function compareIssuance(left: ResolvedPair, right: ResolvedPair): number {
+  return (
+    Date.parse(left.generatedAt) - Date.parse(right.generatedAt) ||
+    left.runId.localeCompare(right.runId) ||
+    left.prediction.id.localeCompare(right.prediction.id)
+  );
+}
+
+// One Forecast Event per claim and origin session; the earliest issuance is the original commitment.
+function earliestIssuancePerEvent(pairs: readonly ResolvedPair[]): readonly ResolvedPair[] {
+  const events = new Map<string, ResolvedPair>();
+  for (const pair of pairs.toSorted(compareIssuance)) {
+    const key = forecastEventKey(pair.assetClass, pair.prediction.measurableAs, pair.generatedAt);
+    if (!events.has(key)) {
+      events.set(key, pair);
+    }
+  }
+  const kept = new Set(events.values());
+  return pairs.filter((pair) => kept.has(pair));
+}
+
 export function buildCalibrationSummary(
   pairs: readonly ResolvedPair[],
   now: Date = new Date(),
   conditionalPredictions: ConditionalCalibrationSummary = EMPTY_CONDITIONAL_SUMMARY,
 ): CalibrationSummary {
-  const currentPairs = pairs.filter(({ score }) => score.scoringVersion === 3);
+  const issuedPairs = pairs.filter(({ score }) => score.scoringVersion === 3);
+  const currentPairs = earliestIssuancePerEvent(issuedPairs);
   const conditionalActivatedCount =
     conditionalPredictions.activatedCount +
     currentPairs.filter(({ prediction }) => prediction.kind === "conditional").length;
@@ -207,6 +300,7 @@ export function buildCalibrationSummary(
   return {
     generatedAt: now.toISOString(),
     resolvedCount: currentPairs.length,
+    duplicateForecastCount: issuedPairs.length - currentPairs.length,
     // Omitted, never 0, when nothing has resolved — see CalibrationSummary.
     ...(currentPairs.length === 0 ? {} : { hitRate: hitCount / currentPairs.length }),
     missAutopsyCount: currentPairs.filter(({ missAutopsyCause }) => missAutopsyCause !== undefined)

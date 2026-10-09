@@ -29,6 +29,7 @@ function validSummary(): CalibrationSummary {
   return {
     generatedAt: "2026-06-01T00:00:00.000Z",
     resolvedCount: 2,
+    duplicateForecastCount: 1,
     hitRate: 0.5,
     missAutopsyCount: 1,
     brierScore: 0.25,
@@ -257,6 +258,17 @@ describe("parseCalibrationContext", () => {
     // A count that is neither valid nor 0 is unknown, so it does not strip metrics.
     expect(parseCalibrationContext({ resolvedCount: -1, brierScore: 0.25 })).toEqual({
       brierScore: 0.25,
+    });
+  });
+
+  test("keeps a measured zero duplicate count and omits an absent or invalid one", () => {
+    expect(parseCalibrationContext({ resolvedCount: 3, duplicateForecastCount: 0 })).toEqual({
+      resolvedCount: 3,
+      duplicateForecastCount: 0,
+    });
+    expect(parseCalibrationContext({ resolvedCount: 3 })).toEqual({ resolvedCount: 3 });
+    expect(parseCalibrationContext({ resolvedCount: 3, duplicateForecastCount: -1 })).toEqual({
+      resolvedCount: 3,
     });
   });
 

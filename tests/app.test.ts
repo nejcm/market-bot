@@ -570,7 +570,7 @@ describe("runCli", () => {
     process.env.MARKET_BOT_DATA_DIR = dataDir;
 
     const output = await runCli(["calibration"]);
-    expect(output).toContain("Resolved:    0 predictions");
+    expect(output).toContain("Resolved:    0 forecast events");
     expect(output).toContain("Hit rate:    not yet measured (no resolved Predictions)");
     expect(output).toContain("Brier score: not yet measured (no resolved Predictions)");
     expect(output).toContain("Small sample (0 of 5 minimum)");
@@ -586,7 +586,7 @@ describe("runCli", () => {
     process.env.MARKET_BOT_APEWISDOM_FILTER = "all/stocks";
 
     const output = await runCli(["calibration"]);
-    expect(output).toContain("Resolved:    0 predictions");
+    expect(output).toContain("Resolved:    0 forecast events");
     expect(output).toContain("Small sample (0 of 5 minimum)");
   });
 

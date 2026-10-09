@@ -42,7 +42,7 @@ import type {
   SqlParam,
   SubsystemOutcomeRow,
 } from "./run-artifact-index-types";
-import type { ResolvedPair } from "./scoring/calibration";
+import { forecastEventKey, type ResolvedPair } from "./scoring/calibration";
 import type {
   ConditionalCalibrationSummary,
   PredictionScore,
@@ -866,6 +866,7 @@ interface ResolvedPairQueryRow {
   readonly miss_autopsy_cause: string | null;
   readonly job_type: string;
   readonly asset_class: string;
+  readonly generated_at: string;
   readonly market_regime_label: string | null;
   readonly run_horizon_trading_days: number | null;
 }
@@ -875,6 +876,11 @@ interface ResolvedPairQueryRow {
 // Slice identically regardless of index freshness.
 function marketUpdateBucketForRow(jobType: JobType, runHorizon: number | null): string | undefined {
   return marketUpdateHorizonBucketOf({ jobType, horizonTradingDays: runHorizon ?? undefined });
+}
+
+// Indexes built before readReport rejected unparseable timestamps still hold those runs' rows.
+function hasParseableGeneratedAt(row: { readonly generated_at: string }): boolean {
+  return !Number.isNaN(Date.parse(row.generated_at));
 }
 
 export async function loadResolvedPairsFromIndex(
@@ -888,7 +894,7 @@ export async function loadResolvedPairsFromIndex(
           p.measurable_as, p.source_ids_json,
           s.prediction_id, s.status, s.outcome, s.observed_at, s.scoring_version,
           s.miss_autopsy_cause,
-          r.job_type, r.asset_class, r.market_regime_label,
+          r.job_type, r.asset_class, r.generated_at, r.market_regime_label,
           r.horizon_trading_days AS run_horizon_trading_days
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
@@ -897,7 +903,7 @@ export async function loadResolvedPairsFromIndex(
       )
       .all() as readonly ResolvedPairQueryRow[];
 
-    return rows.map((row) => {
+    return rows.filter(hasParseableGeneratedAt).map((row) => {
       const jobType = row.job_type as JobType;
       const claim = predictionClaimFromRow(row);
       const horizonBucket = marketUpdateBucketForRow(jobType, row.run_horizon_trading_days);
@@ -926,6 +932,7 @@ export async function loadResolvedPairsFromIndex(
         assetClass: row.asset_class as AssetClass,
         jobType,
         runId: row.run_id,
+        generatedAt: row.generated_at,
         ...(horizonBucket !== undefined ? { marketUpdateHorizonBucket: horizonBucket } : {}),
         ...(isMarketRegimeLabel(row.market_regime_label)
           ? { marketRegimeLabel: row.market_regime_label }
@@ -942,16 +949,26 @@ export async function loadConditionalCalibrationCountsFromIndex(
   dataDir: string,
 ): Promise<ConditionalCalibrationSummary | undefined> {
   return await withFreshIndex(dataDir, async (db) => {
-    const row = db
+    const rows = db
       .query(
-        `SELECT COUNT(*) AS voided_count
+        `SELECT r.asset_class, p.measurable_as, r.generated_at
         FROM predictions p
         JOIN scores s ON p.run_id = s.run_id AND p.id = s.prediction_id
+        JOIN runs r ON r.run_id = p.run_id
         WHERE p.kind = 'conditional' AND s.status = 'voided' AND s.scoring_version = 3`,
       )
-      .get() as { readonly voided_count: number } | null;
+      .all() as readonly {
+      readonly asset_class: AssetClass;
+      readonly measurable_as: string;
+      readonly generated_at: string;
+    }[];
+    const voidedEvents = new Set(
+      rows
+        .filter(hasParseableGeneratedAt)
+        .map((row) => forecastEventKey(row.asset_class, row.measurable_as, row.generated_at)),
+    );
     // Activated conditionals are the resolved conditional pairs already passed
     // Into buildCalibrationSummary; this query only supplies excluded voids.
-    return { activatedCount: 0, voidedCount: row?.voided_count ?? 0 };
+    return { activatedCount: 0, voidedCount: voidedEvents.size };
   });
 }

@@ -118,9 +118,13 @@
           {headline.resolvedCount ?? "—"}
         </div>
         <div class="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-          Resolved forecasts
+          Resolved forecast events
         </div>
-        <div class="mt-1.5 text-xs text-[#5c6066]">scored against observations</div>
+        <div class="mt-1.5 text-xs text-[#5c6066]">
+          {headline.duplicateForecastCount === undefined
+            ? "scored against observations"
+            : `${headline.duplicateForecastCount} duplicate issuances collapsed`}
+        </div>
       </div>
       <div class="rounded-lg border border-border bg-card px-4 py-3.5">
         <div class="font-mono text-2xl font-medium text-foreground">

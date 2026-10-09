@@ -23,6 +23,8 @@ export interface CalibrationHeadline {
    * Collapsed into 0.
    */
   readonly resolvedCount?: number;
+  /** Absent in summaries written before Forecast Event dedupe or holding an invalid count. */
+  readonly duplicateForecastCount?: number;
   readonly generatedAt?: string;
 }
 
@@ -129,10 +131,14 @@ export function calibrationHeadline(detail: CalibrationDetail): CalibrationHeadl
   const resolvedCount = isCalibrationCount(summary.resolvedCount)
     ? summary.resolvedCount
     : undefined;
+  const duplicateForecastCount = isCalibrationCount(summary.duplicateForecastCount)
+    ? summary.duplicateForecastCount
+    : undefined;
   return {
     ...(brierScore !== undefined ? { brierScore } : {}),
     ...(hitRate !== undefined ? { hitRate } : {}),
     ...(resolvedCount !== undefined ? { resolvedCount } : {}),
+    ...(duplicateForecastCount !== undefined ? { duplicateForecastCount } : {}),
     ...(generatedAt !== undefined ? { generatedAt } : {}),
   };
 }

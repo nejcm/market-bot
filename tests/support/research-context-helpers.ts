@@ -158,6 +158,7 @@ export function resolvedPair(
   id: string,
   probability: number,
   outcome: "hit" | "miss",
+  generatedAt = "2026-05-26T00:00:00.000Z",
 ): ResolvedPair {
   return {
     prediction: directionPrediction(id, probability),
@@ -174,6 +175,7 @@ export function resolvedPair(
     jobType: "daily",
     marketUpdateHorizonBucket: "1-5d",
     runId: "run-1",
+    generatedAt,
   };
 }
 

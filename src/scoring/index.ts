@@ -44,7 +44,7 @@ import {
   readRunArtifactIndexStatus,
   writeThroughRunArtifactIndex,
 } from "../run-artifact-index";
-import { buildCalibrationSummary, type ResolvedPair } from "./calibration";
+import { buildCalibrationSummary, forecastEventKey, type ResolvedPair } from "./calibration";
 import { renderCalibrationMarkdown } from "./calibration-markdown";
 import { buildMissAutopsyFile } from "./miss-autopsy";
 import {
@@ -728,6 +728,7 @@ function pairsForArtifact(artifact: RunArtifact): readonly ResolvedPair[] {
         jobType: report.jobType,
         ...(marketUpdateHorizonBucket !== undefined ? { marketUpdateHorizonBucket } : {}),
         runId: report.runId,
+        generatedAt: report.generatedAt,
         ...(missAutopsy !== undefined ? { missAutopsyCause: missAutopsy.cause } : {}),
         ...(marketRegimeLabel !== undefined ? { marketRegimeLabel } : {}),
       },
@@ -746,7 +747,7 @@ async function loadCalibrationInputsFromDisk(dataDir: string): Promise<{
       ? []
       : pairsForArtifact(artifact),
   );
-  let voidedCount = 0;
+  const voidedEvents = new Set<string>();
   for (const { artifact } of loaded) {
     if (artifact === undefined) {
       continue;
@@ -761,13 +762,19 @@ async function loadCalibrationInputsFromDisk(dataDir: string): Promise<{
         score.scoringVersion === 3 &&
         score.status === "voided"
       ) {
-        voidedCount += 1;
+        voidedEvents.add(
+          forecastEventKey(
+            artifact.report.assetClass,
+            prediction.measurableAs,
+            artifact.report.generatedAt,
+          ),
+        );
       }
     }
   }
   // Activated conditionals are counted from resolved pairs in
   // BuildCalibrationSummary; disk scanning only has to add excluded voids.
-  return { pairs, conditionalCounts: { activatedCount: 0, voidedCount } };
+  return { pairs, conditionalCounts: { activatedCount: 0, voidedCount: voidedEvents.size } };
 }
 
 export async function buildAndWriteCalibration(

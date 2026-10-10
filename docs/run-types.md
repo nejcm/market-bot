@@ -325,7 +325,7 @@ market-bot crypto <symbol> [--deep]
 ### Config
 
 Run key `crypto` &rarr; dedicated crypto instrument profile. Brief defaults match
-equity; deep crypto retains a target and completion floor of 5.
+equity; deep crypto retains a target of 5 predictions.
 
 ### Data Collected
 
@@ -380,15 +380,18 @@ subject via `resolveResearchSubjectProxy`:
 
 Run key `research-equity` &rarr; `researchEquityProfile`.
 
-| Param                      | Brief                                                               | Deep                   |
-| -------------------------- | ------------------------------------------------------------------- | ---------------------- |
-| `minimumKeyFindings`       | 3                                                                   | 5                      |
-| `minimumScenarios`         | 1                                                                   | 3                      |
-| `targetPredictions`        | 2 (or 0 if no proxy)                                                | 3 (or 0 if no proxy)   |
-| `defaultPredictionHorizon` | 15                                                                  | 15                     |
-| `predictionSubjects`       | `[]` (filled with proxy if resolved)                                | Same as brief.         |
-| `focus`                    | subject evidence, proxy evidence, representatives, risks, data gaps | + catalysts, scenarios |
-| `targetKindMix`            | range only                                                          | `minNonDirection: 2`   |
+Research always runs the deep profile; there is no brief variant. The
+`research-equity` profile has no `deep` override, so these are the effective values:
+
+| Param                      | Value                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `minimumKeyFindings`       | 5                                                                                                    |
+| `minimumScenarios`         | 3                                                                                                    |
+| `targetPredictions`        | 3 (or 0 if no proxy)                                                                                 |
+| `defaultPredictionHorizon` | 15                                                                                                   |
+| `predictionSubjects`       | `[]` (filled with proxy if resolved)                                                                 |
+| `focus`                    | subject evidence, proxy evidence, representative instruments, catalysts, scenarios, risks, data gaps |
+| `targetKindMix`            | favored `range`, `minNonDirection: 2`                                                                |
 
 `targetPredictions` becomes `0` if the resolved subject has no
 `predictionProxy`.

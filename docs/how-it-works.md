@@ -217,7 +217,7 @@ Fetch behavior:
 
 Historical Research Context reads prior run artifacts from `MARKET_BOT_DATA_DIR` only. It does not read raw source cache files under `data/cache`. The reader loads matching `report.json` files, optional `score.json`, and selected normalized market snapshots. Recent history uses the configured lookback window; anchor history picks the closest matching run at or before configured month offsets.
 
-The prompt receives compact history: prior summaries, findings, risks, catalysts, confidence, data gaps, scored prediction status, key extras, and selected numeric snapshots. History can inform forecast wording and probability calibration, but prediction counts, subjects, and horizons remain governed by run config.
+The prompt receives compact history: prior summaries, findings, risks, catalysts, confidence, data gaps, scores of resolved prior predictions (pending ones are counted, not listed), key extras, and selected numeric snapshots. History can inform forecast wording and probability calibration, but prediction counts, subjects, and horizons remain governed by run config.
 
 Each selected prior run carries structured selection reasons: recency reasons (`recent`, `anchor-Nm`) plus topical relevance reasons (`same-symbol`, `spotlight-symbol`, `same-horizon`, `cross-horizon`). Up to `MARKET_BOT_HISTORY_MISS_CORRECTION_LIMIT` recent resolved-miss runs are also kept with a `miss-correction` reason when same-day reruns would otherwise evict them from the recency window. The context's audit block records how many runs each reason selected, how many carry a resolved miss (`resolvedMissRunCount`), how many were preserved by the miss-correction lane (`missCorrectionSelectedCount`), and the total disclosed gap count, so `trace.json` shows why each prior run was pulled in without re-deriving it.
 
@@ -298,8 +298,8 @@ Each research run builds a depth profile:
 
 | Mode    | Effect                                                                                   |
 | ------- | ---------------------------------------------------------------------------------------- |
-| `brief` | Concise report with fewer minimum findings, scenarios, and a lower prediction target.    |
-| `deep`  | Fuller report with higher minimum counts, a higher prediction target, and broader focus. |
+| `brief` | Concise report with fewer minimum findings and scenarios; targets vary by run type.      |
+| `deep`  | Fuller report with higher minimum counts and broader focus; targets vary by run type.    |
 
 Before the shared analysis stages:
 

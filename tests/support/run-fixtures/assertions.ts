@@ -2,6 +2,7 @@ import { expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
 import { parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
@@ -385,6 +386,7 @@ export function assertComprehensiveAnalysisPath(
   expect(result.collectedSources.earningsSetup).toMatchObject({
     event: { symbol: "AAPL", eventDateStatus: "issuer-confirmed" },
   });
+  expect(readEarningsForecastTelemetry(result.report)?.grammarEligible).toBe(true);
   expect(result.collectedSources.analystExpectations).toMatchObject({
     version: 1,
     symbol: "AAPL",

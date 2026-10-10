@@ -334,3 +334,122 @@ describe("official earnings-date confirmation", () => {
     ).not.toThrow();
   });
 });
+
+const amdSetup: EarningsSetupCollected = {
+  event: {
+    symbol: "AMD",
+    date: "2026-11-03",
+    timing: "amc",
+    eventDateStatus: "provider-estimated",
+    sourceIds: ["extended-finnhub-events-amd"],
+    fetchedAt: "2026-10-10T12:00:00.000Z",
+  },
+  gaps: [],
+};
+
+function amdSubmissions(overrides: Record<string, unknown> = {}): RawSourceSnapshot {
+  return {
+    id: "raw-sec-submissions-amd",
+    adapter: "sec-submissions",
+    fetchedAt: "2026-10-10T12:00:00.000Z",
+    payload: {
+      cik: "0000002488",
+      name: "ADVANCED MICRO DEVICES INC",
+      tickers: ["AMD"],
+      website: "",
+      investorWebsite: "",
+      ...overrides,
+    },
+  } as RawSourceSnapshot;
+}
+
+function amdSource(url: string, publisher?: string): Source {
+  return {
+    id: "web-amd-earnings",
+    title: "AMD to Report Fiscal Third Quarter 2026 Financial Results",
+    url,
+    ...(publisher !== undefined ? { publisher } : {}),
+    fetchedAt: "2026-10-06T16:15:00.000Z",
+    kind: "web",
+    assetClass: "equity",
+    symbol: "AMD",
+    provider: "exa",
+    snippet:
+      "AMD (NASDAQ: AMD) will report fiscal third quarter 2026 financial results on Tuesday, Nov. 3, 2026, after the market close.",
+  };
+}
+
+function confirm(snapshot: RawSourceSnapshot, source: Source): EarningsSetupCollected | undefined {
+  return confirmEarningsDateFromOfficialSources({
+    setup: amdSetup,
+    sources: [source],
+    rawSnapshots: [snapshot],
+    analysisAsOf: "2026-10-10T12:00:00.000Z",
+  });
+}
+
+const irUrl = "https://ir.amd.com/news-events/press-releases/detail/1300/amd-to-report";
+
+describe("checked-in issuer IR host fallback", () => {
+  test("confirms from the mapped IR host when SEC website fields are empty", () => {
+    const result = confirm(amdSubmissions(), amdSource(irUrl));
+
+    expect(result?.event.eventDateStatus).toBe("issuer-confirmed");
+    expect(result?.event.dateConfirmation).toMatchObject({
+      sourceId: "web-amd-earnings",
+      sourceType: "issuer-press-release",
+      issuerIdentity: { symbol: "AMD", matchedBy: "official-host" },
+    });
+  });
+
+  test("rejects lookalike hosts", () => {
+    for (const url of [
+      "https://ir.amd.com.evil.example/press-release",
+      "https://amd.com.evil.example/press-release",
+      "https://evil-ir.amd.com/press-release",
+      "https://amd.com/press-release",
+      "http://ir.amd.com/news-events/press-releases/detail/1300/amd-to-report",
+    ]) {
+      expect(confirm(amdSubmissions(), amdSource(url))?.event.eventDateStatus).toBe(
+        "provider-estimated",
+      );
+    }
+  });
+
+  test("fails closed for an unmapped, missing, or malformed CIK", () => {
+    for (const cik of [
+      "0000000001",
+      undefined,
+      ["0000002488"],
+      "2.488e3",
+      "0x9b8",
+      " 2488",
+      2488.5,
+    ]) {
+      expect(confirm(amdSubmissions({ cik }), amdSource(irUrl))?.event.eventDateStatus).toBe(
+        "provider-estimated",
+      );
+    }
+    expect(confirm(amdSubmissions({ cik: 2488 }), amdSource(irUrl))?.event.eventDateStatus).toBe(
+      "issuer-confirmed",
+    );
+  });
+
+  test("never takes authority from a third-party publisher field", () => {
+    const result = confirm(
+      amdSubmissions(),
+      amdSource("https://www.stocktitan.net/news/AMD/amd-to-report.html", "Advanced Micro Devices"),
+    );
+
+    expect(result?.event.eventDateStatus).toBe("provider-estimated");
+  });
+
+  test("does not consult the map when SEC metadata names a host", () => {
+    const result = confirm(
+      amdSubmissions({ investorWebsite: "https://investor.example-amd.com" }),
+      amdSource(irUrl),
+    );
+
+    expect(result?.event.eventDateStatus).toBe("provider-estimated");
+  });
+});

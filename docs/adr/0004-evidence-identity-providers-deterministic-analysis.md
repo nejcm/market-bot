@@ -542,7 +542,12 @@ without pretending the project has a global security master.
   Reconciliation uses structured cited fields only and does not alter postures or Evidence Quality.
 - An upcoming earnings date becomes `issuer-confirmed` only when deterministic code matches the
   issuer identity and exact future date to a direct issuer IR/event or press-release URL whose host
-  is established by the issuer's SEC submissions metadata, or to direct SEC `8-K`/`6-K` text. The
+  is established by the issuer's SEC submissions metadata, or to direct SEC `8-K`/`6-K` text. When
+  the submissions `website` and `investorWebsite` fields yield no host, a checked-in map keyed by SEC
+  CIK (not ticker) may supply the IR host; entries are added only after hand verification, matching
+  uses the same exact-host-or-subdomain rule, and an issuer absent from the map or with a malformed
+  CIK fails closed. Issuer-host URLs, SEC-derived or mapped, must use `https`. A web
+  result's publisher field or self-declared links never establish host authority. The
   event retains the official Source ID, URL, matched identity basis, and exact evidence span.
   Current-report text must use explicit future announcement language; an `8-K` Item 2.02 reporting
   past results is not an upcoming-date source. Finnhub remains `provider-estimated` even when

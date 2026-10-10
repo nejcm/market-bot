@@ -47,6 +47,8 @@ const FUTURE_ANNOUNCEMENT_PATTERN =
 const EARNINGS_SUBJECT_PATTERN =
   /\b(?:earnings|financial\s+results|quarterly\s+results|annual\s+results|results\s+for\s+(?:the\s+)?(?:first|second|third|fourth|fiscal|quarter|year))\b/iu;
 const MAX_EVIDENCE_SPAN_CHARS = 600;
+// Hand-verified fallback for issuers whose SEC submissions omit website fields (ADR 0004).
+const ISSUER_IR_HOSTS_BY_CIK: ReadonlyMap<number, string> = new Map([[2488, "ir.amd.com"]]);
 const OFFICIAL_EXCHANGE_DISCLOSURE_PATHS = [
   { host: "asx.com.au", path: /^\/asxpdf\//u },
   { host: "londonstockexchange.com", path: /^\/news-article\//u },
@@ -114,6 +116,13 @@ function normalizedName(value: string): string {
     .toLowerCase();
 }
 
+function secCik(value: unknown): number | undefined {
+  if (typeof value === "string") {
+    return /^[0-9]+$/u.test(value) ? Number(value) : undefined;
+  }
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 function submissionsIdentity(
   snapshots: readonly RawSourceSnapshot[],
   symbol: string,
@@ -122,6 +131,7 @@ function submissionsIdentity(
   const target = symbol.toUpperCase();
   const names = new Set<string>();
   const hosts = new Set<string>();
+  const ciks = new Set<number>();
   if (fallbackIdentity?.displayName !== undefined) {
     names.add(fallbackIdentity.displayName);
   }
@@ -140,9 +150,21 @@ function submissionsIdentity(
     if (name !== undefined) {
       names.add(name);
     }
+    const cik = secCik(snapshot.payload.cik);
+    if (cik !== undefined) {
+      ciks.add(cik);
+    }
     for (const key of ["website", "investorWebsite"] as const) {
       const value = readString(snapshot.payload, key);
       const host = value === undefined ? undefined : normalizedHost(value);
+      if (host !== undefined) {
+        hosts.add(host);
+      }
+    }
+  }
+  if (hosts.size === 0) {
+    for (const cik of ciks) {
+      const host = ISSUER_IR_HOSTS_BY_CIK.get(cik);
       if (host !== undefined) {
         hosts.add(host);
       }
@@ -298,6 +320,7 @@ function confirmationCandidate(input: {
   const host = normalizedHost(source.url);
   if (
     host !== undefined &&
+    parsedUrl(source.url)?.protocol === "https:" &&
     [...identity.hosts].some((officialHost) => hostMatches(host, officialHost))
   ) {
     return {

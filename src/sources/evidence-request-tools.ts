@@ -160,13 +160,8 @@ async function resolveEarningsReleaseExhibit(
   if (!isFetchTextResult(index)) {
     return { rawSnapshots: [], gaps: [index] };
   }
-  // A results 6-K's statements exhibit outranks its EX-99.1 press release and can run past 1 MB.
-  const documents = filingDocuments(
-    index.payload,
-    baseUrl,
-    filing.primaryDocument,
-    filing.form === "6-K",
-  );
+  // EX-99.1 is the press release; filename scoring would otherwise rank an "earnings slides" EX-99.2 first.
+  const documents = filingDocuments(index.payload, baseUrl, filing.primaryDocument, true);
   if (documents.length === 0) {
     return { rawSnapshots: [index.rawSnapshot], gaps: [] };
   }

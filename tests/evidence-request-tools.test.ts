@@ -1070,6 +1070,21 @@ describe("SEC latest filing evidence tool", () => {
     expect(fetchGaps[0]?.message).toContain("2 EX-99 candidates attempted");
   });
 
+  test("ranks the EX-99.1 press release ahead of an earnings-slides EX-99.2 when pressReleaseFirst", () => {
+    const html = `<table>
+      <tr><td>2</td><td>EX-99.1</td><td><a href="/Archives/edgar/data/2488/000000248826000121/q22026991.htm">q22026991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>3</td><td>EX-99.2</td><td><a href="/Archives/edgar/data/2488/000000248826000121/amdq22026earningsslidesf.htm">amdq22026earningsslidesf.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+    const base = "https://www.sec.gov/Archives/edgar/data/2488/000000248826000121";
+
+    expect(filingDocuments(html, base, "amd-8k.htm").map((d) => d.name)[0]).toBe(
+      "amdq22026earningsslidesf.htm",
+    );
+    expect(filingDocuments(html, base, "amd-8k.htm", true).map((d) => d.name)[0]).toBe(
+      "q22026991.htm",
+    );
+  });
+
   test("drops an EX-99 row when its final document-name URL is off-host", () => {
     const html = `<table><tr><td>1</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">https://example.com/ex991.htm</a></td><td>EX-99.1</td></tr></table>`;
 

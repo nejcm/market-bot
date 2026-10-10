@@ -6,7 +6,7 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord } from "../guards";
 import { readGapTriage, type GapTriage } from "./gap-triage";
-import { readBusinessFrameworkExtra, readWebSubjectProfileExtra } from "./report-extras-contract";
+import { businessFrameworkSourceRows, webSubjectProfileSourceRows } from "./report-extras-contract";
 import { compactNumber } from "./equity-reader-trends";
 
 export function sourceRefs(sourceIds: readonly string[]): string {
@@ -98,25 +98,12 @@ function collectReportSourceIds(
       }
     });
   }
-  // Same typed values the renderers below use — one traversal contract, so a new
-  // Field cannot appear in one place and silently lose its citations in the other.
-  const framework = readBusinessFrameworkExtra(report.extras?.businessFramework);
-  if (framework !== undefined) {
-    add(citedSourceIds(report, framework));
-    (framework.sections ?? []).forEach((section) => add(citedSourceIds(report, section)));
-  }
-  const profile = readWebSubjectProfileExtra(report.extras?.webSubjectProfile);
-  if (profile !== undefined) {
-    add(citedSourceIds(report, profile));
-    // Every parsed row is cited, including one whose text is blank or missing —
-    // Suppressing it is the renderer's decision, not this traversal's.
-    Object.values(profile.questions ?? {}).forEach((question) =>
-      add(citedSourceIds(report, question)),
-    );
-    [...profile.recentMaterialEvents, ...profile.factLedger].forEach((fact) =>
-      add(citedSourceIds(report, fact)),
-    );
-  }
+  // Every row is cited, including one whose text is blank or missing —
+  // Suppressing it is the renderer's decision, not this traversal's.
+  [
+    ...businessFrameworkSourceRows(report.extras?.businessFramework),
+    ...webSubjectProfileSourceRows(report.extras?.webSubjectProfile),
+  ].forEach((row) => add(row.unrendered === true ? [] : knownSourceIds(report, row.sourceIds)));
   add(knownSourceIds(report, additionalSourceIds));
 
   return ids;

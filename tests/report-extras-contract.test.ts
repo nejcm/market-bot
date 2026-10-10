@@ -380,6 +380,57 @@ describe("web subject profile extra", () => {
     expect(markdown).not.toContain("- A gap");
   });
 
+  test("lists a source cited only by the subject summary", () => {
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "research",
+        sources: [
+          {
+            id: "web-summary",
+            title: "Summary source",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "web",
+            assetClass: "equity",
+          },
+        ],
+        extras: {
+          webSubjectProfile: {
+            subjectKind: "company",
+            subjectSummary: { answer: "Makes devices.", sourceIds: ["web-summary"] },
+            questions: { whatItDoes: { answer: "Sells devices.", sourceIds: [] } },
+          },
+        },
+      }),
+    );
+    expect(markdown).toContain("Makes devices.[web-summary]");
+    expect(markdown).toContain("- [web-summary] Summary source");
+  });
+
+  test("does not list a source cited only by framework reconciliation", () => {
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "research",
+        sources: [
+          {
+            id: "web-reconciled",
+            title: "Reconciled source",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "web",
+            assetClass: "equity",
+          },
+        ],
+        extras: {
+          businessFramework: {
+            sections: [],
+            sourceIds: [],
+            reconciliation: { resolvedGaps: [], profileSourceIds: ["web-reconciled"] },
+          },
+        },
+      }),
+    );
+    expect(markdown).not.toContain("- [web-reconciled]");
+  });
+
   test("keeps an empty subject summary without rendering a blank paragraph", async () => {
     const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
     const emptyProfile = {

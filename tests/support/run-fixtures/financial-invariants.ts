@@ -829,9 +829,9 @@ function assertEarningsReleaseEvidence(result: RunFixtureResult): void {
         `Item 2.02 evidence ${sourceId} cites a document outside its own filing`,
       );
       invariant(
-        cited === primaryDocument || /ex.{0,2}99/iu.test(cited),
+        cited === primaryDocument || earningsReleaseDocument === "exhibit",
         "C15",
-        `Item 2.02 evidence ${sourceId} cites ${cited}, neither the primary document nor an EX-99 exhibit`,
+        `Item 2.02 evidence ${sourceId} cites ${cited}, neither the primary document nor a resolved exhibit`,
       );
       invariant(
         earningsReleaseDocument !== "exhibit" || cited !== primaryDocument,

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. The golden-invariance layer is superseded by
+[ADR 0008](./0008-replay-invariants-no-output-snapshots.md); the live correctness invariants and
+the reader-degradation amendment remain in force.
 
 ## Date
 

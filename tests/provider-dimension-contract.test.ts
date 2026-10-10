@@ -27,7 +27,7 @@ import type {
 import type { ValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { loadRunArtifact } from "../src/run-artifacts";
-import { readGoldenOutput } from "./support/run-fixtures/artifacts";
+import { replayedRunOutput } from "./support/run-fixtures/artifacts";
 
 const REPLAY_FIXTURES = [
   "equity-aapl-brief",
@@ -54,12 +54,7 @@ const COMPLETENESS_DIMENSION_DISPLAY_LABELS = [
   "Operating KPIs",
 ] as const;
 
-interface GoldenOutput {
-  readonly report: ResearchReport;
-  readonly normalized: Readonly<Record<string, unknown>>;
-}
-
-interface GoldenReport {
+interface ReplayedReport {
   readonly fixture: string;
   readonly report: ResearchReport & {
     readonly equityAnalysisCompleteness: EquityAnalysisCompleteness;
@@ -67,7 +62,7 @@ interface GoldenReport {
   readonly normalized: Readonly<Record<string, unknown>>;
 }
 
-interface GoldenRunDetail extends RunDetail {
+interface ReplayedRunDetail extends RunDetail {
   readonly valuationComps?: ValuationCompsArtifact;
 }
 
@@ -75,18 +70,19 @@ function artifact<T>(value: unknown): T | undefined {
   return value !== null && typeof value === "object" ? (value as T) : undefined;
 }
 
-async function loadGoldenReports(): Promise<readonly GoldenReport[]> {
+async function loadReplayedReports(): Promise<readonly ReplayedReport[]> {
   return Promise.all(
     REPLAY_FIXTURES.map(async (fixture) => {
-      const output = (await readGoldenOutput(fixture)) as unknown as GoldenOutput;
-      const completeness = output.report.equityAnalysisCompleteness;
+      const output = await replayedRunOutput(fixture);
+      const report = output.report as ResearchReport;
+      const completeness = report.equityAnalysisCompleteness;
       if (completeness === undefined) {
         throw new Error(`${fixture} has no equity analysis completeness contract`);
       }
       return {
         fixture,
         report: {
-          ...output.report,
+          ...report,
           equityAnalysisCompleteness: completeness,
         },
         normalized: output.normalized,
@@ -95,8 +91,8 @@ async function loadGoldenReports(): Promise<readonly GoldenReport[]> {
   );
 }
 
-function goldenRunDetail(golden: GoldenReport): GoldenRunDetail {
-  const { report, normalized } = golden;
+function replayedRunDetail(replayed: ReplayedReport): ReplayedRunDetail {
+  const { report, normalized } = replayed;
   const evidenceBundle = artifact<DeepEquityEvidenceBundleV1>(normalized["evidence-bundle.json"]);
   const marketSnapshots =
     artifact<readonly MarketSnapshot[]>(normalized["market-snapshots.json"]) ??
@@ -546,10 +542,10 @@ describe("provider dimension contracts", () => {
     }
   });
 
-  test("resolves every completeness dimension citation in all replay goldens", async () => {
-    const goldens = await loadGoldenReports();
+  test("resolves every completeness dimension citation in all replayed fixtures", async () => {
+    const replays = await loadReplayedReports();
 
-    for (const { fixture, report } of goldens) {
+    for (const { fixture, report } of replays) {
       const knownSourceIds = new Set(report.sources.map((source) => source.id));
       for (const dimension of completenessDimensions(report.equityAnalysisCompleteness)) {
         for (const sourceId of dimension.sourceIds) {
@@ -559,78 +555,81 @@ describe("provider dimension contracts", () => {
     }
   });
 
-  test("projects all replay goldens into citation-safe explicit equity snapshots", async () => {
-    const goldens = await loadGoldenReports();
+  test("projects all replayed fixtures into citation-safe explicit equity snapshots", async () => {
+    const replays = await loadReplayedReports();
 
-    for (const golden of goldens) {
-      const detail = goldenRunDetail(golden);
+    for (const replayed of replays) {
+      const detail = replayedRunDetail(replayed);
       const evidenceBundle = artifact<DeepEquityEvidenceBundleV1>(
-        golden.normalized["evidence-bundle.json"],
+        replayed.normalized["evidence-bundle.json"],
       );
       const sidecarValuationComps = artifact<ValuationCompsArtifact>(
-        golden.normalized["valuation-comps.json"],
+        replayed.normalized["valuation-comps.json"],
       );
-      const bundleBacked = golden.normalized["evidence-bundle.json"] !== undefined;
+      const bundleBacked = replayed.normalized["evidence-bundle.json"] !== undefined;
       const hasValuationComps =
         sidecarValuationComps !== undefined || evidenceBundle?.derived.valuationComps !== undefined;
-      expect(detail.marketSnapshots, `${golden.fixture}: market snapshots missing`).toBeDefined();
+      expect(detail.marketSnapshots, `${replayed.fixture}: market snapshots missing`).toBeDefined();
       expect(
         detail.verifiedMarketSnapshot,
-        `${golden.fixture}: verified market snapshot missing`,
+        `${replayed.fixture}: verified market snapshot missing`,
       ).toBeDefined();
       const workspace = buildRunWorkspaceView(detail);
-      expect(workspace.snapshot, `${golden.fixture}: verified snapshot not rendered`).toBeDefined();
+      expect(
+        workspace.snapshot,
+        `${replayed.fixture}: verified snapshot not rendered`,
+      ).toBeDefined();
       expect(workspace.snapshot?.value.symbol).toBe(detail.verifiedMarketSnapshot?.symbol);
       expect(workspace.snapshot?.tradingViewUrl).toContain(detail.verifiedMarketSnapshot?.symbol);
-      expect(detail.financialLenses, `${golden.fixture}: financial lenses missing`).toBeDefined();
+      expect(detail.financialLenses, `${replayed.fixture}: financial lenses missing`).toBeDefined();
       expect(
         detail.fundamentalHistory,
-        `${golden.fixture}: fundamental history missing`,
+        `${replayed.fixture}: fundamental history missing`,
       ).toBeDefined();
       expect(
         detail.valuationWorkbench,
-        `${golden.fixture}: valuation workbench missing`,
+        `${replayed.fixture}: valuation workbench missing`,
       ).toBeDefined();
       // The equity-aapl-brief fixture ships no comps artifact in any form.
       expect(
         bundleBacked,
-        `${golden.fixture}: bundle-backed and genuinely-present comps sets differ`,
+        `${replayed.fixture}: bundle-backed and genuinely-present comps sets differ`,
       ).toBe(hasValuationComps);
       if (bundleBacked) {
-        expect(detail.valuationComps, `${golden.fixture}: valuation comps missing`).toBeDefined();
+        expect(detail.valuationComps, `${replayed.fixture}: valuation comps missing`).toBeDefined();
         expect(
           detail.peerImpliedRange,
-          `${golden.fixture}: peer implied range missing`,
+          `${replayed.fixture}: peer implied range missing`,
         ).toBeDefined();
       }
       const snapshot = equitySnapshotView(detail);
-      const knownSourceIds = new Set(golden.report.sources.map((source) => source.id));
-      expect(snapshot, `${golden.fixture}: snapshot missing`).toBeDefined();
+      const knownSourceIds = new Set(replayed.report.sources.map((source) => source.id));
+      expect(snapshot, `${replayed.fixture}: snapshot missing`).toBeDefined();
 
       for (const sourceId of snapshotCitationIds(snapshot)) {
         expect(
           knownSourceIds.has(sourceId),
-          `${golden.fixture}: unresolved ${sourceId}`,
+          `${replayed.fixture}: unresolved ${sourceId}`,
         ).toBeTrue();
       }
       for (const card of snapshotCards(snapshot)) {
-        expect((card.label as string).trim(), `${golden.fixture}: blank card label`).not.toBe("");
+        expect((card.label as string).trim(), `${replayed.fixture}: blank card label`).not.toBe("");
         expect(["available", "partial", "unavailable"]).toContain(card.state as string);
         if (card.state === "unavailable" && "value" in card) {
-          expect(card.value, `${golden.fixture}: unavailable card used a value`).toBeUndefined();
+          expect(card.value, `${replayed.fixture}: unavailable card used a value`).toBeUndefined();
         }
       }
       for (const scalar of snapshotScalars(snapshot)) {
         if (typeof scalar === "number") {
           expect(
             Number.isFinite(scalar),
-            `${golden.fixture}: non-finite snapshot number`,
+            `${replayed.fixture}: non-finite snapshot number`,
           ).toBeTrue();
         } else {
-          expect(scalar.trim(), `${golden.fixture}: blank snapshot string`).not.toBe("");
-          expect(scalar, `${golden.fixture}: leaked undefined`).not.toContain("undefined");
-          expect(scalar, `${golden.fixture}: leaked NaN`).not.toContain("NaN");
-          expect(violatesResearchOnly(scalar), `${golden.fixture}: ${scalar}`).toBeNull();
+          expect(scalar.trim(), `${replayed.fixture}: blank snapshot string`).not.toBe("");
+          expect(scalar, `${replayed.fixture}: leaked undefined`).not.toContain("undefined");
+          expect(scalar, `${replayed.fixture}: leaked NaN`).not.toContain("NaN");
+          expect(violatesResearchOnly(scalar), `${replayed.fixture}: ${scalar}`).toBeNull();
         }
       }
 
@@ -638,50 +637,53 @@ describe("provider dimension contracts", () => {
         if (metric.state === "unavailable") {
           expect(
             metric.value,
-            `${golden.fixture}: missing metric rendered as zero`,
+            `${replayed.fixture}: missing metric rendered as zero`,
           ).toBeUndefined();
           expect(metric.dateBasis).toBeUndefined();
         }
       }
       for (const chart of snapshot?.miniCharts.charts ?? []) {
         if (chart.state === "unavailable") {
-          expect(chart.value, `${golden.fixture}: missing chart rendered as zero`).toBeUndefined();
+          expect(
+            chart.value,
+            `${replayed.fixture}: missing chart rendered as zero`,
+          ).toBeUndefined();
           expect(chart.geometry).toBeUndefined();
         }
       }
     }
   });
 
-  test("renders completeness and coverage states for every replay golden", async () => {
-    const goldens = await loadGoldenReports();
+  test("renders completeness and coverage states for every replayed fixture", async () => {
+    const replays = await loadReplayedReports();
 
-    for (const golden of goldens) {
-      const completeness = golden.report.equityAnalysisCompleteness;
-      const detail = goldenRunDetail(golden);
+    for (const replayed of replays) {
+      const completeness = replayed.report.equityAnalysisCompleteness;
+      const detail = replayedRunDetail(replayed);
       const simpleText = renderedText(await renderRunWorkspaceComponent(detail, "simple"));
       const text = renderedText(await renderRunWorkspaceComponent(detail, "advanced"));
 
-      expect(text, `${golden.fixture}: market snapshot heading`).toContain(
+      expect(text, `${replayed.fixture}: market snapshot heading`).toContain(
         `Market snapshot · ${detail.verifiedMarketSnapshot?.symbol}`,
       );
-      expect(text, `${golden.fixture}: TradingView link`).toContain("TradingView");
-      expect(simpleText, `${golden.fixture}: Simple financial core`).toContain(
+      expect(text, `${replayed.fixture}: TradingView link`).toContain("TradingView");
+      expect(simpleText, `${replayed.fixture}: Simple financial core`).toContain(
         `financial core · ${completeness.financialCoreStatus}`,
       );
-      expect(text, `${golden.fixture}: Advanced financial core`).toContain(
+      expect(text, `${replayed.fixture}: Advanced financial core`).toContain(
         `financial core · ${completeness.financialCoreStatus}`,
       );
-      expect(text, `${golden.fixture}: coverage`).toContain(
+      expect(text, `${replayed.fixture}: coverage`).toContain(
         `coverage · ${completeness.coverageLevel}`,
       );
-      expect(text, `${golden.fixture}: as-of`).toContain(`as of ${completeness.asOf}`);
+      expect(text, `${replayed.fixture}: as-of`).toContain(`as of ${completeness.asOf}`);
       for (const [index, dimension] of completenessDimensions(completeness).entries()) {
         const label = COMPLETENESS_DIMENSION_DISPLAY_LABELS[index] ?? "missing dimension label";
-        expect(text, `${golden.fixture}: dimension status`).toContain(
+        expect(text, `${replayed.fixture}: dimension status`).toContain(
           `${label} ${dimension.status.replaceAll("-", " ")}`,
         );
         for (const reasonCode of dimension.reasonCodes) {
-          expect(text, `${golden.fixture}: ${reasonCode}`).toContain(
+          expect(text, `${replayed.fixture}: ${reasonCode}`).toContain(
             completenessReasonCodeLabel(reasonCode),
           );
         }
@@ -690,10 +692,10 @@ describe("provider dimension contracts", () => {
   }, 120_000);
 
   test("normalizes provider access degradation without changing the financial core", async () => {
-    const goldens = await loadGoldenReports();
+    const replays = await loadReplayedReports();
     const observedProviderReasons = new Set<string>();
 
-    for (const { fixture, report } of goldens) {
+    for (const { fixture, report } of replays) {
       const completeness = report.equityAnalysisCompleteness;
       expect(
         completeness.dimensions.primaryFinancials.status,
@@ -789,10 +791,10 @@ describe("provider dimension contracts", () => {
     }
   });
 
-  test("labels every golden reason code and retains deterministic fallbacks", async () => {
-    const goldens = await loadGoldenReports();
+  test("labels every replayed reason code and retains deterministic fallbacks", async () => {
+    const replays = await loadReplayedReports();
     const reasonCodes = new Set(
-      goldens.flatMap(({ report }) =>
+      replays.flatMap(({ report }) =>
         completenessDimensions(report.equityAnalysisCompleteness).flatMap(
           (dimension) => dimension.reasonCodes,
         ),

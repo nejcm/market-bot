@@ -239,9 +239,14 @@ export const SEC_METRIC_DEFINITIONS = [
   {
     key: "dividendsPaid",
     label: "dividends paid",
-    // PaymentsForDividends is the cash-flow-statement outflow (negative in XBRL);
-    // DividendsPaid is an alternative some issuers use. The lens handles sign via abs().
-    concepts: ["PaymentsForDividends", "DividendsPaid"],
+    // Cash-flow total first: some filers tag the common-only concept just quarterly (Meta).
+    concepts: [
+      "PaymentsOfDividends",
+      "PaymentsOfDividendsCommonStock",
+      "PaymentsOfOrdinaryDividends",
+      "PaymentsForDividends",
+      "DividendsPaid",
+    ],
     unitKeys: ["USD"],
     optional: true,
   },

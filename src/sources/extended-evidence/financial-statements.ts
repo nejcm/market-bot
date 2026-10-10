@@ -1,4 +1,5 @@
 import { isRecord, readNumber, readString } from "../../guards";
+import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/types";
 import type { CollectContext } from "../types";
 import {
@@ -30,6 +31,8 @@ import {
   latestFinancialStatementFact,
   recognizedDebtConcepts,
   resolveDebtAtInstant,
+  earlierShareBasisPeriods,
+  touchesEarlierShareBasis,
 } from "./financial-statement-selection";
 import {
   calendarYearFromPeriodEnd,
@@ -1055,6 +1058,40 @@ function withGrossPrincipalDebt(
   };
 }
 
+function staleConceptHistoryNotes(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  definition: FinancialStatementSeriesDefinition,
+  selected: readonly ParsedFact[],
+  eligible: (fact: ParsedFact) => boolean,
+): readonly FinancialStatementNote[] {
+  const root = taxonomyRoot(payload, taxonomy);
+  const concept = selected[0]?.concept;
+  if (root === undefined || concept === undefined) {
+    return [];
+  }
+  const latestAnnualEnd = (facts: readonly ParsedFact[]) =>
+    facts
+      .filter((fact) => eligible(fact) && periodType(fact, definition) === "annual")
+      .map((fact) => fact.periodEnd)
+      .toSorted()
+      .at(-1);
+  const selectedEnd = latestAnnualEnd(selected);
+  return definition.concepts[taxonomy].flatMap((alias): FinancialStatementNote[] => {
+    const aliasEnd =
+      alias === concept ? undefined : latestAnnualEnd(unitFacts(taxonomy, root, alias));
+    return aliasEnd === undefined || (selectedEnd !== undefined && aliasEnd <= selectedEnd)
+      ? []
+      : [
+          {
+            code: "stale-concept-history",
+            seriesKey: definition.key,
+            message: `SEC ${definition.label.toLowerCase()} annual history under ${concept} ${selectedEnd === undefined ? "has no annual period" : `ends ${selectedEnd}`}, while ${alias} reports annual periods to ${aliasEnd}; the tags are not combined because their scope may differ`,
+          },
+        ];
+  });
+}
+
 function selectSeries(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
@@ -1067,8 +1104,9 @@ function selectSeries(
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
   const debt =
     definition.key === "debt" ? factsForDebt(payload, taxonomy, definition, eligible) : undefined;
+  const facts = debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible);
   const selected = materializeBasis(
-    debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible),
+    facts,
     definition,
     reportingCurrency,
     input.sourceId,
@@ -1076,7 +1114,13 @@ function selectSeries(
     unit,
   );
   if (debt === undefined) {
-    return selected;
+    return {
+      ...selected,
+      omissionNotes: [
+        ...selected.omissionNotes,
+        ...staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible),
+      ],
+    };
   }
   const withGross =
     taxonomy === "us-gaap"
@@ -1281,6 +1325,200 @@ function instantSeriesOmissionNotes(
   return notes;
 }
 
+const SHARE_BASIS_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
+  "dilutedEps",
+  "continuingDilutedEps",
+  "dilutedShares",
+]);
+
+// Thousand-fold restatements are unit-scale corrections, not share-basis changes.
+const MAX_SHARE_FACTOR = 1000;
+
+interface ShareBasisRestatement {
+  readonly key: FinancialStatementSeriesKey;
+  readonly fact: FinancialStatementFact & { readonly restatedFrom: OriginalFiling };
+}
+
+interface ShareBasisChange {
+  readonly at: string;
+  readonly factor: number;
+  readonly restatements: readonly ShareBasisRestatement[];
+}
+
+// Share-count multiplier the restatement implies: 5 for 5-for-1, -5 for 1-for-5.
+function impliedShareFactor({ fact }: ShareBasisRestatement): number {
+  const multiplier =
+    fact.unit === "shares"
+      ? fact.value / fact.restatedFrom.value
+      : fact.restatedFrom.value / fact.value;
+  return multiplier >= 1 ? Math.round(multiplier) : -Math.round(1 / multiplier);
+}
+
+// Tolerance covers cent rounding of both per-share values and 2% filing noise.
+function matchesShareFactor(restatement: ShareBasisRestatement, factor: number): boolean {
+  const values = [Math.abs(restatement.fact.value), Math.abs(restatement.fact.restatedFrom.value)];
+  const [small, big] = [Math.min(...values), Math.max(...values)];
+  const size = Math.abs(factor);
+  return (
+    (size === 1 || factor > 0 === impliedShareFactor(restatement) > 0) &&
+    Math.abs(big - size * small) <= Math.max(0.02 * big, 0.005 * (size + 1))
+  );
+}
+
+// Share counts must corroborate: an integer per-share restatement alone also fits an earnings correction.
+// Ponytail: issuers without a restated diluted-share tag (Alphabet) get no gap; read split 8-Ks if one matters.
+function shareBasisChanges(
+  series: readonly FinancialStatementSeries[],
+): readonly ShareBasisChange[] {
+  const byDate = new Map<string, ShareBasisRestatement[]>();
+  for (const item of series.filter((candidate) => SHARE_BASIS_SERIES.has(candidate.key))) {
+    for (const fact of financialStatementFacts(item)) {
+      const original = fact.restatedFrom;
+      if (original !== undefined && fact.value * original.value > 0) {
+        byDate.set(fact.firstPublicAt, [
+          ...(byDate.get(fact.firstPublicAt) ?? []),
+          { key: item.key, fact: { ...fact, restatedFrom: original } },
+        ]);
+      }
+    }
+  }
+  const events = [...byDate].flatMap(([at, restated]): ShareBasisChange[] => {
+    const changed = restated.filter((restatement) => !matchesShareFactor(restatement, 1));
+    const factor = changed
+      .filter((restatement) => restatement.key === "dilutedShares")
+      .map((restatement) => impliedShareFactor(restatement))
+      .find(
+        (candidate) =>
+          Math.abs(candidate) >= 2 &&
+          Math.abs(candidate) < MAX_SHARE_FACTOR &&
+          changed.every((restatement) => matchesShareFactor(restatement, candidate)),
+      );
+    return factor === undefined || changed.length < 2
+      ? []
+      : [{ at, factor, restatements: changed }];
+  });
+  return events.toSorted((left, right) => left.at.localeCompare(right.at));
+}
+
+// A period's own share count places it on the old or new basis; without one the basis is unconfirmed.
+function onEarlierShareBasis(
+  periodShares: number | undefined,
+  periodEnd: string,
+  change: ShareBasisChange,
+): boolean {
+  const reference = change.restatements
+    .filter((restatement) => restatement.key === "dilutedShares")
+    .toSorted(
+      (left, right) =>
+        Math.abs(Date.parse(left.fact.periodEnd) - Date.parse(periodEnd)) -
+        Math.abs(Date.parse(right.fact.periodEnd) - Date.parse(periodEnd)),
+    )[0]!.fact.value;
+  const multiplier = change.factor > 0 ? change.factor : -1 / change.factor;
+  return (
+    periodShares === undefined ||
+    Math.abs(Math.log((periodShares * multiplier) / reference)) <
+      Math.abs(Math.log(periodShares / reference))
+  );
+}
+
+function lowerFirst(label: string): string {
+  return label.charAt(0).toLowerCase() + label.slice(1);
+}
+
+function shareFactorLabel(key: FinancialStatementSeriesKey, factor: number): string {
+  const size = String(Math.abs(factor));
+  return factor > 0 === (key === "dilutedShares") ? `${size}x` : `1/${size}`;
+}
+
+// Never-refiled periods stay on their filed basis; they are declared, not rescaled.
+function mixedShareBasisNotes(
+  uncapped: readonly FinancialStatementSeries[],
+  retained: readonly FinancialStatementSeries[],
+): readonly FinancialStatementNote[] {
+  const changes = shareBasisChanges(uncapped);
+  const change = changes.at(-1);
+  if (change === undefined) {
+    return [];
+  }
+  const sameFactor = changes.filter((candidate) => candidate.factor === change.factor);
+  const citedRestatements = sameFactor.flatMap((candidate) => candidate.restatements);
+  const shares = uncapped.find((item) => item.key === "dilutedShares");
+  const sharesByPeriod = new Map(
+    (shares === undefined ? [] : financialStatementFacts(shares)).map((fact) => [
+      fact.periodKey,
+      fact,
+    ]),
+  );
+  // The share count in effect when the fact was filed: a later restatement does not re-base it.
+  const sharesWhenFiled = (fact: FinancialStatementFact) => {
+    const periodShares = sharesByPeriod.get(fact.periodKey);
+    return periodShares !== undefined && periodShares.firstPublicAt > fact.filedAt
+      ? periodShares.restatedFrom?.value
+      : periodShares?.value;
+  };
+  return retained
+    .filter((item) => SHARE_BASIS_SERIES.has(item.key))
+    .flatMap((item): FinancialStatementNote[] => {
+      const earlier = financialStatementFacts(item)
+        .filter(
+          (fact) =>
+            fact.filedAt < change.at &&
+            onEarlierShareBasis(sharesWhenFiled(fact), fact.periodEnd, change),
+        )
+        .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
+      if (earlier.length === 0) {
+        return [];
+      }
+      const citedKey = citedRestatements.some((restatement) => restatement.key === item.key)
+        ? item.key
+        : "dilutedShares";
+      const cited = citedRestatements
+        .filter((restatement) => restatement.key === citedKey)
+        .map((restatement) => restatement.fact.periodEnd)
+        .toSorted();
+      const citedLabel = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+        (definition) => definition.key === citedKey,
+      )!.label;
+      return [
+        {
+          code: "mixed-share-basis",
+          seriesKey: item.key,
+          message: `SEC ${lowerFirst(item.label)} periods ending ${earlier[0]!.periodEnd} to ${earlier.at(-1)!.periodEnd} (${String(earlier.length)} retained) were last filed before ${change.at}, the latest filing to restate share-based history; filings restate ${lowerFirst(citedLabel)} for periods ending ${cited[0]!} to ${cited.at(-1)!} by ~${shareFactorLabel(citedKey, change.factor)}, so those periods are on an earlier or unconfirmed share basis and are not adjusted`,
+        },
+        ...earlier.map(
+          (fact): FinancialStatementNote => ({
+            code: "earlier-share-basis",
+            seriesKey: item.key,
+            periodKey: fact.periodKey,
+            message: `${item.label} ${fact.periodKey} is on an earlier or unconfirmed share basis`,
+          }),
+        ),
+      ];
+    });
+}
+
+function withoutMixedShareBasisTtm(
+  series: FinancialStatementSeries,
+  notes: readonly FinancialStatementNote[],
+): { readonly series: FinancialStatementSeries; readonly note?: FinancialStatementNote } {
+  const { ttm, ...rest } = series;
+  return ttm === undefined ||
+    !touchesEarlierShareBasis(
+      Object.values(ttm.components),
+      earlierShareBasisPeriods(notes, series.key),
+    )
+    ? { series }
+    : {
+        series: rest,
+        note: {
+          code: "unreconciled-ttm",
+          seriesKey: series.key,
+          message:
+            "FY/latest-YTD/prior-YTD facts include a period on an earlier or unconfirmed share basis",
+        },
+      };
+}
+
 function seriesRecord(
   series: readonly FinancialStatementSeries[],
 ): FinancialStatementsArtifact["statements"] {
@@ -1298,6 +1536,7 @@ function seriesRecord(
       grossProfit: get("grossProfit"),
       operatingIncome: get("operatingIncome"),
       netIncome: get("netIncome"),
+      consolidatedNetIncome: get("consolidatedNetIncome"),
       continuingIncome: get("continuingIncome"),
     },
     balanceSheet: {
@@ -1349,9 +1588,11 @@ export function deriveFinancialStatements(
     taxonomy === undefined || reportingCurrency === undefined
       ? { validationNotes: [] }
       : selectEquityStack(payload, taxonomy, reportingCurrency, selected, input);
-  const { series, notes: capNotes } = capFinancialStatementPeriods(
-    selected.map((item) => item.series),
-  );
+  const uncapped = selected.map((item) => item.series);
+  const { series: retained, notes: capNotes } = capFinancialStatementPeriods(uncapped);
+  const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
+  const shareBasisTtm = retained.map((item) => withoutMixedShareBasisTtm(item, shareBasisNotes));
+  const series = shareBasisTtm.map((item) => item.series);
   const statements = seriesRecord(series);
   const currentAnnual = latestFinancialStatementFact(
     statements.incomeStatement.revenue.annual.filter((fact) => {
@@ -1399,12 +1640,14 @@ export function deriveFinancialStatements(
       ...taxonomyNotes,
       ...equityStackSelection.validationNotes,
       ...selected.flatMap((item) => item.validationNotes),
+      ...shareBasisTtm.flatMap((item) => (item.note === undefined ? [] : [item.note])),
       ...incompleteFinancialStatementNotes(series),
     ],
     omissionNotes: [
       ...selected.flatMap((item) => item.omissionNotes),
       ...capNotes,
       ...instantSeriesOmissionNotes(series, interimCadence, payload, taxonomy),
+      ...shareBasisNotes,
     ],
     structuredFinancialGaps: structuredFinancialGaps(
       taxonomy,
@@ -1436,6 +1679,24 @@ export function financialStatementsDebtBasisGaps(
   return latest === undefined || leaseInclusive.length === 0
     ? []
     : [{ ...leaseInclusiveDebtGap(latest.periodEnd, leaseInclusive), symbol: artifact.symbol }];
+}
+
+export function financialStatementsHistoryGaps(
+  artifact: FinancialStatementsArtifact,
+): readonly SourceGap[] {
+  return artifact.omissionNotes
+    .filter((note) => note.code === "stale-concept-history" || note.code === "mixed-share-basis")
+    .map((note) =>
+      sourceGap({
+        source: "sec-edgar",
+        message: note.message,
+        symbol: artifact.symbol,
+        provider: "sec-edgar",
+        capability: "extended-evidence",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
 }
 
 export interface CollectedFinancialStatements {

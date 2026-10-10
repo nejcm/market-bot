@@ -679,6 +679,7 @@ function secEvidenceWithRatios(
       grossProfit: 42,
       operatingIncome: 24,
       netIncome: 18,
+      netIncomePeriodEnd: "2026-03-28",
       operatingCashFlow: 30,
       capex: 5,
       cash: 35,
@@ -693,6 +694,7 @@ function secEvidenceWithRatios(
       stockholdersEquityPeriodEnd: "2026-03-28",
       assets: 120,
       dividendsPaid: -5,
+      dividendsPaidPeriodEnd: "2026-03-28",
       ...overrides,
     },
   };
@@ -1865,5 +1867,123 @@ describe("buildYahooFundamentals", () => {
     } as const;
     const item = buildYahooFundamentals(cryptoCommand, [], "2026-06-22T00:00:00.000Z");
     expect(item).toBeUndefined();
+  });
+});
+
+function payoutGap(result: ReturnType<typeof addFinancialLensEvidence>) {
+  return result.sourceGaps.find((gap) => gap.message.startsWith("SEC-derived payout ratio"));
+}
+
+describe("addFinancialLensEvidence — Financial Strength payout validity", () => {
+  const canonicalPayout = (
+    netIncome: number,
+    analysisAsOf: string,
+    extraFacts: Record<string, unknown> = {},
+  ) => {
+    const artifact = deriveFinancialStatements(
+      {
+        facts: {
+          "us-gaap": {
+            Revenues: { units: { USD: [canonicalAnnualFact(100, 2025)] } },
+            NetIncomeLoss: { units: { USD: [canonicalAnnualFact(netIncome, 2025)] } },
+            PaymentsOfDividends: { units: { USD: [canonicalAnnualFact(5, 2025)] } },
+            ...extraFacts,
+          },
+        },
+      },
+      {
+        symbol: "AAPL",
+        generatedAt: analysisAsOf,
+        analysisAsOf,
+        sourceId: "extended-sec-edgar-aapl-fundamentals",
+      },
+    );
+    return addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      verifiedSnapshot(),
+      analysisAsOf,
+    );
+  };
+  test("a current positive-income payout supports Financial Strength without a gap", () => {
+    const result = canonicalPayout(20, "2026-06-29T00:00:00.000Z");
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toMatchObject({
+      value: 0.25,
+      periodEnd: "2025-12-31",
+    });
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(payoutGap(result)).toBeUndefined();
+  });
+
+  test.each([
+    ["negative", -20],
+    ["zero", 0],
+  ])("withholds the payout and declares a gap for %s net income", (_label, netIncome) => {
+    const result = canonicalPayout(netIncome, "2026-03-01T00:00:00.000Z");
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+    expect(payoutGap(result)?.message).toBe(
+      "SEC-derived payout ratio for AAPL withheld: net income for the period ending 2025-12-31 is zero or negative",
+    );
+  });
+
+  test("keeps a fresh payout when a newer balance-sheet date has advanced", () => {
+    const result = canonicalPayout(20, "2026-05-15T00:00:00.000Z", {
+      CashAndCashEquivalentsAtCarryingValue: {
+        units: { USD: [canonicalInstantFact(40, "2026-04-30", "2026-05-10", "10-Q", "Q1")] },
+      },
+    });
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toMatchObject({
+      value: 0.25,
+      periodEnd: "2025-12-31",
+    });
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(payoutGap(result)).toBeUndefined();
+  });
+
+  test("withholds a payout one day past SEC freshness and declares a gap", () => {
+    const result = canonicalPayout(20, "2026-06-30T00:00:00.000Z");
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+    expect(payoutGap(result)?.message).toBe(
+      "SEC-derived payout ratio for AAPL withheld at analysis cutoff 2026-06-30: period end 2025-12-31 not within 180 days before the cutoff",
+    );
+  });
+
+  const legacyPayout = (overrides: Record<string, number | string>) =>
+    addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [secEvidenceWithRatios(overrides), valuationEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+  test("withholds a legacy loss-period payout", () => {
+    const result = legacyPayout({ netIncome: -18 });
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(payoutGap(result)?.message).toBe(
+      "SEC-derived payout ratio for AAPL withheld: net income for the period ending 2026-03-28 is zero or negative",
+    );
+  });
+
+  test("withholds a legacy payout from a non-current period", () => {
+    const result = legacyPayout({
+      dividendsPaidPeriodEnd: "2025-06-28",
+      netIncomePeriodEnd: "2025-06-28",
+    });
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(payoutGap(result)?.message).toContain("period end 2025-06-28 not within 180 days");
   });
 });

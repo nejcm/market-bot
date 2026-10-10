@@ -184,6 +184,15 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       concepts: { "us-gaap": ["NetIncomeLoss"], "ifrs-full": ["ProfitLoss"] },
     },
     {
+      key: "consolidatedNetIncome",
+      label: "Net income including noncontrolling interest",
+      statement: "incomeStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: false,
+      concepts: { "us-gaap": ["ProfitLoss"], "ifrs-full": [] },
+    },
+    {
       key: "continuingIncome",
       label: "Income from continuing operations",
       statement: "incomeStatement",
@@ -320,7 +329,13 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
       unitKind: "monetary",
       deriveTtm: true,
       concepts: {
-        "us-gaap": ["PaymentsForDividends", "DividendsPaid"],
+        "us-gaap": [
+          "PaymentsOfDividends",
+          "PaymentsOfDividendsCommonStock",
+          "PaymentsOfOrdinaryDividends",
+          "PaymentsForDividends",
+          "DividendsPaid",
+        ],
         "ifrs-full": ["DividendsPaidClassifiedAsFinancingActivities"],
       },
     },

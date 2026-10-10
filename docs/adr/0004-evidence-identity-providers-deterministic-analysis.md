@@ -37,7 +37,7 @@ expectations entitlement completeness status; amended 2026-09-01: web-gather SEC
 guard extended to current-subject searches; amended 2026-10-05: calibrated gross-principal debt
 basis; amended 2026-10-08: accession-addressed SEC document cache; amended 2026-10-08: per-instant
 debt resolution and same-period enterprise value; amended 2026-10-09: accounting scope and
-earnings-basis disclosure)
+earnings-basis disclosure; amended 2026-10-10: stale concept-history Source Gap)
 
 ## Context
 
@@ -226,7 +226,8 @@ without pretending the project has a global security master.
   filing-intrinsic metrics; Yahoo snapshot fundamentals supply price-relative metrics and
   non-US fallback coverage.
 - SEC `netIncome` maps to parent-attributable `NetIncomeLoss`; optional consolidated `ProfitLoss`
-  is disclosure-only when it differs. ROE and ROA retain parent-attributable income and their
+  is its own canonical series, read only on net income's selected period and disclosure-only when
+  it differs. ROE and ROA retain parent-attributable income and their
   existing balance-sheet scopes rather than mixing consolidated and parent measures.
 - Accounting scope has three independent axes, kept apart rather than inferred from equal values:
   continuing versus total operations, parent-attributable versus including noncontrolling
@@ -564,7 +565,10 @@ without pretending the project has a global security master.
   eligible period, configured order breaking ties. Because order encodes measure scope, reordering a concept list is a correctness change, not
   a preference change; exact definition contents and order are pinned by test. Accepting shortened
   history remains preferable to substituting a differently scoped series; when an alternative tag
-  would extend history, the shortening stays silent by design and is not reported as a gap.
+  would extend history, the shortening stays silent by design and is not reported as a gap, except
+  that an alias reporting an annual period newer than the selected concept's latest, or any annual
+  period when the selected concept has no annual period, declares a `stale-concept-history` Source
+  Gap; the tags are still not combined.
   Offline corpus verification now enumerates the interchangeable-alias shape — a lower-priority
   allow-listed tag whose eligible annual periods strictly contain the selected tag's with exact
   agreement on every shared period — and pins it at zero occurrences among the nine corpus sides
@@ -582,6 +586,11 @@ without pretending the project has a global security master.
   Diluted-EPS TTM remains approximate when share counts vary across component periods. Because each
   period independently selects its latest-filed fact, a TTM calculation can combine a restated
   latest YTD with a prior-year YTD that was not restated in the same filing.
+  When filings restate diluted share counts, and any per-share values with them, by one consistent
+  integer or reciprocal factor, retained periods last filed earlier whose own share count does not
+  show the new basis are declared as a `mixed-share-basis` Source Gap, never rescaled; canonical
+  and historical-valuation TTM, EPS CAGR, and prior comparisons that touch any of those periods
+  are withheld, and the share-count table and EPS history chart disclose it.
 - The canonical financial-statements artifact drives the optional equity completeness contract and
   its Phase 2 consumers. Companyfacts current-report financing coverage is limited to explicitly
   tagged standard-taxonomy proceeds and cost facts; untagged narrative disclosures remain outside

@@ -12,6 +12,8 @@ import {
 } from "./financial-statement-definitions";
 import {
   deriveFinancialStatementTtm,
+  earlierShareBasisPeriods,
+  touchesEarlierShareBasis,
   financialStatementFactForPeriod,
   financialStatementFacts,
   financialStatementTtmsAreCompatible,
@@ -391,12 +393,19 @@ function derivedTtmAt(
   if (definition === undefined || artifact.reportingCurrency === undefined) {
     return undefined;
   }
-  return deriveFinancialStatementTtm(
+  const { ttm } = deriveFinancialStatementTtm(
     definition,
     series.annual.filter((fact) => fact.firstPublicAt <= cutoff),
     series.interim.filter((fact) => fact.firstPublicAt <= cutoff),
     artifact.reportingCurrency,
-  ).ttm;
+  );
+  return ttm === undefined ||
+    touchesEarlierShareBasis(
+      Object.values(ttm.components),
+      earlierShareBasisPeriods(artifact.omissionNotes, series.key),
+    )
+    ? undefined
+    : ttm;
 }
 
 function historicalTtmInputs(

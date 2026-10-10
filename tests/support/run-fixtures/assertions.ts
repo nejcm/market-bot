@@ -4,15 +4,43 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord } from "../../../src/guards";
+import type { ResearchReport } from "../../../src/domain/types";
 import type { ModelRequest } from "../../../src/model/types";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
+import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
+import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
 import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
+function asWritten(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
 export async function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): Promise<void> {
-  const report = validateResearchReport(result.report);
+  const { runDir } = result.artifacts;
+  expect(await Bun.file(join(runDir, RUN_ARTIFACT_FILES.failure)).exists()).toBe(false);
+  const loaded = await loadRunArtifact(runDir);
+  expect(loaded.status.report).toBe("ok");
+  // The reader rejects a bundle whose source ids do not resolve against the report.
+  expect(loaded.status.evidenceBundle).toBe(meta.argv.includes("--deep") ? "ok" : undefined);
+  const persisted = async (file: string): Promise<unknown> =>
+    JSON.parse(await readFile(join(runDir, file), "utf8")) as unknown;
+  const persistedReport = await persisted(RUN_ARTIFACT_FILES.report);
+  expect(persistedReport).toEqual(asWritten(result.report));
+  expect(await readFile(join(runDir, RUN_ARTIFACT_FILES.reportMarkdown), "utf8")).toBe(
+    result.markdown,
+  );
+  expect(await persisted(RUN_ARTIFACT_FILES.analytics)).toEqual(asWritten(result.analytics));
+  expect(await persisted(RUN_ARTIFACT_FILES.outcomes)).toEqual(asWritten(result.outcomes));
+  if (result.deepEquityEvidenceBundle !== undefined) {
+    expect(await persisted(RUN_ARTIFACT_FILES.evidenceBundle)).toEqual(
+      asWritten(result.deepEquityEvidenceBundle),
+    );
+  }
+  const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
+  expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
   }
@@ -209,21 +237,8 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
   }
 }
 
-// BNS reports in CAD and quotes in USD, so its workbench is the only recorded run where a close
-// Must cross currencies before it can meet a reporting-currency denominator. Strip the conversion
-// And every multiple below suppresses as fx-rate-unavailable instead of quietly shifting, so
-// Pinning the converted numerators pins the whole path: FX close selection, the multiply, the
-// Source attribution, and the rendered rate. The depository suppressions leave P/E and P/S — the
-// Multiples a bank is actually valued on — as the converted metrics that matter here.
-// The derived checks below recompute close × rate from the artifact they are checking, so an
-// Internally consistent producer bug survives them: read the rate as its reciprocal while still
-// Labelling the pair USDCAD=X and the recorded rate, the recorded numerators and any expectation
-// Derived from them all move together. Golden replay would not catch that either — it detects
-// Drift, and a refreshed golden would simply bless the bug. So the recorded magnitudes are pinned
-// Here as an independent oracle, per ADR 0007. These are the real BNS values as filed and quoted:
-// A Canadian bank trades near CAD 100, not near CAD 50, and USD/CAD is ~1.4, never ~0.71.
-// Tolerances are loose enough to survive a re-recording at neighbouring closes and rates, and
-// Tight enough that an inverted rate or a dropped conversion cannot fit inside them.
+// BNS is the only recorded CAD-reporting, USD-quoted run; its real converted magnitudes are pinned as
+// An independent oracle (ADR 0007), loose enough for re-recording, tight enough to catch an inverted rate.
 const CONVERTED_ROW = /converted at USD\/CAD /gu;
 const PINNED_CONVERSIONS = [
   { periodEnd: "2025-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 123_264_963_232 },

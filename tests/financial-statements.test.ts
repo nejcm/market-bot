@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   deriveFinancialStatements,
   financialStatementsDebtBasisGaps,
+  financialStatementsHistoryGaps,
 } from "../src/sources/extended-evidence/financial-statements";
 import { grossPrincipalDebtFallbackApplies } from "../src/sources/extended-evidence/financial-statement-period-identity";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
@@ -23,6 +24,9 @@ import {
   type FinancialStatementSeries,
 } from "../src/sources/extended-evidence/financial-statements-contract";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { deriveFundamentalHistoryFromFinancialStatements } from "../src/sources/extended-evidence/fundamental-history-canonical";
+import type { RunSummary } from "../app/types";
+import { fundamentalHistoryView } from "../app/client/run-workspace-financials";
 import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-edgar";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import {
@@ -89,6 +93,10 @@ function derive(
     sourceId: "extended-sec-edgar-test-fundamentals",
     ...overrides,
   });
+}
+
+function historyGapMessages(artifact: ReturnType<typeof derive>): readonly string[] {
+  return financialStatementsHistoryGaps(artifact).map((gap) => gap.message);
 }
 
 function annualFormMetadata(series: FinancialStatementSeries) {
@@ -696,6 +704,523 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  test.each([
+    "PaymentsOfDividends",
+    "PaymentsOfDividendsCommonStock",
+    "PaymentsOfOrdinaryDividends",
+  ])("selects %s as dividends paid", (concept) => {
+    const artifact = derive(payload({ "us-gaap": { [concept]: { USD: [annual(40, 2025)] } } }));
+
+    expect(artifact.statements.cashFlowStatement.dividendsPaid.annual).toEqual([
+      expect.objectContaining({ value: 40, concept }),
+    ]);
+  });
+
+  test("prefers the cash-flow dividend total over the common-only concept on the same period", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          PaymentsOfDividendsCommonStock: { USD: [annual(30, 2025)] },
+          PaymentsOfDividends: { USD: [annual(40, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.cashFlowStatement.dividendsPaid.annual).toEqual([
+      expect.objectContaining({ value: 40, concept: "PaymentsOfDividends" }),
+    ]);
+  });
+
+  describe("stale concept history", () => {
+    const ytd = (value: number, year: number) =>
+      interim({ value, year, endMonthDay: "06-30", form: "10-Q", fiscalPeriod: "Q2" });
+    const staleGapMessages = (companyFacts: unknown) =>
+      financialStatementsHistoryGaps(derive(companyFacts, { analysisAsOf: "2026-09-01" })).map(
+        (gap) => gap.message,
+      );
+
+    test("declares an alias whose annual history runs past the selected concept, unchanged", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          PaymentsToAcquirePropertyPlantAndEquipment: {
+            USD: [annual(10, 2018), annual(12, 2019), ytd(3, 2025), ytd(5, 2026)],
+          },
+          PaymentsToAcquireProductiveAssets: {
+            USD: [annual(10, 2018), annual(12, 2019), annual(15, 2020), annual(20, 2025)],
+          },
+        },
+      });
+      const { capitalExpenditure } = derive(companyFacts, {
+        analysisAsOf: "2026-09-01",
+      }).statements.cashFlowStatement;
+
+      expect(capitalExpenditure.annual.map((item) => item.value)).toEqual([10, 12]);
+      expect(capitalExpenditure.interim.map((item) => item.value)).toEqual([3, 5]);
+      expect(
+        new Set(
+          [...capitalExpenditure.annual, ...capitalExpenditure.interim].map((item) => item.concept),
+        ),
+      ).toEqual(new Set(["PaymentsToAcquirePropertyPlantAndEquipment"]));
+      expect(staleGapMessages(companyFacts)).toEqual([
+        "SEC capital expenditure annual history under PaymentsToAcquirePropertyPlantAndEquipment ends 2019-12-31, while PaymentsToAcquireProductiveAssets reports annual periods to 2025-12-31; the tags are not combined because their scope may differ",
+      ]);
+    });
+
+    test("keeps still-current total revenue and declares the newer contract-revenue year", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2023), ytd(500, 2024), ytd(600, 2025)] },
+          RevenueFromContractWithCustomerExcludingAssessedTax: {
+            USD: [annual(100, 2024), ytd(50, 2024), ytd(60, 2025)],
+          },
+        },
+      });
+      const { revenue } = derive(companyFacts, {
+        analysisAsOf: "2026-09-01",
+      }).statements.incomeStatement;
+
+      expect(revenue.interim.at(-1)).toMatchObject({ concept: "Revenues", value: 600 });
+      expect(staleGapMessages(companyFacts)).toHaveLength(1);
+    });
+
+    test("keeps current cash rather than older restricted-inclusive cash", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          CashAndCashEquivalentsAtCarryingValue: {
+            USD: [
+              instant(100, 2023),
+              fact({
+                value: 120,
+                form: "10-Q",
+                fiscalYear: 2025,
+                fiscalPeriod: "Q2",
+                filedAt: "2025-08-15",
+                periodEnd: "2025-06-30",
+              }),
+            ],
+          },
+          CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents: {
+            USD: [instant(1000, 2024)],
+          },
+        },
+      });
+      const { cash } = derive(companyFacts, { analysisAsOf: "2026-09-01" }).statements.balanceSheet;
+
+      expect(cash.interim.at(-1)).toMatchObject({
+        concept: "CashAndCashEquivalentsAtCarryingValue",
+        value: 120,
+      });
+      expect(staleGapMessages(companyFacts)).toHaveLength(1);
+    });
+
+    test("leaves an alias holding only older annual periods to the history cap", () => {
+      const companyFacts = payload({
+        "us-gaap": {
+          PaymentsToAcquirePropertyPlantAndEquipment: {
+            USD: [annual(10, 2019), annual(12, 2020), ytd(3, 2020), ytd(5, 2021)],
+          },
+          PaymentsToAcquireProductiveAssets: { USD: [annual(8, 2017), annual(9, 2018)] },
+        },
+      });
+
+      expect(staleGapMessages(companyFacts)).toEqual([]);
+    });
+  });
+
+  describe("mixed share basis", () => {
+    const fy = (value: number, year: number, filedAt: string) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: year,
+        fiscalPeriod: "FY",
+        filedAt,
+        periodStart: `${String(year)}-01-01`,
+        periodEnd: `${String(year)}-12-31`,
+      });
+    const halfYear = (value: number, year: number, filedAt: string) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: year,
+        fiscalPeriod: "Q2",
+        filedAt,
+        periodStart: `${String(year)}-01-01`,
+        periodEnd: `${String(year)}-06-30`,
+      });
+    const revenue = {
+      USD: [
+        fy(100, 2023, "2024-02-15"),
+        fy(120, 2024, "2025-02-15"),
+        fy(150, 2025, "2026-02-15"),
+        halfYear(70, 2025, "2025-08-15"),
+        halfYear(80, 2026, "2026-08-15"),
+        fact({
+          value: 90,
+          form: "10-Q",
+          fiscalPeriod: "Q3",
+          filedAt: "2025-11-15",
+          periodStart: "2025-01-01",
+          periodEnd: "2025-09-30",
+        }),
+        fact({
+          value: 110,
+          form: "10-Q",
+          fiscalPeriod: "Q3",
+          filedAt: "2026-11-15",
+          periodStart: "2026-01-01",
+          periodEnd: "2026-09-30",
+        }),
+      ],
+    };
+    const perShare = (
+      eps: readonly Record<string, unknown>[],
+      shares: readonly Record<string, unknown>[],
+      analysisAsOf = "2026-09-01",
+    ) =>
+      derive(
+        payload({
+          "us-gaap": {
+            Revenues: revenue,
+            EarningsPerShareDiluted: { "USD/shares": eps },
+            WeightedAverageNumberOfDilutedSharesOutstanding: { shares },
+          },
+        }),
+        { analysisAsOf },
+      );
+
+    test("declares never-refiled pre-split ServiceNow-shaped periods and withholds spanning comparisons", () => {
+      const artifact = perShare(
+        [
+          fy(3, 2020, "2021-02-15"),
+          fy(4, 2021, "2022-02-15"),
+          fy(5, 2022, "2023-02-15"),
+          fy(8.42, 2023, "2024-02-15"),
+          fy(1.68, 2023, "2026-01-29"),
+          fy(6.84, 2024, "2025-02-15"),
+          fy(1.37, 2024, "2026-01-29"),
+          fy(2, 2025, "2026-01-29"),
+          halfYear(4.04, 2025, "2025-08-15"),
+          halfYear(0.5, 2026, "2026-08-15"),
+        ],
+        [
+          fy(203_500_000, 2022, "2023-02-15"),
+          fy(205_591_000, 2023, "2024-02-15"),
+          fy(1_027_953_000, 2023, "2026-01-29"),
+          fy(208_423_000, 2024, "2025-02-15"),
+          fy(1_042_113_000, 2024, "2026-01-29"),
+          fy(1_050_000_000, 2025, "2026-01-29"),
+          halfYear(209_343_000, 2025, "2025-08-15"),
+          halfYear(1_055_000_000, 2026, "2026-08-15"),
+        ],
+        "2026-12-01",
+      );
+      const { dilutedEps } = artifact.statements.perShare;
+
+      expect(dilutedEps.annual.map((item) => item.value)).toEqual([3, 4, 5, 1.68, 1.37, 2]);
+      expect(dilutedEps.interim.map((item) => item.value)).toEqual([4.04, 0.5]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC diluted EPS periods ending 2020-12-31 to 2025-06-30 (4 retained) were last filed before 2026-01-29, the latest filing to restate share-based history; filings restate diluted EPS for periods ending 2023-12-31 to 2024-12-31 by ~1/5, so those periods are on an earlier or unconfirmed share basis and are not adjusted",
+        "SEC diluted weighted-average shares periods ending 2022-12-31 to 2025-06-30 (2 retained) were last filed before 2026-01-29, the latest filing to restate share-based history; filings restate diluted weighted-average shares for periods ending 2023-12-31 to 2024-12-31 by ~5x, so those periods are on an earlier or unconfirmed share basis and are not adjusted",
+      ]);
+      expect(dilutedEps.ttm).toBeUndefined();
+      expect(artifact.validationNotes).toContainEqual(
+        expect.objectContaining({ code: "unreconciled-ttm", seriesKey: "dilutedEps" }),
+      );
+      expect(
+        valuationPeriodInputs(artifact)
+          .periods.filter((period) => period.basis === "ttm")
+          .map((period) => [period.periodEnd, period.dilutedEps]),
+      ).toEqual([
+        ["2026-06-30", undefined],
+        ["2026-09-30", undefined],
+      ]);
+      const history = deriveFundamentalHistoryFromFinancialStatements(artifact);
+      expect(history.series.dilutedEps.cagr).toBeUndefined();
+      expect(history.series.dilutedEps.notes).toContain(
+        "cagr:mixed-share-basis: an annual endpoint is on an earlier or unconfirmed share basis",
+      );
+      expect(
+        fundamentalHistoryView({
+          summary: {} as RunSummary,
+          fundamentalHistory: history,
+        })?.cards.find((card) => card.key === "dilutedEps")?.disclosure,
+      ).toBe(
+        "Earlier EPS points are on an earlier or unconfirmed share basis and are not adjusted.",
+      );
+      expect(balanceSheetHistory(artifact, undefined)?.notes).toContainEqual(
+        expect.objectContaining({ code: "mixed-share-basis", seriesKey: "dilutedShares" }),
+      );
+      const lens = withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics;
+      expect(lens).toMatchObject({ dilutedEps: 0.5 });
+      expect(lens?.dilutedEpsDeltaPercent).toBeUndefined();
+    });
+
+    test("keeps a post-split period filed before the latest restating filing on the new basis", () => {
+      const artifact = perShare(
+        [
+          fy(4, 2022, "2023-02-15"),
+          fy(4.5, 2023, "2024-02-15"),
+          fy(0.9, 2023, "2026-02-15"),
+          fy(5, 2024, "2025-02-15"),
+          fy(1, 2024, "2026-02-15"),
+          fy(1.2, 2025, "2026-02-15"),
+          halfYear(1, 2025, "2025-08-15"),
+          halfYear(1.1, 2026, "2026-08-15"),
+        ],
+        [
+          fy(100, 2022, "2023-02-15"),
+          fy(100, 2023, "2024-02-15"),
+          fy(500, 2023, "2026-02-15"),
+          fy(100, 2024, "2025-02-15"),
+          fy(500, 2024, "2026-02-15"),
+          fy(505, 2025, "2026-02-15"),
+          halfYear(502, 2025, "2025-08-15"),
+          halfYear(510, 2026, "2026-08-15"),
+        ],
+      );
+
+      expect(historyGapMessages(artifact)).toEqual([
+        expect.stringContaining(
+          "SEC diluted EPS periods ending 2022-12-31 to 2022-12-31 (1 retained)",
+        ),
+        expect.stringContaining(
+          "SEC diluted weighted-average shares periods ending 2022-12-31 to 2022-12-31 (1 retained)",
+        ),
+      ]);
+      expect(artifact.statements.perShare.dilutedEps.ttm?.value).toBeCloseTo(1.3);
+      expect(
+        withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics
+          ?.dilutedEpsDeltaPercent,
+      ).toBeCloseTo(10);
+    });
+
+    test("reads a per-share fact against the share count filed with it", () => {
+      const artifact = perShare(
+        [
+          fy(5, 2022, "2023-02-15"),
+          fy(8.42, 2023, "2024-02-15"),
+          fy(6.84, 2024, "2025-02-15"),
+          fy(1.37, 2024, "2026-01-29"),
+        ],
+        [
+          fy(200, 2022, "2023-02-15"),
+          fy(205, 2023, "2024-02-15"),
+          fy(1025, 2023, "2026-01-29"),
+          fy(208, 2024, "2025-02-15"),
+          fy(1040, 2024, "2026-01-29"),
+        ],
+      );
+
+      expect(historyGapMessages(artifact)[0]).toStartWith(
+        "SEC diluted EPS periods ending 2022-12-31 to 2023-12-31 (2 retained)",
+      );
+    });
+
+    test("separates two same-factor splits filed within a year", () => {
+      const artifact = perShare(
+        [
+          fy(2, 2022, "2023-02-15"),
+          fy(2, 2023, "2024-02-15"),
+          fy(1, 2023, "2025-02-15"),
+          fy(1.5, 2024, "2025-02-15"),
+          fy(0.75, 2024, "2026-01-15"),
+          fy(1, 2025, "2026-01-15"),
+        ],
+        [
+          fy(100, 2022, "2023-02-15"),
+          fy(100, 2023, "2024-02-15"),
+          fy(200, 2023, "2025-02-15"),
+          fy(200, 2024, "2025-02-15"),
+          fy(400, 2024, "2026-01-15"),
+          fy(400, 2025, "2026-01-15"),
+        ],
+      );
+
+      expect(historyGapMessages(artifact)).toEqual([
+        expect.stringContaining(
+          "SEC diluted EPS periods ending 2022-12-31 to 2023-12-31 (2 retained)",
+        ),
+        expect.stringContaining(
+          "SEC diluted weighted-average shares periods ending 2022-12-31 to 2023-12-31 (2 retained)",
+        ),
+      ]);
+      expect(
+        deriveFundamentalHistoryFromFinancialStatements(artifact).series.dilutedEps.cagr,
+      ).toBeUndefined();
+    });
+
+    test("withholds comparisons among periods on two earlier share bases", () => {
+      const artifact = perShare(
+        [
+          fy(4, 2022, "2023-02-15"),
+          fy(4, 2023, "2024-02-15"),
+          fy(2, 2023, "2025-02-15"),
+          fy(2, 2024, "2025-02-15"),
+          halfYear(2, 2024, "2024-08-15"),
+          halfYear(1, 2025, "2025-08-15"),
+        ],
+        [
+          fy(100, 2022, "2023-02-15"),
+          fy(100, 2023, "2024-02-15"),
+          fy(200, 2023, "2025-02-15"),
+          fy(200, 2024, "2025-02-15"),
+          fy(400, 2024, "2026-11-15"),
+          halfYear(100, 2024, "2024-08-15"),
+          halfYear(200, 2025, "2025-08-15"),
+          fy(200, 2025, "2026-02-15"),
+          fy(400, 2025, "2026-11-15"),
+        ],
+        "2026-12-01",
+      );
+
+      expect(historyGapMessages(artifact)[0]).toStartWith(
+        "SEC diluted EPS periods ending 2022-12-31 to 2025-06-30 (5 retained)",
+      );
+      expect(artifact.statements.perShare.dilutedEps.ttm).toBeUndefined();
+      expect(
+        deriveFundamentalHistoryFromFinancialStatements(artifact).series.dilutedEps.cagr,
+      ).toBeUndefined();
+      expect(
+        withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics
+          ?.dilutedEpsDeltaPercent,
+      ).toBeUndefined();
+      expect(
+        valuationPeriodInputs(artifact)
+          .periods.filter((period) => period.basis === "ttm")
+          .map((period) => period.dilutedEps),
+      ).toEqual([undefined, undefined]);
+    });
+
+    test("dates the change by first publication, not by a later unchanged re-filing", () => {
+      const artifact = perShare(
+        [
+          fy(5, 2022, "2023-02-15"),
+          fy(8.42, 2023, "2024-02-15"),
+          fy(1.68, 2023, "2026-01-29"),
+          fy(1.68, 2023, "2027-01-29"),
+          fy(2, 2025, "2026-01-29"),
+        ],
+        [
+          fy(200, 2022, "2023-02-15"),
+          fy(205, 2023, "2024-02-15"),
+          fy(1025, 2023, "2026-01-29"),
+          fy(1025, 2023, "2027-01-29"),
+          fy(1050, 2025, "2026-01-29"),
+        ],
+        "2027-03-01",
+      );
+
+      expect(historyGapMessages(artifact)[0]).toStartWith(
+        "SEC diluted EPS periods ending 2022-12-31 to 2022-12-31 (1 retained) were last filed before 2026-01-29,",
+      );
+    });
+
+    test("detects a change whose restated periods fall outside the retained window", () => {
+      const halfYears = Array.from({ length: 12 }, (_, index) => 2015 + index);
+      const artifact = perShare(
+        [
+          fy(4, 2013, "2014-02-15"),
+          halfYear(2, 2014, "2014-08-15"),
+          halfYear(1, 2014, "2015-08-15"),
+          ...halfYears.map((year) => halfYear(1, year, `${String(year)}-08-15`)),
+        ],
+        [
+          fy(100, 2013, "2014-02-15"),
+          halfYear(100, 2014, "2014-08-15"),
+          halfYear(200, 2014, "2015-08-15"),
+          ...halfYears.map((year) => halfYear(200, year, `${String(year)}-08-15`)),
+        ],
+      );
+
+      expect(
+        artifact.statements.perShare.dilutedShares.interim.some(
+          (item) => item.periodEnd === "2014-06-30",
+        ),
+      ).toBe(false);
+      expect(historyGapMessages(artifact)).toEqual([
+        expect.stringContaining(
+          "SEC diluted EPS periods ending 2013-12-31 to 2013-12-31 (1 retained)",
+        ),
+        expect.stringContaining(
+          "SEC diluted weighted-average shares periods ending 2013-12-31 to 2013-12-31 (1 retained)",
+        ),
+      ]);
+    });
+
+    test("declares a reverse split from per-share and share-count restatements", () => {
+      const artifact = perShare(
+        [
+          fy(-0.3, 2022, "2023-02-15"),
+          fy(-0.37, 2023, "2024-02-15"),
+          fy(-5.61, 2023, "2025-02-15"),
+          fy(-4, 2024, "2025-02-15"),
+        ],
+        [
+          fy(24_000_000, 2022, "2023-02-15"),
+          fy(23_992_995, 2023, "2024-02-15"),
+          fy(1_598_756, 2023, "2025-02-15"),
+          fy(1_650_000, 2024, "2025-02-15"),
+        ],
+      );
+
+      expect(artifact.statements.perShare.dilutedEps.annual.map((item) => item.value)).toEqual([
+        -0.3, -5.61, -4,
+      ]);
+      expect(historyGapMessages(artifact)).toEqual([
+        "SEC diluted EPS periods ending 2022-12-31 to 2022-12-31 (1 retained) were last filed before 2025-02-15, the latest filing to restate share-based history; filings restate diluted EPS for periods ending 2023-12-31 to 2023-12-31 by ~15x, so those periods are on an earlier or unconfirmed share basis and are not adjusted",
+        "SEC diluted weighted-average shares periods ending 2022-12-31 to 2022-12-31 (1 retained) were last filed before 2025-02-15, the latest filing to restate share-based history; filings restate diluted weighted-average shares for periods ending 2023-12-31 to 2023-12-31 by ~1/15, so those periods are on an earlier or unconfirmed share basis and are not adjusted",
+      ]);
+    });
+
+    test("ignores earnings corrections, unit-scale corrections, and lone restatements", () => {
+      const salesforce = perShare(
+        [
+          fy(0.3, 2015, "2016-03-01"),
+          fy(0.26, 2016, "2017-03-06"),
+          fy(0.46, 2016, "2019-03-08"),
+          fy(0.17, 2017, "2018-03-09"),
+          fy(0.49, 2017, "2019-03-08"),
+        ],
+        [],
+      );
+      const doubledEarnings = perShare(
+        [
+          fy(1, 2022, "2023-02-15"),
+          fy(2, 2023, "2024-02-15"),
+          fy(4, 2023, "2026-02-15"),
+          fy(3, 2024, "2025-02-15"),
+          fy(6, 2024, "2026-02-15"),
+        ],
+        [
+          fy(100, 2022, "2023-02-15"),
+          fy(100, 2023, "2024-02-15"),
+          fy(100, 2023, "2026-02-15"),
+          fy(100, 2024, "2025-02-15"),
+          fy(100, 2024, "2026-02-15"),
+        ],
+      );
+      const rescaled = perShare(
+        [fy(1, 2021, "2022-02-15")],
+        [
+          fy(200, 2021, "2022-02-15"),
+          fy(210, 2022, "2023-02-15"),
+          fy(210_000_000, 2022, "2025-02-15"),
+          fy(220, 2023, "2024-02-15"),
+          fy(220_000_000, 2023, "2025-02-15"),
+        ],
+      );
+      const singlePeriod = perShare(
+        [fy(2, 2016, "2017-03-06"), fy(1, 2017, "2018-03-09")],
+        [fy(100, 2016, "2017-03-06"), fy(100, 2017, "2018-03-09"), fy(200, 2017, "2019-03-08")],
+      );
+
+      for (const artifact of [salesforce, doubledEarnings, rescaled, singlePeriod]) {
+        expect(historyGapMessages(artifact)).toEqual([]);
+      }
+    });
+  });
+
   test("keeps total revenue for MARA/TeraWulf-class competing concepts", () => {
     const artifact = derive(
       payload({
@@ -756,6 +1281,88 @@ describe("canonical financial statements", () => {
       },
     });
   });
+
+  test.each([{ hasLatestYtd: true }, { hasLatestYtd: false }])(
+    "selects YTD beside rolling-year facts without falling back to an older end, latest YTD: $hasLatestYtd",
+    ({ hasLatestYtd }) => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: {
+              USD: [
+                annual(100, 2024),
+                interim({
+                  value: 9,
+                  year: 2024,
+                  endMonthDay: "03-31",
+                  form: "10-Q",
+                  fiscalPeriod: "Q1",
+                }),
+                interim({
+                  value: 20,
+                  year: 2024,
+                  endMonthDay: "06-30",
+                  form: "10-Q",
+                  fiscalPeriod: "Q2",
+                }),
+                interim({
+                  value: 14,
+                  year: 2025,
+                  endMonthDay: "03-31",
+                  form: "10-Q",
+                  fiscalPeriod: "Q1",
+                }),
+                ...(hasLatestYtd
+                  ? [
+                      interim({
+                        value: 30,
+                        year: 2025,
+                        endMonthDay: "06-30",
+                        form: "10-Q",
+                        fiscalPeriod: "Q2",
+                      }),
+                    ]
+                  : []),
+                ...["2024-07-01", "2025-04-01"].map((periodStart) =>
+                  fact({
+                    value: 110,
+                    form: "10-Q",
+                    fiscalYear: 2025,
+                    fiscalPeriod: "Q2",
+                    filedAt: "2025-08-15",
+                    periodStart,
+                    periodEnd: "2025-06-30",
+                  }),
+                ),
+              ],
+            },
+          },
+        }),
+      );
+      const { ttm } = artifact.statements.incomeStatement.revenue;
+      if (hasLatestYtd) {
+        expect(ttm).toMatchObject({
+          value: 110,
+          periodStart: "2024-07-01",
+          periodEnd: "2025-06-30",
+          components: {
+            fiscalYear: { value: 100 },
+            latestYearToDate: { value: 30, periodStart: "2025-01-01" },
+            priorYearToDate: { value: 20 },
+          },
+        });
+      } else {
+        expect(ttm).toBeUndefined();
+        expect(artifact.validationNotes).toContainEqual(
+          expect.objectContaining({
+            code: "unreconciled-ttm",
+            seriesKey: "revenue",
+            message: "No latest-end interim duration fact starts at the fiscal-year boundary",
+          }),
+        );
+      }
+    },
+  );
 
   test("detects quarterly 6-K cadence across quarter-only and year-to-date contexts", () => {
     const artifact = derive(

@@ -92,7 +92,7 @@ describe("frameworkGaps", () => {
     expect(frameworkGaps("AAPL", [])).toEqual([]);
   });
 
-  test("renders one object-shaped gap with the golden-stable message", () => {
+  test("renders one object-shaped gap with the stable message", () => {
     // This exact producer format is parsed by frameworkGapCode.
     expect(frameworkGaps("AAPL", [analystConsensus])[0]?.message).toBe(
       "Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",

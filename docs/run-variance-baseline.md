@@ -179,7 +179,7 @@ three runs executed after the US regular session closed, so that gap did not
 fire and the recorded 18 is still the after-close reading. A rerun during
 regular hours adds one `session-in-progress` gap: `sourceGaps.total` reads 19
 and `sourceGapsByCause.session-in-progress` reads 1. The unrecorded siblings
-`dataGaps.total` and `evidenceLanes.gapCount` move +1 in lockstep (nbis golden:
+`dataGaps.total` and `evidenceLanes.gapCount` move +1 in lockstep (nbis fixture replay:
 30→31, 32→33, 12→13). `evidenceLanes.coverageRatio` is unchanged because the
 prior completed session is still published. Treat a daytime +1 as that
 reclassification, not drift.

@@ -13,7 +13,6 @@ import {
 } from "../src/research/research-subject-identity";
 import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
 import { createRecordingProvider } from "../tests/support/run-fixtures/llm-cassette";
-import { writeGoldenOutput } from "../tests/support/run-fixtures/artifacts";
 import {
   configuredFixtureProviders,
   createLiveFixtureConfig,
@@ -71,21 +70,14 @@ async function main(): Promise<void> {
   const rawResearchCommand = researchCommand(argv);
   const resolvedSubject = resolveResearchSubject(rawResearchCommand);
   const command = commandWithResolvedResearchSubject(rawResearchCommand, resolvedSubject);
-  // NOTE — ponytail: The temp tree holds the whole run unscrubbed and unscanned — report.json,
-  // Normalized/, trace.json, news-seen.json, peer-universe-learned.json, and cached response
-  // Payloads under cache/ — until the finally below removes it, which a SIGKILL defeats. Low risk:
-  // Tmpdir() is user-scoped, no commit path reaches it, cache keys are SHA-256 digests of URLs
-  // Already stripped of credential query params, and no golden or cassette derives from here
-  // Without passing the secret scan. Scrub or scan this tree mid-run if that window ever matters.
+  // SIGKILL bypasses the finally and can leave the unscanned temp run behind.
   const tempRoot = await mkdtemp(join(tmpdir(), `market-bot-record-${fixtureName}-`));
   let runError: unknown = undefined;
   try {
     const now = new Date();
     const liveConfig = resolveConfig(process.env, { validateAlphaSearchOptions: false });
     const configuredProviders = configuredFixtureProviders(liveConfig.sourceOptions);
-    // The run must execute under exactly the config replay rebuilds from meta.json, or the golden
-    // It records can never be reproduced: replay pins history options, provider availability and
-    // Evidence budgets, and any live-only value here shows up later as unexplainable golden drift.
+    // Record under exactly the config replay rebuilds from meta.json, or the cassettes cannot replay.
     const meta: FixtureMeta & { readonly codeVersion: unknown } = {
       now: now.toISOString(),
       argv,
@@ -128,14 +120,13 @@ async function main(): Promise<void> {
           config.sourceOptions.peerUniverseLearnedPath ?? join(tempRoot, "peer-universe.json"),
       },
     });
-    const result = await persistResearchJob({
+    await persistResearchJob({
       command,
       config,
       provider: providerRecorder.provider,
       collectedSources,
       now,
-      // Replay pins the end clock to `now`; recording wall-clock duration instead would bake a
-      // Number into the golden that no replay can reproduce.
+      // Replay pins the end clock to `now`; recording wall-clock duration would diverge from it.
       endClock: () => now,
       sourceFetchImpl: fetchRecorder.fetch,
     });
@@ -155,9 +146,6 @@ async function main(): Promise<void> {
     await Promise.all(
       pending.map(([name, content]) => writeFile(join(fixtureDir, name), content, "utf8")),
     );
-    await writeGoldenOutput(result.artifacts.runDir, fixtureName, (path, content) => {
-      assertNoSecretsInText(path, content, secrets);
-    });
     process.stdout.write(`${fixtureDir}\n`);
   } catch (error) {
     runError = error;

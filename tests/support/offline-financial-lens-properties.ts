@@ -24,6 +24,7 @@ type LensName = "Quality" | "Growth" | "Financial Strength";
 type LensMetricKey =
   | "cash"
   | "cashConversion"
+  | "consolidatedNetIncome"
   | "currentRatio"
   | "debt"
   | "debtToEquity"
@@ -40,7 +41,7 @@ type LensMetricKey =
   | "revenueDeltaPercent"
   | "roa"
   | "roe";
-type LensMetricRelation = "direct-leaf" | "exact-period" | "instant-pair";
+type LensMetricRelation = "direct-leaf" | "exact-period" | "instant-pair" | "net-income-period";
 type LensPosture =
   | "criteria-supported"
   | "criteria-mixed"
@@ -129,6 +130,7 @@ const DIRECT_LEAF_METRICS: Readonly<Partial<Record<LensMetricKey, FinancialState
 const LENS_METRIC_RELATIONS: Readonly<Record<LensMetricKey, LensMetricRelation>> = {
   cash: "direct-leaf",
   cashConversion: "exact-period",
+  consolidatedNetIncome: "net-income-period",
   currentRatio: "exact-period",
   debt: "direct-leaf",
   debtToEquity: "instant-pair",
@@ -308,6 +310,34 @@ function verifyDirectLeafMetric(
   );
 }
 
+function verifyNetIncomePeriodMetric(
+  execution: OfflineCorpusExecution,
+  difference: OfflineCorpusDifference,
+): boolean {
+  if (!isRecord(difference.canonical)) {
+    return false;
+  }
+  const { value, periodEnd } = difference.canonical;
+  const { netIncome, consolidatedNetIncome } = execution.artifact.statements.incomeStatement;
+  const netIncomeFact = latestFinancialStatementFact(financialStatementFacts(netIncome));
+  const fact = financialStatementFacts(consolidatedNetIncome).find(
+    (candidate) =>
+      candidate.periodKey === netIncomeFact?.periodKey &&
+      candidate.periodType === netIncomeFact.periodType,
+  );
+  return (
+    typeof value === "number" &&
+    typeof periodEnd === "string" &&
+    netIncomeFact !== undefined &&
+    fact !== undefined &&
+    value === fact.value &&
+    value !== netIncomeFact.value &&
+    periodEnd === fact.periodEnd &&
+    financialStatementFactsAreCompatible([netIncomeFact, fact]) &&
+    sourceContainsFact(execution.input, fact)
+  );
+}
+
 function postureFrom(values: readonly (boolean | undefined)[], requiredCount = 1): LensPosture {
   const known = values.filter((value): value is boolean => value !== undefined);
   if (known.length < requiredCount || known.length === 0) {
@@ -454,6 +484,9 @@ export function verifyLensAllowanceProperties(
     }
     case "exact-period": {
       return verifyExactPeriodMetric(execution, allowance, difference);
+    }
+    case "net-income-period": {
+      return verifyNetIncomePeriodMetric(execution, difference);
     }
     default: {
       return unreachableLensMetricRelation(relation);

@@ -17,6 +17,7 @@ import {
 } from "../src/report/markdown-equity-sections";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
 import { growthLens, qualityLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import {
   cashConversionScopeGaps,
   withCanonicalFinancialLensInputs,
@@ -37,6 +38,7 @@ import { summarizeSecFundamentals } from "../src/sources/extended-evidence/sec-e
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
+import { assertFinancialLensPeriodHygiene } from "./support/run-fixtures/financial-invariants";
 
 const AS_OF = "2026-10-07T00:00:00.000Z";
 const CONTINUING_OCF = "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations";
@@ -295,6 +297,66 @@ describe("accounting scope", () => {
       CONTINUING_NCI,
     ]);
     expect(series.ttm?.value).toBe(6_310_000 + 2_195_000 - 4_522_000);
+  });
+
+  test("reads consolidated net income beside parent net income on the same period", () => {
+    const artifact = statements({
+      ...clfd(),
+      ProfitLoss: [fy25(-7_900_000), ytdPrior(1_100_000), ytd(1_950_000)],
+    });
+
+    expect(secItem(artifact).metrics).toMatchObject({
+      netIncome: 1_858_000,
+      consolidatedNetIncome: 1_950_000,
+      consolidatedNetIncomePeriodEnd: "2026-06-30",
+      consolidatedNetIncomePeriodMonths: 9,
+      consolidatedNetIncomePrior: 1_100_000,
+    });
+    expect(lensMetric(artifact, "consolidatedNetIncome")).toMatchObject({
+      value: 1_950_000,
+      periodEnd: "2026-06-30",
+      periodMonths: 9,
+    });
+    const lenses = addFinancialLensEvidence(
+      { jobType: "equity", assetClass: "equity", symbol: "CLFD", depth: "deep" },
+      [],
+      withCanonicalFinancialLensInputs(undefined, artifact),
+      undefined,
+      AS_OF,
+    ).artifact!;
+    expect(() => assertFinancialLensPeriodHygiene(artifact, lenses)).not.toThrow();
+  });
+
+  test("withholds consolidated net income off net income's period or equal to it", () => {
+    const stale = statements({ ...clfd(), ProfitLoss: [fy25(-7_900_000)] });
+    const equal = statements({
+      ...clfd(),
+      ProfitLoss: [fy25(-8_050_000), ytdPrior(1_028_000), ytd(1_858_000)],
+    });
+
+    expect(secItem(stale).metrics?.consolidatedNetIncome).toBeUndefined();
+    expect(lensMetric(stale, "consolidatedNetIncome")).toBeUndefined();
+    expect(secItem(statements(clfd())).metrics?.consolidatedNetIncome).toBeUndefined();
+    expect(secItem(equal).metrics?.consolidatedNetIncome).toBe(1_858_000);
+    expect(lensMetric(equal, "consolidatedNetIncome")).toBeUndefined();
+  });
+
+  test("backfills consolidated net income as empty on artifacts written before it", () => {
+    const artifact = statements(clfd());
+    const { consolidatedNetIncome: _consolidated, ...incomeStatement } =
+      artifact.statements.incomeStatement;
+    const older = readFinancialStatementsArtifact({
+      ...artifact,
+      statements: { ...artifact.statements, incomeStatement },
+    });
+
+    expect(older?.statements.incomeStatement.consolidatedNetIncome).toEqual({
+      key: "consolidatedNetIncome",
+      label: "Net income including noncontrolling interest",
+      statement: "incomeStatement",
+      annual: [],
+      interim: [],
+    });
   });
 
   test("reads the continuing series back and backfills artifacts written before them", () => {

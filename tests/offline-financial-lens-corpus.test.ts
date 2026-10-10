@@ -199,6 +199,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     expect([...keys].toSorted()).toEqual([
       "cash",
       "cashConversion",
+      "consolidatedNetIncome",
       "currentRatio",
       "debt",
       "debtToEquity",
@@ -301,7 +302,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
     );
   });
 
-  test("property-verifies all 62 financial-lens allowances and fails closed", async () => {
+  test("property-verifies all 63 financial-lens allowances and fails closed", async () => {
     const cases = new Map(
       await Promise.all(
         OFFLINE_FINANCIAL_STATEMENT_FIXTURES.map(
@@ -329,7 +330,7 @@ describe("offline financial-statement corpus — financial-lens properties and c
       throw new Error("NBIS financial-lens allowance is missing");
     }
 
-    expect(lensAllowances).toHaveLength(62);
+    expect(lensAllowances).toHaveLength(63);
     expect(failed).toEqual([]);
     expect(
       verifyLensAllowanceProperties(
@@ -349,6 +350,23 @@ describe("offline financial-statement corpus — financial-lens properties and c
         { path: "financialLens.Unknown.posture", canonical: "criteria-supported", legacy: null },
       ),
     ).toBeFalse();
+    const maraCase = cases.get("mara")!;
+    const consolidatedPath = "financialLens.Quality.metrics.consolidatedNetIncome";
+    const consolidatedAllowance = maraCase.allowances.find(
+      (allowance) => allowance.path === consolidatedPath,
+    )!;
+    for (const canonical of [
+      { value: -1_311_480_000, periodEnd: "2025-12-31" },
+      { value: -1_262_397_000, periodEnd: "2026-03-31" },
+    ]) {
+      expect(
+        verifyLensAllowanceProperties(maraCase.execution, consolidatedAllowance, {
+          path: consolidatedPath,
+          canonical,
+          legacy: null,
+        }),
+      ).toBeFalse();
+    }
   });
 
   for (const scenario of LENS_CLASSIFIER_FAULT_SCENARIOS) {

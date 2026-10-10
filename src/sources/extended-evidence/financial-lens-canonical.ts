@@ -26,6 +26,8 @@ import {
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
+  earlierShareBasisPeriods,
+  touchesEarlierShareBasis,
   unadjustedLeaseInclusiveDebt,
 } from "./financial-statement-selection";
 
@@ -64,7 +66,9 @@ export function canonicalFinancialLensDerivedMetric(
   };
 }
 
-function hasCanonicalFinancialLensSelection(item: ExtendedEvidenceItem | undefined): boolean {
+export function hasCanonicalFinancialLensSelection(
+  item: ExtendedEvidenceItem | undefined,
+): boolean {
   return (
     item?.metrics?.[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] ===
     CANONICAL_FINANCIAL_LENS_SELECTION_VERSION
@@ -109,7 +113,10 @@ const INSTANT_SERIES = [
   ["assets", "totalAssets"],
 ] as const satisfies readonly (readonly [string, FinancialStatementSeriesKey])[];
 
-type CanonicalFactMetricKey = (typeof FLOW_SERIES)[number][0] | (typeof INSTANT_SERIES)[number][0];
+type CanonicalFactMetricKey =
+  | (typeof FLOW_SERIES)[number][0]
+  | (typeof INSTANT_SERIES)[number][0]
+  | "consolidatedNetIncome";
 
 export type SecFactMetricKey = CanonicalFactMetricKey | SecMetricDefinitionKey;
 
@@ -129,12 +136,14 @@ export type SecMetricKey =
 function priorComparable(
   series: FinancialStatementSeries,
   selected: FinancialStatementFact,
+  earlierShareBasis: ReadonlySet<string>,
 ): FinancialStatementFact | undefined {
   const months = financialStatementPeriodMonths(selected);
   return latestFinancialStatementFact(
     financialStatementFacts(series).filter(
       (fact) =>
         fact.periodEnd < selected.periodEnd &&
+        !touchesEarlierShareBasis([fact, selected], earlierShareBasis) &&
         fact.basis === selected.basis &&
         fact.concept === selected.concept &&
         financialStatementPeriodMonths(fact) === months &&
@@ -155,6 +164,7 @@ function addFactMetrics(
   key: CanonicalFactMetricKey,
   fact: FinancialStatementFact | undefined,
   series: FinancialStatementSeries,
+  earlierShareBasis: ReadonlySet<string> = new Set(),
 ): void {
   if (fact === undefined) {
     return;
@@ -172,7 +182,7 @@ function addFactMetrics(
   if (months !== undefined) {
     metrics[`${key}PeriodMonths`] = months;
   }
-  const prior = priorComparable(series, fact);
+  const prior = priorComparable(series, fact, earlierShareBasis);
   if (prior !== undefined) {
     metrics[`${key}Prior`] = prior.value;
     if (prior.value !== 0) {
@@ -239,6 +249,8 @@ function dividedBy(left: number, right: number): number | undefined {
   return right === 0 ? undefined : left / right;
 }
 
+export const PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY = "payoutRatioNonPositiveIncomePeriodEnd";
+
 const COMMON_DERIVED_SERIES = [
   ["grossMargin", "grossProfit", "revenue", dividedBy],
   ["operatingMargin", "operatingIncome", "revenue", dividedBy],
@@ -257,7 +269,7 @@ const COMMON_DERIVED_SERIES = [
     "payoutRatio",
     "dividendsPaid",
     "netIncome",
-    (left: number, right: number) => dividedBy(Math.abs(left), right),
+    (left: number, right: number) => (right > 0 ? Math.abs(left) / right : undefined),
   ],
 ] as const;
 
@@ -330,7 +342,13 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       fact === undefined ||
       fact.periodEnd >= totalPeriodEnd
     ) {
-      addFactMetrics(metrics, metricKey, fact, series);
+      addFactMetrics(
+        metrics,
+        metricKey,
+        fact,
+        series,
+        earlierShareBasisPeriods(artifact.omissionNotes, seriesKey),
+      );
     }
     return [metricKey, series] as const;
   });
@@ -338,6 +356,18 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
     if (metrics[continuingKey] !== undefined && metrics[`${totalKey}Scope`] === undefined) {
       metrics[`${totalKey}Scope`] = TOTAL_OPERATIONS_SCOPE;
     }
+  }
+  const income = artifact.statements.incomeStatement;
+  const [netIncomeFact, consolidatedNetIncomeFact] =
+    latestCommonFinancialStatementFacts([income.netIncome, income.consolidatedNetIncome]) ?? [];
+  // Consolidated income is read against net income, so only net income's own period qualifies.
+  if (netIncomeFact === latestFinancialStatementFact(financialStatementFacts(income.netIncome))) {
+    addFactMetrics(
+      metrics,
+      "consolidatedNetIncome",
+      consolidatedNetIncomeFact,
+      income.consolidatedNetIncome,
+    );
   }
   const byMetric = new Map(inputs);
   for (const [key, leftKey, rightKey, derive] of COMMON_DERIVED_SERIES) {
@@ -351,6 +381,13 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       ),
       derive,
     );
+  }
+  const payoutIncome = latestCommonFinancialStatementFacts([
+    byMetric.get("dividendsPaid"),
+    byMetric.get("netIncome"),
+  ])?.[1];
+  if (payoutIncome !== undefined && payoutIncome.value <= 0) {
+    metrics[PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY] = payoutIncome.periodEnd;
   }
   for (const [key, selected] of Object.entries(derivedMetrics)) {
     metrics[`${key}SelectedValue`] = selected.value;
@@ -425,9 +462,10 @@ function unique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }
 
-const CANONICAL_FACT_METRIC_KEYS = new Set<string>(
-  [...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey]) => metricKey),
-);
+const CANONICAL_FACT_METRIC_KEYS = new Set<string>([
+  ...[...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey]) => metricKey),
+  "consolidatedNetIncome",
+]);
 
 function canonicalSummary(
   legacy: ExtendedEvidenceItem | undefined,

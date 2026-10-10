@@ -48,8 +48,10 @@ export const OFFLINE_FINANCIAL_STATEMENT_FIXTURES = [
 export type OfflineFinancialStatementFixtureId =
   (typeof OFFLINE_FINANCIAL_STATEMENT_FIXTURES)[number];
 
-export interface OfflineFinancialStatementInput {
-  readonly fixture: OfflineFinancialStatementFixtureId;
+export interface OfflineFinancialStatementInput<
+  Fixture extends string = OfflineFinancialStatementFixtureId,
+> {
+  readonly fixture: Fixture;
   readonly symbol: string;
   readonly analysisAsOf: string;
   readonly sourceId: string;
@@ -93,8 +95,10 @@ interface ProjectedStatementSeries {
   };
 }
 
-export interface OfflineCorpusProjection {
-  readonly fixture: OfflineFinancialStatementFixtureId;
+export interface OfflineCorpusProjection<
+  Fixture extends string = OfflineFinancialStatementFixtureId,
+> {
+  readonly fixture: Fixture;
   readonly symbol: string;
   readonly analysisAsOf: string;
   readonly taxonomy: string | null;
@@ -124,11 +128,13 @@ export interface OfflineCorpusAllowance {
   readonly justification: string;
 }
 
-export interface OfflineCorpusExecution {
-  readonly input: OfflineFinancialStatementInput;
+export interface OfflineCorpusExecution<
+  Fixture extends string = OfflineFinancialStatementFixtureId,
+> {
+  readonly input: OfflineFinancialStatementInput<Fixture>;
   readonly artifact: FinancialStatementsArtifact;
   readonly canonicalFinancialLensInputCategories: readonly string[];
-  readonly projection: OfflineCorpusProjection;
+  readonly projection: OfflineCorpusProjection<Fixture>;
   readonly differences: readonly OfflineCorpusDifference[];
 }
 
@@ -318,7 +324,7 @@ function projectLenses(
   );
 }
 
-function legacyEvidence(input: OfflineFinancialStatementInput): ExtendedEvidence {
+function legacyEvidence(input: OfflineFinancialStatementInput<string>): ExtendedEvidence {
   const summary = summarizeSecFundamentals(input.companyFacts, input.analysisAsOf);
   if (summary === undefined) {
     return { instrument: { symbol: input.symbol, assetClass: "equity" }, items: [], gaps: [] };
@@ -339,7 +345,7 @@ function legacyEvidence(input: OfflineFinancialStatementInput): ExtendedEvidence
 }
 
 function deriveLens(
-  input: OfflineFinancialStatementInput,
+  input: OfflineFinancialStatementInput<string>,
   evidence: ExtendedEvidence,
 ): FinancialLensArtifact | undefined {
   return addFinancialLensEvidence(
@@ -351,9 +357,9 @@ function deriveLens(
   ).artifact;
 }
 
-function runOfflineFinancialStatementCorpus(
-  input: OfflineFinancialStatementInput,
-): OfflineCorpusExecution {
+export function runOfflineFinancialStatementCorpus<Fixture extends string>(
+  input: OfflineFinancialStatementInput<Fixture>,
+): OfflineCorpusExecution<Fixture> {
   const artifact = deriveFinancialStatements(input.companyFacts, {
     symbol: input.symbol,
     generatedAt: input.analysisAsOf,
@@ -379,7 +385,7 @@ function runOfflineFinancialStatementCorpus(
     fundamentalHistory: projectHistory(legacyHistory),
     financialLens: projectLenses(deriveLens(input, legacy)),
   };
-  const projection: OfflineCorpusProjection = {
+  const projection: OfflineCorpusProjection<Fixture> = {
     fixture: input.fixture,
     symbol: input.symbol,
     analysisAsOf: input.analysisAsOf,

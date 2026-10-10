@@ -502,6 +502,13 @@
         }
       }
     },
+    "consolidatedNetIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "continuingIncome": {
       "selectedConcept": null,
       "selectedFact": null,

@@ -99,6 +99,7 @@ export type FinancialStatementSeriesKey =
   | "grossProfit"
   | "operatingIncome"
   | "netIncome"
+  | "consolidatedNetIncome"
   | "continuingIncome"
   | "cash"
   | "currentAssets"
@@ -206,7 +207,10 @@ export interface FinancialStatementNote {
     | "unreconciled-ttm"
     | "untagged-balance-sheet-series"
     | "incomplete-composite-series"
-    | "stale-instant-series";
+    | "stale-instant-series"
+    | "stale-concept-history"
+    | "mixed-share-basis"
+    | "earlier-share-basis";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -235,7 +239,12 @@ export interface FinancialStatementsArtifact {
   readonly statements: {
     readonly incomeStatement: Readonly<
       Record<
-        "revenue" | "grossProfit" | "operatingIncome" | "netIncome" | "continuingIncome",
+        | "revenue"
+        | "grossProfit"
+        | "operatingIncome"
+        | "netIncome"
+        | "consolidatedNetIncome"
+        | "continuingIncome",
         FinancialStatementSeries
       >
     >;
@@ -273,6 +282,7 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "grossProfit",
   "operatingIncome",
   "netIncome",
+  "consolidatedNetIncome",
   "continuingIncome",
   "cash",
   "currentAssets",
@@ -290,12 +300,16 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "dilutedShares",
 ];
 
-// Artifacts written before the continuing-operations series read them as empty, not as invalid.
+// Artifacts written before a later series was added read it as empty, not as invalid.
 const LATER_SERIES: Readonly<
   Partial<
     Record<FinancialStatementSeriesKey, Pick<FinancialStatementSeries, "label" | "statement">>
   >
 > = {
+  consolidatedNetIncome: {
+    label: "Net income including noncontrolling interest",
+    statement: "incomeStatement",
+  },
   continuingIncome: { label: "Income from continuing operations", statement: "incomeStatement" },
   continuingDilutedEps: {
     label: "Diluted EPS from continuing operations",

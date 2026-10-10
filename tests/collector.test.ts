@@ -866,6 +866,133 @@ describe("collectSources", () => {
     );
   });
 
+  test("declares a stale capex concept history as a collected source gap", async () => {
+    const companyFacts = collectorSecPayload() as {
+      facts: { "us-gaap": Record<string, unknown> };
+    };
+    companyFacts.facts["us-gaap"].PaymentsToAcquireProductiveAssets = {
+      units: {
+        USD: [
+          collectorSecFact(20, {
+            form: "10-K",
+            fp: "FY",
+            fy: 2025,
+            filed: "2026-02-15",
+            start: "2025-01-01",
+            end: "2025-12-31",
+          }),
+        ],
+      },
+    };
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(companyFacts);
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      return jsonResponse(url.includes("finance/search") ? { news: [] } : {});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "sec-edgar",
+        message:
+          "SEC capital expenditure annual history under PaymentsToAcquirePropertyPlantAndEquipment has no annual period, while PaymentsToAcquireProductiveAssets reports annual periods to 2025-12-31; the tags are not combined because their scope may differ",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
+  });
+
+  test("declares a mixed per-share basis as a collected source gap", async () => {
+    const companyFacts = collectorSecPayload() as {
+      facts: { "us-gaap": Record<string, unknown> };
+    };
+    const annualFact = (val: number, fy: number, filed: string) =>
+      collectorSecFact(val, {
+        form: "10-K",
+        fp: "FY",
+        fy,
+        filed,
+        start: `${String(fy)}-01-01`,
+        end: `${String(fy)}-12-31`,
+      });
+    companyFacts.facts["us-gaap"].EarningsPerShareDiluted = {
+      units: {
+        "USD/shares": [
+          annualFact(5, 2022, "2023-02-15"),
+          annualFact(8.42, 2023, "2024-02-15"),
+          annualFact(1.68, 2023, "2026-01-29"),
+          annualFact(6.84, 2024, "2025-02-15"),
+          annualFact(1.37, 2024, "2026-01-29"),
+          collectorSecFact(2),
+        ],
+      },
+    };
+    companyFacts.facts["us-gaap"].WeightedAverageNumberOfDilutedSharesOutstanding = {
+      units: {
+        shares: [
+          annualFact(200, 2022, "2023-02-15"),
+          annualFact(205, 2023, "2024-02-15"),
+          annualFact(1025, 2023, "2026-01-29"),
+          annualFact(208, 2024, "2025-02-15"),
+          annualFact(1040, 2024, "2026-01-29"),
+          collectorSecFact(1050),
+        ],
+      },
+    };
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(companyFacts);
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      return jsonResponse(url.includes("finance/search") ? { news: [] } : {});
+    };
+
+    const result = await collectSources(
+      { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      { equityMoverLimit: 2, cryptoMoverLimit: 2, newsLimit: 2, sourceTimeoutMs: 1000 },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "sec-edgar",
+        message:
+          "SEC diluted EPS periods ending 2022-12-31 to 2022-12-31 (1 retained) were last filed before 2026-01-29, the latest filing to restate share-based history; filings restate diluted EPS for periods ending 2023-12-31 to 2024-12-31 by ~1/5, so those periods are on an earlier or unconfirmed share basis and are not adjusted",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    );
+  });
+
   test("emits no enterprise value anywhere for a depository issuer", async () => {
     const prices = collectorPriceHistory();
     const peerSymbols = ["RY", "TD", "CM", "BMO"];

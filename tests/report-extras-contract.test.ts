@@ -8,16 +8,16 @@ import {
 } from "../src/report/report-extras-contract";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { researchReport } from "./support/fixtures";
-import { readGoldenOutput } from "./support/run-fixtures/artifacts";
+import { replayedRunOutput } from "./support/run-fixtures/artifacts";
 
 // These readers replaced ad-hoc isRecord walks in src/report/markdown.ts, so the
 // Spec is what those walks accepted, not what the producer emits. Each test below
 // Pins one row of that acceptance table; a stricter reader silently drops
 // Citations or a whole section from a report the schema still validates.
 
-async function goldenExtra(fixture: string, key: string): Promise<Record<string, unknown>> {
-  const golden = await readGoldenOutput(fixture);
-  const report = golden.report as Record<string, unknown>;
+async function replayedExtra(fixture: string, key: string): Promise<Record<string, unknown>> {
+  const { report: replayed } = await replayedRunOutput(fixture);
+  const report = replayed as Record<string, unknown>;
   const extras = report.extras as Record<string, unknown>;
   const extra = extras[key];
   expect(extra).toBeDefined();
@@ -35,8 +35,8 @@ function withReplacedRow(
 }
 
 describe("business framework extra", () => {
-  test("round-trips the equity-aapl-deep golden payload", async () => {
-    const extra = await goldenExtra("equity-aapl-deep", "businessFramework");
+  test("round-trips the equity-aapl-deep replayed payload", async () => {
+    const extra = await replayedExtra("equity-aapl-deep", "businessFramework");
     const sections = extra.sections as readonly Record<string, unknown>[];
     const parsed = readBusinessFrameworkExtra(extra);
     expect(parsed).toBeDefined();
@@ -56,7 +56,7 @@ describe("business framework extra", () => {
   });
 
   test("keeps the reconciliation block when present", async () => {
-    const extra = await goldenExtra("equity-web-fallback-deep", "businessFramework");
+    const extra = await replayedExtra("equity-web-fallback-deep", "businessFramework");
     expect(readBusinessFrameworkExtra(extra)?.reconciliation).toEqual(
       extra.reconciliation as never,
     );
@@ -156,7 +156,7 @@ describe("business framework extra", () => {
   // HEAD's markdown treated a mixed array as wholly malformed; HEAD's Console
   // Kept the valid entries. The reader keeps both facts so each consumer decides.
   test("keeps the valid entries of a mixed sourceIds array and flags it", async () => {
-    const extra = await goldenExtra("equity-aapl-deep", "businessFramework");
+    const extra = await replayedExtra("equity-aapl-deep", "businessFramework");
     const parsed = readBusinessFrameworkExtra({
       ...extra,
       sourceIds: [...(extra.sourceIds as readonly string[]), 42],
@@ -220,8 +220,8 @@ describe("business framework extra", () => {
 });
 
 describe("web subject profile extra", () => {
-  test("round-trips the equity-web-fallback-deep golden payload", async () => {
-    const extra = await goldenExtra("equity-web-fallback-deep", "webSubjectProfile");
+  test("round-trips the equity-web-fallback-deep replayed payload", async () => {
+    const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
     const questions = extra.questions as Record<string, unknown>;
     const parsed = readWebSubjectProfileExtra(extra);
     expect(parsed).toBeDefined();
@@ -286,7 +286,7 @@ describe("web subject profile extra", () => {
   // The source traversal cites a row whose text is empty, blank or missing, so
   // The row survives parsing and only the renderer suppresses it.
   test("keeps rows whose answer or claim is empty, blank or missing", async () => {
-    const extra = await goldenExtra("equity-web-fallback-deep", "webSubjectProfile");
+    const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
     const parsed = readWebSubjectProfileExtra({
       ...extra,
       questions: {
@@ -321,7 +321,7 @@ describe("web subject profile extra", () => {
   });
 
   test("keeps a question key outside the subject kind's order", async () => {
-    const extra = await goldenExtra("equity-web-fallback-deep", "webSubjectProfile");
+    const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
     const questions = extra.questions as Record<string, unknown>;
     const extraAnswer = { answer: "Legacy answer.", sourceIds: ["web-aapl-6c345d05"] };
     const parsed = readWebSubjectProfileExtra({
@@ -332,7 +332,7 @@ describe("web subject profile extra", () => {
   });
 
   test("keeps the valid entries of a mixed openGaps or sourceIds array and flags it", async () => {
-    const extra = await goldenExtra("equity-web-fallback-deep", "webSubjectProfile");
+    const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
     const parsed = readWebSubjectProfileExtra({
       ...extra,
       openGaps: ["Segment mix is undisclosed", 42],
@@ -381,7 +381,7 @@ describe("web subject profile extra", () => {
   });
 
   test("keeps an empty subject summary without rendering a blank paragraph", async () => {
-    const extra = await goldenExtra("equity-web-fallback-deep", "webSubjectProfile");
+    const extra = await replayedExtra("equity-web-fallback-deep", "webSubjectProfile");
     const emptyProfile = {
       ...extra,
       questions: {},

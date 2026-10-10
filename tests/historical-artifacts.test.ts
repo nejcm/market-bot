@@ -203,7 +203,7 @@ describe("frozen historical artifacts", () => {
   });
 
   test("reads a pre-0008 valuation workbench with a retired suppression reason", async () => {
-    // This real on-disk artifact is outside fixtures/runs/**/golden-output by design. Never regenerate it.
+    // This real on-disk artifact is a historical record. Never regenerate it.
     const artifact: unknown = await Bun.file(
       new URL("fixtures/artifacts/valuation-workbench-bns-pre-0008.json", import.meta.url),
     ).json();
@@ -213,7 +213,7 @@ describe("frozen historical artifacts", () => {
   });
 
   test("reads valuation workbench version 1 with a retired price-selection rule", async () => {
-    // This real on-disk artifact is outside fixtures/runs/**/golden-output by design. Never regenerate it.
+    // This real on-disk artifact is a historical record. Never regenerate it.
     // The rule string it carries was retired in 6f45873, unrelated to plan 0008.
     const artifact: unknown = await Bun.file(
       new URL(

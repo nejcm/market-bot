@@ -76,48 +76,35 @@ Current checked-in fixtures:
 - `tests/fixtures/runs/equity-depository-deep/`
 
 Recording a new fixture with `scripts/record-fixture-run.ts` runs under the same config replay
-rebuilds from `meta.json`, so a live-only setting cannot leak into the golden. Supported live source
+rebuilds from `meta.json`, so a live-only setting cannot leak into the cassettes. Supported live source
 providers are recorded by name, use real credentials only while recording, and replay with fixture
 tokens. Other data-provider keys must still be neutralised on the command line, and
 `MARKET_BOT_FORECAST_DISAGREEMENT_MODELS` must be blank because it otherwise arms a replay
 invariant the fixture cannot satisfy. Legacy Yahoo cassette entries keep exact `crumb` matching;
-new entries pin the rotating value and replay falls back to that pinned key.
+new entries pin the rotating value and replay falls back to that pinned key. Pinning rather than
+deleting the crumb keeps the un-authed 401 and its authed 200 as separate entries, so replay still
+walks the credential path; a legacy cassette never contains the placeholder, so the fallback cannot
+hit it, and no live crumb can equal the placeholder.
 
 Each fixture contains:
 
 - `data-cassette.json` — scrubbed HTTP responses keyed by canonical request.
 - `llm-cassette.json` — ordered model responses keyed by stage and model.
 - `meta.json` — pinned run config, clock, command, and model settings.
-- `golden-output/` — scrubbed deterministic run output used by the regression test:
-  `report.json`, `analytics.json`, exact-text `report.md`, and `normalized/*.json` sidecars.
 
-## Refreshing golden output
-
-When an intentional deterministic output change affects the fixture artifacts, refresh the golden
-output from the existing cassettes. Check the current output first; replay mode checks by default,
-and `--check-golden` makes that intent explicit:
+Replays assert invariants, not byte-exact output
+([ADR 0008](./adr/0008-replay-invariants-no-output-snapshots.md)). Every fixture in
+`tests/equity-fixture/run.test.ts` must complete with a readable `report.json` and no
+`failure.json`, persist exactly what the run generated (report, Markdown, analytics, outcomes,
+evidence bundle), validate the persisted report against the report schema, pass the research-language gate, resolve every
+evidence-bundle source id, keep `reportIntegrity` at `high`, and pass the
+`tests/support/run-fixtures/` property checks. To read a replayed run by hand:
 
 ```sh
-bun run scripts/replay-fixture-run.ts equity-aapl-brief --check-golden
-bun run scripts/replay-fixture-run.ts equity-aapl-brief --keep # check and retain the isolated temporary replay directory
-bun run scripts/replay-fixture-run.ts equity-aapl-brief --write-golden
-bun run scripts/replay-fixture-run.ts equity-aapl-deep --write-golden
-bun test tests/equity-fixture/run.test.ts
+bun run scripts/replay-fixture-run.ts equity-aapl-brief # prints the retained temporary run directory
 ```
 
-`--write-golden` uses replayed data and replayed model output. It should not require live provider
-keys or live network access. Before overwriting, it prints an identity-matched, bucketed summary
-against the existing golden. Sign flips, numeric deltas over 25%, sensitive financial fields,
-type changes, and removed warnings or gaps are always printed in full. Prose changes are counted
-and sampled under the normal top-N limit. Markdown uses line matching so inserted or removed lines
-do not shift every successor. Positional array fallbacks are called out and must be reviewed for a
-missing stable identity rule.
-
-Write mode runs the strict golden reader before replacing any files. A layout-invalid entry at the
-`golden-output/` root, such as a stray file or any unexpected root entry, therefore aborts
-`--write-golden` and must be removed by hand. A layout-valid stale `.json` file under
-`golden-output/normalized/` is readable, appears in the pre-write diff, and is removed when the
-writer recreates the normalized file set.
+Retained directories are not removed automatically; delete them when finished.
 
 ## Reviewing a suspicious change
 
@@ -178,11 +165,7 @@ This writes a run under `data/runs/` and costs live model usage. It requires the
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
-The replay command accepts exactly one fixture name and one optional mode: `--live`,
-`--keep`, `--check-golden`, or `--write-golden`. Replay mode without a mode flag checks the golden.
-Checks and writes use temporary runs. `--keep` also checks the golden, then retains the replayed run
-in its isolated temporary directory and prints its path for inspection.
-Retained `--keep` directories are not removed automatically; delete them manually when finished.
+The replay command accepts exactly one fixture name and the optional `--live` flag.
 
 ## Deep-equity presentation assertions
 
@@ -203,7 +186,7 @@ bun test tests/equity-fixture/run.test.ts
 
 ## Recording fixtures
 
-Recording creates or replaces fixture cassettes and golden output from a live run:
+Recording creates or replaces fixture cassettes from a live run:
 
 ```sh
 bun run scripts/record-fixture-run.ts equity-aapl-brief equity AAPL --brief
@@ -222,21 +205,14 @@ fixture until the recorder's secret scan passes and `bun run check` is green.
 `equity-analysis-estimated-suppressed`, `equity-fpi-quarterly`, and
 `equity-fpi-ifrs-semiannual`. Do not re-record these chart entries independently: preserve the
 existing chart body when updating unrelated cassette data, and use the generator only for an
-intentional shared price-path change before replaying all six goldens.
+intentional shared price-path change before replaying all six fixtures.
 
 ## Fixture maintenance rules
 
 - Keep harness helpers in `tests/support/run-fixtures/`.
-- Treat each fixture's `golden-output/` as its value coverage. Assertions cover only
-  non-golden checks such as raw snapshots, separate-file hashes, prompt/model behavior, fields
-  without normalized sidecars, and cross-cutting invariants.
+- A fixture that exists to pin one behavior carries one targeted assertion for it in
+  `tests/equity-fixture/run.test.ts`; never a snapshot of its output.
 - Keep fixture test cases in `tests/equity-fixture/run.test.ts` and shared assertions in
   `tests/support/run-fixtures/assertions.ts`; do not mix test-only behavior into production
   pipeline code.
 - Do not hand-edit cassettes unless you are removing an obvious secret and will re-record afterward.
-- If files under `golden-output/` change, inspect the golden-diff summary before committing. Investigate
-  every escalated finding, especially sign flips, large numeric deltas, and removed validation
-  notes, omission notes, or data gaps. Do not accept a positional fallback without checking whether
-  the array now has a stable identity.
-- CI should use regression mode only; live fixture replay and recording are manual developer
-  workflows.

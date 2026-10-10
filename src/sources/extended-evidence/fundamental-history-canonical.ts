@@ -19,6 +19,8 @@ import {
   financialStatementPeriodMonths,
   financialStatementSeriesByKey,
   latestFinancialStatementFact,
+  earlierShareBasisPeriods,
+  touchesEarlierShareBasis,
 } from "./financial-statement-selection";
 
 const EPS_TTM_APPROXIMATION_NOTE =
@@ -135,7 +137,30 @@ function rawSeries(
   if (definition.key === "dilutedEps" && ttm !== undefined) {
     notes.push(EPS_TTM_APPROXIMATION_NOTE);
   }
-  const growth = fundamentalHistoryCagr(annual, notes);
+  const earlierShareBasis = earlierShareBasisPeriods(
+    artifact.omissionNotes,
+    definition.canonicalKey,
+  );
+  if (touchesEarlierShareBasis(series.annual, earlierShareBasis)) {
+    notes.push(
+      "share-basis:mixed: some annual points are on an earlier or unconfirmed share basis and are not adjusted",
+    );
+  }
+  const cagr = fundamentalHistoryCagr(annual, notes);
+  const mixedBasis =
+    cagr !== undefined &&
+    touchesEarlierShareBasis(
+      series.annual.filter(
+        (fact) => fact.periodEnd === cagr.periodStart || fact.periodEnd === cagr.periodEnd,
+      ),
+      earlierShareBasis,
+    );
+  if (mixedBasis) {
+    notes.push(
+      "cagr:mixed-share-basis: an annual endpoint is on an earlier or unconfirmed share basis",
+    );
+  }
+  const growth = mixedBasis ? undefined : cagr;
   const concept = financialStatementFacts(series)[0]?.concept;
   return {
     key: definition.key,

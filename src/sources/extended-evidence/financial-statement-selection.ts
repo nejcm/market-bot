@@ -133,6 +133,25 @@ export function restatedFromOriginalFiling(
     : { value: original.value, filedAt: original.filedAt };
 }
 
+export function earlierShareBasisPeriods(
+  notes: readonly FinancialStatementNote[],
+  key: FinancialStatementSeriesKey,
+): ReadonlySet<string> {
+  return new Set(
+    notes
+      .filter((note) => note.code === "earlier-share-basis" && note.seriesKey === key)
+      .map((note) => note.periodKey ?? ""),
+  );
+}
+
+// Comparisons are allowed only among periods confirmed on the latest share basis.
+export function touchesEarlierShareBasis(
+  facts: readonly Pick<FinancialStatementFact, "periodKey">[],
+  earlier: ReadonlySet<string>,
+): boolean {
+  return facts.some((fact) => earlier.has(fact.periodKey));
+}
+
 export function latestFinancialStatementFact(
   facts: readonly FinancialStatementFact[],
 ): FinancialStatementFact | undefined {
@@ -651,9 +670,15 @@ export function deriveFinancialStatementTtm(
     return {};
   }
   const fiscalYear = latestFinancialStatementFact(annual)!;
+  const latestInterimEnd = latestFinancialStatementFact(interim)?.periodEnd;
   const latestYearToDate = latestFinancialStatementFact(
     interim.filter(
-      (fact) => fact.periodStart !== undefined && fact.periodEnd > fiscalYear.periodEnd,
+      (fact) =>
+        fact.periodStart !== undefined &&
+        fact.periodEnd === latestInterimEnd &&
+        fact.periodEnd > fiscalYear.periodEnd &&
+        Math.abs(daysBetween(fiscalYear.periodEnd, fact.periodStart) ?? Infinity) <=
+          FY_BOUNDARY_TOLERANCE_DAYS,
     ),
   );
   if (latestYearToDate === undefined || latestYearToDate.periodStart === undefined) {
@@ -661,7 +686,7 @@ export function deriveFinancialStatementTtm(
       note: {
         code: "unreconciled-ttm",
         seriesKey: definition.key,
-        message: "No complete post-FY interim duration fact is available",
+        message: "No latest-end interim duration fact starts at the fiscal-year boundary",
       },
     };
   }
@@ -688,13 +713,9 @@ export function deriveFinancialStatementTtm(
   const startAlignment = Math.abs(
     daysBetween(fiscalYear.periodStart ?? "", priorYearToDate.periodStart) ?? Infinity,
   );
-  const boundaryAlignment = Math.abs(
-    daysBetween(fiscalYear.periodEnd, latestYearToDate.periodStart) ?? Infinity,
-  );
   if (
     fiscalYear.periodStart === undefined ||
     startAlignment > FY_BOUNDARY_TOLERANCE_DAYS ||
-    boundaryAlignment > FY_BOUNDARY_TOLERANCE_DAYS ||
     priorYearToDate.periodEnd >= fiscalYear.periodEnd
   ) {
     return {

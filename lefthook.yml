@@ -6,10 +6,12 @@ pre-commit:
     lint:
       glob: "*.{js,ts,jsx,tsx}"
       run: bun run lint:staged -- {staged_files}
+      priority: 1
       stage_fixed: true
     format:
       glob: "*.{js,ts,jsx,tsx,json}"
       run: bun run fmt -- {staged_files}
+      priority: 2
       stage_fixed: true
 
 commit-msg:

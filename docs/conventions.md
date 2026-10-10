@@ -14,7 +14,7 @@
 
 ## Testing
 
-See [testing.md](./testing.md) for test commands, fixture replay setup, golden refresh, eval mode,
+See [testing.md](./testing.md) for test commands, fixture replay setup, eval mode,
 and fixture recording.
 
 - Tests live in `tests/`, named `*.test.ts`, run with `bun test`.
@@ -25,9 +25,10 @@ and fixture recording.
   and `ModelProvider.generate` so the real source adapters, cache, normalization, orchestration, and
   report assembly run.
 - Keep fixture harness helpers under `tests/support/run-fixtures/`; tests should only load fixtures,
-  run them, scrub output, and assert invariants.
-- Refresh fixture golden output with `bun run scripts/replay-fixture-run.ts <fixture-name>
---write-golden` after intentional deterministic output changes.
+  run them, and assert invariants.
+- Fixture replays assert invariants, never byte-exact output
+  ([ADR 0008](./adr/0008-replay-invariants-no-output-snapshots.md)). A behavior worth keeping gets
+  its own assertion.
 - Tests claiming to verify a producer/consumer contract must obtain producer-owned artifacts by
   calling the writer, not by hand-building an object literal matching the reader's expectations;
   otherwise the test proves only that the reader accepts what the test author believes the writer
@@ -51,8 +52,6 @@ Verification:
 ```
 
 The focused command is for the edit loop. Apply the [Final Quality Check](../AGENTS.md) rule when reporting a phase as passing; only the reportable command may be cited.
-
-- Review checklist: if anything under `tests/fixtures/runs/*/golden-output/` moved, the commit body must state why. `bun run scripts/replay-fixture-run.ts <fixture> --write-golden` already prints a bucketed, escalation-aware diff before overwriting, and `git diff` is the durable record; no new tracking file is needed. The gap is that nobody reads it.
 
 ## Commits
 

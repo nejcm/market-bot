@@ -1464,6 +1464,29 @@ describe("forecast outcomes", () => {
             missingParticipantCount: 0,
           },
           { predictionId: "p2", band: "broken" },
+          {
+            predictionId: "p3",
+            meanProbability: 0.55,
+            band: "unavailable",
+            participantCount: 1,
+            missingParticipantCount: 1,
+          },
+          {
+            predictionId: "p4",
+            meanProbability: 0.5,
+            band: "low",
+            participantCount: 2,
+            missingParticipantCount: 0,
+          },
+          {
+            predictionId: "p5",
+            meanProbability: 0.4,
+            probabilityVariance: 0,
+            probabilitySpread: 0,
+            band: "low",
+            participantCount: 1,
+            missingParticipantCount: 1,
+          },
         ],
       },
     },
@@ -1584,6 +1607,7 @@ describe("forecast outcomes", () => {
     expect(joined[1]?.score?.pendingReason).toBe("horizon not yet elapsed");
     expect(joined[1]?.forecastDisagreement).toBeUndefined();
     expect(joined[2]?.score).toBeUndefined();
+    expect(joined[2]?.forecastDisagreement?.band).toBe("unavailable");
   });
 
   test("parses forecast disagreement summaries defensively", () => {
@@ -1596,6 +1620,20 @@ describe("forecast outcomes", () => {
         band: "high",
         participantCount: 2,
         missingParticipantCount: 0,
+      },
+      {
+        predictionId: "p3",
+        meanProbability: 0.55,
+        band: "unavailable",
+        participantCount: 1,
+        missingParticipantCount: 1,
+      },
+      {
+        predictionId: "p5",
+        meanProbability: 0.4,
+        band: "unavailable",
+        participantCount: 1,
+        missingParticipantCount: 1,
       },
     ]);
     expect(forecastDisagreements({ extras: { forecastDisagreement: "broken" } })).toEqual([]);

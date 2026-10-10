@@ -5,7 +5,9 @@ import { isRecord, readNumber, readString } from "../guards";
 import type { LoadedPrompt } from "./prompt-loader";
 import type { StageOutput } from "./final-synthesis";
 
-export type ForecastDisagreementBand = "low" | "medium" | "high";
+type ForecastDisagreementSpreadBand = "low" | "medium" | "high";
+// Fewer than two model probabilities: no spread exists, so none is reported.
+type ForecastDisagreementBand = ForecastDisagreementSpreadBand | "unavailable";
 type ForecastDisagreementParticipantRole = "primary" | "challenger";
 type ForecastDisagreementParticipantStatus = "ok" | "error";
 
@@ -28,8 +30,8 @@ export interface ForecastDisagreementParticipant {
 interface ForecastDisagreementPredictionSummary {
   readonly predictionId: string;
   readonly meanProbability: number;
-  readonly probabilityVariance: number;
-  readonly probabilitySpread: number;
+  readonly probabilityVariance?: number;
+  readonly probabilitySpread?: number;
   readonly band: ForecastDisagreementBand;
   readonly participantCount: number;
   readonly missingParticipantCount: number;
@@ -57,7 +59,7 @@ export interface ForecastDisagreementResult {
   readonly dataGaps: readonly string[];
 }
 
-export function disagreementBand(spread: number): ForecastDisagreementBand {
+export function disagreementBand(spread: number): ForecastDisagreementSpreadBand {
   if (spread < 0.1) {
     return "low";
   }
@@ -76,9 +78,6 @@ function probabilitiesByPrediction(
 }
 
 function variance(values: readonly number[], mean: number): number {
-  if (values.length === 0) {
-    return 0;
-  }
   return values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
 }
 
@@ -92,15 +91,13 @@ function buildForecastDisagreementExtra(input: {
     const values = participantProbabilities
       .map((probabilities) => probabilities.get(prediction.id))
       .filter((value): value is number => value !== undefined);
-    if (values.length === 0) {
+    if (values.length < 2) {
       return {
         predictionId: prediction.id,
-        meanProbability: prediction.probability,
-        probabilityVariance: 0,
-        probabilitySpread: 0,
-        band: "low",
-        participantCount: 0,
-        missingParticipantCount: input.participants.length,
+        meanProbability: values[0] ?? prediction.probability,
+        band: "unavailable",
+        participantCount: values.length,
+        missingParticipantCount: input.participants.length - values.length,
       };
     }
     const meanProbability = values.reduce((total, value) => total + value, 0) / values.length;

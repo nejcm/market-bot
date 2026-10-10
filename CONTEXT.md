@@ -149,7 +149,7 @@ Declared set an instrument or Market Overview Prediction may concern. Direction/
 
 ## Forecast Disagreement
 
-Deep-run uncertainty signal summarizing configured challenger-model probability spread, variance, and mean over existing `measurableAs` events. It never replaces canonical probabilities. Challengers do not see the structured primary probability (report prose is not filtered); bands from older runs were measured with it exposed.
+Deep-run uncertainty signal summarizing configured challenger-model probability spread, variance, and mean over existing `measurableAs` events. It never replaces canonical probabilities. Per Prediction, spread maps to band `low` / `medium` / `high`; with fewer than two model probabilities the band is `unavailable` and spread and variance are omitted, never reported as 0. Challengers do not see the structured primary probability (report prose is not filtered); bands from older runs were measured with it exposed.
 
 ## Forecast Persistence Telemetry
 

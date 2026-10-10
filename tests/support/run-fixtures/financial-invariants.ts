@@ -7,6 +7,7 @@ import {
   normalizeFilingText,
 } from "../../../src/sources/evidence-request-tools";
 import { EQUITY_FRESHNESS_GAP_REASON_CODES } from "../../../src/sources/extended-evidence/equity-analysis-completeness";
+import { filingDocuments } from "../../../src/sources/extended-evidence/sec-archive";
 import {
   EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,
   resolveCoverageLevel,
@@ -770,11 +771,33 @@ function extendedEvidenceItems(result: RunFixtureResult): readonly ExtendedEvide
 const EARNINGS_RELEASE_DOCUMENTS = new Set(["exhibit", "primary", "none"]);
 const EARNINGS_RELEASE_EXHIBITS = new Set(["substantive", "not-substantive", "unresolved"]);
 
+function retainedExhibitUrls(
+  result: RunFixtureResult,
+  accessionNumber: string,
+  url: string,
+  primaryDocument: string,
+): ReadonlySet<string> {
+  const baseUrl = url.slice(0, url.lastIndexOf("/"));
+  return new Set(
+    result.collectedSources.rawSnapshots.flatMap((snapshot) =>
+      snapshot.adapter === "sec-filing-index" &&
+      typeof snapshot.payload === "string" &&
+      // Raw snapshots keep no request URL; the index page title is the filing's own identity.
+      snapshot.payload.match(/<title>EDGAR Filing Documents for ([\d-]+)<\/title>/u)?.[1] ===
+        accessionNumber
+        ? filingDocuments(snapshot.payload, baseUrl, primaryDocument, true).map(
+            (document) => document.url,
+          )
+        : [],
+    ),
+  );
+}
+
 // An Item 2.02 current report must reach the model as results, not as a cover sheet pointing at an
 // Exhibit. Exhibit-resolution provenance is validated on every matched item — including the
 // Metadata-only fallbacks, which retain no text — while the content checks apply to the items whose
 // Source actually carries a snippet.
-function assertEarningsReleaseEvidence(result: RunFixtureResult): void {
+export function assertEarningsReleaseEvidence(result: RunFixtureResult): void {
   const sources = new Map(result.report.sources.map((source) => [source.id, source]));
   let matched = 0;
   let checked = 0;
@@ -837,6 +860,17 @@ function assertEarningsReleaseEvidence(result: RunFixtureResult): void {
         earningsReleaseDocument !== "exhibit" || cited !== primaryDocument,
         "C15",
         `Item 2.02 evidence ${sourceId} claims exhibit provenance but cites the primary document`,
+      );
+      invariant(
+        earningsReleaseDocument !== "exhibit" ||
+          retainedExhibitUrls(
+            result,
+            String(item.metrics?.accessionNumber),
+            url,
+            primaryDocument,
+          ).has(url),
+        "C15",
+        `Item 2.02 evidence ${sourceId} cites ${cited}, which its retained filing index does not list as EX-99`,
       );
     }
   }

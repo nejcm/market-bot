@@ -253,21 +253,54 @@ describe("forecast disagreement", () => {
     expect(artifact.predictions[0]).toMatchObject({
       predictionId: "pred-1",
       meanProbability: 0.6,
-      probabilityVariance: 0,
-      probabilitySpread: 0,
-      band: "low",
+      band: "unavailable",
       participantCount: 1,
       missingParticipantCount: 1,
     });
-    expect(artifact.predictions[1]).toMatchObject({
+    expect(artifact.predictions[1]).toEqual({
       predictionId: "pred-2",
       meanProbability: 0.55,
-      probabilityVariance: 0,
-      probabilitySpread: 0,
-      band: "low",
+      band: "unavailable",
       participantCount: 0,
       missingParticipantCount: 2,
     });
+    expect(artifact.predictions[0]).not.toHaveProperty("probabilitySpread");
+    expect(artifact.predictions[0]).not.toHaveProperty("probabilityVariance");
+  });
+
+  test("bands each prediction by its own probability count", () => {
+    const artifact = buildForecastDisagreementArtifact({
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      provider: "openai",
+      baselineModel: "gpt-5.5",
+      challengerModels: ["gpt-5.4"],
+      predictions,
+      participants: [
+        {
+          role: "primary",
+          provider: "openai",
+          model: "gpt-5.5",
+          status: "ok",
+          predictions: [
+            { predictionId: "pred-1", probability: 0.6 },
+            { predictionId: "pred-2", probability: 0.55 },
+          ],
+        },
+        {
+          role: "challenger",
+          provider: "openai",
+          model: "gpt-5.4",
+          status: "ok",
+          predictions: [{ predictionId: "pred-1", probability: 0.62 }],
+        },
+      ],
+    });
+
+    expect(artifact.successfulParticipantCount).toBe(2);
+    expect(artifact.predictions[0]).toMatchObject({ band: "low", participantCount: 2 });
+    expect(artifact.predictions[0]?.probabilitySpread).toBeCloseTo(0.02);
+    expect(artifact.predictions[1]).toMatchObject({ band: "unavailable", participantCount: 1 });
+    expect(artifact.predictions[1]).not.toHaveProperty("probabilitySpread");
   });
 
   test("keeps valid probabilities when a challenger omits some prediction IDs", async () => {

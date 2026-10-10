@@ -17,6 +17,7 @@ import { access, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ModelProvider } from "../src/model/types";
+import type { ForecastDisagreementExtra } from "../src/research/forecast-disagreement";
 
 const { dataDirs, cleanupDataDirs } = createDataDirRegistry();
 
@@ -116,6 +117,85 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
     expect(JSON.stringify(sidecar)).toContain("challenger timeout");
     await expect(readFile(join(result.artifacts.runDir, "report.json"), "utf8")).resolves.toContain(
       "forecastDisagreement",
+    );
+  });
+
+  test("reports Forecast Disagreement bands as unavailable when every challenger fails", async () => {
+    const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-unavailable-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const provider: ModelProvider = {
+      name: "mock",
+      generate: async (request) => {
+        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
+        if (prompt.stage === "forecast-disagreement") {
+          throw new Error("challenger timeout");
+        }
+        return { content: modelReport("AAPL"), tokenEstimate: 100 };
+      },
+    };
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        forecastDisagreementOptions: { challengerModels: ["challenger-bad"] },
+      },
+      provider,
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+    const extra = result.report.extras?.forecastDisagreement as
+      | ForecastDisagreementExtra
+      | undefined;
+
+    expect(extra?.successfulParticipantCount).toBe(1);
+    expect(extra?.predictions.length).toBeGreaterThan(0);
+    expect(
+      extra?.predictions.every(
+        (item) => item.band === "unavailable" && item.probabilitySpread === undefined,
+      ),
+    ).toBe(true);
+    expect(result.analytics.predictions.forecastDisagreement?.highDisagreementCount).toBe(0);
+  });
+
+  test("skips Forecast Disagreement with a gap when the report emits no predictions", async () => {
+    const dataDir = join(tmpdir(), `market-bot-forecast-disagreement-empty-${Date.now()}`);
+    dataDirs.push(dataDir);
+    const report = { ...(JSON.parse(modelReport("AAPL")) as Record<string, unknown>) };
+    report.predictions = [];
+
+    const result = await persistResearchJob({
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" },
+      config: {
+        ...config,
+        dataDir,
+        forecastDisagreementOptions: { challengerModels: ["challenger-ok"] },
+      },
+      provider: providerReturning(JSON.stringify(report)),
+      collectedSources: collectedSourceBundle({
+        rawSnapshots: [],
+        marketSnapshots,
+        newsSources,
+        sourceGaps: [],
+      }),
+      now: new Date("2026-05-19T00:00:00.000Z"),
+    });
+
+    expect(result.report.extras?.forecastDisagreement).toBeUndefined();
+    expect(result.report.dataGaps).toContain(
+      "forecastDisagreement: skipped because report emitted no predictions",
+    );
+    const outcomes = JSON.parse(
+      await readFile(join(result.artifacts.runDir, "outcomes.json"), "utf8"),
+    ) as readonly { readonly subsystem: string; readonly code: string }[];
+    expect(outcomes.find((outcome) => outcome.subsystem === "forecast-disagreement")?.code).toBe(
+      "no-predictions",
     );
   });
 

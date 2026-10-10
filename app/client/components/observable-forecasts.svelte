@@ -202,7 +202,7 @@
               PENDING
             </span>
           {/if}
-          {#if !compact && forecast.forecastDisagreement !== undefined}
+          {#if !compact && forecast.forecastDisagreement !== undefined && forecast.forecastDisagreement.band !== "unavailable"}
             <span
               class="rounded border px-1.75 py-0.5 font-mono text-[10px] {DISAGREEMENT_BADGE_CLASSES[
                 forecast.forecastDisagreement.band
@@ -214,6 +214,14 @@
             >
               FD {forecast.forecastDisagreement.band.toUpperCase()}
               {spreadPoints(forecast.forecastDisagreement.probabilitySpread)}
+            </span>
+          {:else if !compact && forecast.forecastDisagreement !== undefined}
+            <span
+              class="rounded border border-dashed border-[#c9c4ba] px-1.75 py-0.5 font-mono text-[10px] text-[#8a8f96]"
+              title="Forecast Disagreement unavailable: {forecast.forecastDisagreement
+                .participantCount} model probabilities; at least 2 needed for a spread"
+            >
+              FD UNAVAILABLE
             </span>
           {/if}
           {#if !compact && forecast.missAutopsy !== undefined}

@@ -3080,6 +3080,19 @@ describe("run workspace view", () => {
               sourceIds: ["source-bull"],
             },
           ],
+          extras: {
+            forecastDisagreement: {
+              predictions: [
+                {
+                  predictionId: "prediction-1",
+                  meanProbability: 0.6,
+                  band: "unavailable",
+                  participantCount: 1,
+                  missingParticipantCount: 1,
+                },
+              ],
+            },
+          },
         },
         score: {
           scores: [
@@ -3104,5 +3117,9 @@ describe("run workspace view", () => {
     expect(text).toContain("AAPL rises.");
     expect(text).toContain("EVENT TRUE");
     expect(text).toContain("BELOW TARGET");
+    expect(html).toMatch(
+      /<span[^>]*border-dashed[^>]*title="Forecast Disagreement unavailable: 1 model probabilities; at least 2 needed for a spread"[^>]*>\s*FD UNAVAILABLE\s*<\/span>/u,
+    );
+    expect(text).not.toContain("FD LOW");
   });
 });

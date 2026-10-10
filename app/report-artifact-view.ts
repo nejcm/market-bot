@@ -40,17 +40,21 @@ export interface PredictionScoreView {
   readonly pendingReason?: string;
 }
 
-type ForecastDisagreementBand = "low" | "medium" | "high";
+type ForecastDisagreementBand = "low" | "medium" | "high" | "unavailable";
 
-export interface ForecastDisagreementView {
+export type ForecastDisagreementView = {
   readonly predictionId: string;
   readonly meanProbability: number;
-  readonly probabilityVariance: number;
-  readonly probabilitySpread: number;
-  readonly band: ForecastDisagreementBand;
   readonly participantCount: number;
   readonly missingParticipantCount: number;
-}
+} & (
+  | {
+      readonly band: Exclude<ForecastDisagreementBand, "unavailable">;
+      readonly probabilityVariance: number;
+      readonly probabilitySpread: number;
+    }
+  | { readonly band: "unavailable" }
+);
 
 interface MissAutopsyView {
   readonly predictionId: string;
@@ -191,7 +195,7 @@ export function forecastGroups(items: readonly ScoredForecast[]): readonly Forec
 }
 
 function isForecastDisagreementBand(value: unknown): value is ForecastDisagreementBand {
-  return value === "low" || value === "medium" || value === "high";
+  return value === "low" || value === "medium" || value === "high" || value === "unavailable";
 }
 
 export function forecastDisagreements(
@@ -206,7 +210,7 @@ export function forecastDisagreements(
     return [];
   }
 
-  return disagreementPredictions.flatMap((item) => {
+  return disagreementPredictions.flatMap((item): readonly ForecastDisagreementView[] => {
     if (!isRecord(item)) {
       return [];
     }
@@ -219,25 +223,21 @@ export function forecastDisagreements(
     if (
       predictionId === undefined ||
       meanProbability === undefined ||
-      probabilityVariance === undefined ||
-      probabilitySpread === undefined ||
       participantCount === undefined ||
       missingParticipantCount === undefined ||
       !isForecastDisagreementBand(item.band)
     ) {
       return [];
     }
-    return [
-      {
-        predictionId,
-        meanProbability,
-        probabilityVariance,
-        probabilitySpread,
-        band: item.band,
-        participantCount,
-        missingParticipantCount,
-      },
-    ];
+    const base = { predictionId, meanProbability, participantCount, missingParticipantCount };
+    // Pre-`unavailable` artifacts banded a primary-only row as `low` with spread 0.
+    if (item.band === "unavailable" || participantCount < 2) {
+      return [{ ...base, band: "unavailable" }];
+    }
+    if (probabilityVariance === undefined || probabilitySpread === undefined) {
+      return [];
+    }
+    return [{ ...base, probabilityVariance, probabilitySpread, band: item.band }];
   });
 }
 

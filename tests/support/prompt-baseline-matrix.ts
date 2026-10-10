@@ -20,13 +20,16 @@ import type { BusinessFrameworkArtifact } from "../../src/sources/extended-evide
 import type { WebSubjectProfileArtifact } from "../../src/web-evidence";
 import type { CollectedSources } from "../../src/sources/types";
 import type { Source } from "../../src/domain/sources";
-import { collectedSources, marketSnapshot, newsSource, verifiedMarketSnapshot } from "./fixtures";
+import { buildForecastDisagreementPrompt } from "../../src/research/forecast-disagreement";
+import {
+  collectedSources,
+  marketSnapshot,
+  newsSource,
+  prediction,
+  verifiedMarketSnapshot,
+} from "./fixtures";
 
-// Fixed input matrix for the prompt byte-identity baseline (phase 2 step 0 of the
-// Deepen-modules refactor). Every input is a constant: no wall clock, no randomness.
-// The matrix covers all 13 StageLabels plus the special branches — final-synthesis
-// Primary/repair/language-repair, each Web Subject Profile subject kind,
-// Both selector prompts, the steering segment, and the web-source synthesis inputs.
+// Fixed prompt byte-identity matrix: every input is a constant, no wall clock or randomness.
 
 const ANALYSIS_AS_OF = "2026-06-01T00:00:00.000Z";
 
@@ -592,6 +595,37 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
   add(
     "segment:steering:non-synthesis",
     buildStageSteeringSegment("critique", equityCommand, richEquitySources(), equityContext()),
+  );
+
+  add(
+    "production:forecast-disagreement",
+    buildForecastDisagreementPrompt({
+      loaded: loadedPrompt,
+      report: {
+        runId: "run-baseline",
+        generatedAt: ANALYSIS_AS_OF,
+        summary: "AAPL trades near its 50-day average.",
+        keyFindings: [],
+        bullCase: [],
+        bearCase: [],
+        risks: [],
+        catalysts: [],
+        scenarios: [],
+        predictions: [
+          prediction({ sourceIds: ["market-aapl"] }),
+          prediction({
+            id: "pred-2",
+            kind: "conditional",
+            subject: "QQQ",
+            claim: "If SPY closes higher over 5 trading days, QQQ closes higher over 10.",
+            horizonTradingDays: 10,
+            measurableAs:
+              "if (close(SPY, +5) > close(SPY, 0)) then (close(QQQ, +10) > close(QQQ, 0))",
+            probability: 0.58,
+          }),
+        ],
+      },
+    }),
   );
 
   add(

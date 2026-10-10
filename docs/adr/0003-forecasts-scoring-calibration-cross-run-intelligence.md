@@ -193,6 +193,8 @@ be mistaken for current market evidence.
   miss-correction runs.
 - Prior reports are citeable internal `model` sources and narrative context, not current market
   observations.
+- Model prompts list resolved prior forecasts only. Pending ones, scored or not, are counted as
+  `pendingPredictionCount` but not shown as rows; prior summaries and findings may still echo them.
 - Keep correction blocks aligned with the new run's forecast scope: instrument runs receive
   same-instrument misses; market overviews receive same-asset, same-horizon-bucket misses for
   configured subjects; thematic research receives same-subject or same-proxy misses.

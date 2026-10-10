@@ -443,3 +443,88 @@ export function readWebSubjectProfileExtra(
     ...(secFilingBasisDate !== undefined ? { secFilingBasisDate } : {}),
   };
 }
+
+// One row the validation, research-only and citation walks share; paths are relative to the extra.
+interface ExtraSourceRow {
+  readonly path: string;
+  readonly label?: string;
+  readonly text?: { readonly path: string; readonly value: string };
+  // All-or-nothing: a list with any non-string member cites nothing.
+  readonly sourceIds?: readonly string[];
+  // Validated but never rendered, so markdown must not count it as cited.
+  readonly unrendered?: true;
+}
+
+function allStrings(value: unknown): readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+function textRow(path: string, textKey: string, row: unknown): readonly ExtraSourceRow[] {
+  if (!isRecord(row)) {
+    return [];
+  }
+  const text = row[textKey];
+  return [
+    {
+      path,
+      ...(typeof text === "string" ? { text: { path: `${path}.${textKey}`, value: text } } : {}),
+      sourceIds: allStrings(row.sourceIds),
+    },
+  ];
+}
+
+// Walks the raw payload, not the reader value, so indices match the artifact.
+export function webSubjectProfileSourceRows(value: unknown): readonly ExtraSourceRow[] {
+  if (!isRecord(value)) {
+    return [];
+  }
+  const facts = (key: "recentMaterialEvents" | "factLedger"): readonly ExtraSourceRow[] => {
+    const list = value[key];
+    return Array.isArray(list)
+      ? list.flatMap((fact, index) => textRow(`${key}[${String(index)}]`, "claim", fact))
+      : [];
+  };
+  return [
+    { path: "sourceIds", sourceIds: allStrings(value.sourceIds) },
+    ...textRow("subjectSummary", "answer", value.subjectSummary),
+    ...(isRecord(value.questions)
+      ? Object.entries(value.questions).flatMap(([key, question]) =>
+          textRow(`questions.${key}`, "answer", question),
+        )
+      : []),
+    ...facts("recentMaterialEvents"),
+    ...facts("factLedger"),
+    ...allStrings(value.openGaps).map((gap, index) => {
+      const path = `openGaps[${String(index)}]`;
+      return { path, text: { path, value: gap } };
+    }),
+  ];
+}
+
+export function businessFrameworkSourceRows(value: unknown): readonly ExtraSourceRow[] {
+  if (!isRecord(value)) {
+    return [];
+  }
+  const sections = Array.isArray(value.sections) ? value.sections : [];
+  return [
+    { path: "sourceIds", sourceIds: allStrings(value.sourceIds) },
+    ...sections.flatMap((section, index) =>
+      textRow(`sections[${String(index)}]`, "text", section).map((row) => ({
+        ...row,
+        ...(isRecord(section) && typeof section.name === "string"
+          ? { label: `${row.path} (${section.name})` }
+          : {}),
+      })),
+    ),
+    // Master only reached reconciliation when `sections` was an array.
+    ...(Array.isArray(value.sections) && isRecord(value.reconciliation)
+      ? [
+          {
+            path: "reconciliation.profileSourceIds",
+            sourceIds: allStrings(value.reconciliation.profileSourceIds),
+            unrendered: true as const,
+          },
+        ]
+      : []),
+  ];
+}

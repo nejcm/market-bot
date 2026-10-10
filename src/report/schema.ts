@@ -18,6 +18,7 @@ import { violatesResearchOnly } from "../domain/research-language";
 import { readObservableForecasts, type ObservableForecastIssue } from "../forecast/observable";
 import { isRecord } from "../guards";
 import { validatePredictionShortfall } from "./prediction-shortfall";
+import { businessFrameworkSourceRows, webSubjectProfileSourceRows } from "./report-extras-contract";
 
 export const RESEARCH_ONLY_NOTE =
   "Research-only note: This report is for market research only and does not provide investment advice, trade recommendations, position sizing, execution instructions, or portfolio changes. Predictions are probabilistic statements about future observable market quantities, not trade recommendations. Acting on them is the reader's decision.";
@@ -304,72 +305,15 @@ function earningsSetupSegments(extra: unknown): readonly ModelAuthoredSegment[] 
 }
 
 function businessFrameworkSegments(extra: unknown): readonly ModelAuthoredSegment[] {
-  if (!isRecord(extra)) {
-    return [];
-  }
-  return Array.isArray(extra.sections)
-    ? extra.sections.flatMap((section, index) =>
-        isRecord(section) && typeof section.text === "string"
-          ? [
-              {
-                path: `extras.businessFramework.sections[${String(index)}].text`,
-                text: section.text,
-              },
-            ]
-          : [],
-      )
-    : [];
-}
-
-function webSubjectProfileFactSegments(
-  path: string,
-  value: unknown,
-): readonly ModelAuthoredSegment[] {
-  return Array.isArray(value)
-    ? value.flatMap((fact, index) =>
-        isRecord(fact) && typeof fact.claim === "string"
-          ? [{ path: `${path}[${String(index)}].claim`, text: fact.claim }]
-          : [],
-      )
-    : [];
+  return businessFrameworkSourceRows(extra).flatMap(({ text }) =>
+    text === undefined ? [] : [{ path: `extras.businessFramework.${text.path}`, text: text.value }],
+  );
 }
 
 function webSubjectProfileSegments(extra: unknown): readonly ModelAuthoredSegment[] {
-  if (!isRecord(extra)) {
-    return [];
-  }
-  const questionSegments = isRecord(extra.questions)
-    ? Object.entries(extra.questions).flatMap(([key, question]) =>
-        isRecord(question) && typeof question.answer === "string"
-          ? [
-              {
-                path: `extras.webSubjectProfile.questions.${key}.answer`,
-                text: question.answer,
-              },
-            ]
-          : [],
-      )
-    : [];
-  return [
-    ...(isRecord(extra.subjectSummary) && typeof extra.subjectSummary.answer === "string"
-      ? [
-          {
-            path: "extras.webSubjectProfile.subjectSummary.answer",
-            text: extra.subjectSummary.answer,
-          },
-        ]
-      : []),
-    ...questionSegments,
-    ...webSubjectProfileFactSegments(
-      "extras.webSubjectProfile.recentMaterialEvents",
-      extra.recentMaterialEvents,
-    ),
-    ...webSubjectProfileFactSegments("extras.webSubjectProfile.factLedger", extra.factLedger),
-    ...readStringArray(extra.openGaps).map((text, index) => ({
-      path: `extras.webSubjectProfile.openGaps[${String(index)}]`,
-      text,
-    })),
-  ];
+  return webSubjectProfileSourceRows(extra).flatMap(({ text }) =>
+    text === undefined ? [] : [{ path: `extras.webSubjectProfile.${text.path}`, text: text.value }],
+  );
 }
 
 function validateEarningsSetupExtra(
@@ -513,38 +457,12 @@ function validateBusinessFrameworkExtra(
   knownSourceIds: ReadonlySet<string>,
   errors: string[],
 ): void {
-  if (!isRecord(extra)) {
-    return;
-  }
-  validateKnownSourceIds(
-    "Business Framework sourceIds",
-    readStringArray(extra.sourceIds),
-    knownSourceIds,
-    false,
-    errors,
-  );
-  if (!Array.isArray(extra.sections)) {
-    return;
-  }
-  for (const [index, section] of extra.sections.entries()) {
-    if (!isRecord(section)) {
-      continue;
-    }
-    const sectionName = typeof section.name === "string" ? ` (${section.name})` : "";
+  for (const row of businessFrameworkSourceRows(extra)) {
     validateKnownSourceIds(
-      `Business Framework sections[${index}]${sectionName}`,
-      readStringArray(section.sourceIds),
+      `Business Framework ${row.label ?? row.path}`,
+      row.sourceIds ?? [],
       knownSourceIds,
-      typeof section.text === "string",
-      errors,
-    );
-  }
-  if (isRecord(extra.reconciliation)) {
-    validateKnownSourceIds(
-      "Business Framework reconciliation.profileSourceIds",
-      readStringArray(extra.reconciliation.profileSourceIds),
-      knownSourceIds,
-      false,
+      row.text !== undefined,
       errors,
     );
   }
@@ -555,53 +473,15 @@ function validateWebSubjectProfileExtra(
   knownSourceIds: ReadonlySet<string>,
   errors: string[],
 ): void {
-  if (!isRecord(extra)) {
-    return;
-  }
-  validateKnownSourceIds(
-    "Web Subject Profile sourceIds",
-    readStringArray(extra.sourceIds),
-    knownSourceIds,
-    false,
-    errors,
-  );
-  if (isRecord(extra.subjectSummary)) {
-    validateKnownSourceIds(
-      "Web Subject Profile subjectSummary",
-      readStringArray(extra.subjectSummary.sourceIds),
-      knownSourceIds,
-      typeof extra.subjectSummary.answer === "string" && extra.subjectSummary.answer !== "",
-      errors,
-    );
-  }
-  if (isRecord(extra.questions)) {
-    for (const [key, question] of Object.entries(extra.questions)) {
-      if (isRecord(question)) {
-        validateKnownSourceIds(
-          `Web Subject Profile questions.${key}`,
-          readStringArray(question.sourceIds),
-          knownSourceIds,
-          typeof question.answer === "string" && question.answer !== "",
-          errors,
-        );
-      }
-    }
-  }
-  for (const key of ["recentMaterialEvents", "factLedger"] as const) {
-    const facts = extra[key];
-    if (!Array.isArray(facts)) {
-      continue;
-    }
-    for (const [index, fact] of facts.entries()) {
-      if (isRecord(fact)) {
-        validateKnownSourceIds(
-          `Web Subject Profile ${key}[${index}]`,
-          readStringArray(fact.sourceIds),
-          knownSourceIds,
-          typeof fact.claim === "string" && fact.claim !== "",
-          errors,
-        );
-      }
+  for (const row of webSubjectProfileSourceRows(extra)) {
+    if (row.sourceIds !== undefined) {
+      validateKnownSourceIds(
+        `Web Subject Profile ${row.path}`,
+        row.sourceIds,
+        knownSourceIds,
+        row.text !== undefined && row.text.value !== "",
+        errors,
+      );
     }
   }
 }

@@ -3628,6 +3628,20 @@ describe("report schema and rendering", () => {
       }),
     ).toThrow("Business Framework sections[0] (Business) cites unknown source ID: missing");
 
+    for (const sections of [undefined, "bad"]) {
+      expect(() =>
+        validateResearchReport({
+          ...report,
+          extras: {
+            businessFramework: {
+              ...(sections === undefined ? {} : { sections }),
+              reconciliation: { profileSourceIds: ["missing"] },
+            },
+          },
+        }),
+      ).not.toThrow();
+    }
+
     expect(() =>
       validateResearchReport({
         ...report,

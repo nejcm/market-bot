@@ -90,14 +90,8 @@ export function resolveRunParams(
 
   const proxy = researchPredictionProxy(normalizedCommand);
   const predictionSubjects = predictionSubjectsFor(normalizedCommand, merged, proxy);
-  const defaultQuickModel =
-    appConfig.provider === "codex"
-      ? (appConfig.codexQuickModel ?? appConfig.quickModel)
-      : appConfig.quickModel;
-  const defaultSynthesisModel =
-    appConfig.provider === "codex"
-      ? (appConfig.codexSynthesisModel ?? appConfig.synthesisModel)
-      : appConfig.synthesisModel;
+  const defaultQuickModel = appConfig.quickModel;
+  const defaultSynthesisModel = appConfig.synthesisModel;
   const quickReasoningEffort =
     appConfig.provider === "codex"
       ? appConfig.codexQuickReasoningEffort

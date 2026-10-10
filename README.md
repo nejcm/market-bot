@@ -152,7 +152,7 @@ codex login
 MARKET_BOT_PROVIDER=codex bun run src/cli.ts market-overview --asset equity
 ```
 
-The provider applies to every run type — there is no per-command routing. Override models with `MARKET_BOT_CODEX_QUICK_MODEL` and `MARKET_BOT_CODEX_SYNTHESIS_MODEL`; both fall back to the shared model defaults. This is the recommended setup for `research <subject>` runs (see [docs/configuration.md](./docs/configuration.md)).
+The provider applies to every run type — there is no per-command routing. Models come from `MARKET_BOT_QUICK_MODEL` and `MARKET_BOT_SYNTHESIS_MODEL`. This is the recommended setup for `research <subject>` runs (see [docs/configuration.md](./docs/configuration.md)).
 
 ### OpenAI-compatible endpoint
 

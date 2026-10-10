@@ -191,12 +191,6 @@ export function createLiveFixtureConfig(
     modelTimeoutMs: liveConfig.modelTimeoutMs,
     ...(liveConfig.apiKey !== undefined ? { apiKey: liveConfig.apiKey } : {}),
     ...(liveConfig.baseUrl !== undefined ? { baseUrl: liveConfig.baseUrl } : {}),
-    ...(liveConfig.codexQuickModel !== undefined
-      ? { codexQuickModel: liveConfig.codexQuickModel }
-      : {}),
-    ...(liveConfig.codexSynthesisModel !== undefined
-      ? { codexSynthesisModel: liveConfig.codexSynthesisModel }
-      : {}),
     ...(liveConfig.quickReasoningEffort !== undefined
       ? { quickReasoningEffort: liveConfig.quickReasoningEffort }
       : {}),

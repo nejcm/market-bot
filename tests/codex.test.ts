@@ -398,32 +398,6 @@ describe("createCodexProvider — generate", () => {
     ).rejects.toThrow("codex login");
   });
 
-  test("applies codex model override for quickModel", async () => {
-    const called: string[] = [];
-    const spawn: SpawnImpl = async (args) => {
-      if (args[1] === "--version") {
-        return { stdout: "0.125.0", stderr: "", exitCode: 0 };
-      }
-      if (args[1] === "auth") {
-        return { stdout: "", stderr: "", exitCode: 0 };
-      }
-      const mFlag = args.indexOf("-m");
-      if (mFlag !== -1) {
-        called.push(args[mFlag + 1] ?? "");
-      }
-      return { stdout: agentMessageStream("ok"), stderr: "", exitCode: 0 };
-    };
-
-    const config: AppConfig = { ...baseConfig, codexQuickModel: "gpt-5.4" };
-    const provider = createCodexProvider(config, spawn);
-    await provider.generate({
-      model: "gpt-5.4-mini",
-      messages: [{ role: "user", content: "hi" }],
-    });
-
-    expect(called).toEqual(["gpt-5.4"]);
-  });
-
   test("falls back to heuristic token estimate when usage is missing", async () => {
     const stream =
       `${JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hi" } })}\n` +
@@ -675,11 +649,7 @@ describe("createCodexProvider — generateStream", () => {
       });
     });
     const spawn = makeSpawn({ exec: { exitCode: 0, stdout: "app-server help" } });
-    const provider = createCodexProvider(
-      { ...baseConfig, codexQuickModel: "gpt-5.4" },
-      spawn,
-      appServer.spawn,
-    );
+    const provider = createCodexProvider(baseConfig, spawn, appServer.spawn);
 
     const content = await collectText(
       await provider.generateStream({
@@ -702,7 +672,7 @@ describe("createCodexProvider — generateStream", () => {
     ]);
     const threadStart = appServer.messages[2]?.params as Record<string, unknown>;
     expect(threadStart).toMatchObject({
-      model: "gpt-5.4",
+      model: "gpt-5.4-mini",
       approvalPolicy: "never",
       sandbox: "read-only",
       ephemeral: true,
@@ -710,7 +680,7 @@ describe("createCodexProvider — generateStream", () => {
     });
     const turnStart = appServer.messages[3]?.params as Record<string, unknown>;
     expect(turnStart).toMatchObject({
-      model: "gpt-5.4",
+      model: "gpt-5.4-mini",
       effort: "high",
       approvalPolicy: "never",
       sandboxPolicy: { type: "readOnly", networkAccess: false },

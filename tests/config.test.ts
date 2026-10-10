@@ -476,22 +476,6 @@ describe("resolveConfig", () => {
     expect(config.apiKey).toBeUndefined();
   });
 
-  test("reads codex-specific model overrides", () => {
-    const config = resolveConfig({
-      MARKET_BOT_PROVIDER: "codex",
-      MARKET_BOT_CODEX_QUICK_MODEL: "gpt-5.4",
-      MARKET_BOT_CODEX_SYNTHESIS_MODEL: "gpt-5.5",
-    });
-    expect(config.codexQuickModel).toBe("gpt-5.4");
-    expect(config.codexSynthesisModel).toBe("gpt-5.5");
-  });
-
-  test("codex model overrides are undefined when not set", () => {
-    const config = resolveConfig({ MARKET_BOT_PROVIDER: "codex" });
-    expect(config.codexQuickModel).toBeUndefined();
-    expect(config.codexSynthesisModel).toBeUndefined();
-  });
-
   test("accepts anthropic provider and reads Anthropic API key alias", () => {
     expect(
       resolveConfig({

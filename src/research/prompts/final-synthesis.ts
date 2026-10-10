@@ -1,5 +1,6 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { ForecastKindMix } from "../../config/runs";
+import { isMarketUpdateJobType } from "../../domain/job-type";
 import { NEAR_BASE_RATE_BAND, type PredictionKind } from "../../domain/prediction";
 import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
@@ -43,6 +44,7 @@ function finalReportShape(
   hasBusinessFramework: boolean,
   hasWebSubjectProfile: boolean,
   webSubjectKind: ReturnType<typeof subjectKindForCommand>,
+  hasSpotlightSelection: boolean,
   excludedKinds: readonly PredictionKind[] = [],
 ): Record<string, unknown> {
   const exampleSubject = depthProfile.predictionSubjects[0] ?? "SPY";
@@ -113,13 +115,13 @@ function finalReportShape(
         items: [{ text: "string", sourceIds: ["history-report-run-id"] }],
         gaps: ["string"],
       },
-      ...(command.jobType === "equity"
-        ? {}
-        : {
+      ...(hasSpotlightSelection
+        ? {
             spotlights: {
               items: [{ symbol: "string", rationale: "string", sourceIds: ["source-id"] }],
             },
-          }),
+          }
+        : {}),
       ...earningsSetupShape,
       ...businessFrameworkShape,
       ...webSubjectProfileShape,
@@ -428,6 +430,9 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
   const hasBusinessFramework =
     isInstrumentCommand(command) && collectedSources.businessFramework !== undefined;
   const hasWebSubjectProfile = collectedSources.webSubjectProfile !== undefined;
+  const hasSpotlightSelection =
+    isMarketUpdateJobType(command.jobType) &&
+    (context.spotlightSelection?.selected.length ?? 0) > 0;
   const predictionRepair =
     predictionRepromptErrors.length > 0
       ? { instruction: buildPredictionRepairInstruction(context) }
@@ -440,6 +445,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     hasBusinessFramework,
     hasWebSubjectProfile,
     subjectKindForCommand(command),
+    hasSpotlightSelection,
   );
   return assembleStagePrompt({
     stage: "final-synthesis",

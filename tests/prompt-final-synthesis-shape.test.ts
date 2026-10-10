@@ -71,6 +71,7 @@ describe("buildStagePrompt final-synthesis shape", () => {
     expect(parsed.instruction).toContain("probability is the probability that the measurableAs");
     expect(parsed.requiredShape?.predictions?.[0]).not.toHaveProperty("claim");
     expect(parsed.requiredShape).not.toHaveProperty("confidence");
+    expect(parsed.requiredShape?.extras).not.toHaveProperty("spotlights");
   });
 
   test("final-synthesis shape carries one exemplar prediction regardless of target count", () => {

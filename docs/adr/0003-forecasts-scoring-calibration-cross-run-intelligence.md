@@ -15,7 +15,8 @@ consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast el
 amended 2026-08-05: structured Prediction shortfall disclosure;
 amended 2026-08-11: conditional-activation calibration guidance;
 amended 2026-09-03: zero-resolution Calibration headline omission, enforced on read;
-amended 2026-10-10: Forecast Completion Pass removed; equity reports carry no Spotlights)
+amended 2026-10-10: Forecast Completion Pass removed; Spotlights only from a market-overview
+selection)
 
 ## Context
 
@@ -200,11 +201,13 @@ be mistaken for current market evidence.
   configured subjects; thematic research receives same-subject or same-proxy misses.
 - Market Spotlights exist only for market-overview runs. Candidates originate in current collected
   market evidence; history and alpha state may enrich candidates but never create them.
-- Equity reports carry no Spotlights. Final synthesis used to pass model-authored
-  `extras.spotlights` through when no deterministic selection existed; those items re-cited
-  evidence already in `keyFindings` and sat outside this record's market-overview mandate. The
-  equity final-synthesis shape no longer asks for them, assembly drops any the model still
-  returns, and the equity renderer ignores them on older artifacts, which still read unchanged.
+- A report carries Spotlights only when it is a market-overview run (including the `daily` and
+  `weekly` aliases) with a non-empty deterministic `spotlight-selection`; final synthesis may refine
+  rationale for selected symbols but never adds, drops, or re-sources one. Final synthesis used to
+  pass model-authored `extras.spotlights` through for equity, crypto, research, and selection-less
+  market overviews; those items originated in no collected market evidence. The final-synthesis
+  shape now asks for them only when a selection exists, assembly drops them everywhere else, and
+  non-market-overview renderers ignore them on older artifacts, which still read unchanged.
 - History rebuild, search, and thesis-delta operate only on artifacts. Narrative deltas are
   generated only on request and must pass the persisted research-only boundary in ADR 0001.
 - Missing or malformed history is a soft historical-context gap.

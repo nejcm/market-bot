@@ -363,6 +363,23 @@ describe("resolvePeerUniverseWithFallback", () => {
 
     expect(result.status).toBe("unresolved");
     expect(result.universe).toBeUndefined();
+    expect(result.proposalUnavailable).toBeUndefined();
+  });
+
+  test("marks a first proposal that could not run as unavailable", async () => {
+    const fallback: PeerUniverseFallbackContext = {
+      cacheRead: cacheMiss,
+      cacheWrite: async () => "written",
+      claimRefresh: async () => false,
+      propose: async () => ({ audit: dummyAudit, unavailable: true }),
+    };
+
+    const result = await resolvePeerUniverseWithFallback("ZZZZ", fallback);
+
+    expect(result.status).toBe("unresolved");
+    expect(result.proposalUnavailable).toBe(true);
+    expect(result.refresh).toBeUndefined();
+    expect(result.reason).toContain("peer directory or model was unavailable");
   });
 
   test("poisoned cache entry dropped — returns undefined from cacheRead triggers propose", async () => {
@@ -504,6 +521,7 @@ describe("resolvePeerUniverseWithFallback", () => {
 
       expect(result.status).toBe("unresolved");
       expect(result.refresh).toEqual({ outcome: "unavailable" });
+      expect(result.proposalUnavailable).toBe(true);
       expect(release).not.toHaveBeenCalled();
     });
 

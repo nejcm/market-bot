@@ -116,7 +116,7 @@ export async function collectValuationComps(
   if (resolution.status !== "resolved" || resolution.universe === undefined) {
     const gap = valuationCompsGap(
       `Peer Universe unavailable for ${command.symbol}: ${resolution.reason}`,
-      "unsupported-coverage",
+      resolution.proposalUnavailable === true ? "provider-data-missing" : "unsupported-coverage",
       "valuation-peers",
       command.symbol.toUpperCase(),
     );

@@ -3016,6 +3016,101 @@ describe("collectValuationComps", () => {
     expect(result.gaps[0]).toMatchObject({ cause: "unsupported-coverage" });
   });
 
+  test("declares a first proposal that could not run as missing data, not unsupported coverage", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+    };
+    const fallbackOptions: ValuationCompsOptions = {
+      peerUniverseFallback: {
+        cacheRead: cacheMiss,
+        cacheWrite: async () => "written",
+        claimRefresh: async () => false,
+        propose: async () => ({
+          audit: {
+            proposed: 0,
+            survived: 0,
+            rejectedByDirectory: 0,
+            rejectedByEtf: 0,
+            rejectedByListing: 0,
+            modelId: "(listing-fetch-failed)",
+          },
+          unavailable: true,
+        }),
+      },
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      fallbackOptions,
+    );
+
+    expect(result.gaps[0]).toMatchObject({ cause: "provider-data-missing" });
+    expect(result.gaps[0]?.message).toContain("peer directory or model was unavailable");
+  });
+
+  test("declares an expired learned entry whose renewal could not run as missing data", async () => {
+    const unmappedCommand = { ...command, symbol: "ZZZZ" };
+    const unmappedValuation: ExtendedEvidence = {
+      ...valuationEvidence(),
+      instrument: { symbol: "ZZZZ", assetClass: "equity" },
+      items: valuationEvidence().items.map((item) => ({
+        ...item,
+        sourceIds: item.sourceIds.map((id) => id.replace("nvda", "zzzz")),
+      })),
+    };
+
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      unmappedCommand,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-zzzz",
+          symbol: "ZZZZ",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      unmappedValuation,
+      {
+        peerUniverseFallback: {
+          cacheRead: async () => ({ generation: "2026-01-01T00:00:00.000Z", refresh: "due" }),
+          cacheWrite: async () => "written",
+          claimRefresh: async () => false,
+          propose: async () => ({
+            audit: {
+              proposed: 0,
+              survived: 0,
+              rejectedByDirectory: 0,
+              rejectedByEtf: 0,
+              rejectedByListing: 0,
+              modelId: "(sec-fetch-failed)",
+            },
+            unavailable: true,
+          }),
+        },
+      },
+    );
+
+    expect(
+      result.gaps.find((gap) => gap.message.startsWith("Peer Universe unavailable for ZZZZ")),
+    ).toMatchObject({ cause: "provider-data-missing" });
+    expect(
+      result.gaps.find((gap) => gap.message.startsWith("Peer Universe refresh for ZZZZ")),
+    ).toMatchObject({ cause: "provider-data-missing", triage: "diagnostic" });
+  });
+
   test("without fallback an unmapped ticker still emits unsupported-coverage gap", async () => {
     const unmappedCommand = { ...command, symbol: "ZZZZ" };
     const unmappedValuation: ExtendedEvidence = {

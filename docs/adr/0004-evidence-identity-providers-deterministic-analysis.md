@@ -467,7 +467,9 @@ without pretending the project has a global security master.
   without spending the allowance. Either re-proposal is deferred while target SIC or a positive
   market cap is unavailable. Every learned write is compare-and-set against the entry observed
   before proposing, so a delayed writer cannot replace newer state. A refresh that is deferred,
-  not claimed, unavailable, or insufficient emits a diagnostic Source Gap.
+  not claimed, unavailable, or insufficient emits a diagnostic Source Gap. A Peer Universe left
+  unresolved because the proposal could not run (directory or model unavailable) is declared
+  `provider-data-missing`, not `unsupported-coverage`.
 - Peer median/IQR aggregates include only candidates that pass deterministic comparability gates:
   a two-digit SEC SIC group matching the target's, and market cap and annualized revenue each
   inclusively within 0.2x-5x of the target's, in addition to the existing freshness and

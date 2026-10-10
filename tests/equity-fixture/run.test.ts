@@ -252,7 +252,8 @@ describe("static equity run fixtures", () => {
     expect(reader).toContain(
       "**Revenue consensus:** 98.0B (single-provider snapshot) [extended-finnhub-events-aapl]",
     );
-    expect(reader).toContain("**Material:** emitted 2 of 3");
+    expect(reader).toContain("**Material:** emitted 2 of 3 target predictions");
+    expect(reader).not.toContain("evidence did not support more");
     expect(appendix).not.toContain("predictionShortfall:");
     expect(reader).not.toContain("fred-macro:");
     expect(appendix).not.toContain("fred-macro:");

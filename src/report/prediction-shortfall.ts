@@ -85,7 +85,7 @@ export function rederivePredictionShortfallReportAfterPruning(
 }
 
 export function predictionShortfallMaterialGap(shortfall: PredictionShortfall): string {
-  return `emitted ${String(shortfall.emittedCount)} of ${String(shortfall.targetCount)} target predictions; evidence did not support more`;
+  return `emitted ${String(shortfall.emittedCount)} of ${String(shortfall.targetCount)} target predictions`;
 }
 
 export function predictionShortfallCompactText(shortfall: PredictionShortfall): string {

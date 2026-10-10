@@ -86,7 +86,7 @@ describe("reportSearchCandidates", () => {
         }),
         [],
       ),
-    ).toEqual(["Data gap: emitted 0 of 3 target predictions; evidence did not support more"]);
+    ).toEqual(["Data gap: emitted 0 of 3 target predictions"]);
   });
 
   test("console scope emits the agreed section order with console labels and text", () => {

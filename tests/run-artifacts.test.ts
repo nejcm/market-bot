@@ -553,9 +553,7 @@ describe("loadRunArtifact", () => {
       targetCount: 3,
       missingCount: 1,
     });
-    expect(artifact?.report.dataGaps).toEqual([
-      "emitted 1 of 3 target predictions; evidence did not support more",
-    ]);
+    expect(artifact?.report.dataGaps).toEqual(["emitted 1 of 3 target predictions"]);
   });
 
   test("round-trips a validated valuation-workbench sidecar", async () => {

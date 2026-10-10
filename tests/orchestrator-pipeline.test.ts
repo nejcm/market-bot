@@ -857,7 +857,7 @@ describe("runResearchJob pipeline stages", () => {
       expect.objectContaining({ location: "predictions[5]" }),
     ]);
     const shortfall = { emittedCount: 5, targetCount: 6, missingCount: 1 };
-    const materialText = "emitted 5 of 6 target predictions; evidence did not support more";
+    const materialText = "emitted 5 of 6 target predictions";
     expect(result.report.predictionShortfall).toEqual(shortfall);
     expect(result.markdown).toContain(`- **Material:** ${materialText}`);
     expect(result.markdown.split(materialText)).toHaveLength(2);

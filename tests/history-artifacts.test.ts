@@ -391,12 +391,8 @@ describe("history artifacts", () => {
     await rebuildHistoryArtifacts(dataDir, new Date("2026-06-06T00:00:00.000Z"));
 
     const { timeline } = await readInstrumentTimeline(dataDir, "equity", "AAPL");
-    expect(timeline.entries[0]?.thesis.dataGaps).toContain(
-      "emitted 1 of 3 target predictions; evidence did not support more",
-    );
-    expect(timeline.entries[1]?.thesis.dataGaps).toContain(
-      "emitted 1 of 4 target predictions; evidence did not support more",
-    );
+    expect(timeline.entries[0]?.thesis.dataGaps).toContain("emitted 1 of 3 target predictions");
+    expect(timeline.entries[1]?.thesis.dataGaps).toContain("emitted 1 of 4 target predictions");
 
     const delta = await buildThesisDelta({
       dataDir,
@@ -407,11 +403,8 @@ describe("history artifacts", () => {
       now: new Date("2026-06-06T00:00:00.000Z"),
     });
     expect(delta.sections.dataGaps).toMatchObject({
-      added: ["New thesis gap", "emitted 1 of 4 target predictions; evidence did not support more"],
-      removed: [
-        "Old thesis gap",
-        "emitted 1 of 3 target predictions; evidence did not support more",
-      ],
+      added: ["New thesis gap", "emitted 1 of 4 target predictions"],
+      removed: ["Old thesis gap", "emitted 1 of 3 target predictions"],
     });
   });
 

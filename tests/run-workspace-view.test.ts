@@ -1234,14 +1234,11 @@ describe("run workspace view", () => {
     );
     expect(view.gaps).toMatchObject({
       shortfalls: [],
-      otherGaps: [
-        "tradier-options: Persisted override",
-        "emitted 1 of 3 target predictions; evidence did not support more",
-      ],
+      otherGaps: ["tradier-options: Persisted override", "emitted 1 of 3 target predictions"],
       triagedGaps: [
         { text: "tradier-options: Persisted override", triage: "material" },
         {
-          text: "emitted 1 of 3 target predictions; evidence did not support more",
+          text: "emitted 1 of 3 target predictions",
           triage: "material",
         },
       ],
@@ -1440,7 +1437,7 @@ describe("run workspace view", () => {
   });
 
   test("renders a disclosed equity forecast shortfall as material and forecast context", async () => {
-    const shortfall = "emitted 0 of 3 target predictions; evidence did not support more";
+    const shortfall = "emitted 0 of 3 target predictions";
     const detail = {
       summary: summary(),
       report: {
@@ -1509,7 +1506,7 @@ describe("run workspace view", () => {
 
     expect(view.gaps.shortfalls).toEqual(["emitted 2 of 5"]);
     expect(view.gaps.triagedGaps).toContainEqual({
-      text: "emitted 1 of 5 target predictions; evidence did not support more",
+      text: "emitted 1 of 5 target predictions",
       triage: "material",
     });
     expect(JSON.stringify(view)).not.toContain("predictionShortfall:");

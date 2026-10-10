@@ -292,7 +292,7 @@ Check these explicitly before final ranking:
     that escaped it is a roster gap, not a missing gate.
 - Positive deltas: compare target fulfillment, informative forecast count,
   source-gap totals/classes, web-source usage, source integrity, report
-  integrity, evidence-lane coverage, forecast-completion outcome, and resolved
+  integrity, evidence-lane coverage, prediction shortfall, and resolved
   miss/autopsy movement. Include only meaningful improvements, not harmless
   churn.
   - Ratio metrics can improve by a shrinking denominator. Before calling a ratio

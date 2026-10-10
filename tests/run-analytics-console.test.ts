@@ -117,7 +117,7 @@ describe("run analytics console", () => {
     expect(output).toContain("1 informative, 2 near base rate (below signal floor)");
   });
 
-  test("renders completion counters when present", () => {
+  test("renders subsystem outcome counters", () => {
     const analytics = baseAnalytics();
     const output = renderRunAnalyticsConsole({
       ...analytics,
@@ -127,23 +127,10 @@ describe("run analytics console", () => {
         expectedEmptyCount: 1,
         byOutcome: { produced: 1, empty: 1, declined: 0, failed: 1, blocked: 1 },
       },
-      predictions: {
-        ...analytics.predictions,
-        completion: {
-          attempted: true,
-          initialCount: 2,
-          acceptedCount: 2,
-          rejectedCount: 1,
-          outcome: "improved",
-        },
-      },
     });
 
     expect(output).toContain(
-      [
-        "  Completion: improved · 2 accepted, 1 rejected",
-        "  Subsystem outcomes: 4 recorded · 1 expected-empty · produced=1, empty=1, failed=1, blocked=1",
-      ].join("\n"),
+      "  Subsystem outcomes: 4 recorded · 1 expected-empty · produced=1, empty=1, failed=1, blocked=1",
     );
   });
 

@@ -37,11 +37,10 @@ export function buildRecordedStageSteering(
     input.collectedSources,
     input.context,
     input.predictionRepromptErrors ?? [],
-    input.predictionCompletion,
   );
 }
 
-export type { PredictionCompletionPrompt, StageInput } from "./stage-envelope";
+export type { StageInput } from "./stage-envelope";
 export { buildStageSteeringSegment } from "./final-synthesis";
 export { buildSpotlightSelectionPrompt } from "./spotlight-selection";
 export { buildWebSourceSynthesisInputs } from "./web-source-synthesis-inputs";

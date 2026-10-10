@@ -77,15 +77,6 @@ const trace: RunTrace = {
   predictionErrors: ["Unknown source ID: missing"],
   predictionRetryErrors: ["Unknown source ID: missing"],
   predictionTrimWarnings: ["Prediction pred-adjacent: redundant direction forecast"],
-  predictionCompletion: {
-    attempted: true,
-    initialCount: 1,
-    targetCount: 3,
-    acceptedPredictionIds: ["pred-2"],
-    rejectedCandidateCount: 2,
-    rejectionReasons: ["near-base-rate", "unknown source"],
-    outcome: "improved",
-  },
 };
 
 const webGatherAttemptedTrace: RunTrace = {
@@ -482,13 +473,6 @@ describe("run analytics", () => {
       retryErrorCount: 1,
       validationErrorCount: 1,
       trimWarningCount: 1,
-      completion: {
-        attempted: true,
-        initialCount: 1,
-        acceptedCount: 1,
-        rejectedCount: 2,
-        outcome: "improved",
-      },
       replacementAttempted: false,
       byKind: { direction: 1, iv: 1 },
       citedCount: 1,
@@ -701,14 +685,13 @@ describe("forecast quality telemetry (3.2)", () => {
     expect(result.retryErrorCount).toBe(0);
   });
 
-  test("retains legacy replacement telemetry without inventing completion telemetry", () => {
+  test("retains legacy replacement telemetry", () => {
     const result = predictionsFor([prediction({ id: "pred-1", sourceIds: ["src-1"] })], {
       ...baseTrace,
       predictionReplacementAttempted: true,
     });
 
     expect(result.replacementAttempted).toBe(true);
-    expect(result.completion).toBeUndefined();
   });
 
   test("straddling set produces correct nearBaseRateCount and informativeCount", () => {

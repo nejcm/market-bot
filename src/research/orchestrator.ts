@@ -218,9 +218,6 @@ async function runModelStage(
     predictionRepromptErrors: reprompt.predictionErrors ?? [],
     reportValidationErrors: reprompt.reportValidationErrors ?? [],
     allowedSourceIds: reprompt.allowedSourceIds ?? [],
-    ...(reprompt.predictionCompletion !== undefined
-      ? { predictionCompletion: reprompt.predictionCompletion }
-      : {}),
   };
   const prompt = buildStagePrompt(stage, stageInput);
   progress(`stage ${stage} → ${model}`);
@@ -840,8 +837,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     predictionErrors,
     predictionRetryErrors,
     predictionTrimWarnings,
-    predictionCompletion,
-    predictionCompletionSkipCode,
     reportValidationErrors,
     relocatedGapClaims,
   } = synthesis;
@@ -882,7 +877,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     playbookAudit,
     predictionRetryErrors,
     predictionTrimWarnings,
-    predictionCompletion,
     predictionErrors,
     reportValidationErrors,
     relocatedGapClaims,
@@ -911,8 +905,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...(webGatherLoop.skipCode !== undefined ? { webGatherSkipCode: webGatherLoop.skipCode } : {}),
     ...(spotlightSelection !== undefined ? { spotlightSelection } : {}),
     playbookAudit,
-    ...(predictionCompletion !== undefined ? { predictionCompletion } : {}),
-    ...(predictionCompletionSkipCode !== undefined ? { predictionCompletionSkipCode } : {}),
     ...(trace.reportIntegrityAudit !== undefined
       ? { reportIntegrityAudit: trace.reportIntegrityAudit }
       : {}),

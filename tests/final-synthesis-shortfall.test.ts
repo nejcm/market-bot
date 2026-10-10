@@ -2,19 +2,19 @@ import { expect, test } from "bun:test";
 import type { InstrumentCommand } from "../src/cli/args";
 import { resolveRunParams } from "../src/config/runs";
 import { buildDepthProfileFromParams } from "../src/research/depth-profile";
-import { synthesizeReportUntilValid, type StageReprompt } from "../src/research/final-synthesis";
+import { synthesizeReportUntilValid } from "../src/research/final-synthesis";
 import { collectedSources, marketSnapshot, newsSource, researchReport } from "./support/fixtures";
 import { config, mockPredictions } from "./support/orchestrator-helpers";
 
 test.each([
-  { jobType: "equity", count: 1, requested: 2, skipCode: undefined },
-  { jobType: "equity", count: 2, requested: undefined, skipCode: "floor-met" },
-  { jobType: "equity", count: 3, requested: undefined, skipCode: "target-met" },
-  { jobType: "crypto", count: 2, requested: 3, skipCode: undefined },
-  { jobType: "crypto", count: 5, requested: undefined, skipCode: "target-met" },
+  { jobType: "equity", count: 0 },
+  { jobType: "equity", count: 1 },
+  { jobType: "equity", count: 3 },
+  { jobType: "crypto", count: 2 },
+  { jobType: "crypto", count: 5 },
 ] as const)(
-  "completion eligibility for $jobType with $count accepted predictions",
-  async ({ jobType, count, requested, skipCode }) => {
+  "one final-synthesis call for $jobType with $count valid predictions",
+  async ({ jobType, count }) => {
     const command: InstrumentCommand = {
       jobType,
       assetClass: jobType,
@@ -22,15 +22,14 @@ test.each([
       depth: "deep",
     };
     const runParams = resolveRunParams(command, config);
-    const { predictionCompletionFloor: _floor, ...defaultRunParams } = runParams;
-    const reprompts: StageReprompt[] = [];
+    let calls = 0;
     const result = await synthesizeReportUntilValid({
-      runId: "completion-floor-test",
+      runId: "prediction-shortfall-test",
       generatedAt: "2026-05-19T00:00:00.000Z",
       command,
       collectedSources: collectedSources({ marketSnapshots: [marketSnapshot()] }),
       context: {
-        runParams: jobType === "crypto" ? defaultRunParams : runParams,
+        runParams,
         depthProfile: buildDepthProfileFromParams(command, runParams),
         marketRegime: {
           assetClass: jobType,
@@ -54,25 +53,21 @@ test.each([
       allowedSubjects: new Set(["AAPL"]),
       priorStages: [],
       maxPredictionReprompts: 0,
-      runFinalSynthesis: async (_priorStages, reprompt) => {
-        if (reprompt?.predictionCompletion !== undefined) {
-          reprompts.push(reprompt);
-        }
+      runFinalSynthesis: async () => {
+        calls += 1;
         return {
           stage: "final-synthesis",
           tokenEstimate: 0,
-          content: JSON.stringify(
-            reprompt?.predictionCompletion === undefined
-              ? { ...researchReport(), predictions: mockPredictions(count, "AAPL") }
-              : { predictions: [] },
-          ),
+          content: JSON.stringify({
+            ...researchReport(),
+            predictions: mockPredictions(count, "AAPL"),
+          }),
         };
       },
     });
     expect(result.reportValidationErrors).toEqual([]);
-    expect(result.predictionCompletionSkipCode).toBe(skipCode);
-    expect(reprompts).toHaveLength(requested === undefined ? 0 : 1);
-    expect(reprompts[0]?.predictionCompletion?.requestedCount).toBe(requested);
+    expect(calls).toBe(1);
+    expect(result.stageOutputs).toHaveLength(1);
     expect(result.report.predictions).toHaveLength(count);
     expect(result.report.predictionShortfall).toEqual(
       count < runParams.targetPredictions

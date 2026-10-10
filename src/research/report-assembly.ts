@@ -693,7 +693,6 @@ export interface AssembleResearchReportInput {
   /** Derived by the orchestrator before the canonical source-gap boundary, so the same verdict
    *  that produced this run's freshness gaps is the one recorded here. */
   readonly equityAnalysisCompleteness?: EquityAnalysisCompleteness;
-  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 export function assembleResearchReport(input: AssembleResearchReportInput): ResearchReport {
@@ -719,7 +718,6 @@ export function assembleResearchReportWithRelocations(
     depthProfile,
     context,
     sources,
-    suppressedEarningsPredictionCountOffset = 0,
   } = input;
   const reportSymbol = isInstrumentCommand(command) ? command.symbol : undefined;
   /*
@@ -873,12 +871,7 @@ export function assembleResearchReportWithRelocations(
       ...extendedEvidenceExtras,
       ...(command.jobType === "equity"
         ? {
-            earningsForecasts: {
-              ...earningsGatedPredictions.telemetry,
-              suppressedPredictionCount:
-                earningsGatedPredictions.telemetry.suppressedPredictionCount +
-                suppressedEarningsPredictionCountOffset,
-            },
+            earningsForecasts: earningsGatedPredictions.telemetry,
           }
         : {}),
       depth: command.depth,

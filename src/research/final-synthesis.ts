@@ -1,26 +1,19 @@
 import type { ResearchCommand } from "../cli/args";
-import {
-  NEAR_BASE_RATE_BAND,
-  type EquityAnalysisCompleteness,
-  type Prediction,
-  type PredictionCompletionAudit,
-  type RelocatedGapClaim,
-  type ResearchReport,
-  type Source,
-  type SourceGap,
+import type {
+  EquityAnalysisCompleteness,
+  Prediction,
+  RelocatedGapClaim,
+  ResearchReport,
+  Source,
+  SourceGap,
 } from "../domain/types";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
-import {
-  applyEarningsForecastPolicy,
-  readEarningsForecastTelemetry,
-} from "../forecast/earnings-eligibility";
+import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";
 import type { StageLabel } from "./prompt-loader";
-import type { PredictionCompletionPrompt } from "./prompts";
 import { ReportLanguageViolationError } from "../report/schema";
 import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
 import type { ResearchContext } from "./research-context-types";
-import { commandResearchSubjectIdentity } from "./research-subject-identity";
 import {
   assembleResearchReportWithRelocations,
   parseModelPayload,
@@ -32,22 +25,13 @@ export interface StageReprompt {
   readonly predictionErrors?: readonly string[];
   readonly reportValidationErrors?: readonly string[];
   readonly allowedSourceIds?: readonly string[];
-  readonly predictionCompletion?: PredictionCompletionPrompt;
   /** Predictions from the attempt being repaired that already validated. A repair reprompt
    *  regenerates the whole report from a stateless call, so without this the model never sees the
    *  predictions it is supposed to keep and silently returns fewer than it started with. */
   readonly retainedPredictions?: readonly Prediction[];
 }
 
-export type StageRepromptReason = Omit<
-  StageReprompt,
-  "allowedSourceIds" | "predictionCompletion" | "retainedPredictions"
-> & {
-  readonly predictionCompletion?: Pick<
-    PredictionCompletionPrompt,
-    "requestedCount" | "existingPredictions"
-  >;
-};
+export type StageRepromptReason = Omit<StageReprompt, "allowedSourceIds" | "retainedPredictions">;
 
 export interface StageOutput {
   readonly stage: StageLabel;
@@ -67,7 +51,6 @@ interface FinalSynthesisState {
   readonly output: StageOutput;
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
-  readonly suppressedEarningsPredictionCountOffset?: number;
 }
 
 interface SynthesisProgress {
@@ -138,19 +121,10 @@ export interface SynthesizeReportUntilValidResult {
   readonly stageOutputs: readonly StageOutput[];
   readonly predictionRetryErrors: readonly string[];
   readonly predictionTrimWarnings: readonly string[];
-  readonly predictionCompletion?: PredictionCompletionAudit;
-  readonly predictionCompletionSkipCode?: PredictionCompletionSkipCode;
   readonly predictionErrors: readonly string[];
   readonly reportValidationErrors: readonly string[];
   readonly relocatedGapClaims: readonly RelocatedGapClaim[];
 }
-
-export type PredictionCompletionSkipCode =
-  | "evidence-quality-ineligible"
-  | "target-zero"
-  | "target-met"
-  | "floor-met"
-  | "subject-ineligible";
 
 export class FinalSynthesisRejectedError extends Error {
   readonly reportValidationErrors: readonly string[];
@@ -230,23 +204,16 @@ export async function synthesizeReportUntilValid(
       reportRepairReprompts += 1;
     },
   );
-  const completion = await runPredictionCompletion(
+  const { report, relocatedGapClaims, sourceGaps } = buildReportWithRelocations(
     trackedInput,
-    validated.progress,
-    validated.report,
+    validated.progress.state,
   );
-  const assembled = buildReportWithRelocations(trackedInput, completion.progress.state);
-  const { report, relocatedGapClaims, sourceGaps } = assembled;
   return {
     report,
     sourceGaps,
-    stageOutputs: completion.progress.stageOutputs,
-    predictionRetryErrors: completion.progress.predictionRetryErrors,
+    stageOutputs: validated.progress.stageOutputs,
+    predictionRetryErrors: validated.progress.predictionRetryErrors,
     predictionTrimWarnings: predictionTrimWarnings(validated.progress.state.predResult),
-    ...(completion.audit !== undefined ? { predictionCompletion: completion.audit } : {}),
-    ...(completion.skipCode !== undefined
-      ? { predictionCompletionSkipCode: completion.skipCode }
-      : {}),
     predictionErrors: validated.progress.state.predResult.errors,
     reportValidationErrors: validated.reportValidationErrors,
     relocatedGapClaims,
@@ -263,16 +230,6 @@ function stageRepromptReason(reprompt: StageReprompt | undefined): StageReprompt
       : {}),
     ...(reprompt.reportValidationErrors !== undefined
       ? { reportValidationErrors: reprompt.reportValidationErrors }
-      : {}),
-    ...(reprompt.predictionCompletion !== undefined
-      ? {
-          // Persist only the audit-relevant fields; the report draft is prompt-only context and must
-          // Not be duplicated into the recorded reprompt reason.
-          predictionCompletion: {
-            requestedCount: reprompt.predictionCompletion.requestedCount,
-            existingPredictions: reprompt.predictionCompletion.existingPredictions,
-          },
-        }
       : {}),
   };
   return Object.keys(reason).length > 0 ? reason : undefined;
@@ -540,10 +497,7 @@ async function runPredictionReprompts(
 async function repromptFinalSynthesis(
   input: SynthesizeReportUntilValidInput,
   retained: readonly Prediction[],
-  reprompt: Omit<
-    StageReprompt,
-    "allowedSourceIds" | "retainedPredictions" | "predictionCompletion"
-  >,
+  reprompt: Omit<StageReprompt, "allowedSourceIds" | "retainedPredictions">,
 ): Promise<FinalSynthesisState> {
   return runAndReadFinalSynthesis(input, { ...reprompt, retainedPredictions: retained });
 }
@@ -563,238 +517,6 @@ async function runAndReadFinalSynthesis(
     input.allowedSubjects,
   );
   return { output, payload, predResult };
-}
-
-interface PredictionCompletionResult {
-  readonly progress: SynthesisProgress;
-  readonly audit?: PredictionCompletionAudit;
-  readonly skipCode?: PredictionCompletionSkipCode;
-}
-
-function completionSubjects(
-  input: SynthesizeReportUntilValidInput,
-): ReadonlySet<string> | undefined {
-  if (input.command.jobType !== "research") {
-    return input.allowedSubjects !== undefined && input.allowedSubjects.size > 0
-      ? input.allowedSubjects
-      : undefined;
-  }
-
-  const proxy = commandResearchSubjectIdentity(input.command).predictionProxySymbol;
-  const hasSnapshot =
-    proxy !== undefined &&
-    input.collectedSources.marketSnapshots.some(
-      (snapshot) => snapshot.symbol.toUpperCase() === proxy.toUpperCase(),
-    );
-  return proxy !== undefined && hasSnapshot ? new Set([proxy]) : undefined;
-}
-
-function completionEligible(
-  input: SynthesizeReportUntilValidInput,
-  report: ResearchReport,
-):
-  | { readonly allowedSubjects: ReadonlySet<string> }
-  | { readonly skipCode: PredictionCompletionSkipCode } {
-  const quality = input.context.evidenceQualityAssessment?.label;
-  const target = input.context.depthProfile.targetPredictions;
-  if (quality !== "high" && quality !== "medium") {
-    return { skipCode: "evidence-quality-ineligible" };
-  }
-  if (target === 0) {
-    return { skipCode: "target-zero" };
-  }
-  if (report.predictions.length >= target) {
-    return { skipCode: "target-met" };
-  }
-  if (report.predictions.length >= (input.context.runParams.predictionCompletionFloor ?? target)) {
-    return { skipCode: "floor-met" };
-  }
-  const allowedSubjects = completionSubjects(input);
-  return allowedSubjects === undefined ? { skipCode: "subject-ineligible" } : { allowedSubjects };
-}
-
-function isNearBaseRate(prediction: Prediction): boolean {
-  return Math.abs(prediction.probability - 0.5) <= NEAR_BASE_RATE_BAND + Number.EPSILON;
-}
-
-function candidateRejectionReasons(result: ReturnType<typeof readPredictions>): readonly string[] {
-  return uniqueStrings([...result.errors, ...result.issues.map((issue) => issue.message)]);
-}
-
-function mergeCompletionCandidates(input: {
-  readonly candidates: unknown;
-  readonly existing: readonly Prediction[];
-  readonly targetCount: number;
-  readonly knownSourceIds: ReadonlySet<string>;
-  readonly allowedSubjects: ReadonlySet<string>;
-}): {
-  readonly predictions: readonly Prediction[];
-  readonly acceptedPredictionIds: readonly string[];
-  readonly rejectedCandidateCount: number;
-  readonly rejectionReasons: readonly string[];
-} {
-  const candidates = Array.isArray(input.candidates) ? input.candidates : [];
-  const accepted = [...input.existing];
-  const acceptedPredictionIds: string[] = [];
-  const rejectionReasons: string[] = [];
-  let rejectedCandidateCount = 0;
-
-  for (const rawCandidate of candidates) {
-    if (accepted.length >= input.targetCount) {
-      rejectedCandidateCount += 1;
-      rejectionReasons.push("prediction completion target already met");
-      continue;
-    }
-
-    const candidateResult = readPredictions(
-      [rawCandidate],
-      input.knownSourceIds,
-      input.allowedSubjects,
-    );
-    const [candidate] = candidateResult.predictions;
-    if (candidate === undefined) {
-      rejectedCandidateCount += 1;
-      rejectionReasons.push(...candidateRejectionReasons(candidateResult));
-      continue;
-    }
-    if (isNearBaseRate(candidate)) {
-      rejectedCandidateCount += 1;
-      rejectionReasons.push(
-        `Prediction ${candidate.id}: near-base-rate probability is not eligible for completion`,
-      );
-      continue;
-    }
-
-    const combined = readPredictions(
-      [...accepted, candidate],
-      input.knownSourceIds,
-      input.allowedSubjects,
-    );
-    const preservesExisting = accepted.every((prediction) =>
-      combined.predictions.some((combinedPrediction) => combinedPrediction.id === prediction.id),
-    );
-    const addsCandidate =
-      combined.predictions.length === accepted.length + 1 &&
-      combined.predictions.some((prediction) => prediction.id === candidate.id);
-    if (!preservesExisting || !addsCandidate) {
-      rejectedCandidateCount += 1;
-      const reasons = candidateRejectionReasons(combined).filter((reason) =>
-        reason.includes(candidate.id),
-      );
-      rejectionReasons.push(
-        ...(reasons.length > 0
-          ? reasons
-          : [`Prediction ${candidate.id}: conflicts with an accepted prediction`]),
-      );
-      continue;
-    }
-
-    accepted.push(candidate);
-    acceptedPredictionIds.push(candidate.id);
-  }
-
-  return {
-    predictions: accepted,
-    acceptedPredictionIds,
-    rejectedCandidateCount,
-    rejectionReasons: uniqueStrings(rejectionReasons),
-  };
-}
-
-async function runPredictionCompletion(
-  input: SynthesizeReportUntilValidInput,
-  progress: SynthesisProgress,
-  report: ResearchReport,
-): Promise<PredictionCompletionResult> {
-  const eligibility = completionEligible(input, report);
-  if ("skipCode" in eligibility) {
-    return { progress, skipCode: eligibility.skipCode };
-  }
-  const { allowedSubjects } = eligibility;
-
-  const initialCount = report.predictions.length;
-  const targetCount = input.context.depthProfile.targetPredictions;
-  let output: StageOutput | undefined = undefined;
-  try {
-    output = await input.runFinalSynthesis(input.priorStages, {
-      allowedSourceIds: [...input.knownSourceIds].toSorted(),
-      predictionCompletion: {
-        requestedCount: targetCount - initialCount,
-        existingPredictions: report.predictions,
-        // Distills the completion prompt to the report narrative + critique + compact source index
-        // Instead of the full evidence payload and prior-stage transcript. See buildStagePrompt.
-        reportDraft: report,
-      },
-    });
-    const payload = parseModelPayload(output.content);
-    const hasPredictionArray = Array.isArray(payload.predictions);
-    const returnedCandidateCount = hasPredictionArray ? payload.predictions.length : 0;
-    const merged = mergeCompletionCandidates({
-      candidates: payload.predictions,
-      existing: report.predictions,
-      targetCount,
-      knownSourceIds: input.knownSourceIds,
-      allowedSubjects,
-    });
-    const suppressedEarningsPredictionCountOffset =
-      readEarningsForecastTelemetry(report)?.suppressedPredictionCount ?? 0;
-    const state: FinalSynthesisState = {
-      output,
-      payload: progress.state.payload,
-      predResult: {
-        predictions: merged.predictions,
-        errors: progress.state.predResult.errors,
-        issues: progress.state.predResult.issues,
-      },
-      ...(suppressedEarningsPredictionCountOffset > 0
-        ? { suppressedEarningsPredictionCountOffset }
-        : {}),
-    };
-    let outcome: PredictionCompletionAudit["outcome"] = hasPredictionArray
-      ? "declined-empty"
-      : "no-parsable-candidates";
-    if (merged.acceptedPredictionIds.length > 0) {
-      outcome = "improved";
-    } else if (returnedCandidateCount > 0) {
-      outcome = "all-candidates-rejected";
-    }
-    return {
-      progress: {
-        state,
-        stageOutputs: [...progress.stageOutputs, output],
-        predictionRetryErrors: progress.predictionRetryErrors,
-        // The completion pass only adds predictions to an accepted report; it never repairs, so the
-        // Best-so-far set carries through untouched.
-        retainedPredictions: progress.retainedPredictions,
-      },
-      audit: {
-        attempted: true,
-        initialCount,
-        targetCount,
-        acceptedPredictionIds: merged.acceptedPredictionIds,
-        rejectedCandidateCount: merged.rejectedCandidateCount,
-        rejectionReasons: merged.rejectionReasons,
-        outcome,
-      },
-    };
-  } catch (error: unknown) {
-    return {
-      progress: {
-        ...progress,
-        ...(output !== undefined ? { stageOutputs: [...progress.stageOutputs, output] } : {}),
-      },
-      audit: {
-        attempted: true,
-        initialCount,
-        targetCount,
-        acceptedPredictionIds: [],
-        rejectedCandidateCount: 0,
-        rejectionReasons: [],
-        outcome: "failed",
-        failureReason: errorMessage(error),
-      },
-    };
-  }
 }
 
 function buildReport(
@@ -820,11 +542,6 @@ function buildReportWithRelocations(
     sources: input.sources,
     ...(input.equityAnalysisCompleteness !== undefined
       ? { equityAnalysisCompleteness: input.equityAnalysisCompleteness }
-      : {}),
-    ...(state.suppressedEarningsPredictionCountOffset !== undefined
-      ? {
-          suppressedEarningsPredictionCountOffset: state.suppressedEarningsPredictionCountOffset,
-        }
       : {}),
   });
 }

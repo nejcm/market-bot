@@ -11,7 +11,6 @@ import {
   buildStagePrompt,
   buildStageSteeringSegment,
   buildWebSourceSynthesisInputs,
-  type PredictionCompletionPrompt,
   type StageInput,
 } from "../../src/research/prompts";
 import type { LoadedPrompt, StageLabel } from "../../src/research/prompt-loader";
@@ -21,19 +20,12 @@ import type { BusinessFrameworkArtifact } from "../../src/sources/extended-evide
 import type { WebSubjectProfileArtifact } from "../../src/web-evidence";
 import type { CollectedSources } from "../../src/sources/types";
 import type { Source } from "../../src/domain/types";
-import {
-  collectedSources,
-  marketSnapshot,
-  newsSource,
-  prediction,
-  researchReport,
-  verifiedMarketSnapshot,
-} from "./fixtures";
+import { collectedSources, marketSnapshot, newsSource, verifiedMarketSnapshot } from "./fixtures";
 
 // Fixed input matrix for the prompt byte-identity baseline (phase 2 step 0 of the
 // Deepen-modules refactor). Every input is a constant: no wall clock, no randomness.
 // The matrix covers all 13 StageLabels plus the special branches — final-synthesis
-// Primary/completion/repair/language-repair, each Web Subject Profile subject kind,
+// Primary/repair/language-repair, each Web Subject Profile subject kind,
 // Both selector prompts, the steering segment, and the web-source synthesis inputs.
 
 const ANALYSIS_AS_OF = "2026-06-01T00:00:00.000Z";
@@ -436,23 +428,6 @@ function stageInput(overrides: Partial<StageInput> = {}): StageInput {
   };
 }
 
-const completion: PredictionCompletionPrompt = {
-  requestedCount: 2,
-  existingPredictions: [prediction({ sourceIds: ["market-aapl"] })],
-  reportDraft: researchReport({
-    summary: "Draft summary.",
-    keyFindings: [{ text: "Finding.", sourceIds: ["market-aapl"] }],
-    dataGaps: ["gap"],
-    sources: [profileCoveredWebSource, freshWebSource, newsSource()],
-    predictions: [prediction({ sourceIds: ["market-aapl"] })],
-  }),
-};
-
-const completionPriorStages: readonly unknown[] = [
-  { stage: "specialist-analysis", content: "analysis text" },
-  { stage: "critique", content: "critique text" },
-];
-
 const GENERIC_STAGES: readonly StageLabel[] = [
   "specialist-analysis",
   "regime-context-analysis",
@@ -524,13 +499,6 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
   );
 
   add("stage:final-synthesis:primary", buildStagePrompt("final-synthesis", stageInput()));
-  add(
-    "stage:final-synthesis:completion",
-    buildStagePrompt(
-      "final-synthesis",
-      stageInput({ predictionCompletion: completion, priorStages: completionPriorStages }),
-    ),
-  );
   add(
     "stage:final-synthesis:repair",
     buildStagePrompt(
@@ -609,17 +577,6 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
       equityCommand,
       richEquitySources(),
       equityContext(),
-    ),
-  );
-  add(
-    "segment:steering:completion",
-    buildStageSteeringSegment(
-      "final-synthesis",
-      equityCommand,
-      richEquitySources(),
-      equityContext(),
-      [],
-      completion,
     ),
   );
   add(

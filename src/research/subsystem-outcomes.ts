@@ -1,5 +1,4 @@
 import type {
-  PredictionCompletionAudit,
   RunTrace,
   SourceGap,
   SourceGapCause,
@@ -7,7 +6,6 @@ import type {
   WebGatherLoopFailureCode,
 } from "../domain/types";
 import { isRecord, readNumber, readString } from "../guards";
-import type { PredictionCompletionSkipCode } from "./final-synthesis";
 import type { PlaybookSelectionAudit } from "./playbooks";
 import type { EvidenceLanesArtifactV2, SourcePlanArtifact } from "./source-plan";
 import type { CollectedSources } from "../sources/types";
@@ -28,8 +26,6 @@ type NonSourceGapSubsystemOutcomeCode =
   | WebGatherSkipCode
   | WebGatherLoopFailureCode
   | SpotlightSelectionRejectionReason
-  | PredictionCompletionSkipCode
-  | PredictionCompletionAudit["outcome"]
   | ForecastDisagreementOutcomeCode
   | "not-applicable"
   | "sec-base-packet-unavailable"
@@ -49,7 +45,6 @@ type NonSourceGapSubsystemOutcomeCode =
   | "no-playbooks-selected"
   | "playbooks-selected"
   | "final-synthesis-rejected"
-  | "gate-code-missing"
   | "audit-complete";
 
 type SourceGapCauseCollisionGuard =
@@ -106,17 +101,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "no-playbooks-selected": true,
   "playbooks-selected": true,
   "final-synthesis-rejected": true,
-  improved: true,
-  "declined-empty": true,
-  "no-parsable-candidates": true,
-  "all-candidates-rejected": true,
   failed: true,
-  "evidence-quality-ineligible": true,
-  "target-zero": true,
-  "target-met": true,
-  "floor-met": true,
-  "subject-ineligible": true,
-  "gate-code-missing": true,
   "audit-complete": true,
   produced: true,
   "not-configured": true,
@@ -202,8 +187,6 @@ interface BuildSubsystemOutcomesInput {
   readonly webGatherSkipCode?: WebGatherSkipCode;
   readonly spotlightSelection?: SpotlightSelectionResult;
   readonly playbookAudit: PlaybookSelectionAudit;
-  readonly predictionCompletion?: PredictionCompletionAudit;
-  readonly predictionCompletionSkipCode?: PredictionCompletionSkipCode;
   readonly reportIntegrityAudit?: RunTrace["reportIntegrityAudit"];
   readonly forecastDisagreement?: RunTrace["forecastDisagreement"];
   readonly forecastDisagreementCode?: ForecastDisagreementOutcomeCode;
@@ -542,54 +525,6 @@ function playbookOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOu
   };
 }
 
-function predictionCompletionOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
-  if (input.finalSynthesisRejected === true) {
-    return {
-      subsystem: "prediction-completion",
-      expectation: "expected",
-      outcome: "blocked",
-      code: "final-synthesis-rejected",
-      stage: "prediction-completion",
-      count: 0,
-    };
-  }
-  const audit = input.predictionCompletion;
-  if (audit !== undefined) {
-    // `declined-empty` means the completion pass ran, parsed, and returned an empty `predictions`
-    // Array — a successful refusal to offer candidates, not silence. Filing it as `empty` under
-    // `expectation: "expected"` read as "nothing was attempted" and rolled into
-    // `expectedEmptyCount`; `declined` is the status that already carries "ran and offered
-    // Nothing". It stays out of `failed`: a valid empty response is not a subsystem failure, and
-    // The resulting Prediction Shortfall is reported structurally in `analytics.json`.
-    // `no-parsable-candidates` and `all-candidates-rejected` keep `empty` — neither is a clean
-    // Refusal.
-    let outcome: SubsystemOutcomeStatus = "empty";
-    if (audit.outcome === "improved") {
-      outcome = "produced";
-    } else if (audit.outcome === "failed") {
-      outcome = "failed";
-    } else if (audit.outcome === "declined-empty") {
-      outcome = "declined";
-    }
-    return {
-      subsystem: "prediction-completion",
-      expectation: "expected",
-      outcome,
-      code: audit.outcome,
-      stage: "prediction-completion",
-      count: audit.acceptedPredictionIds.length,
-    };
-  }
-  return {
-    subsystem: "prediction-completion",
-    expectation: "not-applicable",
-    outcome: "declined",
-    code: input.predictionCompletionSkipCode ?? "gate-code-missing",
-    stage: "prediction-completion",
-    count: 0,
-  };
-}
-
 function integrityAuditOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOutcome {
   if (input.finalSynthesisRejected === true) {
     return {
@@ -681,7 +616,6 @@ export function buildSubsystemOutcomes(
     webSubjectProfileOutcome(input),
     spotlightOutcome(input),
     playbookOutcome(input),
-    predictionCompletionOutcome(input),
     integrityAuditOutcome(input),
     forecastDisagreementOutcome(input),
     ...secDependentOutcomes(input),

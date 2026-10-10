@@ -44,6 +44,16 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
   }
+  const { targetCount } = result.analytics.predictions;
+  expect(report.predictionShortfall).toEqual(
+    report.predictions.length < targetCount
+      ? {
+          emittedCount: report.predictions.length,
+          targetCount,
+          missingCount: targetCount - report.predictions.length,
+        }
+      : undefined,
+  );
   expect(result.markdown.match(/Research-only note/gu)?.length).toBe(1);
   expect(result.sourcePlan).toBeDefined();
   expect(result.evidenceLanes.summary.plannedLaneCount).toBeGreaterThan(0);

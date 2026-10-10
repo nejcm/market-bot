@@ -115,11 +115,6 @@ export function renderRunAnalyticsConsole(analytics: RunAnalytics): string {
   if (analytics.earningsForecasts !== undefined) {
     lines.push(earningsForecastLine(analytics.earningsForecasts));
   }
-  if (predictions.completion !== undefined) {
-    lines.push(
-      `  Completion: ${predictions.completion.outcome} · ${String(predictions.completion.acceptedCount)} accepted, ${String(predictions.completion.rejectedCount)} rejected`,
-    );
-  }
   lines.push(renderSubsystemOutcomeConsoleLine(analytics.subsystemOutcomes));
 
   if (evidenceLanes !== undefined) {

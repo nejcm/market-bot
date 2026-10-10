@@ -107,18 +107,9 @@ describe("static equity run fixtures", () => {
         assertComprehensiveAnalysisPath(result, modelRequests);
       }
       if (name === "equity-analysis-comprehensive" || name === "equity-web-fallback-deep") {
-        expect(result.trace.predictionCompletion).toBeUndefined();
         expect(
           result.stageOutputs.filter((output) => output.stage === "final-synthesis"),
         ).toHaveLength(1);
-        expect(result.analytics.subsystemOutcomes.byCode["floor-met"]).toBe(1);
-        expect(result.outcomes).toContainEqual(
-          expect.objectContaining({
-            subsystem: "prediction-completion",
-            code: "floor-met",
-            expectation: "not-applicable",
-          }),
-        );
       }
       if (name === "equity-analysis-estimated-suppressed") {
         assertEstimatedEarningsSuppressionPath(result, modelRequests, modelOutputs);

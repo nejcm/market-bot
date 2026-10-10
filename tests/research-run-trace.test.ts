@@ -119,7 +119,6 @@ function traceFor(
     playbookAudit: { selected: [], rejected: [] },
     predictionRetryErrors: [],
     predictionTrimWarnings: [],
-    predictionCompletion: undefined,
     predictionErrors: [],
     reportValidationErrors: [],
     ...(options.relocatedGapClaims !== undefined
@@ -359,7 +358,6 @@ describe("run trace builder", () => {
       playbookAudit: { selected: [], rejected: [] },
       predictionRetryErrors: [],
       predictionTrimWarnings: [],
-      predictionCompletion: undefined,
       predictionErrors: [],
       reportValidationErrors: [],
       postSynthesisWarnings: [],

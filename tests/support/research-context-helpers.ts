@@ -1,12 +1,12 @@
 import type { AppConfig } from "../../src/config";
 import type { ResearchCommand } from "../../src/cli/args";
-import type { Prediction, PredictionKind } from "../../src/domain/types";
+import type { Prediction } from "../../src/domain/types";
 import { buildStagePrompt, type StageInput } from "../../src/research/prompts";
 import { buildDepthProfile } from "../../src/research/depth-profile";
 import type { HistoricalResearchContext } from "../../src/research/historical-context";
 import type { ResearchContext } from "../../src/research/research-context-types";
 import type { ResolvedPair } from "../../src/scoring/calibration";
-import { collectedSources, marketSnapshot, newsSource, researchReport } from "./fixtures";
+import { collectedSources, marketSnapshot, newsSource } from "./fixtures";
 
 // Shared fixtures for the carved research-context prompt tests (formerly one monolith).
 
@@ -65,7 +65,6 @@ export function stagePromptFromArgs(
   predictionRepromptErrors: NonNullable<StageInput["predictionRepromptErrors"]> = [],
   reportValidationErrors: NonNullable<StageInput["reportValidationErrors"]> = [],
   allowedSourceIds: NonNullable<StageInput["allowedSourceIds"]> = [],
-  predictionCompletion?: StageInput["predictionCompletion"],
 ): string {
   return buildStagePrompt(stage, {
     command,
@@ -77,7 +76,6 @@ export function stagePromptFromArgs(
     predictionRepromptErrors,
     reportValidationErrors,
     allowedSourceIds,
-    ...(predictionCompletion !== undefined ? { predictionCompletion } : {}),
   });
 }
 
@@ -240,78 +238,4 @@ export function equityFinalSynthesisPrompt(opts: EquityFinalSynthesisOptions): s
     },
     { system: "Research only.", instruction: "Synthesize.", goal: "Final report." },
   );
-}
-
-// Builds the completion-pass instruction for an AAPL equity deep run with full control over the
-// Allowed subjects, kind mix, collected evidence, and existing predictions the pass sees.
-export function completionInstruction(opts: {
-  readonly predictionSubjects: readonly string[];
-  readonly favoredKinds?: readonly PredictionKind[];
-  readonly sources?: Partial<Parameters<typeof collectedSources>[0]>;
-  readonly existingPredictions?: readonly Prediction[];
-  readonly depth?: "deep" | "brief";
-}): string {
-  const command: ResearchCommand = {
-    jobType: "equity",
-    assetClass: "equity",
-    symbol: "AAPL",
-    depth: opts.depth ?? "deep",
-  };
-  const baseProfile = buildDepthProfile(command, config);
-  const prompt = stagePromptFromArgs(
-    "final-synthesis",
-    command,
-    collectedSources({
-      marketSnapshots: [marketSnapshot({ symbol: "AAPL" })],
-      newsSources: [newsSource()],
-      ...opts.sources,
-    }),
-    config,
-    {
-      depthProfile: {
-        ...baseProfile,
-        predictionSubjects: opts.predictionSubjects,
-        targetKindMix: {
-          favored: opts.favoredKinds ?? ["relative", "range"],
-          minNonDirection: 1,
-        },
-      },
-      runParams: {
-        quickModel: "quick-test",
-        synthesisModel: "synthesis-test",
-        analystStyle: "fuller analyst-style",
-        minimumKeyFindings: 5,
-        minimumScenarios: 3,
-        targetPredictions: 5,
-        defaultPredictionHorizon: 5,
-        predictionSubjects: opts.predictionSubjects,
-        focus: ["thesis"],
-        targetKindMix: {
-          favored: opts.favoredKinds ?? ["relative", "range"],
-          minNonDirection: 1,
-        },
-        quickModelParams: undefined,
-        synthesisModelParams: undefined,
-      },
-      marketRegime: {
-        assetClass: "equity",
-        label: "mixed",
-        proxyCount: 1,
-        drivers: [],
-        sourceIds: [],
-      },
-      calibrationContext: undefined,
-    },
-    { system: "Research only.", instruction: "Analyze.", goal: "Find evidence." },
-    [],
-    [],
-    [],
-    [],
-    {
-      requestedCount: 2,
-      existingPredictions: opts.existingPredictions ?? [],
-      reportDraft: researchReport(),
-    },
-  );
-  return (JSON.parse(prompt) as { readonly instruction: string }).instruction;
 }

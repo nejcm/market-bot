@@ -36,9 +36,8 @@ Run params resolve via the fallback chain in
 3. Profile block from `src/config/runs/profiles/*.ts`.
 4. The profile's `deep:` sub-block when `depth === "deep"`.
 
-`predictionCompletionFloor` defaults to the resolved `targetPredictions`. Forecast Completion
-runs only below that floor and requests up to `targetPredictions - count` additions.
-Prediction Shortfall remains measured against `targetPredictions`.
+Prediction Shortfall is measured against `targetPredictions`; no follow-up pass requests
+more Predictions once the report validates.
 
 Run key mapping (`toRunKey`):
 
@@ -230,17 +229,16 @@ Command shape: `InstrumentCommand` with `jobType: "equity"`,
 Run key `equity` &rarr; `INSTRUMENT_RUN_PARAMS` profile in
 `src/config/runs/profiles/shared.ts`.
 
-| Param                       | Brief                                | Deep                                    |
-| --------------------------- | ------------------------------------ | --------------------------------------- |
-| `minimumKeyFindings`        | 4                                    | 6                                       |
-| `minimumScenarios`          | 1                                    | 3                                       |
-| `targetPredictions`         | 3                                    | 3                                       |
-| `predictionCompletionFloor` | 3                                    | 2                                       |
-| `defaultPredictionHorizon`  | 5                                    | 5                                       |
-| `predictionSubjects`        | `[symbol]`                           | `[symbol]`                              |
-| `focus`                     | thesis, evidence, risks, data gaps   | + catalysts, bull/bear cases, scenarios |
-| `analystStyle`              | concise brief                        | fuller analyst-style                    |
-| `targetKindMix`             | relative/range, `minNonDirection: 1` | `minNonDirection: 2`                    |
+| Param                      | Brief                                | Deep                                    |
+| -------------------------- | ------------------------------------ | --------------------------------------- |
+| `minimumKeyFindings`       | 4                                    | 6                                       |
+| `minimumScenarios`         | 1                                    | 3                                       |
+| `targetPredictions`        | 3                                    | 3                                       |
+| `defaultPredictionHorizon` | 5                                    | 5                                       |
+| `predictionSubjects`       | `[symbol]`                           | `[symbol]`                              |
+| `focus`                    | thesis, evidence, risks, data gaps   | + catalysts, bull/bear cases, scenarios |
+| `analystStyle`             | concise brief                        | fuller analyst-style                    |
+| `targetKindMix`            | relative/range, `minNonDirection: 1` | `minNonDirection: 2`                    |
 
 ### Data Collected
 
@@ -667,9 +665,8 @@ prompt modules) builds a JSON prompt containing:
    subjects.
 3. Up to 2 reprompts for hard prediction errors.
 4. If report assembly throws, retries final-synthesis with validation errors.
-5. Once valid, one Forecast Completion Pass if the accepted count is below the completion
-   floor and the evidence and subject gates permit it. At or above target skips with
-   `target-met`; at or above floor but below target skips with `floor-met`.
+5. Once valid, the report ships; a count below `targetPredictions` is disclosed as a
+   Prediction Shortfall.
 6. Post-synthesis audit runs but is warning-only telemetry.
 
 ---

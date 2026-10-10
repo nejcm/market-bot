@@ -197,6 +197,10 @@ the reclassified reading, not the table. That collapse does not cover the
 `no-accepted-requests` web-search-provider row above. Reclassified empty 1 /
 `expectedEmptyCount` 0 plus that row reads empty 2 / `expectedEmptyCount` 1.
 
+Since the Forecast Completion Pass was removed (ADR 0003, 2026-10-10), new runs write no
+`prediction-completion` Subsystem Outcome. Compare them with the subsystem-outcome `count` one
+lower and that run's completion row (usually `declined`, or `empty` for a rejected pass) removed.
+
 `sourceFunnel.sourceGapsByCause.provider-data-missing` is 7 in all three band
 runs, 6 in the seed, and 5 in the 2026-08-11 baseline. Absolute levels are not
 comparable across baselines. `05cad67` (`feat(market-data): declare sessions

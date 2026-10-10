@@ -210,8 +210,7 @@ describe("buildStagePrompt", () => {
     expect(parsed.predictionRepair?.instruction).toContain(
       "For ticker relative forecasts, use subject form TICKER:BENCHMARK.",
     );
-    // Repair handles the same disallowed-subject / broad-index-redundancy rejection classes as the
-    // Completion pass, so it carries the same allowed-subject + benchmark-equivalence steering.
+    // Repair steers the validator's disallowed-subject and broad-index-redundancy rejection classes.
     expect(parsed.predictionRepair?.instruction).toContain(
       "Allowed prediction subjects for this run:",
     );

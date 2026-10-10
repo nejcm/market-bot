@@ -114,7 +114,6 @@ export function resolveRunParams(
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
     targetPredictions,
-    predictionCompletionFloor: merged.predictionCompletionFloor ?? targetPredictions,
     defaultPredictionHorizon: defaultPredictionHorizonFor(normalizedCommand, merged),
     predictionSubjects,
     focus: merged.focus ?? CODE_DEFAULTS.focus,

@@ -506,7 +506,7 @@ describe("runResearchJob artifact persistence", () => {
     });
   });
 
-  test("skips completion when thematic research has no prediction proxy", async () => {
+  test("gates predictions when thematic research has no prediction proxy", async () => {
     const command = {
       jobType: "research",
       assetClass: "equity",
@@ -540,7 +540,6 @@ describe("runResearchJob artifact persistence", () => {
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
 
-    expect(result.trace.predictionCompletion).toBeUndefined();
     expect(result.report.dataGaps).toContain(
       "researchProxyForecastGate: subject ai-infrastructure has no listed prediction proxy; predictions cannot be emitted",
     );

@@ -108,7 +108,6 @@ describe("resolveRunParams — fallback chain", () => {
     expect(result.minimumKeyFindings).toBe(3);
     expect(result.minimumScenarios).toBe(1);
     expect(result.targetPredictions).toBe(2);
-    expect(result.predictionCompletionFloor).toBe(result.targetPredictions);
     expect(result.analystStyle).toBe("concise brief");
   });
 
@@ -218,17 +217,7 @@ describe("resolveRunParams — run keys", () => {
     expect(result.predictionSubjects).toEqual(["TSLA"]);
     expect(result.minimumKeyFindings).toBe(6);
     expect(result.targetPredictions).toBe(3);
-    expect(result.predictionCompletionFloor).toBe(2);
     expect(result.analystStyle).toBe("fuller analyst-style");
-  });
-
-  test("deep crypto defaults the completion floor to its unchanged target", () => {
-    const result = resolveRunParams(
-      { jobType: "crypto", assetClass: "crypto", symbol: "BTC", depth: "deep" },
-      baseConfig,
-    );
-    expect(result.targetPredictions).toBe(5);
-    expect(result.predictionCompletionFloor).toBe(result.targetPredictions);
   });
 
   test("research with resolved proxy uses proxy-only prediction subjects and deep defaults", () => {
@@ -265,7 +254,6 @@ describe("resolveRunParams — run keys", () => {
 
     expect(result.predictionSubjects).toEqual([]);
     expect(result.targetPredictions).toBe(0);
-    expect(result.predictionCompletionFloor).toBe(0);
   });
 
   test("research deep favors non-direction prediction mix", () => {

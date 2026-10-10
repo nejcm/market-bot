@@ -113,6 +113,7 @@ Observable forecast whose `probability` is the chance `measurableAs` is true; be
 Structured disclosure that a report emitted fewer observable Predictions than its soft target after
 earnings and research-subject gates. It records emitted, target, and missing counts; presentation
 derives canonical reader text from those counts instead of storing a machine protocol in Data Gaps.
+The valid final-synthesis report's count stands; no follow-up pass requests more Predictions.
 
 ## Scoring Policy
 
@@ -132,15 +133,11 @@ Prediction whose event depends on an earlier observable condition. Its probabili
 
 ## Near-Base-Rate Prediction
 
-Emitted Prediction within a fixed band of 0.5. It remains valid but the Forecast Completion Pass does not add such candidates merely to raise count.
+Emitted Prediction within a fixed band of 0.5. It remains valid; analytics counts it apart from informative Predictions.
 
 ## Forecast-Shape Diversity Guidance
 
 Soft prompt guidance for direction, relative, range, volatility, earnings, and conditional shapes on deep instrument runs; never a validation gate.
-
-## Forecast Completion Pass
-
-Best-effort predictions-only pass after a valid high/medium-evidence report falls below its `predictionCompletionFloor`, which defaults to its soft target. Deep equity uses a floor of 2 and a target of 3. When eligible, the pass requests up to `targetPredictions - count` additions. It retains the report and merges only additional valid, cited, on-subject, non-redundant, non-near-base-rate candidates from distilled narrative, critique, source index, and deterministic anchors; failure yields a deterministic shortfall against the target.
 
 ## Stage Duration
 
@@ -198,13 +195,11 @@ Persisted output of one run at `MARKET_BOT_DATA_DIR/<run-id>/`: Research View, s
 
 Coded record of what one run subsystem was expected to do and whether it acquired output, stayed
 empty, declined, failed, or was blocked. `empty` means no output was accepted as the subsystem's
-result: nothing came back, or what came back was not accepted, as when every prediction completion
-candidate is rejected. Output that is accepted but carries a usability posture stays `produced`
+result: nothing came back, or what came back was not accepted. Output that is accepted but carries a usability posture stays `produced`
 under a code saying so, so an unsupportable Evidence Lane is not `empty`. `declined` means the
 subsystem yielded no result and its producer did not treat that as a failure or a blockage: out of
 scope for the run, never enabled by scope, configuration, budget, or credentials, suppressed by
-design, unsupported for the subject, or run and cleanly refused — as a prediction completion pass
-does when it parses and returns no candidates.
+design, unsupported for the subject, or run and cleanly refused.
 
 The five statuses are not a clean taxonomy and will mislead if read as one. Each records how that
 subsystem's own producer classified its situation, so the same condition can map differently across

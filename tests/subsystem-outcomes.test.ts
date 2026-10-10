@@ -100,7 +100,6 @@ const baseWebGatherInput = {
   sourceGaps: [],
   webSubjectProfilePresent: false,
   playbookAudit: { selected: [], rejected: [] },
-  predictionCompletionSkipCode: "target-met",
   reportIntegrityAudit: {
     reportIntegrity: "high",
     researchQuality: "high",
@@ -510,15 +509,6 @@ describe("Subsystem Outcomes", () => {
         rationale: "The synthesis playbook best fits this run.",
         rejected: [],
       },
-      predictionCompletion: {
-        attempted: true,
-        initialCount: 1,
-        targetCount: 2,
-        acceptedPredictionIds: [],
-        rejectedCandidateCount: 0,
-        rejectionReasons: [],
-        outcome: "declined-empty",
-      },
       reportIntegrityAudit: {
         reportIntegrity: "high",
         researchQuality: "high",
@@ -530,7 +520,6 @@ describe("Subsystem Outcomes", () => {
     });
 
     const expected: SubsystemExpectation = "expected";
-    const declined: SubsystemOutcomeStatus = "declined";
     const written: readonly WrittenSubsystemOutcome[] = outcomes;
     expect(written.every((outcome) => isSubsystemOutcome(outcome))).toBe(true);
     expect(() => {
@@ -559,21 +548,11 @@ describe("Subsystem Outcomes", () => {
     expect(outcomes.find((item) => item.subsystem === "domain-playbook-selection")?.detail).toBe(
       undefined,
     );
-    expect(outcomes).toContainEqual(
-      expect.objectContaining({
-        subsystem: "prediction-completion",
-        expectation: expected,
-        outcome: declined,
-        code: "declined-empty",
-      }),
-    );
-    // A parseable empty completion response is a refusal, not silence: it must not land in
-    // `expectedEmptyCount`, and it must still be counted somewhere rather than dropping out.
     const rollup = rollupSubsystemOutcomes(outcomes);
     expect(rollup).toMatchObject({
       count: outcomes.length,
       expectedEmptyCount: 0,
-      byCode: { "declined-empty": 1, "reused-profile": 1 },
+      byCode: { "reused-profile": 1 },
     });
     expect(rollup.byOutcome.failed).toBe(0);
     expect(Object.values(rollup.byOutcome).reduce((total, count) => total + count, 0)).toBe(
@@ -581,56 +560,22 @@ describe("Subsystem Outcomes", () => {
     );
   });
 
-  test("keeps unparseable and rejected completion passes empty rather than declined", () => {
-    for (const completionOutcome of [
-      "no-parsable-candidates",
-      "all-candidates-rejected",
-    ] as const) {
-      const outcomes = buildSubsystemOutcomes({
-        sourcePlan,
-        evidenceLanes,
-        sourceGaps: [],
-        webSubjectProfilePresent: true,
-        webGatherAudit,
-        playbookAudit: { selected: [], rationale: "None fit.", rejected: [] },
-        predictionCompletion: {
-          attempted: true,
-          initialCount: 1,
-          targetCount: 2,
-          acceptedPredictionIds: [],
-          rejectedCandidateCount: 0,
-          rejectionReasons: [],
-          outcome: completionOutcome,
-        },
-        forecastDisagreementCode: "not-configured",
-      });
-      expect(outcomes).toContainEqual(
-        expect.objectContaining({
-          subsystem: "prediction-completion",
-          expectation: "expected",
-          outcome: "empty",
-          code: completionOutcome,
-        }),
-      );
-      expect(rollupSubsystemOutcomes(outcomes).expectedEmptyCount).toBeGreaterThan(0);
-    }
-  });
-
-  test("reads and rolls up floor-met completion skips", () => {
-    const outcomes = buildSubsystemOutcomes({
-      ...baseWebGatherInput,
-      predictionCompletionSkipCode: "floor-met",
-      forecastDisagreementCode: "not-configured",
-    });
-    const completion = outcomes.find((item) => item.subsystem === "prediction-completion");
-    expect(completion).toMatchObject({
+  test("reads legacy prediction-completion rows from older artifacts", () => {
+    const legacy: unknown = {
+      subsystem: "prediction-completion",
       expectation: "not-applicable",
       outcome: "declined",
       code: "floor-met",
+      stage: "prediction-completion",
       count: 0,
+    };
+    expect(isSubsystemOutcome(legacy)).toBe(true);
+    expect(() => assertSubsystemOutcomeCode("floor-met")).toThrow();
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      forecastDisagreementCode: "not-configured",
     });
-    expect(isSubsystemOutcome(completion)).toBe(true);
-    expect(rollupSubsystemOutcomes(outcomes).byCode["floor-met"]).toBe(1);
+    expect(outcomes.map((outcome) => outcome.subsystem)).not.toContain("prediction-completion");
   });
 
   test("marks SEC-dependent deep-equity work blocked", () => {
@@ -686,7 +631,6 @@ describe("Subsystem Outcomes", () => {
       webSubjectProfilePresent: false,
       webGatherSkipCode: "missing-exa-credential",
       playbookAudit: { selected: [], rejected: [] },
-      predictionCompletionSkipCode: "target-met",
       reportIntegrityAudit: {
         reportIntegrity: "high",
         researchQuality: "high",

@@ -213,9 +213,6 @@ function stageMetrics(stages: readonly StageOutput[], metrics: Record<string, nu
     if ((reason?.predictionErrors ?? []).length > 0) {
       addCount(metrics, "repairs.predictionErrors");
     }
-    if (reason?.predictionCompletion !== undefined) {
-      addCount(metrics, "repairs.predictionCompletion");
-    }
   }
 }
 

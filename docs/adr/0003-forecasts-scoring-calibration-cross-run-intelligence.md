@@ -14,7 +14,8 @@ resolved cohort scored below the always-0.5 baseline with every probability insi
 consolidated 2026-07-15; amended 2026-07-23: confirmed earnings-date forecast eligibility;
 amended 2026-08-05: structured Prediction shortfall disclosure;
 amended 2026-08-11: conditional-activation calibration guidance;
-amended 2026-09-03: zero-resolution Calibration headline omission, enforced on read)
+amended 2026-09-03: zero-resolution Calibration headline omission, enforced on read;
+amended 2026-10-10: Forecast Completion Pass removed)
 
 ## Context
 
@@ -42,23 +43,22 @@ be mistaken for current market evidence.
   `earningsReturn` output. New earnings Predictions persist the event-date status, and report,
   trace, and analytics telemetry record eligible and suppressed counts so the coverage change is
   explicit against the Phase 0 baseline.
-- Prediction count is a soft `targetPredictions`, not a quota. After a high- or medium-evidence
-  report is valid but below `predictionCompletionFloor` (default: target), one best-effort,
-  predictions-only Forecast Completion Pass may add up to `targetPredictions - count` candidates.
-  Deep equity uses target 3 / floor 2; shortfall remains measured against the target.
-  It preserves the accepted report and Predictions, never retries itself, and
-  leaves any remaining shortfall deterministically disclosed. After earnings and research-subject
+- Prediction count is a soft `targetPredictions`, not a quota; deep equity uses a target of 3.
+  The valid final-synthesis report's Predictions stand: no follow-up pass requests more, and any
+  shortfall is deterministically disclosed. A predictions-only Forecast Completion Pass used to
+  run below a completion floor; it was removed on 2026-10-10 because across 10 deep runs it cost
+  ~10% of model tokens for ~0.6 accepted Predictions per run and returned none in half of them,
+  pending confirmation by a frozen-input eval against the prior behavior. After earnings and research-subject
   gates, report assembly derives `ResearchReport.predictionShortfall` with non-negative integer
   emitted, target, and missing counts satisfying `missing = target - emitted > 0`. Presentation
   derives canonical Material Gap or compact text from that structure; new reports do not encode
   the protocol in `dataGaps`. Tolerant artifact reads adapt only the anchored historical
   `predictionShortfall: emitted N of T` form and retain unparseable or conflicting gaps verbatim.
-- Completion candidates must pass the existing observable, citation, subject, and redundancy
-  gates and must sit outside the inclusive 0.40-0.60 Near-Base-Rate band. Primary synthesis
-  is prompted to keep every emitted Prediction outside the same band — an in-band probability
-  signals an uninformative claim that should be recommitted or replaced, never inflated past the
-  evidence — while in-band primary Predictions remain valid telemetry rather than triggering a
-  hard rejection. Both paths retain the soft count target and must not pad it with coin flips.
+- Primary synthesis is prompted to keep every emitted Prediction outside the inclusive 0.40-0.60
+  Near-Base-Rate band — an in-band probability signals an uninformative claim that should be
+  recommitted or replaced, never inflated past the evidence — while in-band Predictions remain
+  valid telemetry rather than triggering a hard rejection. The soft count target must not be
+  padded with coin flips.
 - Optional deep-run Forecast Disagreement assigns challenger probabilities to canonical forecast
   IDs. The primary synthesis probability remains the only scored probability.
 
@@ -114,7 +114,7 @@ be mistaken for current market evidence.
   forecasts overall and at least one event-kind × horizon stratum contains 30 resolved forecasts.
   Reaching both thresholds triggers a separate baseline-design review rather than an automatic
   metric change.
-- Calibration affects primary synthesis and Forecast Completion through two independently gated
+- Calibration affects primary synthesis through two independently gated
   inputs. Actionable Negative Calibration assesses asset class, job type, default
   Prediction-horizon bucket, and current Market Regime independently. A slice qualifies only with
   at least 30 resolved Forecast Events and 10 distinct Runs among those kept events, and when its
@@ -122,7 +122,7 @@ be mistaken for current market evidence.
   above the 0.25 baseline. The prompt block also assesses Prediction-kind slices beyond these four
   dimensions; whether kind belongs in the gate is an open decision, recorded here rather than
   settled.
-- Conditional-activation guidance enters deep-run primary synthesis and Forecast Completion when
+- Conditional-activation guidance enters deep-run primary synthesis when
   at least 10 conditional forecasts have resolved and the aggregate void rate is at least 0.5.
   It uses activated and voided history to steer antecedents toward plausible events or observed
   thresholds; it must never suppress or mandate conditional emission. `refreshCalibrationContext`
@@ -225,7 +225,7 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 
 - Displayed claims and scored events cannot diverge when the DSL parses.
 - Fewer supported forecasts are preferred to artificial calibration volume.
-- Completion failures are non-fatal and retain the already-valid report.
+- A valid report below its target ships with a disclosed shortfall rather than a further model call.
 - Legacy artifacts retain stored claims and legacy score semantics.
 - Thin Calibration slices remain visible and are labeled unreliable; reporting thresholds do not
   grant synthesis authority.
@@ -250,7 +250,7 @@ price adjustment, or calendar semantics requires a new scoring policy version.
 - `src/research/calibration-guidance.ts` owns Calibration actionability for both prompts and
   analytics.
 - `src/research/forecast-disagreement.ts` keeps challenger output separate from canonical scores.
-- `src/forecast/earnings-eligibility.ts` and the primary/completion prompt builders enforce
+- `src/forecast/earnings-eligibility.ts` and the final-synthesis prompt builder enforce
   confirmed-date eligibility and persist suppression telemetry.
 - `src/research/historical-context.ts`, `prior-forecast-errors.ts`, and `spotlights.ts` implement
   artifact-backed context, scoped correction, and current-evidence candidate constraints.

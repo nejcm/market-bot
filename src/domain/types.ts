@@ -700,22 +700,6 @@ export interface Prediction {
   readonly scoringPolicyVersion?: 3;
 }
 
-export interface PredictionCompletionAudit {
-  readonly attempted: true;
-  readonly initialCount: number;
-  readonly targetCount: number;
-  readonly acceptedPredictionIds: readonly string[];
-  readonly rejectedCandidateCount: number;
-  readonly rejectionReasons: readonly string[];
-  readonly outcome:
-    | "improved"
-    | "declined-empty"
-    | "no-parsable-candidates"
-    | "all-candidates-rejected"
-    | "failed";
-  readonly failureReason?: string;
-}
-
 export type ReportIntegrityAdvisoryCode = "weak-evidence-posture-missing";
 
 export const MARKET_REGIME_LABELS = ["risk-on", "risk-off", "mixed", "insufficient-data"] as const;
@@ -914,10 +898,6 @@ export interface RunTrace {
     readonly repromptReason?: {
       readonly predictionErrors?: readonly string[];
       readonly reportValidationErrors?: readonly string[];
-      readonly predictionCompletion?: {
-        readonly requestedCount: number;
-        readonly existingPredictions: readonly Prediction[];
-      };
     };
   }[];
   readonly tokenEstimate: number;
@@ -943,8 +923,7 @@ export interface RunTrace {
   readonly domainPlaybooks: DomainPlaybookSelectionAudit;
   readonly predictionRetryErrors?: readonly string[];
   readonly predictionTrimWarnings?: readonly string[];
-  readonly predictionCompletion?: PredictionCompletionAudit;
-  /** Legacy artifacts only. New runs write predictionCompletion. */
+  /** Legacy artifacts only. */
   readonly predictionReplacementAttempted?: boolean;
   readonly predictionErrors?: readonly string[];
   readonly earningsForecasts?: EarningsForecastTelemetry;

@@ -12,7 +12,7 @@ incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K 
 amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit;
 amended 2026-08-02: untagged extractor evaluation and production execution policy;
 amended 2026-10-09: summary-sentence pruning; amended 2026-10-10: deterministic all-eligible
-Domain Playbook selection)
+Domain Playbook selection; amended 2026-10-10: completion pass removed per ADR 0003)
 
 ## Context
 
@@ -57,17 +57,9 @@ research boundaries without sharing persistence or scoring semantics.
   bounded to the twelve most recent distinct errors. Retry failure messages report the actual
   final-synthesis call count and count only genuine report-repair call sites as report-repair
   reprompts.
-- When high- or medium-evidence synthesis leaves the report below its completion floor (ADR 0003), one
-  best-effort completion pass may add predictions only. It is prompted with a distilled context —
-  the first-attempt report narrative, the critique stage output, and a compact source index
-  (id/title/fetchedAt/url/publisher/snippet) plus deterministic forecast anchors required by the
-  advertised completion grammar, such as the Verified Market Snapshot in the same compact form the
-  primary prompt carries (latest OHLCV, indicators, bounded recent closes, source id) or, without
-  one, the latest quote, earnings event/implied move, qualifying IV metrics, and qualifying
-  calibration guidance. It does not replay the full evidence payload or
-  prior-stage transcript. The allowed source-ID list stays the citation authority, so the scoped
-  context never invalidates a cite, and deterministic merge and validation remain the authority over
-  accepted candidates.
+- Final synthesis ends once the report validates; a report below its prediction target is not sent
+  back for more Predictions (ADR 0003). The distilled-context completion pass that did so was
+  removed after it measured ~10% of deep-run tokens for ~0.6 accepted Predictions per run.
 - Gap-shaped claim detection is consumer-specific. Relocation uses the broader
   `isGapShapedClaimForRelocation` predicate; the observational audit uses the stricter
   `isGapShapedClaimForAuditWarning` predicate. They are not interchangeable: relocation favors
@@ -205,8 +197,6 @@ research boundaries without sharing persistence or scoring semantics.
 - Prompt behavior is reviewable independently of provider APIs.
 - Per-stage latency can be compared with token and cost telemetry without relying on wall-clock
   timestamps. Summed stage durations may exceed run duration when stages overlap.
-- The completion pass is intended to reduce token cost by reusing the drafted report rather than
-  replaying raw evidence; the actual reduction should be verified on fresh deep-run artifacts.
 - Warning-only post-synthesis findings must not be represented as enforced factual correctness.
 - Deterministic pruning can leave sections empty; grading discloses that rather than padding
   reports with unsupported claims.

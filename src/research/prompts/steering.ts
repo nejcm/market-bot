@@ -42,8 +42,7 @@ export function hasFreshWebEvidence(collectedSources: CollectedSources): boolean
 
 // Bounded fresh-web steering (run-review finding #1): prefer relevant current-run web sources for
 // Genuinely recent claims over the older pre-cited profile digest, while keeping the low-trust
-// Boundary and allowing zero fresh citations. Relevance-based, never a source quota. Shared by the
-// Primary and completion prediction instructions so both prediction paths steer identically.
+// Boundary and allowing zero fresh citations. Relevance-based, never a source quota.
 export function buildFreshWebSteering(collectedSources: CollectedSources): string {
   const reusedProfileGapNote =
     collectedSources.webSubjectProfileReuse !== undefined

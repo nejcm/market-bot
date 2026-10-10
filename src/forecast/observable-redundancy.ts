@@ -13,7 +13,7 @@ export const RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON = 0.005;
 // Benchmarks qualify when they proxy the US equity market or its dominant large-cap/mega-cap beta,
 // Including concentrated large-cap indexes; small- and mid-cap-specific benchmarks are excluded.
 // A relative forecast against any member restates the same broad-market beta view, so only one per
-// Primary subject and exact horizon is accepted. Exported so completion/repair prompt steering names
+// Primary subject and exact horizon is accepted. Exported so repair prompt steering names
 // The same members and class the validator enforces below (see relativeBenchmarkKey / redundancyKey).
 export const BROAD_US_INDEX_BENCHMARK_SYMBOLS = [
   "SPY",
@@ -54,19 +54,6 @@ function redundancySlot(
 
 function redundancyKey(forecast: ObservableForecast): string {
   return redundancySlot(forecast).join("|");
-}
-
-// Prompt label for the slot an accepted forecast occupies; conditionals occupy none.
-export function describeRedundancySlot(forecast: ObservableForecast): string | undefined {
-  if (forecast.prediction.kind === "conditional") {
-    return undefined;
-  }
-  const [kind, subject, horizon, benchmark] = redundancySlot(forecast);
-  const label = `${kind} ${subject} @${horizon}d`;
-  if (kind === "direction") {
-    return `${label} (±${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS - 1)}d)`;
-  }
-  return benchmark === undefined ? label : `${label} (${benchmark})`;
 }
 
 // The observable grammar renders every `direction` forecast as one up event.

@@ -1,32 +1,21 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { ForecastKindMix } from "../../config/runs";
-import {
-  NEAR_BASE_RATE_BAND,
-  type ExtendedEvidenceItem,
-  type MarketSnapshot,
-  type Prediction,
-  type PredictionKind,
-  type ResearchReport,
-  type Source,
-} from "../../domain/types";
+import { NEAR_BASE_RATE_BAND, type PredictionKind } from "../../domain/types";
 import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_CLASS,
-  describeRedundancySlot,
   MAX_PREDICTION_HORIZON_TRADING_DAYS,
   MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS,
   MIN_PREDICTION_HORIZON_TRADING_DAYS,
-  observableForecastFromPrediction,
   RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON,
 } from "../../forecast/observable";
 import { subjectKindForCommand, webSubjectProfileRequiredShape } from "../../web-evidence";
 import type { CollectedSources } from "../../sources/types";
-import { buildCalibrationBlock } from "../calibration-context";
 import { EVIDENCE_POSTURE_LABELS } from "../post-synthesis-audit";
 import type { StageLabel } from "../prompt-loader";
 import type { DepthProfile, ResearchContext } from "../research-context-types";
 import type { ConditionalCalibrationSummary } from "../../scoring/types";
-import { buildEvidencePayload, verifiedMarketSnapshotEvidence } from "./evidence-payload";
+import { buildEvidencePayload } from "./evidence-payload";
 import {
   hasCiteableOptionsIvEvidence,
   isFredAllowedSubject,
@@ -35,12 +24,7 @@ import {
   supportedPredictionKinds,
 } from "./prediction-coverage";
 import { FINAL_SYNTHESIS_SOURCE_ID_GUIDANCE } from "./source-id-guidance";
-import {
-  assembleStagePrompt,
-  stagePlaybooks,
-  type PredictionCompletionPrompt,
-  type StageInput,
-} from "./stage-envelope";
+import { assembleStagePrompt, stagePlaybooks, type StageInput } from "./stage-envelope";
 import { buildFreshWebSteering } from "./steering";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 
@@ -281,30 +265,12 @@ function buildKindMixGuidance(mix: ForecastKindMix): string {
   return ` Favor more informative forecast kinds in this priority order where the evidence supports them: ${favored}. Use bare \`direction\` only when no better-measured kind fits the available evidence — its short-horizon base rate sits near a coin flip. Favoring a kind reflects measurement quality, not conviction: a better-measured kind still earns its place only when its probability moves off 0.5.${floor}`;
 }
 
-// Allowed-subject + benchmark-equivalence steering shared by the completion and repair passes.
-// Both handle the same validator rejection classes (disallowed-subject and broad-US-index
-// Redundancy at observable.ts resolveCandidate/redundancyKey), so the prompt spells out the
-// Enforced semantics: the pre-colon primary of a relative forecast must be an allowed subject,
-// And relative forecasts against equivalent broad-index benchmarks collapse to one class slot.
+// Repair-pass steering for the validator's disallowed-subject and broad-US-index redundancy
+// Rejections (observable.ts resolveCandidate/redundancyKey).
 function buildAllowedSubjectSteering(predictionSubjects: readonly string[]): string {
   const subjects = predictionSubjects.join(", ");
   const benchmarks = BROAD_US_INDEX_BENCHMARK_SYMBOLS.join(", ");
   return `Allowed prediction subjects for this run: ${subjects}. For a relative forecast written as PRIMARY:BENCHMARK, the primary (pre-colon) symbol must be one of these allowed subjects; the benchmark may be any citeable instrument. Relative forecasts against any of ${benchmarks} share the ${BROAD_US_INDEX_CLASS} class, so only one such forecast per primary subject and exact horizon adds signal — to add another, vary the horizon, use a non-equivalent benchmark such as a sector ETF, or use a different kind. A second relative forecast for the same primary subject and exact horizon must differ in probability by more than ${String(RELATIVE_FORECAST_EQUAL_PROBABILITY_EPSILON)}, backed by a stated evidence-based differentiation; changing only the benchmark ticker does not add signal.`;
-}
-
-// Names the redundancy slots already taken so completion does not re-propose a rejected forecast.
-function describeOccupiedSlots(predictions: readonly Prediction[]): string {
-  const slots = new Set<string>();
-  for (const prediction of predictions) {
-    const forecast = observableForecastFromPrediction(prediction);
-    const slot = "prediction" in forecast ? describeRedundancySlot(forecast) : undefined;
-    if (slot !== undefined) {
-      slots.add(slot);
-    }
-  }
-  return slots.size > 0
-    ? ` Existing predictions already occupy these slots (kind, subject, horizon; relative adds the benchmark class): ${[...slots].join("; ")} — do not restate them; different range bounds or an equivalent benchmark do not open a new slot.`
-    : "";
 }
 
 function buildPredictionRepairInstruction(
@@ -322,255 +288,12 @@ function buildPredictionRepairInstruction(
   return `Return a complete final report with a valid predictions array, fixing the flagged predictions. Do not omit the predictions array, and do not return a partial patch. The array may hold fewer than ${String(context.depthProfile.targetPredictions)} predictions when the evidence does not support more — do not pad with coin-flips to reach a count. Make every prediction distinct: replace any dropped near-duplicate rather than re-emitting it. Prefer replacement forecasts using these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}. ${buildAllowedSubjectSteering(context.depthProfile.predictionSubjects)} For ticker relative forecasts, use subject form TICKER:BENCHMARK.${rangeGuidance} Keep two direction calls on the same subject at least ${String(MIN_DIRECTION_HORIZON_GAP_TRADING_DAYS)} trading days apart — otherwise vary the subject, kind, or horizon.`;
 }
 
-// MeasurableAs grammar for the event-anchored earnings kinds, shared verbatim by the primary and
-// Completion prediction instructions. Completion previously advertised earnings-direction and
-// Earnings-move as supported kinds (via coverage guidance) without ever showing their grammar, so
-// The model paired an advertised earnings kind with the plain direction close() grammar and the
-// Validator rejected it with "kind does not match measurableAs" (run-review finding #3). Sharing
-// One string keeps both passes advertising a single consistent surface.
 function earningsForecastGrammar(): string {
   return "kind earnings-direction with measurableAs earningsReturn(SUBJECT, YYYY-MM-DD, +N) > 0 for post-print direction, or kind earnings-move with measurableAs abs(earningsReturn(SUBJECT, YYYY-MM-DD, +N)) > T for an absolute post-print move beyond threshold T — use the deterministic earningsSetup.impliedMove as the reference bar for T. Use earningsSetup.event.date as YYYY-MM-DD; horizonTradingDays counts post-event trading days, not days from today.";
 }
 
-// MeasurableAs grammar for the deep-only conditional kind, shared by the primary and completion
-// Prediction instructions for the same reason as earningsForecastGrammar (run-review finding #3):
-// Completion advertised conditional as a supported kind without pairing it with its grammar.
 function conditionalForecastGrammar(): string {
   return "kind conditional with measurableAs syntax if (<existing expression>) then (<existing expression>): subject and horizonTradingDays come from the consequent, the antecedent horizon must be earlier than the consequent horizon, and probability means P(consequent | antecedent). Do not nest conditionals.";
-}
-
-// Pairs every additional advertised kind with its measurableAs grammar for the completion pass.
-// The base DSL (direction/relative/range plus gated macro and equity extras) comes from
-// PredictionDslInstruction; this adds the earnings and conditional grammars under the same gates
-// SupportedPredictionKinds uses to advertise them, so the pass never nudges a kind whose grammar
-// The model has not been shown (run-review finding #3).
-function buildCompletionKindGrammar(
-  command: ResearchCommand,
-  collectedSources: CollectedSources,
-): string {
-  const clauses: string[] = [];
-  if (isInstrumentCommand(command) && hasConfirmedEarningsDate(collectedSources.earningsSetup)) {
-    clauses.push(`For an earnings-anchored forecast, use ${earningsForecastGrammar()}`);
-  } else if (isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined) {
-    clauses.push(
-      "The Earnings Setup date is provider-estimated and contextual only; do not emit earnings-direction, earnings-move, or earningsReturn grammar.",
-    );
-  }
-  if (command.depth === "deep") {
-    clauses.push(`For a conditional forecast, use ${conditionalForecastGrammar()}`);
-  }
-  return clauses.length > 0 ? ` ${clauses.join(" ")}` : "";
-}
-
-interface CompletionSourceEntry {
-  readonly id: string;
-  readonly title: string;
-  readonly fetchedAt: string;
-  readonly publisher?: string;
-  readonly url?: string;
-  readonly snippet?: string;
-}
-
-function toCompletionSourceEntry(source: Source): CompletionSourceEntry {
-  const snippet = source.snippet ?? source.summary;
-  return {
-    id: source.id,
-    title: source.title,
-    fetchedAt: source.fetchedAt,
-    ...(source.publisher !== undefined ? { publisher: source.publisher } : {}),
-    ...(source.url !== undefined ? { url: source.url } : {}),
-    ...(snippet !== undefined ? { snippet } : {}),
-  };
-}
-
-function completionMarketSnapshot(
-  command: ResearchCommand,
-  collectedSources: CollectedSources,
-): MarketSnapshot | undefined {
-  if (isInstrumentCommand(command)) {
-    const symbol = command.symbol.toUpperCase();
-    return collectedSources.marketSnapshots.find(
-      (snapshot) => snapshot.symbol.toUpperCase() === symbol,
-    );
-  }
-  return collectedSources.marketSnapshots.at(0);
-}
-
-function completionLatestClose(
-  command: ResearchCommand,
-  collectedSources: CollectedSources,
-): Record<string, unknown> | undefined {
-  const snapshot = completionMarketSnapshot(command, collectedSources);
-  if (snapshot === undefined) {
-    return undefined;
-  }
-  return {
-    subject: snapshot.symbol,
-    price: snapshot.price,
-    observedAt: snapshot.observedAt,
-    sourceId: snapshot.sourceId,
-    ...(snapshot.identity?.quoteCurrency !== undefined
-      ? { quoteCurrency: snapshot.identity.quoteCurrency }
-      : {}),
-  };
-}
-
-function completionEarningsSetup(
-  collectedSources: CollectedSources,
-): Record<string, unknown> | undefined {
-  const setup = collectedSources.earningsSetup;
-  if (setup === undefined) {
-    return undefined;
-  }
-  return {
-    event: {
-      symbol: setup.event.symbol,
-      date: setup.event.date,
-      timing: setup.event.timing,
-      sourceIds: setup.event.sourceIds,
-      fetchedAt: setup.event.fetchedAt,
-      ...(setup.event.eventDateStatus !== undefined
-        ? { eventDateStatus: setup.event.eventDateStatus }
-        : {}),
-      ...(setup.event.dateConfirmation !== undefined
-        ? { dateConfirmation: setup.event.dateConfirmation }
-        : {}),
-      ...(setup.event.epsEstimate !== undefined ? { epsEstimate: setup.event.epsEstimate } : {}),
-      ...(setup.event.revenueEstimate !== undefined
-        ? { revenueEstimate: setup.event.revenueEstimate }
-        : {}),
-    },
-    ...(setup.impliedMove !== undefined
-      ? {
-          impliedMove: {
-            expiration: setup.impliedMove.expiration,
-            strike: setup.impliedMove.strike,
-            spot: setup.impliedMove.spot,
-            straddleMidpoint: setup.impliedMove.straddleMidpoint,
-            impliedMovePct: setup.impliedMove.impliedMovePct,
-            sourceIds: setup.impliedMove.sourceIds,
-            observedAt: setup.impliedMove.observedAt,
-          },
-        }
-      : {}),
-    ...(setup.gaps.length > 0 ? { gaps: setup.gaps } : {}),
-  };
-}
-
-function completionOptionsIv(
-  collectedSources: CollectedSources,
-): readonly Pick<ExtendedEvidenceItem, "title" | "sourceIds" | "observedAt" | "metrics">[] {
-  return (
-    collectedSources.extendedEvidence?.items
-      .filter((item) => item.category === "options-iv" && item.sourceIds.length > 0)
-      .map((item) => ({
-        title: item.title,
-        sourceIds: item.sourceIds,
-        observedAt: item.observedAt,
-        ...(item.metrics !== undefined ? { metrics: item.metrics } : {}),
-      })) ?? []
-  );
-}
-
-// Compact catalog of citeable sources plus deterministic forecast anchors for the completion pass:
-// Enough context to author sourced forecasts without replaying the full evidence payload. Web
-// Sources stay under `webSources` so the completion instruction's fresh-web steering reference
-// Still resolves; `allowedSourceIds` remains the citation authority.
-function buildCompletionEvidencePayload(
-  report: ResearchReport,
-  command: ResearchCommand,
-  collectedSources: CollectedSources,
-  context: ResearchContext,
-): Record<string, unknown> {
-  const webSources: CompletionSourceEntry[] = [];
-  const sources: CompletionSourceEntry[] = [];
-  for (const source of report.sources) {
-    (source.kind === "web" ? webSources : sources).push(toCompletionSourceEntry(source));
-  }
-  const verifiedSnapshot = collectedSources.verifiedMarketSnapshot;
-  const latestClose =
-    verifiedSnapshot === undefined ? completionLatestClose(command, collectedSources) : undefined;
-  const earningsSetup = completionEarningsSetup(collectedSources);
-  const optionsIv = completionOptionsIv(collectedSources);
-  const calibrationBlock = buildCalibrationBlock(context.calibrationContext, command, context);
-  return {
-    sources,
-    ...(webSources.length > 0 ? { webSources } : {}),
-    ...(verifiedSnapshot !== undefined ? verifiedMarketSnapshotEvidence(verifiedSnapshot) : {}),
-    ...(latestClose !== undefined ? { latestClose } : {}),
-    ...(earningsSetup !== undefined ? { earningsSetup } : {}),
-    ...(optionsIv.length > 0 ? { optionsIv } : {}),
-    ...(calibrationBlock !== undefined ? { priorCalibration: calibrationBlock } : {}),
-  };
-}
-
-// Narrative-only projection of the first-attempt report so the completion pass can see what has
-// Already been written without the raw evidence or prior-stage transcript. Predictions and sources
-// Are omitted: existingPredictions and the compact source index already carry them.
-function buildCompletionReportDraft(report: ResearchReport): Record<string, unknown> {
-  return {
-    summary: report.summary,
-    keyFindings: report.keyFindings,
-    bullCase: report.bullCase,
-    bearCase: report.bearCase,
-    risks: report.risks,
-    catalysts: report.catalysts,
-    scenarios: report.scenarios,
-    dataGaps: report.dataGaps,
-  };
-}
-
-// The critique stage output from the prior-stage transcript, projected to stage + content only.
-// The completion pass keeps just this stage instead of the full analysis transcript.
-function completionCritiqueStage(
-  priorStages: readonly unknown[],
-): { readonly stage: string; readonly content: string } | undefined {
-  for (const entry of priorStages) {
-    if (
-      typeof entry === "object" &&
-      entry !== null &&
-      "stage" in entry &&
-      (entry as { readonly stage?: unknown }).stage === "critique"
-    ) {
-      const { content } = entry as { readonly content?: unknown };
-      return { stage: "critique", content: typeof content === "string" ? content : "" };
-    }
-  }
-  return undefined;
-}
-
-function buildPredictionCompletionInstruction(
-  command: ResearchCommand,
-  collectedSources: CollectedSources,
-  context: ResearchContext,
-  completion: PredictionCompletionPrompt,
-  excludedKinds: readonly PredictionKind[] = [],
-): string {
-  const subjects = context.depthProfile.predictionSubjects.join(", ");
-  const favoredKinds = withoutExcludedKinds(
-    context.depthProfile.targetKindMix,
-    excludedKinds,
-  ).favored.join(", ");
-  const coverage = predictionCoverageGuidance(
-    completion.existingPredictions,
-    supportedPredictionKinds(
-      command,
-      collectedSources,
-      context.depthProfile.predictionSubjects,
-      excludedKinds,
-    ),
-  );
-  const allowedSubjectSteering = buildAllowedSubjectSteering(
-    context.depthProfile.predictionSubjects,
-  );
-  const occupiedSlots = describeOccupiedSlots(completion.existingPredictions);
-  const conditionalActivationGuidance =
-    command.depth === "deep"
-      ? (buildConditionalPredictionActivationGuidance(
-          context.calibrationContext?.conditionalPredictions,
-        ) ?? "")
-      : "";
-  return `Return a JSON object containing only a predictions array with up to ${String(completion.requestedCount)} additional forecasts. An empty array is valid when the evidence supports no additional informative forecast. Do not repeat, replace, or revise existingPredictions. Every candidate must be distinct from existingPredictions, cite a sourceId, and have ${NEAR_BASE_RATE_PROBABILITY_RULE}. ${allowedSubjectSteering}${occupiedSlots} Prefer these subjects: ${subjects}; favor these kinds when supported: ${favoredKinds}.${coverage} ${predictionDslInstruction(command, collectedSources, context.depthProfile.predictionSubjects, excludedKinds)}${buildPolarityGuidance(excludedKinds)}${buildRangeVolatilityReference(collectedSources, excludedKinds)}${buildCompletionKindGrammar(command, collectedSources)}${conditionalActivationGuidance}${buildFreshWebSteering(collectedSources)}${buildForecastDiversityGuidance(command, collectedSources, excludedKinds)}`;
 }
 
 function buildPrimaryPredictionInstruction(
@@ -630,8 +353,7 @@ function buildPrimaryPredictionInstruction(
 }
 
 // The steering block actually sent to the model at final-synthesis: the primary prediction
-// Instruction (or the completion instruction when a completion pass runs), plus the repair
-// Instruction when a prediction reprompt is in flight. Returns undefined for non-synthesis stages.
+// Instruction plus the repair instruction when a prediction reprompt is in flight. Returns undefined for non-synthesis stages.
 // Shares its text-building primitives with the stage prompt builder so recorded steering matches
 // What the prompt carries. Records only the steering block, never the full ~50-65k-token prompt.
 export function buildStageSteeringSegment(
@@ -640,20 +362,12 @@ export function buildStageSteeringSegment(
   collectedSources: CollectedSources,
   context: ResearchContext,
   predictionRepromptErrors: readonly string[] = [],
-  predictionCompletion?: PredictionCompletionPrompt,
 ): string | undefined {
   if (stage !== "final-synthesis") {
     return undefined;
   }
   const segments: string[] = [
-    predictionCompletion === undefined
-      ? buildPrimaryPredictionInstruction(command, collectedSources, context)
-      : buildPredictionCompletionInstruction(
-          command,
-          collectedSources,
-          context,
-          predictionCompletion,
-        ),
+    buildPrimaryPredictionInstruction(command, collectedSources, context),
   ];
   if (predictionRepromptErrors.length > 0) {
     segments.push(buildPredictionRepairInstruction(context));
@@ -704,7 +418,6 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     predictionRepromptErrors = [],
     reportValidationErrors = [],
     allowedSourceIds = [],
-    predictionCompletion,
   } = input;
   const hasEarningsSetup =
     isInstrumentCommand(command) && collectedSources.earningsSetup !== undefined;
@@ -715,7 +428,7 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     predictionRepromptErrors.length > 0
       ? { instruction: buildPredictionRepairInstruction(context) }
       : undefined;
-  const reportShape = finalReportShape(
+  const requiredShape = finalReportShape(
     command,
     collectedSources,
     context.depthProfile,
@@ -724,66 +437,23 @@ export function buildFinalSynthesisStagePrompt(input: StageInput): string {
     hasWebSubjectProfile,
     subjectKindForCommand(command),
   );
-  const requiredShape =
-    predictionCompletion !== undefined ? { predictions: reportShape.predictions } : reportShape;
-  // Prediction completion pass: swap the full evidence payload and prior-stage transcript for a
-  // Distilled context (report narrative + critique + compact source index plus deterministic
-  // Forecast anchors).
-  const completionContext =
-    predictionCompletion !== undefined
-      ? {
-          evidence: buildCompletionEvidencePayload(
-            predictionCompletion.reportDraft,
-            command,
-            collectedSources,
-            context,
-          ),
-          priorStages: (() => {
-            const critique = completionCritiqueStage(priorStages);
-            return critique === undefined ? [] : [critique];
-          })(),
-          reportDraft: buildCompletionReportDraft(predictionCompletion.reportDraft),
-        }
-      : undefined;
-
   return assembleStagePrompt({
     stage: "final-synthesis",
     instruction:
-      predictionCompletion === undefined
-        ? loaded.instruction + buildPrimaryPredictionInstruction(command, collectedSources, context)
-        : buildPredictionCompletionInstruction(
-            command,
-            collectedSources,
-            context,
-            predictionCompletion,
-          ),
-    stageGoal:
-      predictionCompletion === undefined
-        ? loaded.goal
-        : "Add only distinct, evidence-backed observable forecasts without changing the accepted report.",
+      loaded.instruction + buildPrimaryPredictionInstruction(command, collectedSources, context),
+    stageGoal: loaded.goal,
     depthProfile: context.depthProfile,
-    evidence:
-      completionContext === undefined
-        ? buildEvidencePayload(
-            { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
-            command,
-            collectedSources,
-            config,
-            context,
-          )
-        : completionContext.evidence,
+    evidence: buildEvidencePayload(
+      { includePriorCalibration: true, sourceGapView: "all", webSourceText: "fresh-only" },
+      command,
+      collectedSources,
+      config,
+      context,
+    ),
     playbooks: stagePlaybooks("final-synthesis", context),
-    priorStages: completionContext === undefined ? priorStages : completionContext.priorStages,
-    reportDraft: completionContext?.reportDraft,
+    priorStages,
     predictionRepromptErrors,
     predictionRepair,
-    predictionCompletion:
-      predictionCompletion !== undefined
-        ? {
-            requestedCount: predictionCompletion.requestedCount,
-            existingPredictions: predictionCompletion.existingPredictions,
-          }
-        : undefined,
     allowedSourceIds,
     sourceIdGuidance: FINAL_SYNTHESIS_SOURCE_ID_GUIDANCE,
     postSynthesisAuditGuidance: postSynthesisAuditGuidance(),

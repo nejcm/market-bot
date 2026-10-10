@@ -56,7 +56,6 @@ export const INSTRUMENT_RUN_PARAMS: RunParams = {
     minimumKeyFindings: 6,
     minimumScenarios: 3,
     targetPredictions: 3,
-    predictionCompletionFloor: 2,
     analystStyle: "fuller analyst-style",
     focus: ["thesis", "evidence", "catalysts", "bull case", "bear case", "scenarios", "data gaps"],
     targetKindMix: { ...INSTRUMENT_KIND_MIX, minNonDirection: 2 },

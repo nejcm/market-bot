@@ -178,7 +178,6 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
     expect(result.trace.evidenceQualityAssessment?.advisoryReasons).toContain(
       "supplemental-market: evidence missing or unusable",
     );
-    expect(result.trace.predictionCompletion).toBeUndefined();
   });
 
   test("does not cap Evidence Quality for missing Market Context", async () => {

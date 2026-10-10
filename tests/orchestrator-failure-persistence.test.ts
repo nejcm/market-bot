@@ -123,13 +123,8 @@ describe("Failed Run Artifact persistence", () => {
       .filter((item) => item.expectation === "expected" && item.outcome === "empty")
       .map((item) => item.subsystem);
     expect(blocked).toEqual(
-      expect.arrayContaining([
-        "prediction-completion",
-        "report-integrity-audit",
-        "forecast-disagreement",
-      ]),
+      expect.arrayContaining(["report-integrity-audit", "forecast-disagreement"]),
     );
-    expect(expectedEmpty).not.toContain("prediction-completion");
     expect(expectedEmpty).not.toContain("report-integrity-audit");
     expect(expectedEmpty).not.toContain("forecast-disagreement");
     expect(failure).toMatchObject({

@@ -3,7 +3,6 @@ import {
   researchReportEvidenceQuality,
   sourceProvider,
   type EarningsForecastTelemetry,
-  type PredictionCompletionAudit,
   type PredictionShortfall,
   type ReportIntegrity,
   type ResearchReport,
@@ -148,13 +147,6 @@ export interface RunAnalytics {
     readonly retryErrorCount: number;
     readonly validationErrorCount: number;
     readonly trimWarningCount: number;
-    readonly completion?: {
-      readonly attempted: boolean;
-      readonly initialCount: number;
-      readonly acceptedCount: number;
-      readonly rejectedCount: number;
-      readonly outcome: PredictionCompletionAudit["outcome"];
-    };
     /** Legacy artifact compatibility. */
     readonly replacementAttempted: boolean;
     readonly byKind: Readonly<Record<string, number>>;
@@ -829,17 +821,6 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       retryErrorCount: trace.predictionRetryErrors?.length ?? 0,
       validationErrorCount: trace.predictionErrors?.length ?? 0,
       trimWarningCount: trace.predictionTrimWarnings?.length ?? 0,
-      ...(trace.predictionCompletion !== undefined
-        ? {
-            completion: {
-              attempted: trace.predictionCompletion.attempted,
-              initialCount: trace.predictionCompletion.initialCount,
-              acceptedCount: trace.predictionCompletion.acceptedPredictionIds.length,
-              rejectedCount: trace.predictionCompletion.rejectedCandidateCount,
-              outcome: trace.predictionCompletion.outcome,
-            },
-          }
-        : {}),
       replacementAttempted: trace.predictionReplacementAttempted ?? false,
       byKind: countBy(report.predictions, (prediction) => prediction.kind),
       horizonTradingDays: horizonStats(

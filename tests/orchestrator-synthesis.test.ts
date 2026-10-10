@@ -946,7 +946,11 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     });
     const provider: ModelProvider = {
       name: "mock",
-      generate: async () => ({ content: modelReport("AAPL"), tokenEstimate: 100, costEstimateUsd: 0.01 }),
+      generate: async () => ({
+        content: modelReport("AAPL"),
+        tokenEstimate: 100,
+        costEstimateUsd: 0.01,
+      }),
     };
 
     const result = await runResearchJob({

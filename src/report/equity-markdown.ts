@@ -63,7 +63,6 @@ export interface EquityMarkdownSections {
   readonly renderDiagnosticGapSummary: (count: number, disclosedGaps: readonly string[]) => string;
   readonly renderEarningsSetup: (report: ResearchReport) => string;
   readonly renderHistoricalContext: (report: ResearchReport) => string;
-  readonly renderSpotlights: (report: ResearchReport) => string;
   readonly renderPredictions: (predictions: ResearchReport["predictions"]) => string;
 }
 
@@ -205,7 +204,6 @@ export function renderEquityMarkdownReport(
     sections.renderAppendixSection(sections.renderAnalystAndOwnershipContext(report)),
     sections.renderAppendixSection(sections.renderEarningsSetup(report)),
     sections.renderAppendixSection(sections.renderHistoricalContext(report)),
-    sections.renderAppendixSection(sections.renderSpotlights(report)),
     sections.renderAppendixSection(sections.renderPredictions(report.predictions)),
     ...(diagnosticGapCount === 0
       ? []

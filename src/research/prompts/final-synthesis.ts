@@ -113,9 +113,13 @@ function finalReportShape(
         items: [{ text: "string", sourceIds: ["history-report-run-id"] }],
         gaps: ["string"],
       },
-      spotlights: {
-        items: [{ symbol: "string", rationale: "string", sourceIds: ["source-id"] }],
-      },
+      ...(command.jobType === "equity"
+        ? {}
+        : {
+            spotlights: {
+              items: [{ symbol: "string", rationale: "string", sourceIds: ["source-id"] }],
+            },
+          }),
       ...earningsSetupShape,
       ...businessFrameworkShape,
       ...webSubjectProfileShape,

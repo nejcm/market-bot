@@ -323,11 +323,6 @@ export function createCodexProvider(
   spawnImpl: SpawnImpl = defaultSpawn,
   appServerSpawn: AppServerSpawnImpl = defaultAppServerSpawn,
 ): StreamingModelProvider {
-  const modelMap = new Map<string, string>([
-    [config.quickModel, config.codexQuickModel ?? config.quickModel],
-    [config.synthesisModel, config.codexSynthesisModel ?? config.synthesisModel],
-  ]);
-
   let preflightDone = false;
   let preflightPromise: Promise<void> | null = null;
   let webSearchCapabilityPromise: Promise<WebSearchCapability> | null = null;
@@ -362,11 +357,10 @@ export function createCodexProvider(
       }
 
       const cwd = await mkdtemp(join(tmpdir(), "market-bot-codex-chat-"));
-      const resolvedModel = modelMap.get(request.model) ?? request.model;
       return createCodexAppServerStream({
         cwd,
         env: codexChildEnv(),
-        model: resolvedModel,
+        model: request.model,
         prompt: buildCodexPrompt(request),
         ...(request.params?.reasoningEffort !== undefined
           ? { reasoningEffort: request.params.reasoningEffort }
@@ -379,8 +373,6 @@ export function createCodexProvider(
     },
     generate: async (request: ModelRequest): Promise<ModelResponse> => {
       await ensurePreflight();
-
-      const resolvedModel = modelMap.get(request.model) ?? request.model;
 
       const prompt = buildCodexPrompt(request);
 
@@ -396,7 +388,7 @@ export function createCodexProvider(
         await mkdtemp(join(tmpdir(), "market-bot-codex-")),
         "--skip-git-repo-check",
         "-m",
-        resolvedModel,
+        request.model,
         ...(request.params?.reasoningEffort !== undefined
           ? ["-c", `model_reasoning_effort=${request.params.reasoningEffort}`]
           : []),

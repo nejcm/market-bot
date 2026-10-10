@@ -101,8 +101,6 @@ export interface AppConfig {
   readonly apiKey?: string;
   readonly quickModel: string;
   readonly synthesisModel: string;
-  readonly codexQuickModel?: string;
-  readonly codexSynthesisModel?: string;
   readonly quickReasoningEffort?: ReasoningEffort;
   readonly synthesisReasoningEffort?: ReasoningEffort;
   readonly codexQuickReasoningEffort?: ReasoningEffort;
@@ -564,12 +562,6 @@ export function resolveConfig(
     ...(apiKey !== undefined ? { apiKey } : {}),
     quickModel: env.MARKET_BOT_QUICK_MODEL ?? quickModelDefault,
     synthesisModel: env.MARKET_BOT_SYNTHESIS_MODEL ?? synthesisModelDefault,
-    ...(readOptionalString(env.MARKET_BOT_CODEX_QUICK_MODEL) !== undefined
-      ? { codexQuickModel: readOptionalString(env.MARKET_BOT_CODEX_QUICK_MODEL) as string }
-      : {}),
-    ...(readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) !== undefined
-      ? { codexSynthesisModel: readOptionalString(env.MARKET_BOT_CODEX_SYNTHESIS_MODEL) as string }
-      : {}),
     ...(quickReasoningEffort !== undefined ? { quickReasoningEffort } : {}),
     ...(synthesisReasoningEffort !== undefined ? { synthesisReasoningEffort } : {}),
     ...(codexQuickReasoningEffort !== undefined ? { codexQuickReasoningEffort } : {}),

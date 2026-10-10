@@ -158,14 +158,36 @@ UPDATE_PROMPT_BASELINE=1 bun test tests/prompt-baseline.test.ts
 Live replay uses one static data cassette with the configured live model provider:
 
 ```sh
-bun run scripts/replay-fixture-run.ts equity-aapl-deep --live
+bun run scripts/replay-fixture-run.ts equity-aapl-deep --live        # prints the token estimate only
+bun run scripts/replay-fixture-run.ts equity-aapl-deep --live --yes  # spends
 ```
 
-This writes a run under `data/runs/` and costs live model usage. It requires the same provider setup
+With `--yes` this writes a run under `data/evals/replay-live-<timestamp>/<fixture>/1/runs/`, never
+`data/runs/`, and costs live model usage. Only run it with explicit approval. It requires the same provider setup
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
-The replay command accepts exactly one fixture name and the optional `--live` flag.
+The replay command accepts exactly one fixture name and the optional `--live` flag (plus `--yes`).
+
+## Frozen-input evals
+
+`scripts/eval-deep.ts` repeats live replay N times per fixture and compares labels:
+
+```sh
+bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base
+bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base --yes
+bun run scripts/eval-deep.ts --compare base branch
+```
+
+Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
+sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, or
+`threw`) and every `Fixture data cassette miss` key in `eval-sample.json`, even when the run fails;
+`summary.json` is rewritten after every sample, and a sample dir without a record counts as
+`incomplete`. A metric group a sample could not measure (no report on a failed run, no stages) is
+left out of that sample's mean and shows as `n=k/N`, so a failure never reads as an improvement.
+Synthetic fixtures (`equity-aapl-deep`, `equity-nbis-deep`, `equity-web-fallback-deep`) record tiny
+cassette token counts, so the estimate floors each run at the ~438k of a real deep run.
+`tests/eval-deep.test.ts` covers isolation, miss counting, and compare output with replayed models.
 
 ## Deep-equity presentation assertions
 

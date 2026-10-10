@@ -239,6 +239,10 @@ Fixture mode replaying Data and LLM Cassettes for deterministic, zero-network, z
 
 Fixture mode replaying Data Cassettes while calling the configured live model, keeping market data static.
 
+## Frozen-Input Eval
+
+Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps.
+
 ## Run Artifact Index
 
 Rebuildable SQLite index over Run Artifacts (`data/index.sqlite` by default) for console/search/calibration queries. Jobs update it incrementally; stale indexes rebuild automatically, missing/unsupported indexes fall back to disk, and disk artifacts remain authoritative.

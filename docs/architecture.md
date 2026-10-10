@@ -282,6 +282,10 @@ Default View; non-equity runs render the same structured counts in a dedicated S
 
 Client conventions: loose `Record<string, unknown>` payloads at the wire, validated by type guards in `app/client/api.ts`, parsed by pure functions in `app/client/view-model.ts` / `app/report-artifact-view.ts`; hand-rolled SVG charts, with `lightweight-charts` used only for the price snapshot chart. The console stays read-only over artifacts and adds no trade-action surface.
 
+## Evaluation
+
+A prompt or stage change is verified by a Frozen-Input Eval: `scripts/eval-deep.ts --fixtures a,b --label <name> --yes` runs each fixture N times (default 2) with Data Cassettes replayed and the model live, through `tests/support/run-fixtures/eval.ts`. Each sample gets its own state root, `data/evals/<label>/<fixture>/<sample>/`, holding the run dir under `runs/` and the cache, calibration, news-seen, and learned-peer files beside it; index access is disabled. Metrics come only from artifacts (predictions, report-integrity findings, final-synthesis repairs, citation coverage, data and Source Gaps, cassette misses, tokens per stage, duration) and land in `data/evals/<label>/summary.json`; `--compare <base> <new>` prints a per-metric mean and range table for a PR body. A run review of a fresh real run is the final check after a batch of changes, not the check for each fix.
+
 ## Data flow
 
 ```

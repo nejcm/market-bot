@@ -8,7 +8,7 @@ import {
   loadPlaybooksByStage,
   mandatoryPlaybookSelections,
   MAX_PLAYBOOK_CHARS,
-  parsePlaybookSelection,
+  selectPlaybooks,
   type PlaybookMetadata,
   type PlaybookStage,
 } from "../src/research/playbooks";
@@ -151,15 +151,6 @@ describe("loadPlaybookRegistry", () => {
     cleanups.push(cleanup);
     const parsed = await loadPlaybookRegistry(dir);
     expect(parsed[0]?.subjectKeys).toBeUndefined();
-  });
-
-  test("subject-keyed real playbooks declare only the reserved free-seat stage", async () => {
-    const realRegistry = await loadPlaybookRegistry();
-    for (const playbook of realRegistry) {
-      if (playbook.subjectKeys !== undefined) {
-        expect(playbook.stages).toEqual(["specialist-analysis"]);
-      }
-    }
   });
 
   test("every subjectKeys value maps to a checked-in research subject", async () => {
@@ -561,7 +552,7 @@ describe("mandatoryPlaybookSelections", () => {
     );
   });
 
-  test("mandatorily seats every real subject playbook without tripping a cap", async () => {
+  test("validates mandatory selection of every real subject playbook", async () => {
     const realRegistry = await loadPlaybookRegistry();
     const stages: readonly PlaybookStage[] = ["specialist-analysis", "critique", "final-synthesis"];
 
@@ -573,11 +564,7 @@ describe("mandatoryPlaybookSelections", () => {
           depth: "deep",
           subjectKey,
         } as const;
-        const candidates = eligiblePlaybookCandidates(command, stages, realRegistry);
-        const mandatory = mandatoryPlaybookSelections(command, stages, candidates, realRegistry);
-        // ParsePlaybookSelection throws if a mandatory seat exceeds a cap; a clean
-        // Seat proves the subject playbook fits the reserved specialist-analysis slot.
-        const audit = parsePlaybookSelection('{"selections":[]}', candidates, mandatory);
+        const audit = selectPlaybooks(command, stages, realRegistry);
 
         expect(audit.selected.flatMap((selection) => selection.playbookIds)).toContain(playbook.id);
         expect(audit.rejected).toEqual([]);
@@ -639,270 +626,118 @@ describe("loadPlaybooksByStage", () => {
   });
 });
 
-describe("parsePlaybookSelection", () => {
-  const candidates = [
-    {
-      id: "market-regime",
-      title: "Market Regime",
-      summary: "Regime.",
-      eligibleStages: ["specialist-analysis", "critique", "final-synthesis"] as const,
-    },
-    {
-      id: "critique-discipline",
-      title: "Critique Discipline",
-      summary: "Critique.",
-      eligibleStages: ["critique"] as const,
-    },
-    {
-      id: "synthesis-discipline",
-      title: "Synthesis Discipline",
-      summary: "Synthesis.",
-      eligibleStages: ["critique", "final-synthesis"] as const,
-    },
-    {
-      id: "extra-discipline",
-      title: "Extra Discipline",
-      summary: "Extra.",
-      eligibleStages: ["critique", "final-synthesis"] as const,
-    },
-  ];
-
-  test("accepts valid selections and caps rationale length", () => {
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        rationale: "x".repeat(600),
-        selections: [
-          { stage: "critique", playbookIds: ["market-regime", "critique-discipline"] },
-          { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+describe("selectPlaybooks", () => {
+  test("selects all eligible and mandatory playbooks at planned stages, and nothing else", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    expect(
+      selectPlaybooks(
+        { jobType: "equity", assetClass: "equity", depth: "deep" },
+        [
+          "specialist-analysis",
+          "instrument-evidence-analysis",
+          "market-behavior-analysis",
+          "critique",
+          "final-synthesis",
         ],
-      }),
-      candidates,
-    );
-
-    expect(result.selected).toEqual([
-      { stage: "critique", playbookIds: ["market-regime", "critique-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-    ]);
-    expect(result.rationale?.length).toBe(500);
-    expect(result.rationale?.endsWith("...")).toBe(true);
-    expect(result.rejected).toEqual([]);
-  });
-
-  test("rejects malformed JSON, unknown ids, duplicates, invalid stages, and caps", () => {
-    expect(parsePlaybookSelection("not-json", candidates).rejected).toEqual([
-      { reason: "selector returned malformed JSON" },
-    ]);
-
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        selections: [
-          { stage: "evidence-request", playbookIds: ["market-regime"] },
-          {
-            stage: "critique",
-            playbookIds: [
-              "market-regime",
-              "market-regime",
-              "critique-discipline",
-              "extra-discipline",
-            ],
-          },
-          { stage: "final-synthesis", playbookIds: ["unknown"] },
-        ],
-      }),
-      candidates,
-    );
-
-    expect(result.selected).toEqual([
-      { stage: "critique", playbookIds: ["market-regime", "critique-discipline"] },
-    ]);
-    expect(result.rejected).toEqual([
-      { stage: "evidence-request", reason: "invalid stage" },
-      { stage: "critique", playbookId: "market-regime", reason: "duplicate selection" },
-      {
-        stage: "critique",
-        playbookId: "extra-discipline",
-        reason: "per-stage playbook cap exceeded",
-      },
-      { stage: "final-synthesis", playbookId: "unknown", reason: "playbook is not eligible" },
-    ]);
-  });
-
-  test("enforces per-run cap", () => {
-    const manyCandidates = Array.from({ length: 7 }, (_, idx) => ({
-      id: `p${String(idx + 1)}`,
-      title: `P${String(idx + 1)}`,
-      summary: "Candidate.",
-      eligibleStages: [
-        "specialist-analysis",
-        "market-behavior-analysis",
-        "critique",
-        "final-synthesis",
-      ] as const,
-    }));
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        selections: [
-          { stage: "specialist-analysis", playbookIds: ["p1", "p2"] },
-          { stage: "critique", playbookIds: ["p3", "p4"] },
-          { stage: "final-synthesis", playbookIds: ["p5", "p6"] },
-          { stage: "market-behavior-analysis", playbookIds: ["p7"] },
-        ],
-      }),
-      manyCandidates,
-    );
-
-    expect(result.selected.flatMap((selection) => selection.playbookIds)).toHaveLength(6);
-    expect(result.rejected).toContainEqual({
-      stage: "market-behavior-analysis",
-      playbookId: "p7",
-      reason: "per-run playbook cap exceeded",
+        realRegistry,
+      ),
+    ).toEqual({
+      selected: [
+        { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
+        { stage: "instrument-evidence-analysis", playbookIds: ["instrument-evidence"] },
+        { stage: "market-behavior-analysis", playbookIds: ["market-behavior"] },
+        {
+          stage: "critique",
+          playbookIds: ["instrument-evidence", "market-behavior", "critique-discipline"],
+        },
+        {
+          stage: "final-synthesis",
+          playbookIds: ["synthesis-discipline", "instrument-evidence", "market-behavior"],
+        },
+      ],
+      rationale: "Deterministic selection of all eligible playbooks plus mandatory selections.",
+      rejected: [],
     });
-  });
-
-  test("rejects selections when candidate list is empty", () => {
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        selections: [{ stage: "critique", playbookIds: ["market-regime"] }],
-      }),
-      [],
-    );
-
-    expect(result.selected).toEqual([]);
-    expect(result.rejected).toEqual([
-      { stage: "critique", playbookId: "market-regime", reason: "playbook is not eligible" },
-    ]);
-  });
-
-  test("aggregates repeated stage selections before enforcing stage cap", () => {
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        selections: [
-          { stage: "critique", playbookIds: ["market-regime"] },
-          {
-            stage: "critique",
-            playbookIds: ["critique-discipline", "synthesis-discipline"],
-          },
-        ],
-      }),
-      candidates,
-    );
-
-    expect(result.selected).toEqual([
-      { stage: "critique", playbookIds: ["market-regime", "critique-discipline"] },
-    ]);
-    expect(result.rejected).toEqual([
+    expect(
+      selectPlaybooks(
+        { jobType: "research", assetClass: "equity", depth: "deep", subjectKey: "biotech" },
+        ["specialist-analysis", "critique", "final-synthesis"],
+        realRegistry,
+      ).selected,
+    ).toEqual([
+      { stage: "specialist-analysis", playbookIds: ["thematic-research", "subject-biotech"] },
+      { stage: "critique", playbookIds: ["source-discipline"] },
       {
-        stage: "critique",
-        playbookId: "synthesis-discipline",
-        reason: "per-stage playbook cap exceeded",
+        stage: "final-synthesis",
+        playbookIds: ["synthesis-discipline", "thematic-research", "source-discipline"],
       },
     ]);
+    expect(
+      selectPlaybooks(
+        { jobType: "equity", assetClass: "equity", depth: "brief" },
+        ["market-behavior-analysis"],
+        realRegistry,
+      ).selected,
+    ).toEqual([]);
   });
 
-  test("preseeds mandatory selections before selector output", () => {
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        selections: [{ stage: "critique", playbookIds: ["critique-discipline"] }],
-      }),
-      [
-        ...candidates,
+  test("selects every eligible playbook for deep market overview and daily stages", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    for (const jobType of ["market-overview", "daily"] as const) {
+      expect(
+        selectPlaybooks(
+          { jobType, assetClass: "equity", depth: "deep" },
+          [
+            "specialist-analysis",
+            "regime-context-analysis",
+            "mover-theme-analysis",
+            "critique",
+            "final-synthesis",
+          ],
+          realRegistry,
+        ).selected,
+      ).toEqual([
+        { stage: "specialist-analysis", playbookIds: ["market-regime", "mover-themes"] },
+        { stage: "regime-context-analysis", playbookIds: ["market-regime", "market-behavior"] },
+        { stage: "mover-theme-analysis", playbookIds: ["mover-themes", "market-behavior"] },
         {
-          id: "source-discipline",
-          title: "Source Discipline",
-          summary: "Evidence posture.",
-          eligibleStages: ["critique", "final-synthesis"] as const,
+          stage: "critique",
+          playbookIds: ["market-regime", "mover-themes", "market-behavior", "critique-discipline"],
         },
-      ],
-      [
-        { stage: "critique", playbookIds: ["source-discipline"] },
-        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-      ],
-    );
-
-    expect(result.selected).toEqual([
-      { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-    ]);
-    expect(result.rejected).toEqual([]);
+        {
+          stage: "final-synthesis",
+          playbookIds: ["synthesis-discipline", "market-regime", "mover-themes", "market-behavior"],
+        },
+      ]);
+    }
   });
 
-  test("does not reject selector repeats of mandatory selections as duplicates", () => {
-    const result = parsePlaybookSelection(
-      JSON.stringify({
-        selections: [
-          { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
-          { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+  test("selects every eligible playbook for deep crypto stages", async () => {
+    const realRegistry = await loadPlaybookRegistry();
+    expect(
+      selectPlaybooks(
+        { jobType: "crypto", assetClass: "crypto", depth: "deep" },
+        [
+          "specialist-analysis",
+          "instrument-evidence-analysis",
+          "market-behavior-analysis",
+          "critique",
+          "final-synthesis",
         ],
-      }),
-      [
-        ...candidates,
-        {
-          id: "source-discipline",
-          title: "Source Discipline",
-          summary: "Evidence posture.",
-          eligibleStages: ["critique", "final-synthesis"] as const,
-        },
-      ],
-      [
-        { stage: "critique", playbookIds: ["source-discipline"] },
-        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-      ],
-    );
-
-    expect(result.selected).toEqual([
-      { stage: "critique", playbookIds: ["source-discipline", "critique-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
+        realRegistry,
+      ).selected,
+    ).toEqual([
+      { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
+      { stage: "instrument-evidence-analysis", playbookIds: ["instrument-evidence"] },
+      { stage: "market-behavior-analysis", playbookIds: ["market-behavior"] },
+      {
+        stage: "critique",
+        playbookIds: ["instrument-evidence", "market-behavior", "critique-discipline"],
+      },
+      {
+        stage: "final-synthesis",
+        playbookIds: ["synthesis-discipline", "instrument-evidence", "market-behavior"],
+      },
     ]);
-    expect(result.rejected).toEqual([]);
-  });
-
-  test("keeps mandatory selections when selector output is malformed", () => {
-    const result = parsePlaybookSelection(
-      "not-json",
-      [
-        ...candidates,
-        {
-          id: "source-discipline",
-          title: "Source Discipline",
-          summary: "Evidence posture.",
-          eligibleStages: ["critique", "final-synthesis"] as const,
-        },
-      ],
-      [
-        { stage: "critique", playbookIds: ["source-discipline"] },
-        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-      ],
-    );
-
-    expect(result.selected).toEqual([
-      { stage: "critique", playbookIds: ["source-discipline"] },
-      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-    ]);
-    expect(result.rejected).toEqual([{ reason: "selector returned malformed JSON" }]);
-  });
-
-  test("throws when mandatory selections exceed the per-run cap", () => {
-    const manyCandidates = Array.from({ length: 7 }, (_, idx) => ({
-      id: `p${String(idx + 1)}`,
-      title: `P${String(idx + 1)}`,
-      summary: "Candidate.",
-      eligibleStages: [
-        "specialist-analysis",
-        "market-behavior-analysis",
-        "critique",
-        "final-synthesis",
-      ] as const,
-    }));
-
-    expect(() =>
-      parsePlaybookSelection(JSON.stringify({ selections: [] }), manyCandidates, [
-        { stage: "specialist-analysis", playbookIds: ["p1", "p2"] },
-        { stage: "critique", playbookIds: ["p3", "p4"] },
-        { stage: "final-synthesis", playbookIds: ["p5", "p6"] },
-        { stage: "market-behavior-analysis", playbookIds: ["p7"] },
-      ]),
-    ).toThrow(
-      "Mandatory playbook p7 for market-behavior-analysis failed: per-run playbook cap exceeded",
-    );
   });
 });

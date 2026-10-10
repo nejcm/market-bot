@@ -43,6 +43,5 @@ export function buildRecordedStageSteering(
 
 export type { PredictionCompletionPrompt, StageInput } from "./stage-envelope";
 export { buildStageSteeringSegment } from "./final-synthesis";
-export { buildPlaybookSelectionPrompt } from "./playbook-selection";
 export { buildSpotlightSelectionPrompt } from "./spotlight-selection";
 export { buildWebSourceSynthesisInputs } from "./web-source-synthesis-inputs";

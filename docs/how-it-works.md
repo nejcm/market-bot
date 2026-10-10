@@ -11,7 +11,7 @@ CLI args
   -> deterministic context
   -> historical context from prior run artifacts
   -> market spotlight selection (market-overview only)
-  -> playbook selection
+  -> deterministic playbook selection
   -> model stages
   -> report validation
   -> artifact writing
@@ -147,7 +147,7 @@ Useful knobs:
 | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `MARKET_BOT_PROVIDER`                                                                     | `openai`, `openai-compatible`, `codex`, or `anthropic`.                                                            |
 | `MARKET_BOT_BASE_URL`                                                                     | Required for `openai-compatible`.                                                                                  |
-| `MARKET_BOT_QUICK_MODEL`                                                                  | Model for playbook-selection, specialist, coverage-panel, and critique stages.                                     |
+| `MARKET_BOT_QUICK_MODEL`                                                                  | Model for specialist, coverage-panel, and critique stages.                                                         |
 | `MARKET_BOT_SYNTHESIS_MODEL`                                                              | Model for final synthesis and `--deep` output.                                                                     |
 | `MARKET_BOT_QUICK_REASONING_EFFORT` / `MARKET_BOT_SYNTHESIS_REASONING_EFFORT`             | Optional reasoning effort for non-Codex quick/synthesis model calls.                                               |
 | `MARKET_BOT_CODEX_QUICK_REASONING_EFFORT` / `MARKET_BOT_CODEX_SYNTHESIS_REASONING_EFFORT` | Optional independent reasoning effort for Codex quick/synthesis model calls.                                       |
@@ -308,10 +308,9 @@ Before the shared analysis stages:
 
 Brief runs use these shared model stages:
 
-1. `playbook-selection`: chooses checked-in Domain Playbooks for eligible downstream stages.
-2. `specialist-analysis`: extracts sourced thesis points, catalysts, risks, and gaps.
-3. `critique`: challenges the specialist output using only supplied evidence.
-4. `final-synthesis`: emits the final JSON report and predictions.
+1. `specialist-analysis`: extracts sourced thesis points, catalysts, risks, and gaps.
+2. `critique`: challenges the specialist output using only supplied evidence.
+3. `final-synthesis`: emits the final JSON report and predictions.
 
 Deep runs keep `specialist-analysis` as the anchor, then run two fixed coverage-panel stages before critique:
 
@@ -320,7 +319,7 @@ Deep runs keep `specialist-analysis` as the anchor, then run two fixed coverage-
 
 Each coverage-panel stage receives the specialist output as prior context. `critique` receives the specialist plus both role outputs, and `final-synthesis` receives all analyses plus critique. The panel broadens coverage without adding report schema fields.
 
-Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/playbooks/registry.json`. After source collection, historical context, any Market Spotlight selection, and any deterministic deep-equity packet merge, the quick model runs `playbook-selection` once with slim run context: command, depth profile, planned stages, candidate metadata, market-regime label, evidence categories, and source-gap summaries. It may select up to two playbooks per stage and six per run. Valid selections are loaded into downstream prompt JSON as `domainPlaybooks`; invalid selector output is recorded in `trace.json` and the run continues without adding report data gaps.
+Domain Playbooks live under `prompts/playbooks/` and are registered in `prompts/playbooks/registry.json`. After source collection, historical context, any Market Spotlight selection, and any deterministic deep-equity packet merge, every eligible candidate is selected for each planned stage plus existing mandatory discipline and subject selections. Selection is deterministic, deduplicates stage/playbook pairs, and has no stage/run selection caps. Registry and markdown validation remain. Loaded playbooks enter downstream prompt JSON as `domainPlaybooks`; `trace.domainPlaybooks` records the injected IDs and a deterministic rationale. Selection makes no model call.
 
 The prompts require JSON-only output and supplied source IDs only. The final synthesis prompt also requires observable prediction expressions.
 
@@ -407,7 +406,7 @@ data/runs/<run-id>/
 
 `runId` is based on the current ISO timestamp plus a short random suffix.
 
-`trace.json` records command metadata, model names, stage names, source gaps, historical-context audit metadata, Market Spotlight selector audit metadata, Domain Playbook selector audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `startedAt` and `completedAt` use ISO timestamps; `completedAt` is recorded when artifact writing finishes so duration reflects the full run, not just model stages. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health (`targetCount` / `targetMet` plus shortfall disclosure), generation-time calibration slices, Verified Market Snapshot freshness, current-run Web Source Roles (`webSources.accepted`/`profileUsed`/`reportCited`/`unused`, recorded only when current-run web evidence is accepted), optional reused Web Subject Profile telemetry (`reusedProfileWebSources`), and run shape. After the run is persisted, the CLI prints a compact digest of these counters to `stderr` (stdout stays reserved for the run-dir path), so the key quality signals are visible without opening the file. `stages.json` includes `playbook-selection` and, when it runs, `spotlight-selection` model output, so selector token and cost estimates are included in run totals.
+`trace.json` records command metadata, model names, stage names, source gaps, historical-context audit metadata, Market Spotlight selector audit metadata, Domain Playbook selection audit metadata, token estimate, cost estimate, prediction retry reasons, and prediction validation errors when present. `startedAt` and `completedAt` use ISO timestamps; `completedAt` is recorded when artifact writing finishes so duration reflects the full run, not just model stages. `analytics.json` records deterministic run counters for source funnels, news dedupe, evidence quality, prediction health (`targetCount` / `targetMet` plus shortfall disclosure), generation-time calibration slices, Verified Market Snapshot freshness, current-run Web Source Roles (`webSources.accepted`/`profileUsed`/`reportCited`/`unused`, recorded only when current-run web evidence is accepted), optional reused Web Subject Profile telemetry (`reusedProfileWebSources`), and run shape. After the run is persisted, the CLI prints a compact digest of these counters to `stderr` (stdout stays reserved for the run-dir path), so the key quality signals are visible without opening the file. `stages.json` includes `spotlight-selection` model output when it runs, with its token and cost estimates included in run totals. Deterministic Domain Playbook selection is recorded only in the trace audit and subsystem outcomes.
 
 ## Scoring
 

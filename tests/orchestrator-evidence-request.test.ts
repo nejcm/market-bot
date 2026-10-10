@@ -31,13 +31,6 @@ describe("runResearchJob evidence request loop", () => {
             costEstimateUsd: 0.01,
           };
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 100,
-            costEstimateUsd: 0.01,
-          };
-        }
         return {
           content: modelReport(),
           tokenEstimate: 100,
@@ -64,12 +57,11 @@ describe("runResearchJob evidence request loop", () => {
     });
 
     expect(calls[0]?.prompt.stage).toBe("evidence-request");
-    expect(calls[1]?.prompt.stage).toBe("playbook-selection");
-    expect(calls[2]?.prompt.stage).toBe("specialist-analysis");
-    expect(new Set(calls.slice(3, 5).map((call) => call.prompt.stage))).toEqual(
+    expect(calls[1]?.prompt.stage).toBe("specialist-analysis");
+    expect(new Set(calls.slice(2, 4).map((call) => call.prompt.stage))).toEqual(
       new Set(["instrument-evidence-analysis", "market-behavior-analysis"]),
     );
-    expect(calls.slice(5).map((call) => call.prompt.stage)).toEqual([
+    expect(calls.slice(4).map((call) => call.prompt.stage)).toEqual([
       "critique",
       "final-synthesis",
     ]);
@@ -99,7 +91,6 @@ describe("runResearchJob evidence request loop", () => {
     expect(result.trace.stages).toEqual([
       "source-collection",
       "evidence-request",
-      "playbook-selection",
       "specialist-analysis",
       "instrument-evidence-analysis",
       "market-behavior-analysis",
@@ -372,16 +363,15 @@ describe("runResearchJob evidence request loop", () => {
         now: new Date("2026-05-19T00:00:00.000Z"),
       });
 
-      let expectedCalls = command.depth === "deep" ? 6 : 4;
+      let expectedCalls = command.depth === "deep" ? 5 : 3;
       if (command.jobType === "market-overview") {
-        expectedCalls = command.depth === "deep" ? 7 : 5;
+        expectedCalls = command.depth === "deep" ? 6 : 4;
       }
       expect(calls).toBe(expectedCalls);
       expect(result.trace.stages).not.toContain("evidence-request");
       if (command.jobType === "crypto") {
         expect(result.trace.stages).toEqual([
           "source-collection",
-          "playbook-selection",
           "specialist-analysis",
           "instrument-evidence-analysis",
           "market-behavior-analysis",

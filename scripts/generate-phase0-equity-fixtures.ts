@@ -248,7 +248,6 @@ function modelCassette(symbol: string, companyName: string): Readonly<Record<str
   };
   return {
     entries: {
-      "playbook-selection|fixture-quick": [{ content: '{"selections":[]}', tokenEstimate: 10 }],
       "specialist-analysis|fixture-quick": [
         {
           content: JSON.stringify({ analysis: `${symbol} specialist analysis` }),

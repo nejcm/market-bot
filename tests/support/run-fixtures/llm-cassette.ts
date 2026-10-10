@@ -33,9 +33,6 @@ export function llmCassetteKey(request: ModelRequest): string {
 }
 
 function emptyResponseFor(stage: string): string {
-  if (stage === "playbook-selection") {
-    return JSON.stringify({ selections: [] });
-  }
   if (stage === "evidence-request" || stage === "web-gather") {
     return JSON.stringify({ requests: [] });
   }

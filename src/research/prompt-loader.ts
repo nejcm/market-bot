@@ -8,7 +8,6 @@ export type StageLabel =
   | "financial-table-mapping"
   | "web-gather"
   | "web-subject-profile"
-  | "playbook-selection"
   | "spotlight-selection"
   | "specialist-analysis"
   | "regime-context-analysis"

@@ -11,7 +11,8 @@ amended 2026-07-10: research quality driver; consolidated 2026-07-15; amended 20
 incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K table mapping;
 amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit;
 amended 2026-08-02: untagged extractor evaluation and production execution policy;
-amended 2026-10-09: summary-sentence pruning)
+amended 2026-10-09: summary-sentence pruning; amended 2026-10-10: deterministic all-eligible
+Domain Playbook selection)
 
 ## Context
 
@@ -28,10 +29,11 @@ research boundaries without sharing persistence or scoring semantics.
 - Deep runs add a fixed two-role Coverage Panel after specialist analysis and before critique.
   Market overviews use regime and mover-theme roles; instrument runs use instrument-evidence and
   market-behavior roles. The two roles run concurrently and are persisted in deterministic order.
-- A quick-model playbook-selection stage chooses checked-in Domain Playbooks from an allowlisted
-  registry with stage/run caps. Invalid selections are trace-only rejections.
-- Always-on discipline playbooks are injected deterministically for synthesis and research
-  critique where configured.
+- Domain Playbook selection deterministically includes every eligible candidate for each planned
+  stage plus existing mandatory discipline and subject selections, including always-on synthesis
+  discipline and research critique discipline where configured, without selector model calls or
+  selection caps. The selector consumed 4.94% of tokens and selections were near-fixed in 10/10
+  deep-equity runs.
 - Model stages receive normalized evidence and prior stage output, never authority to widen tools,
   source scope, prediction subjects, or persistence behavior.
 - Every produced model-stage output records the positive monotonic-clock duration of its model

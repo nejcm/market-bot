@@ -208,9 +208,8 @@ does when it parses and returns no candidates.
 
 The five statuses are not a clean taxonomy and will mislead if read as one. Each records how that
 subsystem's own producer classified its situation, so the same condition can map differently across
-subsystems: a Domain Playbook selector returning malformed JSON is `declined` under
-`selection-rejected` rather than `failed`, and a missing Exa credential skips Web Gather as
-`declined` while a lane-local missing credential is `blocked`. The code beside the status is the
+subsystems: a missing Exa credential skips Web Gather as `declined` while a lane-local
+missing credential is `blocked`. The code beside the status is the
 specific part — it distinguishes acquired-but-unusable output and lane-local causes. Reading
 `empty` as nothing accepted is what keeps `expectedEmptyCount` an accurate name for every row it
 counts. It is run telemetry, not a Diagnostic Gap.
@@ -299,7 +298,7 @@ Market-level evidence that enriches a Market Overview without targeting an Instr
 
 ## Domain Playbook
 
-Checked-in guidance selected after collection and any deterministic deep-equity packet merge. It steers downstream stages without fetching data, changing schema, or trading behavior; research deterministically includes thematic and subject-matched playbooks.
+Checked-in guidance selected deterministically after collection and any deterministic deep-equity packet merge. Every planned stage receives all eligible playbooks plus mandatory discipline and subject selections, without a selector model call. It steers downstream stages without fetching data, changing schema, or trading behavior; `trace.domainPlaybooks` records what was injected.
 
 ## Mover
 

@@ -105,7 +105,6 @@ describe("runResearchJob pipeline stages", () => {
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
       { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
-      { model: "combo-quick", params: { temperature: 0.2, reasoningEffort: "low" } },
       { model: "combo-synthesis", params: { temperature: 0.2, reasoningEffort: "high" } },
     ]);
     expect(result.trace.quickModel).toBe("combo-quick");
@@ -226,7 +225,6 @@ describe("runResearchJob pipeline stages", () => {
     expect(result.trace.stages).toEqual([
       "source-collection",
       "spotlight-selection",
-      "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
@@ -235,7 +233,6 @@ describe("runResearchJob pipeline stages", () => {
     ]);
     expect(result.stageOutputs.map((output) => output.stage)).toEqual([
       "spotlight-selection",
-      "playbook-selection",
       "specialist-analysis",
       "regime-context-analysis",
       "mover-theme-analysis",
@@ -312,8 +309,8 @@ describe("runResearchJob pipeline stages", () => {
         prompts.push(prompt);
         return {
           content:
-            prompt.stage === "evidence-request" || prompt.stage === "playbook-selection"
-              ? JSON.stringify({ selections: [], requests: [] })
+            prompt.stage === "evidence-request"
+              ? JSON.stringify({ requests: [] })
               : modelReport("AAPL"),
           tokenEstimate: 100,
           costEstimateUsd: 0.01,
@@ -478,13 +475,6 @@ describe("runResearchJob pipeline stages", () => {
             costEstimateUsd: 0.01,
           };
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 100,
-            costEstimateUsd: 0.01,
-          };
-        }
         return {
           content: modelReport("AAPL"),
           tokenEstimate: 100,
@@ -516,7 +506,7 @@ describe("runResearchJob pipeline stages", () => {
       | undefined;
 
     expect(stageNames.indexOf("spotlight-selection")).toBeLessThan(
-      stageNames.indexOf("playbook-selection"),
+      stageNames.indexOf("specialist-analysis"),
     );
     expect(spotlightPrompt?.candidates?.[0]?.history?.tickerRunIds).toEqual(["prior-aapl-ticker"]);
     expect(result.trace.spotlightSelection).toMatchObject({
@@ -632,19 +622,6 @@ describe("runResearchJob pipeline stages", () => {
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({
-              rationale: "ticker evidence needs instrument and critique playbooks",
-              selections: [
-                { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
-                { stage: "critique", playbookIds: ["critique-discipline"] },
-              ],
-            }),
-            tokenEstimate: 100,
-            costEstimateUsd: 0.01,
-          };
-        }
         return {
           content: modelReport("AAPL", "extended-sec-edgar-aapl-10q"),
           tokenEstimate: 100,
@@ -670,12 +647,6 @@ describe("runResearchJob pipeline stages", () => {
       sourceRetryDelaysMs: [],
       now: new Date("2026-05-19T00:00:00.000Z"),
     });
-    const selectorPrompt = prompts.find((prompt) => prompt.stage === "playbook-selection") as
-      | {
-          readonly evidenceCategories?: readonly string[];
-          readonly plannedStages?: readonly string[];
-        }
-      | undefined;
     const specialistPrompt = prompts.find((prompt) => prompt.stage === "specialist-analysis") as
       | {
           readonly domainPlaybooks?: readonly { readonly id?: string }[];
@@ -692,32 +663,38 @@ describe("runResearchJob pipeline stages", () => {
         }
       | undefined;
 
-    expect(selectorPrompt?.evidenceCategories).toContain("sec-edgar");
-    expect(selectorPrompt?.plannedStages).toEqual([
-      "specialist-analysis",
-      "instrument-evidence-analysis",
-      "market-behavior-analysis",
-      "critique",
-      "final-synthesis",
-    ]);
     expect(specialistPrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
       "instrument-evidence",
     ]);
     expect(critiquePrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
+      "instrument-evidence",
+      "market-behavior",
       "critique-discipline",
     ]);
     expect(finalPrompt?.domainPlaybooks?.map((playbook) => playbook.id)).toEqual([
       "synthesis-discipline",
+      "instrument-evidence",
+      "market-behavior",
     ]);
     expect(result.trace.domainPlaybooks).toMatchObject({
       selected: [
-        { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
         { stage: "specialist-analysis", playbookIds: ["instrument-evidence"] },
-        { stage: "critique", playbookIds: ["critique-discipline"] },
+        { stage: "instrument-evidence-analysis", playbookIds: ["instrument-evidence"] },
+        { stage: "market-behavior-analysis", playbookIds: ["market-behavior"] },
+        {
+          stage: "critique",
+          playbookIds: ["instrument-evidence", "market-behavior", "critique-discipline"],
+        },
+        {
+          stage: "final-synthesis",
+          playbookIds: ["synthesis-discipline", "instrument-evidence", "market-behavior"],
+        },
       ],
       rejected: [],
     });
-    expect(result.trace.stages).toContain("playbook-selection");
+    expect(result.trace.stages).not.toContain("playbook-selection");
+    expect(prompts.map((prompt) => prompt.stage)).not.toContain("playbook-selection");
+    expect(result.trace.domainPlaybooks.rationale).toContain("Deterministic");
     expect(result.trace.tokenEstimate).toBe(
       result.stageOutputs.reduce((total, output) => total + output.tokenEstimate, 0),
     );
@@ -728,55 +705,6 @@ describe("runResearchJob pipeline stages", () => {
         .filter((cost): cost is number => cost !== undefined)
         .reduce((total, cost) => total + cost, 0),
     );
-  });
-
-  test("continues when playbook selector returns invalid choices", async () => {
-    const provider: ModelProvider = {
-      name: "mock",
-      generate: async (request) => {
-        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
-        return {
-          content:
-            prompt.stage === "playbook-selection"
-              ? JSON.stringify({
-                  rationale: "bad choices",
-                  selections: [
-                    { stage: "evidence-request", playbookIds: ["market-regime"] },
-                    { stage: "critique", playbookIds: ["unknown-playbook"] },
-                  ],
-                })
-              : modelReport(),
-          tokenEstimate: 100,
-          costEstimateUsd: 0.01,
-        };
-      },
-    };
-
-    const result = await runResearchJob({
-      command: legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" }),
-      config,
-      provider,
-      collectedSources: collectedSourceBundle({
-        rawSnapshots: [],
-        marketSnapshots,
-        newsSources,
-        sourceGaps: [],
-      }),
-      now: new Date("2026-05-19T00:00:00.000Z"),
-    });
-
-    expect(result.report.summary).toBe("AAPL evidence is sourced.");
-    expect(result.trace.domainPlaybooks.selected).toEqual([
-      { stage: "final-synthesis", playbookIds: ["synthesis-discipline"] },
-    ]);
-    expect(result.trace.domainPlaybooks.rejected).toEqual([
-      { stage: "evidence-request", reason: "invalid stage" },
-      {
-        stage: "critique",
-        playbookId: "unknown-playbook",
-        reason: "playbook is not eligible",
-      },
-    ]);
   });
 
   test("emits non-blocking post-synthesis audit warnings", async () => {
@@ -790,40 +718,28 @@ describe("runResearchJob pipeline stages", () => {
     });
     const provider: ModelProvider = {
       name: "mock",
-      generate: async (request) => {
-        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 100,
-            costEstimateUsd: 0.01,
-          };
-        }
-        return {
-          content: JSON.stringify({
-            summary: "AAPL evidence is sourced.",
-            keyFindings: [
-              { text: "Sector RSI14 is 70.", sourceIds: ["history-report-prior-aapl"] },
-            ],
-            bullCase: [{ text: "Evidence supports the setup.", sourceIds: ["market-aapl"] }],
-            bearCase: [{ text: "Coverage remains incomplete.", sourceIds: ["market-aapl"] }],
-            risks: [{ text: "Source coverage can change.", sourceIds: ["market-aapl"] }],
-            catalysts: [{ text: "New evidence is visible.", sourceIds: ["market-aapl"] }],
-            scenarios: [
-              {
-                name: "Base",
-                description: "Evidence remains relevant.",
-                sourceIds: ["market-aapl"],
-              },
-            ],
-            confidence: "medium",
-            dataGaps: [],
-            predictions: mockPredictions(6, "AAPL"),
-          }),
-          tokenEstimate: 100,
-          costEstimateUsd: 0.01,
-        };
-      },
+      generate: async () => ({
+        content: JSON.stringify({
+          summary: "AAPL evidence is sourced.",
+          keyFindings: [{ text: "Sector RSI14 is 70.", sourceIds: ["history-report-prior-aapl"] }],
+          bullCase: [{ text: "Evidence supports the setup.", sourceIds: ["market-aapl"] }],
+          bearCase: [{ text: "Coverage remains incomplete.", sourceIds: ["market-aapl"] }],
+          risks: [{ text: "Source coverage can change.", sourceIds: ["market-aapl"] }],
+          catalysts: [{ text: "New evidence is visible.", sourceIds: ["market-aapl"] }],
+          scenarios: [
+            {
+              name: "Base",
+              description: "Evidence remains relevant.",
+              sourceIds: ["market-aapl"],
+            },
+          ],
+          confidence: "medium",
+          dataGaps: [],
+          predictions: mockPredictions(6, "AAPL"),
+        }),
+        tokenEstimate: 100,
+        costEstimateUsd: 0.01,
+      }),
     };
 
     const result = await runResearchJob({
@@ -888,15 +804,7 @@ describe("runResearchJob pipeline stages", () => {
     });
     const provider: ModelProvider = {
       name: "mock",
-      generate: async (request) => {
-        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 100,
-            costEstimateUsd: 0.01,
-          };
-        }
+      generate: async () => {
         // The last prediction becomes a range forecast whose canonical claim
         // Renders numeric bounds, supported only by a history source (not
         // Eligible support), so the Report Integrity Audit must prune it

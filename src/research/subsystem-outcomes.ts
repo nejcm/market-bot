@@ -48,7 +48,6 @@ type NonSourceGapSubsystemOutcomeCode =
   | "spotlights-selected"
   | "no-playbooks-selected"
   | "playbooks-selected"
-  | "selection-rejected"
   | "final-synthesis-rejected"
   | "gate-code-missing"
   | "audit-complete";
@@ -106,7 +105,6 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "spotlights-selected": true,
   "no-playbooks-selected": true,
   "playbooks-selected": true,
-  "selection-rejected": true,
   "final-synthesis-rejected": true,
   improved: true,
   "declined-empty": true,
@@ -534,25 +532,12 @@ function playbookOutcome(input: BuildSubsystemOutcomesInput): WrittenSubsystemOu
     (count, selection) => count + selection.playbookIds.length,
     0,
   );
-  let outcome: SubsystemOutcomeStatus = "empty";
-  let code: SubsystemOutcomeCode = "no-playbooks-selected";
-  if (selectedCount > 0) {
-    outcome = "produced";
-    code = "playbooks-selected";
-  } else if (input.playbookAudit.rejected.length > 0) {
-    outcome = "declined";
-    code = "selection-rejected";
-  }
   return {
     subsystem: "domain-playbook-selection",
     expectation: "expected",
-    outcome,
-    code,
-    stage: "playbook-selection",
+    outcome: selectedCount > 0 ? "produced" : "empty",
+    code: selectedCount > 0 ? "playbooks-selected" : "no-playbooks-selected",
     count: selectedCount,
-    ...(input.playbookAudit.rejected.length > 0
-      ? { detail: { rejectedCount: input.playbookAudit.rejected.length } }
-      : {}),
   };
 }
 

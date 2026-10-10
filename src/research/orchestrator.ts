@@ -45,22 +45,15 @@ import {
 import { createSanitizedHistoricalContextReader } from "./historical-context-sanitization";
 import { buildForecastPersistence } from "./forecast-persistence";
 import {
-  eligiblePlaybookCandidates,
   loadPlaybookRegistry,
   loadPlaybooksByStage,
-  mandatoryPlaybookSelections,
-  parsePlaybookSelection,
   playbookScopeWithSubjectKey,
+  selectPlaybooks,
   type PlaybookSelectionAudit,
   type PlaybookStage,
 } from "./playbooks";
 import { refreshCalibrationContext } from "./calibration-context";
-import {
-  buildPlaybookSelectionPrompt,
-  buildRecordedStageSteering,
-  buildStagePrompt,
-  type StageInput,
-} from "./prompts";
+import { buildRecordedStageSteering, buildStagePrompt, type StageInput } from "./prompts";
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
@@ -338,7 +331,6 @@ async function runPlaybookSelection(
   context: ResearchContext,
   plannedStages: readonly PlaybookStage[],
 ): Promise<{
-  readonly output: StageOutput;
   readonly audit: PlaybookSelectionAudit;
   readonly context: ResearchContext;
 }> {
@@ -347,60 +339,13 @@ async function runPlaybookSelection(
     input.command,
     collectedSources.resolvedSubject?.subjectKey,
   );
-  const candidates = eligiblePlaybookCandidates(scope, plannedStages, registry);
-  const loaded = await loadStagePrompt("playbook-selection", input.command, input.config.promptDir);
-  const prompt = buildPlaybookSelectionPrompt(
-    input.command,
-    collectedSources,
-    context,
-    loaded,
-    plannedStages,
-    candidates,
-  );
-  const startedAt = performance.now();
-  const response = await input.provider.generate({
-    model: context.runParams.quickModel,
-    ...(context.runParams.quickModelParams !== undefined
-      ? { params: context.runParams.quickModelParams }
-      : {}),
-    responseFormat: "json",
-    messages: [
-      {
-        role: "system",
-        content: withUntrustedModelInputRule(loaded.system),
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  });
-  const endedAt = performance.now();
-  const audit = parsePlaybookSelection(
-    response.content,
-    candidates,
-    mandatoryPlaybookSelections(scope, plannedStages, candidates, registry),
-  );
+  const audit = selectPlaybooks(scope, plannedStages, registry);
   const domainPlaybooks = await loadPlaybooksByStage(
     input.config.promptDir,
     registry,
     audit.selected,
   );
-
-  return {
-    output: {
-      stage: "playbook-selection",
-      content: response.content,
-      tokenEstimate: response.tokenEstimate,
-      durationMs: Math.max(endedAt - startedAt, Number.EPSILON),
-      ...(response.costEstimateUsd !== undefined
-        ? { costEstimateUsd: response.costEstimateUsd }
-        : {}),
-      ...(response.costPricing !== undefined ? { costPricing: response.costPricing } : {}),
-    },
-    audit,
-    context: { ...context, domainPlaybooks },
-  };
+  return { audit, context: { ...context, domainPlaybooks } };
 }
 
 function stageCostPricing(stageOutputs: readonly StageOutput[]): readonly CostPricing[] {
@@ -741,7 +686,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   );
   const playbookContext = playbookSelection.context;
   const playbookAudit: PlaybookSelectionAudit = playbookSelection.audit;
-  const playbookSelectionOutput = playbookSelection.output;
   progress(`analysis phase (${String(plannedStages.length)} planned stage(s))`);
   const reasoning = await runAnalysisPhase({
     command,
@@ -801,7 +745,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
         ...webGatherLoop.stageOutputs,
         ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
         ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
-        ...(playbookSelectionOutput === undefined ? [] : [playbookSelectionOutput]),
         ...analysisOutputs,
         critiqueOutput,
         ...error.stageOutputs,
@@ -910,7 +853,6 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
     ...webGatherLoop.stageOutputs,
     ...(webSubjectProfile?.output === undefined ? [] : [webSubjectProfile.output]),
     ...(spotlightOutput === undefined ? [] : [spotlightOutput]),
-    ...(playbookSelectionOutput === undefined ? [] : [playbookSelectionOutput]),
     ...analysisOutputs,
     critiqueOutput,
     ...synthesis.stageOutputs,

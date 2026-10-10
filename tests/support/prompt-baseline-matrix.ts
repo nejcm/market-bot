@@ -7,7 +7,6 @@ import type {
 } from "../../src/research/research-context-types";
 import { buildDepthProfile } from "../../src/research/depth-profile";
 import {
-  buildPlaybookSelectionPrompt,
   buildSpotlightSelectionPrompt,
   buildStagePrompt,
   buildStageSteeringSegment,
@@ -17,7 +16,6 @@ import {
 } from "../../src/research/prompts";
 import type { LoadedPrompt, StageLabel } from "../../src/research/prompt-loader";
 import type { HistoricalResearchContext } from "../../src/research/historical-context";
-import type { PlaybookCandidate, PlaybookStage } from "../../src/research/playbooks";
 import type { SpotlightCandidate, SpotlightSelectionResult } from "../../src/research/spotlights";
 import type { BusinessFrameworkArtifact } from "../../src/sources/extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../../src/web-evidence";
@@ -464,17 +462,6 @@ const GENERIC_STAGES: readonly StageLabel[] = [
   "forecast-disagreement",
 ];
 
-const playbookCandidates: readonly PlaybookCandidate[] = [
-  {
-    id: "critique-discipline",
-    title: "Critique Discipline",
-    summary: "Stress-test weak claims.",
-    eligibleStages: ["critique"],
-  },
-];
-
-const plannedStages: readonly PlaybookStage[] = ["specialist-analysis", "critique"];
-
 export interface PromptBaselineCase {
   readonly key: string;
   readonly text: string;
@@ -602,17 +589,6 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
     ),
   );
 
-  add(
-    "selector:playbook-selection",
-    buildPlaybookSelectionPrompt(
-      equityCommand,
-      richEquitySources(),
-      equityContext(),
-      loadedPrompt,
-      plannedStages,
-      playbookCandidates,
-    ),
-  );
   add(
     "selector:spotlight-selection",
     buildSpotlightSelectionPrompt(

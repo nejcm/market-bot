@@ -180,6 +180,7 @@ const historicalContext = {
       generatedAt: "2026-05-20T00:00:00.000Z",
       jobType: "equity",
       summary: "Prior thesis summary.",
+      predictions: [],
     },
   ],
   gaps: ["Sparse history"],

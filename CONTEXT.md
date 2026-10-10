@@ -188,7 +188,7 @@ Curated prior-state readback: Historical Research Context, history CLI, Instrume
 
 ## Historical Research Context
 
-Artifact-backed prompt and user-facing context from prior reports, Sources, Predictions, theses, gaps, extras, and selected numeric snapshots. Selection records recency, topical, and miss-correction reasons; it informs wording, calibration, and comparison, not Prediction count or horizons.
+Artifact-backed prompt and user-facing context from prior reports, Sources, Predictions, theses, gaps, extras, and selected numeric snapshots. Selection records recency, topical, and miss-correction reasons; it informs wording, calibration, and comparison, not Prediction count or horizons. Prompts list only resolved prior Predictions as rows; pending ones are counted, not listed.
 
 ## Run Artifact
 

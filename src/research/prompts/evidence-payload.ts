@@ -12,7 +12,7 @@ import {
   verifiedSnapshotCitationRule,
   verifiedSnapshotSourceId,
 } from "../verified-snapshot-contract";
-import type { HistoricalResearchContext } from "../historical-context";
+import type { HistoricalResearchContext, HistoricalRunContext } from "../historical-context";
 import type { ResearchContext } from "../research-context-types";
 import {
   buildMarketForecastErrorBlock,
@@ -363,6 +363,15 @@ function historicalRunsForGapView(
   return changed ? projectedRuns : runs;
 }
 
+// Pending prior forecasts are counted, not shown as rows; scoreSummary misses never-scored ones.
+function withResolvedPredictionsOnly(
+  run: HistoricalRunContext,
+): HistoricalRunContext & { readonly pendingPredictionCount?: number } {
+  const predictions = run.predictions.filter((prediction) => prediction.scoreStatus === "resolved");
+  const pendingPredictionCount = run.predictions.length - predictions.length;
+  return pendingPredictionCount === 0 ? run : { ...run, predictions, pendingPredictionCount };
+}
+
 export function compactHistoricalContext(
   context: HistoricalResearchContext,
   sourceGapView: SourceGapView,
@@ -372,7 +381,9 @@ export function compactHistoricalContext(
     recentDays: context.recentDays,
     anchorMonths: context.anchorMonths,
     sourceIds: context.sources.map((source) => source.id),
-    runs: historicalRunsForGapView(context.runs, sourceGapView),
+    runs: historicalRunsForGapView(context.runs, sourceGapView).map((run) =>
+      withResolvedPredictionsOnly(run),
+    ),
     gaps: context.gaps,
     audit: context.audit,
     artifactDeltas: context.artifactDeltas,

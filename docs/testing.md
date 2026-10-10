@@ -191,9 +191,11 @@ fixtures (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-
 upstream outputs.
 
 `equity-amd-deep` is an eval-only fixture. Unlike the fixtures listed above, it is not replayed by
-`bun run check` and carries no invariant assertions: its real source run fails invariant C15 (the
-Item 2.02 evidence retains the EX-99.2 slide deck, and its truncated ~3,000-character snippet stops
-before any results content, though the full deck has it).
+`bun run check` and carries no invariant assertions because it fails invariant C15. Since
+`bd4d4aa2` the replay requests the Q2 8-K EX-99.1 (`q22026991.htm`), which the source run never
+fetched, so the cassette misses it and the Item 2.02 evidence falls back to the EX-99.2 slide-deck
+snippet, which stops before any results content. Rebuild it with `scripts/fixture-from-cache.ts` from
+a later AMD deep run that has cached the EX-99.1.
 `scripts/fixture-from-cache.ts` converted it offline from that run's `data/cache` entries and
 `stages.json`, throwing on any request without a cache hit. It is not a faithful replay: the
 web-subject-profile output is borrowed from an earlier run, history and news-seen state are empty,

@@ -586,6 +586,11 @@ without pretending the project has a global security master.
   Diluted-EPS TTM remains approximate when share counts vary across component periods. Because each
   period independently selects its latest-filed fact, a TTM calculation can combine a restated
   latest YTD with a prior-year YTD that was not restated in the same filing.
+  When filings restate diluted share counts, and any per-share values with them, by one consistent
+  integer or reciprocal factor, retained periods last filed earlier whose own share count does not
+  show the new basis are declared as a `mixed-share-basis` Source Gap, never rescaled; canonical
+  and historical-valuation TTM, EPS CAGR, and prior comparisons that touch any of those periods
+  are withheld, and the share-count table and EPS history chart disclose it.
 - The canonical financial-statements artifact drives the optional equity completeness contract and
   its Phase 2 consumers. Companyfacts current-report financing coverage is limited to explicitly
   tagged standard-taxonomy proceeds and cost facts; untagged narrative disclosures remain outside

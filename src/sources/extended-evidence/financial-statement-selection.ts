@@ -133,6 +133,25 @@ export function restatedFromOriginalFiling(
     : { value: original.value, filedAt: original.filedAt };
 }
 
+export function earlierShareBasisPeriods(
+  notes: readonly FinancialStatementNote[],
+  key: FinancialStatementSeriesKey,
+): ReadonlySet<string> {
+  return new Set(
+    notes
+      .filter((note) => note.code === "earlier-share-basis" && note.seriesKey === key)
+      .map((note) => note.periodKey ?? ""),
+  );
+}
+
+// Comparisons are allowed only among periods confirmed on the latest share basis.
+export function touchesEarlierShareBasis(
+  facts: readonly Pick<FinancialStatementFact, "periodKey">[],
+  earlier: ReadonlySet<string>,
+): boolean {
+  return facts.some((fact) => earlier.has(fact.periodKey));
+}
+
 export function latestFinancialStatementFact(
   facts: readonly FinancialStatementFact[],
 ): FinancialStatementFact | undefined {

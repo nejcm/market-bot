@@ -26,6 +26,8 @@ import {
   latestCommonFinancialStatementFacts,
   latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
+  earlierShareBasisPeriods,
+  touchesEarlierShareBasis,
   unadjustedLeaseInclusiveDebt,
 } from "./financial-statement-selection";
 
@@ -134,12 +136,14 @@ export type SecMetricKey =
 function priorComparable(
   series: FinancialStatementSeries,
   selected: FinancialStatementFact,
+  earlierShareBasis: ReadonlySet<string>,
 ): FinancialStatementFact | undefined {
   const months = financialStatementPeriodMonths(selected);
   return latestFinancialStatementFact(
     financialStatementFacts(series).filter(
       (fact) =>
         fact.periodEnd < selected.periodEnd &&
+        !touchesEarlierShareBasis([fact, selected], earlierShareBasis) &&
         fact.basis === selected.basis &&
         fact.concept === selected.concept &&
         financialStatementPeriodMonths(fact) === months &&
@@ -160,6 +164,7 @@ function addFactMetrics(
   key: CanonicalFactMetricKey,
   fact: FinancialStatementFact | undefined,
   series: FinancialStatementSeries,
+  earlierShareBasis: ReadonlySet<string> = new Set(),
 ): void {
   if (fact === undefined) {
     return;
@@ -177,7 +182,7 @@ function addFactMetrics(
   if (months !== undefined) {
     metrics[`${key}PeriodMonths`] = months;
   }
-  const prior = priorComparable(series, fact);
+  const prior = priorComparable(series, fact, earlierShareBasis);
   if (prior !== undefined) {
     metrics[`${key}Prior`] = prior.value;
     if (prior.value !== 0) {
@@ -337,7 +342,13 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       fact === undefined ||
       fact.periodEnd >= totalPeriodEnd
     ) {
-      addFactMetrics(metrics, metricKey, fact, series);
+      addFactMetrics(
+        metrics,
+        metricKey,
+        fact,
+        series,
+        earlierShareBasisPeriods(artifact.omissionNotes, seriesKey),
+      );
     }
     return [metricKey, series] as const;
   });

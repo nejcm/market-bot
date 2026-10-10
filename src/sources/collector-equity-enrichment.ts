@@ -43,7 +43,7 @@ import {
   collectFinancialStatements,
   deriveFinancialStatements,
   financialStatementsDebtBasisGaps,
-  financialStatementsStaleConceptGaps,
+  financialStatementsHistoryGaps,
 } from "./extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
@@ -421,7 +421,7 @@ export async function collectEquityEnrichment(
         : [
             ...financialStatementsDebtBasisGaps(financialStatements),
             ...cashConversionScopeGaps(financialStatements),
-            ...financialStatementsStaleConceptGaps(financialStatements),
+            ...financialStatementsHistoryGaps(financialStatements),
           ],
     reportingFreshness,
     subsequentFinancing,

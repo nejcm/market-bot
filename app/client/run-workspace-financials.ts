@@ -218,6 +218,16 @@ export function fundamentalHistoryView(
       key === "dilutedEps" && latest.form === "TTM"
         ? series.notes.find((note) => note.startsWith("ttm:eps-approximation:"))
         : undefined;
+    const disclosures = [
+      ...(epsTtmApproximation === undefined
+        ? []
+        : [
+            "Approximation: diluted EPS TTM adds per-share periods without reweighting diluted shares.",
+          ]),
+      ...(series.notes.some((note) => note.startsWith("share-basis:mixed:"))
+        ? ["Earlier EPS points are on an earlier or unconfirmed share basis and are not adjusted."]
+        : []),
+    ];
     return [
       {
         key,
@@ -233,10 +243,9 @@ export function fundamentalHistoryView(
         periodEnd: latest.periodEnd,
         filedAt: latest.filedAt,
         pointCount: points.length,
-        ...(epsTtmApproximation !== undefined
+        ...(disclosures.length > 0
           ? {
-              disclosure:
-                "Approximation: diluted EPS TTM adds per-share periods without reweighting diluted shares.",
+              disclosure: disclosures.join(" "),
             }
           : {}),
         ...(key === "freeCashFlowProxy" && cashFlowScope !== undefined

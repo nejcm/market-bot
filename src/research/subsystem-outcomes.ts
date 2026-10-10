@@ -114,6 +114,7 @@ const SUBSYSTEM_OUTCOME_CODE_TABLE = {
   "evidence-quality-ineligible": true,
   "target-zero": true,
   "target-met": true,
+  "floor-met": true,
   "subject-ineligible": true,
   "gate-code-missing": true,
   "audit-complete": true,

@@ -36,6 +36,10 @@ Run params resolve via the fallback chain in
 3. Profile block from `src/config/runs/profiles/*.ts`.
 4. The profile's `deep:` sub-block when `depth === "deep"`.
 
+`predictionCompletionFloor` defaults to the resolved `targetPredictions`. Forecast Completion
+runs only below that floor and requests up to `targetPredictions - count` additions.
+Prediction Shortfall remains measured against `targetPredictions`.
+
 Run key mapping (`toRunKey`):
 
 - `equity` / `crypto` &rarr; `equity` / `crypto`.
@@ -226,16 +230,17 @@ Command shape: `InstrumentCommand` with `jobType: "equity"`,
 Run key `equity` &rarr; `INSTRUMENT_RUN_PARAMS` profile in
 `src/config/runs/profiles/shared.ts`.
 
-| Param                      | Brief                                | Deep                                    |
-| -------------------------- | ------------------------------------ | --------------------------------------- |
-| `minimumKeyFindings`       | 4                                    | 6                                       |
-| `minimumScenarios`         | 1                                    | 3                                       |
-| `targetPredictions`        | 3                                    | 5                                       |
-| `defaultPredictionHorizon` | 5                                    | 5                                       |
-| `predictionSubjects`       | `[symbol]`                           | `[symbol]`                              |
-| `focus`                    | thesis, evidence, risks, data gaps   | + catalysts, bull/bear cases, scenarios |
-| `analystStyle`             | concise brief                        | fuller analyst-style                    |
-| `targetKindMix`            | relative/range, `minNonDirection: 1` | `minNonDirection: 2`                    |
+| Param                       | Brief                                | Deep                                    |
+| --------------------------- | ------------------------------------ | --------------------------------------- |
+| `minimumKeyFindings`        | 4                                    | 6                                       |
+| `minimumScenarios`          | 1                                    | 3                                       |
+| `targetPredictions`         | 3                                    | 3                                       |
+| `predictionCompletionFloor` | 3                                    | 2                                       |
+| `defaultPredictionHorizon`  | 5                                    | 5                                       |
+| `predictionSubjects`        | `[symbol]`                           | `[symbol]`                              |
+| `focus`                     | thesis, evidence, risks, data gaps   | + catalysts, bull/bear cases, scenarios |
+| `analystStyle`              | concise brief                        | fuller analyst-style                    |
+| `targetKindMix`             | relative/range, `minNonDirection: 1` | `minNonDirection: 2`                    |
 
 ### Data Collected
 
@@ -321,8 +326,8 @@ market-bot crypto <symbol> [--deep]
 
 ### Config
 
-Run key `crypto` &rarr; dedicated crypto instrument profile. Current defaults
-match the equity instrument profile, but the profiles are independently owned.
+Run key `crypto` &rarr; dedicated crypto instrument profile. Brief defaults match
+equity; deep crypto retains a target and completion floor of 5.
 
 ### Data Collected
 
@@ -661,8 +666,10 @@ prompt modules) builds a JSON prompt containing:
 2. Parses predictions and validates them against known source IDs and allowed
    subjects.
 3. Up to 2 reprompts for hard prediction errors.
-4. One replacement attempt if redundant trims dropped the count below target.
-5. If report assembly throws, retries final-synthesis with validation errors.
+4. If report assembly throws, retries final-synthesis with validation errors.
+5. Once valid, one Forecast Completion Pass if the accepted count is below the completion
+   floor and the evidence and subject gates permit it. At or above target skips with
+   `target-met`; at or above floor but below target skips with `floor-met`.
 6. Post-synthesis audit runs but is warning-only telemetry.
 
 ---

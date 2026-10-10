@@ -57,7 +57,7 @@ research boundaries without sharing persistence or scoring semantics.
   bounded to the twelve most recent distinct errors. Retry failure messages report the actual
   final-synthesis call count and count only genuine report-repair call sites as report-repair
   reprompts.
-- When high- or medium-evidence synthesis leaves the report short of its prediction target, one
+- When high- or medium-evidence synthesis leaves the report below its completion floor (ADR 0003), one
   best-effort completion pass may add predictions only. It is prompted with a distilled context —
   the first-attempt report narrative, the critique stage output, and a compact source index
   (id/title/fetchedAt/url/publisher/snippet) plus deterministic forecast anchors required by the

@@ -616,6 +616,23 @@ describe("Subsystem Outcomes", () => {
     }
   });
 
+  test("reads and rolls up floor-met completion skips", () => {
+    const outcomes = buildSubsystemOutcomes({
+      ...baseWebGatherInput,
+      predictionCompletionSkipCode: "floor-met",
+      forecastDisagreementCode: "not-configured",
+    });
+    const completion = outcomes.find((item) => item.subsystem === "prediction-completion");
+    expect(completion).toMatchObject({
+      expectation: "not-applicable",
+      outcome: "declined",
+      code: "floor-met",
+      count: 0,
+    });
+    expect(isSubsystemOutcome(completion)).toBe(true);
+    expect(rollupSubsystemOutcomes(outcomes).byCode["floor-met"]).toBe(1);
+  });
+
   test("marks SEC-dependent deep-equity work blocked", () => {
     const outcomes = buildSubsystemOutcomes({
       sourcePlan: {

@@ -140,7 +140,7 @@ Soft prompt guidance for direction, relative, range, volatility, earnings, and c
 
 ## Forecast Completion Pass
 
-Best-effort predictions-only pass after a valid high/medium-evidence report falls below its soft target. It retains the report and merges only additional valid, cited, on-subject, non-redundant, non-near-base-rate candidates from distilled narrative, critique, source index, and deterministic anchors; failure yields a deterministic shortfall.
+Best-effort predictions-only pass after a valid high/medium-evidence report falls below its `predictionCompletionFloor`, which defaults to its soft target. Deep equity uses a floor of 2 and a target of 3. When eligible, the pass requests up to `targetPredictions - count` additions. It retains the report and merges only additional valid, cited, on-subject, non-redundant, non-near-base-rate candidates from distilled narrative, critique, source index, and deterministic anchors; failure yields a deterministic shortfall against the target.
 
 ## Stage Duration
 

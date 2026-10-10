@@ -159,7 +159,7 @@ function matchingMarketSnapshot(
   );
 }
 
-const MAX_PREDICTION_REPROMPTS = 2;
+export const MAX_PREDICTION_REPROMPTS = 2;
 
 function forecastDisagreementModels(
   input: RunResearchJobInput,

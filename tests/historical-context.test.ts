@@ -172,9 +172,7 @@ describe("loadHistoricalContext", () => {
       scoreStatus: "resolved",
       scoreOutcome: "hit",
     });
-    expect(context.runs[0]?.dataGaps).toEqual([
-      "emitted 1 of 3 target predictions; evidence did not support more",
-    ]);
+    expect(context.runs[0]?.dataGaps).toEqual(["emitted 1 of 3 target predictions"]);
     expect(context.runs[1]?.marketSnapshots.map((snapshot) => snapshot.symbol)).toEqual(["AAPL"]);
     expect(context.sources.map((source) => source.id)).toEqual([
       "history-report-ticker-recent",

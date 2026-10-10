@@ -8,7 +8,11 @@ import type { ModelProvider } from "../../../src/model/types";
 import { knownSourceIds } from "../../../src/report/markdown-primitives";
 import { readGapTriage } from "../../../src/report/gap-triage";
 import type { RunAnalytics } from "../../../src/research/run-analytics";
-import type { StageOutput } from "../../../src/research/final-synthesis";
+import {
+  MAX_REPORT_VALIDATION_REPROMPTS,
+  type StageOutput,
+} from "../../../src/research/final-synthesis";
+import { MAX_PREDICTION_REPROMPTS } from "../../../src/research/orchestrator";
 import { readAnalytics } from "../../../src/run-artifact-analytics-reader";
 import { readJsonFile } from "../../../src/run-artifact-json-reader";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
@@ -16,7 +20,10 @@ import { readSourceGaps } from "../../../src/run-artifact-report-reader";
 import { loadRunArtifact, type RunArtifact } from "../../../src/run-artifacts";
 import type { FetchLike } from "../../../src/sources/types";
 import { makeReplayFetch } from "./data-cassette";
-import { loadFixture, runFixture } from "./index";
+import { createProvider } from "../../../src/model/factory";
+import { createLiveFixtureConfig, loadFixture, runFixture } from "./index";
+import type { LIVE_STAGE } from "./llm-cassette";
+import { makeFinalSynthesisLiveProvider } from "./llm-cassette";
 
 export const EVALS_ROOT = join(import.meta.dir, "../../../data/evals");
 const EVAL_SAMPLE_FILE = "eval-sample.json";
@@ -27,6 +34,11 @@ const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 const LANGUAGE_GATE_ERROR = "trade-action language";
 // AGENTS.md: a deep live equity run is ~438k tokens; synthetic cassettes record far less.
 const LIVE_DEEP_RUN_TOKENS = 438_000;
+// Initial call, prediction reprompts, the report retry and its prediction follow-up, report repairs.
+const MAX_FINAL_SYNTHESIS_CALLS =
+  1 + MAX_PREDICTION_REPROMPTS + 2 + MAX_REPORT_VALIDATION_REPROMPTS;
+// Recorded deep fixtures spend ~37k–46k per synthesis call; synthetic cassettes record ~100.
+const LIVE_SYNTHESIS_CALL_TOKENS = 50_000;
 // Metric groups are keyed by the first dotted segment; an unavailable group is excluded from compare.
 const METRIC_GROUPS = [
   "durationMs",
@@ -76,6 +88,7 @@ export interface EvalSampleInput {
   readonly llm: "replay" | "live";
   readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
+  readonly liveStages?: typeof LIVE_STAGE;
 }
 
 export interface EvalSampleResult extends EvalSampleRecord {
@@ -159,13 +172,22 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
   );
   const startedAt = performance.now();
   const restoreEnv = disableIndexAccess();
-  const runError = await runFixture(input.fixture, {
-    llm: input.llm,
-    dataDir,
-    keepDataDir: true,
-    fetchImpl,
-    ...(input.provider !== undefined ? { provider: input.provider } : {}),
-  })
+  const runError = await (async () => {
+    const provider =
+      input.liveStages === undefined
+        ? input.provider
+        : makeFinalSynthesisLiveProvider(
+            fixture.llmCassette,
+            input.provider ?? createProvider(createLiveFixtureConfig(fixture.meta, dataDir)),
+          );
+    return runFixture(input.fixture, {
+      llm: input.llm,
+      dataDir,
+      keepDataDir: true,
+      fetchImpl,
+      ...(provider !== undefined ? { provider } : {}),
+    });
+  })()
     .then(
       () => undefined,
       (error: unknown) => error ?? new Error("Fixture run threw a nullish value"),
@@ -413,10 +435,19 @@ export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string 
 
 export async function liveTokenEstimate(
   fixture: string,
+  liveStages?: typeof LIVE_STAGE,
 ): Promise<{ readonly recorded: number; readonly perRun: number }> {
   const { llmCassette } = await loadFixture(fixture);
-  const recorded = Object.values(llmCassette.entries)
-    .flat()
-    .reduce((sum, entry) => sum + entry.tokenEstimate, 0);
-  return { recorded, perRun: Math.max(recorded, LIVE_DEEP_RUN_TOKENS) };
+  const entries = Object.entries(llmCassette.entries)
+    .filter(([key]) => liveStages === undefined || key.startsWith(`${liveStages}|`))
+    .flatMap(([, stageEntries]) => stageEntries);
+  const recorded = entries.reduce((sum, entry) => sum + entry.tokenEstimate, 0);
+  if (liveStages === undefined) {
+    return { recorded, perRun: Math.max(recorded, LIVE_DEEP_RUN_TOKENS) };
+  }
+  const perCall = Math.max(
+    LIVE_SYNTHESIS_CALL_TOKENS,
+    ...entries.map((entry) => entry.tokenEstimate),
+  );
+  return { recorded, perRun: MAX_FINAL_SYNTHESIS_CALLS * perCall };
 }

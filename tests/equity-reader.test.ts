@@ -581,7 +581,7 @@ describe("equity reader projection", () => {
 
     expect(projection.defaultView.materialGaps).toEqual([
       "Primary revenue evidence missing.",
-      "emitted 1 of 3 target predictions; evidence did not support more",
+      "emitted 1 of 3 target predictions",
     ]);
     expect(projection.appendix.diagnosticGaps).toEqual(["tradier: API token missing"]);
     expect(projection.appendix.analystEstimateDistributions).toHaveLength(3);

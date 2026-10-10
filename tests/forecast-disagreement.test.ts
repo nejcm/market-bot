@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Prediction } from "../src/domain/prediction";
 import type { ModelProvider } from "../src/model/types";
-import type { LoadedPrompt } from "../src/research/prompt-loader";
+import { type LoadedPrompt, loadStagePrompt } from "../src/research/prompt-loader";
 import {
   buildForecastDisagreementArtifact,
   disagreementBand,
@@ -112,6 +112,48 @@ describe("forecast disagreement", () => {
 
     expect(analysisAsOf).toBe(challengerReport.generatedAt);
     expect(params).toEqual({ reasoningEffort: "high" });
+  });
+
+  test("withholds primary probabilities and numeric examples from real challenger prompts", async () => {
+    const requests: string[] = [];
+    const provider: ModelProvider = {
+      name: "openai",
+      generate: async (request) => {
+        requests.push(request.messages.map((message) => message.content).join("\n"));
+        return {
+          content: JSON.stringify({ predictions: [{ id: "pred-1", probability: 0.7 }] }),
+          tokenEstimate: 10,
+        };
+      },
+    };
+
+    const result = await runForecastDisagreement({
+      generatedAt: challengerReport.generatedAt,
+      provider,
+      providerName: "openai",
+      baselineModel: "gpt-5.5",
+      challengerModels: ["gpt-5.4"],
+      loaded: await loadStagePrompt("forecast-disagreement", {
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        depth: "deep",
+      }),
+      report: challengerReport,
+    });
+
+    expect(requests).toHaveLength(1);
+    const [request = ""] = requests;
+    expect(request).not.toMatch(/"probability":\s*[0-9]/u);
+    expect(request).not.toContain("0.6");
+    expect(request).not.toContain("0.55");
+    expect(request).not.toContain("sourceIds");
+    expect(request).toContain('"measurableAs": "close(SPY, +5) > close(SPY, 0)"');
+    expect(result.artifact.participants[0]?.predictions).toEqual([
+      { predictionId: "pred-1", probability: 0.6 },
+      { predictionId: "pred-2", probability: 0.55 },
+    ]);
+    expect(predictions.map((prediction) => prediction.probability)).toEqual([0.6, 0.55]);
   });
 
   test("maps spread to neutral bands", () => {

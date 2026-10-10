@@ -158,7 +158,7 @@ test.each([
   const appendixAt = markdown.indexOf("## Appendix");
   const reader = markdown.slice(0, appendixAt);
   const appendix = markdown.slice(appendixAt);
-  const text = `emitted ${String(predictionShortfall.emittedCount)} of 5 target predictions; evidence did not support more`;
+  const text = `emitted ${String(predictionShortfall.emittedCount)} of 5 target predictions`;
 
   expect(reader).toContain(`- **Material:** ${text}`);
   expect(reader.indexOf(text)).toBeGreaterThan(reader.indexOf("Primary revenue evidence missing."));

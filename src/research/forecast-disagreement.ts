@@ -146,7 +146,7 @@ export function buildForecastDisagreementArtifact(input: {
   };
 }
 
-function buildPrompt(input: {
+export function buildForecastDisagreementPrompt(input: {
   readonly loaded: LoadedPrompt;
   readonly report: {
     readonly runId: string;
@@ -167,9 +167,21 @@ function buildPrompt(input: {
       stage: "forecast-disagreement",
       analysisAsOf: input.report.generatedAt,
       stageGoal: input.loaded.goal,
-      report: input.report,
+      report: {
+        ...input.report,
+        predictions: input.report.predictions.map(
+          ({ id, kind, subject, claim, measurableAs, horizonTradingDays }) => ({
+            id,
+            kind,
+            subject,
+            claim,
+            measurableAs,
+            horizonTradingDays,
+          }),
+        ),
+      },
       requiredShape: {
-        predictions: [{ id: "prediction-id", probability: 0.6 }],
+        predictions: [{ id: "prediction-id", probability: "<0-1>" }],
       },
     },
     undefined,
@@ -244,7 +256,7 @@ export async function runForecastDisagreement(input: {
   };
 }): Promise<ForecastDisagreementResult> {
   const knownPredictionIds = new Set(input.report.predictions.map((prediction) => prediction.id));
-  const prompt = buildPrompt({ loaded: input.loaded, report: input.report });
+  const prompt = buildForecastDisagreementPrompt({ loaded: input.loaded, report: input.report });
   const primary: ForecastDisagreementParticipant = {
     role: "primary",
     provider: input.providerName,

@@ -177,7 +177,31 @@ The replay command accepts exactly one fixture name and the optional `--live` fl
 bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base
 bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base --yes
 bun run scripts/eval-deep.ts --compare base branch
+MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label <arm> --live-stages final-synthesis
 ```
+
+`--live-stages final-synthesis` keeps final synthesis live and replays every upstream stage from
+the fixture's LLM cassette by stage name, so arms compare synthesis models on identical upstream
+outputs; replayed stage durations are zeroed in the live prompt so it is byte-identical across
+samples. A missing or exhausted upstream cassette entry throws, and because some stages swallow
+that error, any replay miss also refuses every later live call so the sample fails before spending.
+The estimate reserves the maximum final-synthesis call count (initial, prediction reprompts, report
+retries) at the larger of the biggest recorded synthesis call and ~50k tokens. Only recorded
+fixtures (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real
+upstream outputs.
+
+`equity-amd-deep` is an eval-only fixture. Unlike the fixtures listed above, it is not replayed by
+`bun run check` and carries no invariant assertions because it fails invariant C15. Since
+`bd4d4aa2` the replay requests the Q2 8-K EX-99.1 (`q22026991.htm`), which the source run never
+fetched, so the cassette misses it and the Item 2.02 evidence falls back to the EX-99.2 slide-deck
+snippet, which stops before any results content. Rebuild it with `scripts/fixture-from-cache.ts` from
+a later AMD deep run that has cached the EX-99.1.
+`scripts/fixture-from-cache.ts` converted it offline from that run's `data/cache` entries and
+`stages.json`, throwing on any request without a cache hit. It is not a faithful replay: the
+web-subject-profile output is borrowed from an earlier run, history and news-seen state are empty,
+Yahoo news requests 8 items where the run cached 15, FRED, Marketaux, and Massive are unconfigured
+(Evidence Quality medium instead of high), and Finnhub endpoints that returned 403 replay as cassette
+misses. Its `meta.json` `note` records the same.
 
 Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
 sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, or
@@ -187,7 +211,8 @@ sample dir is refused. Each sample records its status (`completed`, `failed-fina
 left out of that sample's mean and shows as `n=k/N`, so a failure never reads as an improvement.
 Synthetic fixtures (`equity-aapl-deep`, `equity-nbis-deep`, `equity-web-fallback-deep`) record tiny
 cassette token counts, so the estimate floors each run at the ~438k of a real deep run.
-`tests/eval-deep.test.ts` covers isolation, miss counting, and compare output with replayed models.
+`tests/eval-deep.test.ts` covers isolation, miss counting, compare output, and the final-synthesis-only
+live provider with replayed models.
 
 ## Deep-equity presentation assertions
 

@@ -83,7 +83,7 @@ describe("prediction shortfall", () => {
       dataGaps: [],
     });
     expect(predictionShortfallMaterialGap(compact.predictionShortfall!)).toBe(
-      "emitted 1 of 3 target predictions; evidence did not support more",
+      "emitted 1 of 3 target predictions",
     );
     expect(predictionShortfallCompactText(compact.predictionShortfall!)).toBe("emitted 1 of 3");
   });
@@ -104,7 +104,7 @@ describe("prediction shortfall", () => {
 
   test("gives a valid structured field precedence and retains a conflicting legacy entry", () => {
     const structured = { emittedCount: 2, targetCount: 5, missingCount: 3 };
-    const conflict = "emitted 1 of 5 target predictions; evidence did not support more";
+    const conflict = "emitted 1 of 5 target predictions";
 
     expect(
       normalizePredictionShortfall(structured, [
@@ -117,6 +117,6 @@ describe("prediction shortfall", () => {
     });
     expect(
       predictionShortfallMaterialGaps(structured, ["predictionShortfall: emitted 1 of 5"]),
-    ).toEqual([conflict, "emitted 2 of 5 target predictions; evidence did not support more"]);
+    ).toEqual([conflict, "emitted 2 of 5 target predictions"]);
   });
 });

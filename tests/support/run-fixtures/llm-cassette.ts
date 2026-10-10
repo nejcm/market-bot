@@ -1,3 +1,4 @@
+import { isRecord } from "../../../src/guards";
 import type { ModelProvider, ModelRequest } from "../../../src/model/types";
 
 export interface LlmCassetteEntry {
@@ -65,6 +66,67 @@ export function makeReplayProvider(cassette: LlmCassette): ModelProvider {
         tokenEstimate: 0,
         costEstimateUsd: 0,
       };
+    },
+  };
+}
+
+export const LIVE_STAGE = "final-synthesis";
+
+// Wall-clock stage durations ride in priorStages; zeroing them keeps live prompts identical across samples.
+function withoutStageDurations(request: ModelRequest): ModelRequest {
+  return {
+    ...request,
+    messages: request.messages.map((message) => {
+      if (message.role !== "user") {
+        return message;
+      }
+      const prompt = JSON.parse(message.content) as Record<string, unknown>;
+      if (!Array.isArray(prompt.priorStages)) {
+        throw new TypeError(`${LIVE_STAGE} prompt has no priorStages array to freeze`);
+      }
+      const priorStages: unknown[] = prompt.priorStages.map((stage: unknown) =>
+        isRecord(stage) && "durationMs" in stage ? { ...stage, durationMs: 0 } : stage,
+      );
+      return { ...message, content: JSON.stringify({ ...prompt, priorStages }, undefined, 2) };
+    }),
+  };
+}
+
+// Upstream stages replay by stage alone because live model names differ from the recorded ones.
+// Stages may swallow a replay error, so any miss also blocks every later live call.
+export function makeFinalSynthesisLiveProvider(
+  cassette: LlmCassette,
+  live: ModelProvider,
+): ModelProvider {
+  const indexes = new Map<string, number>();
+  let upstreamFailure: string | undefined;
+  const fail = (message: string): never => {
+    upstreamFailure ??= message;
+    throw new Error(message);
+  };
+  return {
+    name: `${live.name}+fixture-replay`,
+    generate: async (request) => {
+      const stage = requestStage(request);
+      if (stage === LIVE_STAGE) {
+        if (upstreamFailure !== undefined) {
+          throw new Error(
+            `Refusing live ${LIVE_STAGE} after upstream replay failure: ${upstreamFailure}`,
+          );
+        }
+        return live.generate(withoutStageDurations(request));
+      }
+      const keys = Object.keys(cassette.entries).filter((key) => key.startsWith(`${stage}|`));
+      const [key] = keys;
+      if (key === undefined || keys.length > 1) {
+        return fail(`LLM cassette has ${String(keys.length)} recorded models for stage ${stage}`);
+      }
+      const index = indexes.get(stage) ?? 0;
+      indexes.set(stage, index + 1);
+      return (
+        cassette.entries[key]?.[index] ??
+        fail(`LLM cassette miss for ${key} call ${String(index + 1)}`)
+      );
     },
   };
 }

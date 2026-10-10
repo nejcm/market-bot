@@ -9,9 +9,10 @@ import {
   runEvalSample,
   writeEvalSummary,
 } from "../tests/support/run-fixtures/eval";
+import { LIVE_STAGE } from "../tests/support/run-fixtures/llm-cassette";
 
 const USAGE =
-  "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--yes]\n" +
+  "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages final-synthesis] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
@@ -21,6 +22,7 @@ const { values, positionals } = parseArgs({
     samples: { type: "string", default: "2" },
     label: { type: "string" },
     compare: { type: "boolean", default: false },
+    "live-stages": { type: "string" },
     yes: { type: "boolean", default: false },
   },
   allowPositionals: true,
@@ -47,23 +49,27 @@ if (
   label === undefined ||
   !Number.isInteger(samples) ||
   samples < 1 ||
-  positionals.length > 0
+  positionals.length > 0 ||
+  (values["live-stages"] !== undefined && values["live-stages"] !== LIVE_STAGE)
 ) {
   throw new Error(USAGE);
 }
+const liveStages = values["live-stages"] === undefined ? undefined : LIVE_STAGE;
 if (existsSync(evalLabelDir(EVALS_ROOT, label))) {
   throw new Error(
     `Eval label already exists; pick a new --label: ${evalLabelDir(EVALS_ROOT, label)}`,
   );
 }
 
-const estimates = await Promise.all(fixtures.map((fixture) => liveTokenEstimate(fixture)));
+const estimates = await Promise.all(
+  fixtures.map((fixture) => liveTokenEstimate(fixture, liveStages)),
+);
 let estimate = 0;
 for (const [index, { recorded, perRun }] of estimates.entries()) {
   const fixture = fixtures[index]!;
   estimate += perRun * samples;
   process.stdout.write(
-    `${fixture}: ${String(samples)} live-LLM run(s), recorded cassette ${String(recorded)} tokens, planning ${String(perRun)}/run\n`,
+    `${fixture}: ${String(samples)} live-LLM run(s)${liveStages !== undefined ? ` (live stage: ${liveStages})` : ""}, recorded cassette ${String(recorded)} tokens, planning ${String(perRun)}/run\n`,
   );
 }
 process.stdout.write(
@@ -78,7 +84,13 @@ for (const fixture of fixtures) {
   for (let sample = 1; sample <= samples; sample += 1) {
     // Sequential on purpose: each sample is a paid live run and source rate limits are per process.
     // eslint-disable-next-line no-await-in-loop
-    const result = await runEvalSample({ label, fixture, sample: String(sample), llm: "live" });
+    const result = await runEvalSample({
+      label,
+      fixture,
+      sample: String(sample),
+      llm: "live",
+      ...(liveStages !== undefined ? { liveStages } : {}),
+    });
     process.stdout.write(
       `${fixture}/${String(sample)}: ${result.status}, ${String(result.cassetteMisses.count)} cassette miss(es)${result.error !== undefined ? `, ${result.error}` : ""}\n`,
     );

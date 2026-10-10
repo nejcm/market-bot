@@ -384,7 +384,7 @@ interface RepairedReport {
 // Language violation) after the first report-validation retry. Without this the final buildReport was
 // Unguarded: a persistent violation crashed the whole run. Recommendation-shaped subjects reliably
 // Draw reader-directed advice, so the crash point needs bounded, steered repairs.
-const MAX_REPORT_VALIDATION_REPROMPTS = 2;
+export const MAX_REPORT_VALIDATION_REPROMPTS = 2;
 
 // Recursive rather than a loop because each repair reprompt depends on the previous attempt's error;
 // The reduce/recursion form also keeps the awaits out of a bare for-loop (no-await-in-loop).

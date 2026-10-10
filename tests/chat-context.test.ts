@@ -106,7 +106,7 @@ describe("buildRunChatContext", () => {
     expect(context).toContain("close(SPY, +5) > close(SPY, 0)");
     expect(context).toContain("src-1: Yahoo Finance [market-data]");
     expect(context).toContain("Missing crypto volume data");
-    expect(context).toContain("emitted 1 of 3 target predictions; evidence did not support more");
+    expect(context).toContain("emitted 1 of 3 target predictions");
   });
 
   test("includes verified market snapshot when present", () => {

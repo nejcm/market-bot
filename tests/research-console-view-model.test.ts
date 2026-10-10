@@ -2661,7 +2661,7 @@ describe("report artifact parsers", () => {
     expect(candidates).toContainEqual({
       section: "dataGaps",
       label: "Data gap 1",
-      text: "emitted 1 of 3 target predictions; evidence did not support more",
+      text: "emitted 1 of 3 target predictions",
       sourceIds: [],
     });
   });

@@ -1070,6 +1070,30 @@ describe("SEC latest filing evidence tool", () => {
     expect(fetchGaps[0]?.message).toContain("2 EX-99 candidates attempted");
   });
 
+  test("selects the EX-99.1 press release over an earnings-slides EX-99.2 when both report results", async () => {
+    const index = `<table>
+      <tr><td>2</td><td>EX-99.1</td><td><a href="/Archives/edgar/data/320193/000032019326000050/q22026991.htm">q22026991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>3</td><td>EX-99.2</td><td><a href="/Archives/edgar/data/320193/000032019326000050/q2earningsslides.htm">q2earningsslides.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+    const slides = `Q2 earnings slides. ${RELEASE_TEXT}`;
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      async ({ adapter, url }) => {
+        if (adapter === "sec-filing-index") {
+          return textResult(adapter, index);
+        }
+        if (adapter === "sec-earnings-release-exhibit") {
+          return textResult(adapter, url.includes("slides") ? slides : RELEASE_TEXT);
+        }
+        return textResult(adapter, COVER_TEXT);
+      },
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.url).toEndWith("/q22026991.htm");
+    expect(source?.snippet).toStartWith("Apple Inc. Reports Second Quarter Results");
+  });
+
   test("drops an EX-99 row when its final document-name URL is off-host", () => {
     const html = `<table><tr><td>1</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">https://example.com/ex991.htm</a></td><td>EX-99.1</td></tr></table>`;
 

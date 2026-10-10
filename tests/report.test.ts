@@ -454,20 +454,7 @@ function assemblyContext(
 function assembleWithSpotlights(
   extras: Record<string, unknown> | undefined,
   context: ResearchContext,
-  command?:
-    | {
-        readonly jobType: "market-overview";
-        readonly assetClass: "equity";
-        readonly depth: "brief";
-        readonly horizonTradingDays: 5;
-        readonly legacyAlias: "daily";
-      }
-    | {
-        readonly jobType: "equity";
-        readonly assetClass: "equity";
-        readonly symbol: "ROKU";
-        readonly depth: "brief";
-      },
+  command?: Parameters<typeof assembleResearchReport>[0]["command"],
 ): ResearchReport {
   const resolvedCommand =
     command ?? legacyMarketOverviewCommand("daily", { assetClass: "equity", depth: "brief" });
@@ -1394,43 +1381,48 @@ describe("report schema and rendering", () => {
     });
   });
 
-  test("drops model spotlights from equity reports", () => {
-    const depthProfile = assemblyDepthProfile("ROKU");
+  test.each([
+    ["equity", { jobType: "equity", assetClass: "equity", symbol: "ROKU", depth: "brief" }],
+    ["crypto", { jobType: "crypto", assetClass: "crypto", symbol: "ROKU", depth: "brief" }],
+    ["research", { jobType: "research", assetClass: "equity", subject: "ROKU", depth: "brief" }],
+    ["market overview without a selection", undefined],
+  ] as const)("drops model-authored spotlights from %s reports", (_label, command) => {
     const assembled = assembleWithSpotlights(
       {
         spotlights: {
           items: [
             {
               symbol: "ROKU",
-              rationale: "Ticker-authored spotlight.",
+              rationale: "Model-authored spotlight.",
               sourceIds: [spotlightSource.id],
             },
           ],
         },
       },
-      assemblyContext(depthProfile),
-      { jobType: "equity", assetClass: "equity", symbol: "ROKU", depth: "brief" },
+      assemblyContext(assemblyDepthProfile("ROKU")),
+      command,
     );
 
     expect(assembled.extras?.spotlights).toBeUndefined();
   });
 
-  test("ignores spotlights on older equity artifacts when rendering", () => {
-    const markdown = renderMarkdownReport({
-      ...report,
-      jobType: "equity",
-      assetClass: "equity",
-      symbol: "ROKU",
-      extras: {
-        spotlights: {
-          items: [{ symbol: "ROKU", rationale: "Legacy spotlight.", sourceIds: ["source-1"] }],
+  test.each(["equity", "crypto", "research"] as const)(
+    "ignores spotlights on older %s artifacts when rendering",
+    (jobType) => {
+      const markdown = renderMarkdownReport({
+        ...report,
+        jobType,
+        extras: {
+          spotlights: {
+            items: [{ symbol: "ROKU", rationale: "Legacy spotlight.", sourceIds: ["source-1"] }],
+          },
         },
-      },
-    });
+      });
 
-    expect(markdown).not.toContain("## Market Spotlights");
-    expect(markdown).not.toContain("Legacy spotlight.");
-  });
+      expect(markdown).not.toContain("## Market Spotlights");
+      expect(markdown).not.toContain("Legacy spotlight.");
+    },
+  );
 
   test("builds, validates, renders, and scans market-overview catalyst calendar", () => {
     const macroSource: Source = {
@@ -3283,25 +3275,6 @@ describe("report schema and rendering", () => {
     expect(markdown).toContain(String.raw`Mover &lt;up&gt; \[link\]\(x\)`);
     expect(markdown).not.toContain("Unknown source item");
     expect(markdown).not.toContain("BAD");
-  });
-
-  test("omits research spotlights when no prediction proxy resolved", () => {
-    const { symbol: _symbol, ...researchReport } = report;
-    const markdown = renderMarkdownReport({
-      ...researchReport,
-      jobType: "research",
-      extras: {
-        depthProfile: {
-          predictionSubjects: [],
-        },
-        spotlights: {
-          items: [{ symbol: "AAPL", rationale: "Off-subject spotlight.", sourceIds: ["source-1"] }],
-        },
-      },
-    });
-
-    expect(markdown).not.toContain("## Market Spotlights");
-    expect(markdown).not.toContain("Off-subject spotlight.");
   });
 
   test("renders market overview titles", () => {

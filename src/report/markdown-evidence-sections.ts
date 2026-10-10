@@ -1,4 +1,4 @@
-import { isInstrumentJobType } from "../domain/job-type";
+import { isInstrumentJobType, isMarketUpdateJobType } from "../domain/job-type";
 import { type MarketSnapshot } from "../domain/market-data";
 import { type ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
@@ -166,19 +166,9 @@ export function renderHistoricalContext(report: ResearchReport): string {
 
 export function renderSpotlights(report: ResearchReport): string {
   const extra = report.extras?.spotlights;
-  if (!isRecord(extra) || !Array.isArray(extra.items)) {
+  if (!isMarketUpdateJobType(report.jobType) || !isRecord(extra) || !Array.isArray(extra.items)) {
     return "";
   }
-  const allowedResearchSymbols =
-    report.jobType === "research" &&
-    isRecord(report.extras?.depthProfile) &&
-    Array.isArray(report.extras.depthProfile.predictionSubjects)
-      ? new Set(
-          report.extras.depthProfile.predictionSubjects.flatMap((subject) =>
-            typeof subject === "string" ? [subject.toUpperCase()] : [],
-          ),
-        )
-      : undefined;
   const rows = extra.items.flatMap((item) => {
     if (!isRecord(item)) {
       return [];
@@ -194,9 +184,6 @@ export function renderSpotlights(report: ResearchReport): string {
       rationale = text;
     }
     const refs = sourceRefs(knownSourceIds(report, sourceIds));
-    if (allowedResearchSymbols !== undefined && !allowedResearchSymbols.has(symbol.toUpperCase())) {
-      return [];
-    }
     if (rationale === "" || refs === "") {
       return [];
     }

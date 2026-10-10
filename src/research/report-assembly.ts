@@ -509,10 +509,7 @@ function modelSpotlightRationaleBySymbol(modelSpotlights: unknown): ReadonlyMap<
 
 function mergeSpotlightsExtra(modelSpotlights: unknown, defaultSpotlights: unknown): unknown {
   if (!isRecord(defaultSpotlights) || !Array.isArray(defaultSpotlights.items)) {
-    return modelSpotlights;
-  }
-  if (defaultSpotlights.items.length === 0) {
-    return modelSpotlights;
+    return undefined;
   }
 
   const rationaleBySymbol = modelSpotlightRationaleBySymbol(modelSpotlights);
@@ -808,11 +805,10 @@ export function assembleResearchReportWithRelocations(
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
   const { spotlights: modelSpotlights, ...authoredExtras } = modelExtras;
-  // Equity reports carry no Spotlights (ADR 0003): model ones only re-cited keyFindings evidence.
-  const resolvedSpotlights =
-    command.jobType === "equity"
-      ? undefined
-      : mergeSpotlightsExtra(modelSpotlights, defaultSpotlights);
+  // Spotlights originate only in a market-update selection (ADR 0003); the model refines rationale.
+  const resolvedSpotlights = isMarketUpdateJobType(command.jobType)
+    ? mergeSpotlightsExtra(modelSpotlights, defaultSpotlights)
+    : undefined;
   const extendedEvidenceExtras = projectExtendedEvidenceReportExtras({
     modelExtras,
     collectedSources,

@@ -277,7 +277,7 @@ Disclosed absence, parse failure, or mismatch in prior artifacts; not a live-pro
 
 ## Market Spotlight
 
-Optional validated Market Overview focus chosen from current collected market snapshots. History and alpha-search can enrich it but cannot create it; it does not launch nested jobs, fetch sources, or upgrade depth. Equity reports carry none.
+Optional validated Market Overview focus chosen from current collected market snapshots. History and alpha-search can enrich it but cannot create it; it does not launch nested jobs, fetch sources, or upgrade depth. Equity, crypto, and research reports carry none, and final synthesis cannot author one without a selection.
 
 ## Market Regime
 

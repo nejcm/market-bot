@@ -187,7 +187,19 @@ samples. A missing or exhausted upstream cassette entry throws, and because some
 that error, any replay miss also refuses every later live call so the sample fails before spending.
 The estimate reserves the maximum final-synthesis call count (initial, prediction reprompts, report
 retries) at the larger of the biggest recorded synthesis call and ~50k tokens. Only recorded
-fixtures (`equity-depository-deep`, `equity-earnings-release-deep`) carry real upstream outputs.
+fixtures (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real
+upstream outputs.
+
+`equity-amd-deep` is an eval-only fixture. Unlike the fixtures listed above, it is not replayed by
+`bun run check` and carries no invariant assertions: its real source run fails invariant C15 (the
+Item 2.02 evidence retains the EX-99.2 slide deck, and its truncated ~3,000-character snippet stops
+before any results content, though the full deck has it).
+`scripts/fixture-from-cache.ts` converted it offline from that run's `data/cache` entries and
+`stages.json`, throwing on any request without a cache hit. It is not a faithful replay: the
+web-subject-profile output is borrowed from an earlier run, history and news-seen state are empty,
+Yahoo news requests 8 items where the run cached 15, FRED, Marketaux, and Massive are unconfigured
+(Evidence Quality medium instead of high), and Finnhub endpoints that returned 403 replay as cassette
+misses. Its `meta.json` `note` records the same.
 
 Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
 sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, or

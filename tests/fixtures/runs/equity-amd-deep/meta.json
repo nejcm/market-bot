@@ -1,0 +1,21 @@
+{
+  "note": "Offline conversion of run 2026-10-10T12-01-54-856Z-e66d6b31 from data/cache, not a faithful replay: web-subject-profile output is borrowed from run 2026-10-08T04-38-55-243Z-a6cb6620, historical context and news-seen state are empty, and fixture config differs from the run (Yahoo news requests 8 items, not the cached 15; FRED, Marketaux and Massive are unconfigured, so Evidence Quality drops from high to medium). Finnhub endpoints that returned 403 were never cached and replay as cassette misses.",
+  "now": "2026-10-10T12:01:54.856Z",
+  "argv": ["equity", "AMD", "--deep"],
+  "quickModel": "gpt-6-luna",
+  "synthesisModel": "gpt-6.1-sol",
+  "challengerModels": [],
+  "configuredProviders": ["exa", "finnhub"],
+  "secUserAgent": "market-bot fixture replay contact@example.invalid",
+  "webGatherDisabled": false,
+  "evidenceRequestOptions": {
+    "maxRounds": 0,
+    "maxToolCalls": 0,
+    "sourceBudget": 0
+  },
+  "webGatherOptions": {
+    "maxRounds": 2,
+    "maxToolCalls": 4,
+    "sourceBudget": 8
+  }
+}

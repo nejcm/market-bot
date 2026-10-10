@@ -40,6 +40,7 @@ export interface PeerUniverseResolution {
   readonly reason: string;
   readonly learnedGeneration?: string;
   readonly refresh?: PeerUniverseRefreshNote;
+  readonly proposalUnavailable?: true;
 }
 
 export interface PeerUniverseRefreshNote {
@@ -247,7 +248,16 @@ export async function resolvePeerUniverseWithFallback(
       targetInputs,
       "Resolved from model-proposed, code-validated peer universe",
     );
-    return proposed.resolution ?? resolution;
+    if (proposed.resolution !== undefined) {
+      return proposed.resolution;
+    }
+    return proposed.unavailable
+      ? {
+          ...resolution,
+          reason: `${resolution.reason}; the peer proposal could not run because the peer directory or model was unavailable`,
+          proposalUnavailable: true,
+        }
+      : resolution;
   }
 
   const cachedResolution =
@@ -306,7 +316,7 @@ export async function resolvePeerUniverseWithFallback(
     return withRefresh({ outcome: "insufficient", audit: proposed.audit });
   }
   if (cached.universe === undefined) {
-    return withRefresh({ outcome: "unavailable" });
+    return { ...withRefresh({ outcome: "unavailable" }), proposalUnavailable: true };
   }
   const allowanceReleased =
     (await fallback.releaseRefresh?.(target, cached.generation).catch(() => false)) === true;

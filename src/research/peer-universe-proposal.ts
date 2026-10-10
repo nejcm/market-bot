@@ -259,7 +259,6 @@ export function createPeerUniverseProposer(
       ...(secInit !== undefined ? { init: secInit } : {}),
     });
     if (!isFetchJsonResult(tickersResult)) {
-      // SEC directory unavailable — degrade to existing unsupported-coverage gap
       return { audit: emptyAudit("(sec-fetch-failed)"), unavailable: true };
     }
     const listedUniverse = await collectListedUniverse(deps.request);

@@ -168,6 +168,7 @@ function dateLabels(date: string): readonly string[] {
     date,
     `${monthLong} ${day}, ${year}`,
     `${monthShort} ${day}, ${year}`,
+    `${monthShort}. ${day}, ${year}`,
     `${day} ${monthLong} ${year}`,
   ];
 }

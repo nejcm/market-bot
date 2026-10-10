@@ -263,6 +263,53 @@ describe("official earnings-date confirmation", () => {
     ).toBeUndefined();
   });
 
+  test("retains the future-announcement verb for AP-style dotted months", () => {
+    const amdSnippet =
+      "SANTA CLARA, Calif., Oct. 6, 2026 -- AMD (NASDAQ: AMD) will report fiscal third quarter 2026 financial results on Tuesday, Nov. 3, 2026, after the market close.";
+
+    expect(retainedEvidenceSpanForEarningsDate(amdSnippet, "2026-11-03")).toBe(
+      "6, 2026 -- AMD (NASDAQ: AMD) will report fiscal third quarter 2026 financial results on Tuesday, Nov. 3, 2026, after the market close.",
+    );
+    expect(retainedEvidenceSpanForEarningsDate(amdSnippet, "2026-11-04")).toBeUndefined();
+    expect(
+      retainedEvidenceSpanForEarningsDate(
+        "AMD reported fiscal third quarter 2026 financial results on Nov. 3, 2026.",
+        "2026-11-03",
+      ),
+    ).toBeUndefined();
+    expect(retainedEvidenceSpanForEarningsDate("", "2026-11-03")).toBeUndefined();
+  });
+
+  test("confirms a dotted-month date from the issuer host only while it is upcoming", async () => {
+    const input = await fixture("issuer-confirmed");
+    const [source] = input.sources;
+    if (source === undefined) {
+      throw new Error("expected an issuer source");
+    }
+    const dotted = {
+      ...source,
+      summary:
+        "Apple Inc. will release its quarterly financial results on Thursday, Jul. 30, 2026.",
+    };
+
+    expect(
+      confirmEarningsDateFromOfficialSources({ ...input, sources: [dotted] })?.event
+        .dateConfirmation?.evidenceSpan,
+    ).toContain("Jul. 30, 2026");
+    expect(
+      confirmEarningsDateFromOfficialSources({
+        ...input,
+        analysisAsOf: "2026-07-31T12:00:00.000Z",
+        sources: [dotted],
+      })?.event.eventDateStatus,
+    ).toBe("provider-estimated");
+    const { summary: _summary, ...withoutText } = dotted;
+    expect(
+      confirmEarningsDateFromOfficialSources({ ...input, sources: [withoutText] })?.event
+        .eventDateStatus,
+    ).toBe("provider-estimated");
+  });
+
   test("validates complete persisted confirmation provenance", async () => {
     const input = await fixture("issuer-confirmed");
     const setup = confirmEarningsDateFromOfficialSources(input);

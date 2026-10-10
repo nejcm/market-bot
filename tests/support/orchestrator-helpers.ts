@@ -210,14 +210,10 @@ export function modelReport(subject = "AAPL", sourceId = "market-aapl"): string 
   });
 }
 
-// Returns an empty-selection payload for the gating stages (spotlight/playbook) and a
-// Full report otherwise, so a market-update run completes without selecting any spotlight.
+// Empty spotlight selection keeps market-update runs from selecting a spotlight.
 export function emptySelectionStageReport(stage: unknown): string {
   if (stage === "spotlight-selection") {
     return JSON.stringify({ rationale: "no movers", selections: [] });
-  }
-  if (stage === "playbook-selection") {
-    return JSON.stringify({ selections: [] });
   }
   return modelReport("AAPL");
 }

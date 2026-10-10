@@ -103,13 +103,6 @@ describe("runResearchJob web subject profile", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         const sourceId = firstWebSourceId(prompt);
         return {
           content: JSON.stringify({
@@ -265,13 +258,6 @@ describe("runResearchJob web subject profile", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
       },
     };
@@ -394,13 +380,6 @@ describe("runResearchJob web subject profile", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
       },
     };
@@ -454,13 +433,6 @@ describe("runResearchJob web subject profile", () => {
         prompts.push(prompt);
         if (prompt.stage === "web-subject-profile") {
           throw new Error("unexpected web-subject-profile");
-        }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
         }
         return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
       },
@@ -652,13 +624,6 @@ describe("runResearchJob web subject profile", () => {
                 },
               ],
             }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
             tokenEstimate: 10,
             costEstimateUsd: 0.001,
           };
@@ -893,13 +858,6 @@ describe("runResearchJob web subject profile", () => {
             costEstimateUsd: 0.001,
           };
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
       },
     };
@@ -959,13 +917,6 @@ describe("runResearchJob web subject profile", () => {
         if (prompt.stage === "web-subject-profile") {
           throw new Error("profile timeout");
         }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         return { content: modelReport("AAPL"), tokenEstimate: 10, costEstimateUsd: 0.001 };
       },
     };
@@ -1022,13 +973,6 @@ describe("runResearchJob web subject profile", () => {
         if (prompt.stage === "web-gather") {
           return {
             content: JSON.stringify({ requests: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
             tokenEstimate: 10,
             costEstimateUsd: 0.001,
           };

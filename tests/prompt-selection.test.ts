@@ -1,86 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ResearchCommand } from "../src/cli/args";
-import {
-  buildPlaybookSelectionPrompt,
-  buildSpotlightSelectionPrompt,
-} from "../src/research/prompts";
+import { buildSpotlightSelectionPrompt } from "../src/research/prompts";
 import { buildDepthProfile } from "../src/research/depth-profile";
 import { buildSpotlightCandidates } from "../src/research/spotlights";
 import { collectedSources, marketSnapshot, newsSource } from "./support/fixtures";
 import { config } from "./support/research-context-helpers";
-
-describe("buildPlaybookSelectionPrompt", () => {
-  test("uses slim selector context", () => {
-    const command: ResearchCommand = legacyMarketOverviewCommand("daily", {
-      assetClass: "equity",
-      depth: "brief",
-    });
-    const prompt = buildPlaybookSelectionPrompt(
-      command,
-      collectedSources({
-        rawSnapshots: [],
-        marketSnapshots: [marketSnapshot()],
-        newsSources: [newsSource()],
-        sourceGaps: [{ source: "marketaux", message: "missing token" }],
-      }),
-      {
-        depthProfile: buildDepthProfile(command, config),
-        runParams: {
-          quickModel: "quick-test",
-          synthesisModel: "synthesis-test",
-          analystStyle: "concise brief",
-          minimumKeyFindings: 3,
-          minimumScenarios: 2,
-          targetPredictions: 2,
-          defaultPredictionHorizon: 5,
-          predictionSubjects: ["SPY"],
-          focus: ["market regime", "movers"],
-          targetKindMix: { favored: ["relative", "range"], minNonDirection: 1 },
-          quickModelParams: undefined,
-          synthesisModelParams: undefined,
-        },
-        marketRegime: {
-          assetClass: "equity",
-          label: "mixed",
-          proxyCount: 1,
-          drivers: ["SPY higher"],
-          sourceIds: ["market-aapl"],
-        },
-        calibrationContext: undefined,
-      },
-      { system: "Select.", instruction: "Choose playbooks.", goal: "Keep prompts focused." },
-      ["specialist-analysis", "critique", "final-synthesis"],
-      [
-        {
-          id: "market-regime",
-          title: "Market Regime",
-          summary: "Regime context.",
-          eligibleStages: ["specialist-analysis", "critique"],
-        },
-      ],
-    );
-    const parsed = JSON.parse(prompt) as {
-      readonly stage?: string;
-      readonly plannedStages?: readonly string[];
-      readonly candidates?: readonly unknown[];
-      readonly marketRegime?: { readonly label?: string; readonly drivers?: readonly string[] };
-      readonly evidenceCategories?: readonly string[];
-      readonly sourceGaps?: readonly string[];
-      readonly evidence?: unknown;
-      readonly priorStages?: unknown;
-    };
-
-    expect(parsed.stage).toBe("playbook-selection");
-    expect(parsed.plannedStages).toEqual(["specialist-analysis", "critique", "final-synthesis"]);
-    expect(parsed.candidates).toHaveLength(1);
-    expect(parsed.marketRegime).toEqual({ label: "mixed" });
-    expect(parsed.evidenceCategories).toEqual(["market-data", "news"]);
-    expect(parsed.sourceGaps).toEqual(["marketaux: missing token"]);
-    expect(parsed.evidence).toBeUndefined();
-    expect(parsed.priorStages).toBeUndefined();
-  });
-});
 
 describe("buildSpotlightSelectionPrompt", () => {
   test("uses candidate-only selector context", () => {

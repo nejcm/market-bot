@@ -10,11 +10,7 @@ type PlaybookJobType = Exclude<JobType, "alpha-search"> | "research";
 
 export type PlaybookStage = Exclude<
   StageLabel,
-  | "evidence-request"
-  | "web-gather"
-  | "playbook-selection"
-  | "spotlight-selection"
-  | "forecast-disagreement"
+  "evidence-request" | "web-gather" | "spotlight-selection" | "forecast-disagreement"
 >;
 
 export interface PlaybookCommandScope {
@@ -67,15 +63,7 @@ export interface PlaybookSelectionAudit {
   }[];
 }
 
-interface RawSelection {
-  readonly stage: string;
-  readonly playbookIds: readonly string[];
-}
-
 export const MAX_PLAYBOOK_CHARS = 2500;
-const MAX_PLAYBOOKS_PER_STAGE = 2;
-const MAX_PLAYBOOKS_PER_RUN = 6;
-const MAX_SELECTOR_RATIONALE_CHARS = 500;
 const SOURCE_DISCIPLINE_PLAYBOOK_ID = "source-discipline";
 const SYNTHESIS_DISCIPLINE_PLAYBOOK_ID = "synthesis-discipline";
 const THEMATIC_RESEARCH_PLAYBOOK_ID = "thematic-research";
@@ -320,9 +308,6 @@ export function mandatoryPlaybookSelections(
   ];
 }
 
-// Every registry playbook whose subjectKeys match the run's resolved subject is
-// Mandatory at its declared stages. A registry-validation test keeps subject
-// Playbooks to stages with a free mandatory seat so seating never trips a cap.
 function subjectPlaybookSelections(
   command: PlaybookCommandScope,
   stages: readonly PlaybookStage[],
@@ -420,194 +405,36 @@ async function loadPlaybook(
   };
 }
 
-export function parsePlaybookSelection(
-  content: string,
-  candidates: readonly PlaybookCandidate[],
-  mandatorySelections: readonly {
-    readonly stage: PlaybookStage;
-    readonly playbookIds: readonly string[];
-  }[] = [],
+export function selectPlaybooks(
+  command: PlaybookCommandScope,
+  stages: readonly PlaybookStage[],
+  registry: readonly PlaybookMetadata[],
 ): PlaybookSelectionAudit {
-  const eligible = buildEligibilityMap(candidates);
-  const selectedByStage = new Map<PlaybookStage, string[]>();
-  const rejected: {
-    readonly stage?: string;
-    readonly playbookId?: string;
-    readonly reason: string;
-  }[] = [];
-  const seen = new Set<string>();
-  const mandatorySeen = new Set<string>();
-  let runCount = 0;
-
-  for (const selection of mandatorySelections) {
-    for (const playbookId of selection.playbookIds) {
-      mandatorySeen.add(selectionKey(selection.stage, playbookId));
-      const { runCount: nextRunCount } = addSelection({
-        selectedByStage,
-        rejected,
-        seen,
-        mandatorySeen,
-        runCount,
-        eligible,
-        stage: selection.stage,
-        playbookId,
-        required: true,
-      });
-      runCount = nextRunCount;
-    }
-  }
-
-  const parsed = parseJson(content);
-  if (!isRecord(parsed) || !Array.isArray(parsed.selections)) {
-    return {
-      selected: [...selectedByStage.entries()].map(([stage, playbookIds]) => ({
-        stage,
-        playbookIds,
-      })),
-      rejected: [{ reason: "selector returned malformed JSON" }],
-    };
-  }
-
-  for (const raw of parsed.selections) {
-    const selection = parseRawSelection(raw);
-    if (typeof selection === "string") {
-      rejected.push({ reason: selection });
-      continue;
-    }
-    if (!VALID_PLAYBOOK_STAGES.has(selection.stage)) {
-      rejected.push({ stage: selection.stage, reason: "invalid stage" });
-      continue;
-    }
-    const typedStage = selection.stage as PlaybookStage;
-    for (const playbookId of selection.playbookIds) {
-      const { runCount: nextRunCount } = addSelection({
-        selectedByStage,
-        rejected,
-        seen,
-        mandatorySeen,
-        runCount,
-        eligible,
-        stage: typedStage,
-        playbookId,
-      });
-      runCount = nextRunCount;
-    }
-  }
-
+  const candidates = eligiblePlaybookCandidates(command, stages, registry);
+  const mandatory = mandatoryPlaybookSelections(command, stages, candidates, registry);
   return {
-    selected: [...selectedByStage.entries()].map(([stage, playbookIds]) => ({
-      stage,
-      playbookIds,
-    })),
-    ...(typeof parsed.rationale === "string"
-      ? { rationale: truncateRationale(parsed.rationale) }
-      : {}),
-    rejected,
+    selected: stages
+      .map((stage) => ({
+        stage,
+        playbookIds: [
+          ...new Set([
+            ...mandatory
+              .filter((selection) => selection.stage === stage)
+              .flatMap((selection) => selection.playbookIds),
+            ...candidates
+              .filter((candidate) => candidate.eligibleStages.includes(stage))
+              .map((candidate) => candidate.id),
+          ]),
+        ],
+      }))
+      .filter((selection) => selection.playbookIds.length > 0),
+    rationale: "Deterministic selection of all eligible playbooks plus mandatory selections.",
+    rejected: [],
   };
-}
-
-function selectionKey(stage: PlaybookStage, playbookId: string): string {
-  return `${stage}:${playbookId}`;
-}
-
-function addSelection(input: {
-  readonly selectedByStage: Map<PlaybookStage, string[]>;
-  readonly rejected: {
-    readonly stage?: string;
-    readonly playbookId?: string;
-    readonly reason: string;
-  }[];
-  readonly seen: Set<string>;
-  readonly mandatorySeen: ReadonlySet<string>;
-  readonly runCount: number;
-  readonly eligible: ReadonlyMap<string, ReadonlySet<PlaybookStage>>;
-  readonly stage: PlaybookStage;
-  readonly playbookId: string;
-  readonly required?: boolean;
-}): { readonly runCount: number } {
-  const key = selectionKey(input.stage, input.playbookId);
-  const eligibleStages = input.eligible.get(input.playbookId);
-  const stageCount = input.selectedByStage.get(input.stage)?.length ?? 0;
-  if (eligibleStages === undefined || !eligibleStages.has(input.stage)) {
-    return rejectSelection(input, "playbook is not eligible");
-  }
-  if (input.seen.has(key)) {
-    if (input.mandatorySeen.has(key)) {
-      return { runCount: input.runCount };
-    }
-    return rejectSelection(input, "duplicate selection");
-  }
-  if (stageCount >= MAX_PLAYBOOKS_PER_STAGE) {
-    return rejectSelection(input, "per-stage playbook cap exceeded");
-  }
-  if (input.runCount >= MAX_PLAYBOOKS_PER_RUN) {
-    return rejectSelection(input, "per-run playbook cap exceeded");
-  }
-  input.selectedByStage.set(input.stage, [
-    ...(input.selectedByStage.get(input.stage) ?? []),
-    input.playbookId,
-  ]);
-  input.seen.add(key);
-  return { runCount: input.runCount + 1 };
-}
-
-function rejectSelection(
-  input: {
-    readonly rejected: {
-      readonly stage?: string;
-      readonly playbookId?: string;
-      readonly reason: string;
-    }[];
-    readonly runCount: number;
-    readonly stage: PlaybookStage;
-    readonly playbookId: string;
-    readonly required?: boolean;
-  },
-  reason: string,
-): { readonly runCount: number } {
-  if (input.required === true) {
-    throw new Error(`Mandatory playbook ${input.playbookId} for ${input.stage} failed: ${reason}`);
-  }
-  input.rejected.push({
-    stage: input.stage,
-    playbookId: input.playbookId,
-    reason,
-  });
-  return { runCount: input.runCount };
-}
-
-function parseJson(content: string): unknown {
-  try {
-    return JSON.parse(content) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-function parseRawSelection(raw: unknown): RawSelection | string {
-  if (!isRecord(raw)) {
-    return "selection must be an object";
-  }
-  const stage = readString(raw, "stage");
-  const { playbookIds } = raw;
-  if (stage === undefined || !Array.isArray(playbookIds)) {
-    return "selection must include stage and playbookIds";
-  }
-  if (playbookIds.some((id) => typeof id !== "string" || id === "")) {
-    return "playbookIds must be non-empty strings";
-  }
-  return { stage, playbookIds };
 }
 
 function buildEligibilityMap(
   candidates: readonly PlaybookCandidate[],
 ): ReadonlyMap<string, ReadonlySet<PlaybookStage>> {
   return new Map(candidates.map((candidate) => [candidate.id, new Set(candidate.eligibleStages)]));
-}
-
-function truncateRationale(rationale: string): string {
-  const trimmed = rationale.trim();
-  return trimmed.length > MAX_SELECTOR_RATIONALE_CHARS
-    ? `${trimmed.slice(0, MAX_SELECTOR_RATIONALE_CHARS - 3)}...`
-    : trimmed;
 }

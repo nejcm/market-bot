@@ -66,13 +66,12 @@ describe("runResearchJob report assembly and market context", () => {
     expect(result.trace.stages).toEqual([
       "source-collection",
       "spotlight-selection",
-      "playbook-selection",
       "specialist-analysis",
       "critique",
       "final-synthesis",
     ]);
-    expect(result.stageOutputs).toHaveLength(5);
-    expect(result.trace.tokenEstimate).toBe(500);
+    expect(result.stageOutputs).toHaveLength(4);
+    expect(result.trace.tokenEstimate).toBe(400);
   });
 
   test("surfaces Market Context in market update prompts, extras, citations, and regime drivers", async () => {

@@ -84,7 +84,7 @@ For synthesis-report runs, `runResearchJob` in
 7. For market-update runs: spotlight selection, mover ranking, market-update
    delta.
 8. Build the **source plan** and assess **evidence quality**.
-9. Run playbook selection &rarr; specialist-analysis &rarr; coverage panels
+9. Select all eligible and mandatory Domain Playbooks deterministically &rarr; specialist-analysis &rarr; coverage panels
    &rarr; critique &rarr; final-synthesis.
 10. Optional **forecast-disagreement** stage (deep runs with challenger models).
 11. Build trace, analytics, render markdown, persist artifacts.

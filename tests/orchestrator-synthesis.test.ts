@@ -124,7 +124,6 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     expect(result.trace.stages).toEqual([
       "source-collection",
       "spotlight-selection",
-      "playbook-selection",
       "specialist-analysis",
       "critique",
       "final-synthesis",
@@ -691,14 +690,6 @@ describe("runResearchJob synthesis retry and source gaps", () => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
         prompts.push(prompt);
 
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0,
-          };
-        }
-
         if (prompt.stage === "final-synthesis") {
           finalCalls += 1;
           const allowedSourceIds = Array.isArray(prompt.allowedSourceIds)
@@ -955,17 +946,11 @@ describe("runResearchJob synthesis retry and source gaps", () => {
     });
     const provider: ModelProvider = {
       name: "mock",
-      generate: async (request) => {
-        const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0,
-          };
-        }
-        return { content: modelReport("AAPL"), tokenEstimate: 100, costEstimateUsd: 0.01 };
-      },
+      generate: async () => ({
+        content: modelReport("AAPL"),
+        tokenEstimate: 100,
+        costEstimateUsd: 0.01,
+      }),
     };
 
     const result = await runResearchJob({

@@ -30,13 +30,6 @@ describe("runResearchJob evidence quality and forecast disagreement", () => {
       name: "mock",
       generate: async (request) => {
         const prompt = JSON.parse(request.messages[1]?.content ?? "{}") as Record<string, unknown>;
-        if (prompt.stage === "playbook-selection") {
-          return {
-            content: JSON.stringify({ selections: [] }),
-            tokenEstimate: 10,
-            costEstimateUsd: 0.001,
-          };
-        }
         if (prompt.stage === "forecast-disagreement") {
           if (request.model === "challenger-bad") {
             throw new Error("challenger timeout");

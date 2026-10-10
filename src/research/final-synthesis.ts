@@ -149,6 +149,7 @@ export type PredictionCompletionSkipCode =
   | "evidence-quality-ineligible"
   | "target-zero"
   | "target-met"
+  | "floor-met"
   | "subject-ineligible";
 
 export class FinalSynthesisRejectedError extends Error {
@@ -604,6 +605,9 @@ function completionEligible(
   }
   if (report.predictions.length >= target) {
     return { skipCode: "target-met" };
+  }
+  if (report.predictions.length >= (input.context.runParams.predictionCompletionFloor ?? target)) {
+    return { skipCode: "floor-met" };
   }
   const allowedSubjects = completionSubjects(input);
   return allowedSubjects === undefined ? { skipCode: "subject-ineligible" } : { allowedSubjects };

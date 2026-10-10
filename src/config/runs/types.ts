@@ -20,6 +20,7 @@ export interface RunBaseParams {
   readonly minimumKeyFindings?: number;
   readonly minimumScenarios?: number;
   readonly targetPredictions?: number;
+  readonly predictionCompletionFloor?: number;
   readonly defaultPredictionHorizon?: number;
   readonly predictionSubjects?: readonly string[];
   readonly focus?: readonly string[];
@@ -41,6 +42,7 @@ export interface ResolvedRunParams {
   readonly minimumKeyFindings: number;
   readonly minimumScenarios: number;
   readonly targetPredictions: number;
+  readonly predictionCompletionFloor?: number;
   readonly defaultPredictionHorizon: number;
   readonly predictionSubjects: readonly string[];
   readonly focus: readonly string[];

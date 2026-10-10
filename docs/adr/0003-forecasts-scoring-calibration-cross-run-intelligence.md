@@ -43,8 +43,10 @@ be mistaken for current market evidence.
   trace, and analytics telemetry record eligible and suppressed counts so the coverage change is
   explicit against the Phase 0 baseline.
 - Prediction count is a soft `targetPredictions`, not a quota. After a high- or medium-evidence
-  report is valid but below target, one best-effort, predictions-only Forecast Completion Pass may
-  add candidates. It preserves the accepted report and Predictions, never retries itself, and
+  report is valid but below `predictionCompletionFloor` (default: target), one best-effort,
+  predictions-only Forecast Completion Pass may add up to `targetPredictions - count` candidates.
+  Deep equity uses target 3 / floor 2; shortfall remains measured against the target.
+  It preserves the accepted report and Predictions, never retries itself, and
   leaves any remaining shortfall deterministically disclosed. After earnings and research-subject
   gates, report assembly derives `ResearchReport.predictionShortfall` with non-negative integer
   emitted, target, and missing counts satisfying `missing = target - emitted > 0`. Presentation

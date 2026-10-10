@@ -106,6 +106,20 @@ describe("static equity run fixtures", () => {
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result, modelRequests);
       }
+      if (name === "equity-analysis-comprehensive" || name === "equity-web-fallback-deep") {
+        expect(result.trace.predictionCompletion).toBeUndefined();
+        expect(
+          result.stageOutputs.filter((output) => output.stage === "final-synthesis"),
+        ).toHaveLength(1);
+        expect(result.analytics.subsystemOutcomes.byCode["floor-met"]).toBe(1);
+        expect(result.outcomes).toContainEqual(
+          expect.objectContaining({
+            subsystem: "prediction-completion",
+            code: "floor-met",
+            expectation: "not-applicable",
+          }),
+        );
+      }
       if (name === "equity-analysis-estimated-suppressed") {
         assertEstimatedEarningsSuppressionPath(result, modelRequests, modelOutputs);
       }
@@ -247,7 +261,7 @@ describe("static equity run fixtures", () => {
     expect(reader).toContain(
       "**Revenue consensus:** 98.0B (single-provider snapshot) [extended-finnhub-events-aapl]",
     );
-    expect(reader).toContain("**Material:** emitted 2 of 5");
+    expect(reader).toContain("**Material:** emitted 2 of 3");
     expect(appendix).not.toContain("predictionShortfall:");
     expect(reader).not.toContain("fred-macro:");
     expect(appendix).not.toContain("fred-macro:");

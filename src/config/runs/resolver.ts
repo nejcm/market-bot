@@ -90,6 +90,7 @@ export function resolveRunParams(
 
   const proxy = researchPredictionProxy(normalizedCommand);
   const predictionSubjects = predictionSubjectsFor(normalizedCommand, merged, proxy);
+  const targetPredictions = targetPredictionsFor(normalizedCommand, merged, proxy);
   const defaultQuickModel = appConfig.quickModel;
   const defaultSynthesisModel = appConfig.synthesisModel;
   const quickReasoningEffort =
@@ -112,7 +113,8 @@ export function resolveRunParams(
     ),
     minimumKeyFindings: merged.minimumKeyFindings ?? CODE_DEFAULTS.minimumKeyFindings,
     minimumScenarios: merged.minimumScenarios ?? CODE_DEFAULTS.minimumScenarios,
-    targetPredictions: targetPredictionsFor(normalizedCommand, merged, proxy),
+    targetPredictions,
+    predictionCompletionFloor: merged.predictionCompletionFloor ?? targetPredictions,
     defaultPredictionHorizon: defaultPredictionHorizonFor(normalizedCommand, merged),
     predictionSubjects,
     focus: merged.focus ?? CODE_DEFAULTS.focus,

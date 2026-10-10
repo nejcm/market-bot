@@ -1,13 +1,12 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
+import { type ExtendedEvidence } from "../domain/evidence";
+import { isMarketUpdateJobType } from "../domain/job-type";
 import {
-  isMarketUpdateJobType,
-  type ExtendedEvidence,
   type MarketSnapshot,
   type OhlcvBar,
-  type Source,
-  type SourceGap,
   type VerifiedMarketSnapshot,
-} from "../domain/types";
+} from "../domain/market-data";
+import { type Source, type SourceGap } from "../domain/sources";
 import type { CollectContext, EarningsSetupCollected, FetchLike, RawSourceSnapshot } from "./types";
 import { verifiedMarketSnapshotSourceId } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";

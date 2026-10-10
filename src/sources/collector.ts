@@ -3,7 +3,8 @@ import { collectEquityEnrichment, type PeerUniverseSeam } from "./collector-equi
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
 import { progress } from "../progress";
-import { isMarketUpdateJobType, type MarketSnapshot } from "../domain/types";
+import { isMarketUpdateJobType } from "../domain/job-type";
+import { type MarketSnapshot } from "../domain/market-data";
 import { rankMovers } from "../movers/ranking";
 import type {
   CollectContext,

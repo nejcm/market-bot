@@ -1,5 +1,6 @@
 import { sourceGap } from "../../domain/source-gaps";
-import type { ExtendedEvidence, ExtendedEvidenceItem, SourceGap } from "../../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { SourceGap } from "../../domain/sources";
 import type {
   FinancialStatementFact,
   FinancialStatementSeries,

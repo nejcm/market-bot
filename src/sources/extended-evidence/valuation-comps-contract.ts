@@ -4,14 +4,9 @@ import type {
   PeerUniverseMapping,
   PeerUniversePeer,
 } from "../../research/peer-universe";
-import type {
-  ExtendedEvidence,
-  MarketSnapshot,
-  MarketSnapshotPriceAsOf,
-  Source,
-  SourceGap,
-  SourceGapCause,
-} from "../../domain/types";
+import type { ExtendedEvidence } from "../../domain/evidence";
+import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../../domain/market-data";
+import type { Source, SourceGap, SourceGapCause } from "../../domain/sources";
 import type { RawSourceSnapshot } from "../types";
 import type { ResearchSubjectRegistryEntry } from "../../research/subject-registry";
 import type { fetchSecCompanyFactsForSymbol } from "./sec-edgar";

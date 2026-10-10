@@ -1,7 +1,7 @@
 import type { AppConfig } from "../../config";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
-import type { VerifiedMarketSnapshot } from "../../domain/types";
+import type { VerifiedMarketSnapshot } from "../../domain/market-data";
 import type { CollectedSources } from "../../sources/types";
 import { earningsBasis } from "../../report/equity-reader-earnings-basis";
 import { tickerSnapshot } from "../../sources/extended-evidence/financial-lens-metrics";

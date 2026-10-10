@@ -1,5 +1,5 @@
 import type { RunDetail } from "../types";
-import type { MarketSnapshotPriceAsOf } from "../../src/domain/types";
+import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
 import type {
   FinancialLensName,

@@ -1,10 +1,9 @@
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { AssetClass } from "../../domain/job-type";
 import type {
-  AssetClass,
   EquityAnalysisCompleteness,
   EquityAnalysisCompletenessDimension,
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-} from "../../domain/types";
+} from "../../domain/report";
 import { resolveCoverageLevel } from "../../domain/equity-analysis-completeness";
 import type { EarningsSetupCollected } from "../types";
 import type {

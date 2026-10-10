@@ -1,4 +1,5 @@
-import { SOURCE_KINDS, type Source, type SubjectKind } from "./domain/types";
+import { type SubjectKind } from "./domain/evidence";
+import { SOURCE_KINDS, type Source } from "./domain/sources";
 import { isSourceGapCause } from "./domain/source-gaps";
 import {
   isEvidenceLane,

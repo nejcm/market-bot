@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { buildRunChatContext } from "../app/chat-context";
 import type { RunDetail, RunSummary } from "../app/types";
-import type { VerifiedMarketSnapshot } from "../src/domain/types";
+import type { VerifiedMarketSnapshot } from "../src/domain/market-data";
 
 function testSnapshot(overrides: Partial<VerifiedMarketSnapshot> = {}): VerifiedMarketSnapshot {
   return {

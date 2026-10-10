@@ -1,5 +1,5 @@
 import { sourceGap } from "../domain/source-gaps";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import { isRecord, readString } from "../guards";
 import { isFetchJsonResult, type RawSourceSnapshot, type SourceRequestExecutor } from "./types";
 

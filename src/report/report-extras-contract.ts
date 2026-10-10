@@ -27,7 +27,7 @@
 // The leaf readers shared back into src/run-artifacts.ts (readWebSubjectProfileAnswer,
 // ReadWebSubjectProfileFacts) are the strict artifact ones, moved here unchanged.
 
-import type { SubjectKind } from "../domain/types";
+import type { SubjectKind } from "../domain/evidence";
 import {
   isBusinessFrameworkGapCode,
   type BusinessFrameworkArtifact,

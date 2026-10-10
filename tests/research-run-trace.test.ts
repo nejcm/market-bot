@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
-import type { ResearchReport, RunTrace, Source } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
+import type { RunTrace } from "../src/domain/run-trace";
+import type { Source } from "../src/domain/sources";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { buildRunTrace } from "../src/research/run-trace";
 import { assessEvidenceQuality } from "../src/research/evidence-quality";

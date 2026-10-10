@@ -16,7 +16,7 @@ import {
 } from "./support/orchestrator-helpers";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import type { ModelProvider } from "../src/model/types";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 

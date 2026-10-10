@@ -10,7 +10,7 @@ import {
   type WebGatherProviderResult,
   type WebGatherSubject,
 } from "../src/sources/web-gather-emit";
-import type { WebGatherSanitizerAudit } from "../src/domain/types";
+import type { WebGatherSanitizerAudit } from "../src/domain/gather-audit";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 
 const fetchedAt = "2026-05-01T00:00:00.000Z";

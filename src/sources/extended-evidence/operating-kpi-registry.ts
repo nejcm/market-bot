@@ -1,4 +1,5 @@
-import type { AssetClass, ExtendedEvidenceItem } from "../../domain/types";
+import type { ExtendedEvidenceItem } from "../../domain/evidence";
+import type { AssetClass } from "../../domain/job-type";
 
 interface OperatingKpiDefinition {
   readonly key: string;

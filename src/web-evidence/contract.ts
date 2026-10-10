@@ -1,4 +1,4 @@
-import type { SubjectKind } from "../domain/types";
+import type { SubjectKind } from "../domain/evidence";
 
 const LEGACY_COMPANY_QUESTION_KEYS = [
   "whatItDoes",

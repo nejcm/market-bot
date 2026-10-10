@@ -1,5 +1,5 @@
 import type { MarketOverviewCommand } from "../../src/cli/job-registry";
-import type { AssetClass, Depth } from "../../src/domain/types";
+import type { AssetClass, Depth } from "../../src/domain/job-type";
 
 export function legacyMarketOverviewCommand(
   legacyAlias: "daily" | "weekly",

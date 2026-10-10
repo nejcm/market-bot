@@ -1,8 +1,5 @@
-import type {
-  ResearchReport,
-  WebEvidenceUtilization,
-  WebEvidenceUtilizationLevel,
-} from "../domain/types";
+import type { WebEvidenceUtilization, WebEvidenceUtilizationLevel } from "../domain/gather-audit";
+import type { ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
 import type { CollectedSources } from "../sources/types";
 import { CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS } from "../research/extended-evidence-projections";

@@ -1,6 +1,6 @@
 import type { AppConfig } from "../../src/config";
 import type { ResearchCommand } from "../../src/cli/args";
-import type { Prediction } from "../../src/domain/types";
+import type { Prediction } from "../../src/domain/prediction";
 import { buildStagePrompt, type StageInput } from "../../src/research/prompts";
 import { buildDepthProfile } from "../../src/research/depth-profile";
 import type { HistoricalResearchContext } from "../../src/research/historical-context";

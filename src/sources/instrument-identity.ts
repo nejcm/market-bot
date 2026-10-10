@@ -8,7 +8,9 @@
  * ADR 0004 note: this is run-scoped canonicalization, not a global resolver.
  */
 
-import type { InstrumentIdentity, MarketSnapshot, SourceGap } from "../domain/types";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { MarketSnapshot } from "../domain/market-data";
+import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 
 export interface InstrumentIdentityResult {

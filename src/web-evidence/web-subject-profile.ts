@@ -2,13 +2,9 @@ import { createHash } from "node:crypto";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { violatesResearchOnly } from "../domain/research-language";
 import { sourceGap } from "../domain/source-gaps";
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  Source,
-  SourceGap,
-  SubjectKind,
-} from "../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../domain/evidence";
+import type { SubjectKind } from "../domain/evidence";
+import type { Source, SourceGap } from "../domain/sources";
 import { isRecord, nonEmptyStringArrayValue, readString, stringArrayValue } from "../guards";
 import {
   isWebSubjectProfileWithheldAnswer,

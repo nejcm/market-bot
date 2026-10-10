@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SourceGap } from "../src/domain/types";
+import type { SourceGap } from "../src/domain/sources";
 import { sourceGapScopedReportText } from "../src/domain/source-gaps";
 import { classifyGap, readGapTriage } from "../src/report/gap-triage";
 

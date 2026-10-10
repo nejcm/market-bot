@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import { sanitizeNewsSource } from "../src/sources/multi-news";
 
 function source(overrides: Partial<Source> = {}): Source {

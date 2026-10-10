@@ -1,7 +1,7 @@
 import type {
   ModelInputSanitizationAggregate,
   ModelInputSanitizationAggregateEntry,
-} from "../domain/types";
+} from "../domain/gather-audit";
 import {
   aggregateModelInputSanitization,
   sanitizeModelInputField,

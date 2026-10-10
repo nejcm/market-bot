@@ -1,4 +1,5 @@
-import type { Prediction, ResearchReport } from "../domain/types";
+import type { Prediction } from "../domain/prediction";
+import type { ResearchReport } from "../domain/report";
 import { isRecord, readString } from "../guards";
 import {
   ORIGIN_ANCHOR_QUARANTINE_EVIDENCE_KEY,

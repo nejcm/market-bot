@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { MarketContext, MarketRegimeSummary, MarketSnapshot } from "../src/domain/types";
+import type { MarketContext, MarketSnapshot } from "../src/domain/market-data";
+import type { MarketRegimeSummary } from "../src/domain/report";
 import { addMarketContextToRegime, summarizeMarketRegime } from "../src/research/regime";
 import { buildFredMacroMetrics } from "../src/sources/fred";
 

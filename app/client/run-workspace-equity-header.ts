@@ -3,7 +3,7 @@ import {
   resolveMarketSnapshotPriceAsOf,
   type MarketSnapshot,
   type MarketSnapshotPriceAsOf,
-} from "../../src/domain/types";
+} from "../../src/domain/market-data";
 import {
   CURRENCY_SYMBOLS,
   formatLensValue,

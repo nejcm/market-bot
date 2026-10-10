@@ -1,4 +1,4 @@
-import type { MarketSnapshot, VerifiedMarketSnapshot } from "./domain/types";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "./domain/market-data";
 import { isRecord, readNumber, readString } from "./guards";
 import { isAssetClass } from "./run-artifact-value-guards";
 

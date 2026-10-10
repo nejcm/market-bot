@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { EvidenceQualityAssessment } from "../src/domain/types";
+import type { EvidenceQualityAssessment } from "../src/domain/evidence";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { auditReportIntegrity, worseQuality } from "../src/research/report-integrity-audit";
 import { prediction, researchReport } from "./support/fixtures";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isInstrumentJobType, type JobType } from "../src/domain/types";
+import { isInstrumentJobType, type JobType } from "../src/domain/job-type";
 import {
   RUN_TYPE_REGISTRY,
   isResearchJobType,

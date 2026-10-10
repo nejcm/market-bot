@@ -1,6 +1,6 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import type { ForecastKindMix } from "../../config/runs";
-import { NEAR_BASE_RATE_BAND, type PredictionKind } from "../../domain/types";
+import { NEAR_BASE_RATE_BAND, type PredictionKind } from "../../domain/prediction";
 import {
   BROAD_US_INDEX_BENCHMARK_SYMBOLS,
   BROAD_US_INDEX_CLASS,

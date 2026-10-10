@@ -2,11 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  VerifiedMarketSnapshot,
-} from "../src/domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../src/domain/evidence";
+import type { VerifiedMarketSnapshot } from "../src/domain/market-data";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { loadRunArtifact } from "../src/run-artifacts";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";

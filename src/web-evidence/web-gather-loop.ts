@@ -2,12 +2,11 @@ import type { AppConfig } from "../config";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { runTypeSupportsWebGather } from "../domain/run-types";
 import type {
-  SourceGap,
-  SourceGapAttempts,
   WebGatherLoopAudit,
   WebGatherToolName,
   JsonToolLoopAuditEntry,
-} from "../domain/types";
+} from "../domain/gather-audit";
+import type { SourceGap, SourceGapAttempts } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
 import { DEFAULT_RETRY_DELAYS_MS } from "../sources/retry-utils";

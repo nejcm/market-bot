@@ -26,12 +26,9 @@ import {
   type AlphaValidationPrerequisiteInput,
   type AlphaValidationFile,
 } from "../alpha-search/validation";
-import {
-  isInstrumentJobType,
-  marketUpdateHorizonBucketOf,
-  type Prediction,
-  type ResearchReport,
-} from "../domain/types";
+import { isInstrumentJobType, marketUpdateHorizonBucketOf } from "../domain/job-type";
+import { type Prediction } from "../domain/prediction";
+import { type ResearchReport } from "../domain/report";
 import { loadRunArtifact, readReportMarketRegimeLabel, type RunArtifact } from "../run-artifacts";
 import { NORMALIZED_DIR, RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { isRecord, readNumber, readString } from "../guards";

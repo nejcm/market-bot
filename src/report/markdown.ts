@@ -1,9 +1,6 @@
-import {
-  isInstrumentJobType,
-  researchReportEvidenceQuality,
-  type MarketSnapshot,
-  type ResearchReport,
-} from "../domain/types";
+import { isInstrumentJobType } from "../domain/job-type";
+import { type MarketSnapshot } from "../domain/market-data";
+import { researchReportEvidenceQuality, type ResearchReport } from "../domain/report";
 import { RESEARCH_ONLY_NOTE } from "./schema";
 import { predictionShortfallMaterialGaps } from "./prediction-shortfall";
 import { renderEquityMarkdownReport, type MarkdownCollectedSources } from "./equity-markdown";

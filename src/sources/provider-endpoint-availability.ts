@@ -1,4 +1,4 @@
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import type { RawSourceSnapshot } from "./types";
 import type { WebGatherProviderCounts } from "./web-search-telemetry";
 

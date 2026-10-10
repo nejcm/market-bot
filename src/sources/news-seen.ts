@@ -5,7 +5,7 @@ import { withFileLock } from "../shared-state-lock";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
-import type { Source, SourceGap } from "../domain/types";
+import type { Source, SourceGap } from "../domain/sources";
 import { isRecord } from "../guards";
 import { canonicalizeUrl } from "./news-utils";
 

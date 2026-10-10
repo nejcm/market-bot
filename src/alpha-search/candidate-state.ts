@@ -1,4 +1,4 @@
-import type { ResearchReport } from "../domain/types";
+import type { ResearchReport } from "../domain/report";
 import { isRecord, readNumber, readString, readStringArray } from "../guards";
 import type { AlphaValidationFile, AlphaValidationHorizon } from "./validation";
 import type { AlphaSearchDiscoverySource, AlphaSearchSecFiling } from "./candidates";

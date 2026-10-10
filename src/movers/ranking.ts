@@ -1,4 +1,4 @@
-import type { MarketSnapshot, Mover } from "../domain/types";
+import type { MarketSnapshot, Mover } from "../domain/market-data";
 import { isEquityRegimeSymbol } from "../domain/regime-symbols";
 
 const MINIMUM_VOLUME = 10_000;

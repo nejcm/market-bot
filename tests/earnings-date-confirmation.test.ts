@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import { applyEarningsForecastPolicy } from "../src/forecast/earnings-eligibility";
 import { validateResearchReport } from "../src/report/schema";
 import {

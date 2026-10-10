@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { AppConfig } from "../src/config";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import type { StageOutput } from "../src/research/final-synthesis";
 import type { ResearchContext } from "../src/research/research-context-types";
 import { runWebEvidencePhase } from "../src/web-evidence/web-evidence-phase";

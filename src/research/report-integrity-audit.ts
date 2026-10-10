@@ -1,14 +1,13 @@
+import { type EvidenceQuality, type EvidenceQualityAssessment } from "../domain/evidence";
+import { type Prediction } from "../domain/prediction";
 import {
   researchReportEvidenceQuality,
-  type EvidenceQuality,
-  type EvidenceQualityAssessment,
   type KeyFinding,
-  type Prediction,
   type ReportIntegrityAdvisoryCode,
   type ReportIntegrity,
   type ResearchReport,
   type Scenario,
-} from "../domain/types";
+} from "../domain/report";
 import { deriveResearchQualityDriver } from "./quality-driver";
 import {
   hasAttachedFinancialUnit,

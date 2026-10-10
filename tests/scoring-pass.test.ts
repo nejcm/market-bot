@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { ResearchReport } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
 import { buildAndWriteAlphaLeadCohorts, runScorePass } from "../src/scoring/index";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";

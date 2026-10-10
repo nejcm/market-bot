@@ -1,14 +1,13 @@
 import { isInstrumentCommand } from "../cli/args";
+import { type InstrumentIdentity } from "../domain/instrument";
+import { isMarketUpdateJobType, type AssetClass } from "../domain/job-type";
 import {
-  isMarketUpdateJobType,
-  type AssetClass,
-  type InstrumentIdentity,
   type MarketBenchmark,
   type MarketFundamentals,
   type MarketSnapshot,
   type OhlcvBar,
-  type SourceGap,
-} from "../domain/types";
+} from "../domain/market-data";
+import { type SourceGap } from "../domain/sources";
 import { EQUITY_REGIME_SYMBOLS, isEquityRegimeSymbol } from "../domain/regime-symbols";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import type { Observation } from "../forecast/observable";

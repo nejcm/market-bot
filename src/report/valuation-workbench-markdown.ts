@@ -6,7 +6,8 @@ import type {
   PeerImpliedRange,
   ValuationCompsRow,
 } from "../sources/extended-evidence/valuation-comps";
-import type { MarketSnapshotPriceAsOf, ResearchReport } from "../domain/types";
+import type { MarketSnapshotPriceAsOf } from "../domain/market-data";
+import type { ResearchReport } from "../domain/report";
 import { metricCell } from "./equity-reader-trends";
 import { knownSourceIds, sourceRefs } from "./markdown-primitives";
 import { stringArrayValue } from "../guards";

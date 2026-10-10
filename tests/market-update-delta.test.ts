@@ -4,13 +4,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  AssetClass,
-  JobType,
-  MarketRegimeLabel,
-  MarketRegimeSummary,
-  MarketSnapshot,
-} from "../src/domain/types";
+import type { AssetClass, JobType } from "../src/domain/job-type";
+import type { MarketSnapshot } from "../src/domain/market-data";
+import type { MarketRegimeLabel, MarketRegimeSummary } from "../src/domain/report";
 import { rankMovers } from "../src/movers/ranking";
 import { buildMarketUpdateDelta } from "../src/research/market-update-delta";
 

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createObservationRepository } from "../src/scoring/observations";
-import type { ResearchReport } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
 import {
   fetchYahooCloseWindow,
   fetchYahooSplitAdjustedCloseWindow,

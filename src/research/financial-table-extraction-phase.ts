@@ -1,4 +1,4 @@
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import type { StageOutput } from "./final-synthesis";
 import {

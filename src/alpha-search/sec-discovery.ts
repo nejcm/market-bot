@@ -1,6 +1,6 @@
 import { LISTED_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import { isRecord, readNumber, readString } from "../guards";
 import {
   isFetchJsonResult,

@@ -1,4 +1,4 @@
-import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
 import { isRecord } from "../../guards";
 import type { CollectContext } from "../types";
 import { fetchSecCompanyFactsForSymbol } from "./sec-edgar";

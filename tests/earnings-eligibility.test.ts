@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Prediction, ResearchReport } from "../src/domain/types";
+import type { Prediction } from "../src/domain/prediction";
+import type { ResearchReport } from "../src/domain/report";
 import {
   applyEarningsForecastPolicy,
   readEarningsForecastTelemetry,

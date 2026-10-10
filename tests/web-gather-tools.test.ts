@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
-import type { SourceGap } from "../src/domain/types";
+import type { SourceGap } from "../src/domain/sources";
 import { executeWebGatherTool, WEB_GATHER_TOOL_UNITS } from "../src/sources/web-gather-tools";
 import { createSourceRequestContext } from "../src/sources/source-request";
 import type {

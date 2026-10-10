@@ -8,7 +8,8 @@ import {
   type ObservableForecast,
 } from "../src/forecast/observable";
 import { resolveOutcome, type Observation } from "../src/scoring/resolver";
-import type { Prediction, ResearchReport } from "../src/domain/types";
+import type { Prediction } from "../src/domain/prediction";
+import type { ResearchReport } from "../src/domain/report";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { validateResearchReport } from "../src/report/schema";
 import { renderMarkdownReport } from "../src/report/markdown";

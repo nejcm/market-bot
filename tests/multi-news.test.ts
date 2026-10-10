@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { createMultiNewsAdapter } from "../src/sources/multi-news";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 import type { CollectContext, NewsAdapter } from "../src/sources/types";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 
 const seenTmpDirs: string[] = [];
 

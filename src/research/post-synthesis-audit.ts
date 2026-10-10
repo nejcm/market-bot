@@ -1,10 +1,6 @@
-import type {
-  KeyFinding,
-  PostSynthesisAuditWarning,
-  Prediction,
-  ResearchReport,
-  Scenario,
-} from "../domain/types";
+import type { Prediction } from "../domain/prediction";
+import type { KeyFinding, ResearchReport, Scenario } from "../domain/report";
+import type { PostSynthesisAuditWarning } from "../domain/run-trace";
 import type { WebSourceUsage } from "../web-evidence";
 import { isGapShapedClaimForAuditWarning } from "./gap-shaped-claims";
 

@@ -339,7 +339,7 @@ Check these explicitly before final ranking:
   in `report.sources`; cite clean integrity if it prevents a false finding.
 - Completeness and shortfall: check `report.json:equityAnalysisCompleteness`
   and `report.json:predictionShortfall` (both on `ResearchReport` in
-  `src/domain/types.ts`) before reporting a coverage or prediction-count gap
+  `src/domain/report.ts`) before reporting a coverage or prediction-count gap
   from raw counts — these fields already record what the run itself judged
   missing, and a finding that contradicts them needs to explain why.
   `report.json:researchQuality` carries the run's own quality self-assessment.

@@ -1,5 +1,5 @@
 import { sourceGapReportText } from "../../domain/source-gaps";
-import type { SourceGap } from "../../domain/types";
+import type { SourceGap } from "../../domain/sources";
 import { ANALYST_EXPECTATION_ADAPTERS } from "../../sources/extended-evidence/analyst-expectations";
 import { frameworkGapCode } from "../../sources/extended-evidence/business-framework";
 import type { CollectedSources } from "../../sources/types";

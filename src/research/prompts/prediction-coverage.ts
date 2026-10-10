@@ -1,5 +1,5 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import type { Prediction, PredictionKind } from "../../domain/types";
+import type { Prediction, PredictionKind } from "../../domain/prediction";
 import type { CollectedSources } from "../../sources/types";
 import { hasConfirmedEarningsDate } from "../../forecast/earnings-eligibility";
 import { FRED_SERIES } from "../../sources/fred";

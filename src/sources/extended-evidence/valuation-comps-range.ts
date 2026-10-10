@@ -1,5 +1,5 @@
 import { gateProfileFor, revenueMultipleMeaningful } from "./valuation-comps-rows";
-import type { SourceGap } from "../../domain/types";
+import type { SourceGap } from "../../domain/sources";
 import type { PeerUniverse } from "../../research/peer-universe";
 import {
   MIN_USABLE_PEERS,

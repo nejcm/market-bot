@@ -4,15 +4,9 @@ import type { AppConfig } from "../config";
 import { progress } from "../progress";
 import { readCodeVersion } from "../code-version";
 import { dirtySourceHash, effectiveConfigHash } from "../reproducibility";
-import {
-  sourceProvider,
-  type KeyFinding,
-  type ResearchReport,
-  type RunTrace,
-  type Source,
-  type SourceGap,
-  type SourceTextResearchOnlySummary,
-} from "../domain/types";
+import { type KeyFinding, type ResearchReport } from "../domain/report";
+import { type RunTrace, type SourceTextResearchOnlySummary } from "../domain/run-trace";
+import { sourceProvider, type Source, type SourceGap } from "../domain/sources";
 import {
   compactUnmappedSecFilingGaps,
   isCoreEvidenceQualityGap,

@@ -10,7 +10,8 @@ import {
 } from "../src/scoring/calibration-console";
 import { NO_RESOLVED_METRIC_TEXT } from "../src/scoring/calibration-invariant";
 import { buildMissAutopsyFile, forecastErrorDirection } from "../src/scoring/miss-autopsy";
-import type { MarketRegimeLabel, Prediction, ResearchReport } from "../src/domain/types";
+import type { Prediction } from "../src/domain/prediction";
+import type { MarketRegimeLabel, ResearchReport } from "../src/domain/report";
 import type { ObservationRepository } from "../src/scoring/observations";
 import { verifiedSnapshotSource } from "../src/research/verified-snapshot-contract";
 import {

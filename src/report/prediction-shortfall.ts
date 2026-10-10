@@ -1,4 +1,4 @@
-import type { PredictionShortfall, ResearchReport } from "../domain/types";
+import type { PredictionShortfall, ResearchReport } from "../domain/report";
 import { isRecord, stringArrayValue } from "../guards";
 
 const LEGACY_PREDICTION_SHORTFALL =

@@ -1,5 +1,5 @@
 import type { ReverseDcfArtifact } from "../sources/extended-evidence/reverse-dcf";
-import type { MarketSnapshotPriceAsOf } from "../domain/types";
+import type { MarketSnapshotPriceAsOf } from "../domain/market-data";
 import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
 
 function formatAmount(value: number, currency: string): string {

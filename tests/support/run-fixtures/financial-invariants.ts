@@ -1,9 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-  EquityAnalysisCompletenessDimension,
-  ExtendedEvidenceItem,
-} from "../../../src/domain/types";
+import type { ExtendedEvidenceItem } from "../../../src/domain/evidence";
+import type { EquityAnalysisCompletenessDimension } from "../../../src/domain/report";
 import {
   hasSubstantiveResultsContent,
   normalizeFilingText,

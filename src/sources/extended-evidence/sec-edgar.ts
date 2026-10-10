@@ -1,4 +1,5 @@
-import type { InstrumentIdentity, Source, SourceGap } from "../../domain/types";
+import type { InstrumentIdentity } from "../../domain/instrument";
+import type { Source, SourceGap } from "../../domain/sources";
 import { isInstrumentCommand } from "../../cli/args";
 import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";

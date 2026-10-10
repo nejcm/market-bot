@@ -7,7 +7,8 @@
  * (src/sources/verified-market-snapshot.ts) stays fetch + compute only.
  */
 
-import type { IndicatorMap, MarketSnapshot, Source, VerifiedMarketSnapshot } from "../domain/types";
+import type { IndicatorMap, MarketSnapshot, VerifiedMarketSnapshot } from "../domain/market-data";
+import type { Source } from "../domain/sources";
 import { verifiedMarketSnapshotSourceId } from "../sources/verified-market-snapshot";
 
 type RequiredKeys<T> = {

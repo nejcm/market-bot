@@ -5,7 +5,7 @@ import type {
   SourceGapCause,
   SourceGapEvidenceQualityImpact,
   SourceGapTriage,
-} from "./types";
+} from "./sources";
 
 export type FetchFailureSourceGapCause = Extract<
   SourceGapCause,

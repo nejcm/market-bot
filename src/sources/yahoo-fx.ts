@@ -1,5 +1,5 @@
 import { DAY_MS } from "../config/shared";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import type { FetchLike } from "./types";
 import { fetchYahooCloseWindow, type YahooCloseWindowResult } from "./yahoo";

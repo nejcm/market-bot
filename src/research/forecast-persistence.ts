@@ -1,4 +1,4 @@
-import type { ResearchReport } from "../domain/types";
+import type { ResearchReport } from "../domain/report";
 import { claimKey } from "../forecast/observable";
 
 // Compact prior-run projection the historical-context reader hands to

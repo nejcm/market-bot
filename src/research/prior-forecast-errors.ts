@@ -1,5 +1,5 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import { isMarketUpdateJobType, marketUpdateHorizonBucketOf } from "../domain/types";
+import { isMarketUpdateJobType, marketUpdateHorizonBucketOf } from "../domain/job-type";
 import { instrumentsForExpression, observableForecastFromPrediction } from "../forecast/observable";
 import type {
   HistoricalPredictionSummary,

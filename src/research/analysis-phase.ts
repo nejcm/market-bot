@@ -1,4 +1,4 @@
-import { isMarketUpdateJobType } from "../domain/types";
+import { isMarketUpdateJobType } from "../domain/job-type";
 import type { ResearchCommand } from "../cli/args";
 import type { CollectedSources } from "../sources/types";
 import type { StageOutput } from "./final-synthesis";

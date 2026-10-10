@@ -1,4 +1,4 @@
-import type { SourceGap } from "../../domain/types";
+import type { SourceGap } from "../../domain/sources";
 import {
   frameworkGaps,
   type BusinessFrameworkArtifact,

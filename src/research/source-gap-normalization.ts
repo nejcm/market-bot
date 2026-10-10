@@ -1,5 +1,5 @@
 import { consolidateSecCompanyFactGaps, dedupeSourceGaps } from "../domain/source-gaps";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import type { CollectedSources } from "../sources/types";
 
 // Drop exact duplicates first, then consolidate overlapping SEC company-fact gaps so the

@@ -1,11 +1,8 @@
 import { isInstrumentCommand, type InstrumentCommand } from "../cli/args";
-import type {
-  EvidenceRequestToolName,
-  ExtendedEvidenceItem,
-  InstrumentIdentity,
-  Source,
-  SourceGap,
-} from "../domain/types";
+import type { ExtendedEvidenceItem } from "../domain/evidence";
+import type { EvidenceRequestToolName } from "../domain/gather-audit";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { Source, SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import { isUsListing } from "./instrument-capability";
 import {

@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetClass } from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { scanRunArtifacts } from "../run-artifacts";
 import { isRecord } from "../guards";

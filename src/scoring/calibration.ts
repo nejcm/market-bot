@@ -1,11 +1,6 @@
-import {
-  MARKET_REGIME_LABELS,
-  marketUpdateHorizonBucket,
-  type AssetClass,
-  type JobType,
-  type MarketRegimeLabel,
-  type Prediction,
-} from "../domain/types";
+import { marketUpdateHorizonBucket, type AssetClass, type JobType } from "../domain/job-type";
+import { type Prediction } from "../domain/prediction";
+import { MARKET_REGIME_LABELS, type MarketRegimeLabel } from "../domain/report";
 import {
   claimKey,
   observationStrategyForExpression,

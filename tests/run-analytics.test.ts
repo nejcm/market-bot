@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { surfacedUrlGate } from "../src/web-evidence/web-gather-acceptance";
 import { buildRunAnalytics } from "../src/research/run-analytics";
 import { sourceGap } from "../src/domain/source-gaps";
-import type { RunTrace, Source, WebGatherFallbackAudit } from "../src/domain/types";
+import type { WebGatherFallbackAudit } from "../src/domain/gather-audit";
+import type { RunTrace } from "../src/domain/run-trace";
+import type { Source } from "../src/domain/sources";
 import { executeWebGatherTool } from "../src/sources/web-gather-tools";
 import type {
   CollectedSources,

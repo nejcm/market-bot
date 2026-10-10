@@ -1,5 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE } from "../config/shared";
-import type { SourceGapCause } from "../domain/types";
+import type { SourceGapCause } from "../domain/sources";
 import {
   DEFAULT_RESEARCH_SUBJECT_REGISTRY,
   type ResearchSubjectRegistryEntry,

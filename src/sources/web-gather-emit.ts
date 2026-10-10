@@ -1,15 +1,13 @@
 import { createHash } from "node:crypto";
+import type { ExtendedEvidenceItem } from "../domain/evidence";
 import type {
-  AssetClass,
-  ExtendedEvidenceItem,
-  Source,
-  SourceGap,
-  SourceGapAttempts,
-  SubjectKind,
   WebGatherFallbackAudit,
   WebGatherSanitizerAudit,
   WebSearchType,
-} from "../domain/types";
+} from "../domain/gather-audit";
+import type { SubjectKind } from "../domain/evidence";
+import type { AssetClass } from "../domain/job-type";
+import type { Source, SourceGap, SourceGapAttempts } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import { canonicalizeUrl } from "./news-utils";
 import type { CollectContext, RawSourceSnapshot } from "./types";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtendedEvidence } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import {

@@ -1,8 +1,5 @@
-import type {
-  EvidenceQualityAssessment,
-  EvidenceQualityCheck,
-  ReportIntegrity,
-} from "../domain/types";
+import type { EvidenceQualityAssessment, EvidenceQualityCheck } from "../domain/evidence";
+import type { ReportIntegrity } from "../domain/report";
 import { isEvidenceLane, type EvidenceLane } from "./source-plan";
 
 type FailedCheckKind = "coverage" | "freshness" | "corroboration";

@@ -1,4 +1,4 @@
-import { researchReportEvidenceQuality, type ResearchReport } from "../domain/types";
+import { researchReportEvidenceQuality, type ResearchReport } from "../domain/report";
 import {
   readAlphaSearchLeadDisplayLimit,
   readAlphaSearchLeads,

@@ -1,16 +1,12 @@
 import type { RunArtifactPaths } from "../artifacts";
 import type { InstrumentCommand } from "../cli/args";
 import type { AppConfig } from "../config";
-import type {
-  ExtendedEvidence,
-  InstrumentIdentity,
-  MarketSnapshot,
-  ResearchReport,
-  RunTrace,
-  Source,
-  SourceGap,
-  VerifiedMarketSnapshot,
-} from "../domain/types";
+import type { ExtendedEvidence } from "../domain/evidence";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../domain/market-data";
+import type { ResearchReport } from "../domain/report";
+import type { RunTrace } from "../domain/run-trace";
+import type { Source, SourceGap } from "../domain/sources";
 import type { ModelProvider } from "../model/types";
 import type { RunAnalytics } from "../research/run-analytics";
 import type { StageOutput } from "../research/final-synthesis";

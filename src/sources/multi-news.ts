@@ -1,4 +1,4 @@
-import type { Source, SourceGap, SourceProviderAlias } from "../domain/types";
+import type { Source, SourceGap, SourceProviderAlias } from "../domain/sources";
 import { isInstrumentCommand } from "../cli/args";
 import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
 import { filterSeenNewsSources, newsSeenLane } from "./news-seen";

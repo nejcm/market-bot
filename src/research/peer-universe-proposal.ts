@@ -1,5 +1,5 @@
 import { RESEARCH_SUBJECT_SYMBOL_RE, SEC_TICKERS_URL } from "../config/shared";
-import type { SourceGapCause } from "../domain/types";
+import type { SourceGapCause } from "../domain/sources";
 import type { ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isFetchJsonResult, type SourceRequestExecutor } from "../sources/types";

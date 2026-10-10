@@ -1,11 +1,8 @@
 import { isRecord } from "../guards";
 import { readEquityAnalysisCompleteness } from "../domain/equity-analysis-completeness";
-import type {
-  EquityAnalysisDimensionStatus,
-  MarketSnapshot,
-  MarketSnapshotPriceAsOf,
-  SourceGap,
-} from "../domain/types";
+import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../domain/market-data";
+import type { EquityAnalysisDimensionStatus } from "../domain/report";
+import type { SourceGap } from "../domain/sources";
 import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";
 import { depositoryIssuerSic } from "../sources/extended-evidence/industry-classification";

@@ -1,4 +1,5 @@
-import type { ExtendedEvidenceItem, Source, SourceGap } from "../domain/types";
+import type { ExtendedEvidenceItem } from "../domain/evidence";
+import type { Source, SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
 import type { RawSourceSnapshot } from "./types";

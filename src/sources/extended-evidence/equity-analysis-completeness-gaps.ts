@@ -1,4 +1,5 @@
-import type { EquityAnalysisCompleteness, SourceGap } from "../../domain/types";
+import type { EquityAnalysisCompleteness } from "../../domain/report";
+import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import type { EquityReportingFreshness } from "./equity-analysis-completeness";
 

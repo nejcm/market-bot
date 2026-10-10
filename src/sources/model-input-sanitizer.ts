@@ -4,7 +4,7 @@ import type {
   ModelInputSanitizationAggregateEntry,
   ModelInputSanitizerProfile,
   ModelInputSanitizerTelemetry,
-} from "../domain/types";
+} from "../domain/gather-audit";
 
 export type {
   ModelInputFieldRole,
@@ -12,7 +12,7 @@ export type {
   ModelInputSanitizationAggregateEntry,
   ModelInputSanitizerProfile,
   ModelInputSanitizerTelemetry,
-} from "../domain/types";
+} from "../domain/gather-audit";
 
 export interface ModelInputSanitizerResult {
   readonly text?: string;

@@ -2,14 +2,16 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
 import {
-  isMarketRegimeLabel,
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
   type AssetClass,
+} from "../domain/job-type";
+import { type Mover } from "../domain/market-data";
+import {
+  isMarketRegimeLabel,
   type MarketRegimeLabel,
   type MarketRegimeSummary,
-  type Mover,
-} from "../domain/types";
+} from "../domain/report";
 import { rankMovers } from "../movers/ranking";
 import { scanRunArtifacts, type RunArtifact } from "../run-artifacts";
 import { isRecord, readString } from "../guards";

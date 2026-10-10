@@ -14,17 +14,12 @@ import type { ValuationCompsArtifact } from "./extended-evidence/valuation-comps
 import type { ValuationWorkbenchArtifact } from "./extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "./extended-evidence/reverse-dcf";
 import type { ResolvedResearchSubject } from "../research/research-subject-identity";
-import type {
-  AssetClass,
-  EarningsEventDateStatus,
-  ExtendedEvidence,
-  InstrumentIdentity,
-  MarketContext,
-  MarketSnapshot,
-  Source,
-  SourceGap,
-  VerifiedMarketSnapshot,
-} from "../domain/types";
+import type { ExtendedEvidence } from "../domain/evidence";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { AssetClass } from "../domain/job-type";
+import type { MarketContext, MarketSnapshot, VerifiedMarketSnapshot } from "../domain/market-data";
+import type { EarningsEventDateStatus } from "../domain/prediction";
+import type { Source, SourceGap } from "../domain/sources";
 import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
 import type { EarningsDateConfirmation } from "./extended-evidence/earnings-date-confirmation";
 import type {

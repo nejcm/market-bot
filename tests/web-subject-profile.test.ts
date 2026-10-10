@@ -26,7 +26,7 @@ import {
 } from "../src/report/report-extras-contract";
 import { sourceGap } from "../src/domain/source-gaps";
 import { researchReport } from "./support/fixtures";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import { violatesResearchOnly } from "../src/domain/research-language";
 
 const command = {

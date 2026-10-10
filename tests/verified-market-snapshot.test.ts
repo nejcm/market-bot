@@ -16,7 +16,8 @@ import { buildSourceList, readPredictions } from "../src/research/report-assembl
 import type { AppConfig } from "../src/config";
 import type { ResearchCommand } from "../src/cli/args";
 import type { CollectedSources } from "../src/sources/types";
-import type { IndicatorMap, InstrumentIdentity, VerifiedMarketSnapshot } from "../src/domain/types";
+import type { InstrumentIdentity } from "../src/domain/instrument";
+import type { IndicatorMap, VerifiedMarketSnapshot } from "../src/domain/market-data";
 import { collectSources } from "../src/sources/collector";
 import {
   createCollectContext,

@@ -1,4 +1,5 @@
-import { isInstrumentJobType, type ResearchReport } from "../domain/types";
+import { isInstrumentJobType } from "../domain/job-type";
+import { type ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
 import {
   readBusinessFrameworkExtra,

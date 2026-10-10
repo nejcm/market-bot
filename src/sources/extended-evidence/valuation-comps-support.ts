@@ -1,7 +1,8 @@
 import type { InstrumentCommand } from "../../cli/args";
 import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
-import type { ExtendedEvidence, ExtendedEvidenceItem, Source, SourceGap } from "../../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { Source, SourceGap } from "../../domain/sources";
 import { evidenceSource } from "./common";
 import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,

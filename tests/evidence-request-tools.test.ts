@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtendedEvidenceItem, SourceGap } from "../src/domain/types";
+import type { ExtendedEvidenceItem } from "../src/domain/evidence";
+import type { SourceGap } from "../src/domain/sources";
 import { assertSafeReportLanguage } from "../src/report/schema";
 import {
   availableEvidenceRequestTools,

@@ -8,7 +8,7 @@ import type {
   WebGatherToolName,
   WebGatherAcceptancePolicy,
   WebSearchType,
-} from "../domain/types";
+} from "../domain/gather-audit";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { WEB_GATHER_TOOL_UNITS } from "../sources/web-gather-tools";
 import type { WebGatherToolOutput } from "../sources/web-gather-emit";

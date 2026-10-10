@@ -7,7 +7,7 @@ import {
   fundamentalHistoryView,
 } from "../app/client/run-workspace-financials";
 import { composeEquitySnapshot } from "../app/client/run-workspace-snapshot";
-import type { MarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot } from "../src/domain/market-data";
 import { earningsBasis } from "../src/report/equity-reader-earnings-basis";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { financialTrends } from "../src/report/equity-reader-trends";

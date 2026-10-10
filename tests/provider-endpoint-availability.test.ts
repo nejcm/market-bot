@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { SourceGap, WebGatherFallbackAudit, WebGatherLoopAudit } from "../src/domain/types";
+import type { WebGatherFallbackAudit, WebGatherLoopAudit } from "../src/domain/gather-audit";
+import type { SourceGap } from "../src/domain/sources";
 import { deriveProviderEndpointAvailability } from "../src/sources/provider-endpoint-availability";
 import type { RawSourceSnapshot } from "../src/sources/types";
 import { deriveWebGatherProviderTelemetry } from "../src/sources/web-search-telemetry";

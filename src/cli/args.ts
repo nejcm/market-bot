@@ -1,4 +1,4 @@
-import type { AssetClass, Depth } from "../domain/types";
+import type { AssetClass, Depth } from "../domain/job-type";
 import { isResearchJobType, runTypeFixedAssetClass } from "../domain/run-types";
 import { createInstrument } from "../domain/instrument";
 import { HISTORY_SECTIONS, type HistorySection } from "../history/sections";

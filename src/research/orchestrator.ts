@@ -6,14 +6,10 @@ import { assessEvidenceQuality } from "./evidence-quality";
 import { resolveRunParams, type ResolvedRunParams, type RunConfig } from "../config/runs";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { createRunId, publishRunArtifacts, type RunArtifactPaths } from "../artifacts";
-import {
-  isMarketUpdateJobType,
-  marketUpdateHorizonBucket,
-  type MarketSnapshot,
-  type Mover,
-  type ResearchReport,
-  type RunTrace,
-} from "../domain/types";
+import { isMarketUpdateJobType, marketUpdateHorizonBucket } from "../domain/job-type";
+import { type MarketSnapshot, type Mover } from "../domain/market-data";
+import { type ResearchReport } from "../domain/report";
+import { type RunTrace } from "../domain/run-trace";
 import {
   buildFailedRunManifest,
   buildResearchRunManifest,

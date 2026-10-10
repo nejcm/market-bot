@@ -1,13 +1,13 @@
 import type { AppConfig } from "../config";
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { marketUpdateMetadataOf } from "../domain/job-type";
+import { type ResearchReport } from "../domain/report";
 import {
-  marketUpdateMetadataOf,
   type CodeVersion,
   type PostSynthesisAuditWarning,
   type RelocatedGapClaim,
-  type ResearchReport,
   type RunTrace,
-} from "../domain/types";
+} from "../domain/run-trace";
 import type { CostPricing } from "../model/pricing";
 import type { ModelProvider } from "../model/types";
 import { effectiveConfigHash } from "../reproducibility";

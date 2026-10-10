@@ -3,8 +3,8 @@ import {
   type EarningsEventDateStatus,
   type EarningsForecastTelemetry,
   type Prediction,
-  type ResearchReport,
-} from "../domain/types";
+} from "../domain/prediction";
+import { type ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
 import type { EarningsSetupCollected } from "../sources/types";
 

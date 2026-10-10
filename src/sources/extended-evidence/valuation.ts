@@ -1,12 +1,8 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  MarketSnapshot,
-  MarketSnapshotPriceAsOf,
-  SourceGap,
-} from "../../domain/types";
-import { marketCapAsOfPhrase, resolveMarketSnapshotPriceAsOf } from "../../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../../domain/market-data";
+import type { SourceGap } from "../../domain/sources";
+import { marketCapAsOfPhrase, resolveMarketSnapshotPriceAsOf } from "../../domain/market-data";
 import { sourceGap } from "../../domain/source-gaps";
 import { clampRoundedZero } from "./percent-format";
 import { depositoryIssuerSic } from "./industry-classification";

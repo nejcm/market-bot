@@ -1,4 +1,5 @@
-import type { AssetClass, Prediction } from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
+import type { Prediction } from "../domain/prediction";
 import { resolutionDate } from "./exchange-calendar";
 
 // Scoring Policy registry (ADR 0003). A Prediction's persisted

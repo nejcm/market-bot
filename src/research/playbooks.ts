@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetClass, Depth, JobType } from "../domain/types";
+import type { AssetClass, Depth, JobType } from "../domain/job-type";
 import { runTypeProducesSynthesisReport } from "../domain/run-types";
 import { isRecord, readString } from "../guards";
 import { parseSections } from "./markdown-sections";

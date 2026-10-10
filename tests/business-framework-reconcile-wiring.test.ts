@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtendedEvidence, SourceGap } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
+import type { SourceGap } from "../src/domain/sources";
 import type { WebSubjectProfileAnswer, WebSubjectProfileArtifact } from "../src/web-evidence";
 import { WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE } from "../src/web-evidence/contract";
 // Internal seam: reconciliation wiring is not part of the package manifest.

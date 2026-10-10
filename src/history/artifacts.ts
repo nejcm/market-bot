@@ -1,17 +1,16 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
+import { type InstrumentIdentity } from "../domain/instrument";
+import { type AssetClass, type JobType } from "../domain/job-type";
+import { type VerifiedMarketSnapshot } from "../domain/market-data";
+import { type Prediction } from "../domain/prediction";
 import {
   researchReportEvidenceQuality,
-  type AssetClass,
-  type InstrumentIdentity,
-  type JobType,
   type KeyFinding,
-  type Prediction,
   type ResearchReport,
-  type Source,
-  type VerifiedMarketSnapshot,
-} from "../domain/types";
+} from "../domain/report";
+import { type Source } from "../domain/sources";
 import { instrumentsForMeasurableAs } from "../forecast/observable";
 import { dataRootFromRunsDir } from "../data-paths";
 import type { ModelParams, ModelProvider } from "../model/types";

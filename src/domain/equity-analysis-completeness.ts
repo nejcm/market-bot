@@ -1,5 +1,5 @@
 import { isRecord, readString, readStringArray } from "../guards";
-import type { EquityAnalysisCompleteness, EquityAnalysisCompletenessDimension } from "./types";
+import type { EquityAnalysisCompleteness, EquityAnalysisCompletenessDimension } from "./report";
 
 export const EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS = [
   "primaryFinancials",

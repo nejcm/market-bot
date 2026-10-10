@@ -1,4 +1,4 @@
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { fetchMassiveQuoteFallback } from "../sources/massive-fallback";
 import { yahooQuoteSourceRequest } from "../sources/yahoo";

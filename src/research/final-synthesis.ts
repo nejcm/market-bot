@@ -1,12 +1,8 @@
 import type { ResearchCommand } from "../cli/args";
-import type {
-  EquityAnalysisCompleteness,
-  Prediction,
-  RelocatedGapClaim,
-  ResearchReport,
-  Source,
-  SourceGap,
-} from "../domain/types";
+import type { Prediction } from "../domain/prediction";
+import type { EquityAnalysisCompleteness, ResearchReport } from "../domain/report";
+import type { RelocatedGapClaim } from "../domain/run-trace";
+import type { Source, SourceGap } from "../domain/sources";
 import type { CollectedSources } from "../sources/types";
 import type { CostPricing } from "../model/pricing";
 import { applyEarningsForecastPolicy } from "../forecast/earnings-eligibility";

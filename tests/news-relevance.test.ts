@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { isNewsRelevant } from "../src/sources/news-relevance";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import type { NewsRelevanceTarget } from "../src/sources/types";
 
 function source(overrides: Partial<Source> = {}): Source {

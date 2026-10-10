@@ -87,7 +87,7 @@ SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`,
 3. Reader types — `src/report/report-extras-contract.ts`. **Read its header comment first**: producer types are strict, reader types structural.
 4. Artifact schema — `src/report/schema.ts` for `report.json`; deep-equity `normalized/evidence-bundle.json` types in `src/deep-equity/types.ts`, shape validation in `src/deep-equity/artifact-schema.ts`, readers in `src/run-artifacts.ts`.
 5. Markdown — the matching `src/report/markdown-*.ts` (equity, evidence, profile, market-update are separate renderers).
-6. Source-id traversal — the citation walk must see the new rows, or the claim renders uncited.
+6. Source-id traversal — the citation walk must see the new rows, or the claim renders uncited. `webSubjectProfile` and `businessFramework` have one `*SourceRows` walk in `report-extras-contract.ts` that feeds validation, research-only segments, and citations; add the field there once.
 7. Console view model — `app/client/view-model-*.ts` and the run-workspace modules.
 8. Console component — `app/client/components/*.svelte`.
 9. Index projection — the `src/run-artifact-index-*` modules, if the field should be searchable.

@@ -55,6 +55,9 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
       : undefined,
   );
   expect(result.markdown.match(/Research-only note/gu)?.length).toBe(1);
+  // Two cassettes still return model spotlights; equity assembly must drop them (ADR 0003).
+  expect(report.extras?.spotlights).toBeUndefined();
+  expect(result.markdown).not.toContain("## Market Spotlights");
   expect(result.sourcePlan).toBeDefined();
   expect(result.evidenceLanes.summary.plannedLaneCount).toBeGreaterThan(0);
   expect(result.analytics.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);

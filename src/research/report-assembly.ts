@@ -809,7 +809,12 @@ export function assembleResearchReportWithRelocations(
     ).label;
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
-  const resolvedSpotlights = mergeSpotlightsExtra(modelExtras.spotlights, defaultSpotlights);
+  const { spotlights: modelSpotlights, ...authoredExtras } = modelExtras;
+  // Equity reports carry no Spotlights (ADR 0003): model ones only re-cited keyFindings evidence.
+  const resolvedSpotlights =
+    command.jobType === "equity"
+      ? undefined
+      : mergeSpotlightsExtra(modelSpotlights, defaultSpotlights);
   const extendedEvidenceExtras = projectExtendedEvidenceReportExtras({
     modelExtras,
     collectedSources,
@@ -862,7 +867,7 @@ export function assembleResearchReportWithRelocations(
       : {}),
     notFinancialAdvice: true,
     extras: {
-      ...modelExtras,
+      ...authoredExtras,
       ...(defaultHistoricalContext !== undefined
         ? { historicalContext: defaultHistoricalContext }
         : {}),

@@ -1392,7 +1392,7 @@ describe("report schema and rendering", () => {
     });
   });
 
-  test("keeps ticker model spotlights when no selected spotlights exist", () => {
+  test("drops model spotlights from equity reports", () => {
     const depthProfile = assemblyDepthProfile("ROKU");
     const assembled = assembleWithSpotlights(
       {
@@ -1410,15 +1410,24 @@ describe("report schema and rendering", () => {
       { jobType: "equity", assetClass: "equity", symbol: "ROKU", depth: "brief" },
     );
 
-    expect(assembled.extras?.spotlights).toEqual({
-      items: [
-        {
-          symbol: "ROKU",
-          rationale: "Ticker-authored spotlight.",
-          sourceIds: [spotlightSource.id],
+    expect(assembled.extras?.spotlights).toBeUndefined();
+  });
+
+  test("ignores spotlights on older equity artifacts when rendering", () => {
+    const markdown = renderMarkdownReport({
+      ...report,
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "ROKU",
+      extras: {
+        spotlights: {
+          items: [{ symbol: "ROKU", rationale: "Legacy spotlight.", sourceIds: ["source-1"] }],
         },
-      ],
+      },
     });
+
+    expect(markdown).not.toContain("## Market Spotlights");
+    expect(markdown).not.toContain("Legacy spotlight.");
   });
 
   test("builds, validates, renders, and scans market-overview catalyst calendar", () => {

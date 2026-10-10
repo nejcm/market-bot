@@ -102,7 +102,6 @@ export function renderMarkdownReport(
       renderDiagnosticGapSummary,
       renderEarningsSetup,
       renderHistoricalContext,
-      renderSpotlights,
       renderPredictions,
     });
   }

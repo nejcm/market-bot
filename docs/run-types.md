@@ -325,7 +325,7 @@ market-bot crypto <symbol> [--deep]
 ### Config
 
 Run key `crypto` &rarr; dedicated crypto instrument profile. Brief defaults match
-equity; deep crypto retains a target and completion floor of 5.
+equity; deep crypto retains a target of 5 predictions.
 
 ### Data Collected
 

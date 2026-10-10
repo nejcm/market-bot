@@ -223,7 +223,7 @@ Secret-scrubbed canonical HTTP request-to-response map replayed beneath the cach
 
 ## LLM Cassette
 
-Ordered recorded `ModelProvider.generate` responses by stage/model. Regression mode uses it; eval mode bypasses it.
+Ordered recorded `ModelProvider.generate` responses by stage/model. Regression mode uses it; eval mode bypasses it, except `--live-stages final-synthesis`, which replays upstream stages from it.
 
 ## Regression Mode
 
@@ -235,7 +235,7 @@ Fixture mode replaying Data Cassettes while calling the configured live model, k
 
 ## Frozen-Input Eval
 
-Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps.
+Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages final-synthesis` keeps only final synthesis live. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps.
 
 ## Run Artifact Index
 

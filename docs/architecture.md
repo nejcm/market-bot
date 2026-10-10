@@ -10,7 +10,7 @@ src/
   cli/args.ts         Argument parsing; cli/job-registry.ts for the CliCommand union and job shapes
   config.ts           Env-driven AppConfig
   config/runs/        Typed per-run-profile config (model, sampling knobs, depth profile)
-  domain/             Instrument, AssetClass, Depth, Prediction, ResearchReport
+  domain/             Shared types split by subsystem (job-type, instrument, prediction, report, sources, evidence, run-trace); run-type registry; research-language gate
   forecast/           Observable forecast contract: parser, expression shape, resolver
   model/              OpenAI / OpenAI-compatible / Codex / Anthropic providers
   movers/             Deterministic mover ranking and screener dedupe
@@ -31,7 +31,7 @@ src/
   web-evidence/       Web Evidence package: gather-loop orchestration and policy, Web Subject Profile
                       contract and reuse, web source usage; public index plus dependency-neutral contract leaf
 prompts/              Stage prompt files and checked-in Domain Playbooks
-scripts/              Coverage floor, fixture record/replay, and provider probe scripts
+scripts/              Coverage floor, fixture record/replay, Frozen-Input Eval, SEC cache sweep (`sweep:sec`), and provider probe scripts
 tests/                Bun test suites
 app/                  Local Svelte + Bun Research Console App
 docs/adr/             Architecture decision records

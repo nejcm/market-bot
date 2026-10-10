@@ -4,16 +4,21 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveConfig } from "../src/config";
-import type { ModelProvider } from "../src/model/types";
+import type { ModelProvider, ModelRequest } from "../src/model/types";
 import type { FetchLike } from "../src/sources/types";
-import { createLiveFixtureConfig, loadFixture } from "./support/run-fixtures";
+import { createLiveFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
 import { makeReplayFetch } from "./support/run-fixtures/data-cassette";
-import { llmCassetteKey, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+import {
+  llmCassetteKey,
+  makeFinalSynthesisLiveProvider,
+  makeReplayProvider,
+} from "./support/run-fixtures/llm-cassette";
 import {
   countCassetteMisses,
   evalSampleDir,
   extractSampleMetrics,
   formatEvalCompare,
+  liveTokenEstimate,
   readEvalSummary,
   runEvalSample,
   writeEvalSummary,
@@ -132,6 +137,163 @@ describe("cassette miss counting", () => {
     await expect(missing("https://example.test/a")).rejects.toBe(miss);
     await expect(failing("https://example.test/b")).rejects.toBe(other);
     expect(keys).toEqual(["GET  https://example.test/a"]);
+  });
+});
+
+function stageRequest(stage: string, model: string): Parameters<ModelProvider["generate"]>[0] {
+  return {
+    model,
+    messages: [{ role: "user", content: JSON.stringify({ stage, priorStages: [] }) }],
+  };
+}
+
+describe("final-synthesis-only live provider", () => {
+  test("replays upstream stages by stage, routes final synthesis live, and throws on misses", async () => {
+    const liveModels: string[] = [];
+    const provider = makeFinalSynthesisLiveProvider(
+      { entries: { "critique|recorded-quick": [{ content: '{"recorded":1}', tokenEstimate: 5 }] } },
+      {
+        name: "stub",
+        generate: async (request) => {
+          liveModels.push(request.model);
+          return { content: '{"live":1}', tokenEstimate: 7 };
+        },
+      },
+    );
+
+    expect((await provider.generate(stageRequest("critique", "live-quick"))).content).toBe(
+      '{"recorded":1}',
+    );
+    expect((await provider.generate(stageRequest("final-synthesis", "live-sol"))).content).toBe(
+      '{"live":1}',
+    );
+    expect(liveModels).toEqual(["live-sol"]);
+    await expect(provider.generate(stageRequest("critique", "live-quick"))).rejects.toThrow(
+      "LLM cassette miss for critique|recorded-quick call 2",
+    );
+    await expect(provider.generate(stageRequest("web-gather", "live-quick"))).rejects.toThrow(
+      "LLM cassette has 0 recorded models for stage web-gather",
+    );
+  });
+
+  test("throws instead of sending a live prompt it cannot freeze", async () => {
+    const provider = makeFinalSynthesisLiveProvider(
+      { entries: {} },
+      {
+        name: "stub",
+        generate: () => Promise.reject(new Error("live provider must not be called")),
+      },
+    );
+    const unfrozen = {
+      model: "live-sol",
+      messages: [{ role: "user" as const, content: JSON.stringify({ stage: "final-synthesis" }) }],
+    };
+    await expect(provider.generate(unfrozen)).rejects.toThrow(
+      "final-synthesis prompt has no priorStages array to freeze",
+    );
+  });
+
+  test("records a failed sample and restores index settings when the live provider cannot be built", async () => {
+    const root = await tempRoot();
+    const savedProvider = process.env.MARKET_BOT_PROVIDER;
+    process.env.MARKET_BOT_PROVIDER = "unsupported-eval-test";
+    try {
+      const sample = await withAmbientIndexEnv(() =>
+        runEvalSample({
+          root,
+          label: "no-provider",
+          fixture: "equity-depository-deep",
+          sample: "1",
+          llm: "replay",
+          liveStages: "final-synthesis",
+        }),
+      );
+      expect(sample.status).toBe("threw");
+      expect(sample.error).toContain("Unsupported provider: unsupported-eval-test");
+      expect(existsSync(join(sample.sampleDir, "eval-sample.json"))).toBe(true);
+    } finally {
+      if (savedProvider === undefined) {
+        delete process.env.MARKET_BOT_PROVIDER;
+      } else {
+        process.env.MARKET_BOT_PROVIDER = savedProvider;
+      }
+    }
+  });
+
+  test("runs recorded fixtures with only final synthesis live and identical prompts per sample", async () => {
+    const root = await tempRoot();
+    for (const fixtureName of ["equity-depository-deep", "equity-earnings-release-deep"]) {
+      // eslint-disable-next-line no-await-in-loop -- fixtures share process env
+      const fixture = await loadFixture(fixtureName);
+      const firstPrompts: string[] = [];
+      for (const sample of ["1", "2"]) {
+        const replay = makeReplayProvider(fixture.llmCassette);
+        const liveRequests: ModelRequest[] = [];
+        // eslint-disable-next-line no-await-in-loop -- samples share process env
+        const result = await runEvalSample({
+          root,
+          label: "live-stage",
+          fixture: fixtureName,
+          sample,
+          llm: "replay",
+          liveStages: "final-synthesis",
+          provider: {
+            name: "stub",
+            generate: (request) => {
+              liveRequests.push(request);
+              return replay.generate(request);
+            },
+          },
+        });
+        expect(result.status).toBe("completed");
+        expect(liveRequests.length).toBeGreaterThan(0);
+        expect(
+          liveRequests.every((request) => llmCassetteKey(request).startsWith("final-synthesis|")),
+        ).toBe(true);
+        firstPrompts.push(
+          liveRequests[0]?.messages.map((message) => message.content).join("\n") ?? "",
+        );
+      }
+      expect(firstPrompts[1]).toBe(firstPrompts[0]);
+      expect(firstPrompts[0]).toContain('"durationMs": 0');
+
+      // eslint-disable-next-line no-await-in-loop -- sequential with the runs above
+      const estimate = await liveTokenEstimate(fixtureName, "final-synthesis");
+      const perCall = Math.max(
+        50_000,
+        ...(fixture.llmCassette.entries["final-synthesis|gpt-5.6-sol"] ?? []).map(
+          (entry) => entry.tokenEstimate,
+        ),
+      );
+      expect(estimate.perRun).toBe(7 * perCall);
+    }
+    expect((await liveTokenEstimate("equity-nbis-deep", "final-synthesis")).perRun).toBe(350_000);
+  });
+
+  test("fails the run without a live call when an upstream stage swallows a replay miss", async () => {
+    const root = await tempRoot();
+    const fixture = await loadFixture("equity-earnings-release-deep");
+    const { "web-subject-profile|gpt-5.6-luna": missing, ...entries } = fixture.llmCassette.entries;
+    expect(missing).toBeDefined();
+    let liveCalls = 0;
+    await expect(
+      runFixture("equity-earnings-release-deep", {
+        llm: "replay",
+        dataDir: join(root, "runs"),
+        keepDataDir: true,
+        provider: makeFinalSynthesisLiveProvider(
+          { entries },
+          {
+            name: "stub",
+            generate: () => {
+              liveCalls += 1;
+              return Promise.reject(new Error("live provider must not be called"));
+            },
+          },
+        ),
+      }),
+    ).rejects.toThrow("Refusing live final-synthesis after upstream replay failure");
+    expect(liveCalls).toBe(0);
   });
 });
 

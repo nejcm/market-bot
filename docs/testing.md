@@ -177,7 +177,17 @@ The replay command accepts exactly one fixture name and the optional `--live` fl
 bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base
 bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label base --yes
 bun run scripts/eval-deep.ts --compare base branch
+MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label <arm> --live-stages final-synthesis
 ```
+
+`--live-stages final-synthesis` keeps final synthesis live and replays every upstream stage from
+the fixture's LLM cassette by stage name, so arms compare synthesis models on identical upstream
+outputs; replayed stage durations are zeroed in the live prompt so it is byte-identical across
+samples. A missing or exhausted upstream cassette entry throws, and because some stages swallow
+that error, any replay miss also refuses every later live call so the sample fails before spending.
+The estimate reserves the maximum final-synthesis call count (initial, prediction reprompts, report
+retries) at the larger of the biggest recorded synthesis call and ~50k tokens. Only recorded
+fixtures (`equity-depository-deep`, `equity-earnings-release-deep`) carry real upstream outputs.
 
 Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
 sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, or
@@ -187,7 +197,8 @@ sample dir is refused. Each sample records its status (`completed`, `failed-fina
 left out of that sample's mean and shows as `n=k/N`, so a failure never reads as an improvement.
 Synthetic fixtures (`equity-aapl-deep`, `equity-nbis-deep`, `equity-web-fallback-deep`) record tiny
 cassette token counts, so the estimate floors each run at the ~438k of a real deep run.
-`tests/eval-deep.test.ts` covers isolation, miss counting, and compare output with replayed models.
+`tests/eval-deep.test.ts` covers isolation, miss counting, compare output, and the final-synthesis-only
+live provider with replayed models.
 
 ## Deep-equity presentation assertions
 

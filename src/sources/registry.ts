@@ -1,4 +1,4 @@
-import type { AssetClass } from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
 import { createMultiExtendedEvidenceAdapter } from "./extended-evidence";
 import { createMultiNewsAdapter } from "./multi-news";
 import { sourceProviders } from "./providers";

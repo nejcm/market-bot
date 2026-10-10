@@ -20,7 +20,8 @@ import {
   type WebSubjectProfileArtifact,
 } from "../src/web-evidence/web-subject-profile";
 import { classifyGap } from "../src/report/gap-triage";
-import type { ExtendedEvidence, Source } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
+import type { Source } from "../src/domain/sources";
 import { collectedSources, deepEquityEvidenceBundle, researchReport } from "./support/fixtures";
 import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
 import { executeEvidenceRequestTool } from "../src/sources/evidence-request-tools";

@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
-import type { AssetClass } from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
 import type { Observation } from "../forecast/observable";
 import type { CloseWindow } from "../sources/yahoo";
 import type { ScoringPolicyVersion } from "./policy";

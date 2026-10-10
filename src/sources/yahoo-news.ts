@@ -1,4 +1,5 @@
-import type { AssetClass, Source } from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
+import type { Source } from "../domain/sources";
 import { isRecord, optionalString, readString } from "../guards";
 import { canonicalizeUrl, encodeQuery, newsQuery } from "./news-utils";
 import {

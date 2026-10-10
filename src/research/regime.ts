@@ -1,10 +1,6 @@
-import type {
-  AssetClass,
-  MarketContext,
-  MarketRegimeLabel,
-  MarketRegimeSummary,
-  MarketSnapshot,
-} from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
+import type { MarketContext, MarketSnapshot } from "../domain/market-data";
+import type { MarketRegimeLabel, MarketRegimeSummary } from "../domain/report";
 import { isEquityBreadthProxySymbol, isEquityVolatilitySymbol } from "../domain/regime-symbols";
 import { isFredBaseMetricKey } from "../sources/fred";
 

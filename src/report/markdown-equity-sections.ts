@@ -1,12 +1,11 @@
+import { type ExtendedEvidenceItem } from "../domain/evidence";
 import {
   marketCapAsOfPhrase,
   marketCapQuotePhrase,
   resolveMarketSnapshotPriceAsOf,
-  type EquityAnalysisDimensionStatus,
-  type ExtendedEvidenceItem,
   type MarketSnapshot,
-  type ResearchReport,
-} from "../domain/types";
+} from "../domain/market-data";
+import { type EquityAnalysisDimensionStatus, type ResearchReport } from "../domain/report";
 import { readNumber } from "../guards";
 import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
 import type { CollectedSources } from "../sources/types";

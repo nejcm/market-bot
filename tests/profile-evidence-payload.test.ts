@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ResearchCommand } from "../src/cli/args";
 import { sourceGap } from "../src/domain/source-gaps";
-import type { Source } from "../src/domain/types";
+import type { Source } from "../src/domain/sources";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { buildWebSubjectProfileStagePrompt } from "../src/research/prompts/web-subject-profile";
 import type { CollectedSources } from "../src/sources/types";

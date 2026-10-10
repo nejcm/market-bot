@@ -1,11 +1,10 @@
+import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../domain/market-data";
 import {
-  resolveMarketSnapshotPriceAsOf,
   researchReportEvidenceQuality,
-  type MarketSnapshot,
   type ResearchReport,
   type Scenario,
-  type SourceGap,
-} from "../domain/types";
+} from "../domain/report";
+import { type SourceGap } from "../domain/sources";
 import { isIntendedFallbackGap, sourceGapScopedReportText } from "../domain/source-gaps";
 import type { CollectedSources } from "../sources/types";
 import { projectEquityReader, type EquityReaderCompanyDescription } from "./equity-reader";

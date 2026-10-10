@@ -1,8 +1,5 @@
-import {
-  isInstrumentJobType,
-  marketUpdateHorizonBucketOf,
-  type SourceGapCause,
-} from "../domain/types";
+import { isInstrumentJobType, marketUpdateHorizonBucketOf } from "../domain/job-type";
+import { type SourceGapCause } from "../domain/sources";
 import { numberAt } from "../guards";
 import { hasNonUsSuffix, isInternationalIdentity } from "../sources/instrument-capability";
 import type { ProviderRouteHealth, RunHealth } from "./provider-health";

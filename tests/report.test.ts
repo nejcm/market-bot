@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
-import type { MarketContext, MarketSnapshot, ResearchReport, Source } from "../src/domain/types";
+import type { MarketContext, MarketSnapshot } from "../src/domain/market-data";
+import type { ResearchReport } from "../src/domain/report";
+import type { Source } from "../src/domain/sources";
 import { sourceGap } from "../src/domain/source-gaps";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { violatesResearchOnly } from "../src/domain/research-language";

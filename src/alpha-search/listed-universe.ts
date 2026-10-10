@@ -1,6 +1,6 @@
 import { LISTED_SYMBOL_RE } from "../config/shared";
 import { sourceGap } from "../domain/source-gaps";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import {
   isFetchTextResult,
   type RawSourceSnapshot,

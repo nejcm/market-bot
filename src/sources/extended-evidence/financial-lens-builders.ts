@@ -20,11 +20,8 @@ import {
   type FinancialLens,
   type FinancialLensMetric,
 } from "./financial-lens-metrics";
-import type {
-  ExtendedEvidenceItem,
-  MarketSnapshot,
-  VerifiedMarketSnapshot,
-} from "../../domain/types";
+import type { ExtendedEvidenceItem } from "../../domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
 import { isContinuingScope, scopedLabel } from "./financial-statement-definitions";
 import {

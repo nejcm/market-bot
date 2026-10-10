@@ -1,9 +1,6 @@
-import {
-  isMarketUpdateJobType,
-  type MarketContext,
-  type Source,
-  type SourceGap,
-} from "../domain/types";
+import { isMarketUpdateJobType } from "../domain/job-type";
+import { type MarketContext } from "../domain/market-data";
+import { type Source, type SourceGap } from "../domain/sources";
 import { marketContextGap, sourceGap } from "../domain/source-gaps";
 import {
   buildFredMacroMetrics,

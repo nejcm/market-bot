@@ -11,9 +11,9 @@
  * Policy: per-indicator failure → null for that key, never a dropped snapshot.
  */
 
-import type { IndicatorMap, OhlcvBar } from "../domain/types";
+import type { IndicatorMap, OhlcvBar } from "../domain/market-data";
 
-export type { IndicatorMap } from "../domain/types";
+export type { IndicatorMap } from "../domain/market-data";
 
 /** Minimum bar count to emit a snapshot at all (core indicators). */
 export const MIN_BARS_FOR_SNAPSHOT = 60;

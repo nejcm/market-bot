@@ -1,18 +1,16 @@
 import {
-  NEAR_BASE_RATE_BAND,
+  type WebEvidenceUtilization,
+  type WebGatherAcceptancePolicy,
+} from "../domain/gather-audit";
+import { NEAR_BASE_RATE_BAND, type EarningsForecastTelemetry } from "../domain/prediction";
+import {
   researchReportEvidenceQuality,
-  sourceProvider,
-  type EarningsForecastTelemetry,
   type PredictionShortfall,
   type ReportIntegrity,
   type ResearchReport,
-  type RunTrace,
-  type Source,
-  type SourceGap,
-  type SourceTextResearchOnlySummary,
-  type WebEvidenceUtilization,
-  type WebGatherAcceptancePolicy,
-} from "../domain/types";
+} from "../domain/report";
+import { type RunTrace, type SourceTextResearchOnlySummary } from "../domain/run-trace";
+import { sourceProvider, type Source, type SourceGap } from "../domain/sources";
 import { isRepeatFallbackGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
 import type { CollectedSources, NewsCollectionAnalytics } from "../sources/types";

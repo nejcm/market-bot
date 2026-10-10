@@ -1,6 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
-import type { AssetClass, Source } from "../domain/types";
+import type { AssetClass } from "../domain/job-type";
+import type { Source } from "../domain/sources";
 import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { isUsListing } from "./instrument-capability";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays, ymd } from "./news-utils";

@@ -1,4 +1,5 @@
-import type { AssetClass, Prediction } from "../src/domain/types";
+import type { AssetClass } from "../src/domain/job-type";
+import type { Prediction } from "../src/domain/prediction";
 import { instrumentsForExpression, parseObservableExpression } from "../src/forecast/observable";
 import type { InstrumentTimelineEntry } from "../src/history/artifacts";
 import { readInstrumentTimeline } from "../src/history/timeline-reader";

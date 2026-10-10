@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord } from "../../../src/guards";
-import type { ResearchReport } from "../../../src/domain/types";
+import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";

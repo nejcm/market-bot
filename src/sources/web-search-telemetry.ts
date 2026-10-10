@@ -1,4 +1,4 @@
-import type { WebGatherLoopAudit } from "../domain/types";
+import type { WebGatherLoopAudit } from "../domain/gather-audit";
 
 // Per-tool provider counts for one run's Web Gather execution.
 export interface WebGatherProviderCounts {

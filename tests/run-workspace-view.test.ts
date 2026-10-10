@@ -19,7 +19,8 @@ import {
   financialPositionFromProjection,
 } from "../app/client/run-workspace-financials";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
-import type { MarketSnapshot, ResearchReport, VerifiedMarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/market-data";
+import type { ResearchReport } from "../src/domain/report";
 import {
   deriveFundamentalHistory,
   type FundamentalHistoryArtifact,

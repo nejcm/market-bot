@@ -10,17 +10,15 @@ import {
   isSourceGapTriage,
   sourceGapStatusCode,
 } from "../domain/source-gaps";
+import { type InstrumentIdentity } from "../domain/instrument";
 import {
-  SOURCE_KINDS,
   isInstrumentJobType,
   isMarketUpdateJobType,
   type AssetClass,
   type Depth,
-  type InstrumentIdentity,
   type JobType,
-  type Source,
-  type SourceGap,
-} from "../domain/types";
+} from "../domain/job-type";
+import { SOURCE_KINDS, type Source, type SourceGap } from "../domain/sources";
 import {
   loadRunSubsystemOutcomesFromIndex,
   readRunArtifactIndexStatus,

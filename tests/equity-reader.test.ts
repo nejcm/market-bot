@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SourceGap } from "../src/domain/types";
+import type { SourceGap } from "../src/domain/sources";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
 import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";

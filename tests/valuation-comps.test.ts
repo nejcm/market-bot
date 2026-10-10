@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { sourceGap } from "../src/domain/source-gaps";
-import type { ExtendedEvidence, SourceGapCause } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
+import type { SourceGapCause } from "../src/domain/sources";
 import {
   collectValuationComps,
   derivePeerImpliedRange,

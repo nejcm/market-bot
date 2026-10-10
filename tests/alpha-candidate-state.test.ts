@@ -7,7 +7,7 @@ import {
   type AlphaCandidateProfile,
 } from "../src/alpha-search/candidate-state";
 import type { AlphaValidationFile } from "../src/alpha-search/validation";
-import type { ResearchReport } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
 import { researchReport } from "./support/fixtures";
 
 function alphaReport(leads: readonly unknown[], overrides: Partial<ResearchReport> = {}) {

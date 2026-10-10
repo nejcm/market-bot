@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { dedupeSourceGaps, sourceGap, sourceGapScopedReportText } from "../src/domain/source-gaps";
-import type { ExtendedEvidence } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
 import { classifyGap } from "../src/report/gap-triage";
 import {
   addBusinessFrameworkEvidence,

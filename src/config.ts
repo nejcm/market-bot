@@ -1,5 +1,5 @@
 import { basename, dirname, join } from "node:path";
-import type { SubjectKind } from "./domain/types";
+import type { SubjectKind } from "./domain/evidence";
 import { defaultRunArtifactIndexPath } from "./run-artifact-index";
 import type { ModelParams, ReasoningEffort } from "./model/types";
 

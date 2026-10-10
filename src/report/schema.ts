@@ -1,13 +1,12 @@
+import { type EvidenceQuality } from "../domain/evidence";
+import { isEarningsEventDateStatus, type Prediction } from "../domain/prediction";
 import {
-  isEarningsEventDateStatus,
   isReportIntegrity,
-  SOURCE_KINDS,
-  type EvidenceQuality,
   type KeyFinding,
-  type Prediction,
   type ResearchReport,
   type Scenario,
-} from "../domain/types";
+} from "../domain/report";
+import { SOURCE_KINDS } from "../domain/sources";
 import {
   assertEquityAnalysisCompleteness,
   EQUITY_ANALYSIS_COMPLETENESS_DIMENSION_KEYS,

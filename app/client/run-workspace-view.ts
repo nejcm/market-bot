@@ -11,7 +11,7 @@ import {
   marketCapQuotePhrase,
   resolveMarketSnapshotPriceAsOf,
   type MarketSnapshot,
-} from "../../src/domain/types";
+} from "../../src/domain/market-data";
 import type { EquityReaderEarningsBasis } from "../../src/report/equity-reader-earnings-basis";
 import type {
   EquityReaderAppendixCompleteness,

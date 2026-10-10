@@ -2,7 +2,7 @@ import type {
   EvidenceQuality,
   EvidenceQualityAssessment,
   EvidenceQualityCheck,
-} from "../domain/types";
+} from "../domain/evidence";
 import type { BuildSourcePlanResult, EvidenceLane, EvidenceLaneCoverageV2 } from "./source-plan";
 
 const FRESHNESS_DAYS: Readonly<Partial<Record<EvidenceLane, number>>> = {

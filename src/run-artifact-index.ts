@@ -3,13 +3,9 @@ import { mkdir, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { RunSearchResult, RunSummary } from "../app/types";
-import {
-  marketUpdateHorizonBucketOf,
-  isMarketRegimeLabel,
-  type AssetClass,
-  type JobType,
-  type PredictionKind,
-} from "./domain/types";
+import { marketUpdateHorizonBucketOf, type AssetClass, type JobType } from "./domain/job-type";
+import { type PredictionKind } from "./domain/prediction";
+import { isMarketRegimeLabel } from "./domain/report";
 import { dataRootFromRunsDir } from "./data-paths";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import type { HistorySearchEntry, HistorySearchFilters, HistorySection } from "./history/artifacts";

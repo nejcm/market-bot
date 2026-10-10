@@ -1,6 +1,7 @@
 import type { InstrumentCommand } from "../cli/args";
 import { DAY_MS } from "../config/shared";
-import type { ExtendedEvidenceItem, Source, SourceGap } from "../domain/types";
+import type { ExtendedEvidenceItem } from "../domain/evidence";
+import type { Source, SourceGap } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 import { isRecord, readNumber } from "../guards";
 import { isUsListing } from "./instrument-capability";

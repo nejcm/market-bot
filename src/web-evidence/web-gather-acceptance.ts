@@ -1,11 +1,11 @@
 import type { ResearchCommand } from "../cli/args";
 import type {
   JsonToolLoopAuditEntry,
-  SourceGap,
   WebGatherAcceptancePolicy,
   WebGatherToolName,
   WebSearchType,
-} from "../domain/types";
+} from "../domain/gather-audit";
+import type { SourceGap } from "../domain/sources";
 import { isRecord, readString } from "../guards";
 import { MAX_WEB_GATHER_SEARCH_RESULTS, WEB_GATHER_TOOL_UNITS } from "../sources/web-gather-tools";
 import {

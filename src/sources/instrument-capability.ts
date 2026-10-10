@@ -1,4 +1,4 @@
-import type { InstrumentIdentity } from "../domain/types";
+import type { InstrumentIdentity } from "../domain/instrument";
 
 // Single source of truth for US-vs-international equity classification. Two consumers with
 // Deliberately different risk postures share these tables:

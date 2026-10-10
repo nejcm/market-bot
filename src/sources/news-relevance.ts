@@ -1,4 +1,4 @@
-import type { Source } from "../domain/types";
+import type { Source } from "../domain/sources";
 import type { NewsRelevanceTarget } from "./types";
 
 const COMPANY_SUFFIX_TERMS = new Set([

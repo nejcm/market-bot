@@ -1,4 +1,4 @@
-import type { MarketSnapshot } from "../domain/types";
+import type { MarketSnapshot } from "../domain/market-data";
 
 interface SymbolSnapshot {
   readonly snapshot: Pick<MarketSnapshot, "symbol">;

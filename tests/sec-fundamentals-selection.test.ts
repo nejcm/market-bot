@@ -17,7 +17,7 @@ import {
 import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuation-workbench";
 import { readValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { researchReport, reverseDcfWorkbench } from "./support/fixtures";
-import type { ExtendedEvidenceItem } from "../src/domain/types";
+import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 import { growthLens, qualityLens } from "../src/sources/extended-evidence/financial-lens-builders";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { financialStatementFacts } from "../src/sources/extended-evidence/financial-statement-selection";

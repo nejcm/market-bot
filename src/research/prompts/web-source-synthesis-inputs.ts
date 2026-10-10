@@ -1,9 +1,6 @@
 import type { ResearchCommand } from "../../cli/args";
-import type {
-  Source,
-  WebSourceSynthesisAdvisory,
-  WebSourceSynthesisInput,
-} from "../../domain/types";
+import type { WebSourceSynthesisAdvisory, WebSourceSynthesisInput } from "../../domain/run-trace";
+import type { Source } from "../../domain/sources";
 import { subjectKindForCommand } from "../../web-evidence";
 import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 import type { CollectedSources } from "../../sources/types";

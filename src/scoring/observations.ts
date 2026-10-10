@@ -1,4 +1,6 @@
-import type { AssetClass, InstrumentIdentity, ResearchReport } from "../domain/types";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { AssetClass } from "../domain/job-type";
+import type { ResearchReport } from "../domain/report";
 import type { Observation, PointObservationRequest } from "../forecast/observable";
 import { fetchCoinGeckoCloseWindow } from "../sources/coingecko";
 import { fetchFredObservation } from "../sources/fred";

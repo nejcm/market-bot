@@ -1,5 +1,5 @@
 import { isRecord, readNumber, readString, readStringArray } from "../../guards";
-import type { ExtendedEvidence } from "../../domain/types";
+import type { ExtendedEvidence } from "../../domain/evidence";
 import { depositoryIssuerSic } from "./industry-classification";
 import type { ValuationWorkbenchArtifact } from "./valuation-workbench-contract";
 import {

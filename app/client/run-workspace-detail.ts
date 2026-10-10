@@ -1,5 +1,5 @@
 import type { RunDetail } from "../types";
-import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../../src/domain/types";
+import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import type {
   FinancialLensName,
   FinancialLensPosture,

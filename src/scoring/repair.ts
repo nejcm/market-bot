@@ -1,7 +1,8 @@
 import { readdir, readFile, realpath } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { writeFileAtomic } from "../artifacts";
-import type { Prediction, ResearchReport } from "../domain/types";
+import type { Prediction } from "../domain/prediction";
+import type { ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
 import { RUN_ARTIFACT_FILES } from "../run-artifact-layout";
 import { loadRunArtifact } from "../run-artifacts";

@@ -1,4 +1,4 @@
-import type { SourceGapAttemptClassification } from "../domain/types";
+import type { SourceGapAttemptClassification } from "../domain/sources";
 import { SourceResponseTooLargeError } from "./response-size-error";
 
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];

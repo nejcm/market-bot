@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import type { PredictionKind, SourceGap } from "../../../src/domain/types";
+import type { PredictionKind } from "../../../src/domain/prediction";
+import type { SourceGap } from "../../../src/domain/sources";
 import { isRecord } from "../../../src/guards";
 import type { ModelProvider } from "../../../src/model/types";
 import { knownSourceIds } from "../../../src/report/markdown-primitives";

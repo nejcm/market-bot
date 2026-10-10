@@ -1,4 +1,6 @@
-import type { KeyFinding, Prediction, ResearchReport, Scenario, SourceGap } from "../domain/types";
+import type { Prediction } from "../domain/prediction";
+import type { KeyFinding, ResearchReport, Scenario } from "../domain/report";
+import type { SourceGap } from "../domain/sources";
 import { renderClaimForMeasurableAs } from "../forecast/observable";
 import {
   readAlphaSearchLeads,

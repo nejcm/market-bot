@@ -1,5 +1,5 @@
 import { isRecord } from "../../src/guards";
-import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../src/domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../src/domain/evidence";
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
 import {
   addFinancialLensEvidence,

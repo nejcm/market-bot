@@ -1,11 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  SourceGap,
-  SourceGapAttempts,
-  JsonToolLoopAuditEntry,
-} from "../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../domain/evidence";
+import type { JsonToolLoopAuditEntry } from "../domain/gather-audit";
+import type { SourceGap, SourceGapAttempts } from "../domain/sources";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";
 import { canonicalizeUrl } from "../sources/news-utils";

@@ -1,24 +1,30 @@
 import {
-  isMarketRegimeLabel,
-  isReportIntegrity,
   type ExtendedEvidence,
   type ExtendedEvidenceCategory,
   type ExtendedEvidenceItem,
+} from "./domain/evidence";
+import { type SubjectKind } from "./domain/evidence";
+import {
   type Instrument,
   type InstrumentIdentity,
+  type ProviderInstrumentId,
+} from "./domain/instrument";
+import { type Prediction } from "./domain/prediction";
+import {
+  isMarketRegimeLabel,
+  isReportIntegrity,
   type KeyFinding,
   type MarketRegimeLabel,
-  type Prediction,
-  type ProviderInstrumentId,
   type ResearchReport,
   type Scenario,
+} from "./domain/report";
+import {
   type Source,
   type SourceGap,
   type SourceGapAttemptClassification,
   type SourceGapAttemptFailure,
   type SourceGapAttempts,
-  type SubjectKind,
-} from "./domain/types";
+} from "./domain/sources";
 import { readEquityAnalysisCompleteness } from "./domain/equity-analysis-completeness";
 import {
   isSourceGapCapability,

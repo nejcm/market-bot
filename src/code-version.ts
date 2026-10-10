@@ -1,4 +1,4 @@
-import type { CodeVersion } from "./domain/types";
+import type { CodeVersion } from "./domain/run-trace";
 
 export type { CodeVersion };
 

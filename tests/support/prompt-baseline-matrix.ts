@@ -19,7 +19,7 @@ import type { SpotlightCandidate, SpotlightSelectionResult } from "../../src/res
 import type { BusinessFrameworkArtifact } from "../../src/sources/extended-evidence/business-framework";
 import type { WebSubjectProfileArtifact } from "../../src/web-evidence";
 import type { CollectedSources } from "../../src/sources/types";
-import type { Source } from "../../src/domain/types";
+import type { Source } from "../../src/domain/sources";
 import { collectedSources, marketSnapshot, newsSource, verifiedMarketSnapshot } from "./fixtures";
 
 // Fixed input matrix for the prompt byte-identity baseline (phase 2 step 0 of the

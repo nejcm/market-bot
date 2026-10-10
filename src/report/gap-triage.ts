@@ -1,5 +1,5 @@
 import { isIntendedFallbackGap, sourceGapScopedReportText } from "../domain/source-gaps";
-import type { SourceGap, SourceGapTriage } from "../domain/types";
+import type { SourceGap, SourceGapTriage } from "../domain/sources";
 
 export type GapTriage = SourceGapTriage;
 

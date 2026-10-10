@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { SOURCE_GAP_CAUSE_TABLE } from "../src/domain/source-gaps";
-import type { SourceGapCause, WebGatherLoopAudit } from "../src/domain/types";
+import type { WebGatherLoopAudit } from "../src/domain/gather-audit";
+import type { SourceGapCause } from "../src/domain/sources";
 import {
   assertSubsystemOutcomeCode,
   buildSubsystemOutcomes,

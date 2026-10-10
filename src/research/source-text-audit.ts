@@ -1,10 +1,8 @@
 import {
-  sourceProvider,
-  type Source,
-  type SourceKind,
   type SourceTextResearchOnlyAudit,
   type SourceTextResearchOnlyItem,
-} from "../domain/types";
+} from "../domain/run-trace";
+import { sourceProvider, type Source, type SourceKind } from "../domain/sources";
 import { violatesResearchOnly } from "../domain/research-language";
 
 export function auditSourceTextResearchOnly(

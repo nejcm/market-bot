@@ -1,6 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { dedupeSourceGaps, sourceGapScopedReportText } from "../domain/source-gaps";
-import { marketUpdateHorizonOf, type SourceGapEvidenceQualityImpact } from "../domain/types";
+import { marketUpdateHorizonOf } from "../domain/job-type";
+import { type SourceGapEvidenceQualityImpact } from "../domain/sources";
 import type { CollectedSources } from "../sources/types";
 import { missingVerifiedSnapshotGapText } from "./verified-snapshot-contract";
 

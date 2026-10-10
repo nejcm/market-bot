@@ -3,7 +3,7 @@ import { mkdir, rm, unlink } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { writeFileAtomic } from "../artifacts";
 import { sourceGap } from "../domain/source-gaps";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import { isYahooMarketDataAdapter, yahooCacheFallbackDays } from "./yahoo-resilience";
 import type { FetchSourceResult, RawSourceSnapshot, SourceRequest } from "./types";
 

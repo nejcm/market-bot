@@ -4,13 +4,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Database } from "bun:sqlite";
-import type {
-  AssetClass,
-  JobType,
-  Source,
-  SourceGap,
-  WebGatherLoopAudit,
-} from "../src/domain/types";
+import type { WebGatherLoopAudit } from "../src/domain/gather-audit";
+import type { AssetClass, JobType } from "../src/domain/job-type";
+import type { Source, SourceGap } from "../src/domain/sources";
 import {
   buildProviderHealthSummary,
   parseSourceGap,

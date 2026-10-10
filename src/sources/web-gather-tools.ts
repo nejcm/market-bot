@@ -1,10 +1,10 @@
 import { isInstrumentCommand } from "../cli/args";
 import type {
-  SourceGap,
   WebGatherFallbackAudit,
   WebGatherToolName,
   WebSearchType,
-} from "../domain/types";
+} from "../domain/gather-audit";
+import type { SourceGap } from "../domain/sources";
 import { isResponseSizeRejectionGap, sourceGapWithContext } from "../domain/source-gaps";
 import {
   FIRECRAWL_PROVIDER,

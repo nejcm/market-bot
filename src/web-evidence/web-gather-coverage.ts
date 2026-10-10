@@ -1,5 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
-import type { Source, WebGatherAcceptancePolicy, WebSearchType } from "../domain/types";
+import type { WebGatherAcceptancePolicy, WebSearchType } from "../domain/gather-audit";
+import type { Source } from "../domain/sources";
 import {
   MAX_WEB_GATHER_SEARCH_RESULTS,
   REUSED_PROFILE_DEFAULT_SEARCH_RESULTS,

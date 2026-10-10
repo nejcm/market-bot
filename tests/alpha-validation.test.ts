@@ -6,7 +6,7 @@ import {
   type AlphaValidationFile,
 } from "../src/alpha-search/validation";
 import type { AlphaSearchLead } from "../src/alpha-search/report-extras";
-import type { ResearchReport } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
 import type { Observation, ObservationRepository } from "../src/scoring/observations";
 import { researchReport } from "./support/fixtures";
 

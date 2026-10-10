@@ -1,10 +1,6 @@
-import type {
-  RunTrace,
-  SourceGap,
-  SourceGapCause,
-  WebGatherLoopAudit,
-  WebGatherLoopFailureCode,
-} from "../domain/types";
+import type { WebGatherLoopAudit, WebGatherLoopFailureCode } from "../domain/gather-audit";
+import type { RunTrace } from "../domain/run-trace";
+import type { SourceGap, SourceGapCause } from "../domain/sources";
 import { isRecord, readNumber, readString } from "../guards";
 import type { PlaybookSelectionAudit } from "./playbooks";
 import type { EvidenceLanesArtifactV2, SourcePlanArtifact } from "./source-plan";

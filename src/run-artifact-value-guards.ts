@@ -1,4 +1,4 @@
-import type { AssetClass, JobType } from "./domain/types";
+import type { AssetClass, JobType } from "./domain/job-type";
 import { isRecord } from "./guards";
 
 // Value guards and primitive projections shared by more than one artifact

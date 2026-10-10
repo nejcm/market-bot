@@ -18,7 +18,8 @@
  * - On failure → SourceGap with evidenceQualityImpact "core-cap", no Massive fallback.
  */
 
-import type { OhlcvBar, SourceGap, VerifiedMarketSnapshot } from "../domain/types";
+import type { OhlcvBar, VerifiedMarketSnapshot } from "../domain/market-data";
+import type { SourceGap } from "../domain/sources";
 import { sourceGap, sourceGapWithContext } from "../domain/source-gaps";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "./types";
 import {

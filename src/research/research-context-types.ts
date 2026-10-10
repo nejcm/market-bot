@@ -1,10 +1,7 @@
 import type { ForecastKindMix, ResolvedRunParams } from "../config/runs";
-import type {
-  EvidenceQualityAssessment,
-  EvidenceRequestToolName,
-  MarketRegimeSummary,
-  WebGatherToolName,
-} from "../domain/types";
+import type { EvidenceQualityAssessment } from "../domain/evidence";
+import type { EvidenceRequestToolName, WebGatherToolName } from "../domain/gather-audit";
+import type { MarketRegimeSummary } from "../domain/report";
 import type { CalibrationSummary } from "../scoring/types";
 import type { HistoricalResearchContext } from "./historical-context";
 import type { MarketUpdateDelta } from "./market-update-delta";

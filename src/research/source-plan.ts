@@ -1,12 +1,11 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
+import { isMarketUpdateJobType, type AssetClass } from "../domain/job-type";
 import {
-  isMarketUpdateJobType,
   sourceProvider,
-  type AssetClass,
   type Source,
   type SourceGap,
   type SourceGapCause,
-} from "../domain/types";
+} from "../domain/sources";
 import { verifiedSnapshotSourceId } from "./verified-snapshot-contract";
 import type { CollectedSources } from "../sources/types";
 import { substantiveProfileSourceIds } from "../web-evidence/contract";

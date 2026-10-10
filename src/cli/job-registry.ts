@@ -10,7 +10,7 @@ import {
   type Depth,
   type InstrumentJobType,
   type LegacyMarketUpdateJobType,
-} from "../domain/types";
+} from "../domain/job-type";
 import type { HistorySection } from "../history/artifacts";
 import { isRecord, readStringVerbatim } from "../guards";
 

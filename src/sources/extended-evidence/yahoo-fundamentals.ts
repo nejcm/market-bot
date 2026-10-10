@@ -1,5 +1,6 @@
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../../cli/args";
-import type { ExtendedEvidenceItem, MarketFundamentals, MarketSnapshot } from "../../domain/types";
+import type { ExtendedEvidenceItem } from "../../domain/evidence";
+import type { MarketFundamentals, MarketSnapshot } from "../../domain/market-data";
 import { formatPeRatio } from "./value-format";
 
 // Derives the `yahoo-fundamentals` ExtendedEvidenceItem from the normalized

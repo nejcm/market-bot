@@ -1,4 +1,4 @@
-import type { PredictionKind } from "../../domain/types";
+import type { PredictionKind } from "../../domain/prediction";
 import type { ModelParams } from "../../model/types";
 
 export type RunKey =

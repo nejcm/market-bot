@@ -1,4 +1,4 @@
-import type { AssetClass, JobType } from "./domain/types";
+import type { AssetClass, JobType } from "./domain/job-type";
 import type { ReportSearchScope } from "./report-search-entries";
 import type { ArtifactFileStatus } from "./run-artifact-layout";
 

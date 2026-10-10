@@ -1,6 +1,7 @@
 import type { ResearchCommand } from "../cli/args";
 import { marketSpotlightOptions, type AppConfig } from "../config";
-import { isMarketUpdateJobType, type Mover } from "../domain/types";
+import { isMarketUpdateJobType } from "../domain/job-type";
+import { type Mover } from "../domain/market-data";
 import type { ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { rankMovers } from "../movers/ranking";

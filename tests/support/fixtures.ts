@@ -1,11 +1,8 @@
-import type {
-  MarketSnapshot,
-  Prediction,
-  ResearchReport,
-  RunTrace,
-  Source,
-  VerifiedMarketSnapshot,
-} from "../../src/domain/types";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../src/domain/market-data";
+import type { Prediction } from "../../src/domain/prediction";
+import type { ResearchReport } from "../../src/domain/report";
+import type { RunTrace } from "../../src/domain/run-trace";
+import type { Source } from "../../src/domain/sources";
 import { buildFailedRunManifest } from "../../src/run-artifact-writer";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import type { PredictionScore } from "../../src/scoring/types";

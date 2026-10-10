@@ -13,7 +13,7 @@ import {
   financialPositionFromProjection,
 } from "../app/client/run-workspace-financials";
 import { dedupeSourceGaps } from "../src/domain/source-gaps";
-import type { ExtendedEvidenceItem } from "../src/domain/types";
+import type { ExtendedEvidenceItem } from "../src/domain/evidence";
 import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
 import {
   financialStatementFacts,

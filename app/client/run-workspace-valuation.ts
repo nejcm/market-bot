@@ -1,5 +1,5 @@
 import type { RunDetail } from "../types";
-import type { MarketSnapshotPriceAsOf } from "../../src/domain/types";
+import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import type { EquityReaderValuationContext } from "../../src/report/equity-reader";
 import type {
   PeerImpliedRange,

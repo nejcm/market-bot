@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { InstrumentIdentity, MarketSnapshot } from "../src/domain/types";
+import type { InstrumentIdentity } from "../src/domain/instrument";
+import type { MarketSnapshot } from "../src/domain/market-data";
 import {
   sanitizeInstrumentIdentityMetadata,
   sanitizeMarketSnapshotMetadata,

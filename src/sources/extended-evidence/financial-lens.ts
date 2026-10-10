@@ -22,13 +22,9 @@ import {
 import { SEC_FRESHNESS_DAYS } from "../../config/shared";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 
-import type {
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  MarketSnapshot,
-  SourceGap,
-  VerifiedMarketSnapshot,
-} from "../../domain/types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
+import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { formatLensValue } from "./value-format";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";

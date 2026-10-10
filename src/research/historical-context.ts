@@ -1,21 +1,23 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { historyOptions, type AppConfig, type HistoryOptions } from "../config";
 import { DAY_MS } from "../config/shared";
+import { type EvidenceQuality } from "../domain/evidence";
 import {
   isInstrumentJobType,
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
-  researchReportEvidenceQuality,
   type AssetClass,
-  type EvidenceQuality,
-  type HistoricalContextAudit,
   type JobType,
+} from "../domain/job-type";
+import { type MarketSnapshot } from "../domain/market-data";
+import { type PredictionKind } from "../domain/prediction";
+import {
+  researchReportEvidenceQuality,
   type KeyFinding,
-  type MarketSnapshot,
-  type PredictionKind,
   type ResearchReport,
-  type Source,
-} from "../domain/types";
+} from "../domain/report";
+import { type HistoricalContextAudit } from "../domain/run-trace";
+import { type Source } from "../domain/sources";
 import { scanRunArtifacts, type RunArtifactScan } from "../run-artifacts";
 import type { ForecastPersistenceBaseline } from "./forecast-persistence";
 import type { PredictionScore } from "../scoring/types";

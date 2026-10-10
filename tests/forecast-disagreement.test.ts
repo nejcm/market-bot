@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Prediction } from "../src/domain/types";
+import type { Prediction } from "../src/domain/prediction";
 import type { ModelProvider } from "../src/model/types";
 import type { LoadedPrompt } from "../src/research/prompt-loader";
 import {

@@ -1,4 +1,5 @@
-import type { InstrumentIdentity, MarketBenchmark, MarketSnapshot } from "../domain/types";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { MarketBenchmark, MarketSnapshot } from "../domain/market-data";
 import {
   sanitizeModelInputField,
   type ModelInputSanitizationAggregateEntry,

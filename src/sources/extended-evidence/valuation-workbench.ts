@@ -1,4 +1,6 @@
-import type { ExtendedEvidence, OhlcvBar, Source, SourceGap } from "../../domain/types";
+import type { ExtendedEvidence } from "../../domain/evidence";
+import type { OhlcvBar } from "../../domain/market-data";
+import type { Source, SourceGap } from "../../domain/sources";
 import type { FetchLike } from "../types";
 import { depositoryIssuerSic } from "./industry-classification";
 import { fetchYahooFxClosesOnOrBefore, type YahooFxClose } from "../yahoo-fx";

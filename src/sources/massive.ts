@@ -1,13 +1,9 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import { sourceGap, sourceGapStatusCode, sourceGapWithContext } from "../domain/source-gaps";
-import type {
-  AssetClass,
-  InstrumentIdentity,
-  MarketSnapshot,
-  Source,
-  SourceGap,
-  SourceGapCapability,
-} from "../domain/types";
+import type { InstrumentIdentity } from "../domain/instrument";
+import type { AssetClass } from "../domain/job-type";
+import type { MarketSnapshot } from "../domain/market-data";
+import type { Source, SourceGap, SourceGapCapability } from "../domain/sources";
 import { isRecord, optionalString, readNumber, readString } from "../guards";
 import { canonicalizeUrl, dateDaysBefore, encodeQuery, recencyDays } from "./news-utils";
 import {

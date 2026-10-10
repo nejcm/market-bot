@@ -4,7 +4,7 @@ import type {
   FinancialLensMetric,
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
-import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/types";
+import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
 
 export interface ValuationMetricTile {
   readonly label: string;

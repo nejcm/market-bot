@@ -1,4 +1,5 @@
-import type { JsonToolLoopAuditEntry, SourceGap, SourceGapCapability } from "../domain/types";
+import type { JsonToolLoopAuditEntry } from "../domain/gather-audit";
+import type { SourceGap, SourceGapCapability } from "../domain/sources";
 import { sourceGap } from "../domain/source-gaps";
 
 export interface JsonToolRejectionGapOptions {

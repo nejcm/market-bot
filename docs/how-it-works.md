@@ -487,7 +487,7 @@ Common extension points:
 | Add an environment variable    | `src/config.ts`, `docs/configuration.md`                                                                                  |
 | Add a source adapter           | [Source Provider Contract](./source-provider-contract.md), `src/sources/*`, `src/sources/registry.ts`, source tests       |
 | Add a prediction shape         | `src/forecast/observable.ts`, `src/scoring/resolver.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, tests          |
-| Change report structure        | `src/domain/types.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, orchestrator prompt shape, tests                 |
+| Change report structure        | `src/domain/report.ts`, `src/report/schema.ts`, `src/report/markdown.ts`, orchestrator prompt shape, tests                |
 | Change CLI syntax              | `src/cli/args.ts`, CLI tests, README command docs                                                                         |
 | Add or change Domain Playbooks | `prompts/playbooks/registry.json`, `prompts/playbooks/*.md`, `src/research/playbooks.ts`, playbook and orchestrator tests |
 

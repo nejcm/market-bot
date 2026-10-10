@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ResearchReport } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { assertSafeReportLanguage, validateResearchReport } from "../src/report/schema";
 import { reverseDcfArtifact } from "./support/fixtures";

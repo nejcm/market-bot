@@ -1,4 +1,6 @@
-import { isInstrumentJobType, type MarketSnapshot, type ResearchReport } from "../domain/types";
+import { isInstrumentJobType } from "../domain/job-type";
+import { type MarketSnapshot } from "../domain/market-data";
+import { type ResearchReport } from "../domain/report";
 import { isRecord } from "../guards";
 import { compactNumber } from "./equity-reader-trends";
 import type { EquityReaderAnalystEstimateDistribution } from "./equity-reader";

@@ -1,4 +1,4 @@
-import type { MarketSnapshot } from "../domain/types";
+import type { MarketSnapshot } from "../domain/market-data";
 import type {
   FinancialStatementsArtifact,
   FinancialStatementTtm,

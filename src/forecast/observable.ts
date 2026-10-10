@@ -1,4 +1,4 @@
-import type { Prediction } from "../domain/types";
+import type { Prediction } from "../domain/prediction";
 import type {
   ObservableForecast,
   ObservableForecastIssue,

@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import {
-  isInstrumentJobType,
-  type AssetClass,
-  type MarketSnapshot,
-  type MoverFeatures,
-} from "../domain/types";
+import { isInstrumentJobType, type AssetClass } from "../domain/job-type";
+import { type MarketSnapshot, type MoverFeatures } from "../domain/market-data";
 import { rankMovers } from "../movers/ranking";
 import { isRecord, readNumber, readString, stringArrayValue } from "../guards";
 import type { HistoricalResearchContext } from "./historical-context";

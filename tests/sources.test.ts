@@ -38,7 +38,7 @@ import type {
   NewsAdapter,
   SourceRequestExecutor,
 } from "../src/sources/types";
-import type { MarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot } from "../src/domain/market-data";
 import { replayedRunOutput } from "./support/run-fixtures/artifacts";
 
 interface ReplayedEvidenceBundle {

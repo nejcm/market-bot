@@ -1,6 +1,6 @@
 import { renderPriceProvenance } from "../src/report/markdown-equity-sections";
 import { describe, expect, test } from "bun:test";
-import type { ExtendedEvidence } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";

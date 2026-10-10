@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { computeIndicators, MIN_BARS_FOR_SNAPSHOT, SMA200_PERIOD } from "../src/sources/indicators";
-import type { OhlcvBar } from "../src/domain/types";
+import type { OhlcvBar } from "../src/domain/market-data";
 
 function bar(date: string, close: number, opts?: Partial<OhlcvBar>): OhlcvBar {
   return {

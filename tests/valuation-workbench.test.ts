@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { violatesResearchOnly } from "../src/domain/research-language";
-import { resolveMarketSnapshotPriceAsOf } from "../src/domain/types";
+import { resolveMarketSnapshotPriceAsOf } from "../src/domain/market-data";
 import type {
   FinancialStatementFact,
   FinancialStatementName,

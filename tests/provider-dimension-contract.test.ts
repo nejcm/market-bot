@@ -10,13 +10,12 @@ import {
 } from "../app/client/run-workspace-view";
 import type { RunDetail } from "../app/types";
 import type { DeepEquityEvidenceBundleV1 } from "../src/deep-equity/types";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/market-data";
 import type {
   EquityAnalysisCompleteness,
   EquityAnalysisCompletenessDimension,
-  MarketSnapshot,
   ResearchReport,
-  VerifiedMarketSnapshot,
-} from "../src/domain/types";
+} from "../src/domain/report";
 import { validateResearchReport } from "../src/report/schema";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 import type { FundamentalHistoryArtifact } from "../src/sources/extended-evidence/fundamental-history";

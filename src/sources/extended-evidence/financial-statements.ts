@@ -1,6 +1,6 @@
 import { isRecord, readNumber, readString } from "../../guards";
 import { sourceGap } from "../../domain/source-gaps";
-import type { SourceGap } from "../../domain/types";
+import type { SourceGap } from "../../domain/sources";
 import type { CollectContext } from "../types";
 import {
   fetchSecCompanyFactsForSymbol,

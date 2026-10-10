@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtendedEvidence, ResearchReport } from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
+import type { ResearchReport } from "../src/domain/report";
 import { validateResearchReport } from "../src/report/schema";
 import {
   currentIncompleteStatements,

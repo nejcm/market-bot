@@ -1,4 +1,4 @@
-import type { SourceGap } from "../../domain/types";
+import type { SourceGap } from "../../domain/sources";
 import { isInstrumentCommand } from "../../cli/args";
 import { sourceGap } from "../../domain/source-gaps";
 import {

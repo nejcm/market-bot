@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { EvidenceQualityAssessment, EvidenceQualityCheck } from "../src/domain/types";
+import type { EvidenceQualityAssessment, EvidenceQualityCheck } from "../src/domain/evidence";
 import { deriveResearchQualityDriver } from "../src/research/quality-driver";
 
 function check(

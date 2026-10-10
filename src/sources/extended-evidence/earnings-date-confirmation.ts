@@ -1,4 +1,5 @@
-import type { InstrumentIdentity, Source } from "../../domain/types";
+import type { InstrumentIdentity } from "../../domain/instrument";
+import type { Source } from "../../domain/sources";
 import { isRecord, readString, stringArrayValue } from "../../guards";
 import type { CollectedSources, EarningsSetupCollected, RawSourceSnapshot } from "../types";
 

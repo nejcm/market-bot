@@ -2,14 +2,13 @@ import type { AppConfig } from "../config";
 import type { CostPricing } from "../model/pricing";
 import { isInstrumentCommand, type InstrumentCommand, type ResearchCommand } from "../cli/args";
 import { runTypeSupportsEvidenceRequest } from "../domain/run-types";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../domain/evidence";
 import type {
   EvidenceRequestAuditEntry,
   EvidenceRequestLoopAudit,
   EvidenceRequestToolName,
-  ExtendedEvidence,
-  ExtendedEvidenceItem,
-  SourceGap,
-} from "../domain/types";
+} from "../domain/gather-audit";
+import type { SourceGap } from "../domain/sources";
 import { extendedEvidenceGap, sourceGap } from "../domain/source-gaps";
 import { isRecord } from "../guards";
 import { mergeModelInputSanitization } from "../sources/model-input-sanitizer";

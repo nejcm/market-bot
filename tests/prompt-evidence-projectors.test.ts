@@ -2,12 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ResearchCommand } from "../src/cli/args";
 import type { buildStagePrompt } from "../src/research/prompts";
-import type {
-  ExtendedEvidence,
-  InstrumentIdentity,
-  MarketContext,
-  VerifiedMarketSnapshot,
-} from "../src/domain/types";
+import type { ExtendedEvidence } from "../src/domain/evidence";
+import type { InstrumentIdentity } from "../src/domain/instrument";
+import type { MarketContext, VerifiedMarketSnapshot } from "../src/domain/market-data";
 import type { EarningsSetupCollected } from "../src/sources/types";
 import { sanitizeMarketSnapshotMetadata } from "../src/sources/metadata-sanitization";
 import type { WebSubjectProfileArtifact } from "../src/web-evidence";

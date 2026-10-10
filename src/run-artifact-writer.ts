@@ -4,15 +4,12 @@ import type { AppConfig } from "./config";
 import { isInstrumentCommand, type ResearchCommand } from "./cli/args";
 import { writeJson, type RunArtifactPaths } from "./artifacts";
 import { compactUnmappedSecFilingGaps } from "./domain/source-gaps";
-import {
-  type CodeVersion,
-  type EvidenceQualityAssessment,
-  isMarketUpdateJobType,
-  type Mover,
-  type ResearchReport,
-  type RunTrace,
-  type SourceGap,
-} from "./domain/types";
+import { type EvidenceQualityAssessment } from "./domain/evidence";
+import { isMarketUpdateJobType } from "./domain/job-type";
+import { type Mover } from "./domain/market-data";
+import { type ResearchReport } from "./domain/report";
+import { type CodeVersion, type RunTrace } from "./domain/run-trace";
+import { type SourceGap } from "./domain/sources";
 import { RUN_ARTIFACT_FILES, type RunArtifactFileName } from "./run-artifact-layout";
 import type { AlphaSearchRunAnalytics } from "./alpha-search/workflow";
 import type { AlphaCandidateProfile } from "./alpha-search/candidate-state";

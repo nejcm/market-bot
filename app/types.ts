@@ -1,9 +1,6 @@
-import type {
-  EvidenceQualityAssessment,
-  MarketSnapshot,
-  SourceGap,
-  VerifiedMarketSnapshot,
-} from "../src/domain/types";
+import type { EvidenceQualityAssessment } from "../src/domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../src/domain/market-data";
+import type { SourceGap } from "../src/domain/sources";
 import type { BusinessFrameworkArtifact } from "../src/sources/extended-evidence/business-framework";
 import type { FinancialLensArtifact } from "../src/sources/extended-evidence/financial-lens";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";

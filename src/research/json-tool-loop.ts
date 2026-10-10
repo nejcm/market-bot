@@ -1,4 +1,5 @@
-import type { JsonToolLoopAudit, SourceGap } from "../domain/types";
+import type { JsonToolLoopAudit } from "../domain/gather-audit";
+import type { SourceGap } from "../domain/sources";
 import type { CostPricing } from "../model/pricing";
 import { isRecord } from "../guards";
 

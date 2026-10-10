@@ -1,5 +1,5 @@
 import type { ResearchCommand } from "../../cli/args";
-import type { Source } from "../../domain/types";
+import type { Source } from "../../domain/sources";
 import type { CollectedSources } from "../../sources/types";
 import { substantiveProfileSourceIds } from "../../web-evidence/contract";
 

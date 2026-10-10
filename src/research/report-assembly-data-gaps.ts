@@ -1,5 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
-import type { Prediction, SourceGap } from "../domain/types";
+import type { Prediction } from "../domain/prediction";
+import type { SourceGap } from "../domain/sources";
 import { dedupeSourceGaps } from "../domain/source-gaps";
 import { withoutPredictionShortfallProtocolGaps } from "../report/prediction-shortfall";
 import type { CollectedSources } from "../sources/types";

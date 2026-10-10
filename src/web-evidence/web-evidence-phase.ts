@@ -1,6 +1,6 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { AppConfig } from "../config";
-import type { SourceGap } from "../domain/types";
+import type { SourceGap } from "../domain/sources";
 import type { CollectedSources, FetchLike } from "../sources/types";
 import { isSubstantiveProfileText } from "./contract";
 import {

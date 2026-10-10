@@ -1,11 +1,7 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
-import type {
-  ExtendedEvidenceCategory,
-  ExtendedEvidenceItem,
-  InstrumentIdentity,
-  Source,
-  SourceGap,
-} from "../../domain/types";
+import type { ExtendedEvidenceCategory, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { InstrumentIdentity } from "../../domain/instrument";
+import type { Source, SourceGap } from "../../domain/sources";
 import type { CollectContext, RawSourceSnapshot } from "../types";
 
 export interface CollectedItem {

@@ -1,4 +1,4 @@
-import { isMarketRegimeLabel } from "../domain/types";
+import { isMarketRegimeLabel } from "../domain/report";
 import { isRecord, readNumber, readString } from "../guards";
 import {
   isCalibrationCount,

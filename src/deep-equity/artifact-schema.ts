@@ -1,4 +1,4 @@
-import { SOURCE_KINDS, type Source } from "../domain/types";
+import { SOURCE_KINDS, type Source } from "../domain/sources";
 import { isRecord } from "../guards";
 import type { DeepEquityEvidenceBundleV1 } from "./types";
 

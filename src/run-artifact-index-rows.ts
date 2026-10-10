@@ -1,10 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import {
-  researchReportEvidenceQuality,
-  type Prediction,
-  type ResearchReport,
-} from "./domain/types";
+import { type Prediction } from "./domain/prediction";
+import { researchReportEvidenceQuality, type ResearchReport } from "./domain/report";
 import {
   buildReportSearchEntries,
   predictionClaim,

@@ -1,13 +1,10 @@
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type {
-  MarketSnapshot,
-  ResearchReport,
-  SourceGap,
-  SubjectKind,
-  VerifiedMarketSnapshot,
-} from "./domain/types";
+import type { SubjectKind } from "./domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "./domain/market-data";
+import type { ResearchReport } from "./domain/report";
+import type { SourceGap } from "./domain/sources";
 import {
   RUN_ARTIFACT_FILES,
   type ArtifactFileStatus,

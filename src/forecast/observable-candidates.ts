@@ -1,4 +1,4 @@
-import type { Prediction, PredictionKind } from "../domain/types";
+import type { Prediction, PredictionKind } from "../domain/prediction";
 import { stringArrayValue } from "../guards";
 import type {
   ObservableExpression,

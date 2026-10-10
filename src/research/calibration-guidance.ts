@@ -1,4 +1,4 @@
-import { isMarketUpdateJobType, type JobType } from "../domain/types";
+import { isMarketUpdateJobType, type JobType } from "../domain/job-type";
 import type { CalibrationMetric } from "../scoring/types";
 import type { CalibrationContext } from "./research-context-types";
 

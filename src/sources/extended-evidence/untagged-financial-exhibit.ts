@@ -1,4 +1,4 @@
-import type { Source, SourceGap } from "../../domain/types";
+import type { Source, SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readString } from "../../guards";
 import { secRequestInit } from "./sec-edgar";

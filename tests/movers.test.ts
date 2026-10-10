@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MarketSnapshot } from "../src/domain/types";
+import type { MarketSnapshot } from "../src/domain/market-data";
 import { EQUITY_REGIME_SYMBOLS } from "../src/domain/regime-symbols";
 import { dedupeMoversBySymbol } from "../src/movers/dedupe";
 import { rankMovers } from "../src/movers/ranking";

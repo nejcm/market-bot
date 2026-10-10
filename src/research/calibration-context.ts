@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResearchCommand } from "../cli/args";
-import { isMarketRegimeLabel, marketUpdateHorizonBucket } from "../domain/types";
+import { marketUpdateHorizonBucket } from "../domain/job-type";
+import { isMarketRegimeLabel } from "../domain/report";
 import { isRecord, readString } from "../guards";
 import { brierSkillScore } from "../scoring/calibration";
 import {

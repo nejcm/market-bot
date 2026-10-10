@@ -1,18 +1,16 @@
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
 import type { ResearchSubjectCommand } from "../cli/job-registry";
+import { isMarketUpdateJobType, marketUpdateMetadataOf } from "../domain/job-type";
+import { type MarketSnapshot } from "../domain/market-data";
+import { type Prediction } from "../domain/prediction";
 import {
-  isMarketUpdateJobType,
-  marketUpdateMetadataOf,
   type EquityAnalysisCompleteness,
   type KeyFinding,
-  type MarketSnapshot,
-  type Prediction,
-  type RelocatedGapClaim,
   type ResearchReport,
   type Scenario,
-  type Source,
-  type SourceGap,
-} from "../domain/types";
+} from "../domain/report";
+import { type RelocatedGapClaim } from "../domain/run-trace";
+import { type Source, type SourceGap } from "../domain/sources";
 import type { ObservableForecastIssue } from "../forecast/observable";
 import { classifyGap } from "../report/gap-triage";
 import { derivePredictionShortfall } from "../report/prediction-shortfall";

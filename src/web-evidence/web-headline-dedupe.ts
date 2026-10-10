@@ -1,4 +1,5 @@
-import type { Source, WebGatherDuplicateResultAudit } from "../domain/types";
+import type { WebGatherDuplicateResultAudit } from "../domain/gather-audit";
+import type { Source } from "../domain/sources";
 
 const WEB_GATHER_DUPLICATE_HEADLINE_REASON = "duplicate-headline";
 // A candidate headline is a near-duplicate when token-set Jaccard or containment reaches this value. Deterministic string logic only; the threshold errs toward keeping so different angles on the same entity survive.

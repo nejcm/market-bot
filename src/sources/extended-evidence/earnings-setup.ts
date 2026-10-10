@@ -1,4 +1,5 @@
-import type { EarningsEventDateStatus, SourceGap } from "../../domain/types";
+import type { EarningsEventDateStatus } from "../../domain/prediction";
+import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../../guards";
 import { tradierRequestInit } from "../tradier";

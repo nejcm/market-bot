@@ -25,12 +25,9 @@ import {
 
 import type { InstrumentCommand } from "../../cli/args";
 import { sourceGapWithContext } from "../../domain/source-gaps";
-import {
-  type ExtendedEvidence,
-  type ExtendedEvidenceItem,
-  type MarketSnapshot,
-  type SourceGap,
-} from "../../domain/types";
+import { type ExtendedEvidence, type ExtendedEvidenceItem } from "../../domain/evidence";
+import { type MarketSnapshot } from "../../domain/market-data";
+import { type SourceGap } from "../../domain/sources";
 import {
   hasPeerBandInputs,
   resolvePeerUniverseWithFallback,

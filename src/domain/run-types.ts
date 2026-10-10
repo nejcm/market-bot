@@ -1,4 +1,4 @@
-import type { AssetClass, JobType } from "./types";
+import type { AssetClass, JobType } from "./job-type";
 
 // Research/analysis run types. Today this is exactly the JobType set (seven
 // Members); the alias names the intent so the capability registry below stays

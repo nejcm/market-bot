@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { InstrumentIdentity } from "../src/domain/types";
+import type { InstrumentIdentity } from "../src/domain/instrument";
 import {
   hasNonUsSuffix,
   isInternationalIdentity,

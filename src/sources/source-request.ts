@@ -4,7 +4,7 @@
 // Registry so adapters and the collector can depend on it without import cycles.
 import type { ResearchCommand } from "../cli/args";
 import type { SourceOptions } from "../config";
-import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/types";
+import type { SourceGap, SourceGapAttemptFailure, SourceGapAttempts } from "../domain/sources";
 import { fetchFailureSourceGap, type FetchFailureSourceGapCause } from "../domain/source-gaps";
 import { progressDetail } from "../progress";
 import { withCache, type CacheOptions } from "./cache";

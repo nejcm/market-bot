@@ -1,4 +1,4 @@
-import type { Prediction } from "../domain/types";
+import type { Prediction } from "../domain/prediction";
 import type { ModelParams, ModelProvider } from "../model/types";
 import { withUntrustedModelInputRule } from "../model/trust-guard";
 import { isRecord, readNumber, readString } from "../guards";

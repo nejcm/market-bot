@@ -1,8 +1,5 @@
-import {
-  resolveMarketSnapshotPriceAsOf,
-  type ExtendedEvidenceItem,
-  type MarketSnapshot,
-} from "../../domain/types";
+import { type ExtendedEvidenceItem } from "../../domain/evidence";
+import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../domain/market-data";
 import type { PeerUniverse, PeerUniversePeer } from "../../research/peer-universe";
 import {
   MAX_MEANINGFUL_EV_TO_ANNUALIZED_REVENUE,

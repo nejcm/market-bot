@@ -1,4 +1,7 @@
-import type { AssetClass, JobType, Prediction, ResearchReport, Source } from "./domain/types";
+import type { AssetClass, JobType } from "./domain/job-type";
+import type { Prediction } from "./domain/prediction";
+import type { ResearchReport } from "./domain/report";
+import type { Source } from "./domain/sources";
 import { renderClaimForMeasurableAs } from "./forecast/observable";
 import { isRecord, readStringVerbatim, stringArrayValue } from "./guards";
 import { predictionShortfallMaterialGaps } from "./report/prediction-shortfall";

@@ -1,4 +1,4 @@
-import type { ResearchReport } from "../domain/types";
+import type { ResearchReport } from "../domain/report";
 import { resolutionDate } from "../scoring/exchange-calendar";
 import type { Observation, ObservationRepository } from "../scoring/observations";
 import type { AlphaSearchDiscoverySource } from "./candidates";

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { runCli } from "../src/app";
-import type { ResearchReport } from "../src/domain/types";
+import type { ResearchReport } from "../src/domain/report";
 import { buildMissAutopsyFile } from "../src/scoring/miss-autopsy";
 import { repairScore, renderScoreRepair } from "../src/scoring/repair";
 import type { MissAutopsyFile, PredictionScore } from "../src/scoring/types";

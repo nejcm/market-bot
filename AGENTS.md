@@ -53,12 +53,12 @@ ADRs document current decisions and should be followed by default, but they can 
 Live runs cost real money and time — a deep equity run is ~12 minutes and ~438k live model tokens.
 
 - **Never run the CLI to "check something."** Read an existing artifact under `data/runs/` (newest first) or replay a fixture. Fixture replays are free.
-- **Never pass `--live`**, and never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.
+- **Live-LLM fixture runs only via `scripts/eval-deep.ts --yes`** (or `scripts/replay-fixture-run.ts --live --yes`), and only with my explicit approval per batch — run without `--yes` first; it prints the run count and token estimate and spends nothing. Both write only under `data/evals/<label>/`, never `data/runs/`. Never run the fixture _recorder_ — it hits every provider and can capture secrets into cassettes.
 - **Never delete or prune under `data/`.** `cache prune`, `index rebuild`, `history rebuild` throw away derived state that costs provider calls to rebuild. Ask instead.
 - **Never read or echo `.env`.** It holds live keys; `.env.example` has the names.
 - **Never kill a running CLI process.** The spend is already sunk; a killed run leaves only a hidden `data/.runs-<run-id>.partial` stage dir, never a run dir. Parallel runs are supported: run dirs publish whole, and score passes, calibration, index and history writes serialize on `data/shared-state.lock` (news-seen and learned-peer merges on their own `.lock` files). Source-provider rate limits are per process, so parallel runs double the request rate.
 
-Always fine: `bun test`, `bun run check`, fixture replays without `--live`, reading anything under `data/runs/`.
+Always fine: `bun test`, `bun run check`, fixture replays without `--live`, `scripts/eval-deep.ts` / `replay-fixture-run.ts --live` without `--yes` (prints the plan only), `eval-deep.ts --compare`, reading anything under `data/runs/` or `data/evals/`.
 
 ## Data layout
 

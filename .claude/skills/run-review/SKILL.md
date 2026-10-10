@@ -76,6 +76,12 @@ Map requests to commands via `src/cli/job-registry.ts`, e.g.
 
 Running the CLI is the only side effect this skill may cause. It never edits code.
 
+**Verifying a fix.** When a Recommendation's cause is in `prompts/` or a model
+stage, its verification is a Frozen-Input Eval compare (`scripts/eval-deep.ts`
+for base and branch on the same fixtures, then `--compare base branch`), not a
+new live run; name the fixtures and the metric expected to move. A fresh
+reference run is the final check after a batch of fixes, not one per fix.
+
 # Step 1 — Cohort scan (mandatory, before baseline selection)
 
 A single target-plus-baseline pair cannot tell a subject-specific defect from a

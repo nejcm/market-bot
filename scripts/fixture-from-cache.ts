@@ -10,6 +10,7 @@ import {
   type LlmCassette,
   type LlmCassetteEntry,
 } from "../tests/support/run-fixtures/llm-cassette";
+import { type CacheEntry, selectDateDirEntries } from "./fixture-cache-selection";
 
 const USAGE =
   "Usage: bun run scripts/fixture-from-cache.ts <fixture-name> <run-id> <profile-run-id>\n" +
@@ -28,12 +29,6 @@ if (
   throw new Error(USAGE);
 }
 
-interface CacheEntry {
-  readonly cacheKey: string;
-  readonly adapter: string;
-  readonly fetchedAt: string;
-  readonly payload: unknown;
-}
 interface StageRecord {
   readonly stage: string;
   readonly content: string;
@@ -57,24 +52,20 @@ for (const id of [runId, profileRunId]) {
 }
 const trace = (await Bun.file(join(runDir, "trace.json")).json()) as RunTrace;
 
-async function cacheEntries(
-  dir: string,
-  keep: (entry: CacheEntry) => boolean,
-): Promise<CacheEntry[]> {
+async function cacheEntries(dir: string): Promise<CacheEntry[]> {
   const names = await readdir(dir);
-  const entries = await Promise.all(
+  return Promise.all(
     names.map(async (name) => (await Bun.file(join(dir, name)).json()) as CacheEntry),
   );
-  return entries.filter(keep);
 }
 
 const cached = new Map(
   [
-    ...(await cacheEntries(
-      join(cacheDir, trace.startedAt.slice(0, 10)),
-      (entry) => entry.fetchedAt === trace.startedAt,
-    )),
-    ...(await cacheEntries(join(cacheDir, "accession"), () => true)),
+    ...selectDateDirEntries(
+      await cacheEntries(join(cacheDir, trace.startedAt.slice(0, 10))),
+      trace.startedAt,
+    ),
+    ...(await cacheEntries(join(cacheDir, "accession"))),
   ].map((entry) => [entry.cacheKey, entry]),
 );
 const misses: string[] = [];

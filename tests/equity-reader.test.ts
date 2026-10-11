@@ -597,6 +597,47 @@ describe("equity reader projection", () => {
     });
   });
 
+  test("cites earnings estimates to the provider, not the issuer date-confirmation source", () => {
+    const projection = projectEquityReader({
+      report: {
+        symbol: "AMD",
+        extras: {
+          earningsSetup: {
+            event: {
+              symbol: "AMD",
+              date: "2026-11-03",
+              timing: "amc",
+              eventDateStatus: "issuer-confirmed",
+              epsEstimate: 1.25,
+              revenueEstimate: 10_500_000_000,
+              sourceIds: ["extended-finnhub-events-amd", "web-amd-ir-date"],
+              fetchedAt: "2026-10-10T12:00:00.000Z",
+              dateConfirmation: { sourceId: "web-amd-ir-date" },
+            },
+            gaps: [],
+          },
+        },
+      },
+    });
+
+    expect(projection.defaultView.earningsConsensus).toEqual([
+      {
+        kind: "earnings-date",
+        symbol: "AMD",
+        date: "2026-11-03",
+        timing: "amc",
+        status: "issuer-confirmed",
+        sourceIds: ["extended-finnhub-events-amd", "web-amd-ir-date"],
+      },
+      { kind: "eps-consensus", value: 1.25, sourceIds: ["extended-finnhub-events-amd"] },
+      {
+        kind: "revenue-consensus",
+        value: 10_500_000_000,
+        sourceIds: ["extended-finnhub-events-amd"],
+      },
+    ]);
+  });
+
   test("places financial core in the default view and coverage plus dimensions in the appendix", () => {
     const projection = projectEquityReader({
       report: {

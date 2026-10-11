@@ -277,6 +277,11 @@ function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[
   const items: EquityReaderConsensusItem[] = [];
   if (event !== undefined) {
     const sourceIds = stringArrayValue(event.sourceIds);
+    const confirmation = isRecord(event.dateConfirmation) ? event.dateConfirmation : undefined;
+    const confirmationSourceId =
+      typeof confirmation?.sourceId === "string" ? confirmation.sourceId : undefined;
+    // The issuer or exchange date confirmation carries no consensus figures.
+    const estimateSourceIds = sourceIds.filter((sourceId) => sourceId !== confirmationSourceId);
     if (typeof event.date === "string") {
       const { eventDateStatus, dateStatus, symbol: eventSymbol } = event;
       let status = "confirmation unavailable";
@@ -302,10 +307,14 @@ function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[
       });
     }
     if (typeof event.epsEstimate === "number") {
-      items.push({ kind: "eps-consensus", value: event.epsEstimate, sourceIds });
+      items.push({ kind: "eps-consensus", value: event.epsEstimate, sourceIds: estimateSourceIds });
     }
     if (typeof event.revenueEstimate === "number") {
-      items.push({ kind: "revenue-consensus", value: event.revenueEstimate, sourceIds });
+      items.push({
+        kind: "revenue-consensus",
+        value: event.revenueEstimate,
+        sourceIds: estimateSourceIds,
+      });
     }
   }
   const extendedEvidence = isRecord(record?.extendedEvidence) ? record.extendedEvidence : undefined;

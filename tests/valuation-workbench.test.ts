@@ -771,6 +771,74 @@ describe("valuation workbench", () => {
     });
   });
 
+  test("collapses periods without price history into one line, keeping the rows in the artifact", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [{ date: "2025-05-01", close: 26 }],
+      priceSourceId: "verified-snapshot-TEST",
+      quoteCurrency: "USD",
+    });
+
+    const unpriced = artifact.historicalMultiples.observations.filter(
+      (item) => item.price === null,
+    );
+    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
+
+    expect(unpriced.length).toBeGreaterThan(0);
+    expect(markdown).toContain(
+      `${String(unpriced.length)} periods without price history: ${unpriced
+        .map((item) => `${item.basis.toUpperCase()} ${item.periodEnd}`)
+        .join(", ")}.`,
+    );
+    expect(markdown).toContain("TTM | 2025-03-31 | 2025-05-01 | 26.00 USD (2025-05-01)");
+    expect(markdown).not.toMatch(/^ANNUAL \| /mu);
+    expect(artifact.historicalMultiples.observations.some((item) => item.price === null)).toBe(
+      true,
+    );
+  });
+
+  test("renders only the collapsed line when every period lacks price history", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [],
+      quoteCurrency: "USD",
+    });
+
+    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
+
+    expect(markdown).toContain(
+      `${String(artifact.historicalMultiples.observations.length)} periods without price history:`,
+    );
+    expect(markdown).not.toContain("First eligible close");
+    expect(markdown).not.toContain("no historical basis available");
+  });
+
+  test("keeps rows when the quote currency is missing instead of claiming no price history", () => {
+    const artifact = buildValuationWorkbench({
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      symbol: "TEST",
+      financialStatements: statements(),
+      priceHistory: [
+        { date: "2024-02-15", close: 20 },
+        { date: "2025-02-18", close: 24 },
+        { date: "2025-05-01", close: 26 },
+      ],
+      priceSourceId: "verified-snapshot-TEST",
+    });
+
+    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
+
+    expect(markdown).not.toContain("periods without price history");
+    expect(markdown).toContain("— (quote-currency-unavailable)");
+    expect(artifact.historicalMultiples.observations.every((item) => item.price === null)).toBe(
+      true,
+    );
+  });
+
   test("marks a gross-principal debt basis in the peer table only on that row", () => {
     const base = buildValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",

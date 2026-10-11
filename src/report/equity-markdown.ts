@@ -29,6 +29,7 @@ export interface EquityMarkdownSections {
     report: ResearchReport,
     marketSnapshot: MarketSnapshot | undefined,
   ) => string;
+  readonly renderMarketRegime: (report: ResearchReport) => string;
   readonly renderFinancialTrends: ReturnType<
     typeof equityProjectionRendererFactory
   >["financialTrends"];
@@ -157,6 +158,7 @@ export function renderEquityMarkdownReport(
     "",
     sections.renderCompanyDescription(projection.defaultView.companyDescription),
     sections.renderPriceAndMarketDate(report, marketSnapshot),
+    sections.renderMarketRegime(report),
     sections.renderFinancialTrends(report, projection.defaultView.financialTrends),
     sections.renderValuationContext(
       report,

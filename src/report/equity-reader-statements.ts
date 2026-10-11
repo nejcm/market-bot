@@ -52,10 +52,11 @@ export interface EquityReaderFinancialPosition {
 }
 
 export function periodLabel(period: LabeledPeriod): string {
+  // The filed date is the latest filing that reported the period, not the first public date.
   if (period.kind === "ttm") {
-    return `TTM (${period.periodEnd}; filed ${period.filedAt})`;
+    return `TTM (${period.periodEnd}; latest filed ${period.filedAt})`;
   }
-  return `${period.kind === "annual" ? "FY" : "Interim"} ending ${period.periodEnd} (filed ${period.filedAt})`;
+  return `${period.kind === "annual" ? "FY" : "Interim"} ending ${period.periodEnd} (latest filed ${period.filedAt})`;
 }
 
 function uniqueSourceIds(sourceIds: readonly string[]): readonly string[] {

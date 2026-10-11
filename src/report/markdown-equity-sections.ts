@@ -6,7 +6,7 @@ import {
   type MarketSnapshot,
 } from "../domain/market-data";
 import { type EquityAnalysisDimensionStatus, type ResearchReport } from "../domain/report";
-import { readNumber } from "../guards";
+import { isRecord, readNumber, stringArrayValue } from "../guards";
 import { scopedLabel } from "../sources/extended-evidence/financial-statement-definitions";
 import type { CollectedSources } from "../sources/types";
 import {
@@ -74,6 +74,23 @@ export function renderPriceProvenance(
     .replaceAll(marketCapQuotePhrase(priceAsOf), `market cap (${label})`)
     .replaceAll(`market cap as of ${legacyFetchDate}`, `market cap ${label}`)
     .replaceAll(`market cap (quote ${legacyFetchDate})`, `market cap (${label})`);
+}
+
+export function renderMarketRegime(report: ResearchReport): string {
+  const regime = report.extras?.marketRegime;
+  if (!isRecord(regime) || typeof regime.label !== "string") {
+    return "";
+  }
+  const drivers = stringArrayValue(regime.drivers);
+  const sourceIds = stringArrayValue(regime.sourceIds);
+  const refs = sourceRefs(knownSourceIds(report, sourceIds));
+  return [
+    "## Market Regime",
+    "",
+    `**Backdrop:** ${markdownText(regime.label)}${refs === "" ? "" : ` ${refs}`}`,
+    ...drivers.map((driver) => `- ${markdownText(driver)}`),
+    "",
+  ].join("\n");
 }
 
 export function renderCompanyDescription(description: EquityReaderCompanyDescription): string {

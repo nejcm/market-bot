@@ -315,15 +315,15 @@ describe("equity reader projection", () => {
     });
 
     expect(projection.defaultView.financialTrends?.rows.map((row) => row.period)).toEqual([
-      "FY ending 2020-12-31 (filed 2021-02-01)",
-      "FY ending 2021-12-31 (filed 2022-02-01)",
-      "FY ending 2022-12-31 (filed 2023-02-01)",
-      "FY ending 2023-12-31 (filed 2024-02-01)",
-      "FY ending 2024-12-31 (filed 2025-02-01)",
-      "TTM (2025-12-31; filed 2026-02-01)",
+      "FY ending 2020-12-31 (latest filed 2021-02-01)",
+      "FY ending 2021-12-31 (latest filed 2022-02-01)",
+      "FY ending 2022-12-31 (latest filed 2023-02-01)",
+      "FY ending 2023-12-31 (latest filed 2024-02-01)",
+      "FY ending 2024-12-31 (latest filed 2025-02-01)",
+      "TTM (2025-12-31; latest filed 2026-02-01)",
     ]);
     expect(projection.defaultView.financialTrends?.rows.at(-1)).toEqual({
-      period: "TTM (2025-12-31; filed 2026-02-01)",
+      period: "TTM (2025-12-31; latest filed 2026-02-01)",
       revenue: "— (revenue-unavailable)",
       netIncome: "700,000",
       operatingMargin: "— (revenue-unavailable)",
@@ -362,7 +362,7 @@ describe("equity reader projection", () => {
         fundamentalHistory: restated,
       }).defaultView.financialTrends?.restatements,
     ).toEqual([
-      "FY ending 2020-12-31 (filed 2024-02-01) shows restated values; as originally filed: revenue 2.5M (filed 2021-02-01).",
+      "FY ending 2020-12-31 (latest filed 2024-02-01) shows restated values; as originally filed: revenue 2.5M (filed 2021-02-01).",
     ]);
     expect(
       projectEquityReader({
@@ -454,7 +454,7 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
       {
-        period: "FY ending 2024-12-31 (filed 2025-03-01)",
+        period: "FY ending 2024-12-31 (latest filed 2025-03-01)",
         cash: {
           value: 120,
           filedAt: "2025-03-01",
@@ -488,7 +488,7 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
       {
-        period: "FY ending 2024-12-31 (filed 2025-03-01)",
+        period: "FY ending 2024-12-31 (latest filed 2025-03-01)",
         cash: {
           value: 100,
           filedAt: "2025-02-01",
@@ -546,7 +546,7 @@ describe("equity reader projection", () => {
     });
 
     expect(projection.appendix.balanceSheetHistory?.rows[0]).toMatchObject({
-      period: "FY ending 2024-12-31 (filed 2025-02-01)",
+      period: "FY ending 2024-12-31 (latest filed 2025-02-01)",
       cash: {
         value: 100,
         filedAt: "2025-02-01",

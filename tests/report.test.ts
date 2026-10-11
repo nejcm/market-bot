@@ -333,11 +333,125 @@ test("declares missing revenue history instead of leaving unexplained trend-tabl
   );
 
   expect(markdown).toContain(
-    "FY ending 2024-09-30 (filed 2024-11-01) | — (revenue-unavailable) | 20 | — (revenue-unavailable) | — (free-cash-flow-unavailable)",
+    "FY ending 2024-09-30 (latest filed 2024-11-01) | — (revenue-unavailable) | 20 | — (revenue-unavailable) | — (free-cash-flow-unavailable)",
   );
   expect(markdown).toContain(
     "**Material:** fundamental-history-revenue: SEC revenue history is unavailable",
   );
+});
+
+test("compacts the insider net share change in the ownership context", () => {
+  const equityReport: ResearchReport = {
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AMD",
+    sources: [
+      {
+        id: "extended-finnhub-ownership-amd-insider-transactions",
+        title: "AMD insider transactions",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "extended-evidence",
+        assetClass: "equity",
+        symbol: "AMD",
+      },
+    ],
+    extendedEvidence: {
+      instrument: { assetClass: "equity", symbol: "AMD" },
+      items: [
+        {
+          category: "institutional-ownership",
+          title: "AMD insider transactions",
+          summary: "External insider transaction data (context only).",
+          sourceIds: ["extended-finnhub-ownership-amd-insider-transactions"],
+          observedAt: "2026-05-19T00:00:00.000Z",
+          metrics: {
+            transactionCount: 3,
+            purchaseCount: 1,
+            saleCount: 2,
+            netShareChange: -1_199_656,
+          },
+        },
+      ],
+      gaps: [],
+    },
+  };
+
+  const markdown = renderMarkdownReport(equityReport);
+
+  expect(markdown).toContain("- **Net share change:** -1.2M");
+  expect(markdown).not.toContain("-1199656");
+});
+
+test("renders the equity market regime with its drivers and citations", () => {
+  const equityReport: ResearchReport = {
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    sources: [
+      {
+        id: "market-yahoo-equity-spy",
+        title: "SPY snapshot",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "market-data",
+        assetClass: "equity",
+        symbol: "SPY",
+      },
+    ],
+    extras: {
+      marketRegime: {
+        assetClass: "equity",
+        label: "risk-on",
+        proxyCount: 4,
+        drivers: ["equity breadth proxies positive: 4/4"],
+        sourceIds: ["market-yahoo-equity-spy"],
+      },
+    },
+  };
+
+  const markdown = renderMarkdownReport(equityReport);
+
+  expect(markdown).toContain("## Market Regime");
+  expect(markdown).toContain("**Backdrop:** risk-on [market-yahoo-equity-spy]");
+  expect(markdown).toContain("- equity breadth proxies positive: 4/4");
+  expect(markdown).toContain("- [market-yahoo-equity-spy] SPY snapshot");
+  expect(markdown).not.toContain("uncited normalized source(s)");
+  expect(renderMarkdownReport({ ...equityReport, extras: {} })).not.toContain("## Market Regime");
+});
+
+test("collects regime sources from a mixed sourceIds array", () => {
+  const equityReport: ResearchReport = {
+    ...report,
+    jobType: "equity",
+    assetClass: "equity",
+    symbol: "AAPL",
+    sources: [
+      {
+        id: "known-id",
+        title: "Known regime source",
+        fetchedAt: "2026-05-19T00:00:00.000Z",
+        kind: "market-data",
+        assetClass: "equity",
+        symbol: "SPY",
+      },
+    ],
+    extras: {
+      marketRegime: {
+        assetClass: "equity",
+        label: "risk-on",
+        proxyCount: 1,
+        drivers: ["equity breadth proxies positive: 4/4"],
+        sourceIds: ["known-id", null],
+      },
+    },
+  };
+
+  const markdown = renderMarkdownReport(equityReport);
+
+  expect(markdown).toContain("**Backdrop:** risk-on [known-id]");
+  expect(markdown).toContain("- [known-id] Known regime source");
+  expect(markdown).not.toContain("uncited normalized source(s)");
 });
 
 const spotlightSource: Source = {

@@ -257,11 +257,15 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     ).toMatchObject({ status: "not-applicable", display: "not applicable" });
   }
 
+  const pricedObservations = observations.filter((observation) => observation.price !== null);
   const rows = result.markdown
     .split("\n")
     .filter((line) => line.startsWith("ANNUAL | ") || line.startsWith("TTM | "));
-  expect(rows.length, "workbench table must render rows").toBeGreaterThan(0);
-  expect(rows.length, "workbench table must render rows").toBe(observations.length);
+  expect(rows.length, "workbench table must render priced rows").toBe(pricedObservations.length);
+  const unpricedPeriods = observations.length - pricedObservations.length;
+  if (unpricedPeriods > 0) {
+    expect(result.markdown).toContain(`${String(unpricedPeriods)} periods without price history:`);
+  }
   for (const row of rows) {
     const cell = row.split(" | ")[EV_REVENUE_COLUMN];
     expect(cell, row).toBe(
@@ -391,6 +395,29 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
   expect(result.markdown, "workbench header must name both currencies").toContain(
     "Reporting currency: CAD. Quote currency: USD.",
   );
+}
+
+export function assertMarketRegimeRendered(result: RunFixtureResult): void {
+  const regime = result.report.extras?.marketRegime;
+  expect(regime, "fixture must carry a market regime").toBeDefined();
+  if (!isRecord(regime)) {
+    return;
+  }
+  expect(result.markdown, "market regime heading").toContain("## Market Regime");
+  const sourcesIndex = result.markdown.indexOf("### Sources");
+  expect(sourcesIndex, "Sources heading").toBeGreaterThanOrEqual(0);
+  const sourcesSection = result.markdown.slice(sourcesIndex);
+  const sourceIds = Array.isArray(regime.sourceIds)
+    ? regime.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
+    : [];
+  expect(sourceIds.length, "market regime must cite sources").toBeGreaterThan(0);
+  for (const sourceId of sourceIds) {
+    if (result.report.sources.some((source) => source.id === sourceId)) {
+      expect(sourcesSection, `market regime source ${sourceId} in Sources`).toContain(
+        `- [${sourceId}]`,
+      );
+    }
+  }
 }
 
 export function assertComprehensiveAnalysisPath(

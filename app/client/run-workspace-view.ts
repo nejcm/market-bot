@@ -1,5 +1,6 @@
 import type { RunDetail } from "../types";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
+import { isRecord } from "../../src/guards";
 import { readGapTriage, type GapTriage } from "../../src/report/gap-triage";
 import {
   normalizePredictionShortfallReport,
@@ -218,11 +219,18 @@ export interface RunWorkspaceTableOfContentsEntry {
 /* A table-of-contents entry before the visibility filter drops it. */
 type TableOfContentsDraft = RunWorkspaceTableOfContentsEntry & { readonly visible: boolean };
 
+interface RunWorkspaceMarketRegimeView {
+  readonly label: string;
+  readonly drivers: readonly string[];
+  readonly sourceIds: readonly string[];
+}
+
 export interface RunWorkspaceEquityPresentationView {
   readonly defaultView: {
     readonly pricePerformance: RunWorkspaceEquitySnapshotPricePerformance;
     readonly researchSummary: string;
     readonly companySummary: RunWorkspaceTextItem;
+    readonly marketRegime?: RunWorkspaceMarketRegimeView;
     readonly financialTrends?: RunWorkspaceFinancialTrendView;
     readonly financialPosition?: RunWorkspaceFinancialPositionView;
     readonly keyMetrics: readonly RunWorkspaceEquitySnapshotMetric[];
@@ -270,6 +278,25 @@ export interface RunWorkspaceView {
   readonly sources: RunWorkspaceSourcesView;
   readonly snapshot?: RunWorkspaceSnapshotView;
   readonly tableOfContents: readonly RunWorkspaceTableOfContentsEntry[];
+}
+
+function marketRegimeView(
+  report: Record<string, unknown> | undefined,
+): RunWorkspaceMarketRegimeView | undefined {
+  const extras = report === undefined ? undefined : report["extras"];
+  const regime = isRecord(extras) ? extras["marketRegime"] : undefined;
+  if (!isRecord(regime) || typeof regime.label !== "string") {
+    return undefined;
+  }
+  return {
+    label: regime.label,
+    drivers: Array.isArray(regime.drivers)
+      ? regime.drivers.filter((driver): driver is string => typeof driver === "string")
+      : [],
+    sourceIds: Array.isArray(regime.sourceIds)
+      ? regime.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
+      : [],
+  };
 }
 
 function renderedPriceSummary(
@@ -391,6 +418,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
     ? readerProjection.appendix.diagnosticGaps
     : triagedGaps.filter((gap) => gap.triage === "diagnostic").map((gap) => gap.text);
   const description = readerProjection.defaultView.companyDescription;
+  const marketRegime = marketRegimeView(report);
   const equityPresentation: RunWorkspaceEquityPresentationView | undefined =
     equitySnapshot === undefined
       ? undefined
@@ -399,6 +427,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             pricePerformance: equitySnapshot.pricePerformance,
             researchSummary: summary,
             companySummary: { text: description.text, sourceIds: description.sourceIds },
+            ...(marketRegime === undefined ? {} : { marketRegime }),
             ...(financialTrends === undefined ? {} : { financialTrends }),
             ...(financialPosition === undefined ? {} : { financialPosition }),
             keyMetrics: simpleKeyMetrics(equitySnapshot.keyDatedMetrics),

@@ -6,7 +6,7 @@ import {
   readAlphaSearchLeads,
   readAlphaSearchRejectedCandidates,
 } from "../alpha-search/report-extras";
-import { isRecord } from "../guards";
+import { isRecord, stringArrayValue } from "../guards";
 import { readGapTriage, type GapTriage } from "./gap-triage";
 import { businessFrameworkSourceRows, webSubjectProfileSourceRows } from "./report-extras-contract";
 import { compactNumber } from "./equity-reader-trends";
@@ -99,6 +99,10 @@ function collectReportSourceIds(
         add(knownSourceIds(report, item.sourceIds));
       }
     });
+  }
+  const marketRegime = report.extras?.marketRegime;
+  if (isRecord(marketRegime)) {
+    add(knownSourceIds(report, stringArrayValue(marketRegime.sourceIds)));
   }
   // Every row is cited, including one whose text is blank or missing —
   // Suppressing it is the renderer's decision, not this traversal's.

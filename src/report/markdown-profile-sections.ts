@@ -13,6 +13,7 @@ import {
   isWebSubjectProfileWithheldAnswer,
   type WebSubjectProfileQuestionKey,
 } from "../web-evidence/contract";
+import { compactNumber } from "./equity-reader-trends";
 import { citedSourceIds, markdownText, readStringArray, sourceRefs } from "./markdown-primitives";
 
 export function renderBusinessFramework(report: ResearchReport): string {
@@ -283,7 +284,7 @@ export function renderEarningsSetup(report: ResearchReport): string {
   }
   if (typeof event.revenueEstimate === "number") {
     lines.push(
-      `**Revenue estimate:** ${event.revenueEstimate.toLocaleString("en-US")} — single-provider snapshot (Finnhub)`,
+      `**Revenue estimate:** ${compactNumber(event.revenueEstimate)} — single-provider snapshot (Finnhub)`,
     );
   }
 

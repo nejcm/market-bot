@@ -632,7 +632,7 @@ describe("run workspace view", () => {
       notes: [note],
       rows: [
         {
-          period: "Interim ending 2026-06-27 (filed 2026-08-06)",
+          period: "Interim ending 2026-06-27 (latest filed 2026-08-06)",
           cash: {
             value: 2_000_000_000,
             filedAt: "2026-08-06",
@@ -1812,6 +1812,118 @@ describe("run workspace view", () => {
     expect(view?.excludedPeerRows[0]?.sourceIds).toEqual([]);
   });
 
+  test("collapses missing-price-history observations out of the console rows", () => {
+    const base = valuationWorkbench();
+    const [observation] = base.historicalMultiples.observations;
+    if (observation === undefined) {
+      throw new Error("valuation workbench fixture observation missing");
+    }
+    const noHistory = {
+      status: "suppressed" as const,
+      display: "—" as const,
+      reason: "price-history-unavailable" as const,
+      detail: "No verified close is available within 7 calendar days on or after publicAt.",
+      sourceIds: [],
+    };
+    const workbench = valuationWorkbench({
+      historicalMultiples: {
+        ...base.historicalMultiples,
+        observations: [
+          {
+            ...observation,
+            price: null,
+            metrics: {
+              priceToEarnings: noHistory,
+              priceToSales: noHistory,
+              enterpriseValueToRevenue: noHistory,
+              priceToFreeCashFlow: noHistory,
+            },
+          },
+          observation,
+        ],
+      },
+    });
+
+    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+
+    expect(view?.rows).toHaveLength(1);
+    expect(view?.rows[0]?.price).toBe("200.00 USD · 2026-02-02");
+    expect(view?.unpricedPeriods).toEqual([`ANNUAL ${observation.periodEnd}`]);
+  });
+
+  test("keeps missing-quote-currency observations in the console rows", () => {
+    const base = valuationWorkbench();
+    const [observation] = base.historicalMultiples.observations;
+    if (observation === undefined) {
+      throw new Error("valuation workbench fixture observation missing");
+    }
+    const quoteMissing = {
+      status: "suppressed" as const,
+      display: "—" as const,
+      reason: "quote-currency-unavailable" as const,
+      detail: "Quote currency is unavailable.",
+      sourceIds: [],
+    };
+    const workbench = valuationWorkbench({
+      historicalMultiples: {
+        ...base.historicalMultiples,
+        observations: [
+          {
+            ...observation,
+            price: null,
+            metrics: {
+              priceToEarnings: quoteMissing,
+              priceToSales: quoteMissing,
+              enterpriseValueToRevenue: quoteMissing,
+              priceToFreeCashFlow: quoteMissing,
+            },
+          },
+        ],
+      },
+    });
+
+    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+
+    expect(view?.rows).toHaveLength(1);
+    expect(view?.rows[0]?.price).toBe("—");
+    expect(view?.rows[0]?.priceToEarnings.status).toBe("suppressed");
+    expect(view?.unpricedPeriods).toEqual([]);
+  });
+
+  test("projects the equity market regime from report extras", () => {
+    const withRegime = buildRunWorkspaceView({
+      summary: summary(),
+      report: {
+        extras: {
+          marketRegime: {
+            assetClass: "equity",
+            label: "risk-on",
+            proxyCount: 4,
+            drivers: ["equity breadth proxies positive: 4/4"],
+            sourceIds: ["market-aapl"],
+          },
+        },
+      },
+      marketSnapshots: [marketSnapshot()],
+      verifiedMarketSnapshot: snapshot(),
+    });
+
+    expect(withRegime.equityPresentation?.defaultView.marketRegime).toEqual({
+      label: "risk-on",
+      drivers: ["equity breadth proxies positive: 4/4"],
+      sourceIds: ["market-aapl"],
+    });
+
+    const withoutRegime = buildRunWorkspaceView({
+      summary: summary(),
+      report: {},
+      marketSnapshots: [marketSnapshot()],
+      verifiedMarketSnapshot: snapshot(),
+    });
+
+    expect(withoutRegime.equityPresentation?.defaultView.marketRegime).toBeUndefined();
+  });
+
   test("projects the solved-input matrix and disclosed assumptions", () => {
     const artifact = reverseDcfArtifact();
     const detail = { summary: summary(), reverseDcf: artifact };
@@ -2073,19 +2185,19 @@ describe("run workspace view", () => {
     expect(view?.keyDatedMetrics.metrics.slice(0, 4)).toEqual([
       expect.objectContaining({
         value: "$170",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
       expect.objectContaining({
         value: "$-1",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
       expect.objectContaining({
         value: "$6.50",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
       expect.objectContaining({
         value: "25.0%",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
     ]);
     expect(view?.keyDatedMetrics.metrics.slice(4)).toEqual([
@@ -2282,14 +2394,14 @@ describe("run workspace view", () => {
       "FCF",
     ]);
     expect(reader?.financialTrends?.rows[0]).toEqual({
-      period: "FY ending 2022-09-30 (filed 2022-11-01)",
+      period: "FY ending 2022-09-30 (latest filed 2022-11-01)",
       revenue: "100",
       netIncome: "20",
       operatingMargin: "25.0%",
       freeCashFlow: "22",
     });
     expect(reader?.financialTrends?.rows.at(-1)).toMatchObject({
-      period: "TTM (2025-06-30; filed 2025-08-01)",
+      period: "TTM (2025-06-30; latest filed 2025-08-01)",
       revenue: "170",
       operatingMargin: "25.0%",
       freeCashFlow: "35",
@@ -2309,13 +2421,13 @@ describe("run workspace view", () => {
     expect(advanced?.extendedItems).toHaveLength(report.extendedEvidence.items.length);
     expect(advanced?.balanceSheetHistory?.rows).toEqual([
       {
-        period: "FY ending 2023-12-31 (filed 2024-02-01)",
+        period: "FY ending 2023-12-31 (latest filed 2024-02-01)",
         cash: "$30.0B",
         debt: "$90.0B",
         dilutedShares: "15.5B",
       },
       {
-        period: "FY ending 2024-12-31 (filed 2025-02-01)",
+        period: "FY ending 2024-12-31 (latest filed 2025-02-01)",
         cash: "$32.0B",
         debt: "$85.0B",
         dilutedShares: "15.0B",
@@ -2518,7 +2630,7 @@ describe("run workspace view", () => {
     expect(unavailable).toContain("— (free-cash-flow-unavailable)");
     expect(revenueUnavailable).toContain("— (revenue-unavailable)");
     expect(zeroRevenue).toContain(
-      "FY ending 2022-09-30 (filed 2022-11-01) | 0 | 20 | — (revenue-unavailable)",
+      "FY ending 2022-09-30 (latest filed 2022-11-01) | 0 | 20 | — (revenue-unavailable)",
     );
     for (const markdown of [unavailable, revenueUnavailable, zeroRevenue]) {
       const trendRows = markdown
@@ -2693,7 +2805,7 @@ describe("run workspace view", () => {
     }).defaultView.financialTrends?.rows;
 
     expect(rows?.find((row) => row.period.includes(periodEnd))?.period).toBe(
-      `FY ending ${periodEnd} (filed 2025-11-03)`,
+      `FY ending ${periodEnd} (latest filed 2025-11-03)`,
     );
   });
 

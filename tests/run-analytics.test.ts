@@ -577,6 +577,66 @@ describe("run analytics", () => {
     });
   });
 
+  test("records prediction-kind guidance assessments beside the dimension slices", () => {
+    const analytics = buildRunAnalytics({
+      report: researchReport(),
+      trace,
+      collectedSources: collectedSourceBundle(),
+      stageOutputs: [],
+      targetPredictions: 0,
+      outcomes: [],
+      calibrationContext: {
+        byAssetClass: { equity: { brierScore: 0.2, count: 8 } },
+        byKind: {
+          direction: { brierScore: 0.4, count: 30, runCount: 10, brierStandardError: 0.05 },
+          range: { brierScore: 0.3, count: 5 },
+        },
+      },
+      calibrationGuidanceKeys: {
+        assetClass: "equity",
+        jobType: "equity",
+        predictionHorizon: "1-5d",
+        marketRegime: "mixed",
+      },
+    });
+
+    expect(
+      analytics.calibrationAtGeneration?.guidanceAssessments?.filter(
+        (assessment) => assessment.dimension === "predictionKind",
+      ),
+    ).toEqual([
+      {
+        dimension: "predictionKind",
+        key: "direction",
+        brierScore: 0.4,
+        count: 30,
+        runCount: 10,
+        brierStandardError: 0.05,
+        lowerConfidenceBound: 0.287_93,
+        actionable: true,
+        reason: "actionable-negative",
+      },
+      {
+        dimension: "predictionKind",
+        key: "range",
+        brierScore: 0.3,
+        count: 5,
+        actionable: false,
+        reason: "below-outcome-floor",
+      },
+    ]);
+    expect(
+      analytics.calibrationAtGeneration?.guidanceAssessments?.map(({ dimension }) => dimension),
+    ).toEqual([
+      "assetClass",
+      "jobType",
+      "predictionHorizon",
+      "marketRegime",
+      "predictionKind",
+      "predictionKind",
+    ]);
+  });
+
   test("projects an unverified latest-session marker", () => {
     const analytics = buildRunAnalytics({
       report: researchReport(),

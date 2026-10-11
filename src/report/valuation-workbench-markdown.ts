@@ -24,6 +24,29 @@ function fxNote(observation: HistoricalValuationObservation): string {
   return `; converted at ${pair} ${observation.fxConversion.rate.toFixed(4)} on ${observation.fxConversion.rateDate}`;
 }
 
+// A null price can also mean a missing quote currency; trust the metric reason, not price alone.
+export function hasNoPriceHistory(observation: HistoricalValuationObservation): boolean {
+  return (
+    observation.price === null &&
+    Object.values(observation.metrics).some(
+      (metric) => metric.status === "suppressed" && metric.reason === "price-history-unavailable",
+    )
+  );
+}
+
+function unpricedPeriodsLine(
+  observations: readonly HistoricalValuationObservation[],
+): string | undefined {
+  const unpriced = observations.filter(hasNoPriceHistory);
+  if (unpriced.length === 0) {
+    return undefined;
+  }
+  const periods = unpriced
+    .map((observation) => `${observation.basis.toUpperCase()} ${observation.periodEnd}`)
+    .join(", ");
+  return `- ${String(unpriced.length)} period${unpriced.length === 1 ? "" : "s"} without price history: ${periods}.`;
+}
+
 function historicalRow(observation: HistoricalValuationObservation): string {
   const price =
     observation.price === null
@@ -191,14 +214,22 @@ export function renderValuationWorkbenchMarkdown(
     return "";
   }
   const { observations } = artifact.historicalMultiples;
+  const renderableObservations = observations.filter(
+    (observation) => !hasNoPriceHistory(observation),
+  );
   const historical =
     observations.length === 0
-      ? `- Suppressed: ${artifact.historicalMultiples.suppressionReasons.join("; ") || "no historical basis available"}.`
-      : [
-          "Basis | Statement period | Public date | First eligible close | P/E | P/S | EV/revenue | P/FCF",
-          "--- | --- | --- | --- | ---: | ---: | ---: | ---:",
-          ...observations.map((observation) => historicalRow(observation)),
-        ].join("\n");
+      ? [
+          `- Suppressed: ${artifact.historicalMultiples.suppressionReasons.join("; ") || "no historical basis available"}.`,
+        ]
+      : renderableObservations.length === 0
+        ? []
+        : [
+            "Basis | Statement period | First public date | First eligible close | P/E | P/S | EV/revenue | P/FCF",
+            "--- | --- | --- | --- | ---: | ---: | ---: | ---:",
+            ...renderableObservations.map((observation) => historicalRow(observation)),
+          ];
+  const unpricedLine = unpricedPeriodsLine(observations);
   const scopeDisclosure = valuationScopeDisclosure(observations);
   const trailing =
     artifact.historicalMultiples.trailingBasis.status === "available"
@@ -215,7 +246,8 @@ export function renderValuationWorkbenchMarkdown(
     "",
     ...trailing,
     ...(scopeDisclosure === undefined ? [] : [`- ${scopeDisclosure}.`, ""]),
-    historical,
+    ...historical,
+    ...(unpricedLine === undefined ? [] : [unpricedLine]),
     "",
     peerSection(artifact, report),
     "",

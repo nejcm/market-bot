@@ -334,7 +334,7 @@ export function financialPositionFromProjection(
         label === "Diluted shares"
           ? scaleCurrency(item.value)
           : statementAmount(item.value, position.reportingCurrency),
-      dateBasis: `period ${item.periodEnd} · filed ${item.filedAt}${item.basis === "gross-principal" ? " · gross principal" : ""}`,
+      dateBasis: `period ${item.periodEnd} · latest filed ${item.filedAt}${item.basis === "gross-principal" ? " · gross principal" : ""}`,
       sourceIds: item.sourceIds,
     });
   }

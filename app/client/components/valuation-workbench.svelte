@@ -44,7 +44,7 @@
           <tr>
             <th class="px-2.5 py-2 font-semibold">Basis</th>
             <th class="px-2.5 py-2 font-semibold">Period</th>
-            <th class="px-2.5 py-2 font-semibold">Public</th>
+            <th class="px-2.5 py-2 font-semibold">First public</th>
             <th class="px-2.5 py-2 font-semibold">Eligible close</th>
             <th class="px-2.5 py-2 text-right font-semibold">P/E</th>
             <th class="px-2.5 py-2 text-right font-semibold">P/S</th>
@@ -76,7 +76,15 @@
         </tbody>
       </table>
     </div>
-  {:else}
+  {/if}
+  {#if valuationWorkbench.unpricedPeriods.length > 0}
+    <div class="mt-2 text-[10px] leading-snug text-muted-foreground">
+      {valuationWorkbench.unpricedPeriods.length} period{valuationWorkbench.unpricedPeriods.length === 1
+        ? ""
+        : "s"} without price history: {valuationWorkbench.unpricedPeriods.join(", ")}.
+    </div>
+  {/if}
+  {#if valuationWorkbench.rows.length === 0 && valuationWorkbench.unpricedPeriods.length === 0}
     <div class="mt-3 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
       Historical multiples suppressed: {valuationWorkbench.suppressionReasons.join("; ") || "no compatible inputs"}.
     </div>

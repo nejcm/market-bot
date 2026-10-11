@@ -7,7 +7,9 @@ import {
   assertDepositoryEnterpriseValueAbsent,
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
+  assertMarketRegimeRendered,
   assertNbisUnsupportedInputs,
+  assertProviderGapRestatementsDropped,
   factForms,
   factTaxonomies,
 } from "../support/run-fixtures/assertions";
@@ -91,9 +93,13 @@ describe("static equity run fixtures", () => {
         expect(factForms(result).has("20-F")).toBe(true);
         await assertNbisUnsupportedInputs();
       }
+      if (name === "equity-aapl-brief") {
+        assertProviderGapRestatementsDropped(result);
+      }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);
         assertCurrencyConvertedValuation(result);
+        assertMarketRegimeRendered(result);
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
@@ -105,6 +111,7 @@ describe("static equity run fixtures", () => {
       }
       if (name === "equity-analysis-comprehensive") {
         assertComprehensiveAnalysisPath(result, modelRequests);
+        assertMarketRegimeRendered(result);
       }
       if (name === "equity-analysis-comprehensive" || name === "equity-web-fallback-deep") {
         expect(
@@ -235,10 +242,14 @@ describe("static equity run fixtures", () => {
     );
     expect(reader).toContain("- No cited plain-language company description is available.");
     expect(reader).toContain("Period | Revenue | Net income | Operating margin | FCF");
-    expect(reader).toMatch(/^FY ending \d{4}-\d{2}-\d{2} \(filed \d{4}-\d{2}-\d{2}\) \| -?[\d]/mu);
+    expect(reader).toMatch(
+      /^FY ending \d{4}-\d{2}-\d{2} \(latest filed \d{4}-\d{2}-\d{2}\) \| -?[\d]/mu,
+    );
     expect(reader).not.toContain("history is unavailable");
     expect(appendix).toContain("Period | Cash | Debt | Diluted shares");
-    expect(appendix).toContain("Interim ending 2026-03-31 (filed 2026-05-01) | 60.0B | 100.0B | —");
+    expect(appendix).toContain(
+      "Interim ending 2026-03-31 (latest filed 2026-05-01) | 60.0B | 100.0B | —",
+    );
     expect(reader).not.toContain("Cash");
     expect(reader).not.toContain("Debt");
     expect(reader).not.toContain("Diluted shares");

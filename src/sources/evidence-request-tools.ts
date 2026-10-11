@@ -160,7 +160,8 @@ async function resolveEarningsReleaseExhibit(
   if (!isFetchTextResult(index)) {
     return { rawSnapshots: [], gaps: [index] };
   }
-  // EX-99.1 is the press release; filename scoring would otherwise rank an "earnings slides" EX-99.2 first.
+  // EX-99.1 is the press release, so filename scoring would otherwise rank an "earnings slides"
+  // EX-99.2 first. `filingDocuments` demotes an EX-99.1 whose index wording says commentary.
   const documents = filingDocuments(index.payload, baseUrl, filing.primaryDocument, true);
   if (documents.length === 0) {
     return { rawSnapshots: [index.rawSnapshot], gaps: [] };

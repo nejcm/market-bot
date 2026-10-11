@@ -1,6 +1,6 @@
 import type { ResearchCommand } from "../cli/args";
 import type { Prediction } from "../domain/prediction";
-import type { SourceGap } from "../domain/sources";
+import type { SourceGap, SourceGapCause } from "../domain/sources";
 import { dedupeSourceGaps } from "../domain/source-gaps";
 import { withoutPredictionShortfallProtocolGaps } from "../report/prediction-shortfall";
 import type { CollectedSources } from "../sources/types";
@@ -125,34 +125,161 @@ function normalizeGapNeedle(value: string): string {
     .trim();
 }
 
-function sourceGapNeedles(gap: SourceGap): readonly string[] {
-  return [gap.source, gap.provider, ...sourceGapAliasNeedles(gap)]
-    .filter((value): value is string => value !== undefined && value.trim() !== "")
-    .map((value) => normalizeGapNeedle(value))
-    .filter((value) => value.length >= 4);
+// Provider gaps that can anchor a restatement drop; the declared gap's access-failure token below
+// Is still required.
+const PROVIDER_AVAILABILITY_CAUSES: ReadonlySet<SourceGapCause> = new Set([
+  "missing-credential",
+  "unsupported-coverage",
+  "provider-data-missing",
+  "fetch-failed",
+]);
+
+// An explicit access failure in the declared gap's own message; bare "key"/"token"/"plan" are too
+// Generic and would match unrelated prose.
+const ACCESS_FAILURE_PATTERN =
+  /(?:http|status):?\s*(?:401|403|429)\b|api key|credential|entitlement|subscription|quota|not set|not configured/iu;
+
+// The access-failure wording a model sentence may use, per the anchored provider template.
+const PROVIDER_ACCESS_PREDICATE =
+  "unavailable|not configured|not set|returned (?:http )?(?:401|403|429)|requires (?:an )?(?:api key|credential|entitlement|subscription)";
+
+// The sentence must begin with the declared provider and end in the access failure; the middle may
+// Name the endpoint's own subject plus endpoint/data/api, and only "for <subject>" may follow.
+function providerAccessPattern(gap: SourceGap): RegExp | undefined {
+  const provider = gap.provider?.trim();
+  if (provider === undefined || provider === "") {
+    return undefined;
+  }
+  const subject = [
+    ...endpointGapSubjects(gap).map(gapSubjectPattern),
+    "endpoint",
+    "data",
+    "api",
+  ].join("|");
+  return new RegExp(
+    `^${escapeGapPattern(provider)}(?:\\s+(?:${subject})){0,4}(?:\\s+(?:is|are|was))?` +
+      `\\s+(?:${PROVIDER_ACCESS_PREDICATE})(?:\\s+for\\s+(?:${subject})(?:\\s+evidence)?)?\\.?$`,
+    "iu",
+  );
 }
 
-function sourceGapAliasNeedles(gap: SourceGap): readonly string[] {
+// A model sentence that names a provider whose declared gap is an access failure restates that gap.
+function isProviderAccessRestatement(
+  sentence: string,
+  providerGaps: readonly SourceGap[],
+): boolean {
+  return providerGaps.some((gap) => {
+    if (!ACCESS_FAILURE_PATTERN.test(gap.message)) {
+      return false;
+    }
+    return providerAccessPattern(gap)?.test(sentence.trim()) ?? false;
+  });
+}
+
+const GAP_PREDICATE = "not supplied|unavailable|missing|not provided|not available";
+const GAP_RUN_SUFFIX = "in this run|for this run";
+const GAP_DETERMINERS = "the|a|an";
+const GAP_SUBJECT_JOIN = String.raw`(?:,\s*(?:and\s+)?|\s+and\s+)`;
+
+function escapeGapPattern(value: string): string {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+}
+
+function gapSubjectPattern(subject: string): string {
+  const words = subject.split(" ");
+  return words
+    .map((word, index) => escapeGapPattern(word) + (index === words.length - 1 ? "s?" : ""))
+    .join(String.raw`\s+`);
+}
+
+// Subjects come from the specific endpoint a Source Gap covers, so a finnhub-events dividend gap
+// Cannot drop an estimates restatement. Endpoints with no known subject set drop nothing.
+function endpointGapSubjects(gap: SourceGap): readonly string[] {
   const source = gap.source.toLowerCase();
-  return [
-    ...(source.includes("tradier") ? ["options iv", "options evidence"] : []),
-    ...(source.includes("supplemental-market") ? ["supplemental market"] : []),
-  ];
+  const message = gap.message.toLowerCase();
+  if (source.startsWith("finnhub-events")) {
+    if (message.includes("dividend")) {
+      return ["dividend", "dividend history"];
+    }
+    if (message.includes("split")) {
+      return ["split", "split history"];
+    }
+    return [];
+  }
+  if (source.startsWith("finnhub-eps-estimate")) {
+    return ["eps estimate", "consensus eps estimate", "earnings per share estimate"];
+  }
+  if (source.startsWith("finnhub-revenue-estimate")) {
+    return ["revenue estimate", "revenue consensus"];
+  }
+  if (source.startsWith("finnhub-ebitda-estimate")) {
+    return ["ebitda estimate", "ebitda consensus"];
+  }
+  if (source.startsWith("finnhub-analyst-range")) {
+    return ["external analyst range", "external price distribution", "analyst price distribution"];
+  }
+  if (source.startsWith("finnhub-institutional-ownership")) {
+    return ["institutional ownership", "institutional holding"];
+  }
+  if (source.startsWith("finnhub-insider-transactions")) {
+    return ["insider transaction", "insider activity"];
+  }
+  if (source.includes("tradier")) {
+    // A per-tenor gap leaves other tenors available, so it cannot cover a broad IV-absent claim.
+    return message.includes("for expiration")
+      ? []
+      : ["options iv", "options iv evidence", "options evidence", "implied volatility"];
+  }
+  if (source.startsWith("earnings-setup-implied-move")) {
+    return ["implied move", "earnings move"];
+  }
+  if (source.includes("supplemental-market")) {
+    return ["supplemental market", "supplemental market snapshot"];
+  }
+  return [];
 }
 
-function mentionsSourceGap(modelGap: string, deterministicGap: SourceGap): boolean {
-  const normalized = normalizeGapNeedle(modelGap);
-  return sourceGapNeedles(deterministicGap).some((needle) => normalized.includes(needle));
+function endpointGapPattern(subjects: readonly string[]): RegExp {
+  const subject = subjects.map(gapSubjectPattern).join("|");
+  return new RegExp(
+    `^(?:(?:${GAP_DETERMINERS})\\s+)?(?:${subject})(?:${GAP_SUBJECT_JOIN}(?:${subject}))*` +
+      `\\s+(?:is|are)\\s+(?:${GAP_PREDICATE})(?:\\s+(?:${GAP_RUN_SUFFIX}))?\\.?$`,
+    "iu",
+  );
+}
+
+function isCoveredSentence(sentence: string, providerGaps: readonly SourceGap[]): boolean {
+  return providerGaps.some((gap) => {
+    const subjects = endpointGapSubjects(gap);
+    return subjects.length > 0 && endpointGapPattern(subjects).test(sentence);
+  });
 }
 
 export function withoutModelProviderGapDuplicates(
   modelGaps: readonly string[],
   sourceGaps: readonly SourceGap[],
 ): readonly string[] {
-  const deterministicGaps = dedupeSourceGaps(sourceGaps);
-  return modelGaps.filter(
-    (modelGap) => !deterministicGaps.some((gap) => mentionsSourceGap(modelGap, gap)),
+  const providerGaps = dedupeSourceGaps(sourceGaps).filter(
+    (gap) => gap.cause !== undefined && PROVIDER_AVAILABILITY_CAUSES.has(gap.cause),
   );
+  if (providerGaps.length === 0) {
+    return modelGaps;
+  }
+  return modelGaps.filter((modelGap) => {
+    const sentences = modelGap
+      .split(/[.;]+/u)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence !== "");
+    // A mixed gap survives unless every sentence is a declared-gap restatement.
+    return (
+      sentences.length === 0 ||
+      !sentences.every(
+        (sentence) =>
+          isCoveredSentence(sentence, providerGaps) ||
+          isProviderAccessRestatement(sentence, providerGaps),
+      )
+    );
+  });
 }
 
 function gapTokens(value: string): Set<string> {

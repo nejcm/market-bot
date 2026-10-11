@@ -965,7 +965,7 @@ describe("renderMarkdownReport — earnings setup section", () => {
     );
     expect(currentMarkdown).toContain("**EPS estimate:** 2.1 — single-provider snapshot (Finnhub)");
     expect(currentMarkdown).toContain(
-      "**Revenue estimate:** 95,000,000,000 — single-provider snapshot (Finnhub)",
+      "**Revenue estimate:** 95.0B — single-provider snapshot (Finnhub)",
     );
     expect(legacyMarkdown).not.toContain("provider-estimated");
   });

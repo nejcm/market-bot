@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { isRecord } from "../src/guards";
+import { filingDocuments } from "../src/sources/extended-evidence/sec-archive";
 import { financialStatementSeries } from "../src/sources/extended-evidence/financial-statement-selection";
 import {
   detectForeignPrivateIssuerForms,
@@ -62,6 +63,17 @@ interface FilingSweep {
   readonly startsInBoilerplate: boolean | null;
 }
 
+// One retained filing index; `rankingOverride` is the exhibit ranking rule's pick delta.
+interface ExhibitIndexSweep {
+  readonly cacheKey: string;
+  readonly cachedDate: string;
+  readonly accession: string | null;
+  readonly candidateCount: number;
+  readonly pickedName: string | null;
+  readonly pickedType: string | null;
+  readonly rankingOverride: boolean;
+}
+
 interface ReasonCount {
   readonly reason: string;
   readonly count: number;
@@ -70,17 +82,24 @@ interface ReasonCount {
 interface SecSweepReport {
   readonly companies: readonly CompanySweep[];
   readonly filings: readonly FilingSweep[];
+  readonly exhibitIndexes: readonly ExhibitIndexSweep[];
   readonly summary: {
     readonly copies: {
       readonly companyfacts: number;
       readonly submissions: number;
       readonly filingText: number;
+      readonly filingIndex: number;
+      readonly earningsReleaseExhibit: number;
     };
     readonly cikCount: number;
     readonly filingCount: number;
     readonly unknownFormCount: number;
     readonly emptyPacketCount: number;
     readonly boilerplateCount: number;
+    readonly filingIndexCount: number;
+    readonly exhibitPayloadCount: number;
+    readonly substantiveExhibitCount: number;
+    readonly exhibitPickDeltaCount: number;
     readonly skippedInvalidCacheCount: number;
     readonly seriesCoverage: Readonly<
       Record<
@@ -116,6 +135,16 @@ export function normalizeCik(value: unknown): string | undefined {
   return /^\d{1,10}$/u.test(digits) && Number(digits) > 0 ? digits.padStart(10, "0") : undefined;
 }
 
+// The archive path segment is the accession's own filer CIK, which can be a filing agent rather
+// Than the issuer; rebuild it from the accession title.
+function secArchiveBaseUrl(accession: string): string | undefined {
+  const segments = accession.split("-");
+  if (segments.length !== 3 || !/^\d+$/u.test(segments[0] ?? "")) {
+    return undefined;
+  }
+  return `https://www.sec.gov/Archives/edgar/data/${Number(segments[0])}/${accession.replaceAll("-", "")}`;
+}
+
 export function newestCachedEntry(
   entries: readonly CachedEntry[],
   asOf?: string,
@@ -128,6 +157,16 @@ export function newestCachedEntry(
         b.fetchedAt.localeCompare(a.fetchedAt) ||
         a.path.localeCompare(b.path),
     )[0];
+}
+
+// Mirrors newestCachedEntry: a later same-day copy wins, then the lexicographically smaller path.
+function supersedesCachedCopy(candidate: CachedEntry, previous: CachedEntry): boolean {
+  return (
+    candidate.cachedDate > previous.cachedDate ||
+    (candidate.cachedDate === previous.cachedDate &&
+      (candidate.fetchedAt > previous.fetchedAt ||
+        (candidate.fetchedAt === previous.fetchedAt && candidate.path < previous.path)))
+  );
 }
 
 export function inferFilingForm(normalized: string): SecFilingForm | "unknown" {
@@ -174,8 +213,16 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
   const companies = new Map<string, CachedEntry>();
   const submissions = new Map<string, CachedEntry[]>();
   const filingsByHash = new Map<string, FilingSweep>();
+  const filingIndexes = new Map<string, CachedEntry & { readonly payload: string }>();
+  const exhibitPayloads = new Map<string, CachedEntry & { readonly substantive: boolean }>();
   let skippedInvalidCacheCount = 0;
-  const copies = { companyfacts: 0, submissions: 0, filingText: 0 };
+  const copies = {
+    companyfacts: 0,
+    submissions: 0,
+    filingText: 0,
+    filingIndex: 0,
+    earningsReleaseExhibit: 0,
+  };
   for await (const relative of new Bun.Glob("*/*.json").scan(cacheDir)) {
     const path = join(cacheDir, relative);
     const entry = await readCache(path);
@@ -185,16 +232,23 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
     }
     if (
       typeof entry.adapter !== "string" ||
-      !["sec-companyfacts", "sec-submissions", "sec-filing-text"].includes(entry.adapter)
+      ![
+        "sec-companyfacts",
+        "sec-submissions",
+        "sec-filing-text",
+        "sec-filing-index",
+        "sec-earnings-release-exhibit",
+      ].includes(entry.adapter)
     ) {
       continue;
     }
     if (
       typeof entry.cachedDate !== "string" ||
       !/^\d{4}-\d{2}-\d{2}$/u.test(entry.cachedDate) ||
-      typeof entry.fetchedAt !== "string"
+      typeof entry.fetchedAt !== "string" ||
+      typeof entry.cacheKey !== "string"
     ) {
-      throw new Error(`Invalid SEC cache dates: ${path}`);
+      throw new Error(`Invalid SEC cache entry: ${path}`);
     }
     if (entry.adapter === "sec-filing-text") {
       copies.filingText += 1;
@@ -224,6 +278,30 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
             ? null
             : packetStartsInBoilerplate(packet.packet),
       });
+      continue;
+    }
+    if (entry.adapter === "sec-filing-index" || entry.adapter === "sec-earnings-release-exhibit") {
+      if (typeof entry.payload !== "string") {
+        throw new TypeError(`Invalid SEC ${entry.adapter} payload: ${path}`);
+      }
+      if (entry.adapter === "sec-filing-index") {
+        copies.filingIndex += 1;
+        const previous = filingIndexes.get(entry.cacheKey);
+        const copy = { path, cachedDate: entry.cachedDate, fetchedAt: entry.fetchedAt };
+        if (previous === undefined || supersedesCachedCopy(copy, previous)) {
+          filingIndexes.set(entry.cacheKey, { ...copy, payload: entry.payload });
+        }
+      } else {
+        copies.earningsReleaseExhibit += 1;
+        const previous = exhibitPayloads.get(entry.cacheKey);
+        const copy = { path, cachedDate: entry.cachedDate, fetchedAt: entry.fetchedAt };
+        if (previous === undefined || supersedesCachedCopy(copy, previous)) {
+          exhibitPayloads.set(entry.cacheKey, {
+            ...copy,
+            substantive: hasSubstantiveResultsContent(normalizeFilingText(entry.payload)),
+          });
+        }
+      }
       continue;
     }
     const cik = isRecord(entry.payload) ? normalizeCik(entry.payload.cik) : undefined;
@@ -341,6 +419,25 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
     ...new Set(companyResults.flatMap((company) => Object.keys(company.series))),
   ].toSorted();
   const filings = [...filingsByHash.values()];
+  const exhibitIndexes = [...filingIndexes]
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([cacheKey, entry]): ExhibitIndexSweep => {
+      const accession =
+        entry.payload.match(/<title>EDGAR Filing Documents for ([\d-]+)<\/title>/u)?.[1] ?? null;
+      const baseUrl = accession === null ? undefined : secArchiveBaseUrl(accession);
+      const ranked = baseUrl === undefined ? [] : filingDocuments(entry.payload, baseUrl, "", true);
+      const scored =
+        baseUrl === undefined ? [] : filingDocuments(entry.payload, baseUrl, "", false);
+      return {
+        cacheKey,
+        cachedDate: entry.cachedDate,
+        accession,
+        candidateCount: ranked.length,
+        pickedName: ranked[0]?.name ?? null,
+        pickedType: ranked[0]?.type ?? null,
+        rankingOverride: ranked[0] !== undefined && ranked[0].name !== scored[0]?.name,
+      };
+    });
   const issuerGroups = {
     fpi: companyResults.filter((company) => company.foreignPrivateIssuer === true),
     domestic: companyResults.filter((company) => company.foreignPrivateIssuer === false),
@@ -354,6 +451,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
   return {
     companies: companyResults,
     filings: filings.toSorted((a, b) => a.contentHash.localeCompare(b.contentHash)),
+    exhibitIndexes,
     summary: {
       copies,
       cikCount: companyResults.length,
@@ -363,6 +461,11 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
         (filing) => filing.form !== "unknown" && filing.packetLength === 0,
       ).length,
       boilerplateCount: filings.filter((filing) => filing.startsInBoilerplate === true).length,
+      filingIndexCount: exhibitIndexes.length,
+      exhibitPayloadCount: exhibitPayloads.size,
+      substantiveExhibitCount: [...exhibitPayloads.values()].filter((entry) => entry.substantive)
+        .length,
+      exhibitPickDeltaCount: exhibitIndexes.filter((entry) => entry.rankingOverride).length,
       skippedInvalidCacheCount,
       seriesCoverage: Object.fromEntries(
         seriesKeys.map((key) => {
@@ -409,7 +512,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
 function printSummary(report: SecSweepReport, path: string): void {
   const { summary } = report;
   process.stdout.write(
-    `SEC sweep: ${summary.cikCount} CIKs, ${summary.filingCount} unique filings\nCache copies: ${summary.copies.companyfacts} companyfacts, ${summary.copies.submissions} submissions, ${summary.copies.filingText} filing texts\nFilings: ${summary.unknownFormCount} unknown forms, ${summary.emptyPacketCount} empty packets, ${summary.boilerplateCount} boilerplate flags\nSeries coverage (present/gap/missing):\n`,
+    `SEC sweep: ${summary.cikCount} CIKs, ${summary.filingCount} unique filings\nCache copies: ${summary.copies.companyfacts} companyfacts, ${summary.copies.submissions} submissions, ${summary.copies.filingText} filing texts, ${summary.copies.filingIndex} filing indexes, ${summary.copies.earningsReleaseExhibit} exhibits\nFilings: ${summary.unknownFormCount} unknown forms, ${summary.emptyPacketCount} empty packets, ${summary.boilerplateCount} boilerplate flags\nExhibits: ${summary.filingIndexCount} filing indexes (${summary.exhibitPickDeltaCount} ranking-rule picks), ${summary.exhibitPayloadCount} retained exhibits (${summary.substantiveExhibitCount} substantive)\nSeries coverage (present/gap/missing):\n`,
   );
   for (const [key, coverage] of Object.entries(summary.seriesCoverage)) {
     process.stdout.write(

@@ -202,7 +202,7 @@ describe("buildCalibrationBlock", () => {
     expect(block).not.toContain("6-10d");
   });
 
-  test("includes actionable prediction kinds and omits kinds below the floors", () => {
+  test("includes actionable prediction kinds and declares below-floor kinds insufficient", () => {
     const block = buildCalibrationBlock(
       {
         byKind: {
@@ -216,8 +216,51 @@ describe("buildCalibrationBlock", () => {
     );
 
     expect(block).toContain("prediction kind direction: skill -0.60 (Brier 0.400, n=30, runs=10");
-    expect(block).not.toContain("prediction kind range");
-    expect(block).not.toContain("prediction kind volatility");
+    expect(block).toContain("Prediction-kind slices insufficient for guidance:");
+    expect(block).toContain("prediction kind range: below the 30-event minimum (n=29)");
+    expect(block).toContain("prediction kind volatility: below the 10-run minimum (n=30, runs=9)");
+    expect(block).toContain(
+      "Use the actionable negative slices only to discipline probability confidence",
+    );
+    expect(block).toContain(
+      "The insufficient prediction-kind slices are declared for transparency only",
+    );
+    expect(block).not.toContain("prediction kind range: skill");
+    expect(block).not.toContain("prediction kind volatility: skill");
+  });
+
+  test("emits declaration-only wording when no slice is actionable", () => {
+    const block = buildCalibrationBlock(
+      { byKind: { relative: { brierScore: 0.25, count: 9, runCount: 9 } } },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toContain("Prediction-kind slices insufficient for guidance:");
+    expect(block).toContain("prediction kind relative: below the 30-event minimum (n=9)");
+    expect(block).not.toContain("discipline probability confidence");
+    expect(block).toContain("declared for transparency only");
+    expect(block).toContain("must not suppress prediction count");
+  });
+
+  test("declares a legacy prediction-kind metric without uncertainty as insufficient", () => {
+    const block = buildCalibrationBlock(
+      { byKind: { direction: { brierScore: 0.4, count: 30 } } },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toContain("prediction kind direction: uncertainty unavailable (n=30)");
+  });
+
+  test("omits a prediction kind that has enough data and is not negative", () => {
+    const block = buildCalibrationBlock(
+      { byKind: { range: { ...actionableMetric, brierScore: 0.2 } } },
+      command,
+      calibrationRunContext(),
+    );
+
+    expect(block).toBeUndefined();
   });
 });
 

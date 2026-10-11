@@ -121,7 +121,11 @@ function renderInstitutionalOwnershipContext(report: ResearchReport): string {
       ["Sales", metrics.saleCount],
       ["Net share change", metrics.netShareChange],
     ].flatMap(([label, value]) =>
-      typeof value === "number" ? [`- **${String(label)}:** ${String(value)}`] : [],
+      typeof value === "number"
+        ? [
+            `- **${String(label)}:** ${label === "Net share change" ? compactNumber(value) : String(value)}`,
+          ]
+        : [],
     );
     if (values.length === 0) {
       return [];

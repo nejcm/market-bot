@@ -126,6 +126,17 @@
   {/each}
 </div>
 
+{#if defaultView.marketRegime !== undefined}
+  <div
+    class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-[10px] leading-snug text-muted-foreground sm:px-7"
+    title={defaultView.marketRegime.drivers.join("; ")}
+  >
+    <span class="font-semibold uppercase tracking-[0.12em]">Market regime</span>
+    <span class="text-foreground">{defaultView.marketRegime.label}</span>
+    {@render citeChips(defaultView.marketRegime.sourceIds)}
+  </div>
+{/if}
+
 {#if showMetrics}
   <!-- KPI strip -->
   <div

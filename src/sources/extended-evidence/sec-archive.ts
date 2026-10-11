@@ -45,6 +45,23 @@ function isExhibit991(document: FilingDocument): boolean {
   return /^EX-99\.1$/iu.test(document.type);
 }
 
+// EX-99.1 is normally the press release, but a filing can label CFO commentary or prepared
+// Remarks as EX-99.1; demote it only when the wording is commentary without a results signal.
+const EXHIBIT_COMMENTARY_PATTERN = /commentary|remarks/iu;
+const EXHIBIT_RESULTS_PATTERN = /press release|news release|earnings release/iu;
+
+function documentDescription(document: FilingDocument): string {
+  return `${document.name} ${document.description}`.toLowerCase();
+}
+
+function exhibitPromotion(document: FilingDocument): number {
+  const description = documentDescription(document);
+  if (EXHIBIT_COMMENTARY_PATTERN.test(description) && !EXHIBIT_RESULTS_PATTERN.test(description)) {
+    return -1;
+  }
+  return isExhibit991(document) ? 2 : 0;
+}
+
 export function filingDocuments(
   html: string,
   baseUrl: string,
@@ -92,7 +109,7 @@ export function filingDocuments(
     })
     .toSorted(
       (left, right) =>
-        (pressReleaseFirst ? Number(isExhibit991(right)) - Number(isExhibit991(left)) : 0) ||
+        (pressReleaseFirst ? exhibitPromotion(right) - exhibitPromotion(left) : 0) ||
         right.score - left.score ||
         left.name.localeCompare(right.name),
     )

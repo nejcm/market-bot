@@ -165,7 +165,7 @@ Aggregate measurement of stated probabilities against resolved outcomes, counted
 
 ## Actionable Negative Calibration
 
-Underperforming Calibration slice with at least 30 resolved Forecast Events, 10 distinct Runs among them, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound above 0.25. Qualifying asset-class, job-type, default-horizon, and Market-Regime slices can guide probability discipline, never count, shape, or evidence rules.
+Underperforming Calibration slice with at least 30 resolved Forecast Events, 10 distinct Runs among them, and a Bonferroni-adjusted 98.75% one-sided Brier lower bound above 0.25. Qualifying asset-class, job-type, default-horizon, Market-Regime, and Prediction-kind slices can guide probability discipline, never count, shape, or evidence rules. A Prediction-kind slice below the floor is declared insufficient rather than omitted, for disclosure only; an insufficient sample supports no probability guidance.
 
 ## Regime-Sliced Calibration
 

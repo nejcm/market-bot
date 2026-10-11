@@ -2,8 +2,8 @@ import { isMarketUpdateJobType, type JobType } from "../domain/job-type";
 import type { CalibrationMetric } from "../scoring/types";
 import type { CalibrationContext } from "./research-context-types";
 
-const MIN_ACTIONABLE_CALIBRATION_OUTCOMES = 30;
-const MIN_ACTIONABLE_CALIBRATION_RUNS = 10;
+export const MIN_ACTIONABLE_CALIBRATION_OUTCOMES = 30;
+export const MIN_ACTIONABLE_CALIBRATION_RUNS = 10;
 export const ACTIONABLE_CALIBRATION_Z = 2.2414;
 const BASE_RATE_BRIER = 0.25;
 

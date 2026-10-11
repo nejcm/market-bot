@@ -315,15 +315,15 @@ describe("equity reader projection", () => {
     });
 
     expect(projection.defaultView.financialTrends?.rows.map((row) => row.period)).toEqual([
-      "FY ending 2020-12-31 (filed 2021-02-01)",
-      "FY ending 2021-12-31 (filed 2022-02-01)",
-      "FY ending 2022-12-31 (filed 2023-02-01)",
-      "FY ending 2023-12-31 (filed 2024-02-01)",
-      "FY ending 2024-12-31 (filed 2025-02-01)",
-      "TTM (2025-12-31; filed 2026-02-01)",
+      "FY ending 2020-12-31 (latest filed 2021-02-01)",
+      "FY ending 2021-12-31 (latest filed 2022-02-01)",
+      "FY ending 2022-12-31 (latest filed 2023-02-01)",
+      "FY ending 2023-12-31 (latest filed 2024-02-01)",
+      "FY ending 2024-12-31 (latest filed 2025-02-01)",
+      "TTM (2025-12-31; latest filed 2026-02-01)",
     ]);
     expect(projection.defaultView.financialTrends?.rows.at(-1)).toEqual({
-      period: "TTM (2025-12-31; filed 2026-02-01)",
+      period: "TTM (2025-12-31; latest filed 2026-02-01)",
       revenue: "— (revenue-unavailable)",
       netIncome: "700,000",
       operatingMargin: "— (revenue-unavailable)",
@@ -362,7 +362,7 @@ describe("equity reader projection", () => {
         fundamentalHistory: restated,
       }).defaultView.financialTrends?.restatements,
     ).toEqual([
-      "FY ending 2020-12-31 (filed 2024-02-01) shows restated values; as originally filed: revenue 2.5M (filed 2021-02-01).",
+      "FY ending 2020-12-31 (latest filed 2024-02-01) shows restated values; as originally filed: revenue 2.5M (filed 2021-02-01).",
     ]);
     expect(
       projectEquityReader({
@@ -454,7 +454,7 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
       {
-        period: "FY ending 2024-12-31 (filed 2025-03-01)",
+        period: "FY ending 2024-12-31 (latest filed 2025-03-01)",
         cash: {
           value: 120,
           filedAt: "2025-03-01",
@@ -488,7 +488,7 @@ describe("equity reader projection", () => {
 
     expect(projection.appendix.balanceSheetHistory?.rows).toEqual([
       {
-        period: "FY ending 2024-12-31 (filed 2025-03-01)",
+        period: "FY ending 2024-12-31 (latest filed 2025-03-01)",
         cash: {
           value: 100,
           filedAt: "2025-02-01",
@@ -546,7 +546,7 @@ describe("equity reader projection", () => {
     });
 
     expect(projection.appendix.balanceSheetHistory?.rows[0]).toMatchObject({
-      period: "FY ending 2024-12-31 (filed 2025-02-01)",
+      period: "FY ending 2024-12-31 (latest filed 2025-02-01)",
       cash: {
         value: 100,
         filedAt: "2025-02-01",
@@ -595,6 +595,47 @@ describe("equity reader projection", () => {
       count: 10,
       sourceIds: ["finnhub-eps"],
     });
+  });
+
+  test("cites earnings estimates to the provider, not the issuer date-confirmation source", () => {
+    const projection = projectEquityReader({
+      report: {
+        symbol: "AMD",
+        extras: {
+          earningsSetup: {
+            event: {
+              symbol: "AMD",
+              date: "2026-11-03",
+              timing: "amc",
+              eventDateStatus: "issuer-confirmed",
+              epsEstimate: 1.25,
+              revenueEstimate: 10_500_000_000,
+              sourceIds: ["extended-finnhub-events-amd", "web-amd-ir-date"],
+              fetchedAt: "2026-10-10T12:00:00.000Z",
+              dateConfirmation: { sourceId: "web-amd-ir-date" },
+            },
+            gaps: [],
+          },
+        },
+      },
+    });
+
+    expect(projection.defaultView.earningsConsensus).toEqual([
+      {
+        kind: "earnings-date",
+        symbol: "AMD",
+        date: "2026-11-03",
+        timing: "amc",
+        status: "issuer-confirmed",
+        sourceIds: ["extended-finnhub-events-amd", "web-amd-ir-date"],
+      },
+      { kind: "eps-consensus", value: 1.25, sourceIds: ["extended-finnhub-events-amd"] },
+      {
+        kind: "revenue-consensus",
+        value: 10_500_000_000,
+        sourceIds: ["extended-finnhub-events-amd"],
+      },
+    ]);
   });
 
   test("places financial core in the default view and coverage plus dimensions in the appendix", () => {

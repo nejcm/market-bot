@@ -85,7 +85,13 @@ describe("SEC cache sweep", () => {
     const write = (id: string, adapter: string, cachedDate: string, payload: unknown) =>
       Bun.write(
         join(cacheDir, cachedDate, `${id}.json`),
-        JSON.stringify({ adapter, cachedDate, fetchedAt: `${cachedDate}T12:00:00Z`, payload }),
+        JSON.stringify({
+          cacheKey: id,
+          adapter,
+          cachedDate,
+          fetchedAt: `${cachedDate}T12:00:00Z`,
+          payload,
+        }),
       );
     try {
       await write("old", "sec-companyfacts", "2026-10-08", {
@@ -119,12 +125,28 @@ describe("SEC cache sweep", () => {
       await write("duplicate", "sec-filing-text", "2026-10-08", `<p>FORM 8-K ${results}</p>`);
       await write("unknown", "sec-filing-text", "2026-10-09", "Exhibit 99.1");
       await write("empty", "sec-filing-text", "2026-10-09", "FORM 10-K");
+      await write(
+        "index",
+        "sec-filing-index",
+        "2026-10-09",
+        `<title>EDGAR Filing Documents for 0000320193-26-000050</title><table>
+        <tr><td>2</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+        <tr><td>3</td><td>Earnings Slides</td><td><a href="/Archives/edgar/data/320193/000032019326000050/slides.htm">slides.htm</a></td><td>EX-99.2</td></tr>
+        </table>`,
+      );
+      await write("exhibit", "sec-earnings-release-exhibit", "2026-10-09", `<p>${results}</p>`);
       await write("ignored", "other", "2026-10-09", { secret: "never emitted" });
       await Bun.write(join(cacheDir, "2026-10-09", "malformed.json"), "broken JSON");
       await Bun.write(join(cacheDir, "2026-10-09", "scalar.json"), "42");
       await Bun.write(join(cacheDir, "2026-10-09", "no-adapter.json"), "{}");
       const report = await sweepSecCache(cacheDir);
-      expect(report.summary.copies).toEqual({ companyfacts: 3, submissions: 2, filingText: 4 });
+      expect(report.summary.copies).toEqual({
+        companyfacts: 3,
+        submissions: 2,
+        filingText: 4,
+        filingIndex: 1,
+        earningsReleaseExhibit: 1,
+      });
       expect(report.summary.cikCount).toBe(2);
       expect(report.companies[0]).toMatchObject({
         cik: "0000000001",
@@ -139,6 +161,17 @@ describe("SEC cache sweep", () => {
       expect(report.summary.filingCount).toBe(3);
       expect(report.summary.unknownFormCount).toBe(1);
       expect(report.summary.emptyPacketCount).toBe(1);
+      expect(report.summary.filingIndexCount).toBe(1);
+      expect(report.summary.exhibitPayloadCount).toBe(1);
+      expect(report.summary.substantiveExhibitCount).toBe(1);
+      expect(report.summary.exhibitPickDeltaCount).toBe(1);
+      expect(report.exhibitIndexes[0]).toMatchObject({
+        accession: "0000320193-26-000050",
+        candidateCount: 2,
+        pickedName: "ex991.htm",
+        pickedType: "EX-99.1",
+        rankingOverride: true,
+      });
       expect(report.filings.find((filing) => filing.form === "8-K")).toMatchObject({
         cachedDate: "2026-10-09",
         startsInBoilerplate: null,
@@ -178,6 +211,37 @@ describe("SEC cache sweep", () => {
         code: "EEXIST",
       });
       expect(await Bun.file(path).text()).toBe(before);
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the newest same-day exhibit copy and breaks ties by path", async () => {
+    const cacheDir = await mkdtemp(join(tmpdir(), "sec-sweep-dup-"));
+    const writeEntry = (file: string, cacheKey: string, payload: string, fetchedAt: string) =>
+      Bun.write(
+        join(cacheDir, "2026-10-09", file),
+        JSON.stringify({
+          cacheKey,
+          adapter: "sec-earnings-release-exhibit",
+          cachedDate: "2026-10-09",
+          fetchedAt,
+          payload,
+        }),
+      );
+    try {
+      // Later fetchedAt wins even when it is not the first copy the glob visits.
+      await writeEntry("dup-a.json", "dup", "no reported results", "2026-10-09T10:00:00Z");
+      await writeEntry("dup-b.json", "dup", results, "2026-10-09T12:00:00Z");
+      // Equal date and fetchedAt: the lexicographically smaller path wins deterministically.
+      await writeEntry("tie-a.json", "tie", results, "2026-10-09T12:00:00Z");
+      await writeEntry("tie-b.json", "tie", "no reported results", "2026-10-09T12:00:00Z");
+      const report = await sweepSecCache(cacheDir);
+
+      expect(report.summary.copies.earningsReleaseExhibit).toBe(4);
+      expect(report.summary.exhibitPayloadCount).toBe(2);
+      // The winners (dup-b, tie-a) are substantive; any reversed pick loses one.
+      expect(report.summary.substantiveExhibitCount).toBe(2);
     } finally {
       await rm(cacheDir, { recursive: true, force: true });
     }

@@ -12,7 +12,10 @@ import type {
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
-import { valuationScopeDisclosure } from "../../src/report/valuation-workbench-markdown";
+import {
+  hasNoPriceHistory,
+  valuationScopeDisclosure,
+} from "../../src/report/valuation-workbench-markdown";
 import { stringArrayValue } from "../../src/guards";
 import { priceAsOfLabel, projectEquityReaderForDetail } from "./run-workspace-detail";
 
@@ -85,6 +88,7 @@ export interface RunWorkspaceValuationWorkbenchView {
   readonly trailingDisclosure: string;
   readonly scopeDisclosure?: string;
   readonly rows: readonly RunWorkspaceHistoricalValuationRow[];
+  readonly unpricedPeriods: readonly string[];
   readonly suppressionReasons: readonly string[];
   readonly peerSupportability: string;
   readonly peerSuppression?: string;
@@ -277,19 +281,24 @@ export function valuationWorkbenchView(
         ? `Reconciled TTM through ${trailingBasis.periodEnd}, public ${trailingBasis.publicAt}`
         : trailingBasis.detail,
     ...(scopeDisclosure === undefined ? {} : { scopeDisclosure }),
-    rows: observations.map((observation) => ({
-      basis: observation.basis.toUpperCase(),
-      periodEnd: observation.periodEnd,
-      publicAt: observation.publicAt,
-      price:
-        observation.price === null
-          ? "—"
-          : `${observation.price.close.toFixed(2)} ${observation.price.currency} · ${observation.price.sessionDate}`,
-      priceToEarnings: valuationMetricCell(observation.metrics.priceToEarnings),
-      priceToSales: valuationMetricCell(observation.metrics.priceToSales),
-      enterpriseValueToRevenue: valuationMetricCell(observation.metrics.enterpriseValueToRevenue),
-      priceToFreeCashFlow: valuationMetricCell(observation.metrics.priceToFreeCashFlow),
-    })),
+    rows: observations
+      .filter((observation) => !hasNoPriceHistory(observation))
+      .map((observation) => ({
+        basis: observation.basis.toUpperCase(),
+        periodEnd: observation.periodEnd,
+        publicAt: observation.publicAt,
+        price:
+          observation.price === null
+            ? "—"
+            : `${observation.price.close.toFixed(2)} ${observation.price.currency} · ${observation.price.sessionDate}`,
+        priceToEarnings: valuationMetricCell(observation.metrics.priceToEarnings),
+        priceToSales: valuationMetricCell(observation.metrics.priceToSales),
+        enterpriseValueToRevenue: valuationMetricCell(observation.metrics.enterpriseValueToRevenue),
+        priceToFreeCashFlow: valuationMetricCell(observation.metrics.priceToFreeCashFlow),
+      })),
+    unpricedPeriods: observations
+      .filter(hasNoPriceHistory)
+      .map((observation) => `${observation.basis.toUpperCase()} ${observation.periodEnd}`),
     suppressionReasons: artifact.historicalMultiples.suppressionReasons,
     peerSupportability,
     ...(artifact.peerComparison.status === "suppressed"

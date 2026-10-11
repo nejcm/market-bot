@@ -519,6 +519,22 @@ export function promptBaselineCases(): readonly PromptBaselineCase[] {
     ),
   );
   add(
+    "stage:final-synthesis:kind-calibration-insufficient",
+    buildStagePrompt(
+      "final-synthesis",
+      stageInput({
+        context: {
+          ...equityContext(),
+          calibrationContext: {
+            byKind: {
+              relative: { brierScore: 0.25, count: 9, runCount: 9, brierStandardError: 0.045 },
+            },
+          },
+        },
+      }),
+    ),
+  );
+  add(
     "stage:final-synthesis:overview-steering",
     buildStagePrompt(
       "final-synthesis",

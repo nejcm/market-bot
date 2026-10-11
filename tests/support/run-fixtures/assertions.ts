@@ -7,7 +7,9 @@ import { parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
+import { projectEquityReader } from "../../../src/report/equity-reader";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
+import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
@@ -16,6 +18,26 @@ import { assertFinancialRunInvariants } from "./financial-invariants";
 
 function asWritten(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
+// Equity-aapl-brief's cassette carries controlled model gaps: the anchored options restatement
+// Must disappear; every genuine gap (issuer/company estimates, peers, methodology, transcript) survives.
+export function assertProviderGapRestatementsDropped(result: RunFixtureResult): void {
+  const gaps = result.report.dataGaps;
+  expect(gaps).not.toContain("Options IV evidence is unavailable.");
+  expect(gaps).toContain("Issuer EPS estimates are not supplied.");
+  expect(gaps).toContain("Company earnings per share estimates are not provided.");
+  expect(gaps).toContain("Usable peers are unavailable.");
+  expect(gaps).toContain("Peer comparisons are unavailable.");
+  expect(gaps).toContain("Estimated dividends are not supplied.");
+  expect(gaps).toContain("Consensus dividends are not available.");
+  expect(gaps).toContain("Analyst estimate ranges are not supplied.");
+  expect(gaps).toContain("Estimate ranges are not available.");
+  expect(gaps).toContain("The methodology behind analyst estimates is missing.");
+  expect(gaps).toContain(
+    "Analyst estimates are not supplied, but the methodology behind the forward P/E is unspecified.",
+  );
+  expect(gaps).toContain("Issuer transcript unavailable.");
 }
 
 export async function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): Promise<void> {
@@ -237,11 +259,17 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     ).toMatchObject({ status: "not-applicable", display: "not applicable" });
   }
 
+  const pricedObservations = observations.filter((observation) => !hasNoPriceHistory(observation));
   const rows = result.markdown
     .split("\n")
     .filter((line) => line.startsWith("ANNUAL | ") || line.startsWith("TTM | "));
-  expect(rows.length, "workbench table must render rows").toBeGreaterThan(0);
-  expect(rows.length, "workbench table must render rows").toBe(observations.length);
+  expect(rows.length, "workbench table must render priced rows").toBe(pricedObservations.length);
+  const unpricedPeriods = observations.length - pricedObservations.length;
+  if (unpricedPeriods > 0) {
+    expect(result.markdown).toContain(
+      `${String(unpricedPeriods)} period${unpricedPeriods === 1 ? "" : "s"} without price history:`,
+    );
+  }
   for (const row of rows) {
     const cell = row.split(" | ")[EV_REVENUE_COLUMN];
     expect(cell, row).toBe(
@@ -373,6 +401,29 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
   );
 }
 
+export function assertMarketRegimeRendered(result: RunFixtureResult): void {
+  const regime = result.report.extras?.marketRegime;
+  expect(regime, "fixture must carry a market regime").toBeDefined();
+  if (!isRecord(regime)) {
+    return;
+  }
+  expect(result.markdown, "market regime heading").toContain("## Market Regime");
+  const sourcesIndex = result.markdown.indexOf("### Sources");
+  expect(sourcesIndex, "Sources heading").toBeGreaterThanOrEqual(0);
+  const sourcesSection = result.markdown.slice(sourcesIndex);
+  const sourceIds = Array.isArray(regime.sourceIds)
+    ? regime.sourceIds.filter((sourceId): sourceId is string => typeof sourceId === "string")
+    : [];
+  expect(sourceIds.length, "market regime must cite sources").toBeGreaterThan(0);
+  for (const sourceId of sourceIds) {
+    if (result.report.sources.some((source) => source.id === sourceId)) {
+      expect(sourcesSection, `market regime source ${sourceId} in Sources`).toContain(
+        `- [${sourceId}]`,
+      );
+    }
+  }
+}
+
 export function assertComprehensiveAnalysisPath(
   result: RunFixtureResult,
   modelRequests: readonly ModelRequest[],
@@ -387,6 +438,19 @@ export function assertComprehensiveAnalysisPath(
     event: { symbol: "AAPL", eventDateStatus: "issuer-confirmed" },
   });
   expect(readEarningsForecastTelemetry(result.report)?.grammarEligible).toBe(true);
+  const confirmationSourceId =
+    result.collectedSources.earningsSetup?.event.dateConfirmation?.sourceId;
+  expect(confirmationSourceId, "fixture must carry a date-confirmation source").toBeDefined();
+  const consensus =
+    projectEquityReader({ report: result.report }).defaultView.earningsConsensus ?? [];
+  for (const kind of ["eps-consensus", "revenue-consensus"] as const) {
+    const item = consensus.find((candidate) => candidate.kind === kind);
+    expect(item, `${kind} must render`).toBeDefined();
+    expect(
+      item?.sourceIds ?? [],
+      `${kind} must exclude the date-confirmation source`,
+    ).not.toContain(confirmationSourceId);
+  }
   expect(result.collectedSources.analystExpectations).toMatchObject({
     version: 1,
     symbol: "AAPL",

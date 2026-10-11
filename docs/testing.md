@@ -195,7 +195,10 @@ upstream outputs.
 `bd4d4aa2` the replay requests the Q2 8-K EX-99.1 (`q22026991.htm`), which the source run never
 fetched, so the cassette misses it and the Item 2.02 evidence falls back to the EX-99.2 slide-deck
 snippet, which stops before any results content. Rebuild it with `scripts/fixture-from-cache.ts` from
-a later AMD deep run that has cached the EX-99.1.
+a later AMD deep run that has cached the EX-99.1; the converter keeps same-day cache entries fetched
+at or before the run's start (latest per request), but it reproduces neither historical context nor a
+reused profile's sources, so a source run whose recorded final synthesis cites either will not
+convert.
 `scripts/fixture-from-cache.ts` converted it offline from that run's `data/cache` entries and
 `stages.json`, throwing on any request without a cache hit. It is not a faithful replay: the
 web-subject-profile output is borrowed from an earlier run, history and news-seen state are empty,

@@ -18,7 +18,9 @@ import { brierSkillScore } from "../scoring/calibration";
 import type { CalibrationMetric } from "../scoring/types";
 import {
   applicableCalibrationSlices,
+  applicableKindSlices,
   type ApplicableCalibrationKeys,
+  type ApplicableCalibrationSlice,
   type CalibrationGuidanceDimension,
   type CalibrationGuidanceReason,
   type CalibrationPopulationStatus,
@@ -425,6 +427,35 @@ function calibrationMetricSlice(
   };
 }
 
+function guidanceAssessment({
+  dimension,
+  key,
+  metric,
+  actionable,
+  reason,
+  lowerConfidenceBound,
+  populationStatus,
+}: ApplicableCalibrationSlice): RunAnalyticsCalibrationGuidanceAssessment {
+  return {
+    dimension,
+    key,
+    ...(metric !== undefined
+      ? {
+          brierScore: metric.brierScore,
+          count: metric.count,
+          ...(metric.runCount !== undefined ? { runCount: metric.runCount } : {}),
+          ...(metric.brierStandardError !== undefined
+            ? { brierStandardError: metric.brierStandardError }
+            : {}),
+        }
+      : {}),
+    ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
+    actionable,
+    reason,
+    ...(populationStatus !== undefined ? { populationStatus } : {}),
+  };
+}
+
 function calibrationAtGeneration(
   input: BuildRunAnalyticsInput,
 ): RunAnalytics["calibrationAtGeneration"] {
@@ -442,34 +473,10 @@ function calibrationAtGeneration(
   const guidanceAssessments =
     input.calibrationGuidanceKeys === undefined
       ? undefined
-      : applicableCalibrationSlices(calibration, input.calibrationGuidanceKeys).map(
-          ({
-            dimension,
-            key,
-            metric,
-            actionable,
-            reason,
-            lowerConfidenceBound,
-            populationStatus,
-          }) => ({
-            dimension,
-            key,
-            ...(metric !== undefined
-              ? {
-                  brierScore: metric.brierScore,
-                  count: metric.count,
-                  ...(metric.runCount !== undefined ? { runCount: metric.runCount } : {}),
-                  ...(metric.brierStandardError !== undefined
-                    ? { brierStandardError: metric.brierStandardError }
-                    : {}),
-                }
-              : {}),
-            ...(lowerConfidenceBound !== undefined ? { lowerConfidenceBound } : {}),
-            actionable,
-            reason,
-            ...(populationStatus !== undefined ? { populationStatus } : {}),
-          }),
-        );
+      : [
+          ...applicableCalibrationSlices(calibration, input.calibrationGuidanceKeys),
+          ...applicableKindSlices(calibration),
+        ].map((slice) => guidanceAssessment(slice));
   if (
     calibration.generatedAt === undefined &&
     calibration.resolvedCount === undefined &&

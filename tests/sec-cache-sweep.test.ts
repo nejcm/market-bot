@@ -170,7 +170,7 @@ describe("SEC cache sweep", () => {
         candidateCount: 2,
         pickedName: "ex991.htm",
         pickedType: "EX-99.1",
-        pressReleaseOverride: true,
+        rankingOverride: true,
       });
       expect(report.filings.find((filing) => filing.form === "8-K")).toMatchObject({
         cachedDate: "2026-10-09",
@@ -234,13 +234,14 @@ describe("SEC cache sweep", () => {
       await writeEntry("dup-a.json", "dup", "no reported results", "2026-10-09T10:00:00Z");
       await writeEntry("dup-b.json", "dup", results, "2026-10-09T12:00:00Z");
       // Equal date and fetchedAt: the lexicographically smaller path wins deterministically.
-      await writeEntry("tie-a.json", "tie", "no reported results", "2026-10-09T12:00:00Z");
-      await writeEntry("tie-b.json", "tie", results, "2026-10-09T12:00:00Z");
+      await writeEntry("tie-a.json", "tie", results, "2026-10-09T12:00:00Z");
+      await writeEntry("tie-b.json", "tie", "no reported results", "2026-10-09T12:00:00Z");
       const report = await sweepSecCache(cacheDir);
 
       expect(report.summary.copies.earningsReleaseExhibit).toBe(4);
       expect(report.summary.exhibitPayloadCount).toBe(2);
-      expect(report.summary.substantiveExhibitCount).toBe(1);
+      // The winners (dup-b, tie-a) are substantive; any reversed pick loses one.
+      expect(report.summary.substantiveExhibitCount).toBe(2);
     } finally {
       await rm(cacheDir, { recursive: true, force: true });
     }

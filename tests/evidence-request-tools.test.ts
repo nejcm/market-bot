@@ -1110,6 +1110,38 @@ describe("SEC latest filing evidence tool", () => {
     ).toEqual(["ex992.htm", "ex991.htm"]);
   });
 
+  test("keeps a results-release EX-99.1 whose wording also mentions prepared remarks", () => {
+    const html = `<table>
+      <tr><td>2</td><td>Press release and prepared remarks</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>3</td><td>Earnings slides</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+
+    expect(
+      filingDocuments(
+        html,
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050",
+        "earnings-8k.htm",
+        true,
+      ).map((document) => document.name),
+    ).toEqual(["ex991.htm", "ex992.htm"]);
+  });
+
+  test("ranks a press-release EX-99.1 below when its commentary description only says results", () => {
+    const html = `<table>
+      <tr><td>2</td><td>CFO Commentary on Third Quarter 2026 Results</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>3</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+
+    expect(
+      filingDocuments(
+        html,
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050",
+        "earnings-8k.htm",
+        true,
+      ).map((document) => document.name),
+    ).toEqual(["ex992.htm", "ex991.htm"]);
+  });
+
   test("selects a results-release EX-99.2 over a CFO-commentary EX-99.1 when both report results", async () => {
     const index = `<table>
       <tr><td>2</td><td>CFO Commentary</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>

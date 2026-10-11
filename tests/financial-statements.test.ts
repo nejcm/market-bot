@@ -3469,7 +3469,7 @@ describe("gross-principal debt fallback", () => {
     expect(
       financialPositionFromProjection(position)?.metrics.find((metric) => metric.label === "Debt")
         ?.dateBasis,
-    ).toBe("period 2026-06-30 · filed 2026-08-12 · gross principal");
+    ).toBe("period 2026-06-30 · latest filed 2026-08-12 · gross principal");
     expect(valuationPeriodInputs(artifact).periods.at(-1)?.debt?.label).toBe(
       "Debt (gross principal)",
     );

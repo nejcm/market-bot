@@ -2185,19 +2185,19 @@ describe("run workspace view", () => {
     expect(view?.keyDatedMetrics.metrics.slice(0, 4)).toEqual([
       expect.objectContaining({
         value: "$170",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
       expect.objectContaining({
         value: "$-1",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
       expect.objectContaining({
         value: "$6.50",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
       expect.objectContaining({
         value: "25.0%",
-        dateBasis: "period 2025-06-30 · filed 2025-08-01",
+        dateBasis: "period 2025-06-30 · latest filed 2025-08-01",
       }),
     ]);
     expect(view?.keyDatedMetrics.metrics.slice(4)).toEqual([

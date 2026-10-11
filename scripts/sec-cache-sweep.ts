@@ -63,7 +63,7 @@ interface FilingSweep {
   readonly startsInBoilerplate: boolean | null;
 }
 
-// One retained filing index; `pressReleaseOverride` is the EX-99.1-first rule's exhibit-pick delta.
+// One retained filing index; `rankingOverride` is the exhibit ranking rule's pick delta.
 interface ExhibitIndexSweep {
   readonly cacheKey: string;
   readonly cachedDate: string;
@@ -71,7 +71,7 @@ interface ExhibitIndexSweep {
   readonly candidateCount: number;
   readonly pickedName: string | null;
   readonly pickedType: string | null;
-  readonly pressReleaseOverride: boolean;
+  readonly rankingOverride: boolean;
 }
 
 interface ReasonCount {
@@ -135,7 +135,8 @@ export function normalizeCik(value: unknown): string | undefined {
   return /^\d{1,10}$/u.test(digits) && Number(digits) > 0 ? digits.padStart(10, "0") : undefined;
 }
 
-// Rebuilds the archive base URL the collector used, from the filing index's own accession title.
+// The archive path segment is the accession's own filer CIK, which can be a filing agent rather
+// Than the issuer; rebuild it from the accession title.
 function secArchiveBaseUrl(accession: string): string | undefined {
   const segments = accession.split("-");
   if (segments.length !== 3 || !/^\d+$/u.test(segments[0] ?? "")) {
@@ -434,7 +435,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
         candidateCount: ranked.length,
         pickedName: ranked[0]?.name ?? null,
         pickedType: ranked[0]?.type ?? null,
-        pressReleaseOverride: ranked[0] !== undefined && ranked[0].name !== scored[0]?.name,
+        rankingOverride: ranked[0] !== undefined && ranked[0].name !== scored[0]?.name,
       };
     });
   const issuerGroups = {
@@ -464,7 +465,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
       exhibitPayloadCount: exhibitPayloads.size,
       substantiveExhibitCount: [...exhibitPayloads.values()].filter((entry) => entry.substantive)
         .length,
-      exhibitPickDeltaCount: exhibitIndexes.filter((entry) => entry.pressReleaseOverride).length,
+      exhibitPickDeltaCount: exhibitIndexes.filter((entry) => entry.rankingOverride).length,
       skippedInvalidCacheCount,
       seriesCoverage: Object.fromEntries(
         seriesKeys.map((key) => {
@@ -511,7 +512,7 @@ export async function sweepSecCache(cacheDir: string): Promise<SecSweepReport> {
 function printSummary(report: SecSweepReport, path: string): void {
   const { summary } = report;
   process.stdout.write(
-    `SEC sweep: ${summary.cikCount} CIKs, ${summary.filingCount} unique filings\nCache copies: ${summary.copies.companyfacts} companyfacts, ${summary.copies.submissions} submissions, ${summary.copies.filingText} filing texts, ${summary.copies.filingIndex} filing indexes, ${summary.copies.earningsReleaseExhibit} exhibits\nFilings: ${summary.unknownFormCount} unknown forms, ${summary.emptyPacketCount} empty packets, ${summary.boilerplateCount} boilerplate flags\nExhibits: ${summary.filingIndexCount} filing indexes (${summary.exhibitPickDeltaCount} EX-99.1-first picks), ${summary.exhibitPayloadCount} retained exhibits (${summary.substantiveExhibitCount} substantive)\nSeries coverage (present/gap/missing):\n`,
+    `SEC sweep: ${summary.cikCount} CIKs, ${summary.filingCount} unique filings\nCache copies: ${summary.copies.companyfacts} companyfacts, ${summary.copies.submissions} submissions, ${summary.copies.filingText} filing texts, ${summary.copies.filingIndex} filing indexes, ${summary.copies.earningsReleaseExhibit} exhibits\nFilings: ${summary.unknownFormCount} unknown forms, ${summary.emptyPacketCount} empty packets, ${summary.boilerplateCount} boilerplate flags\nExhibits: ${summary.filingIndexCount} filing indexes (${summary.exhibitPickDeltaCount} ranking-rule picks), ${summary.exhibitPayloadCount} retained exhibits (${summary.substantiveExhibitCount} substantive)\nSeries coverage (present/gap/missing):\n`,
   );
   for (const [key, coverage] of Object.entries(summary.seriesCoverage)) {
     process.stdout.write(

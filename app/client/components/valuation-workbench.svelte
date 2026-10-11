@@ -79,9 +79,9 @@
   {/if}
   {#if valuationWorkbench.unpricedPeriods.length > 0}
     <div class="mt-2 text-[10px] leading-snug text-muted-foreground">
-      {valuationWorkbench.unpricedPeriods.length} periods without price history: {valuationWorkbench.unpricedPeriods.join(
-        ", ",
-      )}.
+      {valuationWorkbench.unpricedPeriods.length} period{valuationWorkbench.unpricedPeriods.length === 1
+        ? ""
+        : "s"} without price history: {valuationWorkbench.unpricedPeriods.join(", ")}.
     </div>
   {/if}
   {#if valuationWorkbench.rows.length === 0 && valuationWorkbench.unpricedPeriods.length === 0}

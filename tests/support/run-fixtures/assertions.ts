@@ -7,7 +7,9 @@ import { parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
+import { projectEquityReader } from "../../../src/report/equity-reader";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
+import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
@@ -257,14 +259,16 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     ).toMatchObject({ status: "not-applicable", display: "not applicable" });
   }
 
-  const pricedObservations = observations.filter((observation) => observation.price !== null);
+  const pricedObservations = observations.filter((observation) => !hasNoPriceHistory(observation));
   const rows = result.markdown
     .split("\n")
     .filter((line) => line.startsWith("ANNUAL | ") || line.startsWith("TTM | "));
   expect(rows.length, "workbench table must render priced rows").toBe(pricedObservations.length);
   const unpricedPeriods = observations.length - pricedObservations.length;
   if (unpricedPeriods > 0) {
-    expect(result.markdown).toContain(`${String(unpricedPeriods)} periods without price history:`);
+    expect(result.markdown).toContain(
+      `${String(unpricedPeriods)} period${unpricedPeriods === 1 ? "" : "s"} without price history:`,
+    );
   }
   for (const row of rows) {
     const cell = row.split(" | ")[EV_REVENUE_COLUMN];
@@ -434,6 +438,19 @@ export function assertComprehensiveAnalysisPath(
     event: { symbol: "AAPL", eventDateStatus: "issuer-confirmed" },
   });
   expect(readEarningsForecastTelemetry(result.report)?.grammarEligible).toBe(true);
+  const confirmationSourceId =
+    result.collectedSources.earningsSetup?.event.dateConfirmation?.sourceId;
+  expect(confirmationSourceId, "fixture must carry a date-confirmation source").toBeDefined();
+  const consensus =
+    projectEquityReader({ report: result.report }).defaultView.earningsConsensus ?? [];
+  for (const kind of ["eps-consensus", "revenue-consensus"] as const) {
+    const item = consensus.find((candidate) => candidate.kind === kind);
+    expect(item, `${kind} must render`).toBeDefined();
+    expect(
+      item?.sourceIds ?? [],
+      `${kind} must exclude the date-confirmation source`,
+    ).not.toContain(confirmationSourceId);
+  }
   expect(result.collectedSources.analystExpectations).toMatchObject({
     version: 1,
     symbol: "AAPL",

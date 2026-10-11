@@ -1853,7 +1853,7 @@ describe("report schema and rendering", () => {
       payload: {
         summary: "Source coverage was constrained.",
         confidence: "medium",
-        dataGaps: ["Options evidence is unavailable.", "Issuer transcript unavailable."],
+        dataGaps: ["Tradier unavailable for options evidence.", "Issuer transcript unavailable."],
       },
       predResult: { predictions: [], errors: [] },
       collectedSources: collectedSources({
@@ -1960,7 +1960,7 @@ describe("report schema and rendering", () => {
     ]);
   });
 
-  test("drops only anchored provider restatements and keeps every genuine gap", () => {
+  test("drops anchored provider restatements and keeps every genuine gap", () => {
     const command = {
       jobType: "equity" as const,
       assetClass: "equity" as const,
@@ -2106,6 +2106,268 @@ describe("report schema and rendering", () => {
       "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
     ]);
+  });
+
+  test("keeps a provider-named data gap that is not an access failure", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Tradier options chain shows no listed weeklies."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-iv-term-structure",
+            provider: "tradier",
+            message: "No Tradier IV values found for expiration 2026-01-16",
+            cause: "provider-data-missing",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Tradier options chain shows no listed weeklies.",
+      "tradier-iv-term-structure: No Tradier IV values found for expiration 2026-01-16",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+    ]);
+  });
+
+  test("keeps a provider-named sentence when only a different provider's gap is an access failure", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Tradier options chain shows no listed weeklies."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "finnhub-eps-estimate",
+            provider: "finnhub",
+            message: "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Tradier options chain shows no listed weeklies.",
+      "finnhub-eps-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+    ]);
+  });
+
+  test("drops a provider-first access-failure restatement", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Finnhub EPS estimate endpoint returned HTTP 403."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "finnhub-eps-estimate",
+            provider: "finnhub",
+            message:
+              "Finnhub EPS estimate endpoint is unavailable for the configured token (status 403)",
+            cause: "unsupported-coverage",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).not.toContain("Finnhub EPS estimate endpoint returned HTTP 403.");
+  });
+
+  test("keeps provider-named sentences that are not whole-sentence access restatements", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const retained = [
+      "Finnhub consensus EPS conflicts with issuer guidance and no reconciling source was supplied.",
+      "Options IV history before 2025 is not covered by any supplied source.",
+      "No Tradier-independent source for options open interest exists.",
+      "Massive supplemental market data would be needed to confirm short interest, which no source reports.",
+      "Massive dilution risk is not quantified.",
+    ];
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [...retained],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "finnhub-eps-estimate",
+            provider: "finnhub",
+            message: "MARKET_BOT_FINNHUB_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+          sourceGap({
+            source: "massive-supplemental-market",
+            provider: "massive",
+            message: "supplemental market snapshot request failed with status 403",
+            cause: "fetch-failed",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual(expect.arrayContaining(retained));
+  });
+
+  test("keeps a broad implied-volatility gap for a per-tenor Tradier gap", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Implied volatility is unavailable."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-iv-term-structure",
+            provider: "tradier",
+            message: "No Tradier IV values found for expiration 2026-01-16",
+            cause: "provider-data-missing",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toContain("Implied volatility is unavailable.");
+  });
+
+  test("drops an implied-volatility restatement for a whole-endpoint Tradier gap", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: ["Implied volatility is unavailable."],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "tradier-iv-term-structure",
+            provider: "tradier",
+            message: "No Tradier option expirations found",
+            cause: "provider-data-missing",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).not.toContain("Implied volatility is unavailable.");
   });
 
   test("keeps deterministic mover-universe gap over model restatements", () => {

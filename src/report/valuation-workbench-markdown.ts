@@ -44,7 +44,7 @@ function unpricedPeriodsLine(
   const periods = unpriced
     .map((observation) => `${observation.basis.toUpperCase()} ${observation.periodEnd}`)
     .join(", ");
-  return `- ${String(unpriced.length)} periods without price history: ${periods}.`;
+  return `- ${String(unpriced.length)} period${unpriced.length === 1 ? "" : "s"} without price history: ${periods}.`;
 }
 
 function historicalRow(observation: HistoricalValuationObservation): string {

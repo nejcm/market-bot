@@ -228,7 +228,7 @@ function snapshotTtmMetric(
     label: scopedLabel(definition.label, card.scope),
     state: "available",
     value: card.value,
-    dateBasis: `period ${card.periodEnd} · filed ${card.filedAt}`,
+    dateBasis: `period ${card.periodEnd} · latest filed ${card.filedAt}`,
     sourceIds: card.sourceIds,
   };
 }

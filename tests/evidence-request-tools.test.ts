@@ -1094,6 +1094,50 @@ describe("SEC latest filing evidence tool", () => {
     expect(source?.snippet).toStartWith("Apple Inc. Reports Second Quarter Results");
   });
 
+  test("ranks a results-release EX-99.2 above a CFO-commentary EX-99.1", () => {
+    const html = `<table>
+      <tr><td>2</td><td>CFO Commentary</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>3</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+
+    expect(
+      filingDocuments(
+        html,
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000050",
+        "earnings-8k.htm",
+        true,
+      ).map((document) => document.name),
+    ).toEqual(["ex992.htm", "ex991.htm"]);
+  });
+
+  test("selects a results-release EX-99.2 over a CFO-commentary EX-99.1 when both report results", async () => {
+    const index = `<table>
+      <tr><td>2</td><td>CFO Commentary</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">ex991.htm</a></td><td>EX-99.1</td></tr>
+      <tr><td>3</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex992.htm">ex992.htm</a></td><td>EX-99.2</td></tr>
+    </table>`;
+    const commentary = `CFO Commentary. ${RELEASE_TEXT}`;
+    const result = await runCurrentReportSelection(
+      [EARNINGS_8K_ROW, TEN_Q_ROW],
+      async ({ adapter, url }) => {
+        if (adapter === "sec-filing-index") {
+          return textResult(adapter, index);
+        }
+        if (adapter === "sec-earnings-release-exhibit") {
+          return textResult(adapter, url.includes("ex991.htm") ? commentary : RELEASE_TEXT);
+        }
+        return textResult(adapter, COVER_TEXT);
+      },
+    );
+
+    const source = result.sources.find((entry) => entry.id === EARNINGS_8K_ID);
+    expect(source?.url).toEndWith("/ex992.htm");
+    expect(source?.snippet).toContain("Net income of $23,636 million");
+    expect(earningsItemMetrics(result.items)).toMatchObject({
+      earningsReleaseDocument: "exhibit",
+      earningsReleaseExhibit: "substantive",
+    });
+  });
+
   test("drops an EX-99 row when its final document-name URL is off-host", () => {
     const html = `<table><tr><td>1</td><td>Press Release</td><td><a href="/Archives/edgar/data/320193/000032019326000050/ex991.htm">https://example.com/ex991.htm</a></td><td>EX-99.1</td></tr></table>`;
 

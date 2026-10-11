@@ -45,6 +45,21 @@ function isExhibit991(document: FilingDocument): boolean {
   return /^EX-99\.1$/iu.test(document.type);
 }
 
+// EX-99.1 is normally the press release, but a filing can label CFO commentary or prepared
+// Remarks as EX-99.1; promote it only when the index wording does not say commentary.
+const EXHIBIT_COMMENTARY_PATTERN = /commentary|remarks/iu;
+
+function documentDescription(document: FilingDocument): string {
+  return `${document.name} ${document.description}`.toLowerCase();
+}
+
+function exhibitPromotion(document: FilingDocument): number {
+  if (isExhibit991(document) && !EXHIBIT_COMMENTARY_PATTERN.test(documentDescription(document))) {
+    return 2;
+  }
+  return EXHIBIT_COMMENTARY_PATTERN.test(documentDescription(document)) ? -1 : 0;
+}
+
 export function filingDocuments(
   html: string,
   baseUrl: string,
@@ -92,7 +107,7 @@ export function filingDocuments(
     })
     .toSorted(
       (left, right) =>
-        (pressReleaseFirst ? Number(isExhibit991(right)) - Number(isExhibit991(left)) : 0) ||
+        (pressReleaseFirst ? exhibitPromotion(right) - exhibitPromotion(left) : 0) ||
         right.score - left.score ||
         left.name.localeCompare(right.name),
     )

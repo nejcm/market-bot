@@ -165,7 +165,8 @@ Foreign private issuers get the original 20-F/40-F (an amendment only when no or
 metadata, the two newest 6-Ks in a 120-day window, and a reserved slot for the newest results 6-K.
 6-Ks carry no item codes, so up to twelve covers are read newest-first for a results signal; a
 results press release beats a same-date interim-statements 6-K. Item 2.02 8-Ks and the results 6-K
-read their EX-99 exhibit (EX-99.1 first for 6-Ks); other 6-Ks stay cover-only. A failed scan
+read their EX-99 exhibit (EX-99.1 first for 6-Ks, unless the index labels that EX-99.1 as CFO
+commentary or prepared remarks); other 6-Ks stay cover-only. A failed scan
 cover and a scan with no results match (exhausted or cap-limited) are declared gaps.
 `TradierPacket` fetches expirations once and every unique event/7/30/60/90-day chain once. When the
 existing evidence-request budgets enable term collection, it runs deterministically with no

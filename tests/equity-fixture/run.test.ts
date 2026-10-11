@@ -8,6 +8,7 @@ import {
   assertEstimatedEarningsSuppressionPath,
   assertInvariants,
   assertNbisUnsupportedInputs,
+  assertProviderGapRestatementsDropped,
   factForms,
   factTaxonomies,
 } from "../support/run-fixtures/assertions";
@@ -90,6 +91,9 @@ describe("static equity run fixtures", () => {
         expect(factTaxonomies(result)).toContain("us-gaap");
         expect(factForms(result).has("20-F")).toBe(true);
         await assertNbisUnsupportedInputs();
+      }
+      if (name === "equity-aapl-brief") {
+        assertProviderGapRestatementsDropped(result);
       }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);

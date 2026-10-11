@@ -18,6 +18,26 @@ function asWritten(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value)) as unknown;
 }
 
+// Equity-aapl-brief's cassette carries controlled model gaps: the anchored options restatement
+// Must disappear; every genuine gap (issuer/company estimates, peers, methodology, transcript) survives.
+export function assertProviderGapRestatementsDropped(result: RunFixtureResult): void {
+  const gaps = result.report.dataGaps;
+  expect(gaps).not.toContain("Options IV evidence is unavailable.");
+  expect(gaps).toContain("Issuer EPS estimates are not supplied.");
+  expect(gaps).toContain("Company earnings per share estimates are not provided.");
+  expect(gaps).toContain("Usable peers are unavailable.");
+  expect(gaps).toContain("Peer comparisons are unavailable.");
+  expect(gaps).toContain("Estimated dividends are not supplied.");
+  expect(gaps).toContain("Consensus dividends are not available.");
+  expect(gaps).toContain("Analyst estimate ranges are not supplied.");
+  expect(gaps).toContain("Estimate ranges are not available.");
+  expect(gaps).toContain("The methodology behind analyst estimates is missing.");
+  expect(gaps).toContain(
+    "Analyst estimates are not supplied, but the methodology behind the forward P/E is unspecified.",
+  );
+  expect(gaps).toContain("Issuer transcript unavailable.");
+}
+
 export async function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): Promise<void> {
   const { runDir } = result.artifacts;
   expect(await Bun.file(join(runDir, RUN_ARTIFACT_FILES.failure)).exists()).toBe(false);

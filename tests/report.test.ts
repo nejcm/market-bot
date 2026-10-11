@@ -1739,7 +1739,7 @@ describe("report schema and rendering", () => {
       payload: {
         summary: "Source coverage was constrained.",
         confidence: "medium",
-        dataGaps: ["Tradier unavailable for options evidence.", "Issuer transcript unavailable."],
+        dataGaps: ["Options evidence is unavailable.", "Issuer transcript unavailable."],
       },
       predResult: { predictions: [], errors: [] },
       collectedSources: collectedSources({
@@ -1800,8 +1800,8 @@ describe("report schema and rendering", () => {
         summary: "Source coverage was constrained.",
         confidence: "medium",
         dataGaps: [
-          "Options IV evidence unavailable.",
-          "Supplemental market snapshots unavailable.",
+          "Options IV evidence is unavailable.",
+          "Supplemental market snapshots are unavailable.",
           "Issuer transcript unavailable.",
         ],
       },
@@ -1843,6 +1843,154 @@ describe("report schema and rendering", () => {
       "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
       "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
       "massive-supplemental-market: supplemental market snapshot request failed with status 403",
+    ]);
+  });
+
+  test("drops only anchored provider restatements and keeps every genuine gap", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [
+          "Issuer EPS estimates are not supplied.",
+          "Company earnings per share estimates are not provided.",
+          "Usable peers are unavailable.",
+          "Peer comparisons are unavailable.",
+          "Analyst estimate ranges are not supplied.",
+          "Estimate ranges are not available.",
+          "The methodology behind analyst estimates is missing.",
+          "The date of the analyst estimates is not supplied.",
+          "Analyst estimates are not supplied, but the methodology behind the forward P/E is unspecified.",
+          "Analyst estimates and issuer segment guidance are not supplied.",
+          "Analyst EPS, revenue, and EBITDA estimate endpoints are not supplied; the methodology behind the forward P/E is unspecified.",
+          "The methodology behind analyst estimates is unspecified.",
+          "Issuer employee stock options vesting schedule is not disclosed.",
+          "Issuer transcript unavailable.",
+          "Analyst consensus estimates are not supplied.",
+          "Options IV evidence is unavailable.",
+        ],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "finnhub-eps-estimate",
+            provider: "finnhub",
+            message:
+              "MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+            cause: "missing-credential",
+          }),
+          sourceGap({
+            source: "tradier-options",
+            provider: "tradier",
+            message: "MARKET_BOT_TRADIER_API_TOKEN is not set",
+            cause: "missing-credential",
+          }),
+          sourceGap({
+            source: "valuation",
+            provider: "market-bot",
+            message:
+              "Non-current SEC balance-sheet inputs for AAPL: cash period end 2025-01-01 not within 180 days before analysis cutoff 2026-06-01 and 92 days of the newest balance-sheet period end; net debt/market cap withheld",
+            cause: "provider-data-missing",
+          }),
+          sourceGap({
+            source: "finnhub-analyst-range",
+            provider: "finnhub",
+            message:
+              "Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+            cause: "unsupported-coverage",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Issuer EPS estimates are not supplied.",
+      "Company earnings per share estimates are not provided.",
+      "Usable peers are unavailable.",
+      "Peer comparisons are unavailable.",
+      "Analyst estimate ranges are not supplied.",
+      "Estimate ranges are not available.",
+      "The methodology behind analyst estimates is missing.",
+      "The date of the analyst estimates is not supplied.",
+      "Analyst estimates are not supplied, but the methodology behind the forward P/E is unspecified.",
+      "Analyst estimates and issuer segment guidance are not supplied.",
+      "Analyst EPS, revenue, and EBITDA estimate endpoints are not supplied; the methodology behind the forward P/E is unspecified.",
+      "The methodology behind analyst estimates is unspecified.",
+      "Issuer employee stock options vesting schedule is not disclosed.",
+      "Issuer transcript unavailable.",
+      "Analyst consensus estimates are not supplied.",
+      "finnhub-eps-estimate: MARKET_BOT_FINNHUB_API_TOKEN is not set for the Finnhub EPS estimate endpoint",
+      "tradier-options: MARKET_BOT_TRADIER_API_TOKEN is not set",
+      "valuation: Non-current SEC balance-sheet inputs for AAPL: cash period end 2025-01-01 not within 180 days before analysis cutoff 2026-06-01 and 92 days of the newest balance-sheet period end; net debt/market cap withheld",
+      "finnhub-analyst-range: Finnhub external analyst range endpoint is unavailable for the configured token (status 403)",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
+    ]);
+  });
+
+  test("does not drop an estimates restatement for an unrelated endpoint gap", () => {
+    const command = {
+      jobType: "equity" as const,
+      assetClass: "equity" as const,
+      symbol: "AAPL",
+      depth: "brief" as const,
+    };
+    const depthProfile = assemblyDepthProfile("AAPL");
+
+    const assembled = assembleResearchReport({
+      runId: "run-1",
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      command,
+      payload: {
+        summary: "Source coverage was constrained.",
+        confidence: "medium",
+        dataGaps: [
+          "Analyst consensus estimates are not supplied.",
+          "Estimated dividends are not supplied.",
+          "Consensus dividends are not available.",
+        ],
+      },
+      predResult: { predictions: [], errors: [] },
+      collectedSources: collectedSources({
+        marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl" })],
+        newsSources: [newsSource()],
+        sourceGaps: [
+          sourceGap({
+            source: "finnhub-events-2",
+            provider: "finnhub",
+            message:
+              "Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+            cause: "unsupported-coverage",
+          }),
+        ],
+      }),
+      depthProfile,
+      context: assemblyContext(depthProfile),
+      sources: [],
+    });
+
+    expect(assembled.dataGaps).toEqual([
+      "Analyst consensus estimates are not supplied.",
+      "Estimated dividends are not supplied.",
+      "Consensus dividends are not available.",
+      "finnhub-events-2: Finnhub dividend endpoint is unavailable for the configured token (status 403)",
+      "No Verified Market Snapshot for AAPL: exact numeric technical-indicator claims are ungrounded for this run",
     ]);
   });
 

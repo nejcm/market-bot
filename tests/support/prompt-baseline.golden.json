@@ -16,6 +16,7 @@
   "stage:final-synthesis:primary": "d27407701f4bc9c0e1d6d9770cb4c3421dc5ce1d48cedb7d66375164cdf99fa5",
   "stage:final-synthesis:repair": "472f2d726c2a567ceb2341f2c6f8b014731272b0e3b09e1fe344a4787271d4c2",
   "stage:final-synthesis:language-repair": "21e77f81084c9587302c7bea350cdaa79ad39ab0631cee4ed8b7c047c2ab41de",
+  "stage:final-synthesis:kind-calibration-insufficient": "ca37ed0dc48a8ede92563cd16ea511ed2a176963d1c7af7f7ae1c4764c03c07f",
   "stage:final-synthesis:overview-steering": "e239b983370cc084cfd277b98367322a6a98d97b060b5f3e2e1036becee3a4e1",
   "stage:final-synthesis:research-registry": "24df03fe9bd02bc27cf2cfa8cd9bb1cef2ef40ceb6faa97be1f340ff8763e69c",
   "selector:spotlight-selection": "96ca9803b19e6460016fdbb3e2039bb6f0dd7c62375e1e9156418f66c202b241",

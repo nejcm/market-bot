@@ -18,7 +18,14 @@ import {
 } from "../scoring/calibration-read";
 import { buildAndWriteCalibration } from "../scoring/index";
 import type { CalibrationMetric } from "../scoring/types";
-import { applicableCalibrationSlices, applicableKindSlices } from "./calibration-guidance";
+import {
+  applicableCalibrationSlices,
+  applicableKindSlices,
+  MIN_ACTIONABLE_CALIBRATION_OUTCOMES,
+  MIN_ACTIONABLE_CALIBRATION_RUNS,
+  type ApplicableCalibrationSlice,
+  type CalibrationGuidanceReason,
+} from "./calibration-guidance";
 import type { CalibrationContext, ResearchContext } from "./research-context-types";
 
 export async function loadCalibrationContext(
@@ -179,6 +186,28 @@ function calibrationSliceLabel(dimension: string, key: string): string {
   }
 }
 
+// Below-floor kinds cannot be assessed for negativity; declaring them keeps the absence visible.
+const INSUFFICIENT_KIND_REASONS: ReadonlySet<CalibrationGuidanceReason> = new Set([
+  "below-outcome-floor",
+  "below-run-floor",
+  "uncertainty-unavailable",
+]);
+
+function insufficientKindReasonText(slice: ApplicableCalibrationSlice): string {
+  const count = slice.metric?.count;
+  switch (slice.reason) {
+    case "below-outcome-floor": {
+      return `below the ${String(MIN_ACTIONABLE_CALIBRATION_OUTCOMES)}-event minimum (n=${String(count)})`;
+    }
+    case "below-run-floor": {
+      return `below the ${String(MIN_ACTIONABLE_CALIBRATION_RUNS)}-run minimum (n=${String(count)}, runs=${String(slice.metric?.runCount)})`;
+    }
+    default: {
+      return `uncertainty unavailable (n=${String(count)})`;
+    }
+  }
+}
+
 export function buildCalibrationBlock(
   calibration: CalibrationContext | undefined,
   command: ResearchCommand,
@@ -188,6 +217,7 @@ export function buildCalibrationBlock(
     return undefined;
   }
   const horizonBucket = marketUpdateHorizonBucket(context.depthProfile.defaultPredictionHorizon);
+  const kindSlices = applicableKindSlices(calibration);
   const actionableSlices = [
     ...applicableCalibrationSlices(calibration, {
       assetClass: command.assetClass,
@@ -195,7 +225,7 @@ export function buildCalibrationBlock(
       predictionHorizon: horizonBucket,
       marketRegime: context.marketRegime.label,
     }),
-    ...applicableKindSlices(calibration),
+    ...kindSlices,
   ].filter(
     (
       slice,
@@ -208,18 +238,39 @@ export function buildCalibrationBlock(
       slice.metric.runCount !== undefined &&
       slice.lowerConfidenceBound !== undefined,
   );
-  if (actionableSlices.length === 0) {
+  const insufficientKinds = kindSlices.filter(
+    (slice) => !slice.actionable && INSUFFICIENT_KIND_REASONS.has(slice.reason),
+  );
+  if (actionableSlices.length === 0 && insufficientKinds.length === 0) {
     return undefined;
   }
-  const lines = ["Actionable negative calibration slices:"];
-  for (const slice of actionableSlices) {
-    const { metric } = slice;
+  const lines: string[] = [];
+  if (actionableSlices.length > 0) {
+    lines.push("Actionable negative calibration slices:");
+    for (const slice of actionableSlices) {
+      const { metric } = slice;
+      lines.push(
+        `  ${calibrationSliceLabel(slice.dimension, slice.key)}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}, runs=${String(metric.runCount)}, lower bound=${slice.lowerConfidenceBound.toFixed(3)})`,
+      );
+    }
+  }
+  if (insufficientKinds.length > 0) {
+    lines.push("Prediction-kind slices insufficient for guidance:");
+    for (const slice of insufficientKinds) {
+      lines.push(
+        `  ${calibrationSliceLabel(slice.dimension, slice.key)}: ${insufficientKindReasonText(slice)}`,
+      );
+    }
+  }
+  if (actionableSlices.length > 0) {
     lines.push(
-      `  ${calibrationSliceLabel(slice.dimension, slice.key)}: skill ${formatSkill(brierSkillScore(metric.brierScore))} (Brier ${metric.brierScore.toFixed(3)}, n=${String(metric.count)}, runs=${String(metric.runCount)}, lower bound=${slice.lowerConfidenceBound.toFixed(3)})`,
+      "Use the actionable negative slices only to discipline probability confidence. They must not suppress prediction count, reject forecast shapes, or change evidence-support requirements.",
     );
   }
-  lines.push(
-    "Use these slices only to discipline probability confidence. They must not suppress prediction count, reject forecast shapes, or change evidence-support requirements.",
-  );
+  if (insufficientKinds.length > 0) {
+    lines.push(
+      "The insufficient prediction-kind slices are declared for transparency only; an insufficient sample does not support probability guidance and must not suppress prediction count, reject forecast shapes, or change evidence-support requirements.",
+    );
+  }
   return lines.join("\n");
 }

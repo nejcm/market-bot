@@ -16,7 +16,9 @@ amended 2026-08-05: structured Prediction shortfall disclosure;
 amended 2026-08-11: conditional-activation calibration guidance;
 amended 2026-09-03: zero-resolution Calibration headline omission, enforced on read;
 amended 2026-10-10: Forecast Completion Pass removed; Spotlights only from a market-overview
-selection)
+selection;
+amended 2026-10-11: Prediction-kind calibration slices declared insufficient below the
+actionability floor instead of omitted)
 
 ## Context
 
@@ -121,15 +123,19 @@ be mistaken for current market evidence.
   at least 30 resolved Forecast Events and 10 distinct Runs among those kept events, and when its
   Bonferroni-adjusted 98.75% one-sided lower bound (`Brier - 2.2414 × standard error`) is strictly
   above the 0.25 baseline. The prompt block also assesses Prediction-kind slices beyond these four
-  dimensions; whether kind belongs in the gate is an open decision, recorded here rather than
-  settled.
+  dimensions. Whether kind belongs in the gate was an open decision; it is settled by leaving kind
+  under the same floor and declaring a kind slice that does not meet it as an insufficient,
+  declaration-only entry rather than omitting it, so the absence of qualifying kind guidance is
+  disclosed without publishing a thin Brier the corpus cannot support and without instructing
+  probability discipline.
 - Conditional-activation guidance enters deep-run primary synthesis when
   at least 10 conditional forecasts have resolved and the aggregate void rate is at least 0.5.
   It uses activated and voided history to steer antecedents toward plausible events or observed
   thresholds; it must never suppress or mandate conditional emission. `refreshCalibrationContext`
   is the runtime source for both calibration-derived steering inputs.
-- Only qualifying Actionable Negative Calibration slices enter the synthesis prompt, where they
-  guide probability discipline. Calibration cannot suppress Prediction count, reject forecast
+- Qualifying Actionable Negative Calibration slices enter the synthesis prompt, where they
+  guide probability discipline; below-floor Prediction-kind slices enter only as insufficient
+  declarations. Calibration cannot suppress Prediction count, reject forecast
   shapes, change evidence-support requirements, or reject emitted forecasts. Legacy summaries
   without uncertainty fields remain readable but cannot activate that guidance.
 - Run-specific subject gates constrain scored subjects. Thematic research scores only its resolved

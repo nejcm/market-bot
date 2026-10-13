@@ -50,6 +50,13 @@ describe("peer universe", () => {
     expect(result.universe?.peers.every((peer) => peer.sourceIds.length > 0)).toBe(true);
   });
 
+  test("AMD roster carries enough peers beyond NVDA, which the market-cap band gates out", () => {
+    const peers = resolvePeerUniverse("AMD").universe?.peers.map((peer) => peer.symbol) ?? [];
+
+    expect(peers).toEqual(["NVDA", "AVGO", "INTC", "MU", "QCOM", "AMAT", "LRCX"]);
+    expect(peers.length).toBeLessThanOrEqual(MAX_PEERS);
+  });
+
   test("falls back to subject-registry listed-stock representatives and excludes ETFs", () => {
     const result = resolvePeerUniverse("AMGN");
 

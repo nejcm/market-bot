@@ -148,6 +148,18 @@ const PEER_UNIVERSE_MAPPINGS: PeerUniverseMapping = validateDefaultPeerUniverse(
       "nasdaq-avgo",
     ]),
     peer("INTC", "Intel", "secondary", "CPU and data-center semiconductor peer", ["nasdaq-intc"]),
+    peer("MU", "Micron Technology", "secondary", "data-center memory semiconductor peer", [
+      "nasdaq-mu",
+    ]),
+    peer("QCOM", "Qualcomm", "secondary", "CPU and system-on-chip semiconductor peer", [
+      "nasdaq-qcom",
+    ]),
+    peer("AMAT", "Applied Materials", "secondary", "large-cap semiconductor equipment peer", [
+      "nasdaq-amat",
+    ]),
+    peer("LRCX", "Lam Research", "secondary", "large-cap semiconductor equipment peer", [
+      "nasdaq-lrcx",
+    ]),
   ]),
   CRM: tickerUniverse("CRM", [
     peer("MSFT", "Microsoft", "core", "large-cap enterprise software peer", ["nasdaq-msft"]),

@@ -2787,6 +2787,9 @@ describe("collectValuationComps", () => {
         reason: "SIC group mismatch (peer 73 vs target 36)",
       }),
     ]);
+    expect(result.gaps.filter((gap) => gap.source === "valuation").map((gap) => gap.cause)).toEqual(
+      ["suppressed-by-design", "suppressed-by-design"],
+    );
   });
 
   test("resolves model-proposed-validated universe via injected fallback", async () => {

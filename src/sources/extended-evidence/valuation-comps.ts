@@ -18,7 +18,7 @@ import {
 } from "./valuation-comps-support";
 import {
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
-  SUPPORTABILITY_SUPPRESSION_CAUSE,
+  supportabilitySuppressionCause,
   type ValuationCompsOptions,
   type ValuationCompsResult,
 } from "./valuation-comps-contract";
@@ -237,7 +237,7 @@ export async function collectValuationComps(
             valuationSupportability === "not-meaningful"
               ? `Valuation peer comps not-meaningful for ${command.symbol}: ${REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT} ${usablePeers} passed the applicable gates`
               : `Valuation peer comps ${valuationSupportability} for ${command.symbol}: ${usablePeers}`,
-            SUPPORTABILITY_SUPPRESSION_CAUSE[valuationSupportability],
+            supportabilitySuppressionCause(valuationSupportability, artifact),
             "valuation",
             command.symbol.toUpperCase(),
           ),

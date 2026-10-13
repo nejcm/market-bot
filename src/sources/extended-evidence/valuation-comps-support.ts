@@ -8,7 +8,7 @@ import {
   MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS,
   MIXED_PERIOD_METRIC,
   REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
-  SUPPORTABILITY_SUPPRESSION_CAUSE,
+  supportabilitySuppressionCause,
   SUPPRESSION_CAUSE,
   type PeerPacket,
   type ValuationCompsArtifact,
@@ -219,7 +219,7 @@ export function peerImpliedRangeSuppressionGaps(
       capability: "extended-evidence",
       cause:
         range.suppressedReason === "peer supportability is not supported"
-          ? SUPPORTABILITY_SUPPRESSION_CAUSE[artifact.summary.valuationSupportability]
+          ? supportabilitySuppressionCause(artifact.summary.valuationSupportability, artifact)
           : SUPPRESSION_CAUSE[range.suppressedReason],
       evidenceQualityImpact: "no-cap",
     }),

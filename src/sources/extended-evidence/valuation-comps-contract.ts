@@ -85,7 +85,7 @@ export type PeerImpliedRangeSuppressedReason =
 
 export const SUPPRESSION_CAUSE = {
   // Never read: this reason collapses three supportability states, so it resolves
-  // Through SUPPORTABILITY_SUPPRESSION_CAUSE instead. Kept for satisfies exhaustiveness.
+  // Through supportabilitySuppressionCause instead. Kept for satisfies exhaustiveness.
   "peer supportability is not supported": "suppressed-by-design",
   // Guard order makes this unreachable from collectValuationComps, but the exported derivation can emit it.
   "fewer than 3 usable peers": "provider-data-missing",
@@ -99,12 +99,25 @@ export const SUPPRESSION_CAUSE = {
   "current price is unavailable": "provider-data-missing",
 } satisfies Record<PeerImpliedRangeSuppressedReason, SourceGapCause>;
 
-export const SUPPORTABILITY_SUPPRESSION_CAUSE = {
+const SUPPORTABILITY_SUPPRESSION_CAUSE = {
   "screening-only": "provider-data-missing",
   supported: "validation-failed",
   "not-supportable": "provider-data-missing",
   "not-meaningful": "suppressed-by-design",
 } satisfies Record<ValuationSupportability, SourceGapCause>;
+
+// A screening-only peer shortfall is missing data only when some peer was excluded for
+// Missing data; gate-only exclusions or a short roster are a comparability-policy outcome.
+export function supportabilitySuppressionCause(
+  supportability: ValuationSupportability,
+  { peers, excludedPeers }: Pick<ValuationCompsArtifact, "peers" | "excludedPeers">,
+): SourceGapCause {
+  return supportability === "screening-only" &&
+    peers.length > 0 &&
+    excludedPeers.every((peer) => peer.cause === "suppressed-by-design")
+    ? "suppressed-by-design"
+    : SUPPORTABILITY_SUPPRESSION_CAUSE[supportability];
+}
 
 export type ValuationGateProfile = "curated-no-sic" | "full" | "revenue-exempt";
 

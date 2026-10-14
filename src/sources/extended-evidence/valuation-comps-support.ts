@@ -31,7 +31,7 @@ export function enrichValuationItem(
   const peerReadThrough =
     summary.peerMedianEvToAnnualizedRevenue === undefined
       ? ` Peer comps supportability: ${summary.valuationSupportability}; ${usablePeersLabel(summary.usablePeerCount)}.${applicabilityCaveat}`
-      : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x.${applicabilityCaveat}`;
+      : ` Peer comps supportability: ${summary.valuationSupportability}; median EV/annualized revenue ${summary.peerMedianEvToAnnualizedRevenue.toFixed(2)}x, IQR ${summary.peerP25EvToAnnualizedRevenue?.toFixed(2)}x-${summary.peerP75EvToAnnualizedRevenue?.toFixed(2)}x over ${usablePeersLabel(summary.usablePeerCount)} (${String(summary.corePeerCount)} core).${applicabilityCaveat}`;
   const provenanceNote =
     artifact.provenance === "model-proposed-validated"
       ? " Peer set provenance: model-proposed (LLM-proposed, code-validated against SEC directory + US-listing; cached)."
@@ -43,6 +43,7 @@ export function enrichValuationItem(
     metrics: {
       ...item.metrics,
       corePeerCount: summary.corePeerCount,
+      usablePeerCount: summary.usablePeerCount,
       ...(summary.peerMedianEvToAnnualizedRevenue !== undefined
         ? { peerMedianEvToAnnualizedRevenue: summary.peerMedianEvToAnnualizedRevenue }
         : {}),

@@ -1626,6 +1626,13 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.gateProfile).toBe("full");
     expect(result.artifact.summary.usablePeerCount).toBe(0);
     expect(result.artifact.summary.valuationSupportability).toBe("screening-only");
+    const valuationItem = result.extendedEvidence.items.find(
+      (item) => item.category === "valuation",
+    );
+    expect(valuationItem?.summary).toContain(
+      "Peer comps supportability: screening-only; 0 usable peers.",
+    );
+    expect(valuationItem?.metrics).toMatchObject({ corePeerCount: 0, usablePeerCount: 0 });
     expect(result.artifact.excludedPeers[0]).toMatchObject({
       reason: "target SIC classification unavailable",
       cause: "provider-data-missing",
@@ -1945,9 +1952,16 @@ describe("collectValuationComps", () => {
       }),
     ]);
     expect(valuationGaps[0]?.triage).toBeUndefined();
-    expect(
-      result.extendedEvidence.items.find((item) => item.category === "valuation")?.summary,
-    ).toContain("Peer comps supportability: not-meaningful; 1 usable peer.");
+    const valuationItem = result.extendedEvidence.items.find(
+      (item) => item.category === "valuation",
+    );
+    expect(valuationItem?.summary).toContain(
+      "Peer comps supportability: not-meaningful; 1 usable peer.",
+    );
+    expect(valuationItem?.metrics).toMatchObject({
+      corePeerCount: result.artifact.summary.corePeerCount,
+      usablePeerCount: 1,
+    });
   });
 
   test("zero-revenue targets are not meaningful while SIC and market-cap gates still apply", async () => {
@@ -2498,6 +2512,32 @@ describe("collectValuationComps", () => {
     expect(result.artifact.summary.peerMedianEvToAnnualizedRevenue).toBeDefined();
     expect(result.artifact.summary.peerP25EvToAnnualizedRevenue).toBeDefined();
     expect(result.artifact.summary.peerP75EvToAnnualizedRevenue).toBeDefined();
+  });
+
+  test("states the usable and core peer basis beside the peer median", async () => {
+    const result = await collectValuationComps(
+      collectContext(requestExecutor()),
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-yahoo-equity-nvda",
+          symbol: "NVDA",
+          marketCap: 1000,
+          observedAt: generatedAt,
+        }),
+      ],
+      valuationEvidence(),
+      threePeerOptions,
+    );
+    const valuationItem = result.extendedEvidence.items.find(
+      (item) => item.category === "valuation",
+    );
+
+    expect(result.artifact.summary).toMatchObject({ corePeerCount: 2, usablePeerCount: 3 });
+    expect(valuationItem?.summary).toMatch(
+      /median EV\/annualized revenue [\d.]+x, IQR [\d.]+x-[\d.]+x over 3 usable peers \(2 core\)\./u,
+    );
+    expect(valuationItem?.metrics).toMatchObject({ corePeerCount: 2, usablePeerCount: 3 });
   });
 
   test("cached peer universes cannot bypass comparability gates", async () => {

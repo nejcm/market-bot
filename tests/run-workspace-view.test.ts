@@ -45,6 +45,7 @@ async function renderRunWorkspaceComponent(
   reportDetail: "simple" | "advanced" = "simple",
   activeTab = "report",
   showSources = false,
+  runs: readonly RunSummary[] = [],
 ): Promise<string> {
   const subprocess = Bun.spawn(
     [
@@ -53,7 +54,8 @@ async function renderRunWorkspaceComponent(
       resolve(import.meta.dir, "support/render-run-workspace.ts"),
       reportDetail,
       activeTab,
-      ...(showSources ? ["sources"] : []),
+      showSources ? "sources" : "",
+      JSON.stringify(runs),
     ],
     {
       stdin: new Blob([JSON.stringify(detail)]),
@@ -3122,6 +3124,57 @@ describe("run workspace view", () => {
       const other = await renderRunWorkspaceComponent(detail, "advanced", tab);
       expect(other, tab).not.toContain('aria-label="Report detail"');
     }
+  }, 20_000);
+
+  test("server-renders the Instrument Run History on the Runs tab and hides it without an instrument", async () => {
+    const current = summary({
+      runId: "run-current",
+      generatedAt: "2026-06-03T09:00:00Z",
+      depth: "brief",
+      hasScore: true,
+      findingCount: 4,
+      predictionCount: 2,
+      sourceCount: 6,
+      dataGapCount: 1,
+    });
+    const runs = [
+      current,
+      summary({ runId: "run-older", generatedAt: "2026-06-01T09:00:00Z", depth: "deep" }),
+    ];
+
+    const html = await renderRunWorkspaceComponent(
+      { summary: current },
+      "simple",
+      "runs",
+      false,
+      runs,
+    );
+    const text = htmlText(html);
+
+    expect(text).toContain("Instrument run history");
+    expect(text).toContain("equity:AAPL");
+    expect(text).toContain("brief");
+    expect(text).toContain("deep");
+    expect(html).toContain('aria-current="true"');
+
+    const headlessSummary: RunSummary = {
+      runId: "run-headless",
+      jobType: "market-overview",
+      findingCount: 0,
+      predictionCount: 0,
+      sourceCount: 0,
+      dataGapCount: 0,
+      hasScore: false,
+      availableFiles: [],
+    };
+    const headless = await renderRunWorkspaceComponent(
+      { summary: headlessSummary },
+      "simple",
+      "runs",
+      false,
+      runs,
+    );
+    expect(htmlText(headless)).not.toContain("Instrument run history");
   }, 20_000);
 
   test("server-renders empty equity coverage in Simple and Advanced", async () => {

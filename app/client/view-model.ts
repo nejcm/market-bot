@@ -1,6 +1,7 @@
 import type { ProviderHealthDetail, RunSearchResult, RunSummary } from "../types";
 import { isRecord } from "../../src/guards";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
+import type { InstrumentRunHistoryEntry } from "./view-model-history";
 
 export {
   extendedEvidenceItems,
@@ -63,6 +64,15 @@ export {
   VERIFIED_SNAPSHOT_PATH,
   type SnapshotView,
 } from "./view-model-snapshot";
+
+export {
+  instrumentRunHistory,
+  instrumentRunHistoryFor,
+  instrumentRunHistoryGroupKey,
+  instrumentRunHistoryRows,
+  type InstrumentRunHistoryEntry,
+  type InstrumentRunHistoryRow,
+} from "./view-model-history";
 
 const RUN_PATH_PREFIX = "/runs/";
 const INSTRUMENT_PATH_PREFIX = "/instruments/";
@@ -215,11 +225,31 @@ export function filterRuns(
   typeFilter: string,
   queryText: string,
 ): readonly RunSummary[] {
-  return runs.filter(
-    (run) =>
-      (typeFilter === "all" || (run.jobType ?? "run") === typeFilter) &&
-      (queryText.trim() === "" || matchesQuery(run, queryText)),
+  return runs.filter((run) => matchesRunFilter(run, typeFilter, queryText));
+}
+
+function matchesRunFilter(run: RunSummary, typeFilter: string, queryText: string): boolean {
+  return (
+    (typeFilter === "all" || (run.jobType ?? "run") === typeFilter) &&
+    (queryText.trim() === "" || matchesQuery(run, queryText))
   );
+}
+
+// Keeps a group while any of its runs matches, so its head stays the newest run.
+export function filterInstrumentRunHistory(
+  entries: readonly InstrumentRunHistoryEntry[],
+  typeFilter: string,
+  queryText: string,
+): readonly InstrumentRunHistoryEntry[] {
+  return entries.filter((entry) => {
+    if (entry.kind === "run") {
+      return matchesRunFilter(entry.run, typeFilter, queryText);
+    }
+    return (
+      matchesRunFilter(entry.group.head, typeFilter, queryText) ||
+      entry.group.pastRuns.some((run) => matchesRunFilter(run, typeFilter, queryText))
+    );
+  });
 }
 
 export function providerHealthRows(detail: ProviderHealthDetail): readonly ProviderHealthRow[] {

@@ -1,15 +1,21 @@
 <script lang="ts">
-  import type { InstrumentTimelineDetail, InstrumentTimelineForecast } from "../../types";
+  import type {
+    InstrumentTimelineDetail,
+    InstrumentTimelineForecast,
+    RunSummary,
+  } from "../../types";
   import { formatClose, formatDate, formatDateMinute } from "../view-model";
+  import InstrumentRunHistory from "./instrument-run-history.svelte";
 
   interface Props {
     readonly detail: InstrumentTimelineDetail | null;
     readonly loading: boolean;
+    readonly runs: readonly RunSummary[];
     readonly onOpenRun: (runId: string) => void;
     readonly onGoHome: () => void;
   }
 
-  let { detail, loading, onOpenRun, onGoHome }: Props = $props();
+  let { detail, loading, runs, onOpenRun, onGoHome }: Props = $props();
 
   let WIDTH = $state(760);
   const HEIGHT = 220;
@@ -201,6 +207,13 @@
         </div>
       {/if}
     </section>
+
+    <InstrumentRunHistory
+      {runs}
+      assetClass={detail.assetClass}
+      symbol={detail.symbol}
+      {onOpenRun}
+    />
 
     <section class="mt-5 rounded-lg border border-border bg-card px-4.5 py-4">
       <div class="flex items-baseline justify-between">

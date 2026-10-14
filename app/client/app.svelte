@@ -35,10 +35,13 @@
   } from "../types";
   import {
     dashboardMetrics,
-    filterRuns,
+    filterInstrumentRunHistory,
     groupedRunsByType,
     instrumentFromPathname,
     instrumentPath,
+    instrumentRunHistory,
+    instrumentRunHistoryGroupKey,
+    instrumentRunHistoryRows,
     recentRunSummaries,
     runCompareCards,
     runIdFromPathname,
@@ -63,6 +66,7 @@
   } | null>(null);
   const query = $state({ text: "" });
   let typeFilter = $state("all");
+  let expandedRunHistoryGroups = $state<readonly string[]>([]);
   let error = $state("");
   let loadingRuns = $state(true);
   let loadingDetail = $state(false);
@@ -101,7 +105,13 @@
   const JOBS_POLL_INTERVAL_MS = 2000;
   const DASHBOARD_RECENT_RUN_LIMIT = 6;
 
-  const filteredRuns = $derived(filterRuns(runs, typeFilter, query.text));
+  const runHistoryEntries = $derived(instrumentRunHistory(runs));
+  const filteredRunHistory = $derived(
+    filterInstrumentRunHistory(runHistoryEntries, typeFilter, query.text),
+  );
+  const visibleRunHistoryRows = $derived(
+    instrumentRunHistoryRows(filteredRunHistory, expandedRunHistoryGroups),
+  );
   const runTypes = $derived(groupedRunsByType(runs).map((group) => group.type));
   const metrics = $derived(dashboardMetrics(runs));
   const trend = $derived(runTrend(runs));
@@ -148,9 +158,23 @@
     }
   }
 
+  function toggleRunHistoryGroup(groupKey: string): void {
+    expandedRunHistoryGroups = expandedRunHistoryGroups.includes(groupKey)
+      ? expandedRunHistoryGroups.filter((key) => key !== groupKey)
+      : [...expandedRunHistoryGroups, groupKey];
+  }
+
+  function expandRunHistoryGroup(runId: string): void {
+    const groupKey = instrumentRunHistoryGroupKey(runHistoryEntries, runId);
+    if (groupKey !== undefined && !expandedRunHistoryGroups.includes(groupKey)) {
+      expandedRunHistoryGroups = [...expandedRunHistoryGroups, groupKey];
+    }
+  }
+
   async function selectRun(runId: string, nextTab: Tab = "report"): Promise<void> {
     view = "run";
     selectedRunId = runId;
+    expandRunHistoryGroup(runId);
     clearSelectedInstrument();
     loadingDetail = true;
     error = "";
@@ -273,7 +297,7 @@
       return;
     }
 
-    const list = filteredRuns;
+    const list = visibleRunHistoryRows.map((row) => row.run);
     if (list.length === 0) {
       return;
     }
@@ -473,7 +497,7 @@
 <div class="flex min-h-screen bg-background text-foreground">
   <RunSidebar
     bind:mobileOpen={menuOpen}
-    runs={filteredRuns}
+    rows={visibleRunHistoryRows}
     {runTypes}
     {selectedRunId}
     {loadingRuns}
@@ -481,9 +505,11 @@
     {activeJobCount}
     queryText={query.text}
     {typeFilter}
+    expandedGroups={expandedRunHistoryGroups}
     onQueryChange={(value) => (query.text = value)}
     onTypeFilterChange={(value) => (typeFilter = value)}
     onSelectRun={(runId) => void openRun(runId)}
+    onToggleGroup={toggleRunHistoryGroup}
     onNavigate={navigate}
   />
 
@@ -517,10 +543,12 @@
           showSources={appSettings.showSources}
           {detail}
           {loadingDetail}
+          {runs}
           {selectedFile}
           {fileContent}
           {highlightSourceId}
           onOpenMenu={() => (menuOpen = true)}
+          onOpenRun={(runId) => void openRun(runId)}
           onTabChange={(tab) => (activeTab = tab)}
           onReportDetailChange={setReportDetail}
           onShowSourcesChange={setShowSources}
@@ -533,6 +561,7 @@
         <InstrumentTimeline
           detail={instrumentDetail}
           loading={loadingInstrument}
+          {runs}
           onOpenRun={(runId) => void openRun(runId)}
           onGoHome={() => navigate("dashboard")}
         />

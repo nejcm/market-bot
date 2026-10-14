@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1](https://github.com/nejcm/market-bot/compare/v1.2.0...v1.2.1) (2026-10-14)
+
+### Bug Fixes
+
+- payout gap staleness, peer median basis, earnings date conflicts (#102) ([eed8bbf](https://github.com/nejcm/market-bot/commit/eed8bbf1376844c02f6e8179653c3d5b1d53fdfe))
+
 ## [1.2.0](https://github.com/nejcm/market-bot/compare/v1.1.0...v1.2.0) (2026-10-14)
 
 ### Features

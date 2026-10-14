@@ -78,6 +78,8 @@ export type EquityReaderConsensusItem =
       readonly timing: string;
       readonly status: string;
       readonly sourceIds: readonly string[];
+      readonly conflictDate?: string;
+      readonly conflictSourceId?: string;
     }
   | {
       readonly kind: "eps-consensus";
@@ -297,13 +299,22 @@ function earningsConsensus(report: unknown): readonly EquityReaderConsensusItem[
       } else if (typeof reportSymbol === "string") {
         symbol = reportSymbol;
       }
+      const conflict = isRecord(event.dateConflict) ? event.dateConflict : undefined;
+      const conflictDate = typeof conflict?.date === "string" ? conflict.date : undefined;
+      const conflictSourceId =
+        typeof conflict?.sourceId === "string" ? conflict.sourceId : undefined;
       items.push({
         kind: "earnings-date",
         symbol,
         date: event.date,
         timing: typeof event.timing === "string" ? event.timing : "timing unavailable",
         status,
-        sourceIds,
+        sourceIds: [
+          ...new Set([...sourceIds, ...(conflictSourceId !== undefined ? [conflictSourceId] : [])]),
+        ],
+        ...(conflictDate !== undefined && conflictSourceId !== undefined
+          ? { conflictDate, conflictSourceId }
+          : {}),
       });
     }
     if (typeof event.epsEstimate === "number") {

@@ -441,6 +441,11 @@ export function assertComprehensiveAnalysisPath(
   const confirmationSourceId =
     result.collectedSources.earningsSetup?.event.dateConfirmation?.sourceId;
   expect(confirmationSourceId, "fixture must carry a date-confirmation source").toBeDefined();
+  expect(result.collectedSources.earningsSetup?.event.confirmedBy).toMatchObject({
+    sourceId: confirmationSourceId,
+    sourceType: result.collectedSources.earningsSetup?.event.dateConfirmation?.sourceType,
+  });
+  expect(result.collectedSources.earningsSetup?.event.dateConflict).toBeUndefined();
   const consensus =
     projectEquityReader({ report: result.report }).defaultView.earningsConsensus ?? [];
   for (const kind of ["eps-consensus", "revenue-consensus"] as const) {
@@ -499,6 +504,8 @@ export function assertEstimatedEarningsSuppressionPath(
   expect(result.collectedSources.earningsSetup).toMatchObject({
     event: { symbol: "AAPL", eventDateStatus: "provider-estimated" },
   });
+  expect(result.collectedSources.earningsSetup?.event.confirmedBy).toBeUndefined();
+  expect(result.collectedSources.earningsSetup?.event.dateConflict).toBeUndefined();
   expect(result.collectedSources.analystExpectations).toBeUndefined();
   expect(result.collectedSources.analystExpectationsSignal?.status).toBe("forbidden");
   expect(result.collectedSources.institutionalOwnership).toBeUndefined();

@@ -21,7 +21,10 @@ import type { MarketContext, MarketSnapshot, VerifiedMarketSnapshot } from "../d
 import type { EarningsEventDateStatus } from "../domain/prediction";
 import type { Source, SourceGap } from "../domain/sources";
 import type { ModelInputSanitizationAggregate } from "./model-input-sanitizer";
-import type { EarningsDateConfirmation } from "./extended-evidence/earnings-date-confirmation";
+import type {
+  EarningsDateConflict,
+  EarningsDateConfirmation,
+} from "./extended-evidence/earnings-date-confirmation";
 import type {
   AnalystExpectationsArtifact,
   AnalystExpectationsSignal,
@@ -141,6 +144,13 @@ export interface EarningsSetupCollected {
     readonly sourceIds: readonly string[];
     readonly fetchedAt: string;
     readonly dateConfirmation?: EarningsDateConfirmation;
+    /** Present exactly when the date is issuer- or exchange-confirmed. */
+    readonly confirmedBy?: {
+      readonly sourceId: string;
+      readonly sourceType: EarningsDateConfirmation["sourceType"];
+    };
+    /** A source-stated future earnings date that disagrees with the provider date. */
+    readonly dateConflict?: EarningsDateConflict;
   };
   readonly impliedMove?: {
     readonly expiration: string;

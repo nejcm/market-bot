@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import type { SourceGap } from "../src/domain/sources";
 import { projectEquityReader } from "../src/report/equity-reader";
 import { classifyGap } from "../src/report/gap-triage";
-import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
+import {
+  renderBalanceSheetAndShareCount,
+  renderCompactEarningsAndConsensus,
+} from "../src/report/markdown-equity-sections";
 import {
   WEB_SUBJECT_PROFILE_WITHHELD_ANSWER_NOTICE,
   WEB_SUBJECT_PROFILE_WITHHELD_SUBJECT_SUMMARY_NOTICE,
@@ -636,6 +639,67 @@ describe("equity reader projection", () => {
         sourceIds: ["extended-finnhub-events-amd"],
       },
     ]);
+  });
+
+  test("renders a source-stated conflicting date beside the provider date", () => {
+    const report = {
+      symbol: "NET",
+      extras: {
+        earningsSetup: {
+          event: {
+            symbol: "NET",
+            date: "2026-10-29",
+            timing: "amc",
+            eventDateStatus: "provider-estimated",
+            sourceIds: ["extended-finnhub-events-net"],
+            fetchedAt: "2026-10-14T08:30:49.704Z",
+            dateConflict: { date: "2026-11-05", sourceId: "news-equity-6" },
+          },
+          gaps: [],
+        },
+      },
+    };
+    const projection = projectEquityReader({ report });
+
+    expect(projection.defaultView.earningsConsensus).toEqual([
+      {
+        kind: "earnings-date",
+        symbol: "NET",
+        date: "2026-10-29",
+        timing: "amc",
+        status: "provider-estimated",
+        sourceIds: ["extended-finnhub-events-net", "news-equity-6"],
+        conflictDate: "2026-11-05",
+        conflictSourceId: "news-equity-6",
+      },
+    ]);
+
+    const markdown = renderCompactEarningsAndConsensus(
+      researchReport({
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "NET",
+        sources: [
+          {
+            id: "extended-finnhub-events-net",
+            title: "NET provider earnings estimate",
+            fetchedAt: "2026-10-14T08:30:49.704Z",
+            kind: "extended-evidence",
+          },
+          {
+            id: "news-equity-6",
+            title: "Cloudflare Announces Date of Third Quarter 2026 Financial Results",
+            fetchedAt: "2026-10-13T20:15:00.000Z",
+            kind: "news",
+          },
+        ],
+      }),
+      projection.defaultView.earningsConsensus,
+    );
+
+    expect(markdown).toContain(
+      "- **Upcoming earnings:** NET on 2026-10-29 (amc; provider-estimated; source lists 2026-11-05) [extended-finnhub-events-net] [news-equity-6]",
+    );
   });
 
   test("places financial core in the default view and coverage plus dimensions in the appendix", () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2](https://github.com/nejcm/market-bot/compare/v1.2.1...v1.2.2) (2026-10-14)
+
+### Bug Fixes
+
+- **capital-ownership:** select only year-length annual facts (#103) ([dd42fe0](https://github.com/nejcm/market-bot/commit/dd42fe0225f426be30498d301db64427900446a4))
+
 ## [1.2.1](https://github.com/nejcm/market-bot/compare/v1.2.0...v1.2.1) (2026-10-14)
 
 ### Bug Fixes

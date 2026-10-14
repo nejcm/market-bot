@@ -353,9 +353,11 @@ export function earningsConsensusFromProjection(
   return {
     items: items.map((item) => {
       if (item.kind === "earnings-date") {
+        const conflict =
+          item.conflictDate === undefined ? "" : ` · source lists ${item.conflictDate}`;
         return {
           label: "Upcoming earnings",
-          value: `${item.date} · ${item.timing} · ${item.status}`,
+          value: `${item.date} · ${item.timing} · ${item.status}${conflict}`,
           sourceIds: item.sourceIds,
         };
       }

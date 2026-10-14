@@ -340,6 +340,10 @@ function validateEarningsSetupExtra(
     if (event.eventDateStatus === "provider-estimated" && confirmation !== undefined) {
       throw new Error("Provider-estimated Earnings Setup cannot carry date confirmation");
     }
+    const confirmedBy = isRecord(event.confirmedBy) ? event.confirmedBy : undefined;
+    if (event.eventDateStatus === "provider-estimated" && confirmedBy !== undefined) {
+      throw new Error("Provider-estimated Earnings Setup cannot carry confirmation provenance");
+    }
     if (
       event.eventDateStatus === "issuer-confirmed" ||
       event.eventDateStatus === "exchange-confirmed"
@@ -373,6 +377,19 @@ function validateEarningsSetupExtra(
       ) {
         throw new Error("Confirmed Earnings Setup requires complete official evidence");
       }
+      if (confirmedBy?.sourceId !== sourceId || confirmedBy?.sourceType !== sourceType) {
+        throw new Error("Confirmed Earnings Setup requires matching confirmedBy provenance");
+      }
+    }
+    const dateConflict = isRecord(event.dateConflict) ? event.dateConflict : undefined;
+    if (
+      dateConflict !== undefined &&
+      (typeof dateConflict.date !== "string" ||
+        dateConflict.date === event.date ||
+        typeof dateConflict.sourceId !== "string" ||
+        !knownSourceIds.has(dateConflict.sourceId))
+    ) {
+      throw new Error("Earnings Setup dateConflict must cite a known source and a different date");
     }
   }
   // Validate source IDs on the deterministic implied move.

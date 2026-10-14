@@ -81,7 +81,7 @@ Map requests to commands via `src/cli/job-registry.ts`, e.g.
 `bun run src/cli.ts equity NBIS --deep`, `bun run src/cli.ts crypto BTC`,
 `bun run src/cli.ts research <subject>`.
 
-Side effects are limited to the CLI runs above and one new file under `.reviews/` (see Rules). It never edits code.
+Side effects are limited to the CLI runs above, the read-only cross-family validation dispatch (see Cross-family validation), and one new file under `.reviews/` (see Rules). It never edits code.
 
 **Verifying a fix.** When a Recommendation's cause is in `prompts/` or a model
 stage, its verification is a Frozen-Input Eval compare (`scripts/eval-deep.ts`
@@ -386,10 +386,44 @@ Check these explicitly before final ranking:
   no longer exists, report that as a finding — this skill does not edit files,
   including itself.
 
+# Cross-family validation (default on)
+
+The primary reviewer's blind spots are its family's. After the report file is
+written, have a model from the **other family** try to refute it. Skip only when
+the user says so; then write `Cross-family validation: skipped (user request)`.
+
+1. **Pick the family.** Claude-family primary → Sol; Codex/GPT-family primary →
+   Opus. Read the current IDs from `model-dispatch`'s `references/models.md`;
+   do not pin one here. Use the `model-dispatch` skill and its Codex or
+   `claude -p` reference. Never shell out to your own host's CLI. Carry the
+   primary's effort level, translated per that CLI.
+2. **Preconditions.** `command -v` the CLI and run its auth check. If it is
+   missing, unauthenticated, or the dispatch fails, record `Cross-family
+validation: not run (<reason>)` and stop. Never substitute a same-family
+   model and call it cross-family.
+3. **Isolation.** Read-only sandbox, no network beyond the model call. The packet
+   forbids the market-bot CLI, live-LLM scripts, reading `.env`, and touching
+   `data/`. Pass the report path and run dir by path, not inline.
+4. **Task for the validator.** For each Recommendation: re-derive the cited
+   evidence from the artifacts and code and return `confirmed`, `refuted`, or
+   `unverifiable`, with the exact `file:field` or `file:line` it checked. Then:
+   check the severity/effort/scope labels and the Next pick, and list findings
+   the primary missed, each with evidence. Compact output; no fixes.
+5. **Merge.** Append a `## Cross-family validation` section to the report:
+   validator model, one line per Recommendation (verdict + evidence), missed
+   findings, and any disagreement on ranking. Do not delete or soften a primary
+   finding because the validator disagreed. For each `refuted`, re-check the
+   evidence yourself and say which side held. A `refuted` or `unverifiable`
+   finding that survives is marked as such in the Recommendations line of the
+   digest.
+6. **Cost.** One extra read-only model call per report. State it in the
+   disclosure.
+
 # Rules
 
 - Do NOT edit code, write fixes, or change anything outside the permitted CLI
-  runs in Step 0 and the report file below.
+  runs in Step 0, the cross-family validation dispatch, and the report file
+  below.
 - Write the complete report, unabridged, to
   `.reviews/run-review-<UTC timestamp>-<run-id>.md` in the repo root, creating
   `.reviews/` if needed (it is gitignored). Timestamp is
@@ -401,7 +435,8 @@ Check these explicitly before final ranking:
 - The file contains, in order: the disclosure (mode, each run reviewed and
   whether reused/supplied/fresh, cohort table, each baseline, Code delta
   line(s)), Improvements (omitted when no comparable baseline exists, per Step
-  2), Recommendations, Next investigation, and the closing `delta:` line (the
+  2), Recommendations, Next investigation, the Cross-family validation section
+  (appended after the validator returns), and the closing `delta:` line (the
   aggregate verdict in repeat mode).
 - The chat message is a separate plain-language digest of the file, at most 25
   lines, no backticked field paths (citations live in the file), every claim
@@ -415,9 +450,12 @@ Check these explicitly before final ranking:
   Improvements: <up to 3 one-line items | "none (no comparable baseline)" | "none material"> (+N more in file)
   Next: #<rank> <symptom> — <why it beat the runner-up>. Open questions: <…>
         (or "Next: none — no fixable Recommendations")
+  Cross-check: <validator model> — <N confirmed, N refuted, N unverifiable, N missed> | "not run (<reason>)" | "skipped"
   Report: .reviews/<file>.md
   ```
+
   In repeat mode, list every target and its baseline on the Scope line.
+
 - Every finding must cite evidence from the artifacts. Don't guess.
 - State the mode (reference, single, or repeat), each run reviewed, whether it was reused,
   supplied, or freshly executed, the cohort scanned, each baseline, and the

@@ -440,7 +440,9 @@ export function strengthLens(
   const secPayout = stalePayout.length === 0 ? selectedSecPayout : undefined;
   let withheldPayout: WithheldPayout | undefined;
   if (nonPositiveIncomePeriodEnd !== undefined) {
-    withheldPayout = { reason: "non-positive-income", periodEnd: nonPositiveIncomePeriodEnd };
+    withheldPayout = isFreshPeriodEnd(nonPositiveIncomePeriodEnd, analysisAsOf)
+      ? { reason: "non-positive-income", periodEnd: nonPositiveIncomePeriodEnd }
+      : { reason: "non-current", periodEnd: nonPositiveIncomePeriodEnd };
   } else if (stalePayout.length > 0) {
     withheldPayout = { reason: "non-current", periodEnd: stalePayout[0] };
   }

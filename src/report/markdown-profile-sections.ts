@@ -271,10 +271,15 @@ export function renderEarningsSetup(report: ResearchReport): string {
   } else if (eventDateStatus === "exchange-confirmed") {
     certaintyLabel = ` — date exchange-confirmed${confirmationSourceId === undefined ? "" : ` [${markdownText(confirmationSourceId)}]`}`;
   }
+  const conflict = isRecord(event.dateConflict) ? event.dateConflict : undefined;
+  const conflictLabel =
+    typeof conflict?.date === "string"
+      ? `; source lists ${markdownText(conflict.date)}${typeof conflict.sourceId === "string" ? ` [${markdownText(conflict.sourceId)}]` : ""}`
+      : "";
   const lines = [
     "## Earnings Setup",
     "",
-    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${certaintyLabel}`,
+    `**Event:** ${markdownText(symbol)} earnings on ${date} (timing: ${timing})${certaintyLabel}${conflictLabel}`,
   ];
 
   if (typeof event.epsEstimate === "number") {

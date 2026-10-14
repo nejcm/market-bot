@@ -3,11 +3,15 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Source } from "../src/domain/sources";
 import { applyEarningsForecastPolicy } from "../src/forecast/earnings-eligibility";
+import { renderEarningsSetup } from "../src/report/markdown-profile-sections";
 import { validateResearchReport } from "../src/report/schema";
+import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import {
+  applyEarningsDateConflict,
   applyOfficialEarningsDateConfirmation,
   assessOfficialExchangeDisclosureUrl,
   confirmEarningsDateFromOfficialSources,
+  findEarningsDateConflict,
   retainedEvidenceSpanForEarningsDate,
 } from "../src/sources/extended-evidence/earnings-date-confirmation";
 import type { EarningsSetupCollected, RawSourceSnapshot } from "../src/sources/types";
@@ -68,6 +72,10 @@ describe("official earnings-date confirmation", () => {
 
     expect(result?.event.eventDateStatus).toBe("issuer-confirmed");
     expect(result?.event.dateStatus).toBeUndefined();
+    expect(result?.event.confirmedBy).toEqual({
+      sourceId: "web-aapl-ir-earnings",
+      sourceType: "issuer-ir-event",
+    });
     expect(result?.event.dateConfirmation).toMatchObject({
       sourceId: "web-aapl-ir-earnings",
       sourceType: "issuer-ir-event",
@@ -332,6 +340,650 @@ describe("official earnings-date confirmation", () => {
         }),
       ),
     ).not.toThrow();
+  });
+
+  test("rejects a confirmed event without matching confirmedBy provenance", async () => {
+    const input = await fixture("issuer-confirmed");
+    const setup = confirmEarningsDateFromOfficialSources(input);
+    if (setup === undefined) {
+      throw new Error("expected a confirmed setup");
+    }
+    const { confirmedBy: _confirmedBy, ...event } = setup.event;
+
+    expect(() =>
+      validateResearchReport(
+        researchReport({
+          jobType: "equity",
+          symbol: "AAPL",
+          sources: [
+            ...input.sources,
+            {
+              id: "extended-finnhub-events-aapl",
+              title: "AAPL provider earnings estimate",
+              fetchedAt: input.analysisAsOf,
+              kind: "extended-evidence",
+            },
+          ],
+          extras: { earningsSetup: { ...setup, event } },
+        }),
+      ),
+    ).toThrow("Confirmed Earnings Setup requires matching confirmedBy provenance");
+  });
+
+  test("accepts accurate negations with a conflicting date recorded", async () => {
+    const input = await fixture("provider-estimated");
+
+    expect(() =>
+      validateResearchReport(
+        researchReport({
+          jobType: "equity",
+          symbol: "AAPL",
+          sources: [
+            ...input.sources,
+            {
+              id: "extended-finnhub-events-aapl",
+              title: "AAPL provider earnings estimate",
+              fetchedAt: input.analysisAsOf,
+              kind: "extended-evidence",
+            },
+          ],
+          catalysts: [
+            {
+              text: "Neither earnings date is issuer-confirmed.",
+              sourceIds: ["finnhub-agreement"],
+            },
+          ],
+          extras: {
+            earningsSetup: {
+              ...input.setup,
+              event: {
+                ...input.setup.event,
+                dateConflict: { date: "2026-08-05", sourceId: "finnhub-agreement" },
+              },
+            },
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test("rejects a date conflict that cites the event date or an unknown source", async () => {
+    const input = await fixture("provider-estimated");
+    const withConflict = (dateConflict: Record<string, unknown>) =>
+      validateResearchReport(
+        researchReport({
+          jobType: "equity",
+          symbol: "AAPL",
+          sources: input.sources,
+          extras: {
+            earningsSetup: { ...input.setup, event: { ...input.setup.event, dateConflict } },
+          },
+        }),
+      );
+
+    expect(() => withConflict({ date: "2026-07-30", sourceId: "finnhub-agreement" })).toThrow(
+      "Earnings Setup dateConflict must cite a known source and a different date",
+    );
+    expect(() => withConflict({ date: "2026-08-05", sourceId: "missing-source" })).toThrow(
+      "Earnings Setup dateConflict must cite a known source and a different date",
+    );
+  });
+});
+
+function announcementSource(overrides: Partial<Source> = {}): Source {
+  return {
+    id: "news-aapl-results-date",
+    title: "Apple Announces Date of Third Quarter 2026 Financial Results",
+    url: "https://finnhub.io/api/news?id=example",
+    publisher: "Yahoo",
+    fetchedAt: "2026-07-18T20:15:00.000Z",
+    kind: "news",
+    assetClass: "equity",
+    provider: "finnhub",
+    summary:
+      "CUPERTINO, July 18, 2026--Apple Inc. (NASDAQ: AAPL) today announced that it will report its financial results for the third quarter ended June 30, 2026 after the U.S. market closes on Thursday, August 5, 2026.",
+    ...overrides,
+  };
+}
+
+function netSource(summary: string, title = "Cloudflare quarterly results"): Source {
+  return {
+    id: "news-net-results-date",
+    title,
+    url: "https://finnhub.io/api/news?id=example",
+    fetchedAt: "2026-10-13T20:15:00.000Z",
+    kind: "news",
+    assetClass: "equity",
+    provider: "finnhub",
+    summary,
+  };
+}
+
+describe("provider-versus-source earnings-date conflicts", () => {
+  test("keeps both dates and declares a conflict gap when a source announces a different future date", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const source = announcementSource();
+    const conflict = findEarningsDateConflict({
+      setup: provider.setup,
+      sources: [source],
+      rawSnapshots: identity.rawSnapshots,
+      analysisAsOf: provider.analysisAsOf,
+    });
+
+    expect(conflict).toEqual({ date: "2026-08-05", sourceId: "news-aapl-results-date" });
+
+    const result = applyEarningsDateConflict({
+      collectedSources: collectedSources({
+        rawSnapshots: identity.rawSnapshots,
+        newsSources: [source],
+        earningsSetup: provider.setup,
+      }),
+      analysisAsOf: provider.analysisAsOf,
+    });
+
+    expect(result.earningsSetup?.event.dateConflict).toEqual({
+      date: "2026-08-05",
+      sourceId: "news-aapl-results-date",
+    });
+    expect(result.sourceGaps).toContainEqual(
+      expect.objectContaining({
+        source: "earnings-setup",
+        symbol: "AAPL",
+        message:
+          "Earnings date conflict for AAPL: the Earnings Setup date 2026-07-30 differs from the earnings date 2026-08-05 announced by source news-aapl-results-date",
+      }),
+    );
+  });
+
+  test("reads ISO-formatted announcement dates", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const conflict = findEarningsDateConflict({
+      setup: provider.setup,
+      sources: [
+        announcementSource({
+          summary:
+            "Apple Inc. will report its quarterly financial results on 2026-08-05 after the market close.",
+        }),
+      ],
+      rawSnapshots: identity.rawSnapshots,
+      analysisAsOf: provider.analysisAsOf,
+    });
+
+    expect(conflict?.date).toBe("2026-08-05");
+  });
+
+  test("keeps no conflict when the source announces the same date", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const sameDate = announcementSource({
+      summary:
+        "CUPERTINO, July 18, 2026--Apple Inc. (NASDAQ: AAPL) today announced that it will report its financial results for the third quarter on Thursday, July 30, 2026.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [sameDate, ...provider.sources],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("keeps no conflict without a source announcement", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("keeps no conflict without an earnings setup and leaves collected sources untouched", () => {
+    const sources = collectedSources();
+
+    expect(
+      findEarningsDateConflict({
+        setup: undefined,
+        sources: [announcementSource()],
+        rawSnapshots: [],
+        analysisAsOf: "2026-07-20T12:00:00.000Z",
+      }),
+    ).toBeUndefined();
+    expect(
+      applyEarningsDateConflict({
+        collectedSources: sources,
+        analysisAsOf: "2026-07-20T12:00:00.000Z",
+      }),
+    ).toBe(sources);
+  });
+
+  test("ignores announcements from other issuers and non-announcement futures", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const foreign = announcementSource({
+      id: "news-zs-results-date",
+      title: "Zscaler Announces Date of Fourth Quarter 2026 Financial Results",
+      symbol: "ZS",
+      summary:
+        "Zscaler, Inc. (NASDAQ: ZS) today announced that it will report its fourth quarter financial results on Thursday, August 5, 2026.",
+    });
+    const conference = announcementSource({
+      id: "news-aapl-conference",
+      summary: "Apple Inc. will attend the August 5, 2026 technology conference.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [foreign, conference],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores an announced date that is no longer upcoming", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const past = announcementSource({
+      summary:
+        "Apple Inc. will report its quarterly financial results on July 1, 2026 after the market close.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [past],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores a period-end date in the announcement sentence", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const quarterEnd = announcementSource({
+      summary:
+        "Apple Inc. will report financial results for the quarter ending July 25, 2026 on Thursday, July 30, 2026.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [quarterEnd],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores the following quarter's announced date", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const twoQuarters = announcementSource({
+      summary:
+        "Apple Inc. will report its third quarter financial results on Thursday, July 30, 2026 and its fourth quarter financial results on Thursday, November 5, 2026.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [twoQuarters],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("rejects an announcement span that names another issuer", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const otherIssuer = announcementSource({
+      summary:
+        "Apple shares rose today. Microsoft will report quarterly financial results on August 5, 2026.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [otherIssuer],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toBeUndefined();
+  });
+
+  test.each(["on August 5 2026", "on August 5th, 2026", "on 5 Aug 2026", "on August 05, 2026"])(
+    "reads the date format %s",
+    async (announcement) => {
+      const identity = await fixture("issuer-confirmed");
+      const provider = await fixture("provider-estimated");
+      const conflict = findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [
+          announcementSource({
+            summary: `Apple Inc. will report its quarterly financial results ${announcement}.`,
+          }),
+        ],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      });
+
+      expect(conflict?.date).toBe("2026-08-05");
+    },
+  );
+
+  test("keeps a same-day announcement that has not elapsed", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const sameDay = announcementSource({
+      summary:
+        "Apple Inc. today announced that it will report its financial results after the U.S. market close on Monday, July 20, 2026.",
+    });
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [sameDay],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toEqual({ date: "2026-07-20", sourceId: "news-aapl-results-date" });
+  });
+
+  test("detects the NET-shaped republication announcement", async () => {
+    const provider = await fixture("provider-estimated");
+    const netSetup: EarningsSetupCollected = {
+      ...provider.setup,
+      event: {
+        ...provider.setup.event,
+        symbol: "NET",
+        date: "2026-10-29",
+        sourceIds: ["extended-finnhub-events-net"],
+        fetchedAt: "2026-10-14T08:30:49.704Z",
+      },
+    };
+    const press: Source = {
+      id: "news-equity-6",
+      title: "Cloudflare Announces Date of Third Quarter 2026 Financial Results",
+      url: "https://finnhub.io/api/news?id=bcd66fef",
+      publisher: "Yahoo",
+      fetchedAt: "2026-10-13T20:15:00.000Z",
+      kind: "news",
+      assetClass: "equity",
+      provider: "finnhub",
+      summary:
+        "SAN FRANCISCO, October 13, 2026--Cloudflare, Inc. (NYSE: NET), the leading connectivity cloud company, today announced that it will report its financial results for the third quarter ended September 30, 2026 after the U.S. market closes on Thursday, November 5, 2026.",
+    };
+
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [press],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-equity-6" });
+  });
+
+  test("reads a later date occurrence when an earlier same-date mention fails the anchor", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const titled = announcementSource({ title: "Key dates to watch: August 5, 2026" });
+    const datelined = announcementSource({
+      summary:
+        "CUPERTINO, August 5, 2026--Apple Inc. will report its quarterly financial results after the market close on Wednesday, August 5, 2026.",
+    });
+
+    for (const source of [titled, datelined]) {
+      expect(
+        findEarningsDateConflict({
+          setup: provider.setup,
+          sources: [source],
+          rawSnapshots: identity.rawSnapshots,
+          analysisAsOf: provider.analysisAsOf,
+        }),
+      ).toEqual({ date: "2026-08-05", sourceId: "news-aapl-results-date" });
+    }
+  });
+
+  test.each([
+    "Apple Inc. will report its quarterly financial results, scheduled for August 5, 2026.",
+    "Apple Inc. will report its quarterly financial results on Wednesday August 5, 2026.",
+  ])("reads the reporting construction %s", async (summary) => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [announcementSource({ summary })],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toEqual({ date: "2026-08-05", sourceId: "news-aapl-results-date" });
+  });
+
+  test("reads a scheduled-for construction without another future phrase", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+
+    expect(
+      findEarningsDateConflict({
+        setup: provider.setup,
+        sources: [
+          announcementSource({
+            summary:
+              "Apple Inc. announced that its quarterly financial results are scheduled for August 5, 2026.",
+          }),
+        ],
+        rawSnapshots: identity.rawSnapshots,
+        analysisAsOf: provider.analysisAsOf,
+      }),
+    ).toEqual({ date: "2026-08-05", sourceId: "news-aapl-results-date" });
+  });
+
+  test("does not record a conflict from a source that agrees on the event date", async () => {
+    const provider = await fixture("provider-estimated");
+    const meliSetup: EarningsSetupCollected = {
+      ...provider.setup,
+      event: {
+        ...provider.setup.event,
+        symbol: "MELI",
+        date: "2026-11-04",
+        sourceIds: ["extended-finnhub-events-meli"],
+        fetchedAt: "2026-10-14T17:16:05.054Z",
+      },
+    };
+    const marketBeat: Source = {
+      id: "web-meli-6eb9809c",
+      title: "MercadoLibre Q3 2026 Earnings Date and Estimates",
+      url: "https://www.marketbeat.com/earnings/reports/2026-11-4-mercadolibre-inc-stock/",
+      fetchedAt: "2026-10-14T17:16:05.054Z",
+      kind: "web",
+      assetClass: "equity",
+      provider: "exa",
+      summary:
+        "MercadoLibre (MELI) Q3 2026 earnings overview: - Earnings date: Wednesday, November 4, 2026 (after market close). - Conference call: Wednesday, October 28, 2026 at 5:00 PM ET. - Expected results: earnings per share (EPS) ~ $9.27; revenue ~ $10.63 billion.",
+      snippet:
+        "MercadoLibre is estimated to report Q3 2026 earnings on Wednesday, November 4, 2026, after market closes. This date is estimated from past reporting schedules and may change once the company confirms it. ... MercadoLibre's Q3 2026 earnings conference call is scheduled for Wednesday, October 28, 2026 at 5:00 PM ET. MarketBeat streams the conference call audio and posts the transcript as soon as possible on the earnings announcement date.",
+    };
+
+    expect(
+      findEarningsDateConflict({
+        setup: meliSetup,
+        sources: [marketBeat],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "MercadoLibre, Inc." },
+        analysisAsOf: "2026-10-14T17:16:05.054Z",
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores a conference-call date when the source does not report the event date", async () => {
+    const provider = await fixture("provider-estimated");
+    const meliSetup: EarningsSetupCollected = {
+      ...provider.setup,
+      event: {
+        ...provider.setup.event,
+        symbol: "MELI",
+        date: "2026-11-04",
+        sourceIds: ["extended-finnhub-events-meli"],
+        fetchedAt: "2026-10-14T17:16:05.054Z",
+      },
+    };
+    const callOnly: Source = {
+      id: "web-meli-call-date",
+      title: "MercadoLibre Q3 2026 conference call",
+      url: "https://www.marketbeat.com/earnings/reports/2026-11-4-mercadolibre-inc-stock/",
+      fetchedAt: "2026-10-14T17:16:05.054Z",
+      kind: "web",
+      assetClass: "equity",
+      provider: "exa",
+      summary:
+        "MercadoLibre's Q3 2026 earnings conference call is scheduled for Wednesday, October 28, 2026 at 5:00 PM ET.",
+    };
+
+    expect(
+      findEarningsDateConflict({
+        setup: meliSetup,
+        sources: [callOnly],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "MercadoLibre, Inc." },
+        analysisAsOf: "2026-10-14T17:16:05.054Z",
+      }),
+    ).toBeUndefined();
+  });
+
+  const netSetup: EarningsSetupCollected = {
+    event: {
+      symbol: "NET",
+      date: "2026-10-29",
+      timing: "amc",
+      eventDateStatus: "provider-estimated",
+      dateStatus: "provider-estimated",
+      sourceIds: ["extended-finnhub-events-net"],
+      fetchedAt: "2026-10-14T08:30:49.704Z",
+    },
+    gaps: [],
+  };
+
+  test("keeps a conflict when the source only supersedes the provider date", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Cloudflare earnings were previously expected on October 29, 2026, but Cloudflare now will report its financial results on November 5, 2026.",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-net-results-date" });
+  });
+
+  test("keeps a reporting date that precedes a conference call", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Ahead of its conference call, Cloudflare will report its financial results on November 5, 2026.",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-net-results-date" });
+  });
+
+  test("ignores an unpunctuated conference-call title when the summary reports the date", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Cloudflare will report its financial results on November 5, 2026.",
+            "Cloudflare Q3 2026 earnings conference call scheduled for",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-net-results-date" });
+  });
+
+  test("ignores a comma-less weekday in a conference-call schedule", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Cloudflare earnings conference call is scheduled for Thursday November 5, 2026.",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toBeUndefined();
+  });
+
+  test("carries a conflict through projection and the full Earnings Setup markdown", async () => {
+    const identity = await fixture("issuer-confirmed");
+    const provider = await fixture("provider-estimated");
+    const source = announcementSource();
+    const withConflict = applyEarningsDateConflict({
+      collectedSources: collectedSources({
+        rawSnapshots: identity.rawSnapshots,
+        newsSources: [source],
+        earningsSetup: provider.setup,
+      }),
+      analysisAsOf: provider.analysisAsOf,
+    });
+    const extras = projectExtendedEvidenceReportExtras({
+      modelExtras: {},
+      collectedSources: withConflict,
+    });
+
+    expect(extras.earningsSetup).toMatchObject({
+      event: { dateConflict: { date: "2026-08-05", sourceId: "news-aapl-results-date" } },
+    });
+    const markdown = renderEarningsSetup(
+      researchReport({
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "AAPL",
+        sources: [
+          ...identity.sources,
+          source,
+          {
+            id: "extended-finnhub-events-aapl",
+            title: "AAPL provider earnings estimate",
+            fetchedAt: provider.analysisAsOf,
+            kind: "extended-evidence",
+          },
+        ],
+        extras,
+      }),
+    );
+
+    expect(markdown).toContain("2026-08-05");
+    expect(markdown).toContain("[news-aapl-results-date]");
   });
 });
 

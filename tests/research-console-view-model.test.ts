@@ -1821,7 +1821,8 @@ describe("report artifact parsers", () => {
         annualizedRevenue: 500_000_000,
         evToAnnualizedRevenue: 5.4,
         revenuePeriodMonths: 12,
-        corePeerCount: 3,
+        corePeerCount: 2,
+        usablePeerCount: 3,
         peerMedianEvToAnnualizedRevenue: 4.2,
         peerP25EvToAnnualizedRevenue: 3.1,
         peerP75EvToAnnualizedRevenue: 5.6,
@@ -1833,11 +1834,20 @@ describe("report artifact parsers", () => {
       { label: "Annualized revenue", value: "$500.0M" },
       { label: "EV / annualized revenue", value: "5.4x" },
       { label: "Revenue period (months)", value: "12" },
-      { label: "Core peers", value: "3" },
+      { label: "Peers (median basis)", value: "3 usable (2 core)" },
       { label: "Peer median EV / annualized revenue", value: "4.2x" },
       { label: "Peer P25 EV / annualized revenue", value: "3.1x" },
       { label: "Peer P75 EV / annualized revenue", value: "5.6x" },
       { label: "Supportability", value: "supported" },
+    ]);
+  });
+
+  test("falls back to the core peer count when a run predates usablePeerCount", () => {
+    expect(
+      valuationMetricTiles({ corePeerCount: 2, peerMedianEvToAnnualizedRevenue: 4.2 }),
+    ).toEqual([
+      { label: "Core peers", value: "2" },
+      { label: "Peer median EV / annualized revenue", value: "4.2x" },
     ]);
   });
 

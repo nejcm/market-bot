@@ -1952,6 +1952,15 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
     );
   });
 
+  test("reports a stale loss period as non-current rather than non-positive-income", () => {
+    const result = canonicalPayout(-20, "2026-08-15T00:00:00.000Z");
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(payoutGap(result)?.message).toBe(
+      "SEC-derived payout ratio for AAPL withheld at analysis cutoff 2026-08-15: period end 2025-12-31 not within 180 days before the cutoff",
+    );
+  });
+
   const legacyPayout = (overrides: Record<string, number | string>) =>
     addFinancialLensEvidence(
       command,
@@ -1976,6 +1985,17 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
 
   test("withholds a legacy payout from a non-current period", () => {
     const result = legacyPayout({
+      dividendsPaidPeriodEnd: "2025-06-28",
+      netIncomePeriodEnd: "2025-06-28",
+    });
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
+    expect(payoutGap(result)?.message).toContain("period end 2025-06-28 not within 180 days");
+  });
+
+  test("reports a stale legacy loss period as non-current rather than non-positive-income", () => {
+    const result = legacyPayout({
+      netIncome: -18,
       dividendsPaidPeriodEnd: "2025-06-28",
       netIncomePeriodEnd: "2025-06-28",
     });

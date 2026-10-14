@@ -340,7 +340,7 @@ function buildPrimaryPredictionInstruction(
     earningsPredictionInstruction = ` An upcoming earnings event is in scope (see evidence.earningsSetup). When the evidence supports an event-anchored view, you may emit earnings predictions: ${earningsForecastGrammar()} You may also author sourced analytical bullets under extras.earningsSetup (expectationBar, qualityLandmines, guidanceCredibility); code owns the event, implied move, and gaps.`;
   } else if (hasEarningsSetup) {
     earningsPredictionInstruction =
-      " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps.";
+      " The Earnings Setup remains useful contextual evidence, but its date is provider-estimated and unconfirmed. Do not emit earnings-direction, earnings-move, or earningsReturn grammar. You may still author sourced analytical bullets under extras.earningsSetup; code owns the event, implied move, and gaps. Describe earnings-date confirmation only with the deterministic earningsSetup event label (eventDateStatus and confirmedBy); a source announcement alone is not confirmation.";
   }
   const businessFrameworkInstruction =
     hasBusinessFramework && options.businessFrameworkEvidenceProjected !== false

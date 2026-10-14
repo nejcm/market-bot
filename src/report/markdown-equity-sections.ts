@@ -281,7 +281,9 @@ function renderConsensusItem(report: ResearchReport, item: EquityReaderConsensus
   const refs = sourceRefs(knownSourceIds(report, item.sourceIds));
   const citation = refs === "" ? "" : ` ${refs}`;
   if (item.kind === "earnings-date") {
-    return `- **Upcoming earnings:** ${markdownText(item.symbol)} on ${item.date} (${item.timing}; ${item.status})${citation}`;
+    const conflict =
+      item.conflictDate === undefined ? "" : `; source lists ${markdownText(item.conflictDate)}`;
+    return `- **Upcoming earnings:** ${markdownText(item.symbol)} on ${item.date} (${item.timing}; ${item.status}${conflict})${citation}`;
   }
   if (item.kind === "eps-consensus") {
     return `- **EPS consensus:** ${String(item.value)} (single-provider snapshot)${citation}`;

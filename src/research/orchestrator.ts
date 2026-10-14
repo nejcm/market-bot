@@ -77,7 +77,10 @@ import {
   equityAnalysisCompletenessGaps,
   type EquityAnalysisCompletenessInput,
 } from "../sources/extended-evidence/equity-analysis-completeness";
-import { applyOfficialEarningsDateConfirmation } from "../sources/extended-evidence/earnings-date-confirmation";
+import {
+  applyEarningsDateConflict,
+  applyOfficialEarningsDateConfirmation,
+} from "../sources/extended-evidence/earnings-date-confirmation";
 import {
   assessSourcePlan,
   buildSourcePlan,
@@ -601,6 +604,10 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   });
   ({ collectedSources } = webEvidence);
   collectedSources = applyOfficialEarningsDateConfirmation({
+    collectedSources,
+    analysisAsOf: generatedAt,
+  });
+  collectedSources = applyEarningsDateConflict({
     collectedSources,
     analysisAsOf: generatedAt,
   });

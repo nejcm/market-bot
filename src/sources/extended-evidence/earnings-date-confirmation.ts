@@ -1,4 +1,5 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
+import { sourceGap } from "../../domain/source-gaps";
 import type { Source } from "../../domain/sources";
 import { isRecord, readString, stringArrayValue } from "../../guards";
 import type { CollectedSources, EarningsSetupCollected, RawSourceSnapshot } from "../types";
@@ -402,9 +403,256 @@ export function confirmEarningsDateFromOfficialSources(input: {
     event: {
       ...event,
       eventDateStatus: candidate.eventDateStatus,
+      confirmedBy: { sourceId: candidate.source.id, sourceType: candidate.sourceType },
       sourceIds: [...new Set([...event.sourceIds, candidate.source.id])],
       dateConfirmation: confirmation,
     },
+  };
+}
+
+export interface EarningsDateConflict {
+  readonly date: string;
+  readonly sourceId: string;
+}
+
+const MONTH_NUMBERS: Readonly<Record<string, number>> = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+};
+
+const ANNOUNCED_MONTH_PATTERN =
+  "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+
+const ANNOUNCED_DATE_PATTERN = new RegExp(
+  String.raw`\b(?:(?<isoYear>\d{4})-(?<isoMonth>\d{2})-(?<isoDay>\d{2})|(?<monthName>${ANNOUNCED_MONTH_PATTERN})\.?\s+(?<monthDay>\d{1,2})(?:st|nd|rd|th)?,?\s+(?<monthYear>\d{4})|(?<dayNumber>\d{1,2})(?:st|nd|rd|th)?\s+(?<dayMonth>${ANNOUNCED_MONTH_PATTERN})\.?,?\s+(?<dayYear>\d{4}))\b`,
+  "giu",
+);
+
+function monthNumber(name: string | undefined): number | undefined {
+  return name === undefined ? undefined : MONTH_NUMBERS[name.toLowerCase()];
+}
+
+function announcedDate(match: RegExpExecArray): string | undefined {
+  const groups = match.groups ?? {};
+  const year = Number(groups.isoYear ?? groups.monthYear ?? groups.dayYear);
+  const month =
+    groups.isoMonth !== undefined
+      ? Number(groups.isoMonth)
+      : monthNumber(groups.monthName ?? groups.dayMonth);
+  const day = Number(groups.isoDay ?? groups.monthDay ?? groups.dayNumber);
+  if (month === undefined || month < 1 || month > 12) {
+    return undefined;
+  }
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    !Number.isFinite(probe.getTime()) ||
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+interface AnnouncedDateCandidate {
+  readonly date: string;
+  readonly index: number;
+  readonly length: number;
+}
+
+function announcedDateCandidates(text: string): readonly AnnouncedDateCandidate[] {
+  const candidates: AnnouncedDateCandidate[] = [];
+  for (const match of text.matchAll(ANNOUNCED_DATE_PATTERN)) {
+    const date = announcedDate(match);
+    if (date !== undefined) {
+      candidates.push({ date, index: match.index, length: match[0].length });
+    }
+  }
+  return candidates;
+}
+
+const REPORTING_DATE_ANCHOR_PATTERN = /\b(?:on|for)\s+(?:[A-Za-z]+[,\s]+)?$/iu;
+// Official confirmation keeps "scheduled to"; conflict detection also accepts "scheduled for".
+const SCHEDULED_FOR_PATTERN = /\bscheduled\s+for\b/iu;
+// Only the date a conference-call clause schedules is rejected; newlines end the clause.
+const CONFERENCE_CALL_SCHEDULE_PATTERN =
+  /\bconference call\b[^,.!?\n]*\b(?:scheduled|planned|set|expected|rescheduled)?\s*(?:for|to|on)\s+(?:[A-Za-z]+[,\s]+)?$/iu;
+const SUPERSEDED_EXPECTATION_PATTERN =
+  /\b(?:previously|originally|formerly|no longer)\b|\b(?:was|were|had been)\s+(?:expected|scheduled|anticipated|planned|set)\b/iu;
+const SENTENCE_BOUNDARY_PATTERN = /[.!?]\s+(?=[A-Z"“])/gu;
+const MAX_CONFLICT_DATE_DISTANCE_DAYS = 30;
+
+function daysBetween(left: string, right: string): number {
+  return Math.round((Date.parse(left) - Date.parse(right)) / 86_400_000);
+}
+
+function announcementSpan(text: string, offset: number, length: number): string {
+  const before = text.slice(0, offset);
+  let start = Math.max(0, before.lastIndexOf("\n") + 1);
+  for (const match of before.matchAll(SENTENCE_BOUNDARY_PATTERN)) {
+    start = Math.max(start, (match.index ?? 0) + match[0].length);
+  }
+  const end = text.indexOf(".", offset + length);
+  return text
+    .slice(start, Math.min(end === -1 ? text.length : end + 1, start + MAX_EVIDENCE_SPAN_CHARS))
+    .replaceAll(/\s+/gu, " ")
+    .trim();
+}
+
+// Same-day announcements count: an event after the close is still upcoming on its own day.
+function upcomingAnnouncementDate(date: string, analysisAsOf: string, source: Source): boolean {
+  const day = analysisAsOf.slice(0, 10);
+  return date >= day && date >= source.fetchedAt.slice(0, 10);
+}
+
+// Shortcut: best-effort gates (sentence-local identity, on/for anchor, ±30 days, calendar-day upcomingness); upgrade when false/missed gaps from co-mentioned issuers, "ending on" clauses, delayed events, or elapsed same-day releases matter.
+function conflictingEarningsDate(input: {
+  readonly source: Source;
+  readonly providerDate: string;
+  readonly identity: OfficialIssuerIdentity;
+  readonly analysisAsOf: string;
+}): EarningsDateConflict | undefined {
+  const { source, identity } = input;
+  if (
+    source.id.trim() === "" ||
+    (source.symbol !== undefined && source.symbol.toUpperCase() !== identity.symbol)
+  ) {
+    return undefined;
+  }
+  const text = sourceText(source);
+  const validated: EarningsDateConflict[] = [];
+  for (const { date, index, length } of announcedDateCandidates(text)) {
+    if (
+      validated.some((candidate) => candidate.date === date) ||
+      !upcomingAnnouncementDate(date, input.analysisAsOf, source)
+    ) {
+      continue;
+    }
+    const before = text.slice(0, index);
+    if (
+      !REPORTING_DATE_ANCHOR_PATTERN.test(before) ||
+      CONFERENCE_CALL_SCHEDULE_PATTERN.test(before)
+    ) {
+      continue;
+    }
+    const span = announcementSpan(text, index, length);
+    if (!EARNINGS_SUBJECT_PATTERN.test(span)) {
+      continue;
+    }
+    if (
+      !textMatchesIssuerName(span, identity) &&
+      !textMatchesSymbolWithIssuerContext(span, identity)
+    ) {
+      continue;
+    }
+    if (date === input.providerDate) {
+      if (SUPERSEDED_EXPECTATION_PATTERN.test(span)) {
+        continue;
+      }
+      return undefined;
+    }
+    if (
+      (!FUTURE_ANNOUNCEMENT_PATTERN.test(span) && !SCHEDULED_FOR_PATTERN.test(span)) ||
+      Math.abs(daysBetween(date, input.providerDate)) > MAX_CONFLICT_DATE_DISTANCE_DAYS
+    ) {
+      continue;
+    }
+    validated.push({ date, sourceId: source.id });
+  }
+  return validated[0];
+}
+
+export function findEarningsDateConflict(input: {
+  readonly setup: EarningsSetupCollected | undefined;
+  readonly sources: readonly Source[];
+  readonly rawSnapshots: readonly RawSourceSnapshot[];
+  readonly instrumentIdentity?: InstrumentIdentity;
+  readonly analysisAsOf: string;
+}): EarningsDateConflict | undefined {
+  const { setup } = input;
+  if (setup === undefined) {
+    return undefined;
+  }
+  const identity = submissionsIdentity(
+    input.rawSnapshots,
+    setup.event.symbol,
+    input.instrumentIdentity,
+  );
+  const [candidate] = input.sources
+    .flatMap((source) => {
+      const conflict = conflictingEarningsDate({
+        source,
+        providerDate: setup.event.date,
+        identity,
+        analysisAsOf: input.analysisAsOf,
+      });
+      return conflict === undefined ? [] : [conflict];
+    })
+    .toSorted(
+      (left, right) =>
+        left.date.localeCompare(right.date) || left.sourceId.localeCompare(right.sourceId),
+    );
+  return candidate;
+}
+
+export function applyEarningsDateConflict(input: {
+  readonly collectedSources: CollectedSources;
+  readonly analysisAsOf: string;
+}): CollectedSources {
+  const setup = input.collectedSources.earningsSetup;
+  if (setup === undefined) {
+    return input.collectedSources;
+  }
+  const conflict = findEarningsDateConflict({
+    setup,
+    sources: [...input.collectedSources.extendedSources, ...input.collectedSources.newsSources],
+    rawSnapshots: input.collectedSources.rawSnapshots,
+    ...(input.collectedSources.resolvedInstrumentIdentity !== undefined
+      ? { instrumentIdentity: input.collectedSources.resolvedInstrumentIdentity }
+      : {}),
+    analysisAsOf: input.analysisAsOf,
+  });
+  if (conflict === undefined) {
+    return input.collectedSources;
+  }
+  return {
+    ...input.collectedSources,
+    earningsSetup: { ...setup, event: { ...setup.event, dateConflict: conflict } },
+    sourceGaps: [
+      ...input.collectedSources.sourceGaps,
+      sourceGap({
+        source: "earnings-setup",
+        message: `Earnings date conflict for ${setup.event.symbol}: the Earnings Setup date ${setup.event.date} differs from the earnings date ${conflict.date} announced by source ${conflict.sourceId}`,
+        symbol: setup.event.symbol,
+        provider: "market-bot",
+        capability: "extended-evidence",
+        cause: "provider-data-missing",
+        evidenceQualityImpact: "no-cap",
+      }),
+    ],
   };
 }
 

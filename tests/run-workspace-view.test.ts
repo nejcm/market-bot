@@ -16,6 +16,7 @@ import {
 } from "../app/client/run-workspace-view";
 import {
   balanceSheetHistoryFromProjection,
+  earningsConsensusFromProjection,
   financialPositionFromProjection,
 } from "../app/client/run-workspace-financials";
 import { VERIFIED_SNAPSHOT_PATH } from "../app/client/view-model";
@@ -3303,5 +3304,30 @@ describe("run workspace view", () => {
       /<span[^>]*border-dashed[^>]*title="Forecast Disagreement unavailable: 1 model probabilities; at least 2 needed for a spread"[^>]*>\s*FD UNAVAILABLE\s*<\/span>/u,
     );
     expect(text).not.toContain("FD LOW");
+  });
+});
+
+describe("earnings consensus conflict rendering", () => {
+  test("renders the conflicting source date beside the provider earnings date", () => {
+    const view = earningsConsensusFromProjection([
+      {
+        kind: "earnings-date",
+        symbol: "NET",
+        date: "2026-10-29",
+        timing: "amc",
+        status: "provider-estimated",
+        sourceIds: ["extended-finnhub-events-net", "news-equity-6"],
+        conflictDate: "2026-11-05",
+        conflictSourceId: "news-equity-6",
+      },
+    ]);
+
+    expect(view.items).toEqual([
+      {
+        label: "Upcoming earnings",
+        value: "2026-10-29 · amc · provider-estimated · source lists 2026-11-05",
+        sourceIds: ["extended-finnhub-events-net", "news-equity-6"],
+      },
+    ]);
   });
 });

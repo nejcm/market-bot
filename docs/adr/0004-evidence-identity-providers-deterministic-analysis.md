@@ -195,6 +195,9 @@ without pretending the project has a global security master.
   lanes and executable acquisition task keys; it is not a generic task graph. The collector derives
   its parallel-provider dispatch set from the recipe and starts supplemental market acquisition in
   that batch rather than after SEC and Tradier packet finalization.
+- Metric Sections are a flat ordered list of pure definitions over one context, with no task graph:
+  a metric reads raw inputs, never another metric's result. They persist in the deep bundle's
+  `derived.metricSections` and are read through `report.extras.metricSections` in every layout.
 - A deep US-equity `SecTargetPacket` fetches target CIK mapping, company facts, and submissions once,
   then retains SIC plus eligible 10-K, newer 10-Q, and recent 8-K/6-K filing packets. Statement,
   history, lens, financing, ownership, valuation, and framework derivations consume the shared

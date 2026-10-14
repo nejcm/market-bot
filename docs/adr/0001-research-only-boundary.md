@@ -8,7 +8,7 @@ Accepted
 
 2026-06-30 (consolidated 2026-07-15; amended 2026-07-23; amended 2026-08-09:
 attributed third-party source-text boundary; amended 2026-08-26: model-authored report
-validation scope)
+validation scope; amended 2026-10-15: Metric Sections)
 
 ## Context
 
@@ -74,6 +74,12 @@ assembly text is outside report validation:
   (`src/research/report-assembly.ts:128-188`) _move_ uncited findings and business-framework text
   out of scanned fields into `dataGaps`, so a gap-shaped sentence can carry advice past the screen.
   Closing it is tracked separately.
+- `extras.metricSections` (amended 2026-10-15): labels, values, basis and reasons are code templates
+  in `src/sources/extended-evidence/` projected by
+  `src/research/extended-evidence-projections.ts`; the definitions' template test runs every
+  string through the research-only patterns. The exemption holds only because
+  `src/research/report-assembly.ts` strips a draft's `metricSections` unconditionally, so the
+  field is never model-authored, even in a run that collected none.
 - `predictions[]` needs no screen: `claim` is rendered from the parsed observable expression
   (`src/forecast/observable-candidates.ts:172`) and `measurableAs` is a parsed DSL expression, not
   free prose. Neither carries model wording the patterns could act on.

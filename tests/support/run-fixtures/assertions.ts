@@ -2,6 +2,7 @@ import { expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { resolveMarketSnapshotPriceAsOf } from "../../../src/domain/market-data";
 import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
 import { parseObservableExpression } from "../../../src/forecast/observable";
 import { isRecord } from "../../../src/guards";
@@ -13,6 +14,10 @@ import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markd
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
+import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
+import type { FinancialStatementSeriesKey } from "../../../src/sources/extended-evidence/financial-statements-contract";
+import { financialStatementSeriesByKey } from "../../../src/sources/extended-evidence/financial-statement-selection";
+import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
 
@@ -63,15 +68,7 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
-  const derived = result.deepEquityEvidenceBundle?.derived;
-  if (derived?.financialStatements !== undefined) {
-    const capitalReturn = derived.metricSections?.find(({ id }) => id === "capital-return");
-    expect(capitalReturn, "statements imply a Capital Return Metric Section").toBeDefined();
-    expect(
-      report.dataGaps.some((gap) => gap.startsWith("capital-return: ")),
-      "an unresolved Capital Return metric must surface its section gap",
-    ).toBe(capitalReturn?.metrics.some(({ status }) => status !== "value") ?? false);
-  }
+  assertMetricSectionInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
@@ -107,6 +104,239 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
     }
   }
   await assertFinancialRunInvariants(result, meta);
+}
+
+const DAY_MS = 86_400_000;
+const RELATIVE_TOLERANCE = 1e-9;
+
+function days(start: string, end: string): number {
+  return (Date.parse(end) - Date.parse(start)) / DAY_MS;
+}
+
+function expectClose(actual: unknown, expected: number, label: string): void {
+  expect(typeof actual, label).toBe("number");
+  expect(Math.abs((actual as number) - expected), label).toBeLessThanOrEqual(
+    RELATIVE_TOLERANCE * Math.max(1, Math.abs(expected)),
+  );
+}
+
+interface ResolvedInput {
+  readonly value: number;
+  readonly periodStart?: string;
+  readonly periodEnd?: string;
+  readonly periodKey?: string;
+  readonly periodType?: string;
+  readonly currency?: string;
+}
+
+type MetricInvariantRun = Pick<
+  RunFixtureResult,
+  "collectedSources" | "markdown" | "deepEquityEvidenceBundle"
+>;
+
+function isAnnualSpan(resolved: ResolvedInput | undefined): boolean {
+  const span = days(resolved?.periodStart ?? "", resolved?.periodEnd ?? "");
+  return span >= 350 && span <= 380;
+}
+
+// Looks the input up in its own artifact; the input's lineage must equal what the artifact holds.
+function resolveInput(
+  run: MetricInvariantRun,
+  input: MetricInput,
+  label: string,
+): ResolvedInput | undefined {
+  const { financialStatements, capitalOwnership, marketSnapshots, resolvedInstrumentIdentity } =
+    run.collectedSources;
+  let resolved: ResolvedInput | undefined;
+  if (input.artifact === "statements") {
+    const series =
+      financialStatements === undefined
+        ? undefined
+        : financialStatementSeriesByKey(
+            financialStatements,
+            input.series as FinancialStatementSeriesKey,
+          );
+    const fact = [...(series?.annual ?? []), ...(series?.interim ?? [])].find(
+      (candidate) =>
+        candidate.periodKey === input.periodKey && candidate.periodType === input.periodType,
+    );
+    resolved = fact && {
+      value: fact.value,
+      ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
+      periodEnd: fact.periodEnd,
+      periodKey: fact.periodKey,
+      periodType: fact.periodType,
+      ...(fact.currency !== null ? { currency: fact.currency } : {}),
+    };
+    if (fact?.periodKey.startsWith("duration:") === true) {
+      expect(fact.periodType, `${label} flow input is annual`).toBe("annual");
+      expect(isAnnualSpan(resolved), `${label} spans 350-380 days`).toBe(true);
+    }
+  } else if (input.artifact === "capitalOwnership") {
+    const fact = capitalOwnership?.stockBasedCompensation.find(
+      (candidate) =>
+        candidate.periodStart === input.periodStart && candidate.periodEnd === input.periodEnd,
+    );
+    resolved = fact && {
+      value: fact.value,
+      ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
+      periodEnd: fact.periodEnd,
+      periodType: "annual",
+      currency: fact.unit,
+    };
+    expect(isAnnualSpan(resolved), `${label} spans 350-380 days`).toBe(true);
+  } else {
+    const snapshot = marketSnapshots.find((candidate) => candidate.sourceId === input.sourceIds[0]);
+    const currency = resolvedInstrumentIdentity?.quoteCurrency ?? snapshot?.identity?.quoteCurrency;
+    resolved =
+      snapshot?.marketCap !== undefined
+        ? {
+            value: snapshot.marketCap,
+            periodEnd: resolveMarketSnapshotPriceAsOf(snapshot).instant,
+            ...(currency !== undefined ? { currency } : {}),
+          }
+        : undefined;
+  }
+  expect(resolved, `${label} resolves in ${input.artifact}`).toBeDefined();
+  const lineage: Partial<ResolvedInput> = {
+    value: input.value,
+    ...(["periodStart", "periodEnd", "periodKey", "periodType", "currency"] as const).reduce(
+      (fields, key) => (input[key] === undefined ? fields : { ...fields, [key]: input[key] }),
+      {},
+    ),
+  };
+  expect(lineage, `${label} lineage matches its artifact`).toEqual(
+    resolved as Partial<ResolvedInput>,
+  );
+  return resolved;
+}
+
+export function assertMetricSectionInvariants(
+  run: MetricInvariantRun,
+  report: ResearchReport,
+): void {
+  const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
+  const statements = run.collectedSources.financialStatements;
+  const capitalReturn = sections?.find(({ id }) => id === "capital-return");
+  expect(capitalReturn !== undefined, "statements imply a Capital Return Metric Section").toBe(
+    statements !== undefined,
+  );
+  expect(run.markdown.includes("### Capital Return\n")).toBe(capitalReturn !== undefined);
+  const bundle = run.deepEquityEvidenceBundle;
+  if (bundle !== undefined) {
+    expect(asWritten(bundle.derived.metricSections)).toEqual(asWritten(sections));
+  }
+  if (capitalReturn === undefined || statements === undefined) {
+    return;
+  }
+  const unresolved = capitalReturn.metrics.filter(({ status }) => status !== "value");
+  expect(
+    report.dataGaps.some((gap) => gap.startsWith("capital-return: ")),
+    "an unresolved Capital Return metric must surface its section gap",
+  ).toBe(unresolved.length > 0);
+  if (unresolved.some(({ status }) => status === "missing")) {
+    expect(
+      run.collectedSources.sourceGaps.find(({ source }) => source === "capital-return")?.triage,
+    ).toBe("material");
+  }
+  const reportSourceIds = new Set(report.sources.map(({ id }) => id));
+  const splitPeriodEnds = statements.omissionNotes
+    .filter((note) => note.code === "earlier-share-basis" && note.seriesKey === "dilutedShares")
+    .map((note) => note.periodKey?.split("|").at(-1) ?? "");
+  for (const metric of capitalReturn.metrics) {
+    const label = `capital-return.${metric.id}`;
+    for (const sourceId of metric.sourceIds) {
+      expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
+    }
+    const resolved = metric.inputs.map((input) =>
+      resolveInput(run, input, `${label} ${input.label}`),
+    );
+    if (metric.status !== "value") {
+      continue;
+    }
+    expect(
+      (typeof metric.value === "number" && Number.isFinite(metric.value)) ||
+        (typeof metric.value === "string" && metric.value !== ""),
+      `${label} carries a finite number or non-empty text`,
+    ).toBe(true);
+    expect(metric.sourceIds.length, `${label} cites a source`).toBeGreaterThan(0);
+    expect(metric.periodEnd, `${label} carries its FY end`).toBeDefined();
+    const resolvedOf = (series: string): ResolvedInput | undefined =>
+      resolved[metric.inputs.findIndex((input) => input.series === series)];
+    const valueOf = (series: string): number => resolvedOf(series)?.value ?? Number.NaN;
+    const statementFacts = resolved.filter(
+      (_fact, index) => metric.inputs[index]?.artifact === "statements",
+    );
+    const joined = (): void => {
+      expect(
+        new Set(statementFacts.map((fact) => `${fact?.periodKey}/${fact?.periodType}`)).size,
+        `${label} joins one period`,
+      ).toBe(1);
+    };
+    const marketCap = valueOf("marketCap");
+    const dividends = Math.abs(valueOf("dividendsPaid"));
+    const repurchases = Math.abs(valueOf("shareRepurchases"));
+    const freeCashFlow = valueOf("operatingCashFlow") - Math.abs(valueOf("capitalExpenditure"));
+    const endpointYears =
+      /^shareCountChange(\d)y$/u.exec(metric.id)?.[1] ??
+      (metric.id === "shareCountTrend" ? "3" : undefined);
+    if (endpointYears !== undefined) {
+      const [earlier, later] = statementFacts;
+      expect(metric.inputs.map(({ series }) => series)).toEqual(["dilutedShares", "dilutedShares"]);
+      const earlierEnd = earlier?.periodEnd ?? "";
+      const laterEnd = later?.periodEnd ?? "";
+      expect(
+        Math.abs(days(earlierEnd, laterEnd) - Number(endpointYears) * 365),
+        `${label} endpoints are ${endpointYears}y apart`,
+      ).toBeLessThanOrEqual(15);
+      expect(metric.periodEnd, `${label} ends at its later endpoint`).toBe(laterEnd);
+      expect(
+        splitPeriodEnds.filter((end) => end >= earlierEnd && end <= laterEnd),
+        `${label} window has no earlier share basis`,
+      ).toEqual([]);
+      if (metric.id !== "shareCountTrend") {
+        expectClose(
+          metric.value,
+          (later?.value ?? Number.NaN) / (earlier?.value ?? Number.NaN) - 1,
+          label,
+        );
+      }
+    } else if (statementFacts.length > 0) {
+      expect(metric.periodEnd, `${label} ends at its anchor FY`).toBe(statementFacts[0]?.periodEnd);
+    }
+    switch (metric.id) {
+      case "fcfPayoutRatio": {
+        joined();
+        expectClose(metric.value, dividends / freeCashFlow, label);
+        break;
+      }
+      case "totalPayoutToFcf": {
+        joined();
+        expectClose(metric.value, (dividends + repurchases) / freeCashFlow, label);
+        break;
+      }
+      case "buybackYield": {
+        expectClose(metric.value, repurchases / marketCap, label);
+        break;
+      }
+      case "dividendYieldFiled": {
+        expectClose(metric.value, dividends / marketCap, label);
+        break;
+      }
+      case "shareholderYield": {
+        joined();
+        expectClose(metric.value, (dividends + repurchases) / marketCap, label);
+        break;
+      }
+      default:
+    }
+    const quote = resolvedOf("marketCap");
+    if (quote !== undefined) {
+      expect(quote.currency, `${label} quote currency matches reporting`).toBe(
+        statementFacts[0]?.currency,
+      );
+    }
+  }
 }
 
 export function factTaxonomies(result: RunFixtureResult): readonly string[] {

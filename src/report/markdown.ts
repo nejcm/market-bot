@@ -42,6 +42,7 @@ import {
   renderCatalystCalendar,
   renderMarketUpdateDelta,
 } from "./markdown-market-update";
+import { renderMetricSections } from "./markdown-metric-sections";
 
 export { renderFinancialTrends } from "./markdown-equity-sections";
 
@@ -95,6 +96,7 @@ export function renderMarkdownReport(
       renderBalanceSheet: renderBalanceSheetAndShareCount,
       renderScenarios,
       renderBusinessFramework,
+      renderMetricSections,
       renderWebSubjectProfile,
       renderAnalystDistributions: renderAnalystEstimateDistributions,
       renderAnalystAndOwnershipContext,

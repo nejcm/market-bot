@@ -55,6 +55,7 @@ export interface EquityMarkdownSections {
   readonly renderBalanceSheet: ReturnType<typeof equityProjectionRendererFactory>["balanceSheet"];
   readonly renderScenarios: (scenarios: readonly Scenario[]) => string;
   readonly renderBusinessFramework: (report: ResearchReport) => string;
+  readonly renderMetricSections: (report: ResearchReport) => string;
   readonly renderWebSubjectProfile: (report: ResearchReport) => string;
   readonly renderAnalystDistributions: ReturnType<
     typeof equityProjectionRendererFactory
@@ -191,6 +192,7 @@ export function renderEquityMarkdownReport(
     sections.renderAppendixSection(sections.renderFindings("Bear Case", report.bearCase)),
     sections.renderAppendixSection(sections.renderScenarios(report.scenarios)),
     sections.renderAppendixSection(sections.renderBusinessFramework(report)),
+    sections.renderAppendixSection(sections.renderMetricSections(report)),
     sections.renderAppendixSection(sections.renderWebSubjectProfile(report)),
     ...(projection.appendix.analystEstimateDistributions.length === 0
       ? []

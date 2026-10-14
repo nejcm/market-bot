@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  metricSectionsSourceRows,
   readBusinessFrameworkExtra,
+  readMetricSectionsExtra,
   readWebSubjectProfileAnswer,
   readWebSubjectProfileExtra,
   readWebSubjectProfileFacts,
@@ -498,6 +500,94 @@ describe("web subject profile extra", () => {
     expect(readWebSubjectProfileFacts([{ claim: "", sourceIds: ["web-source"] }])).toEqual([
       { claim: "", sourceIds: ["web-source"] },
     ]);
+  });
+});
+
+describe("metric sections extra", () => {
+  const rawSections = [
+    {
+      id: "capital-return",
+      title: "Capital Return",
+      metrics: [
+        { label: "", status: "value", value: 1, unit: "furlongs", sourceIds: ["sec"] },
+        { id: "unlabelled", status: "value", value: 2, unit: "ratio", sourceIds: ["sec", 3] },
+        "not a record",
+      ],
+    },
+    { id: "untitled", metrics: "not an array" },
+    7,
+  ];
+
+  test("keeps absent and empty apart, and keeps malformed rows", () => {
+    expect(readMetricSectionsExtra(undefined)).toBeUndefined();
+    expect(readMetricSectionsExtra({})).toBeUndefined();
+    expect(readMetricSectionsExtra([])).toEqual([]);
+    expect(readMetricSectionsExtra(rawSections)).toEqual([
+      {
+        id: "capital-return",
+        title: "Capital Return",
+        metrics: [
+          { label: "", status: "value", value: 1, sourceIds: ["sec"], sourceIdsComplete: true },
+          {
+            id: "unlabelled",
+            status: "value",
+            value: 2,
+            unit: "ratio",
+            sourceIds: ["sec"],
+            sourceIdsComplete: false,
+          },
+        ],
+      },
+      { id: "untitled", metrics: [] },
+    ]);
+  });
+
+  test("walks every metric record, marking non-value rows unrendered", () => {
+    expect(
+      metricSectionsSourceRows([
+        {
+          id: "s",
+          metrics: [
+            { id: "a", status: "value", sourceIds: ["x"] },
+            { id: "b", status: "missing", sourceIds: ["y"] },
+            { sourceIds: ["z", 1] },
+          ],
+        },
+      ]),
+    ).toEqual([
+      { path: "[0].metrics[0]", label: "[0].metrics[0] (s.a)", sourceIds: ["x"] },
+      { path: "[0].metrics[1]", label: "[0].metrics[1] (s.b)", sourceIds: ["y"], unrendered: true },
+      { path: "[0].metrics[2]", sourceIds: [], unrendered: true },
+    ]);
+  });
+
+  test("cites a source used only by an unlabelled value metric", () => {
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "equity",
+        symbol: "TEST",
+        sources: [
+          {
+            id: "metric-only",
+            title: "Metric source",
+            fetchedAt: "2026-05-19T00:00:00.000Z",
+            kind: "extended-evidence",
+            assetClass: "equity",
+          },
+        ],
+        extras: {
+          metricSections: [
+            {
+              id: "s",
+              title: "Section",
+              metrics: [{ id: "a", status: "value", value: 1, sourceIds: ["metric-only"] }],
+            },
+          ],
+        },
+      }),
+    );
+    expect(markdown).toContain("### Section\n\n\n");
+    expect(markdown).toContain("- [metric-only] Metric source");
   });
 });
 

@@ -804,7 +804,12 @@ export function assembleResearchReportWithRelocations(
     ).label;
   const defaultHistoricalContext = historicalContextExtra(context.historicalContext);
   const defaultSpotlights = spotlightsExtra(context.spotlightSelection);
-  const { spotlights: modelSpotlights, ...authoredExtras } = modelExtras;
+  // A draft never supplies Metric Sections, even when none were collected (ADR 0001 exemption).
+  const {
+    spotlights: modelSpotlights,
+    metricSections: _metricSections,
+    ...authoredExtras
+  } = modelExtras;
   // Spotlights originate only in a market-update selection (ADR 0003); the model refines rationale.
   const resolvedSpotlights = isMarketUpdateJobType(command.jobType)
     ? mergeSpotlightsExtra(modelSpotlights, defaultSpotlights)

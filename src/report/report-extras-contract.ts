@@ -1,4 +1,4 @@
-// Shared contract for the two `report.extras` payloads that have a single producer
+// Shared contract for the three `report.extras` payloads that have a single producer
 // In src/research/extended-evidence-projections.ts and several independent readers:
 // The markdown renderers, the source-id traversal, and the Research Console.
 //
@@ -36,6 +36,7 @@ import {
   type BusinessFrameworkReconciliation,
   type BusinessFrameworkSection,
 } from "../sources/extended-evidence/business-framework";
+import type { MetricSection } from "../sources/extended-evidence/metric-engine";
 import type { LensValueUnit } from "../sources/extended-evidence/value-format";
 // Import the public profile contract leaf directly, not the ./web-evidence barrel,
 // Which eagerly exports the web-evidence phase.
@@ -81,6 +82,8 @@ export interface WebSubjectProfileExtra {
   readonly sourceIds: readonly string[];
   readonly secFilingBasisDate?: string;
 }
+
+export type MetricSectionsExtra = readonly MetricSection[];
 
 // ---------------------------------------------------------------------------
 // Reader results
@@ -152,6 +155,27 @@ export interface WebSubjectProfileExtraValue {
   readonly sourceIds: readonly string[];
   readonly sourceIdsComplete: boolean;
   readonly secFilingBasisDate?: string;
+}
+
+interface MetricResultValue {
+  readonly id?: string;
+  readonly label?: string;
+  // Absent when the unit is not a LensValueUnit.
+  readonly unit?: LensValueUnit;
+  readonly basis?: string;
+  readonly status?: string;
+  readonly value?: number | string;
+  readonly currency?: string;
+  readonly periodEnd?: string;
+  readonly reason?: string;
+  readonly sourceIds: readonly string[];
+  readonly sourceIdsComplete: boolean;
+}
+
+interface MetricSectionValue {
+  readonly id?: string;
+  readonly title?: string;
+  readonly metrics: readonly MetricResultValue[];
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +342,62 @@ export function readBusinessFrameworkExtra(
     gaps: readBusinessFrameworkGaps(value.gaps),
     ...(reconciliation !== undefined ? { reconciliation } : {}),
   };
+}
+
+function optionalStrings<K extends string>(
+  value: Record<string, unknown>,
+  keys: readonly K[],
+): Partial<Record<K, string>> {
+  return Object.fromEntries(
+    keys.flatMap((key) => (typeof value[key] === "string" ? [[key, value[key]]] : [])),
+  ) as Partial<Record<K, string>>;
+}
+
+function readMetricResult(value: unknown): MetricResultValue | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const { unit, value: raw } = value;
+  const sourceIds = stringList(value);
+  return {
+    ...optionalStrings(value, [
+      "id",
+      "label",
+      "basis",
+      "status",
+      "currency",
+      "periodEnd",
+      "reason",
+    ]),
+    ...(typeof unit === "string" && LENS_VALUE_UNITS.has(unit)
+      ? { unit: unit as LensValueUnit }
+      : {}),
+    ...(typeof raw === "number" || typeof raw === "string" ? { value: raw } : {}),
+    sourceIds: sourceIds.values,
+    sourceIdsComplete: sourceIds.complete,
+  };
+}
+
+// Undefined when the payload is not an array: no Metric Section was produced.
+export function readMetricSectionsExtra(value: unknown): readonly MetricSectionValue[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value.flatMap((section): readonly MetricSectionValue[] =>
+    isRecord(section)
+      ? [
+          {
+            ...optionalStrings(section, ["id", "title"]),
+            metrics: Array.isArray(section.metrics)
+              ? section.metrics.flatMap((metric): readonly MetricResultValue[] => {
+                  const parsed = readMetricResult(metric);
+                  return parsed === undefined ? [] : [parsed];
+                })
+              : [],
+          },
+        ]
+      : [],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -527,4 +607,33 @@ export function businessFrameworkSourceRows(value: unknown): readonly ExtraSourc
         ]
       : []),
   ];
+}
+
+// No row carries text: labels, values, basis and reasons are code-assembled (ADR 0001).
+export function metricSectionsSourceRows(value: unknown): readonly ExtraSourceRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((section, sectionIndex) => {
+    if (!isRecord(section) || !Array.isArray(section.metrics)) {
+      return [];
+    }
+    return section.metrics.flatMap((metric, metricIndex): readonly ExtraSourceRow[] => {
+      if (!isRecord(metric)) {
+        return [];
+      }
+      const path = `[${String(sectionIndex)}].metrics[${String(metricIndex)}]`;
+      return [
+        {
+          path,
+          ...(typeof section.id === "string" && typeof metric.id === "string"
+            ? { label: `${path} (${section.id}.${metric.id})` }
+            : {}),
+          sourceIds: allStrings(metric.sourceIds),
+          // Only a value row renders its citations; the others render a reason.
+          ...(metric.status === "value" ? {} : { unrendered: true as const }),
+        },
+      ];
+    });
+  });
 }

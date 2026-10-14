@@ -697,6 +697,35 @@ describe("report schema and rendering", () => {
     ]);
   });
 
+  test("always strips model-authored metricSections, with or without a collected section", () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const depthProfile = assemblyDepthProfile("AAPL");
+    const modelSection = { id: "capital-return", title: "Model Capital Return", metrics: [] };
+    const collectedSection = { id: "capital-return", title: "Capital Return", metrics: [] };
+    const assemble = (collected: ReturnType<typeof collectedSources>) =>
+      assembleResearchReport({
+        runId: "metric-section-strip",
+        generatedAt: "2026-06-01T00:00:00.000Z",
+        command,
+        payload: { summary: "AAPL evidence summary.", extras: { metricSections: [modelSection] } },
+        predResult: { predictions: [], errors: [] },
+        collectedSources: collected,
+        depthProfile,
+        context: assemblyContext(depthProfile),
+        sources: buildSourceList(command, collected),
+      });
+
+    expect(assemble(collectedSources()).extras?.metricSections).toBeUndefined();
+    expect(
+      assemble(collectedSources({ metricSections: [collectedSection] })).extras?.metricSections,
+    ).toEqual([collectedSection]);
+  });
+
   test("keeps rejecting an ordinary uncited business claim", () => {
     const command = {
       jobType: "equity",

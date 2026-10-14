@@ -1,13 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { sourceGapReportText } from "../src/domain/source-gaps";
+import type { Source } from "../src/domain/sources";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { validateResearchReport } from "../src/report/schema";
+import { projectExtendedEvidenceReportExtras } from "../src/research/extended-evidence-projections";
 import { deriveCapitalOwnershipArtifact } from "../src/sources/extended-evidence/capital-ownership";
 import { capitalReturnSection } from "../src/sources/extended-evidence/capital-return";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
-import type { MetricContext } from "../src/sources/extended-evidence/metric-engine";
-import { researchReport } from "./support/fixtures";
+import type { MetricContext, MetricInput } from "../src/sources/extended-evidence/metric-engine";
+import { resolveMarketSnapshotPriceAsOf } from "../src/domain/market-data";
+import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
+import { assertMetricSectionInvariants } from "./support/run-fixtures/assertions";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 const QUOTE_SOURCE_ID = "yahoo-quote-test";
@@ -490,5 +495,139 @@ describe("capitalReturnSection", () => {
     ]);
 
     expect(texts.filter((text) => violatesResearchOnly(text) !== null)).toEqual([]);
+  });
+});
+
+function evidenceSource(id: string): Source {
+  return { id, title: id, fetchedAt: AS_OF, kind: "extended-evidence", assetClass: "equity" };
+}
+
+function reportWith(ctx: MetricContext, sourceIds: readonly string[]) {
+  const extras = projectExtendedEvidenceReportExtras({
+    modelExtras: {},
+    collectedSources: collectedSources({ metricSections: [capitalReturnSection(ctx).section] }),
+  });
+  return researchReport({
+    jobType: "equity",
+    symbol: "TEST",
+    sources: sourceIds.map(evidenceSource),
+    extras,
+  });
+}
+
+describe("Capital Return in report.json and report.md", () => {
+  test("every metric and input cites only statements, capital-ownership or quote ids", () => {
+    const base = context(usGaap());
+    const ids = [
+      base,
+      context(usGaap({ PaymentsOfDividends: undefined })),
+      context(usGaap(), { depositorySic: "6022" }),
+      context(usGaap(), { quote: { ...base.quote!, currency: "EUR" } }),
+    ].flatMap((ctx) =>
+      capitalReturnSection(ctx).section.metrics.flatMap((metric) => [
+        ...metric.sourceIds,
+        ...metric.inputs.flatMap((input) => input.sourceIds),
+      ]),
+    );
+    expect(ids).toContain(SOURCE_ID);
+    expect(ids).toContain(QUOTE_SOURCE_ID);
+    expect(ids.filter((id) => id !== SOURCE_ID && id !== QUOTE_SOURCE_ID)).toEqual([]);
+  });
+
+  test("the fixture lineage invariant passes a real section and rejects forged lineage", () => {
+    const snapshot = marketSnapshot({
+      sourceId: QUOTE_SOURCE_ID,
+      symbol: "TEST",
+      marketCap: 10_000,
+      observedAt: AS_OF,
+    });
+    const ctx = context(usGaap(), {
+      quote: {
+        marketCap: 10_000,
+        currency: "USD",
+        asOf: resolveMarketSnapshotPriceAsOf(snapshot).instant,
+        sourceId: QUOTE_SOURCE_ID,
+      },
+    });
+    const { section } = capitalReturnSection(ctx);
+    const run = (metrics: readonly unknown[]) => {
+      const report = researchReport({
+        jobType: "equity",
+        symbol: "TEST",
+        sources: [evidenceSource(SOURCE_ID), evidenceSource(QUOTE_SOURCE_ID)],
+        extras: { metricSections: [{ ...section, metrics }] },
+      });
+      return () =>
+        assertMetricSectionInvariants(
+          {
+            collectedSources: collectedSources({
+              financialStatements: ctx.statements!,
+              capitalOwnership: ctx.capitalOwnership!,
+              marketSnapshots: [snapshot],
+              resolvedInstrumentIdentity: { quoteCurrency: "USD" } as never,
+            }),
+            markdown: renderMarkdownReport(report),
+          },
+          report,
+        );
+    };
+    const forged = (id: string, change: (metric: Record<string, unknown>) => unknown) =>
+      section.metrics.map((metric) =>
+        metric.id === id ? change(metric as unknown as Record<string, unknown>) : metric,
+      );
+    const forgedInput = (patch: Record<string, unknown>) =>
+      forged("buybackYield", (metric) => ({
+        ...metric,
+        inputs: (metric.inputs as readonly MetricInput[]).map((input, index) =>
+          index === 0 ? { ...input, ...patch } : input,
+        ),
+      }));
+
+    expect(section.metrics.every((metric) => metric.status === "value")).toBe(true);
+    expect(run(section.metrics)).not.toThrow();
+    expect(run(forgedInput({ periodStart: "2029-01-01", periodEnd: "2029-12-31" }))).toThrow(
+      "lineage matches its artifact",
+    );
+    expect(run(forgedInput({ currency: "CAD" }))).toThrow("lineage matches its artifact");
+    expect(
+      run(forged("buybackYield", (metric) => ({ ...metric, periodEnd: "2030-12-31" }))),
+    ).toThrow("ends at its anchor FY");
+    expect(run(forged("buybacksLatestFy", ({ value: _value, ...metric }) => metric))).toThrow(
+      "finite number or non-empty text",
+    );
+  });
+
+  test("validates against report sources and rejects an unknown metric source id", () => {
+    const ctx = context(usGaap());
+    expect(() =>
+      validateResearchReport(reportWith(ctx, [SOURCE_ID, QUOTE_SOURCE_ID])),
+    ).not.toThrow();
+    expect(() => validateResearchReport(reportWith(ctx, [SOURCE_ID]))).toThrow(
+      `Metric Sections [0].metrics[6] (capital-return.buybackYield) cites unknown source ID: ${QUOTE_SOURCE_ID}`,
+    );
+  });
+
+  test("renders values with period, basis and citations, and reasons for the rest", () => {
+    const markdown = renderMarkdownReport(
+      reportWith(context(usGaap(), { quote: { ...context(usGaap()).quote!, currency: "EUR" } }), [
+        SOURCE_ID,
+        QUOTE_SOURCE_ID,
+      ]),
+    );
+
+    expect(markdown).toContain(
+      `### Capital Return\n\n- Share repurchases \\(latest FY\\): $90 (FY ending 2025-12-31; cash paid for share repurchases in the latest year-aligned fiscal year) [${SOURCE_ID}]`,
+    );
+    expect(markdown).toContain(
+      "- Buyback yield: not available, reporting currency USD differs from quote currency EUR",
+    );
+    expect(markdown).toContain(`- [${SOURCE_ID}] ${SOURCE_ID}`);
+    // The quote is cited only by the missing yields, which render a reason and no reference.
+    expect(markdown).not.toContain(`- [${QUOTE_SOURCE_ID}]`);
+  });
+
+  test("no Metric Section renders no Capital Return heading", () => {
+    const markdown = renderMarkdownReport(researchReport({ jobType: "equity", symbol: "TEST" }));
+    expect(markdown).not.toContain("Capital Return");
   });
 });

@@ -8,7 +8,11 @@ import {
 } from "../alpha-search/report-extras";
 import { isRecord, stringArrayValue } from "../guards";
 import { readGapTriage, type GapTriage } from "./gap-triage";
-import { businessFrameworkSourceRows, webSubjectProfileSourceRows } from "./report-extras-contract";
+import {
+  businessFrameworkSourceRows,
+  metricSectionsSourceRows,
+  webSubjectProfileSourceRows,
+} from "./report-extras-contract";
 import { compactNumber } from "./equity-reader-trends";
 
 export function sourceRefs(sourceIds: readonly string[]): string {
@@ -109,6 +113,7 @@ function collectReportSourceIds(
   [
     ...businessFrameworkSourceRows(report.extras?.businessFramework),
     ...webSubjectProfileSourceRows(report.extras?.webSubjectProfile),
+    ...metricSectionsSourceRows(report.extras?.metricSections),
   ].forEach((row) => add(row.unrendered === true ? [] : knownSourceIds(report, row.sourceIds)));
   add(knownSourceIds(report, additionalSourceIds));
 

@@ -55,6 +55,7 @@ import {
   instrumentPath,
   isFailedRun,
 } from "../app/client/view-model";
+import { metricSectionsView } from "../app/client/view-model-metric-sections";
 import { parseCalibrationContext } from "../src/research/calibration-context";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
@@ -2101,6 +2102,93 @@ describe("report artifact parsers", () => {
         extras: { businessFramework: { phase: "invalid", sections: [] } },
       }),
     ).toBeUndefined();
+  });
+
+  test("projects Metric Sections: absent stays absent, empty stays empty", () => {
+    expect(metricSectionsView(undefined)).toBeUndefined();
+    expect(metricSectionsView({ extras: {} })).toBeUndefined();
+    expect(metricSectionsView({ extras: { metricSections: [] } })).toEqual([]);
+  });
+
+  test("formats value tiles and keeps a non-value tile's reason without a value", () => {
+    const view = metricSectionsView({
+      extras: {
+        metricSections: [
+          {
+            id: "capital-return",
+            title: "Capital Return",
+            metrics: [
+              {
+                label: "Dividends paid (latest FY)",
+                unit: "currency",
+                currency: "CAD",
+                status: "value",
+                value: 5_875_000_000,
+                periodEnd: "2025-10-31",
+                basis: "cash dividends paid",
+                sourceIds: ["sec"],
+              },
+              {
+                label: "Diluted share count trend (3y)",
+                unit: "text",
+                status: "value",
+                value: "stable",
+                sourceIds: [],
+              },
+              {
+                label: "Dividend yield (filed)",
+                unit: "ratio-percent",
+                status: "missing",
+                value: 0.01,
+                reason: "reporting currency CAD differs from quote currency USD",
+                sourceIds: ["sec", "quote"],
+              },
+              { unit: "ratio", status: "value", value: 1, sourceIds: ["unlabelled"] },
+              { label: "  ", unit: "ratio", status: "value", value: 1, sourceIds: [] },
+              { label: "Unknown unit", unit: "furlongs", status: "value", value: 1, sourceIds: [] },
+              { label: "No value", unit: "ratio", status: "value", sourceIds: [] },
+              { label: "Empty text", unit: "text", status: "value", value: "", sourceIds: [] },
+            ],
+          },
+          { id: "untitled", metrics: [] },
+          { id: "blank", title: " ", metrics: [] },
+        ],
+      },
+    });
+
+    expect(view).toEqual([
+      {
+        title: "Capital Return",
+        metrics: [
+          {
+            label: "Dividends paid (latest FY)",
+            status: "value",
+            value: "CAD 5.9B",
+            periodEnd: "2025-10-31",
+            basis: "cash dividends paid",
+            sourceIds: ["sec"],
+          },
+          {
+            label: "Diluted share count trend (3y)",
+            status: "value",
+            value: "stable",
+            sourceIds: [],
+          },
+          {
+            label: "Dividend yield (filed)",
+            status: "missing",
+            reason: "reporting currency CAD differs from quote currency USD",
+            sourceIds: ["sec", "quote"],
+          },
+          ...["Unknown unit", "No value", "Empty text"].map((label) => ({
+            label,
+            status: "value",
+            reason: "no value",
+            sourceIds: [],
+          })),
+        ],
+      },
+    ]);
   });
 
   test("parses Web Subject Profile from report extras before sidecar fallback", () => {

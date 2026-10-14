@@ -549,6 +549,44 @@ function tableOfContentsFixture(summaryOverrides: Partial<RunSummary> = {}): Run
           sourceIds: ["source-bull"],
           gaps: [],
         },
+        metricSections: [
+          {
+            id: "capital-return",
+            title: "Capital Return",
+            metrics: [
+              {
+                id: "buybackYield",
+                label: "Buyback yield",
+                unit: "ratio-percent",
+                basis: "latest FY share repurchases / current quote market cap",
+                status: "value",
+                value: 0.025,
+                periodEnd: "2025-09-27",
+                inputs: [],
+                sourceIds: ["source-bull"],
+              },
+              {
+                id: "malformedValue",
+                label: "Malformed value sentinel",
+                unit: "furlongs",
+                status: "value",
+                value: 1,
+                inputs: [],
+                sourceIds: [],
+              },
+              {
+                id: "sbcLatestFy",
+                label: "Stock-based compensation (latest FY)",
+                unit: "currency",
+                basis: "stock-based compensation in the latest annual filing",
+                status: "missing",
+                reason: "no year-aligned annual stock-based compensation fact",
+                inputs: [],
+                sourceIds: [],
+              },
+            ],
+          },
+        ],
         webSubjectProfile: {
           subjectKind: "company",
           subjectLabel: "Apple Inc.",
@@ -776,6 +814,7 @@ describe("run workspace view", () => {
       "extendedEvidence",
       "webSubjectProfile",
       "businessFramework",
+      "metricSections",
       "equityCompleteness",
       "history",
       "gaps",
@@ -785,7 +824,7 @@ describe("run workspace view", () => {
       ...Array.from({ length: 9 }, () => false),
       ...Array.from({ length: 4 }, () => true),
       false,
-      ...Array.from({ length: 10 }, () => true),
+      ...Array.from({ length: 11 }, () => true),
       false,
       true,
     ]);
@@ -817,11 +856,12 @@ describe("run workspace view", () => {
       "extendedEvidence",
       "webSubjectProfile",
       "businessFramework",
+      "metricSections",
       "history",
       "gaps",
     ]);
     expect(entries.map((entry) => entry.advancedOnly)).toEqual(
-      Array.from({ length: 16 }, () => false),
+      Array.from({ length: 17 }, () => false),
     );
   });
 
@@ -922,6 +962,7 @@ describe("run workspace view", () => {
         "equity-ledger-header.svelte",
         "web-subject-profile.svelte",
         "business-framework.svelte",
+        "metric-sections.svelte",
         "observable-forecasts.svelte",
       ].map((file) =>
         readFileSync(new URL(`../app/client/components/${file}`, import.meta.url), "utf8"),
@@ -952,6 +993,7 @@ describe("run workspace view", () => {
       history: "Historical context audit",
       webSubjectProfile: "Web Subject Profile",
       businessFramework: "Business framework",
+      metricSections: "Capital Return",
       forecasts: "Observable forecasts",
       rawMarkdown: "Raw markdown",
     };
@@ -969,6 +1011,27 @@ describe("run workspace view", () => {
         ),
       );
     }
+  }, 15_000);
+
+  test("renders Metric Section tiles in Advanced: value with period and basis, reason otherwise", async () => {
+    const html = await renderRunWorkspaceComponent(tableOfContentsFixture(), "advanced");
+    const simple = await renderRunWorkspaceComponent(tableOfContentsFixture(), "simple");
+
+    for (const text of [
+      "Capital Return",
+      "Buyback yield",
+      "2.5%",
+      "FY ending 2025-09-27",
+      "latest FY share repurchases / current quote market cap",
+      "Stock-based compensation (latest FY)",
+      "no year-aligned annual stock-based compensation fact",
+      "Malformed value sentinel",
+      "not available",
+      "no value",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(simple).not.toContain("Buyback yield");
   }, 15_000);
 
   test("projects equity completeness without changing dimension evidence", () => {

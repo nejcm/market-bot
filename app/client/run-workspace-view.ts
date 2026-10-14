@@ -58,6 +58,7 @@ import {
   type RunWorkspaceFinancialLensGroup,
   type RunWorkspaceTextItem,
 } from "./run-workspace-detail";
+import { metricSectionsView, type MetricSectionView } from "./view-model-metric-sections";
 import { equityHeaderView, type RunWorkspaceEquityHeaderView } from "./run-workspace-equity-header";
 import {
   peerImpliedRangeFromProjection,
@@ -156,6 +157,7 @@ interface RunWorkspaceEvidenceView {
   readonly historicalContext?: HistoricalContextAuditView;
   readonly webSubjectProfile?: WebSubjectProfileView;
   readonly businessFramework?: BusinessFrameworkView;
+  readonly metricSections?: readonly MetricSectionView[];
   readonly extendedItems: readonly ExtendedEvidenceItemView[];
 }
 
@@ -193,6 +195,7 @@ export type RunWorkspaceSectionKey =
   | "extendedEvidence"
   | "webSubjectProfile"
   | "businessFramework"
+  | "metricSections"
   | "history"
   | "gaps"
   | "equityOverview"
@@ -374,6 +377,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const historicalContext = historicalContextAuditView(detail.trace);
   const webSubjectProfile = webSubjectProfileView(report, detail.webSubjectProfile);
   const businessFramework = businessFrameworkView(report, detail.businessFramework);
+  const metricSections = metricSectionsView(report);
   const marketSnapshot = matchingMarketSnapshot(detail);
   const extendedItems = extendedEvidenceItems(report).map((item) => ({
     ...item,
@@ -541,6 +545,12 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: false,
           },
           {
+            key: "metricSections",
+            label: "Metric sections",
+            visible: metricSections !== undefined,
+            advancedOnly: false,
+          },
+          {
             key: "history",
             label: "Historical context",
             visible: historicalContext !== undefined,
@@ -669,6 +679,12 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             advancedOnly: true,
           },
           {
+            key: "metricSections",
+            label: "Metric sections",
+            visible: metricSections !== undefined,
+            advancedOnly: true,
+          },
+          {
             key: "equityCompleteness",
             label: "Completeness diagnostics",
             visible: equityPresentation.advanced.completeness !== undefined,
@@ -728,6 +744,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
       ...(historicalContext !== undefined ? { historicalContext } : {}),
       ...(webSubjectProfile !== undefined ? { webSubjectProfile } : {}),
       ...(businessFramework !== undefined ? { businessFramework } : {}),
+      ...(metricSections !== undefined ? { metricSections } : {}),
       extendedItems,
     },
     gaps: { ...splitGaps, triagedGaps, visible: gapsVisible },

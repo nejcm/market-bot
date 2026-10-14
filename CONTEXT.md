@@ -470,7 +470,7 @@ Deterministic SEC/Yahoo framework for Business, Phase, Moat, Growth, Management,
 
 ## Metric Section
 
-Deterministic, ordered list of metrics evaluated once at collection from raw statement, capital-ownership and quote inputs; the first is Capital Return. Each metric has a status (`value`, `missing`, `not-meaningful`, `not-applicable`), its input lineage and source IDs; every non-value metric is listed in one section Source Gap (material when any is `missing`). Projected to `report.extras.metricSections` (rendered in report.md's appendix) and persisted in the deep bundle's `derived.metricSections`; not in model prompts.
+Deterministic, ordered list of metrics evaluated once at collection from raw statement, capital-ownership and quote inputs; the first is Capital Return. Each metric has a status (`value`, `missing`, `not-meaningful`, `not-applicable`), its input lineage and source IDs; every non-value metric is listed in one section Source Gap (material when any is `missing`). Projected to `report.extras.metricSections` (rendered in report.md's appendix and the Research Console's Advanced view) and persisted in the deep bundle's `derived.metricSections`; not in model prompts.
 
 ## Evidence Reconciliation
 

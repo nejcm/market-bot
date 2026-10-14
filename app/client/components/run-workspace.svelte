@@ -11,6 +11,7 @@
   import ObservableForecasts from "./observable-forecasts.svelte";
   import WebSubjectProfile from "./web-subject-profile.svelte";
   import BusinessFramework from "./business-framework.svelte";
+  import MetricSections from "./metric-sections.svelte";
   import CaseCards from "./case-cards.svelte";
   import CoverageGapsAdvanced from "./coverage-gaps-advanced.svelte";
   import CoverageGapsSimple from "./coverage-gaps-simple.svelte";
@@ -121,6 +122,7 @@
   const splitGaps = $derived(workspace?.gaps ?? { shortfalls: [], otherGaps: [], triagedGaps: [] });
   const extendedEvidence = $derived(workspace?.evidence.extendedItems ?? []);
   const businessFramework = $derived(workspace?.evidence.businessFramework);
+  const metricSections = $derived(workspace?.evidence.metricSections);
   const webSubjectProfile = $derived(workspace?.evidence.webSubjectProfile);
   const financialLensGroups = $derived(workspace?.report.financialLensGroups ?? []);
   const fundamentalHistory = $derived(workspace?.fundamentalHistory);
@@ -826,6 +828,10 @@
 
           {#if businessFramework !== undefined}
             <BusinessFramework framework={businessFramework} {citeChips} {bindSection} />
+          {/if}
+
+          {#if metricSections !== undefined}
+            <MetricSections sections={metricSections} {citeChips} {bindSection} />
           {/if}
 
           {#if appendixCompleteness !== undefined}

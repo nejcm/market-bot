@@ -83,3 +83,17 @@ export function formatLensValue(value: number, unit: LensValueUnit, currency?: s
   }
   return clampRoundedZero(value, 2).toFixed(2);
 }
+
+// One Metric Section display for report.md and the Console; undefined means nothing to show.
+export function formatMetricValue(
+  value: number | string | undefined,
+  unit: LensValueUnit | undefined,
+  currency?: string,
+): string | undefined {
+  if (typeof value === "string") {
+    return value === "" ? undefined : value;
+  }
+  return value === undefined || !Number.isFinite(value) || unit === undefined
+    ? undefined
+    : formatLensValue(value, unit, currency);
+}

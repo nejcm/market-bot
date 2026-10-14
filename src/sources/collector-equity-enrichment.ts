@@ -4,6 +4,7 @@ import { isMarketUpdateJobType } from "../domain/job-type";
 import {
   type MarketSnapshot,
   type OhlcvBar,
+  resolveMarketSnapshotPriceAsOf,
   type VerifiedMarketSnapshot,
 } from "../domain/market-data";
 import { type Source, type SourceGap } from "../domain/sources";
@@ -46,6 +47,8 @@ import {
 } from "./extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
+import { capitalReturnSection } from "./extended-evidence/capital-return";
+import type { MetricSection } from "./extended-evidence/metric-engine";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import {
@@ -173,6 +176,8 @@ interface EquityEnrichmentResult {
   readonly subsequentFinancing: SubsequentFinancingBridgeArtifact | undefined;
   readonly capitalOwnership: CapitalOwnershipArtifact | undefined;
   readonly businessFrameworkResult: BusinessFrameworkResult;
+  readonly metricSections: readonly MetricSection[] | undefined;
+  readonly metricSectionGaps: readonly SourceGap[];
   readonly earningsSetup: EarningsSetupCollected | undefined;
   readonly earningsExtraSources: readonly Source[];
   readonly earningsSourceGaps: readonly SourceGap[];
@@ -307,8 +312,10 @@ export async function collectEquityEnrichment(
   // Peer comps screen and rank on EV/revenue alone, so for a depository issuer there is nothing
   // Left to compare on; the workbench states the inapplicability rather than fetching peers whose
   // Only published multiple could not be used.
-  const depositoryIssuer =
-    depositoryIssuerSic(valuationResult.extendedEvidence ?? input.extendedEvidence) !== undefined;
+  const depositorySic = depositoryIssuerSic(
+    valuationResult.extendedEvidence ?? input.extendedEvidence,
+  );
+  const depositoryIssuer = depositorySic !== undefined;
   const valuationCompsResult =
     input.command.depth === "deep" &&
     !depositoryIssuer &&
@@ -374,6 +381,20 @@ export async function collectEquityEnrichment(
     input.verifiedMarketSnapshot,
     input.fetchedAt,
   );
+  const capitalReturn =
+    financialStatements === undefined
+      ? undefined
+      : capitalReturnSection({
+          symbol: input.command.symbol,
+          statements: financialStatements,
+          ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
+          ...quoteContext(
+            input.command,
+            input.marketSnapshots,
+            identityResult?.identity?.quoteCurrency,
+          ),
+          ...(depositorySic !== undefined ? { depositorySic } : {}),
+        });
   const valuationWorkbenchResult = await collectValuationWorkbench({
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
@@ -427,8 +448,34 @@ export async function collectEquityEnrichment(
     capitalOwnership,
     financialLensResult,
     businessFrameworkResult,
+    metricSections: capitalReturn === undefined ? undefined : [capitalReturn.section],
+    metricSectionGaps: capitalReturn?.sourceGaps ?? [],
     ...earningsResult,
     packetFailureGaps: [],
+  };
+}
+
+function quoteContext(
+  command: InstrumentCommand,
+  marketSnapshots: readonly MarketSnapshot[],
+  identityQuoteCurrency: string | undefined,
+) {
+  const symbol = command.symbol.toUpperCase();
+  const snapshot = marketSnapshots.find(
+    (candidate) =>
+      candidate.assetClass === command.assetClass && candidate.symbol.toUpperCase() === symbol,
+  );
+  if (snapshot?.marketCap === undefined) {
+    return {};
+  }
+  const currency = identityQuoteCurrency ?? snapshot.identity?.quoteCurrency;
+  return {
+    quote: {
+      marketCap: snapshot.marketCap,
+      ...(currency !== undefined ? { currency } : {}),
+      asOf: resolveMarketSnapshotPriceAsOf(snapshot).instant,
+      sourceId: snapshot.sourceId,
+    },
   };
 }
 
@@ -456,6 +503,8 @@ function noEquityEnrichment(
     capitalOwnership: undefined,
     financialLensResult,
     businessFrameworkResult,
+    metricSections: undefined,
+    metricSectionGaps: [],
     earningsSetup: undefined,
     earningsExtraSources: [],
     earningsSourceGaps: [],

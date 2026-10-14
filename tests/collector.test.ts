@@ -6,6 +6,7 @@ import { legacyMarketOverviewCommand } from "./support/commands";
 import type { ModelProvider } from "../src/model/types";
 import { rankMovers } from "../src/movers/ranking";
 import { renderMarkdownReport } from "../src/report/markdown";
+import { deterministicSourceGaps } from "../src/research/deterministic-gaps";
 import { summarizeMarketRegime } from "../src/research/regime";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { collectSources, researchNewsRelevanceTargets } from "../src/sources/collector";
@@ -664,6 +665,61 @@ describe("collectSources", () => {
     ).toHaveLength(1);
   });
 
+  test("carries the Capital Return Metric Section and its gap into deterministic source gaps", async () => {
+    const command = {
+      jobType: "equity",
+      assetClass: "equity",
+      symbol: "AAPL",
+      depth: "brief",
+    } as const;
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/v7/finance/quote")) {
+        return jsonResponse({
+          quoteResponse: { result: [collectorQuote("AAPL", 1_000_000_000)] },
+        });
+      }
+      if (url.includes("company_tickers.json")) {
+        return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+      }
+      if (url.includes("companyfacts")) {
+        return jsonResponse(collectorSecPayload());
+      }
+      if (url.includes("submissions")) {
+        return jsonResponse({ filings: { recent: { form: [], filingDate: [] } } });
+      }
+      return jsonResponse(url.includes("/v8/finance/chart") ? { chart: { result: [] } } : {});
+    };
+
+    const result = await collectSources(
+      command,
+      {
+        equityMoverLimit: 2,
+        cryptoMoverLimit: 2,
+        newsLimit: 2,
+        sourceTimeoutMs: 1000,
+        cacheDir: tempCacheDir(),
+      },
+      { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
+    );
+
+    expect(result.metricSections?.map((section) => section.id)).toEqual(["capital-return"]);
+    expect(
+      result.metricSections?.[0]?.metrics.find((m) => m.id === "buybacksLatestFy"),
+    ).toMatchObject({
+      status: "missing",
+      reason: "no year-aligned annual share repurchases fact",
+    });
+    expect(result.sourceGaps.filter((gap) => gap.source === "capital-return")).toMatchObject([
+      { triage: "material", evidenceQualityImpact: "no-cap", provider: "market-bot" },
+    ]);
+    expect(
+      deterministicSourceGaps(command, result).filter((gap) =>
+        gap.startsWith("capital-return: Capital Return metrics for AAPL not computed: "),
+      ),
+    ).toHaveLength(1);
+  });
+
   test("derives the no-packet legacy fallback from a single company facts fetch", async () => {
     const fundamentalHistoryModule =
       await import("../src/sources/extended-evidence/fundamental-history");
@@ -704,6 +760,8 @@ describe("collectSources", () => {
     );
 
     expect(result.financialStatements).toBeUndefined();
+    expect(result.metricSections).toBeUndefined();
+    expect(result.sourceGaps.some((gap) => gap.source === "capital-return")).toBe(false);
     expect(result.fundamentalHistory).toBeUndefined();
     expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(2);

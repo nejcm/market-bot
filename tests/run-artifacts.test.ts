@@ -378,6 +378,21 @@ describe("loadRunArtifact", () => {
     expect(readDeepEquityEvidenceBundle(candidate)).toBeUndefined();
   });
 
+  test("accepts derived Metric Sections in a deep-equity bundle and rejects a non-array", () => {
+    const base = deepEquityEvidenceBundle();
+    const withSections = (metricSections: unknown) => ({
+      ...base,
+      derived: { ...base.derived, metricSections },
+    });
+
+    expect(
+      readDeepEquityEvidenceBundle(
+        withSections([{ id: "capital-return", title: "Capital Return", metrics: [] }]),
+      ),
+    ).toBeDefined();
+    expect(readDeepEquityEvidenceBundle(withSections({ id: "capital-return" }))).toBeUndefined();
+  });
+
   test("round-trips canonical statements and equity completeness", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "canonical-financials");

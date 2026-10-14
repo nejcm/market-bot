@@ -78,6 +78,9 @@ export function buildDeepEquityEvidenceBundle(input: {
       ...(collectedSources.businessFramework !== undefined
         ? { businessFramework: collectedSources.businessFramework }
         : {}),
+      ...(collectedSources.metricSections !== undefined
+        ? { metricSections: collectedSources.metricSections }
+        : {}),
     },
     governance: {
       sourceGaps: collectedSources.sourceGaps,

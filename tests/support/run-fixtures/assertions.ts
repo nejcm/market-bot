@@ -63,6 +63,15 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
+  const derived = result.deepEquityEvidenceBundle?.derived;
+  if (derived?.financialStatements !== undefined) {
+    const capitalReturn = derived.metricSections?.find(({ id }) => id === "capital-return");
+    expect(capitalReturn, "statements imply a Capital Return Metric Section").toBeDefined();
+    expect(
+      report.dataGaps.some((gap) => gap.startsWith("capital-return: ")),
+      "an unresolved Capital Return metric must surface its section gap",
+    ).toBe(capitalReturn?.metrics.some(({ status }) => status !== "value") ?? false);
+  }
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
@@ -235,6 +244,14 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     valuationSection?.metrics.find((metric) => metric.key === "evToAnnualizedRevenue"),
     "Valuation framework must omit EV/revenue",
   ).toBeUndefined();
+
+  const capitalReturn = bundle?.derived.metricSections?.find(({ id }) => id === "capital-return");
+  for (const id of ["fcfPayoutRatio", "totalPayoutToFcf"]) {
+    expect(
+      capitalReturn?.metrics.find((metric) => metric.id === id)?.status,
+      `depository ${id} must be not-applicable`,
+    ).toBe("not-applicable");
+  }
 
   const workbench = bundle?.derived.valuationWorkbench;
   expect(workbench, "depository fixture must carry a valuation workbench").toBeDefined();

@@ -590,6 +590,9 @@ export async function collectSources(
     ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
       ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
+    ...(enrichmentResult.metricSections !== undefined
+      ? { metricSections: enrichmentResult.metricSections }
+      : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
       ...newsResult.sourceGaps,
@@ -602,6 +605,7 @@ export async function collectSources(
       ...enrichmentResult.businessFrameworkResult.sourceGaps,
       ...enrichmentResult.packetFailureGaps,
       ...enrichmentResult.financialStatementGaps,
+      ...enrichmentResult.metricSectionGaps,
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

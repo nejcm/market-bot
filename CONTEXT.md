@@ -468,6 +468,10 @@ Neutral SEC/Yahoo metric groups for Quality, Growth, Financial Strength, Value, 
 
 Deterministic SEC/Yahoo framework for Business, Phase, Moat, Growth, Management, Risk, and Valuation, persisted in `normalized/business-framework.json`. It has neutral section postures and lifecycle labels; on deep web-enabled equity runs, Evidence Reconciliation may clear qualitative gaps but never numeric postures or phase.
 
+## Metric Section
+
+Deterministic, ordered list of metrics evaluated once at collection from raw statement, capital-ownership and quote inputs; the first is Capital Return. Each metric has a status (`value`, `missing`, `not-meaningful`, `not-applicable`), its input lineage and source IDs; every non-value metric is listed in one section Source Gap (material when any is `missing`). Persisted in the deep bundle's `derived.metricSections`; not yet in `report.json` or model prompts.
+
 ## Evidence Reconciliation
 
 No-model post-profile pass for `equity --deep` that removes a Business Framework qualitative gap only when the corresponding structured, cited web profile answer exists. It records the resolution and never adds prose, changes postures/phase, or clears unrelated gaps.

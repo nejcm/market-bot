@@ -55,10 +55,10 @@
       No runs recorded for this instrument.
     </div>
   {:else}
-    <div class="overflow-x-auto">
-      <div class="min-w-170">
+    <div class="sm:overflow-x-auto">
+      <div class="sm:min-w-170">
         <div
-          class="grid grid-cols-[minmax(150px,1fr)_58px_80px_50px_50px_50px_50px_64px] gap-3 border-y border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
+          class="hidden sm:grid grid-cols-[minmax(150px,1fr)_58px_80px_50px_50px_50px_50px_64px] gap-3 border-y border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
         >
           <div>DATE</div>
           <div>DEPTH</div>
@@ -72,7 +72,7 @@
         {#each historyRuns as run (run.runId)}
           {@const current = run.runId === currentRunId}
           <button
-            class="grid w-full grid-cols-[minmax(150px,1fr)_58px_80px_50px_50px_50px_50px_64px] items-center gap-3 border-b border-[#f0ede7] px-4.5 py-2.25 text-left transition last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {current
+            class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(150px,1fr)_58px_80px_50px_50px_50px_50px_64px] border-b border-[#f0ede7] px-4.5 py-2.25 text-left transition last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {current
               ? 'bg-accent'
               : 'bg-transparent'}"
             type="button"
@@ -87,6 +87,25 @@
             >
               {formatDateMinute(run.generatedAt)}
             </span>
+            <span class="flex items-center gap-1 sm:hidden">
+              {#if run.depth !== undefined}
+                <span
+                  class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
+                  >{run.depth}</span
+                >
+              {/if}
+              {#if run.hasScore}
+                <span
+                  class="rounded border border-[#9fc2c8] bg-[#e7f1f3] px-1.75 py-0.5 font-mono text-[10px] text-[#166e7d]"
+                  >scored</span
+                >
+              {/if}
+            </span>
+            <span class="col-span-2 font-mono text-[10.5px] text-[#8a8f96] sm:hidden">
+              {run.confidence ?? "—"} · {run.findingCount} fnd · {run.predictionCount} fct · {run.sourceCount} src
+              · {run.dataGapCount} gap
+            </span>
+            <span class="hidden sm:contents">
             <span>
               {#if run.depth !== undefined}
                 <span
@@ -113,6 +132,7 @@
                   scored
                 </span>
               {/if}
+            </span>
             </span>
           </button>
         {/each}

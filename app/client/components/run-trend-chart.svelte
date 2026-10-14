@@ -7,7 +7,10 @@
 
   let { points }: Props = $props();
 
+  let chartWidth = $state(0);
+
   const maxRuns = $derived(Math.max(1, ...points.map((point) => point.runs)));
+  const labelStep = $derived(Math.max(1, Math.ceil((points.length * 44) / Math.max(1, chartWidth))));
 </script>
 
 {#if points.length === 0}
@@ -15,7 +18,7 @@
     No dated runs yet.
   </div>
 {:else}
-  <div class="mt-3 flex h-[220px] flex-col" role="img" aria-label="Runs per day">
+  <div class="mt-3 flex h-[220px] flex-col" role="img" aria-label="Runs per day" bind:clientWidth={chartWidth}>
     <div
       class="relative flex min-h-0 flex-1 items-end gap-1.5 border-b border-border pt-6 sm:gap-2"
     >
@@ -43,9 +46,9 @@
       {/each}
     </div>
     <div class="flex gap-1.5 pt-2 sm:gap-2">
-      {#each points as point}
-        <span class="min-w-0 flex-1 truncate text-center font-mono text-[10px] text-muted-foreground"
-          >{point.date.slice(5)}</span
+      {#each points as point, index}
+        <span class="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center font-mono text-[10px] text-muted-foreground"
+          >{(points.length - 1 - index) % labelStep === 0 ? point.date.slice(5) : ""}</span
         >
       {/each}
     </div>

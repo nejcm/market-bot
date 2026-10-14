@@ -23,13 +23,12 @@
   const PADDING_RIGHT = 18;
   const PADDING_TOP = 18;
   const PADDING_BOTTOM = 30;
-  const MAX_DATE_TICKS = 8;
   const plotWidth = $derived(WIDTH - PADDING_LEFT - PADDING_RIGHT);
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = HEIGHT - PADDING_BOTTOM;
 
   function dateTickStep(length: number): number {
-    return Math.max(1, Math.ceil(length / MAX_DATE_TICKS));
+    return Math.max(1, Math.ceil(length / Math.max(2, Math.floor(plotWidth / 72))));
   }
 
   const points = $derived.by(() => {
@@ -59,7 +58,7 @@
     points.length === 0 ? 0 : Math.max(...points.map((point) => point.close)),
   );
   const dateTicks = $derived(
-    points.filter((_, index) => index % dateTickStep(points.length) === 0 || index === points.length - 1),
+    points.filter((_, index) => (points.length - 1 - index) % dateTickStep(points.length) === 0),
   );
 
   const OUTCOME_CLASS: Record<string, string> = {
@@ -152,7 +151,7 @@
     {/if}
 
     <section class="mt-5 rounded-lg border border-border bg-card px-4.5 py-4">
-      <div class="flex items-baseline justify-between">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <h2 class="text-sm font-semibold">Verified closes</h2>
         <span class="font-mono text-[10.5px] text-muted-foreground">{detail.source} timeline</span>
       </div>
@@ -216,7 +215,7 @@
     />
 
     <section class="mt-5 rounded-lg border border-border bg-card px-4.5 py-4">
-      <div class="flex items-baseline justify-between">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <h2 class="text-sm font-semibold">Forecasts</h2>
         <span class="font-mono text-[10.5px] text-muted-foreground">
           {formatDate(detail.generatedAt)}

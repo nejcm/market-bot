@@ -58,7 +58,7 @@
 </script>
 
 <div data-screen-label="Dashboard">
-  <div class="flex items-baseline justify-between">
+  <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
     <h1 class="text-xl font-semibold tracking-tight">Dashboard</h1>
     <span class="font-mono text-[11px] text-muted-foreground">{subtitle}</span>
   </div>
@@ -76,7 +76,7 @@
   </div>
 
   <div class="mt-3.5 rounded-lg border border-border bg-card px-4.5 py-4">
-    <div class="flex items-baseline justify-between">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
       <span class="text-xs font-semibold">Runs per day</span>
       <span class="font-mono text-[10.5px] text-muted-foreground">recent dated runs</span>
     </div>
@@ -84,7 +84,7 @@
   </div>
 
   {#if compareCards.length > 0}
-    <div class="mt-7 flex items-baseline justify-between">
+    <div class="mt-7 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
       <h2 class="text-sm font-semibold">Run card compare</h2>
       <span class="text-xs text-muted-foreground">analytics.json</span>
     </div>
@@ -138,7 +138,7 @@
     </div>
   {/if}
 
-  <div class="mt-7 flex items-baseline justify-between">
+  <div class="mt-7 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
     <h2 class="text-sm font-semibold">Recent runs</h2>
     <span class="text-xs text-muted-foreground">click a card or use j / k</span>
   </div>

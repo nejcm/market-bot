@@ -17,14 +17,14 @@
     isFailedRun,
     runCountsLabel,
     runLabel,
+    type InstrumentRunHistoryRow,
     type SidebarView,
   } from "../view-model";
   import type { View } from "./console-types";
-  import type { RunSummary } from "../../types";
   import logoUrl from "../../../assets/logo.png";
 
   interface Props {
-    readonly runs: readonly RunSummary[];
+    readonly rows: readonly InstrumentRunHistoryRow[];
     readonly runTypes: readonly string[];
     readonly selectedRunId: string;
     readonly loadingRuns: boolean;
@@ -32,9 +32,11 @@
     readonly activeJobCount: number;
     readonly queryText: string;
     readonly typeFilter: string;
+    readonly expandedGroups: readonly string[];
     readonly onQueryChange: (value: string) => void;
     readonly onTypeFilterChange: (value: string) => void;
     readonly onSelectRun: (runId: string) => void;
+    readonly onToggleGroup: (groupKey: string) => void;
     readonly onNavigate: (view: SidebarView) => void;
     mobileOpen?: boolean | undefined;
   }
@@ -52,7 +54,7 @@
   };
 
   let {
-    runs,
+    rows,
     runTypes,
     selectedRunId,
     loadingRuns,
@@ -60,9 +62,11 @@
     activeJobCount,
     queryText,
     typeFilter,
+    expandedGroups,
     onQueryChange,
     onTypeFilterChange,
     onSelectRun,
+    onToggleGroup,
     onNavigate,
     mobileOpen = $bindable(false),
   }: Props = $props();
@@ -158,7 +162,7 @@
     <div class="mx-4.5 mb-3 mt-3.5 h-px shrink-0 bg-sidebar-border"></div>
 
     <div class="px-4.5 pb-2">
-      <div class="flex items-baseline justify-between">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <span class="font-mono text-[10px] tracking-widest text-[#6e757d]"
           >RUNS</span
         >
@@ -193,43 +197,106 @@
             <Skeleton class="h-12 rounded-md bg-sidebar-accent" />
           {/each}
         </div>
-      {:else if runs.length === 0}
+      {:else if rows.length === 0}
         <p class="px-3 py-5 text-center text-xs leading-relaxed text-[#6e757d]">
           No runs match.<br />Clear the filter or queue a job.
         </p>
       {:else}
-        {#each runs as run}
-          <button
-            class="mb-0.5 block w-full rounded-md px-2.5 py-2 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {view ===
-              'run' && run.runId === selectedRunId
-              ? 'bg-[#262c31]'
-              : 'bg-transparent'}"
-            type="button"
-            onclick={() => selectAndClose(run.runId)}
-          >
-            <span class="flex items-baseline justify-between gap-2">
-              <span
-                class="truncate text-xs font-medium {view === 'run' &&
-                run.runId === selectedRunId
-                  ? 'text-white'
-                  : 'text-[#d6dadd]'}"
-              >
-                {runLabel(run)}
-              </span>
-              {#if isFailedRun(run)}
+        {#each rows as row}
+          {@const isSelected = view === "run" && row.run.runId === selectedRunId}
+          {#if row.kind === "past"}
+            <button
+              class="mb-0.5 ml-2.5 block w-[calc(100%-0.625rem)] rounded-r-md border-l border-sidebar-border py-1.25 pl-3.5 pr-2.5 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {isSelected
+                ? 'bg-[#262c31]'
+                : 'bg-transparent'}"
+              type="button"
+              onclick={() => selectAndClose(row.run.runId)}
+            >
+              <span class="flex items-baseline justify-between gap-2">
                 <span
-                  class="shrink-0 rounded border border-red-900/60 bg-red-950/40 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-red-300"
-                >failed</span>
-              {:else}
-                <span class="shrink-0 font-mono text-[10px] text-[#6e757d]">
-                  {formatDateMinute(run.generatedAt)}
+                  class="shrink-0 font-mono text-[10.5px] {isSelected
+                    ? 'text-white'
+                    : 'text-[#9aa1a8]'}"
+                >
+                  {formatDateMinute(row.run.generatedAt)}
                 </span>
+                <span
+                  class="flex min-w-0 items-center gap-1.5 font-mono text-[10px] {isSelected
+                    ? 'text-[#c7cdd4]'
+                    : 'text-[#7f868e]'}"
+                >
+                  {#if row.run.depth !== undefined}
+                    <span
+                      class="rounded border border-sidebar-border px-1 py-px text-[9px] uppercase tracking-wide"
+                    >
+                      {row.run.depth}
+                    </span>
+                  {/if}
+                  <span class="truncate">{runCountsLabel(row.run)}</span>
+                </span>
+              </span>
+            </button>
+          {:else}
+            {@const group = row.group}
+            <div class="mb-0.5 flex items-stretch gap-1">
+              <button
+                class="min-w-0 flex-1 rounded-md px-2.5 py-2 text-left transition hover:bg-[#262c31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {isSelected
+                  ? 'bg-[#262c31]'
+                  : 'bg-transparent'}"
+                type="button"
+                onclick={() => selectAndClose(row.run.runId)}
+              >
+                <span class="flex items-baseline justify-between gap-2">
+                  <span
+                    class="truncate text-xs font-medium {isSelected
+                      ? 'text-white'
+                      : 'text-[#d6dadd]'}"
+                  >
+                    {runLabel(row.run)}
+                  </span>
+                  {#if isFailedRun(row.run)}
+                    <span
+                      class="shrink-0 rounded border border-red-900/60 bg-red-950/40 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-red-300"
+                    >failed</span>
+                  {:else}
+                    <span class="shrink-0 font-mono text-[10px] text-[#6e757d]">
+                      {formatDateMinute(row.run.generatedAt)}
+                    </span>
+                  {/if}
+                </span>
+                <span
+                  class="mt-1 flex items-baseline justify-between gap-2 font-mono text-[10px] text-[#7f868e]"
+                >
+                  <span class="truncate">{runCountsLabel(row.run)}</span>
+                  {#if row.run.depth !== undefined}
+                    <span
+                      class="shrink-0 rounded border border-sidebar-border px-1 py-px text-[9px] uppercase tracking-wide text-[#9aa1a8]"
+                    >
+                      {row.run.depth}
+                    </span>
+                  {/if}
+                </span>
+              </button>
+              {#if group !== undefined && group.pastRuns.length > 0}
+                <button
+                  class="flex shrink-0 min-w-10 text-center justify-center items-center gap-1 rounded-md px-1 font-mono text-[10px] text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                  type="button"
+                  aria-expanded={row.expanded === true}
+                  aria-label="{row.expanded === true ? 'Collapse' : 'Expand'} {String(
+                    group.pastRuns.length,
+                  )} past {group.pastRuns.length === 1 ? "run" : "runs"} for {runLabel(row.run)}"
+                  onclick={() => onToggleGroup(group.key)}
+                >
+                  <span
+                    class="inline-block transition-transform {row.expanded === true
+                      ? 'rotate-90'
+                      : ''}"
+                  >❭</span>
+                  {group.pastRuns.length}
+                </button>
               {/if}
-            </span>
-            <span class="mt-1 block font-mono text-[10px] text-[#7f868e]">
-              {runCountsLabel(run)}
-            </span>
-          </button>
+            </div>
+          {/if}
         {/each}
       {/if}
     </div>
@@ -261,7 +328,7 @@
     </SheetTrigger>
     <SheetContent
       side="left"
-      class="w-81.5 border-sidebar-border bg-sidebar p-0"
+      class="w-81.5 border-sidebar-border bg-sidebar p-0 [&>[data-slot=sheet-close]]:text-[#9aa1a8] [&>[data-slot=sheet-close]:hover]:bg-[#262c31] [&>[data-slot=sheet-close]:hover]:text-white"
     >
       {@render content()}
     </SheetContent>

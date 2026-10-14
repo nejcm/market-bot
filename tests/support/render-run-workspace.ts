@@ -3,10 +3,10 @@ import { resolve } from "node:path";
 import type { Component } from "svelte";
 import { compile } from "svelte/compiler";
 import { render } from "svelte/server";
-import type { RunDetail } from "../../app/types";
+import type { RunDetail, RunSummary } from "../../app/types";
 import type { ReportDetail } from "../../app/client/app-settings";
 
-type Tab = "report" | "sources" | "data" | "files" | "chat";
+type Tab = "report" | "runs" | "sources" | "data" | "files" | "chat";
 
 interface RunWorkspaceComponentProps {
   readonly activeTab: Tab;
@@ -14,12 +14,14 @@ interface RunWorkspaceComponentProps {
   readonly showSources: boolean;
   readonly detail: RunDetail;
   readonly loadingDetail: false;
+  readonly runs: readonly RunSummary[];
   readonly selectedFile: string;
   readonly fileContent: string;
   readonly highlightSourceId: string;
   readonly onTabChange: () => void;
   readonly onLoadFile: () => void;
   readonly onGoHome: () => void;
+  readonly onOpenRun: () => void;
   readonly onHighlightSource: () => void;
   readonly onOpenInstrument: () => void;
 }
@@ -53,9 +55,10 @@ Bun.plugin({
 
 const detail = JSON.parse(await Bun.stdin.text()) as RunDetail;
 const reportDetail: ReportDetail = Bun.argv[2] === "advanced" ? "advanced" : "simple";
-const TABS: readonly Tab[] = ["report", "sources", "data", "files", "chat"];
+const TABS: readonly Tab[] = ["report", "runs", "sources", "data", "files", "chat"];
 const activeTab: Tab = TABS.find((tab) => tab === Bun.argv[3]) ?? "report";
 const showSources = Bun.argv[4] === "sources";
+const runs = Bun.argv[5] === undefined ? [] : (JSON.parse(Bun.argv[5]) as readonly RunSummary[]);
 const componentModule =
   (await import("../../app/client/components/run-workspace.svelte")) as unknown as {
     readonly default: Component<RunWorkspaceComponentProps>;
@@ -67,12 +70,14 @@ const result = render(componentModule.default, {
     showSources,
     detail,
     loadingDetail: false,
+    runs,
     selectedFile: "",
     fileContent: "",
     highlightSourceId: "",
     onTabChange: () => {},
     onLoadFile: () => {},
     onGoHome: () => {},
+    onOpenRun: () => {},
     onHighlightSource: () => {},
     onOpenInstrument: () => {},
   },

@@ -11,7 +11,7 @@ const VIEWS = [
 
 export type View = (typeof VIEWS)[number];
 
-export const TABS = ["report", "sources", "data", "files", "chat"] as const;
+export const TABS = ["report", "runs", "sources", "data", "files", "chat"] as const;
 
 export type Tab = (typeof TABS)[number];
 

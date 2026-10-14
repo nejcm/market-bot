@@ -7,7 +7,7 @@
 
   let { bins }: Props = $props();
 
-  const WIDTH = 720;
+  let WIDTH = $state(720);
   const HEIGHT = 260;
   const PADDING_LEFT = 46;
   const PADDING_RIGHT = 18;
@@ -15,7 +15,7 @@
   const PADDING_BOTTOM = 34;
   const BAR_INSET = 4;
 
-  const plotWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
+  const plotWidth = $derived(WIDTH - PADDING_LEFT - PADDING_RIGHT);
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = HEIGHT - PADDING_BOTTOM;
 
@@ -50,8 +50,9 @@
     No reliability bins yet.
   </div>
 {:else}
+  <div class="mt-3" bind:clientWidth={WIDTH}>
   <svg
-    class="mt-3 h-[260px] w-full"
+    class="block h-[260px] w-full"
     viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
     role="img"
     aria-label="Reliability: stated probability vs observed hit rate"
@@ -144,4 +145,5 @@
       observed hit rate
     </text>
   </svg>
+  </div>
 {/if}

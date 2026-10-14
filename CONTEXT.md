@@ -271,6 +271,10 @@ Score evidence that prevents a retained-unverified Verified Market Snapshot sess
 
 Console view for one `assetClass + symbol`, joining Research Theses, Predictions, scores, Miss Autopsies, and available verified closes for traceability.
 
+## Instrument Run History
+
+Every Run Artifact for one Instrument, newest first; the newest leads and earlier runs follow. Runs without an Instrument stand alone.
+
 ## Historical Context Gap
 
 Disclosed absence, parse failure, or mismatch in prior artifacts; not a live-provider Source Gap.

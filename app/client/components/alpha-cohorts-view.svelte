@@ -64,9 +64,9 @@
       {formatDateMinute(headline.generatedAt)}
     </div>
 
-    <div class="mt-3.5 overflow-hidden rounded-lg border border-border bg-card">
+    <div class="mt-3.5 overflow-x-auto rounded-lg border border-border bg-card">
       <div
-        class="grid grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] gap-5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+        class="grid min-w-150 grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] gap-5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
       >
         <div>Reason</div>
         <div class="text-right">Rejected</div>
@@ -81,7 +81,7 @@
       {:else}
         {#each rejectionRows as row}
           <div
-            class="grid grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] items-center gap-5 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
+            class="grid min-w-150 grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] items-center gap-5 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
           >
             <div class="truncate text-[12.5px] font-medium">{row.reason}</div>
             <div class="text-right font-mono text-[11.5px] text-[#5c6066]">
@@ -99,9 +99,9 @@
       {/if}
     </div>
 
-    <div class="mt-3.5 overflow-hidden rounded-lg border border-border bg-card">
+    <div class="mt-3.5 overflow-x-auto rounded-lg border border-border bg-card">
       <div
-        class="grid grid-cols-[120px_120px_minmax(0,1fr)] gap-5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+        class="grid min-w-110 grid-cols-[120px_120px_minmax(0,1fr)] gap-5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
       >
         <div>Age bucket</div>
         <div class="text-right">Unbriefed</div>
@@ -114,7 +114,7 @@
       {:else}
         {#each staleRows as row}
           <div
-            class="grid grid-cols-[120px_120px_minmax(0,1fr)] items-center gap-5 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
+            class="grid min-w-110 grid-cols-[120px_120px_minmax(0,1fr)] items-center gap-5 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
           >
             <div class="font-mono text-[11.5px] text-[#45494e]">{row.ageBucket}</div>
             <div class="text-right font-mono text-[11.5px] text-[#5c6066]">

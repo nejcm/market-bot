@@ -2,7 +2,7 @@
   // Deep import: the package barrel pulls every icon into the SSR graph.
   import Menu from "@lucide/svelte/icons/menu";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { RunDetail } from "../../types";
+  import type { RunDetail, RunSummary } from "../../types";
   import type { ReportDetail } from "../app-settings";
   import { formatDate, jsonBlock, runLabel } from "../view-model";
   import { buildRunWorkspaceView, type RunWorkspaceSectionKey } from "../run-workspace-view";
@@ -27,6 +27,7 @@
   import MarketSnapshot from "./market-snapshot.svelte";
   import AnalystEstimateDistributions from "./analyst-estimate-distributions.svelte";
   import ExtendedEvidence from "./extended-evidence.svelte";
+  import InstrumentRunHistory from "./instrument-run-history.svelte";
 
   interface Props {
     readonly activeTab: Tab;
@@ -34,6 +35,7 @@
     readonly showSources?: boolean;
     readonly detail: RunDetail | null;
     readonly loadingDetail: boolean;
+    readonly runs: readonly RunSummary[];
     readonly selectedFile: string;
     readonly fileContent: string;
     readonly highlightSourceId: string;
@@ -42,6 +44,7 @@
     readonly onShowSourcesChange?: (value: boolean) => void;
     readonly onLoadFile: (path: string) => void;
     readonly onGoHome: () => void;
+    readonly onOpenRun: (runId: string) => void;
     readonly onHighlightSource: (sourceId: string) => void;
     readonly onOpenInstrument: (assetClass: string, symbol: string) => void;
     readonly onOpenMenu?: () => void;
@@ -53,6 +56,7 @@
     showSources = false,
     detail,
     loadingDetail,
+    runs,
     selectedFile,
     fileContent,
     highlightSourceId,
@@ -61,6 +65,7 @@
     onShowSourcesChange = () => {},
     onLoadFile,
     onGoHome,
+    onOpenRun,
     onHighlightSource,
     onOpenInstrument,
     onOpenMenu = () => {},
@@ -89,6 +94,10 @@
   /* Equity runs carry the ledger verdict bar on every tab, so the shared run
      header would repeat the same name, price and counts directly above it. */
   const showRunHeader = $derived(equityPresentation === undefined && !failed);
+  const hasInstrument = $derived(
+    (detail?.summary.assetClass ?? "").trim() !== "" && (detail?.summary.symbol ?? "").trim() !== "",
+  );
+  const visibleTabs = $derived(TABS.filter((tab) => tab !== "runs" || hasInstrument));
   const reportSummary = $derived(
     equityPresentation?.defaultView.researchSummary ?? workspace?.report.summary ?? "",
   );
@@ -163,6 +172,7 @@
 
   const TAB_LABELS: Record<Tab, string> = {
     report: "Report",
+    runs: "Runs",
     sources: "Sources",
     data: "Data",
     files: "Files",
@@ -467,7 +477,7 @@
         value={activeTab}
         onchange={(event) => onTabChange(event.currentTarget.value as Tab)}
       >
-        {#each TABS as tab}
+        {#each visibleTabs as tab}
           <option value={tab}>{TAB_LABELS[tab]}</option>
         {/each}
       </select>
@@ -475,7 +485,7 @@
         class="hidden items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-secondary p-0.75 scrollbar-none sm:flex [&::-webkit-scrollbar]:hidden"
         role="tablist"
       >
-        {#each TABS as tab}
+        {#each visibleTabs as tab}
           <button
             class="shrink-0 rounded-full px-3.5 py-1 text-[12.5px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {activeTab ===
             tab
@@ -894,12 +904,21 @@
           </aside>
         {/if}
       </div>
+    {:else if activeTab === "runs" && hasInstrument}
+      <InstrumentRunHistory
+        {runs}
+        assetClass={detail.summary.assetClass ?? ""}
+        symbol={detail.summary.symbol ?? ""}
+        currentRunId={detail.summary.runId}
+        {onOpenRun}
+        {onOpenInstrument}
+      />
     {:else if activeTab === "sources"}
       <div class="mt-6 overflow-hidden rounded-lg border border-border bg-card" data-section="sourcesTable">
-        <div class="overflow-x-auto">
-          <div class="min-w-160">
+        <div class="sm:overflow-x-auto">
+          <div class="sm:min-w-160">
             <div
-              class="grid grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
+              class="hidden sm:grid grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
             >
               <div>ID</div>
               <div>TITLE</div>
@@ -917,7 +936,7 @@
                     el.scrollIntoView({ block: "center" });
                   }
                 }}
-                class="grid grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-2.75 {highlightSourceId ===
+                class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-b sm:grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] sm:gap-y-0 border-[#f0ede7] px-4.5 py-2.75 {highlightSourceId ===
                 source.id
                   ? 'bg-accent'
                   : 'bg-transparent'}"
@@ -925,20 +944,20 @@
                 <div class="truncate font-mono text-[11.5px] font-medium text-primary" title={source.id}>
                   {source.id}
                 </div>
-                <div class="truncate text-[12.5px] text-[#1f2225]" title={source.title}>
+                <div class="order-3 col-span-2 truncate text-[12.5px] text-[#1f2225] sm:order-none sm:col-span-1" title={source.title}>
                   {source.title}
                 </div>
-                <div>
+                <div class="order-2 sm:order-none">
                   <span
                     class="whitespace-nowrap rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
                   >
                     {source.kind ?? "source"}
                   </span>
                 </div>
-                <div class="truncate text-xs text-[#5c6066]">
+                <div class="order-4 truncate text-xs text-[#5c6066] sm:order-none">
                   {source.provider ?? ""}
                 </div>
-                <div>
+                <div class="order-5 text-right sm:order-none sm:text-left">
                   {#if source.url !== undefined}
                     <a
                       class="font-mono text-[11px] text-primary hover:underline"

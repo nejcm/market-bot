@@ -382,7 +382,19 @@ Check these explicitly before final ranking:
 
 - Output the Improvements, ranked Recommendations, and Next investigation sections only,
   preceded by the scope/cohort/code-delta disclosure. Do NOT edit code, write
-  fixes, or change anything outside the permitted CLI runs in Step 0.
+  fixes, or change anything outside the permitted CLI runs in Step 0 and the
+  report file below.
+- Write the complete report (disclosure plus all three sections, unabridged) to
+  `.reviews/run-review-<UTC timestamp>-<run-id>.md` in the repo root, creating
+  `.reviews/` if needed (it is gitignored). Never overwrite an existing report.
+- The chat message is a separate, plain-language digest of the file, not a
+  copy: the `delta:` verdict with one line of why; scope in one line (runs,
+  baseline, code delta); each Recommendation as one line (rank, symptom,
+  severity/effort, disposition) with no evidence blocks; at most three
+  Improvements as one line each; then Next investigation with the one-line
+  why and its open questions. Short sentences, no `file:field` dumps — those
+  live in the file. End with the file path. Every claim in chat must appear in
+  the file.
 - Every finding must cite evidence from the artifacts. Don't guess.
 - State the mode (reference or single), each run reviewed, whether it was reused,
   supplied, or freshly executed, the cohort scanned, each baseline, and the

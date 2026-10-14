@@ -33,6 +33,23 @@ function instant(value: number, end = "2025-12-31"): Record<string, unknown> {
   };
 }
 
+function untagged(
+  start: string,
+  end: string,
+  value: number,
+  accn: string,
+): Record<string, unknown> {
+  return {
+    start,
+    end,
+    val: value,
+    accn,
+    fy: 2024,
+    form: "10-K",
+    filed: "2026-02-15",
+  };
+}
+
 function concept(unit: string, facts: readonly Record<string, unknown>[]): Record<string, unknown> {
   return { units: { [unit]: facts } };
 }
@@ -175,6 +192,111 @@ describe("capital ownership artifact", () => {
       ],
     });
     expect(artifact.omissions).toEqual([]);
+  });
+
+  test("prefers the annual fact over a same-period-end Q4 fact filed in a 10-K", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          PaymentsOfDividends: concept("USD", [
+            annual(42, 2025),
+            {
+              start: "2025-10-01",
+              end: "2025-12-31",
+              val: 999,
+              accn: "test-q4",
+              fy: 2025,
+              fp: "Q4",
+              form: "10-K",
+              filed: "2026-02-15",
+            },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.dividendsPaid).toEqual([
+      expect.objectContaining({ value: 42, periodEnd: "2025-12-31" }),
+    ]);
+  });
+
+  test("rejects a quarter-length fact mis-tagged FY in the MELI shape", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          WeightedAverageNumberOfDilutedSharesOutstanding: concept("shares", [
+            annual(51_006_860, 2025),
+            {
+              start: "2025-10-01",
+              end: "2025-12-31",
+              val: 50_697_515,
+              accn: "test-q4",
+              fy: 2025,
+              fp: "FY",
+              form: "10-K",
+              filed: "2026-02-15",
+            },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.dilutedShares).toEqual([
+      expect.objectContaining({ value: 51_006_860, periodEnd: "2025-12-31" }),
+    ]);
+  });
+
+  test("accepts 52/53-week durations and rejects an untagged quarter", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          PaymentsForRepurchaseOfCommonStock: concept("USD", [
+            untagged("2024-01-01", "2024-12-30", 364, "week-52"),
+            untagged("2024-01-01", "2025-01-06", 371, "week-53"),
+            untagged("2025-10-01", "2025-12-31", 90, "quarter"),
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.buybacks.map((fact) => fact.value).toSorted()).toEqual([364, 371]);
+  });
+
+  test("drops an undated fact and declares the missing annual history", () => {
+    const payload = {
+      facts: {
+        "us-gaap": {
+          RevenueFromContractWithCustomerExcludingAssessedTax: concept("USD", [annual(100, 2025)]),
+          WeightedAverageNumberOfDilutedSharesOutstanding: concept("shares", [
+            {
+              end: "2025-12-31",
+              val: 999,
+              accn: "test-undated",
+              fy: 2025,
+              form: "10-K",
+              filed: "2026-02-15",
+            },
+          ]),
+        },
+      },
+    };
+
+    const artifact = deriveCapitalOwnershipArtifact(payload, statements(payload));
+
+    expect(artifact.dilutedShares).toEqual([]);
+    expect(artifact.omissions).toContainEqual({
+      code: "diluted-share-history-missing",
+      message: "Annual diluted-share history is missing",
+    });
   });
 
   test("keeps missing filed evidence explicit", () => {

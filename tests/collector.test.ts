@@ -15,9 +15,9 @@ import { buildValuationWorkbench } from "../src/sources/extended-evidence/valuat
 import {
   createCollectContext,
   resetSourceResilienceForTests,
-  SEC_COMPANYFACTS_MAX_RESPONSE_BYTES,
   setSourceHostMinDelayMsForTests,
 } from "../src/sources/source-request";
+import { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES } from "../src/config/shared";
 import { fetchSecCompanyFactsForSymbol } from "../src/sources/extended-evidence/sec-edgar";
 import { recordSeenNewsSources } from "../src/sources/news-seen";
 import { researchReport } from "./support/fixtures";

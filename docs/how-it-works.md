@@ -296,10 +296,10 @@ Research orchestration lives in `src/research/orchestrator.ts`.
 
 Each research run builds a depth profile:
 
-| Mode    | Effect                                                                                   |
-| ------- | ---------------------------------------------------------------------------------------- |
-| `brief` | Concise report with fewer minimum findings and scenarios; targets vary by run type.      |
-| `deep`  | Fuller report with higher minimum counts and broader focus; targets vary by run type.    |
+| Mode    | Effect                                                                                |
+| ------- | ------------------------------------------------------------------------------------- |
+| `brief` | Concise report with fewer minimum findings and scenarios; targets vary by run type.   |
+| `deep`  | Fuller report with higher minimum counts and broader focus; targets vary by run type. |
 
 Before the shared analysis stages:
 

@@ -54,8 +54,6 @@ const DEFAULT_MAX_SOURCE_RESPONSE_BYTES = 5_000_000;
 // Per-section endpoint, and a byte Range has no relation to section boundaries (see the A2
 // Remediation plan).
 export const SEC_FILING_TEXT_MAX_RESPONSE_BYTES = 16_000_000;
-// Provisional ceiling for `sec-companyfacts` only: ADTN's facts exceeded the 5M default.
-export const SEC_COMPANYFACTS_MAX_RESPONSE_BYTES = 16_000_000;
 const hostStates = new Map<string, HostState>();
 
 let hostMinDelayMs = DEFAULT_HOST_MIN_DELAY_MS;

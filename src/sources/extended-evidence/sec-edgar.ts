@@ -1,12 +1,15 @@
 import type { InstrumentIdentity } from "../../domain/instrument";
 import type { Source, SourceGap } from "../../domain/sources";
 import { isInstrumentCommand } from "../../cli/args";
-import { DAY_MS, SEC_FRESHNESS_DAYS } from "../../config/shared";
+import {
+  DAY_MS,
+  SEC_COMPANYFACTS_MAX_RESPONSE_BYTES,
+  SEC_FRESHNESS_DAYS,
+} from "../../config/shared";
 import { sourceGap } from "../../domain/source-gaps";
 import { isRecord, readNumber, readString } from "../../guards";
 import { isFetchJsonResult, type CollectContext, type RawSourceSnapshot } from "../types";
 import { isUsListing } from "../instrument-capability";
-import { SEC_COMPANYFACTS_MAX_RESPONSE_BYTES } from "../source-request";
 import { evidenceSource, type CollectedItem, type ProviderResult } from "./common";
 import {
   conceptScope,

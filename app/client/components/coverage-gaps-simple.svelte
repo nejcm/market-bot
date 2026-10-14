@@ -32,15 +32,13 @@
   {#if materialGaps.length === 0}
     <div class="mt-3 text-sm text-muted-foreground">No material gaps identified.</div>
   {:else}
-    <div class="mt-3.5 flex flex-col gap-2.5">
-      {#each materialGaps as gap}
-        <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
-          <span class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]">
-            MATERIAL
-          </span>
-          <div class="min-w-0 font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
-        </div>
+    <ol class="mt-3.5 divide-y divide-[#efe5cf] border border-[#e9ddc2] border-l-2 border-l-[#d9a95a] bg-[#fbf6ea]">
+      {#each materialGaps as gap, index}
+        <li class="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3.5 px-4 py-2.75">
+          <span class="font-mono text-[10.5px] text-[#b89a5e]">{String(index + 1).padStart(2, "0")}</span>
+          <div class="font-serif text-sm leading-[1.55] text-[#4a4334]">{gap}</div>
+        </li>
       {/each}
-    </div>
+    </ol>
   {/if}
 </section>

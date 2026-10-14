@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RawReport from "./raw-report.svelte";
   import type { ProviderHealthDetail } from "../../types";
   import {
     jsonBlock,
@@ -36,7 +37,7 @@
   };
 </script>
 
-<div class="mx-auto max-w-230" data-screen-label="Health">
+<div data-screen-label="Health">
   <h1 class="text-xl font-semibold tracking-tight">Provider health</h1>
   <div class="mt-1 text-[12.5px] text-[#5c6066]">
     Upstream data providers, as observed by the last fetch cycle.
@@ -123,9 +124,9 @@
           <div>PROVIDER</div>
           <div>ROUTE / NOTE</div>
           <div>STATUS</div>
-          <div>TOTAL</div>
-          <div>GAPS</div>
-          <div>DEGRADED RUNS</div>
+          <div class="text-right">TOTAL</div>
+          <div class="text-right">GAPS</div>
+          <div class="text-right">DEGRADED RUNS</div>
         </div>
         {#each providerRows as row}
           {@const tone = STATUS_STYLE[row.status]}
@@ -135,7 +136,7 @@
               : "#5c6066"}
           {@const degradedRunColor = row.degradedRuns > 0 ? "#8a6116" : "#5c6066"}
           <div
-            class="grid grid-cols-[130px_minmax(0,1fr)_130px_64px_64px_120px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-3 last:border-b-0"
+            class="grid grid-cols-[130px_minmax(0,1fr)_130px_64px_64px_120px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-3 transition-colors last:border-b-0 hover:bg-secondary/60"
           >
             <div class="truncate text-[12.5px] font-medium">{row.provider}</div>
             <div class="min-w-0">
@@ -152,13 +153,13 @@
                 {tone.label}
               </span>
             </div>
-            <div data-col="total" class="font-mono text-[11.5px] text-[#5c6066]">{row.total}</div>
-            <div data-col="gaps" class="font-mono text-[11.5px]" style="color: {gapColor}">
+            <div data-col="total" class="text-right font-mono text-[11.5px] text-[#5c6066]">{row.total}</div>
+            <div data-col="gaps" class="text-right font-mono text-[11.5px]" style="color: {gapColor}">
               {row.gaps}
             </div>
             <div
               data-col="degraded-runs"
-              class="font-mono text-[11.5px]"
+              class="text-right font-mono text-[11.5px]"
               style="color: {degradedRunColor}"
             >
               {row.degradedRuns}
@@ -176,8 +177,6 @@
   {/if}
 
   {#if providerHealth.markdown !== undefined}
-    <div class="mt-3.5 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
-      <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{providerHealth.markdown}</pre>
-    </div>
+    <RawReport label="Full health report" markdown={providerHealth.markdown} />
   {/if}
 </div>

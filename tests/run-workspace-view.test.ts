@@ -1463,7 +1463,7 @@ describe("run workspace view", () => {
       "gaps",
     ]);
     const simpleHtml = await renderRunWorkspaceComponent(detail, "simple");
-    expect(simpleHtml).toContain("MATERIAL");
+    expect(simpleHtml).toContain("Coverage &amp; material gaps");
     expect(simpleHtml).toContain(shortfall);
     expect(simpleHtml).not.toContain("coverage · comprehensive");
     expect(simpleHtml.split(shortfall)).toHaveLength(2);
@@ -3106,7 +3106,8 @@ describe("run workspace view", () => {
     expect(text).toContain("financial core · complete");
     expect(expectedRows?.length).toBeGreaterThan(0);
     for (const row of expectedRows ?? []) {
-      expect(text).toContain(row.period);
+      // The ledger splits "(latest filed …)" onto its own line.
+      expect(text).toContain(row.period.replace(/\s*\((.*)\)$/u, " $1"));
       expect(text).toContain(row.revenue);
     }
   });

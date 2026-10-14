@@ -9,7 +9,7 @@
   let { label, value, options, onChange }: Props = $props();
 </script>
 
-<label class="space-y-1">
+<label class="flex flex-col gap-1">
   {#if label !== ""}
     <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
   {/if}

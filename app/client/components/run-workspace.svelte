@@ -271,7 +271,7 @@
 
 {#snippet failureSummary()}
   {#if failure === undefined}
-    <article class="mt-6 max-w-4xl rounded-lg border border-red-200 bg-red-50 px-5 py-5">
+    <article class="mt-6 rounded-lg border border-red-200 bg-red-50 px-5 py-5">
       <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700">
         Failed Run Artifact
       </div>
@@ -281,7 +281,7 @@
       </p>
     </article>
   {:else}
-    <article class="mt-6 max-w-4xl overflow-hidden rounded-lg border border-red-200 bg-card">
+    <article class="mt-6 overflow-hidden rounded-lg border border-red-200 bg-card">
       <div class="border-b border-red-100 bg-red-50 px-5 py-4">
         <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700">
           Failed Run Artifact
@@ -293,7 +293,7 @@
       </div>
 
       {#if failure.totalCalls !== undefined || failure.reportRepairReprompts !== undefined || failure.cost !== undefined}
-        <div class="grid gap-px border-b border-border bg-border sm:grid-cols-4">
+        <div class="grid gap-px border-b border-border bg-border sm:auto-cols-fr sm:grid-flow-col">
           {#each [
             ...(failure.totalCalls === undefined
               ? []
@@ -644,13 +644,15 @@
           <section {@attach bindSection("earningsConsensus")} class="mt-8.5 scroll-mt-24">
             {@render sectionHeading("Upcoming earnings & consensus")}
             {#if (equityPresentation?.defaultView.earningsConsensus.items.length ?? 0) > 0}
-              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+              <div
+                class="mt-3 grid border-l border-t border-[#e4e0d6] bg-secondary sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]"
+              >
                 {#each equityPresentation?.defaultView.earningsConsensus.items ?? [] as item}
-                  <div class="border border-border bg-secondary px-3.5 py-3">
-                    <div class="text-[10px] font-semibold uppercase tracking-wider text-[#5c6066]">
+                  <div class="border-b border-r border-[#e4e0d6] px-3.5 py-3">
+                    <div class="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       {item.label}
                     </div>
-                    <div class="mt-1.5 font-mono text-[12px]">{item.value}</div>
+                    <div class="mt-1.5 font-mono text-[12.5px] text-foreground">{item.value}</div>
                     {@render citeChips(item.sourceIds)}
                   </div>
                 {/each}
@@ -897,7 +899,7 @@
         <div class="overflow-x-auto">
           <div class="min-w-160">
             <div
-              class="grid grid-cols-[170px_minmax(0,1fr)_110px_130px_70px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
+              class="grid grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] gap-3.5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground"
             >
               <div>ID</div>
               <div>TITLE</div>
@@ -915,7 +917,7 @@
                     el.scrollIntoView({ block: "center" });
                   }
                 }}
-                class="grid grid-cols-[170px_minmax(0,1fr)_110px_130px_70px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-2.75 {highlightSourceId ===
+                class="grid grid-cols-[170px_minmax(0,1fr)_140px_130px_70px] items-center gap-3.5 border-b border-[#f0ede7] px-4.5 py-2.75 {highlightSourceId ===
                 source.id
                   ? 'bg-accent'
                   : 'bg-transparent'}"
@@ -928,7 +930,7 @@
                 </div>
                 <div>
                   <span
-                    class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
+                    class="whitespace-nowrap rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
                   >
                     {source.kind ?? "source"}
                   </span>
@@ -969,7 +971,7 @@
             </button>
           {/each}
         </div>
-        <div class="mt-3 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
+        <div class="mt-3 max-h-[75vh] overflow-auto rounded-lg bg-[#16181a] px-5 py-4.5">
           <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{dataContent}</pre>
         </div>
       </div>
@@ -1005,7 +1007,7 @@
             Select a file to view its contents
           </div>
         {:else}
-          <div class="min-h-80 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
+          <div class="min-h-80 max-h-[75vh] overflow-auto rounded-lg bg-[#16181a] px-5 py-4.5">
             <div class="mb-3 font-mono text-[10.5px] text-[#6e757d]">
               runs/{detail.summary.runId}/{selectedFile}
             </div>

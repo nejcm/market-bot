@@ -48,7 +48,11 @@
           {#each group.tiles as tile}
             <div class="px-3 py-2.5 rounded-lg {FINANCIAL_LENS_TILE_CLASSES[tile.tone]}">
               <div class="flex items-start justify-between gap-2">
-                <div class="font-mono text-[16px] font-semibold {FINANCIAL_LENS_VALUE_CLASSES[tile.tone]}">
+                <div
+                  class="font-mono font-semibold {tile.value.length > 16
+                    ? 'text-[11.5px] leading-snug'
+                    : 'text-[16px]'} {FINANCIAL_LENS_VALUE_CLASSES[tile.tone]}"
+                >
                   {tile.value}
                 </div>
                 {#if tile.assessment !== undefined}

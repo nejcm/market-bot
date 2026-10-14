@@ -11,14 +11,14 @@
 
   let { detail, loading, onOpenRun, onGoHome }: Props = $props();
 
-  const WIDTH = 760;
+  let WIDTH = $state(760);
   const HEIGHT = 220;
   const PADDING_LEFT = 58;
   const PADDING_RIGHT = 18;
   const PADDING_TOP = 18;
   const PADDING_BOTTOM = 30;
   const MAX_DATE_TICKS = 8;
-  const plotWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
+  const plotWidth = $derived(WIDTH - PADDING_LEFT - PADDING_RIGHT);
   const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const baselineY = HEIGHT - PADDING_BOTTOM;
 
@@ -155,8 +155,9 @@
           No verified close series is available for this instrument.
         </div>
       {:else}
+        <div class="mt-3" bind:clientWidth={WIDTH}>
         <svg
-          class="mt-3 h-[220px] w-full"
+          class="block h-[220px] w-full"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           role="img"
           aria-label="Verified close history for {detail.symbol}"
@@ -197,6 +198,7 @@
             </text>
           {/each}
         </svg>
+        </div>
       {/if}
     </section>
 
@@ -214,7 +216,7 @@
       {:else}
         <div class="mt-3 divide-y divide-[#f0ede7]">
           {#each detail.entries as forecast}
-            <div class="grid gap-3 py-3 lg:grid-cols-[120px_minmax(0,1fr)_92px_96px_112px]">
+            <div class="grid items-baseline gap-3 py-3 lg:grid-cols-[120px_minmax(0,1fr)_92px_96px_112px]">
               <button
                 class="text-left font-mono text-[11px] text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"

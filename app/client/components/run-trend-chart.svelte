@@ -7,94 +7,47 @@
 
   let { points }: Props = $props();
 
-  const WIDTH = 720;
-  const HEIGHT = 220;
-  const PADDING_X = 28;
-  const PADDING_TOP = 26;
-  const PADDING_BOTTOM = 28;
-  const BAR_GAP = 6;
-  const MAX_BAR_WIDTH = 48;
-
-  const plotWidth = WIDTH - PADDING_X * 2;
-  const plotHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
-  const baselineY = HEIGHT - PADDING_BOTTOM;
-
   const maxRuns = $derived(Math.max(1, ...points.map((point) => point.runs)));
-  const bars = $derived(
-    points.map((point, index) => {
-      const slot = plotWidth / Math.max(1, points.length);
-      const barWidth = Math.min(MAX_BAR_WIDTH, slot - BAR_GAP);
-      const barHeight = (point.runs / maxRuns) * plotHeight;
-      const x = PADDING_X + slot * index + (slot - barWidth) / 2;
-      return {
-        ...point,
-        x,
-        barWidth,
-        barHeight,
-        y: baselineY - barHeight,
-        centerX: x + barWidth / 2,
-        isLatest: index === points.length - 1,
-      };
-    }),
-  );
 </script>
 
-{#if bars.length === 0}
+{#if points.length === 0}
   <div class="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
     No dated runs yet.
   </div>
 {:else}
-  <svg
-    class="mt-3 h-[220px] w-full"
-    viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-    role="img"
-    aria-label="Runs per day"
-  >
-    <g stroke="currentColor" class="text-border">
-      <line x1={PADDING_X} x2={WIDTH - PADDING_X} y1={baselineY} y2={baselineY} />
-      <line
-        x1={PADDING_X}
-        x2={WIDTH - PADDING_X}
-        y1={baselineY - plotHeight / 2}
-        y2={baselineY - plotHeight / 2}
-        opacity="0.55"
-      />
-      <line
-        x1={PADDING_X}
-        x2={WIDTH - PADDING_X}
-        y1={PADDING_TOP}
-        y2={PADDING_TOP}
-        opacity="0.35"
-      />
-    </g>
-    {#each bars as bar}
-      <g>
-        <title>{bar.runs} runs on {bar.date}</title>
-        <rect
-          x={bar.x}
-          y={bar.y}
-          width={bar.barWidth}
-          height={Math.max(1, bar.barHeight)}
-          rx="3"
-          fill={bar.isLatest ? "#4ba3b2" : "#d7e6e8"}
-        />
-        <text
-          x={bar.centerX}
-          y={bar.y - 8}
-          text-anchor="middle"
-          class="fill-foreground text-[11px]"
+  <div class="mt-3 flex h-[220px] flex-col" role="img" aria-label="Runs per day">
+    <div
+      class="relative flex min-h-0 flex-1 items-end gap-1.5 border-b border-border pt-6 sm:gap-2"
+    >
+      <div class="pointer-events-none absolute inset-x-0 top-6 border-t border-border/40"></div>
+      <div class="pointer-events-none absolute inset-x-0 top-[calc(50%+12px)] border-t border-border/60"></div>
+      {#each points as point, index}
+        {@const isLatest = index === points.length - 1}
+        <div
+          class="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end"
+          title="{point.runs} runs on {point.date}"
         >
-          {bar.runs}
-        </text>
-        <text
-          x={bar.centerX}
-          y={HEIGHT - 8}
-          text-anchor="middle"
-          class="fill-muted-foreground font-mono text-[10px]"
+          <div
+            class="relative w-full max-w-12 rounded-t-[3px] transition-colors {isLatest
+              ? 'bg-[#4ba3b2]'
+              : 'bg-[#d7e6e8] group-hover:bg-[#bcd7db]'}"
+            style:height="{Math.max(1, (point.runs / maxRuns) * 100)}%"
+          >
+            <span
+              class="absolute inset-x-0 -top-5 text-center font-mono text-[10.5px] {isLatest
+                ? 'text-foreground'
+                : 'text-muted-foreground'}">{point.runs}</span
+            >
+          </div>
+        </div>
+      {/each}
+    </div>
+    <div class="flex gap-1.5 pt-2 sm:gap-2">
+      {#each points as point}
+        <span class="min-w-0 flex-1 truncate text-center font-mono text-[10px] text-muted-foreground"
+          >{point.date.slice(5)}</span
         >
-          {bar.date.slice(5)}
-        </text>
-      </g>
-    {/each}
-  </svg>
+      {/each}
+    </div>
+  </div>
 {/if}

@@ -48,6 +48,7 @@
     crypto: "Crypto",
     "alpha-search": "Alpha",
     research: "Research",
+    run: "Other",
   };
 
   let {
@@ -169,7 +170,7 @@
         placeholder="Filter runs…"
         oninput={(event) => onQueryChange(event.currentTarget.value)}
       />
-      <div class="mt-2 pb-5 flex overflow-auto gap-1">
+      <div class="mt-2 flex gap-1 overflow-auto pb-2">
         {#each typeOptions as type}
           <button
             class="rounded-full border px-2 flex-1 py-0.5 font-mono text-[10px] capitalize transition hover:border-[#4a525a] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring {typeFilter ===
@@ -179,7 +180,7 @@
             type="button"
             onclick={() => onTypeFilterChange(type)}
           >
-            {typeTextMap[type]}
+            {typeTextMap[type] ?? type}
           </button>
         {/each}
       </div>

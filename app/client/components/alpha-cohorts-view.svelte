@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RawReport from "./raw-report.svelte";
   import type { AlphaCohortDetail } from "../../types";
   import {
     alphaCohortHeadline,
@@ -21,7 +22,7 @@
   const hasSummary = $derived(detail.summary !== undefined);
 </script>
 
-<div class="mx-auto max-w-230" data-screen-label="Alpha cohorts">
+<div data-screen-label="Alpha cohorts">
   <h1 class="text-xl font-semibold tracking-tight">Alpha Lead Cohorts</h1>
   <div class="mt-1 text-[12.5px] text-[#5c6066]">
     Historical lead validation by rejection bucket and unbriefed lead age. Research state only, not
@@ -65,7 +66,7 @@
 
     <div class="mt-3.5 overflow-hidden rounded-lg border border-border bg-card">
       <div
-        class="grid grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] gap-3 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+        class="grid grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] gap-5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
       >
         <div>Reason</div>
         <div class="text-right">Rejected</div>
@@ -80,7 +81,7 @@
       {:else}
         {#each rejectionRows as row}
           <div
-            class="grid grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] items-center gap-3 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
+            class="grid grid-cols-[minmax(0,1fr)_72px_72px_84px_minmax(0,1.2fr)] items-center gap-5 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
           >
             <div class="truncate text-[12.5px] font-medium">{row.reason}</div>
             <div class="text-right font-mono text-[11.5px] text-[#5c6066]">
@@ -100,7 +101,7 @@
 
     <div class="mt-3.5 overflow-hidden rounded-lg border border-border bg-card">
       <div
-        class="grid grid-cols-[120px_120px_minmax(0,1fr)] gap-3 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+        class="grid grid-cols-[120px_120px_minmax(0,1fr)] gap-5 border-b border-border bg-secondary px-4.5 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
       >
         <div>Age bucket</div>
         <div class="text-right">Unbriefed</div>
@@ -113,7 +114,7 @@
       {:else}
         {#each staleRows as row}
           <div
-            class="grid grid-cols-[120px_120px_minmax(0,1fr)] items-center gap-3 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
+            class="grid grid-cols-[120px_120px_minmax(0,1fr)] items-center gap-5 border-b border-[#f0ede7] px-4.5 py-2.75 last:border-b-0"
           >
             <div class="font-mono text-[11.5px] text-[#45494e]">{row.ageBucket}</div>
             <div class="text-right font-mono text-[11.5px] text-[#5c6066]">
@@ -127,8 +128,6 @@
   {/if}
 
   {#if detail.markdown !== undefined}
-    <div class="mt-3.5 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
-      <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{detail.markdown}</pre>
-    </div>
+    <RawReport label="Full cohort report" markdown={detail.markdown} />
   {/if}
 </div>

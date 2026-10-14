@@ -9,6 +9,7 @@ app/dist/
 !.env.example
 .lefthook-local.yml
 .firecrawl
+.examples
 
 /research/
 reports/

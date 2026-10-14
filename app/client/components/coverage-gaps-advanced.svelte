@@ -47,20 +47,20 @@
     >
       Prediction shortfall
     </div>
-    <div class="mt-3.5 flex flex-col gap-2.5">
+    <ol class="mt-3.5 divide-y divide-[#efe5cf] border border-[#e9ddc2] border-l-2 border-l-[#d9a95a] bg-[#fbf6ea]">
       {#each gaps.shortfalls as gap}
-        <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
+        <li class="flex items-baseline gap-3 px-4 py-2.75">
           <span
-            class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+            class="min-w-20 shrink-0 rounded border border-[#e3cf9f] bg-[#f5ecd6] px-1.5 py-px text-center font-mono text-[9.5px] text-[#8a6116]"
           >
             SHORTFALL
           </span>
           <div class="min-w-0 font-serif text-sm leading-[1.55] text-[#4a4334]">
             {gap}
           </div>
-        </div>
+        </li>
       {/each}
-    </div>
+    </ol>
   {/if}
 
   {#if gaps.triagedGaps.length > 0}
@@ -72,19 +72,19 @@
     >
       Data gaps · what we could not verify
     </div>
-    <div class="mt-3.5 flex flex-col gap-2.5">
+    <ol class="mt-3.5 divide-y divide-[#efe5cf] border border-[#e9ddc2] border-l-2 border-l-[#d9a95a] bg-[#fbf6ea]">
       {#each gaps.triagedGaps as gap}
-        <div class="flex gap-3 rounded-lg border border-dashed border-[#d9c89a] bg-[#fbf6ea] px-4 py-3">
+        <li class="flex items-baseline gap-3 px-4 py-2.75">
           <span
-            class="h-fit shrink-0 rounded border border-[#d9c89a] bg-[#f5ecd6] px-1.5 py-px font-mono text-[10px] text-[#8a6116]"
+            class="min-w-20 shrink-0 rounded border border-[#e3cf9f] bg-[#f5ecd6] px-1.5 py-px text-center font-mono text-[9.5px] text-[#8a6116]"
           >
             {uppercaseTriage ? gap.triage.toUpperCase() : gap.triage}
           </span>
           <div class="min-w-0 font-serif text-sm leading-[1.55] text-[#4a4334]">
             {gap.text}
           </div>
-        </div>
+        </li>
       {/each}
-    </div>
+    </ol>
   {/if}
 </section>

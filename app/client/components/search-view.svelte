@@ -42,7 +42,7 @@
   const searchGroups = $derived(groupedSearchResults(searchResults));
 </script>
 
-<div class="mx-auto max-w-230" data-screen-label="Search">
+<div data-screen-label="Search">
   <h1 class="text-xl font-semibold tracking-tight">Search</h1>
   <div class="mt-1 text-[12.5px] text-[#5c6066]">
     Searches report sections across all runs on disk.

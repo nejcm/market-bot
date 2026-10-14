@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RawReport from "./raw-report.svelte";
   import type { CalibrationDetail } from "../../types";
   import {
     calibrationAutopsyCauses,
@@ -52,7 +53,7 @@
 
 </script>
 
-<div class="mx-auto max-w-230" data-screen-label="Calibration">
+<div data-screen-label="Calibration">
   <h1 class="text-xl font-semibold tracking-tight">Calibration</h1>
   <div class="mt-1 text-[12.5px] text-[#5c6066]">
     How well stated forecast probabilities match observed resolution rates. Accuracy measurement,
@@ -203,8 +204,6 @@
   {/if}
 
   {#if calibration.markdown !== undefined}
-    <div class="mt-3.5 overflow-x-auto rounded-lg bg-[#16181a] px-5 py-4.5">
-      <pre class="font-mono text-xs leading-relaxed text-[#c7cdd4]">{calibration.markdown}</pre>
-    </div>
+    <RawReport label="Full calibration report" markdown={calibration.markdown} />
   {/if}
 </div>

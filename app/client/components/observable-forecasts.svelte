@@ -99,7 +99,7 @@
     {/if}
     {#each group.forecasts as forecast}
       <div
-        class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_110px_130px_64px_132px] sm:gap-4"
+        class="grid items-center gap-2 border-b border-[#f0ede7] py-3 sm:grid-cols-[minmax(0,1fr)_140px_140px_52px_120px] sm:gap-5"
       >
         <div class="font-serif text-sm leading-normal text-[#1f2225]">
           {forecast.claim}
@@ -121,7 +121,7 @@
             </span>
           {/if}
         </div>
-        <div>
+        <div class="flex flex-wrap items-center gap-1">
           {#if forecast.kind !== undefined}
             <span
               class="rounded border border-border bg-secondary px-1.75 py-0.5 font-mono text-[10px] text-[#5c6066]"
@@ -129,7 +129,7 @@
               {forecast.kind}
             </span>
           {/if}
-          <div class="mt-1 flex flex-wrap gap-1">
+          <div class="contents">
             {#each subjectSymbols(forecast.subject) as symbol}
               <button
                 class="rounded border border-[#cfe0e3] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] text-primary hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -144,10 +144,21 @@
         <div class="flex items-center gap-2">
           {#if forecast.probability !== undefined}
             {@const pct = Math.round(forecast.probability * 100)}
-            <div class="h-1 flex-1 rounded-sm bg-[#f0ede7]">
-              <div class="h-1 rounded-sm bg-[#4ba3b2]" style="width: {pct}%"></div>
+            <div
+              class="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[#e9e5db]"
+              role="meter"
+              aria-label="Stated probability"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={pct}
+            >
+              <div
+                class="h-full rounded-full {pct >= 50 ? 'bg-[#14707a]' : 'bg-[#6fa9a9]'}"
+                style:width="{pct}%"
+              ></div>
+              <div class="absolute inset-y-0 left-1/2 w-px bg-card" title="50%"></div>
             </div>
-            <span class="w-8.5 text-right font-mono text-xs font-medium">{pct}%</span>
+            <span class="w-8.5 text-right font-mono text-xs font-medium tabular-nums">{pct}%</span>
           {/if}
         </div>
         <div class="text-left font-mono text-[11.5px] text-[#5c6066] sm:text-right">

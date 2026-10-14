@@ -133,6 +133,12 @@
 
   $effect(() => stopScroll);
 
+  // "FY ending 2024-12-28 (latest filed 2025-02-04)" → label + filed line.
+  function splitPeriod(period: string): readonly [string, string | undefined] {
+    const match = /^(.*?)\s*\((.*)\)$/.exec(period);
+    return match === null ? [period, undefined] : [match[1] ?? period, match[2]];
+  }
+
   const railCases = $derived(
     caseSections.map((section) => ({
       ...section,
@@ -262,10 +268,10 @@
                 <tr>
                   {#each defaultView.financialTrends.columns as column, index}
                     <th
-                      class="border-b border-[#cfcabd] pb-2 font-sans text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground {index ===
+                      class="border-b border-[#cfcabd] pb-2 align-bottom font-sans text-[9px] font-semibold uppercase leading-snug tracking-[0.14em] text-muted-foreground {index ===
                       0
-                        ? 'text-left'
-                        : 'text-right'}"
+                        ? 'pr-4 text-left'
+                        : 'pl-5 text-right'}"
                     >
                       {column}
                     </th>
@@ -275,12 +281,22 @@
               <tbody>
                 {#each defaultView.financialTrends.rows as row, index}
                   {@const isLatest = index === (defaultView.financialTrends?.rows.length ?? 0) - 1}
+                  {@const [periodLabel, periodFiled] = splitPeriod(row.period)}
                   <tr class={isLatest ? "font-bold text-foreground" : "text-[#26241f]"}>
-                    <td class="py-2.25 {isLatest ? '' : 'border-b border-[#e9e5db] text-[#6f6b62]'}">
-                      {row.period}
+                    <td class="py-2.25 pr-4 {isLatest ? '' : 'border-b border-[#e9e5db] text-[#6f6b62]'}">
+                      <div class="whitespace-nowrap">{periodLabel}</div>
+                      {#if periodFiled !== undefined}
+                        <div class="mt-0.5 whitespace-nowrap text-[10px] font-normal text-[#a09a8d]">
+                          {periodFiled}
+                        </div>
+                      {/if}
                     </td>
                     {#each [row.revenue, row.netIncome, row.operatingMargin, row.freeCashFlow] as cell}
-                      <td class="py-2.25 text-right {isLatest ? '' : 'border-b border-[#e9e5db]'}">
+                      <td
+                        class="whitespace-nowrap py-2.25 pl-5 text-right align-top {isLatest
+                          ? ''
+                          : 'border-b border-[#e9e5db]'}"
+                      >
                         {cell}
                       </td>
                     {/each}
@@ -314,7 +330,7 @@
                 <div class="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
                   {metric.label}
                 </div>
-                <div class="mt-1 font-sans text-[9px] text-muted-foreground">
+                <div class="mt-1.5 text-[10px] leading-snug text-[#a09a8d]">
                   {metric.dateBasis}
                 </div>
                 {@render citeChips(metric.sourceIds)}
@@ -447,7 +463,7 @@
   </div>
 
   {#if children !== undefined}
-    <div class="border-t border-border px-4 sm:px-7 pb-7 pt-6">
+    <div class="border-t border-border px-4 pb-7 pt-6 sm:px-7 *:first:mt-0">
       {@render children()}
     </div>
   {/if}

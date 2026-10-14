@@ -90,7 +90,6 @@
         position: "inBar",
         color: "#166e7d",
         shape: "circle",
-        text: formatClose(lastClose.close),
       },
     ];
   }
@@ -147,6 +146,8 @@
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
+        axisLabelColor: "#f2e8d2",
+        axisLabelTextColor: "#8a6116",
         title: guide.label,
       });
     }
@@ -197,13 +198,15 @@
 </div>
 
 {#if tiles.length > 0}
-  <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+  <div
+    class="mt-3 grid grid-cols-[repeat(auto-fit,minmax(78px,1fr))] border-l border-t border-[#e4e0d6] bg-secondary"
+  >
     {#each tiles as tile}
-      <div class="rounded-md border border-border bg-secondary px-2.5 py-2">
+      <div class="border-b border-r border-[#e4e0d6] px-2.5 py-2">
         <div class="font-mono text-[12.5px] font-medium text-foreground">
           {formatClose(tile.value)}
         </div>
-        <div class="mt-0.5 text-[9.5px] uppercase tracking-wider text-muted-foreground">
+        <div class="mt-0.5 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
           {tile.label}
         </div>
       </div>

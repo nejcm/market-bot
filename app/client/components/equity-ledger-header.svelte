@@ -132,7 +132,7 @@
     title={defaultView.marketRegime.drivers.join("; ")}
   >
     <span class="font-semibold uppercase tracking-[0.12em]">Market regime</span>
-    <span class="text-foreground">{defaultView.marketRegime.label}</span>
+    <span class="font-mono text-[10.5px] text-foreground">{defaultView.marketRegime.label}</span>
     {@render citeChips(defaultView.marketRegime.sourceIds)}
   </div>
 {/if}

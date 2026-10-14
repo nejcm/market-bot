@@ -22,12 +22,14 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    // One vendor chunk: maxSize splits created circular chunk imports that crashed on load.
+    chunkSizeWarningLimit: 700,
     emptyOutDir: true,
     rolldownOptions: {
       checks: { pluginTimings: false },
       output: {
         codeSplitting: {
-          groups: [{ name: "vendor", test: /node_modules[\\/]/u, maxSize: 450 * 1024 }],
+          groups: [{ name: "vendor", test: /node_modules[\\/]/u }],
         },
       },
     },

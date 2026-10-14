@@ -41,7 +41,7 @@
   }
 </script>
 
-<div class="mx-auto max-w-255" data-screen-label="Jobs">
+<div data-screen-label="Jobs">
   <h1 class="text-xl font-semibold tracking-tight">Jobs</h1>
   <div class="mt-1 text-[12.5px] text-[#5c6066]">
     Queue research jobs and watch their output. Table polls live.
@@ -73,7 +73,7 @@
       </div>
     {/if}
     {#if jobForm.jobType === "market-overview"}
-      <label class="space-y-1">
+      <label class="flex flex-col gap-1">
         <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
           Horizon
         </span>
@@ -88,7 +88,7 @@
       </label>
     {/if}
     {#if jobForm.jobType === "equity" || jobForm.jobType === "crypto"}
-      <label class="space-y-1">
+      <label class="flex flex-col gap-1">
         <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
           Symbol
         </span>
@@ -101,7 +101,7 @@
       </label>
     {/if}
     {#if jobForm.jobType === "research"}
-      <label class="space-y-1">
+      <label class="flex flex-col gap-1">
         <span class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
           Subject
         </span>

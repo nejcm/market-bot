@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { RunSummary } from "../../types";
-  import { formatDateMinute, instrumentRunHistory, instrumentRunHistoryFor } from "../view-model";
+  import {
+    formatDateMinute,
+    instrumentPath,
+    instrumentRunHistory,
+    instrumentRunHistoryFor,
+  } from "../view-model";
 
   interface Props {
     readonly runs: readonly RunSummary[];
@@ -13,8 +18,10 @@
 
   let { runs, assetClass, symbol, currentRunId, onOpenRun, onOpenInstrument }: Props = $props();
 
+  const instrumentAssetClass = $derived(assetClass.trim());
+  const instrumentSymbol = $derived(symbol.trim().toUpperCase());
   const historyRuns = $derived(
-    instrumentRunHistoryFor(instrumentRunHistory(runs), assetClass, symbol),
+    instrumentRunHistoryFor(instrumentRunHistory(runs), instrumentAssetClass, instrumentSymbol),
   );
 </script>
 
@@ -23,13 +30,19 @@
     <h2 class="text-sm font-semibold">Instrument run history</h2>
     <div class="flex items-baseline gap-2.5">
       {#if onOpenInstrument !== undefined}
-        <button
+        <a
           class="rounded border border-[#cfe0e3] bg-accent px-1.75 py-0.5 font-mono text-[10px] text-primary transition hover:border-[#9fc2c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          type="button"
-          onclick={() => onOpenInstrument(assetClass, symbol)}
+          href={instrumentPath(instrumentAssetClass, instrumentSymbol)}
+          onclick={(event) => {
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+              return;
+            }
+            event.preventDefault();
+            onOpenInstrument(instrumentAssetClass, instrumentSymbol);
+          }}
         >
-          {assetClass}:{symbol}
-        </button>
+          {instrumentAssetClass}:{instrumentSymbol}
+        </a>
       {/if}
       <span class="font-mono text-[10.5px] text-muted-foreground">
         {historyRuns.length} {historyRuns.length === 1 ? "run" : "runs"} · newest first

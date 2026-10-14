@@ -3177,6 +3177,22 @@ describe("run workspace view", () => {
     expect(htmlText(headless)).not.toContain("Instrument run history");
   }, 20_000);
 
+  test("server-renders a normalized Instrument link on the Runs tab", async () => {
+    const padded: RunSummary = {
+      ...summary(),
+      runId: "run-padded",
+      generatedAt: "2026-06-03T09:00:00Z",
+      assetClass: " equity ",
+      symbol: " aapl ",
+    };
+    const html = await renderRunWorkspaceComponent({ summary: padded }, "simple", "runs", false, [
+      padded,
+    ]);
+
+    expect(html).toContain('href="/instruments/equity/AAPL"');
+    expect(htmlText(html)).toContain("equity:AAPL");
+  }, 20_000);
+
   test("server-renders empty equity coverage in Simple and Advanced", async () => {
     const detail = {
       summary: summary(),

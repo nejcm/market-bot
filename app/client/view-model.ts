@@ -134,8 +134,8 @@ export interface RunTrendPoint {
 }
 
 export function instrumentPath(assetClass: string, symbol: string): string {
-  return `${INSTRUMENT_PATH_PREFIX}${encodeURIComponent(assetClass)}/${encodeURIComponent(
-    symbol.toUpperCase(),
+  return `${INSTRUMENT_PATH_PREFIX}${encodeURIComponent(assetClass.trim())}/${encodeURIComponent(
+    symbol.trim().toUpperCase(),
   )}`;
 }
 

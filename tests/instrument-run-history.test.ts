@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { RunSummary } from "../app/types";
 import {
   filterInstrumentRunHistory,
+  instrumentPath,
   instrumentRunHistory,
   instrumentRunHistoryFor,
   instrumentRunHistoryGroupKey,
@@ -207,5 +208,71 @@ describe("instrument run history", () => {
     expect(instrumentRunHistoryGroupKey(entries, "aapl-head")).toBeUndefined();
     expect(instrumentRunHistoryGroupKey(entries, "daily-report")).toBeUndefined();
     expect(instrumentRunHistoryGroupKey(entries, "missing")).toBeUndefined();
+  });
+
+  test("keeps the same symbol in different asset classes separate", () => {
+    const equity = equityRun("equity-aapl", "2026-06-02T09:00:00Z");
+    const crypto = run("crypto-aapl", {
+      jobType: "crypto",
+      assetClass: "crypto",
+      symbol: "AAPL",
+      generatedAt: "2026-06-01T09:00:00Z",
+    });
+
+    expect(groupKeys(instrumentRunHistory([equity, crypto]))).toEqual([
+      "group:equity:AAPL",
+      "group:crypto:AAPL",
+    ]);
+  });
+
+  test("leaves partial and empty identities standalone", () => {
+    const symbolOnly = run("symbol-only", { symbol: "AAPL", generatedAt: "2026-06-04T09:00:00Z" });
+    const classOnly = run("class-only", {
+      assetClass: "equity",
+      generatedAt: "2026-06-03T09:00:00Z",
+    });
+    const empty = run("empty", { assetClass: "", symbol: "", generatedAt: "2026-06-02T09:00:00Z" });
+    const blank = run("blank", {
+      assetClass: "  ",
+      symbol: "  ",
+      generatedAt: "2026-06-01T09:00:00Z",
+    });
+
+    expect(groupKeys(instrumentRunHistory([symbolOnly, classOnly, empty, blank]))).toEqual([
+      "run:symbol-only",
+      "run:class-only",
+      "run:empty",
+      "run:blank",
+    ]);
+  });
+
+  test("keeps the newest dated run as head when a group mixes dated and undated runs", () => {
+    const undated = equityRun("aapl-undated", "");
+    const older = equityRun("aapl-older", "2026-06-01T09:00:00Z");
+    const newer = equityRun("aapl-newer", "2026-06-03T09:00:00Z");
+
+    const [entry] = instrumentRunHistory([undated, older, newer]);
+    expect(entry?.kind === "group" ? entry.group.head : undefined).toEqual(newer);
+    expect(entry?.kind === "group" ? entry.group.pastRuns : []).toEqual([older, undated]);
+  });
+
+  test("normalizes padded identities into the same group", () => {
+    const padded = equityRun("aapl-padded", "2026-06-02T09:00:00Z", {
+      assetClass: " equity ",
+      symbol: " AAPL ",
+    });
+    const clean = equityRun("aapl-clean", "2026-06-03T09:00:00Z");
+    const entries = instrumentRunHistory([clean, padded]);
+
+    expect(groupKeys(entries)).toEqual(["group:equity:AAPL"]);
+    expect(entries[0]?.kind === "group" ? entries[0].group.assetClass : "").toBe("equity");
+    expect(entries[0]?.kind === "group" ? entries[0].group.symbol : "").toBe("AAPL");
+    expect(
+      instrumentRunHistoryFor(entries, " equity ", " aapl ").map((item) => item.runId),
+    ).toEqual(["aapl-clean", "aapl-padded"]);
+  });
+
+  test("normalizes padded identities in instrument URLs", () => {
+    expect(instrumentPath(" equity ", " aapl ")).toBe("/instruments/equity/AAPL");
   });
 });

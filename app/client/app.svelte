@@ -223,16 +223,20 @@
   }
 
   async function selectInstrument(assetClass: string, symbol: string): Promise<void> {
-    const normalizedSymbol = symbol.toUpperCase();
+    const normalizedAssetClass = assetClass.trim();
+    const normalizedSymbol = symbol.trim().toUpperCase();
     view = "instrument";
     clearSelectedRun();
-    selectedInstrument = { assetClass, symbol: normalizedSymbol };
+    selectedInstrument = { assetClass: normalizedAssetClass, symbol: normalizedSymbol };
     loadingInstrument = true;
     error = "";
 
     try {
-      const timeline = await fetchInstrumentTimeline(assetClass, normalizedSymbol);
-      if (selectedInstrument?.assetClass === assetClass && selectedInstrument.symbol === normalizedSymbol) {
+      const timeline = await fetchInstrumentTimeline(normalizedAssetClass, normalizedSymbol);
+      if (
+        selectedInstrument?.assetClass === normalizedAssetClass &&
+        selectedInstrument.symbol === normalizedSymbol
+      ) {
         instrumentDetail = timeline;
       }
     } catch (caughtError: unknown) {

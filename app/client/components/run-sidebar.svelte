@@ -279,7 +279,7 @@
               </button>
               {#if group !== undefined && group.pastRuns.length > 0}
                 <button
-                  class="flex shrink-0 items-center gap-1 rounded-md px-2 font-mono text-[10px] text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                  class="flex shrink-0 min-w-10 text-center justify-center items-center gap-1 rounded-md px-1 font-mono text-[10px] text-[#7f868e] transition hover:bg-[#262c31] hover:text-[#d6dadd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                   type="button"
                   aria-expanded={row.expanded === true}
                   aria-label="{row.expanded === true ? 'Collapse' : 'Expand'} {String(
@@ -291,7 +291,7 @@
                     class="inline-block transition-transform {row.expanded === true
                       ? 'rotate-90'
                       : ''}"
-                  >▸</span>
+                  >❭</span>
                   {group.pastRuns.length}
                 </button>
               {/if}

@@ -497,6 +497,11 @@ function announcedDateCandidates(text: string): readonly AnnouncedDateCandidate[
 const REPORTING_DATE_ANCHOR_PATTERN = /\b(?:on|for)\s+(?:[A-Za-z]+[,\s]+)?$/iu;
 // Official confirmation keeps "scheduled to"; conflict detection also accepts "scheduled for".
 const SCHEDULED_FOR_PATTERN = /\bscheduled\s+for\b/iu;
+// Only the date a conference-call clause schedules is rejected; newlines end the clause.
+const CONFERENCE_CALL_SCHEDULE_PATTERN =
+  /\bconference call\b[^,.!?\n]*\b(?:scheduled|planned|set|expected|rescheduled)?\s*(?:for|to|on)\s+(?:[A-Za-z]+[,\s]+)?$/iu;
+const SUPERSEDED_EXPECTATION_PATTERN =
+  /\b(?:previously|originally|formerly|no longer)\b|\b(?:was|were|had been)\s+(?:expected|scheduled|anticipated|planned|set)\b/iu;
 const SENTENCE_BOUNDARY_PATTERN = /[.!?]\s+(?=[A-Z"“])/gu;
 const MAX_CONFLICT_DATE_DISTANCE_DAYS = 30;
 
@@ -542,27 +547,36 @@ function conflictingEarningsDate(input: {
   for (const { date, index, length } of announcedDateCandidates(text)) {
     if (
       validated.some((candidate) => candidate.date === date) ||
-      date === input.providerDate ||
       !upcomingAnnouncementDate(date, input.analysisAsOf, source)
     ) {
       continue;
     }
-    if (Math.abs(daysBetween(date, input.providerDate)) > MAX_CONFLICT_DATE_DISTANCE_DAYS) {
-      continue;
-    }
-    if (!REPORTING_DATE_ANCHOR_PATTERN.test(text.slice(0, index))) {
+    const before = text.slice(0, index);
+    if (
+      !REPORTING_DATE_ANCHOR_PATTERN.test(before) ||
+      CONFERENCE_CALL_SCHEDULE_PATTERN.test(before)
+    ) {
       continue;
     }
     const span = announcementSpan(text, index, length);
-    if (
-      (!FUTURE_ANNOUNCEMENT_PATTERN.test(span) && !SCHEDULED_FOR_PATTERN.test(span)) ||
-      !EARNINGS_SUBJECT_PATTERN.test(span)
-    ) {
+    if (!EARNINGS_SUBJECT_PATTERN.test(span)) {
       continue;
     }
     if (
       !textMatchesIssuerName(span, identity) &&
       !textMatchesSymbolWithIssuerContext(span, identity)
+    ) {
+      continue;
+    }
+    if (date === input.providerDate) {
+      if (SUPERSEDED_EXPECTATION_PATTERN.test(span)) {
+        continue;
+      }
+      return undefined;
+    }
+    if (
+      (!FUTURE_ANNOUNCEMENT_PATTERN.test(span) && !SCHEDULED_FOR_PATTERN.test(span)) ||
+      Math.abs(daysBetween(date, input.providerDate)) > MAX_CONFLICT_DATE_DISTANCE_DAYS
     ) {
       continue;
     }

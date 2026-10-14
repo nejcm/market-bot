@@ -446,6 +446,19 @@ function announcementSource(overrides: Partial<Source> = {}): Source {
   };
 }
 
+function netSource(summary: string, title = "Cloudflare quarterly results"): Source {
+  return {
+    id: "news-net-results-date",
+    title,
+    url: "https://finnhub.io/api/news?id=example",
+    fetchedAt: "2026-10-13T20:15:00.000Z",
+    kind: "news",
+    assetClass: "equity",
+    provider: "finnhub",
+    summary,
+  };
+}
+
 describe("provider-versus-source earnings-date conflicts", () => {
   test("keeps both dates and declares a conflict gap when a source announces a different future date", async () => {
     const identity = await fixture("issuer-confirmed");
@@ -778,6 +791,156 @@ describe("provider-versus-source earnings-date conflicts", () => {
         analysisAsOf: provider.analysisAsOf,
       }),
     ).toEqual({ date: "2026-08-05", sourceId: "news-aapl-results-date" });
+  });
+
+  test("does not record a conflict from a source that agrees on the event date", async () => {
+    const provider = await fixture("provider-estimated");
+    const meliSetup: EarningsSetupCollected = {
+      ...provider.setup,
+      event: {
+        ...provider.setup.event,
+        symbol: "MELI",
+        date: "2026-11-04",
+        sourceIds: ["extended-finnhub-events-meli"],
+        fetchedAt: "2026-10-14T17:16:05.054Z",
+      },
+    };
+    const marketBeat: Source = {
+      id: "web-meli-6eb9809c",
+      title: "MercadoLibre Q3 2026 Earnings Date and Estimates",
+      url: "https://www.marketbeat.com/earnings/reports/2026-11-4-mercadolibre-inc-stock/",
+      fetchedAt: "2026-10-14T17:16:05.054Z",
+      kind: "web",
+      assetClass: "equity",
+      provider: "exa",
+      summary:
+        "MercadoLibre (MELI) Q3 2026 earnings overview: - Earnings date: Wednesday, November 4, 2026 (after market close). - Conference call: Wednesday, October 28, 2026 at 5:00 PM ET. - Expected results: earnings per share (EPS) ~ $9.27; revenue ~ $10.63 billion.",
+      snippet:
+        "MercadoLibre is estimated to report Q3 2026 earnings on Wednesday, November 4, 2026, after market closes. This date is estimated from past reporting schedules and may change once the company confirms it. ... MercadoLibre's Q3 2026 earnings conference call is scheduled for Wednesday, October 28, 2026 at 5:00 PM ET. MarketBeat streams the conference call audio and posts the transcript as soon as possible on the earnings announcement date.",
+    };
+
+    expect(
+      findEarningsDateConflict({
+        setup: meliSetup,
+        sources: [marketBeat],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "MercadoLibre, Inc." },
+        analysisAsOf: "2026-10-14T17:16:05.054Z",
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores a conference-call date when the source does not report the event date", async () => {
+    const provider = await fixture("provider-estimated");
+    const meliSetup: EarningsSetupCollected = {
+      ...provider.setup,
+      event: {
+        ...provider.setup.event,
+        symbol: "MELI",
+        date: "2026-11-04",
+        sourceIds: ["extended-finnhub-events-meli"],
+        fetchedAt: "2026-10-14T17:16:05.054Z",
+      },
+    };
+    const callOnly: Source = {
+      id: "web-meli-call-date",
+      title: "MercadoLibre Q3 2026 conference call",
+      url: "https://www.marketbeat.com/earnings/reports/2026-11-4-mercadolibre-inc-stock/",
+      fetchedAt: "2026-10-14T17:16:05.054Z",
+      kind: "web",
+      assetClass: "equity",
+      provider: "exa",
+      summary:
+        "MercadoLibre's Q3 2026 earnings conference call is scheduled for Wednesday, October 28, 2026 at 5:00 PM ET.",
+    };
+
+    expect(
+      findEarningsDateConflict({
+        setup: meliSetup,
+        sources: [callOnly],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "MercadoLibre, Inc." },
+        analysisAsOf: "2026-10-14T17:16:05.054Z",
+      }),
+    ).toBeUndefined();
+  });
+
+  const netSetup: EarningsSetupCollected = {
+    event: {
+      symbol: "NET",
+      date: "2026-10-29",
+      timing: "amc",
+      eventDateStatus: "provider-estimated",
+      dateStatus: "provider-estimated",
+      sourceIds: ["extended-finnhub-events-net"],
+      fetchedAt: "2026-10-14T08:30:49.704Z",
+    },
+    gaps: [],
+  };
+
+  test("keeps a conflict when the source only supersedes the provider date", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Cloudflare earnings were previously expected on October 29, 2026, but Cloudflare now will report its financial results on November 5, 2026.",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-net-results-date" });
+  });
+
+  test("keeps a reporting date that precedes a conference call", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Ahead of its conference call, Cloudflare will report its financial results on November 5, 2026.",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-net-results-date" });
+  });
+
+  test("ignores an unpunctuated conference-call title when the summary reports the date", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Cloudflare will report its financial results on November 5, 2026.",
+            "Cloudflare Q3 2026 earnings conference call scheduled for",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toEqual({ date: "2026-11-05", sourceId: "news-net-results-date" });
+  });
+
+  test("ignores a comma-less weekday in a conference-call schedule", () => {
+    expect(
+      findEarningsDateConflict({
+        setup: netSetup,
+        sources: [
+          netSource(
+            "Cloudflare earnings conference call is scheduled for Thursday November 5, 2026.",
+          ),
+        ],
+        rawSnapshots: [],
+        instrumentIdentity: { displayName: "Cloudflare, Inc." },
+        analysisAsOf: "2026-10-14T08:30:49.704Z",
+      }),
+    ).toBeUndefined();
   });
 
   test("carries a conflict through projection and the full Earnings Setup markdown", async () => {

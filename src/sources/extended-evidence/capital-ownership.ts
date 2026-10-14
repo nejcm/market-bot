@@ -6,6 +6,7 @@ import {
   type FinancialStatementTaxonomy,
   type FinancialStatementsArtifact,
 } from "./financial-statements-contract";
+import { isYearAligned } from "./financial-statement-selection";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import {
   type ArtifactObservationDrop,
@@ -313,9 +314,11 @@ function annualConceptFacts(
           annualForm === undefined ||
           typeof fact.val !== "number" ||
           !Number.isFinite(fact.val) ||
-          typeof fact.start !== "string" ||
           typeof fact.end !== "string" ||
           typeof fact.filed !== "string" ||
+          (typeof fact.start === "string"
+            ? !isYearAligned(fact.start, fact.end)
+            : fact.fp !== "FY") ||
           fact.end > analysisAsOf.slice(0, 10) ||
           fact.filed > analysisAsOf.slice(0, 10)
         ) {
@@ -324,7 +327,7 @@ function annualConceptFacts(
         return [
           {
             value: fact.val,
-            periodStart: fact.start,
+            ...(typeof fact.start === "string" ? { periodStart: fact.start } : {}),
             periodEnd: fact.end,
             filedAt: fact.filed,
             form: annualForm,

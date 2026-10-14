@@ -46,6 +46,7 @@ const VALUATION_METRIC_LABELS: Readonly<Record<string, string>> = {
   evToAnnualizedRevenue: "EV / annualized revenue",
   revenuePeriodMonths: "Revenue period (months)",
   corePeerCount: "Core peers",
+  usablePeerCount: "Peers (median basis)",
   peerMedianEvToAnnualizedRevenue: "Peer median EV / annualized revenue",
   peerP25EvToAnnualizedRevenue: "Peer P25 EV / annualized revenue",
   peerP75EvToAnnualizedRevenue: "Peer P75 EV / annualized revenue",
@@ -65,12 +66,17 @@ export function valuationMetricTiles(
     "annualizedRevenue",
     "evToAnnualizedRevenue",
     "revenuePeriodMonths",
+    "usablePeerCount",
     "corePeerCount",
     "peerMedianEvToAnnualizedRevenue",
     "peerP25EvToAnnualizedRevenue",
     "peerP75EvToAnnualizedRevenue",
     "valuationSupportability",
   ] as const;
+
+  const { usablePeerCount } = metrics;
+  const hasUsablePeerCount =
+    typeof usablePeerCount === "number" && Number.isFinite(usablePeerCount);
 
   return keys.flatMap((key) => {
     const raw = metrics[key];
@@ -83,6 +89,15 @@ export function valuationMetricTiles(
         key === "peerP75EvToAnnualizedRevenue"
       ) {
         return [{ label, value: formatMultiple(raw) }];
+      }
+      if (key === "usablePeerCount") {
+        const core = metrics["corePeerCount"];
+        const coreSuffix =
+          typeof core === "number" && Number.isFinite(core) ? ` (${String(core)} core)` : "";
+        return [{ label, value: `${String(raw)} usable${coreSuffix}` }];
+      }
+      if (key === "corePeerCount" && hasUsablePeerCount) {
+        return [];
       }
       if (key === "revenuePeriodMonths" || key === "corePeerCount") {
         return [{ label, value: String(raw) }];

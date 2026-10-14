@@ -21,6 +21,7 @@
     type SidebarView,
   } from "../view-model";
   import type { View } from "./console-types";
+  import TickerLogo from "./ticker-logo.svelte";
   import logoUrl from "../../../assets/logo.png";
 
   interface Props {
@@ -248,11 +249,14 @@
               >
                 <span class="flex items-baseline justify-between gap-2">
                   <span
-                    class="truncate text-xs font-medium {isSelected
+                    class="flex min-w-0 items-center gap-1.5 truncate text-xs font-medium {isSelected
                       ? 'text-white'
                       : 'text-[#d6dadd]'}"
                   >
-                    {runLabel(row.run)}
+                    {#if row.run.assetClass === "equity"}
+                      <TickerLogo symbol={row.run.symbol} class="size-4" />
+                    {/if}
+                    <span class="truncate">{runLabel(row.run)}</span>
                   </span>
                   {#if isFailedRun(row.run)}
                     <span

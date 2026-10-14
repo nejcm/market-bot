@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import TickerLogo from "./ticker-logo.svelte";
   import type { RunSummary } from "../../types";
   import type { ReportDetail } from "../app-settings";
   import type { RunWorkspaceEquityPresentationView, BindSection } from "../run-workspace-view";
@@ -87,7 +88,8 @@
   <div class="flex w-full min-w-0 flex-col gap-1.5 lg:w-auto lg:flex-1">
     <div class="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">{eyebrow}</div>
     <div class="flex flex-wrap items-baseline gap-3">
-      <h1 class="font-serif text-[34px] font-semibold leading-none text-foreground">
+      <h1 class="flex items-center gap-3 font-serif text-[34px] font-semibold leading-none text-foreground">
+        <TickerLogo symbol={summary.symbol} class="size-9 bg-[#1f2428] p-1" />
         {displayName}
       </h1>
       {#if summary.assetClass !== undefined && summary.symbol !== undefined}

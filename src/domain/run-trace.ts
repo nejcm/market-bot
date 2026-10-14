@@ -65,6 +65,7 @@ export interface HistoricalContextAudit {
 }
 
 export interface CodeVersion {
+  readonly version?: string;
   readonly branch?: string;
   readonly commit?: string;
   readonly commitShort?: string;

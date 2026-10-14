@@ -1,3 +1,4 @@
+import pkg from "../package.json";
 import type { CodeVersion } from "./domain/run-trace";
 
 export type { CodeVersion };
@@ -24,6 +25,7 @@ export function readCodeVersion(cwd: string = process.cwd()): CodeVersion {
   const commit = gitOutput(["rev-parse", "HEAD"], cwd);
   const dirtyOutput = gitOutput(["status", "--porcelain"], cwd);
   return {
+    version: pkg.version,
     ...(branch !== undefined ? { branch } : {}),
     ...(commit !== undefined ? { commit, commitShort: commit.slice(0, 12) } : {}),
     dirty: dirtyOutput !== undefined && dirtyOutput.length > 0,

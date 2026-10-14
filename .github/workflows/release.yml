@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: release
+
+jobs:
+  release:
+    name: Release
+    # The release commit is pushed with a PAT, so it re-triggers this workflow; skip it to avoid a loop.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - run: bun run scripts/release.ts
+        env:
+          LEFTHOOK: "0"
+      - run: git push --atomic --follow-tags origin HEAD:master

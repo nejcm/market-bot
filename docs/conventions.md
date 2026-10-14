@@ -81,3 +81,9 @@ bun run check
 ```
 
 passes locally, and any new env var is documented in [configuration.md](./configuration.md).
+
+## Releases
+
+Every push to `master` runs `.github/workflows/release.yml` → `scripts/release.ts`. It reads conventional commits since the last `v*` tag: `feat` → minor, `fix`/`perf` → patch, `!` or a `BREAKING CHANGE:` footer → major; `docs`/`test`/`chore`/`ci`/`refactor` alone release nothing. A release bumps `package.json`, prepends `CHANGELOG.md`, commits `chore(release): vX.Y.Z` and tags `vX.Y.Z`; the workflow skips that commit. Preview with `bun run scripts/release.ts --dry-run`. The push needs a `RELEASE_TOKEN` secret (PAT or app token allowed to bypass branch protection).
+
+Every run records the version in `trace.json` / `analytics.json` as `codeVersion.version` (read from `package.json`).

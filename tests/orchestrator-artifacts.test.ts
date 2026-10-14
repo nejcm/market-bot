@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import packageJson from "../package.json";
 import { persistResearchJob, runResearchJob } from "../src/research/orchestrator";
 import { resolveResearchSubject } from "../src/research/research-subject-identity";
 import { sourceGap } from "../src/domain/source-gaps";
@@ -425,6 +426,7 @@ describe("runResearchJob artifact persistence", () => {
     ).resolves.toContain("market-aapl");
     expect(result.trace.sourcePlan?.plannedLaneCount).toBeGreaterThan(0);
     expect(result.analytics.evidenceLanes?.coveredLaneCount).toBeGreaterThan(0);
+    expect(result.trace.codeVersion?.version).toBe(packageJson.version);
     expect(result.trace.codeVersion?.dirty).toEqual(expect.any(Boolean));
     expect(result.analytics.codeVersion).toEqual(result.trace.codeVersion);
     expect(result.trace.reproducibility?.effectiveConfigHash).toMatch(/^[a-f0-9]{64}$/u);

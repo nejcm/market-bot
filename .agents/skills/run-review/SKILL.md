@@ -1,6 +1,6 @@
 ---
 name: run-review
-description: Analyze market-bot runs, produce a ranked, evidence-backed list of fixes and improvements, and recommend the one to investigate next (output only, no code changes).
+description: Analyze market-bot runs, produce a ranked, evidence-backed list of fixes and improvements, and recommend the one to investigate next. Writes a report to `.reviews/`; no code changes.
 ---
 
 # Role
@@ -12,7 +12,9 @@ the docs it links (architecture, conventions, ADRs) for context and constraints.
 
 - **Run dir supplied:** the path the user gives (e.g. `data/runs/<run-id>/`).
 - **Natural request:** resolve phrases like "latest AAPL run" by listing
-  `data/runs/` newest-first and inspecting compact JSON fields, not large raw
+  `data/runs/` newest-first (`ls data/runs | sort -r`; run IDs start with a UTC
+  ISO timestamp, so name order is time order; in-flight
+  `data/.runs-*.partial` dirs sit beside `data/runs/` and are not listed) and inspecting compact JSON fields, not large raw
   artifact text.
 - **Nothing supplied:** review the reference run per Step 0.
 
@@ -39,7 +41,8 @@ clean workspace or the reverse — is not reusable; run it fresh then. A fresh
 deep equity run costs ~12 minutes and ~438k live model tokens (a recent NBIS
 deep run: 584s); state the cost before starting.
 
-**Single-run mode.** Review exactly one run. **Never** execute the CLI when the
+**Single-run mode** (unless repeat mode was explicitly requested). Review
+exactly one run. **Never** execute the CLI when the
 user supplied a run dir, or when you were invoked by another skill or subagent
 that already ran it; no request wording overrides either case. When the user named one subject, review
 its newest comparable run; run it only when it has none, or when the user
@@ -63,8 +66,12 @@ When running:
   findings.
 - **One run per subject.** Repeat same-subject runs discriminate run-to-run
   variance, but that is the most expensive axis; older runs of the same subject
-  (Step 2) cover most of it for free. Do N repeats only on explicit request, and
-  state the total cost before starting.
+  (Step 2) cover most of it for free. Repeat mode (N same-subject runs, each a
+  target, one report file) only on explicit request; state the total cost
+  before starting.
+- **Run execution.** The worker starts the CLI as a background process (never a
+  foreground call with a timeout), never stops or kills it, and waits for it to
+  exit. A killed run leaves only `data/.runs-<run-id>.partial`.
 - **A failed run** with a run dir (`failure.json`, written only for a
   rejected final synthesis) is still reviewed from its `outcomes.json`; one
   without a run dir is reviewed from its stderr tail only. Either way say the
@@ -74,7 +81,7 @@ Map requests to commands via `src/cli/job-registry.ts`, e.g.
 `bun run src/cli.ts equity NBIS --deep`, `bun run src/cli.ts crypto BTC`,
 `bun run src/cli.ts research <subject>`.
 
-Running the CLI is the only side effect this skill may cause. It never edits code.
+Side effects are limited to the CLI runs above and one new file under `.reviews/` (see Rules). It never edits code.
 
 **Verifying a fix.** When a Recommendation's cause is in `prompts/` or a model
 stage, its verification is a Frozen-Input Eval compare (`scripts/eval-deep.ts`
@@ -172,7 +179,7 @@ same code. Before analyzing metrics:
 Deltas inside the recorded variance bands in `docs/run-variance-baseline.md`
 are noise unless corroborated by independent evidence, provided that doc's
 recorded commit still matches the relevant subsystems — run the doc's own
-staleness command against the target commit. When the bands are stale, say
+staleness command, replacing `HEAD` with the target commit. When the bands are stale, say
 "no valid variance band" in the Code delta line and treat every run-vs-run metric delta as unproven unless independent
 artifact evidence corroborates it.
 
@@ -232,8 +239,8 @@ For each Recommendation item, **at most 8, ranked**:
   `skip`, and name the ADR and the clause; recommend an amendment only when the
   artifact evidence shows the ADR's premise no longer holds.
 - **Objective check** — one concrete artifact assertion that would verify a fix
-  (e.g. "`analytics.json:sourceFunnel.sourceGaps.total` has no duplicate
-  `(source, message)` pair"). Not a test name — an assertion over run artifacts.
+  (e.g. "`normalized/evidence-bundle.json:governance.sourceGaps[]` has no
+  duplicate `(source, message)` pair"). Not a test name — an assertion over run artifacts.
 
 Close with a single **`delta:`** line — `improved` / `regressed` / `stagnant` /
 `inconclusive` versus the baseline, with the artifact evidence behind the verdict.
@@ -307,8 +314,9 @@ Check these explicitly before final ranking:
   `data/calibration/summary.json`; note when weak/negative skill does not appear
   to affect forecast selection.
   - Prior-calibration feedback **is** injected into the synthesis prompt
-    (`buildCalibrationBlock` in `src/research/calibration-context.ts`, consumed
-    by `src/research/prompts/final-synthesis.ts`). Do not recommend wiring it up.
+    (`buildCalibrationBlock` in `src/research/calibration-context.ts`, injected
+    via `buildEvidencePayload` in `src/research/prompts/evidence-payload.ts`,
+    used by final synthesis). Do not recommend wiring it up.
     If guidance appears ineffective, that is the finding.
   - Treat `summary.json:bins` as a hypothesis, not a fact: check how many bins
     are populated and whether the underlying forecasts are independent. Near-
@@ -380,23 +388,38 @@ Check these explicitly before final ranking:
 
 # Rules
 
-- Output the Improvements, ranked Recommendations, and Next investigation sections only,
-  preceded by the scope/cohort/code-delta disclosure. Do NOT edit code, write
-  fixes, or change anything outside the permitted CLI runs in Step 0 and the
-  report file below.
-- Write the complete report (disclosure plus all three sections, unabridged) to
+- Do NOT edit code, write fixes, or change anything outside the permitted CLI
+  runs in Step 0 and the report file below.
+- Write the complete report, unabridged, to
   `.reviews/run-review-<UTC timestamp>-<run-id>.md` in the repo root, creating
-  `.reviews/` if needed (it is gitignored). Never overwrite an existing report.
-- The chat message is a separate, plain-language digest of the file, not a
-  copy: the `delta:` verdict with one line of why; scope in one line (runs,
-  baseline, code delta); each Recommendation as one line (rank, symptom,
-  severity/effort, disposition) with no evidence blocks; at most three
-  Improvements as one line each; then Next investigation with the one-line
-  why and its open questions. Short sentences, no `file:field` dumps — those
-  live in the file. End with the file path. Every claim in chat must appear in
-  the file.
+  `.reviews/` if needed (it is gitignored). Timestamp is
+  `date -u +%Y-%m-%dT%H-%M-%SZ`. `<run-id>` is the target run dir's basename;
+  for several targets, the newest plus `-and-<N-1>-more`; with no run dir,
+  `no-run-dir-<subject>`. Slugify the subject to `[A-Za-z0-9_-]`. Run `test -e`
+  on the path first; if it exists, insert `-2` before `.md` (then `-3`…) and
+  recheck. Never overwrite.
+- The file contains, in order: the disclosure (mode, each run reviewed and
+  whether reused/supplied/fresh, cohort table, each baseline, Code delta
+  line(s)), Improvements (omitted when no comparable baseline exists, per Step
+  2), Recommendations, Next investigation, and the closing `delta:` line (the
+  aggregate verdict in repeat mode).
+- The chat message is a separate plain-language digest of the file, at most 25
+  lines, no backticked field paths (citations live in the file), every claim
+  also in the file. Use this template:
+
+  ```
+  delta: <verdict> — <why, one sentence>
+  Scope: <mode>; target <run-id> (<reused|supplied|fresh>); baseline <run-id|none>; code delta <…>
+  Recommendations:
+  1. <symptom> — <sev>/<effort>, <scope>, <fixable|skip>   (one line per Recommendation; "none" if empty)
+  Improvements: <up to 3 one-line items | "none (no comparable baseline)" | "none material"> (+N more in file)
+  Next: #<rank> <symptom> — <why it beat the runner-up>. Open questions: <…>
+        (or "Next: none — no fixable Recommendations")
+  Report: .reviews/<file>.md
+  ```
+  In repeat mode, list every target and its baseline on the Scope line.
 - Every finding must cite evidence from the artifacts. Don't guess.
-- State the mode (reference or single), each run reviewed, whether it was reused,
+- State the mode (reference, single, or repeat), each run reviewed, whether it was reused,
   supplied, or freshly executed, the cohort scanned, each baseline, and the
   "Code delta" line(s).
 - Use exact `file:field` citations and compact extracted values. Avoid pasting

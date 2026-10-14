@@ -18,6 +18,3 @@ TODO.md
 
 # Plan documents are working artifacts, never committed. See AGENTS.md non-negotiable 5.
 plans/
-
-# run-review output; working artifacts, never committed.
-.reviews/

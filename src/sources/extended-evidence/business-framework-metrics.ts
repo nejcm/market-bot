@@ -33,6 +33,7 @@ import {
   type MetricInput,
   type MetricOutcome,
   type MetricSection,
+  seriesNotFiled,
 } from "./metric-engine";
 import { readNumberMetric, readStringMetric } from "./utils";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
@@ -135,6 +136,13 @@ function factInput(fact: FinancialStatementFact, key: FrameworkSeries): MetricIn
 }
 
 function noFact(ctx: MetricContext, key: FrameworkSeries): MetricOutcome {
+  if (seriesNotFiled(ctx, key)) {
+    return {
+      status: "missing",
+      reason: `${SERIES_LABELS[key]} not filed by the issuer`,
+      cause: "not-filed",
+    };
+  }
   return {
     status: "missing",
     reason:
@@ -264,6 +272,31 @@ function secMargin(
     : { status: "value", value: numerator.value / denominator.value, inputs };
 }
 
+// An unfiled numerator is a wildcard: the filed denominator still runs its own fact and sign gates first.
+function unanchoredMargin(
+  ctx: MetricContext,
+  numeratorKey: FrameworkSeries,
+  denominatorKey: FrameworkSeries,
+): MetricOutcome {
+  const numerator = noFact(ctx, numeratorKey);
+  if (numerator.status !== "missing" || numerator.cause !== "not-filed") {
+    return numerator;
+  }
+  const denominator = latestFact(ctx, denominatorKey);
+  if (denominator === undefined) {
+    return noFact(ctx, denominatorKey);
+  }
+  const inputs = [factInput(denominator, denominatorKey)];
+  return denominator.value <= 0
+    ? {
+        status: "not-meaningful",
+        reason: `${SERIES_LABELS[denominatorKey]} is not positive`,
+        ...periodOf(denominator),
+        inputs,
+      }
+    : { ...numerator, ...periodOf(denominator), inputs };
+}
+
 // R1 join: the numerator anchors the period; the denominator must share its exact period identity.
 function margin(numeratorKey: FrameworkSeries, denominatorKey: FrameworkSeries) {
   return (ctx: MetricContext): MetricOutcome => {
@@ -272,7 +305,7 @@ function margin(numeratorKey: FrameworkSeries, denominatorKey: FrameworkSeries) 
     }
     const anchor = latestFact(ctx, numeratorKey);
     if (anchor === undefined) {
-      return noFact(ctx, numeratorKey);
+      return unanchoredMargin(ctx, numeratorKey, denominatorKey);
     }
     const denominator = latestFinancialStatementFact(
       eligibleFacts(ctx, denominatorKey).filter(
@@ -281,9 +314,13 @@ function margin(numeratorKey: FrameworkSeries, denominatorKey: FrameworkSeries) 
     );
     const denominatorLabel = SERIES_LABELS[denominatorKey];
     if (denominator === undefined) {
+      const notFiled = seriesNotFiled(ctx, denominatorKey);
       return {
         status: "missing",
-        reason: `no same-period ${denominatorLabel} for the period ending ${anchor.periodEnd}`,
+        reason: notFiled
+          ? `${denominatorLabel} not filed by the issuer`
+          : `no same-period ${denominatorLabel} for the period ending ${anchor.periodEnd}`,
+        ...(notFiled ? { cause: "not-filed" as const } : {}),
         ...periodOf(anchor),
         inputs: [factInput(anchor, numeratorKey)],
       };

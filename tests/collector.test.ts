@@ -718,7 +718,8 @@ describe("collectSources", () => {
         ?.metrics.find((m) => m.id === "buybacksLatestFy"),
     ).toMatchObject({
       status: "missing",
-      reason: "no year-aligned annual share repurchases fact",
+      reason: "share repurchases not filed by the issuer",
+      cause: "not-filed",
     });
     expect(result.sourceGaps.filter((gap) => gap.source === "capital-return")).toMatchObject([
       { triage: "material", evidenceQualityImpact: "no-cap", provider: "market-bot" },

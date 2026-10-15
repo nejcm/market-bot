@@ -20,6 +20,7 @@ const AS_OF = "2026-07-23T00:00:00.000Z";
 const YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025];
 
 type Fact = Record<string, unknown>;
+type MetricRecord = Record<string, unknown>;
 
 function fy(value: number, year: number, overrides: Fact = {}): Fact {
   return {
@@ -88,6 +89,10 @@ function context(
     quote: { marketCap: 10_000, currency: "USD", asOf: AS_OF, sourceId: QUOTE_SOURCE_ID },
     ...overrides,
   };
+}
+
+function quoteless({ quote: _quote, ...rest }: MetricContext): MetricContext {
+  return rest;
 }
 
 const evaluated: ReturnType<typeof capitalReturnSection>[] = [];
@@ -214,7 +219,7 @@ describe("capitalReturnSection", () => {
     ).toEqual(["dpsCagr3y", "dpsCagr5y"]);
   });
 
-  test("buybacks-only issuer: absent dividends stay missing, never zero", () => {
+  test("buybacks-only issuer: never-filed dividends stay missing, never zero, gap diagnostic", () => {
     const result = evaluate(context(usGaap({ PaymentsOfDividends: undefined })));
 
     expect(result.metric("buybackYield").status).toBe("value");
@@ -227,15 +232,172 @@ describe("capitalReturnSection", () => {
     ]) {
       expect(result.metric(id)).toMatchObject({
         status: "missing",
-        reason: "no year-aligned annual dividends paid fact",
+        reason: "dividends paid not filed by the issuer",
+        cause: "not-filed",
       });
       expect(result.metric(id).value).toBeUndefined();
     }
     expect(result.sourceGaps[0]).toMatchObject({
       source: "capital-return",
-      triage: "material",
+      cause: "provider-data-missing",
+      triage: "diagnostic",
       evidenceQualityImpact: "no-cap",
     });
+  });
+
+  test("never-filed beside a stale series keeps the gap material", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          PaymentsOfDividends: undefined,
+          PaymentsForRepurchaseOfCommonStock: series("USD", (year) =>
+            year <= 2020 ? 90 : undefined,
+          ),
+        }),
+      ),
+    );
+
+    expect(result.metric("dividendsLatestFy").cause).toBe("not-filed");
+    expect(result.metric("buybacksLatestFy")).toMatchObject({
+      status: "missing",
+      reason: "stale share repurchases as of 2020-12-31",
+    });
+    expect(result.metric("buybacksLatestFy").cause).toBeUndefined();
+    expect(result.sourceGaps[0]?.triage).toBe("material");
+  });
+
+  test("a concept filed only as interim or wrong-span facts is not not-filed", () => {
+    const interimOnly = {
+      units: {
+        USD: [
+          fy(30, 2025, { start: "2025-01-01", end: "2025-06-30", fp: "Q2", form: "10-Q" }),
+          fy(60, 2025, { start: "2024-01-01", end: "2025-02-28" }),
+        ],
+      },
+    };
+    const result = evaluate(context(usGaap({ PaymentsOfDividends: interimOnly })));
+
+    expect(result.metric("dividendsLatestFy")).toMatchObject({ status: "missing" });
+    expect(result.metric("dividendsLatestFy").cause).toBeUndefined();
+    expect(result.sourceGaps[0]?.triage).toBe("material");
+  });
+
+  test("a never-filed numerator never hides a filed-but-filtered denominator", () => {
+    const interimOcf = {
+      units: {
+        USD: YEARS.map((year) =>
+          fy(400, year, { end: `${String(year)}-06-30`, fp: "Q2", form: "10-Q" }),
+        ),
+      },
+    };
+    const result = evaluate(
+      context(
+        usGaap({
+          PaymentsOfDividends: undefined,
+          NetCashProvidedByUsedInOperatingActivities: interimOcf,
+        }),
+      ),
+    );
+
+    expect(result.metric("dividendsLatestFy").cause).toBe("not-filed");
+    expect(result.metric("fcfPayoutRatio")).toMatchObject({
+      status: "missing",
+      reason: "no year-aligned annual operating cash flow fact",
+    });
+    expect(result.metric("totalPayoutToFcf")).toMatchObject({
+      status: "missing",
+      reason: "no same-period operating cash flow for the fiscal year ending 2025-12-31",
+    });
+    for (const id of ["fcfPayoutRatio", "totalPayoutToFcf"]) {
+      expect(result.metric(id).cause).toBeUndefined();
+    }
+    expect(result.sourceGaps[0]?.triage).toBe("material");
+  });
+
+  test("unfiled dividends: the filed FCF inputs must still join, fresh, in one fiscal year", () => {
+    const fcf = (overrides: Record<string, Fact | undefined>) =>
+      evaluate(context(usGaap({ PaymentsOfDividends: undefined, ...overrides }))).metric(
+        "fcfPayoutRatio",
+      );
+    const unjoined = fcf({
+      NetCashProvidedByUsedInOperatingActivities: series("USD", (year) =>
+        year === 2025 ? 400 : undefined,
+      ),
+      PaymentsToAcquirePropertyPlantAndEquipment: series("USD", (year) =>
+        year === 2024 ? 100 : undefined,
+      ),
+    });
+    const stale = fcf({
+      NetCashProvidedByUsedInOperatingActivities: series("USD", (year) =>
+        year <= 2020 ? 400 : undefined,
+      ),
+      PaymentsToAcquirePropertyPlantAndEquipment: series("USD", (year) =>
+        year <= 2020 ? 100 : undefined,
+      ),
+    });
+    const joined = fcf({});
+
+    expect(unjoined).toMatchObject({
+      status: "missing",
+      reason: "no same-period capital expenditure for the fiscal year ending 2025-12-31",
+    });
+    expect(unjoined.cause).toBeUndefined();
+    expect(stale).toMatchObject({
+      status: "missing",
+      reason: "stale operating cash flow as of 2020-12-31",
+    });
+    expect(stale.cause).toBeUndefined();
+    expect(joined).toMatchObject({
+      status: "missing",
+      reason: "dividends paid not filed by the issuer",
+      cause: "not-filed",
+      periodEnd: "2025-12-31",
+    });
+    expect(joined.inputs.map(({ series: key }) => key)).toEqual([
+      "operatingCashFlow",
+      "capitalExpenditure",
+    ]);
+  });
+
+  test("a never-filed yield numerator never hides an absent quote", () => {
+    const { quote: _quote, ...withoutQuote } = context(usGaap({ PaymentsOfDividends: undefined }));
+    const result = evaluate(withoutQuote);
+
+    expect(result.metric("dividendYieldFiled").cause).toBeUndefined();
+    expect(result.sourceGaps[0]?.triage).toBe("material");
+  });
+
+  test("a concept whose only rows are malformed is filed, not not-filed", () => {
+    for (const val of [null, "60", {}]) {
+      const ctx = context(
+        usGaap({ PaymentsOfDividends: { units: { USD: [fy(0, 2025, { val })] } } }),
+      );
+
+      expect(ctx.statements?.unfiledSeries).not.toContain("dividendsPaid");
+      expect(evaluate(ctx).metric("dividendsLatestFy").cause).toBeUndefined();
+    }
+  });
+
+  test("an artifact without unfiled-series evidence never claims not-filed", () => {
+    const ctx = context(usGaap({ PaymentsOfDividends: undefined }));
+    expect(ctx.statements?.unfiledSeries).toContain("dividendsPaid");
+    const { unfiledSeries: _unrecorded, ...preFlag } = ctx.statements!;
+    const historical = evaluate({ ...ctx, statements: preFlag });
+
+    expect(historical.metric("dividendsLatestFy")).toMatchObject({
+      status: "missing",
+      reason: "no year-aligned annual dividends paid fact",
+    });
+    expect(historical.metric("dividendsLatestFy").cause).toBeUndefined();
+    expect(historical.sourceGaps[0]?.triage).toBe("material");
+  });
+
+  test("a filing dated after analysisAsOf does not count as filed", () => {
+    const ctx = context(
+      usGaap({ PaymentsOfDividends: { units: { USD: [fy(60, 2026, { filed: "2027-02-15" })] } } }),
+    );
+
+    expect(ctx.statements?.unfiledSeries).toContain("dividendsPaid");
   });
 
   test("filed zero dividends are a value of 0, never not-applicable", () => {
@@ -279,7 +441,8 @@ describe("capitalReturnSection", () => {
     for (const id of ["dpsLatestFy", "dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"]) {
       expect(withoutPerShare.metric(id)).toMatchObject({
         status: "missing",
-        reason: "no year-aligned annual dividends per share fact",
+        reason: "dividends per share not filed by the issuer",
+        cause: "not-filed",
       });
     }
     expect(withPerShare.metric("dpsLatestFy")).toMatchObject({ status: "value", value: 0 });
@@ -766,11 +929,16 @@ describe("capitalReturnSection", () => {
   });
 
   test("report.md lists a missing-metric gap as material and a diagnostic-only gap apart", () => {
-    const material = renderMaterialGaps(context(usGaap({ PaymentsOfDividends: undefined })));
+    const base = context(usGaap());
+    const material = renderMaterialGaps(
+      context(usGaap(), { quote: { ...base.quote!, currency: "EUR" } }),
+    );
     const diagnostic = renderMaterialGaps(context(usGaap(), { depositorySic: "6022" }));
+    const notFiled = renderMaterialGaps(context(usGaap({ PaymentsOfDividends: undefined })));
 
     expect(material).toContain("capital-return: Capital Return metrics for TEST not computed");
     expect(diagnostic).not.toContain("capital-return");
+    expect(notFiled).not.toContain("capital-return");
   });
 
   test("every label, basis, reason, text value and gap passes the research-only gate", () => {
@@ -896,6 +1064,142 @@ describe("Capital Return in report.json and report.md", () => {
     ).toThrow("names the earliest positive FY");
   });
 
+  test("the fixture invariant checks each not-filed cause against the metric's own inputs", () => {
+    const snapshot = marketSnapshot({
+      sourceId: QUOTE_SOURCE_ID,
+      symbol: "TEST",
+      marketCap: 10_000,
+      observedAt: AS_OF,
+    });
+    const quoted = (ctx: MetricContext, currency = "USD"): MetricContext => ({
+      ...ctx,
+      quote: {
+        marketCap: 10_000,
+        currency,
+        asOf: resolveMarketSnapshotPriceAsOf(snapshot).instant,
+        sourceId: QUOTE_SOURCE_ID,
+      },
+    });
+    const runWith = (ctx: MetricContext, change: (metric: MetricRecord) => MetricRecord) => {
+      const { section, sourceGaps } = capitalReturnSection(ctx);
+      const metrics = section.metrics.map((metric) => change(metric as unknown as MetricRecord));
+      const allNotFiled = metrics
+        .filter(({ status }) => status === "missing")
+        .every(({ cause }) => cause === "not-filed");
+      const report = researchReport({
+        jobType: "equity",
+        symbol: "TEST",
+        sources: [evidenceSource(SOURCE_ID), evidenceSource(QUOTE_SOURCE_ID)],
+        dataGaps: sourceGaps.map((gap) => sourceGapReportText(gap)),
+        extras: { metricSections: [{ ...section, metrics }] },
+      });
+      return () =>
+        assertMetricSectionInvariants(
+          {
+            collectedSources: collectedSources({
+              financialStatements: ctx.statements!,
+              capitalOwnership: ctx.capitalOwnership!,
+              ...(ctx.quote === undefined
+                ? {}
+                : {
+                    marketSnapshots: [snapshot],
+                    resolvedInstrumentIdentity: { quoteCurrency: ctx.quote.currency } as never,
+                  }),
+              sourceGaps: sourceGaps.map((gap) => ({
+                ...gap,
+                triage: allNotFiled ? "diagnostic" : "material",
+              })),
+            }),
+            markdown: renderMarkdownReport(report),
+          },
+          report,
+        );
+    };
+    const tag =
+      (...ids: string[]) =>
+      (metric: MetricRecord): MetricRecord =>
+        ids.includes(String(metric.id))
+          ? {
+              ...metric,
+              status: "missing",
+              cause: "not-filed",
+              value: undefined,
+              periodEnd: (metric.inputs as readonly MetricInput[]).find(
+                ({ artifact }) => artifact === "statements",
+              )?.periodEnd,
+            }
+          : metric;
+    const unfiledDividends = quoteless(context(usGaap({ PaymentsOfDividends: undefined })));
+    const filteredOcf = quoteless(
+      context(
+        usGaap({
+          PaymentsOfDividends: undefined,
+          NetCashProvidedByUsedInOperatingActivities: {
+            units: { USD: [fy(400, 2025, { end: "2025-06-30", fp: "Q2", form: "10-Q" })] },
+          },
+        }),
+      ),
+    );
+
+    expect(runWith(unfiledDividends, (metric) => metric)).not.toThrow();
+    expect(runWith(unfiledDividends, tag("buybacksLatestFy"))).toThrow(
+      "capital-return.buybacksLatestFy not-filed needs one of its own inputs unfiled",
+    );
+    const withFcf = (
+      ocf: (year: number) => number | undefined,
+      capex: (year: number) => number | undefined,
+    ) =>
+      quoteless(
+        context(
+          usGaap({
+            PaymentsOfDividends: undefined,
+            NetCashProvidedByUsedInOperatingActivities: series("USD", ocf),
+            PaymentsToAcquirePropertyPlantAndEquipment: series("USD", capex),
+          }),
+        ),
+      );
+    const staleOcf = withFcf(
+      (year) => (year <= 2020 ? 400 : undefined),
+      (year) => (year <= 2020 ? 100 : undefined),
+    );
+    const unjoined = withFcf(
+      (year) => (year === 2025 ? 400 : undefined),
+      (year) => (year === 2024 ? 100 : undefined),
+    );
+
+    expect(
+      capitalReturnSection(unfiledDividends).section.metrics.find(
+        ({ id }) => id === "fcfPayoutRatio",
+      )?.cause,
+    ).toBe("not-filed");
+    const negativeFcf = withFcf(
+      () => 50,
+      () => 100,
+    );
+    expect(
+      capitalReturnSection(negativeFcf).section.metrics.find(({ id }) => id === "fcfPayoutRatio")
+        ?.status,
+    ).toBe("not-meaningful");
+    const quotedDividends = quoted(unfiledDividends);
+    const yieldCauses = capitalReturnSection(quotedDividends).section.metrics.flatMap(
+      ({ id, cause }) => (id === "dividendYieldFiled" || id === "shareholderYield" ? [cause] : []),
+    );
+    expect(yieldCauses).toEqual(["not-filed", "not-filed"]);
+    expect(runWith(quotedDividends, (metric) => metric)).not.toThrow();
+    for (const ctx of [unfiledDividends, quoted(unfiledDividends, "EUR")]) {
+      expect(runWith(ctx, (metric) => metric)).not.toThrow();
+      expect(runWith(ctx, tag("dividendYieldFiled"))).toThrow(
+        "capital-return.dividendYieldFiled not-filed but filed inputs fail",
+      );
+    }
+    for (const ctx of [filteredOcf, staleOcf, unjoined, negativeFcf]) {
+      expect(runWith(ctx, (metric) => metric)).not.toThrow();
+      expect(runWith(ctx, tag("fcfPayoutRatio"))).toThrow(
+        "capital-return.fcfPayoutRatio not-filed but filed inputs fail",
+      );
+    }
+  });
+
   test("validates against report sources and rejects an unknown metric source id", () => {
     const ctx = context(usGaap());
     expect(() =>
@@ -904,6 +1208,43 @@ describe("Capital Return in report.json and report.md", () => {
     expect(() => validateResearchReport(reportWith(ctx, [SOURCE_ID]))).toThrow(
       `Metric Sections [0].metrics[6] (capital-return.buybackYield) cites unknown source ID: ${QUOTE_SOURCE_ID}`,
     );
+  });
+
+  test("a not-filed cause validates on a missing metric only", () => {
+    const report = reportWith(context(usGaap({ PaymentsOfDividends: undefined })), [
+      SOURCE_ID,
+      QUOTE_SOURCE_ID,
+    ]);
+    const sections = report.extras?.metricSections as readonly Record<string, unknown>[];
+    const forged = (cause: string, status: string) => ({
+      ...report,
+      extras: {
+        ...report.extras,
+        metricSections: sections.map((section) => ({
+          ...section,
+          metrics: (section.metrics as readonly Record<string, unknown>[]).map((metric) =>
+            metric.id === "buybacksLatestFy" ? { ...metric, cause, status } : metric,
+          ),
+        })),
+      },
+    });
+
+    expect(() => validateResearchReport(report)).not.toThrow();
+    expect(() => validateResearchReport(forged("not-filed", "value"))).toThrow(
+      'buybacksLatestFy has cause "not-filed" on a value metric',
+    );
+    expect(() => validateResearchReport(forged("stale", "missing"))).toThrow(
+      'has cause "stale" on a missing metric',
+    );
+    for (const [cause, text] of [
+      [42, "42"],
+      [null, "null"],
+      [{}, "{}"],
+    ] as const) {
+      expect(() => validateResearchReport(forged(cause as never, "missing"))).toThrow(
+        `has cause ${text} on a missing metric`,
+      );
+    }
   });
 
   test("renders values with period, basis and citations, and reasons for the rest", () => {

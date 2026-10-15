@@ -15,7 +15,12 @@ import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
-import type { FinancialStatementSeriesKey } from "../../../src/sources/extended-evidence/financial-statements-contract";
+import type {
+  FinancialStatementFact,
+  FinancialStatementSeriesKey,
+  FinancialStatementsArtifact,
+} from "../../../src/sources/extended-evidence/financial-statements-contract";
+import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../../../src/sources/extended-evidence/financial-statement-definitions";
 import { financialStatementSeriesByKey } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import type { FixtureMeta, RunFixtureResult } from ".";
@@ -229,6 +234,260 @@ function resolveInput(
   return resolved;
 }
 
+function targetCompanyFacts(run: MetricInvariantRun): Record<string, unknown> | undefined {
+  const cik = /CIK(\d+)\.json/u.exec(
+    run.collectedSources.financialStatements?.sourceUrl ?? "",
+  )?.[1];
+  const payload = run.collectedSources.rawSnapshots.find(
+    ({ adapter, payload: candidate }) =>
+      adapter === "sec-companyfacts" &&
+      isRecord(candidate) &&
+      cik !== undefined &&
+      Number(candidate.cik) === Number(cik),
+  )?.payload;
+  return isRecord(payload) && isRecord(payload.facts) ? payload.facts : undefined;
+}
+
+const CAPITAL_RETURN_INPUTS: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
+  buybacksLatestFy: ["shareRepurchases"],
+  dividendsLatestFy: ["dividendsPaid"],
+  shareCountChange1y: ["dilutedShares"],
+  shareCountChange3y: ["dilutedShares"],
+  shareCountChange5y: ["dilutedShares"],
+  shareCountTrend: ["dilutedShares"],
+  buybackYield: ["shareRepurchases"],
+  dividendYieldFiled: ["dividendsPaid"],
+  shareholderYield: ["dividendsPaid", "shareRepurchases"],
+  fcfPayoutRatio: ["dividendsPaid", "operatingCashFlow", "capitalExpenditure"],
+  totalPayoutToFcf: [
+    "dividendsPaid",
+    "shareRepurchases",
+    "operatingCashFlow",
+    "capitalExpenditure",
+  ],
+  dpsLatestFy: ["dividendsPerShare"],
+  dpsCagr3y: ["dividendsPerShare"],
+  dpsCagr5y: ["dividendsPerShare"],
+  earliestDividendFyInHistory: ["dividendsPerShare"],
+};
+
+const FRAMEWORK_INPUTS: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
+  revenue: ["revenue"],
+  grossProfit: ["grossProfit"],
+  operatingIncome: ["operatingIncome"],
+  shareRepurchases: ["shareRepurchases"],
+  revenueDeltaPercent: ["revenue"],
+  operatingIncomeDeltaPercent: ["operatingIncome"],
+  netIncomeDeltaPercent: ["netIncome"],
+  grossMargin: ["grossProfit", "revenue"],
+  operatingMargin: ["operatingIncome", "revenue"],
+};
+
+function rawFiledCount(
+  facts: Record<string, unknown>,
+  taxonomy: string,
+  concept: string,
+  cutoff: string,
+): number {
+  const root = isRecord(facts[taxonomy]) ? facts[taxonomy] : {};
+  const units = isRecord(root[concept]) ? root[concept].units : undefined;
+  return (isRecord(units) ? Object.values(units) : [])
+    .flatMap((values) => (Array.isArray(values) ? values : []))
+    .filter((fact) => !isRecord(fact) || typeof fact.filed !== "string" || fact.filed <= cutoff)
+    .length;
+}
+
+// A not-filed metric needs one of its own inputs unfiled (raw-checked) and no own input filed but filtered.
+function assertNotFiledCause(
+  run: MetricInvariantRun,
+  label: string,
+  required: readonly FinancialStatementSeriesKey[] | undefined,
+  filedInputsFailure: (
+    statements: FinancialStatementsArtifact,
+    filed: readonly FinancialStatementSeriesKey[],
+  ) => string | undefined,
+): void {
+  expect(required, `${label} not-filed needs known statement inputs`).toBeDefined();
+  const statements = run.collectedSources.financialStatements;
+  const unfiled = (required ?? []).filter((key) => statements?.unfiledSeries?.includes(key));
+  expect(unfiled.length, `${label} not-filed needs one of its own inputs unfiled`).toBeGreaterThan(
+    0,
+  );
+  const filed = (required ?? []).filter((key) => !unfiled.includes(key));
+  if (statements !== undefined) {
+    expect(filedInputsFailure(statements, filed), `${label} not-filed but filed inputs fail`).toBe(
+      undefined,
+    );
+  }
+  const facts = targetCompanyFacts(run);
+  if (facts === undefined || statements === undefined) {
+    return;
+  }
+  const cutoff = statements.analysisAsOf.slice(0, 10);
+  for (const { key, concepts } of FINANCIAL_STATEMENT_SERIES_DEFINITIONS) {
+    for (const [taxonomy, names] of unfiled.includes(key) ? Object.entries(concepts) : []) {
+      for (const concept of names) {
+        expect(
+          rawFiledCount(facts, taxonomy, concept, cutoff),
+          `${label}: ${key} unfiled but ${taxonomy}:${concept} has facts`,
+        ).toBe(0);
+      }
+    }
+  }
+}
+
+function annualFacts(
+  statements: FinancialStatementsArtifact,
+  key: FinancialStatementSeriesKey,
+): readonly FinancialStatementFact[] {
+  return (financialStatementSeriesByKey(statements, key)?.annual ?? []).filter(
+    (fact) => fact.periodType === "annual" && isAnnualSpan(fact),
+  );
+}
+
+// Next annual filing due: FY end + 16 months (month-end kept) + 7 days.
+function annualFilingDue(periodEnd: string): string {
+  const [year, month, day] = periodEnd.slice(0, 10).split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const monthEnd = new Date(Date.UTC(year, month, 0)).getUTCDate() === day;
+  const targetDays = new Date(Date.UTC(year, month + 16, 0)).getUTCDate();
+  const due = Date.UTC(year, month + 15, monthEnd ? targetDays : Math.min(day, targetDays));
+  return new Date(due + 7 * 86_400_000).toISOString().slice(0, 10);
+}
+
+const YIELD_METRICS = new Set(["buybackYield", "dividendYieldFiled", "shareholderYield"]);
+const FCF_METRICS = new Set(["fcfPayoutRatio", "totalPayoutToFcf"]);
+const MARGIN_METRICS = new Set(["grossMargin", "operatingMargin"]);
+
+function quoteFailure(
+  run: MetricInvariantRun,
+  statements: FinancialStatementsArtifact,
+  reportingCurrency: string | null | undefined,
+): string | undefined {
+  const snapshot = run.collectedSources.marketSnapshots.find(
+    (candidate) =>
+      candidate.assetClass === "equity" &&
+      candidate.symbol.toUpperCase() === statements.symbol.toUpperCase(),
+  );
+  const currency =
+    run.collectedSources.resolvedInstrumentIdentity?.quoteCurrency ??
+    snapshot?.identity?.quoteCurrency;
+  if (snapshot?.marketCap === undefined) {
+    return "no quote market cap";
+  }
+  if (currency === undefined || currency !== (reportingCurrency ?? statements.reportingCurrency)) {
+    return "quote currency differs from reporting";
+  }
+  return snapshot.marketCap <= 0 ? "market cap not positive" : undefined;
+}
+
+// Capital Return: filed inputs join on the first one's latest fresh year-aligned FY, then the metric's gates.
+function capitalReturnFiledFailure(
+  run: MetricInvariantRun,
+  metricId: string,
+  statements: FinancialStatementsArtifact,
+  filed: readonly FinancialStatementSeriesKey[],
+): string | undefined {
+  const [anchorKey, ...joinedKeys] = filed;
+  const anchor =
+    anchorKey === undefined
+      ? undefined
+      : annualFacts(statements, anchorKey)
+          .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd))
+          .at(0);
+  if (anchorKey !== undefined && anchor === undefined) {
+    return `no annual ${anchorKey}`;
+  }
+  if (
+    anchor !== undefined &&
+    statements.analysisAsOf.slice(0, 10) > annualFilingDue(anchor.periodEnd)
+  ) {
+    return `stale ${anchorKey}`;
+  }
+  const joined = new Map<FinancialStatementSeriesKey, FinancialStatementFact>(
+    anchorKey === undefined || anchor === undefined ? [] : [[anchorKey, anchor]],
+  );
+  for (const key of joinedKeys) {
+    const match = annualFacts(statements, key).find(
+      (fact) => fact.periodEnd === anchor?.periodEnd && fact.periodStart === anchor.periodStart,
+    );
+    if (match === undefined) {
+      return `no same-period ${key}`;
+    }
+    joined.set(key, match);
+  }
+  const ocf = joined.get("operatingCashFlow");
+  const capex = joined.get("capitalExpenditure");
+  if (
+    FCF_METRICS.has(metricId) &&
+    ocf !== undefined &&
+    capex !== undefined &&
+    ocf.value - Math.abs(capex.value) <= 0
+  ) {
+    return "free cash flow not positive";
+  }
+  return YIELD_METRICS.has(metricId) ? quoteFailure(run, statements, anchor?.currency) : undefined;
+}
+
+// Framework: each filed input needs a usable fact; a margin's lone filed denominator must be positive.
+function frameworkFiledFailure(
+  metricId: string,
+  statements: FinancialStatementsArtifact,
+  filed: readonly FinancialStatementSeriesKey[],
+): string | undefined {
+  const latest = (key: FinancialStatementSeriesKey) => {
+    const series = financialStatementSeriesByKey(statements, key);
+    return [...(series?.annual ?? []), ...(series?.interim ?? [])]
+      .filter((fact) => fact.periodType === "interim" || isAnnualSpan(fact))
+      .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd))
+      .at(0);
+  };
+  const unusable = filed.find((key) => latest(key) === undefined);
+  if (unusable !== undefined) {
+    return unusable;
+  }
+  const [denominatorKey] = filed;
+  const denominator = denominatorKey === undefined ? undefined : latest(denominatorKey);
+  return MARGIN_METRICS.has(metricId) &&
+    filed.length === 1 &&
+    denominatorKey === "revenue" &&
+    (denominator?.value ?? 0) <= 0
+    ? "denominator not positive"
+    : undefined;
+}
+
+// Diagnostic iff every missing metric is not-filed, and each not-filed cause is checked against its own inputs.
+function assertSectionGapTriage(
+  run: MetricInvariantRun,
+  id: string,
+  metrics: MetricSectionsExtra[number]["metrics"],
+): void {
+  const missing = metrics.filter(({ status }) => status === "missing");
+  if (missing.length === 0) {
+    return;
+  }
+  const notFiled = missing.filter(({ cause }) => cause === "not-filed");
+  expect(
+    run.collectedSources.sourceGaps.find(({ source }) => source === id)?.triage,
+    `${id} gap is diagnostic only when every missing metric is not-filed`,
+  ).toBe(notFiled.length === missing.length ? "diagnostic" : "material");
+  const capitalReturn = id === "capital-return";
+  for (const metric of notFiled) {
+    assertNotFiledCause(
+      run,
+      `${id}.${metric.id}`,
+      (capitalReturn ? CAPITAL_RETURN_INPUTS : FRAMEWORK_INPUTS)[metric.id],
+      (statements, filed) =>
+        capitalReturn
+          ? capitalReturnFiledFailure(run, String(metric.id), statements, filed)
+          : frameworkFiledFailure(String(metric.id), statements, filed),
+    );
+  }
+}
+
 export function assertMetricSectionInvariants(
   run: MetricInvariantRun,
   report: ResearchReport,
@@ -252,11 +511,7 @@ export function assertMetricSectionInvariants(
     report.dataGaps.some((gap) => gap.startsWith("capital-return: ")),
     "an unresolved Capital Return metric must surface its section gap",
   ).toBe(unresolved.length > 0);
-  if (unresolved.some(({ status }) => status === "missing")) {
-    expect(
-      run.collectedSources.sourceGaps.find(({ source }) => source === "capital-return")?.triage,
-    ).toBe("material");
-  }
+  assertSectionGapTriage(run, "capital-return", capitalReturn.metrics);
   const reportSourceIds = new Set(report.sources.map(({ id }) => id));
   const splitPeriodEnds = (series: string) =>
     statements.omissionNotes
@@ -270,6 +525,18 @@ export function assertMetricSectionInvariants(
     const resolved = metric.inputs.map((input) =>
       resolveInput(run, input, `${label} ${input.label}`),
     );
+    if (metric.cause === "not-filed") {
+      const filedFacts = resolved.filter(
+        (_fact, index) => metric.inputs[index]?.artifact === "statements",
+      );
+      expect(
+        new Set(filedFacts.map((fact) => `${fact?.periodKey}/${fact?.periodType}`)).size,
+        `${label} not-filed filed inputs join one period`,
+      ).toBeLessThanOrEqual(1);
+      expect(metric.periodEnd, `${label} not-filed ends at its filed anchor`).toBe(
+        filedFacts[0]?.periodEnd,
+      );
+    }
     if (metric.status !== "value") {
       continue;
     }
@@ -394,6 +661,7 @@ export function assertBusinessFrameworkMetricInvariants(
       expect(section, `${frameworkSection.name} references Metric Section ${id}`).toBeDefined();
       expect(run.markdown.includes(`### ${section?.title ?? id}\n`)).toBe(true);
       const unresolved = section?.metrics.filter(({ status }) => status !== "value") ?? [];
+      assertSectionGapTriage(run, id, section?.metrics ?? []);
       expect(
         report.dataGaps.some((gap) => gap.startsWith(`${id}: `)),
         `${id} surfaces its section gap iff a metric is unresolved`,

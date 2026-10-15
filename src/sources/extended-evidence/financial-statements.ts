@@ -526,35 +526,58 @@ function isCalendarDate(value: string): boolean {
   );
 }
 
-// Raw, pre-selection evidence: span filtering, alias ranking and caps must not manufacture a non-payer.
+// Raw, pre-selection rows: only point-in-time observability, never form, fp, span or value shape.
+function rawConceptRows(
+  root: Record<string, unknown> | undefined,
+  concept: string,
+  analysisAsOf: string,
+): readonly unknown[] {
+  const cutoff = analysisAsOf.slice(0, 10);
+  const units = isRecord(root?.[concept]) ? root[concept].units : undefined;
+  return (isRecord(units) ? Object.values(units) : [])
+    .flatMap((values) => (Array.isArray(values) ? values : []))
+    .filter((fact) => {
+      const filed = isRecord(fact) ? readString(fact, "filed") : undefined;
+      return filed === undefined || !isCalendarDate(filed) || filed <= cutoff;
+    });
+}
+
+// Span filtering, alias ranking and caps must not manufacture a non-payer.
 function dividendPaymentFiled(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
 ): boolean {
   const root = taxonomyRoot(payload, taxonomy);
-  const cutoff = analysisAsOf.slice(0, 10);
-  const rawValues = (concept: string): readonly number[] => {
-    const units = isRecord(root?.[concept]) ? root[concept].units : undefined;
-    return (isRecord(units) ? Object.values(units) : [])
-      .flatMap((values) => (Array.isArray(values) ? values : []))
-      .flatMap((fact) => {
-        const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
-        const filed = isRecord(fact) ? readString(fact, "filed") : undefined;
-        // Only point-in-time observability; form, fp and span eligibility must not hide payment evidence.
-        const futureFiling = filed !== undefined && isCalendarDate(filed) && filed > cutoff;
-        return value === undefined || futureFiling ? [] : [value];
-      });
-  };
   return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.some(
     (definition) =>
       (definition.key === "dividendsPerShare" || definition.key === "dividendsPaid") &&
       definition.concepts[taxonomy].some((concept) =>
-        rawValues(concept).some((value) =>
-          definition.key === "dividendsPaid" ? value !== 0 : value > 0,
-        ),
+        rawConceptRows(root, concept, analysisAsOf).some((fact) => {
+          const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
+          return (
+            value !== undefined && (definition.key === "dividendsPaid" ? value !== 0 : value > 0)
+          );
+        }),
       ),
   );
+}
+
+// Any raw row, even malformed, counts as filed. Debt is also built from DEBT_CONCEPTS instruments.
+function unfiledSeries(
+  payload: unknown,
+  analysisAsOf: string,
+): readonly FinancialStatementSeriesKey[] {
+  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
+    (definition) =>
+      definition.key !== "debt" &&
+      TAXONOMIES.every((taxonomy) =>
+        definition.concepts[taxonomy].every(
+          (concept) =>
+            rawConceptRows(taxonomyRoot(payload, taxonomy), concept, analysisAsOf).length === 0,
+        ),
+      ),
+  ).map((definition) => definition.key);
 }
 
 function isObservable(fact: ParsedFact, analysisAsOf: string): boolean {
@@ -1746,7 +1769,10 @@ export function deriveFinancialStatements(
       ? { equityStack: equityStackSelection.equityStack }
       : {}),
     ...(taxonomy !== undefined
-      ? { dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf) }
+      ? {
+          dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf),
+          unfiledSeries: unfiledSeries(payload, input.analysisAsOf),
+        }
       : {}),
     statements,
     validationNotes: [

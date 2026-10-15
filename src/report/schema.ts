@@ -131,7 +131,7 @@ function validateScenarios(
  *                            collector titles, prediction labels are code templates
  *   extras.*.gaps            Source Gap strings emitted by code, never by the model
  *   extras.metricSections    research/extended-evidence-projections.ts; engine labels, values,
- *                            basis and reasons. Assembly always strips a draft's copy
+ *                            basis, reasons and causes. Assembly always strips a draft's copy
  * One model-authored surface stays unscanned, unchanged by this scoping: report.dataGaps,
  * which merges model payload.dataGaps with deterministic text (report-assembly.ts:761).
  * Predictions need no scan -- claim is rendered from the parsed expression
@@ -503,6 +503,20 @@ function validateMetricSectionsExtra(
       false,
       errors,
     );
+  }
+  const metrics = (Array.isArray(extra) ? extra : []).flatMap((section) =>
+    isRecord(section) && Array.isArray(section.metrics) ? section.metrics : [],
+  );
+  for (const metric of metrics) {
+    if (
+      isRecord(metric) &&
+      "cause" in metric &&
+      (metric.cause !== "not-filed" || metric.status !== "missing")
+    ) {
+      errors.push(
+        `Metric Sections ${String(metric.id)} has cause ${JSON.stringify(metric.cause)} on a ${String(metric.status)} metric`,
+      );
+    }
   }
 }
 

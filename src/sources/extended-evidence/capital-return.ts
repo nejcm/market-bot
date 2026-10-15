@@ -16,6 +16,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  seriesNotFiled,
   statementInput as metricStatementInput,
 } from "./metric-engine";
 
@@ -48,9 +49,28 @@ const NEXT_ANNUAL_FILING_DUE_MONTHS = 16;
 // A 52/53-week year can end up to a week after the calendar anniversary.
 const FISCAL_YEAR_END_SLACK_DAYS = 7;
 
-interface FiscalYearSelection {
+interface MissingSelection {
   readonly facts: readonly FinancialStatementFact[];
-  readonly missing?: string;
+  readonly missing: string;
+  readonly cause?: "not-filed";
+}
+
+type FiscalYearSelection =
+  | {
+      readonly facts: readonly FinancialStatementFact[];
+      readonly missing?: undefined;
+      readonly cause?: undefined;
+    }
+  | MissingSelection;
+
+function notFiledSelection(
+  ctx: MetricContext,
+  key: CapitalReturnSeries,
+  facts: readonly FinancialStatementFact[],
+): MissingSelection | undefined {
+  return seriesNotFiled(ctx, key)
+    ? { facts, missing: `${SERIES_LABELS[key]} not filed by the issuer`, cause: "not-filed" }
+    : undefined;
 }
 
 function eligibleAnnualFacts(
@@ -119,16 +139,58 @@ function fiscalYearFacts(ctx: MetricContext, keys: FiscalYearSeries): FiscalYear
   return { facts };
 }
 
-function missingOutcome(
-  reason: string,
+type Gate = (
+  ctx: MetricContext,
   facts: readonly FinancialStatementFact[],
+  keys: readonly CapitalReturnSeries[],
+) => MetricOutcome | undefined;
+
+const NO_GATE: Gate = () => undefined;
+
+// Unfiled inputs are wildcards: the filed ones still run the full anchor, join, freshness and gate path,
+// And any failure there wins; only a would-be value becomes not-filed.
+function joinedMetric(
   keys: FiscalYearSeries,
+  gate: Gate,
+  compute: (ctx: MetricContext, facts: readonly FinancialStatementFact[]) => MetricOutcome,
+) {
+  return (ctx: MetricContext): MetricOutcome => {
+    const unfiled = keys.filter((key) => seriesNotFiled(ctx, key));
+    const filed = keys.filter((key) => !unfiled.includes(key));
+    const [first, ...rest] = filed;
+    const selection: FiscalYearSelection =
+      first === undefined ? { facts: [] } : fiscalYearFacts(ctx, [first, ...rest]);
+    if (selection.missing !== undefined) {
+      return missingOutcome(selection, filed);
+    }
+    const blocked = gate(ctx, selection.facts, filed);
+    if (blocked !== undefined) {
+      return blocked;
+    }
+    if (unfiled.length === 0) {
+      return compute(ctx, selection.facts);
+    }
+    return missingOutcome(
+      {
+        facts: selection.facts,
+        missing: `${unfiled.map((key) => SERIES_LABELS[key]).join(" and ")} not filed by the issuer`,
+        cause: "not-filed",
+      },
+      filed,
+    );
+  };
+}
+
+function missingOutcome(
+  { facts, missing: reason, cause }: MissingSelection,
+  keys: readonly CapitalReturnSeries[],
   extraInputs: readonly MetricInput[] = [],
 ): MetricOutcome {
   const [anchor] = facts;
   return {
     status: "missing",
     reason,
+    ...(cause !== undefined ? { cause } : {}),
     ...(anchor !== undefined ? { periodEnd: anchor.periodEnd } : {}),
     inputs: [...inputsOf(facts, keys), ...extraInputs],
   };
@@ -136,7 +198,7 @@ function missingOutcome(
 
 function inputsOf(
   facts: readonly FinancialStatementFact[],
-  keys: FiscalYearSeries,
+  keys: readonly CapitalReturnSeries[],
 ): readonly MetricInput[] {
   return facts.map((fact, index) => statementInput(fact, keys[index]!));
 }
@@ -146,20 +208,13 @@ function absoluteSum(facts: readonly FinancialStatementFact[]): number {
 }
 
 function latestFyAmount(key: CapitalReturnSeries) {
-  return (ctx: MetricContext): MetricOutcome => {
-    const { facts, missing } = fiscalYearFacts(ctx, [key]);
-    if (missing !== undefined) {
-      return missingOutcome(missing, facts, [key]);
-    }
-    const [fact] = facts;
-    return {
-      status: "value",
-      value: Math.abs(fact!.value),
-      ...(fact!.currency !== null ? { currency: fact!.currency } : {}),
-      periodEnd: fact!.periodEnd,
-      inputs: inputsOf(facts, [key]),
-    };
-  };
+  return joinedMetric([key], NO_GATE, (_ctx, [fact]) => ({
+    status: "value",
+    value: Math.abs(fact!.value),
+    ...(fact!.currency !== null ? { currency: fact!.currency } : {}),
+    periodEnd: fact!.periodEnd,
+    inputs: inputsOf([fact!], [key]),
+  }));
 }
 
 function daysBetween(start: string, end: string): number {
@@ -184,11 +239,19 @@ function annualEndpoints(
   const facts = eligibleAnnualFacts(ctx, key);
   const [latest] = facts;
   if (latest === undefined) {
-    return { outcome: { status: "missing", reason: `no year-aligned annual ${label} fact` } };
+    return {
+      outcome: missingOutcome(
+        notFiledSelection(ctx, key, []) ?? {
+          facts: [],
+          missing: `no year-aligned annual ${label} fact`,
+        },
+        [key],
+      ),
+    };
   }
   const stale = staleAnchor(ctx, label, latest.periodEnd);
   if (stale !== undefined) {
-    return { outcome: missingOutcome(stale, [latest], [key]) };
+    return { outcome: missingOutcome({ facts: [latest], missing: stale }, [key]) };
   }
   const prior = facts.find(
     (fact) =>
@@ -198,8 +261,10 @@ function annualEndpoints(
   if (prior === undefined) {
     return {
       outcome: missingOutcome(
-        `no annual ${label} fact ${String(years)}y before the fiscal year ending ${latest.periodEnd}`,
-        [latest],
+        {
+          facts: [latest],
+          missing: `no annual ${label} fact ${String(years)}y before the fiscal year ending ${latest.periodEnd}`,
+        },
         [key],
       ),
     };
@@ -271,7 +336,13 @@ function dividendsPerShareCagr(ctx: MetricContext, years: number): MetricOutcome
 function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
   const facts = eligibleAnnualFacts(ctx, "dividendsPerShare");
   if (facts.length === 0) {
-    return { status: "missing", reason: "no year-aligned annual dividends per share fact" };
+    return missingOutcome(
+      notFiledSelection(ctx, "dividendsPerShare", []) ?? {
+        facts: [],
+        missing: "no year-aligned annual dividends per share fact",
+      },
+      ["dividendsPerShare"],
+    );
   }
   const earliest = facts.findLast((fact) => fact.value > 0);
   if (earliest === undefined) {
@@ -347,72 +418,83 @@ function shareCountTrend(ctx: MetricContext): MetricOutcome {
   return { ...change, value: change.value < 0 ? "declining" : "increasing" };
 }
 
-function marketCapYield(keys: FiscalYearSeries) {
-  return (ctx: MetricContext): MetricOutcome => {
-    const { facts, missing } = fiscalYearFacts(ctx, keys);
-    if (missing !== undefined) {
-      return missingOutcome(missing, facts, keys);
-    }
-    const { quote } = ctx;
-    if (quote === undefined) {
-      return missingOutcome("no quote market cap", facts, keys);
-    }
-    const quoteInput: MetricInput = {
-      label: "market cap",
-      value: quote.marketCap,
-      artifact: "quote",
-      series: "marketCap",
-      periodEnd: quote.asOf,
-      unit: quote.currency ?? "unknown",
-      ...(quote.currency !== undefined ? { currency: quote.currency } : {}),
-      sourceIds: [quote.sourceId],
-    };
-    const reportingCurrency = facts[0]!.currency;
-    if (quote.currency === undefined || reportingCurrency !== quote.currency) {
-      return missingOutcome(
-        `reporting currency ${reportingCurrency ?? "unknown"} differs from quote currency ${quote.currency ?? "unknown"}`,
-        facts,
-        keys,
-        [quoteInput],
-      );
-    }
-    const inputs = [...inputsOf(facts, keys), quoteInput];
-    if (quote.marketCap <= 0) {
-      return { status: "not-meaningful", reason: "market cap is not positive", inputs };
-    }
-    return {
-      status: "value",
-      value: absoluteSum(facts) / quote.marketCap,
-      periodEnd: facts[0]!.periodEnd,
-      inputs,
-    };
+function quoteInput(quote: NonNullable<MetricContext["quote"]>): MetricInput {
+  return {
+    label: "market cap",
+    value: quote.marketCap,
+    artifact: "quote",
+    series: "marketCap",
+    periodEnd: quote.asOf,
+    unit: quote.currency ?? "unknown",
+    ...(quote.currency !== undefined ? { currency: quote.currency } : {}),
+    sourceIds: [quote.sourceId],
   };
 }
 
-function freeCashFlowRatio(numerators: FiscalYearSeries) {
-  const keys: FiscalYearSeries = [...numerators, "operatingCashFlow", "capitalExpenditure"];
-  return (ctx: MetricContext): MetricOutcome => {
-    const { facts, missing } = fiscalYearFacts(ctx, keys);
-    if (missing !== undefined) {
-      return missingOutcome(missing, facts, keys);
-    }
-    const inputs = inputsOf(facts, keys);
-    const [operatingCashFlow, capitalExpenditure] = facts.slice(-2);
-    const freeCashFlow = operatingCashFlow!.value - Math.abs(capitalExpenditure!.value);
-    if (freeCashFlow <= 0) {
-      return {
+const quoteGate: Gate = (ctx, facts, keys) => {
+  const { quote } = ctx;
+  if (quote === undefined) {
+    return missingOutcome({ facts, missing: "no quote market cap" }, keys);
+  }
+  const reportingCurrency = facts[0]?.currency ?? ctx.statements?.reportingCurrency ?? null;
+  if (quote.currency === undefined || reportingCurrency !== quote.currency) {
+    return missingOutcome(
+      {
+        facts,
+        missing: `reporting currency ${reportingCurrency ?? "unknown"} differs from quote currency ${quote.currency ?? "unknown"}`,
+      },
+      keys,
+      [quoteInput(quote)],
+    );
+  }
+  return quote.marketCap <= 0
+    ? {
+        status: "not-meaningful",
+        reason: "market cap is not positive",
+        inputs: [...inputsOf(facts, keys), quoteInput(quote)],
+      }
+    : undefined;
+};
+
+function marketCapYield(keys: FiscalYearSeries) {
+  return joinedMetric(keys, quoteGate, (ctx, facts) => ({
+    status: "value",
+    value: absoluteSum(facts) / ctx.quote!.marketCap,
+    periodEnd: facts[0]!.periodEnd,
+    inputs: [...inputsOf(facts, keys), quoteInput(ctx.quote!)],
+  }));
+}
+
+function freeCashFlowOf(
+  facts: readonly FinancialStatementFact[],
+  keys: readonly CapitalReturnSeries[],
+): number | undefined {
+  const operatingCashFlow = facts[keys.indexOf("operatingCashFlow")];
+  const capitalExpenditure = facts[keys.indexOf("capitalExpenditure")];
+  return operatingCashFlow === undefined || capitalExpenditure === undefined
+    ? undefined
+    : operatingCashFlow.value - Math.abs(capitalExpenditure.value);
+}
+
+const freeCashFlowGate: Gate = (_ctx, facts, keys) => {
+  const freeCashFlow = freeCashFlowOf(facts, keys);
+  return freeCashFlow !== undefined && freeCashFlow <= 0
+    ? {
         status: "not-meaningful",
         reason: `free cash flow is zero or negative for the fiscal year ending ${facts[0]!.periodEnd}`,
-        inputs,
-      };
-    }
-    return {
-      status: "value",
-      value: absoluteSum(facts.slice(0, numerators.length)) / freeCashFlow,
-      periodEnd: facts[0]!.periodEnd,
-      inputs,
-    };
-  };
+        inputs: inputsOf(facts, keys),
+      }
+    : undefined;
+};
+
+function freeCashFlowRatio(numerators: FiscalYearSeries) {
+  const keys: FiscalYearSeries = [...numerators, "operatingCashFlow", "capitalExpenditure"];
+  return joinedMetric(keys, freeCashFlowGate, (_ctx, facts) => ({
+    status: "value",
+    value: absoluteSum(facts.slice(0, numerators.length)) / freeCashFlowOf(facts, keys)!,
+    periodEnd: facts[0]!.periodEnd,
+    inputs: inputsOf(facts, keys),
+  }));
 }
 
 function depositoryIssuer(ctx: MetricContext): string | undefined {

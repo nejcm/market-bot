@@ -10,6 +10,8 @@ import type {
 import type { LensValueUnit } from "./value-format";
 
 type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
+// `not-filed`: no raw fact under any alias of an input concept; omitted when that cannot be shown.
+type MetricMissingCause = "not-filed";
 
 export interface MetricInput {
   readonly label: string;
@@ -39,6 +41,7 @@ interface MetricResult {
   readonly periodEnd?: string;
   readonly periodMonths?: number;
   readonly reason?: string;
+  readonly cause?: MetricMissingCause;
   readonly inputs: readonly MetricInput[];
   readonly sourceIds: readonly string[];
 }
@@ -74,11 +77,22 @@ export type MetricOutcome =
       readonly inputs: readonly MetricInput[];
     }
   | {
-      readonly status: "missing" | "not-meaningful";
+      readonly status: "missing";
+      readonly reason: string;
+      readonly cause?: MetricMissingCause;
+      readonly periodEnd?: string;
+      readonly inputs?: readonly MetricInput[];
+    }
+  | {
+      readonly status: "not-meaningful";
       readonly reason: string;
       readonly periodEnd?: string;
       readonly inputs?: readonly MetricInput[];
     };
+
+export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeriesKey): boolean {
+  return ctx.statements?.unfiledSeries?.includes(key) === true;
+}
 
 export function statementInput(
   fact: FinancialStatementFact,
@@ -144,7 +158,8 @@ function sectionGap(
   symbol: string,
   unresolved: readonly MetricResult[],
 ): SourceGap {
-  const missing = unresolved.some((metric) => metric.status === "missing");
+  const missing = unresolved.filter((metric) => metric.status === "missing");
+  const material = missing.some((metric) => metric.cause !== "not-filed");
   const labelsByCause = new Map<string, string[]>();
   for (const metric of unresolved) {
     const cause = `${metric.status} (${metric.reason ?? "no reason"})`;
@@ -158,9 +173,9 @@ function sectionGap(
     symbol,
     provider: "market-bot",
     capability: "extended-evidence",
-    cause: missing ? "provider-data-missing" : "suppressed-by-design",
+    cause: missing.length > 0 ? "provider-data-missing" : "suppressed-by-design",
     evidenceQualityImpact: "no-cap",
-    triage: missing ? "material" : "diagnostic",
+    triage: material ? "material" : "diagnostic",
   });
 }
 

@@ -78,6 +78,10 @@ function framework(
   );
 }
 
+function gapOf(result: ReturnType<typeof framework>, id: string) {
+  return result.metricSectionGaps?.find(({ source }) => source === id);
+}
+
 function metricOf(result: ReturnType<typeof framework>, sectionId: string, metricId: string) {
   return result.metricSections
     ?.find(({ id }) => id === sectionId)
@@ -397,6 +401,61 @@ describe("business framework evidence", () => {
     expect(markdown).toContain("- Gross margin: 45.0% (FY ending 2025-12-31;");
   });
 
+  test("a never-filed gross profit is a diagnostic gap; an unmatched one stays material", () => {
+    const base = {
+      Revenues: annual(94.34, 100),
+      OperatingIncomeLoss: annual(22.2, 24),
+      NetIncomeLoss: annual(17.14, 18),
+    };
+    const unfiled = framework(evidence(), AS_OF, statements(base));
+    const olderOnly = framework(
+      evidence(),
+      AS_OF,
+      statements({
+        ...base,
+        GrossProfit: { units: { USD: [fact(40, 2023, "2023-01-01", "2023-12-31")] } },
+      }),
+    );
+
+    expect(metricOf(unfiled, "business-framework-business", "grossProfit")).toMatchObject({
+      status: "missing",
+      reason: "gross profit not filed by the issuer",
+      cause: "not-filed",
+    });
+    expect(metricOf(unfiled, "business-framework-moat", "grossMargin")?.cause).toBe("not-filed");
+    expect(gapOf(unfiled, "business-framework-business")?.triage).toBe("diagnostic");
+    expect(metricOf(olderOnly, "business-framework-moat", "grossMargin")?.cause).toBeUndefined();
+    expect(gapOf(olderOnly, "business-framework-moat")?.triage).toBe("material");
+    const filteredRevenue = framework(
+      evidence(),
+      AS_OF,
+      statements({
+        ...base,
+        Revenues: { units: { USD: [fact(100, 2025, "2024-11-01", "2025-12-31")] } },
+      }),
+    );
+    expect(metricOf(filteredRevenue, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "missing",
+      reason: "no year-aligned annual or interim revenue fact",
+    });
+    expect(gapOf(filteredRevenue, "business-framework-moat")?.triage).toBe("material");
+    const negativeRevenue = framework(
+      evidence(),
+      AS_OF,
+      statements({ ...base, Revenues: annual(-5, -10) }),
+    );
+    expect(metricOf(negativeRevenue, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "not-meaningful",
+      reason: "revenue is not positive",
+      periodEnd: "2025-12-31",
+    });
+    expect(metricOf(unfiled, "business-framework-moat", "grossMargin")).toMatchObject({
+      status: "missing",
+      cause: "not-filed",
+      periodEnd: "2025-12-31",
+    });
+  });
+
   test("keeps lifecycle classification on parent-attributable net income", () => {
     expect(
       classifyBusinessLifecyclePhase({
@@ -556,6 +615,7 @@ describe("business framework evidence", () => {
       assertBusinessFrameworkMetricInvariants(
         {
           collectedSources: collectedSources({
+            sourceGaps: result.metricSectionGaps ?? [],
             ...(result.artifact !== undefined ? { businessFramework: result.artifact } : {}),
             ...(result.extendedEvidence !== undefined
               ? { extendedEvidence: result.extendedEvidence }

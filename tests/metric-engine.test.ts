@@ -94,6 +94,39 @@ describe("evaluateMetricSection", () => {
     expect(violatesResearchOnly(sourceGaps[0]!.message)).toBeNull();
   });
 
+  test("diagnostic when every missing metric was never filed; any other missing keeps it material", () => {
+    const notFiledMetric: MetricDefinition = {
+      ...missingMetric,
+      id: "dividends",
+      label: "Dividends",
+      compute: () => ({
+        status: "missing",
+        reason: "dividends paid not filed by the issuer",
+        cause: "not-filed",
+      }),
+    };
+    const onlyNotFiled = evaluateMetricSection(
+      "s",
+      "Section",
+      [valueMetric, notMeaningfulMetric, notFiledMetric],
+      CTX,
+    );
+    const mixed = evaluateMetricSection("s", "Section", [notFiledMetric, missingMetric], CTX);
+
+    expect(onlyNotFiled.section.metrics[2]).toMatchObject({
+      status: "missing",
+      cause: "not-filed",
+    });
+    expect(onlyNotFiled.sourceGaps[0]).toMatchObject({
+      cause: "provider-data-missing",
+      triage: "diagnostic",
+    });
+    expect(onlyNotFiled.sourceGaps[0]?.message).toContain(
+      "Dividends missing (dividends paid not filed by the issuer)",
+    );
+    expect(mixed.sourceGaps[0]?.triage).toBe("material");
+  });
+
   test("applicable short-circuits compute into not-applicable with no inputs", () => {
     let computed = 0;
     const gated: MetricDefinition = {

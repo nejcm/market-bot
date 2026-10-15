@@ -277,6 +277,8 @@ export interface FinancialStatementsArtifact {
   };
   // Any positive filed dividend per share or non-zero dividends paid; absent on pre-flag artifacts.
   readonly dividendPaymentFiled?: boolean;
+  // Series with no observable raw fact under any alias in any taxonomy; absent on pre-flag artifacts.
+  readonly unfiledSeries?: readonly FinancialStatementSeriesKey[];
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
   readonly structuredFinancialGaps: readonly StructuredFinancialGap[];
@@ -603,6 +605,11 @@ export function readFinancialStatementsArtifact(
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
     (value.dividendPaymentFiled !== undefined && typeof value.dividendPaymentFiled !== "boolean") ||
+    (value.unfiledSeries !== undefined &&
+      (!Array.isArray(value.unfiledSeries) ||
+        !value.unfiledSeries.every((key) =>
+          FINANCIAL_STATEMENT_SERIES_KEYS.includes(key as FinancialStatementSeriesKey),
+        ))) ||
     !Array.isArray(value.structuredFinancialGaps)
   ) {
     return undefined;

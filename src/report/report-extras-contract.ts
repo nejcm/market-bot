@@ -171,6 +171,7 @@ interface MetricResultValue {
   readonly periodEnd?: string;
   readonly periodMonths?: number;
   readonly reason?: string;
+  readonly cause?: string;
   readonly sourceIds: readonly string[];
   readonly sourceIdsComplete: boolean;
 }
@@ -375,6 +376,7 @@ function readMetricResult(value: unknown): MetricResultValue | undefined {
       "currency",
       "periodEnd",
       "reason",
+      "cause",
     ]),
     ...(typeof unit === "string" && LENS_VALUE_UNITS.has(unit)
       ? { unit: unit as LensValueUnit }

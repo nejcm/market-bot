@@ -31,6 +31,7 @@ export interface MetricInput {
   // Evidence inputs: the Extended Evidence item category and its metric key.
   readonly category?: ExtendedEvidenceCategory;
   readonly key?: string;
+  readonly symbol?: string;
   readonly periodType?: "annual" | "interim" | "instant";
   readonly periodStart?: string;
   readonly periodEnd?: string;
@@ -72,6 +73,18 @@ export interface MetricContext {
     readonly asOf: string;
     readonly sourceId: string;
   };
+  readonly priceHistory?: readonly {
+    readonly symbol: string;
+    readonly sourceId: string;
+    readonly currency?: string;
+    readonly priceMode: "split-adjusted-close";
+    readonly bars: readonly {
+      readonly date: string;
+      readonly close: number;
+      readonly completed: boolean;
+    }[];
+    readonly reason?: string;
+  }[];
   readonly depositorySic?: string;
   readonly evidence?: ExtendedEvidence;
   readonly asOf?: string;

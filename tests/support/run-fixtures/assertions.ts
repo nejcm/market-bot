@@ -2,6 +2,7 @@ import {
   parseYahooChartOhlcv,
   classifyLatestSession,
   readYahooRegularSession,
+  splitAdjustedObservationsFromYahooChart,
 } from "../../../src/sources/yahoo";
 import { verifiedMarketSnapshotSourceId } from "../../../src/sources/verified-market-snapshot";
 import type {
@@ -100,6 +101,7 @@ export async function assertInvariants(
   assertMetricSectionInvariants(result, report);
   assertFinancialLensMetricInvariants(result, report, fixtureName);
   assertOperatingRatioInvariants(result, report);
+  assertPricePerformanceInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
   for (const prediction of report.predictions) {
@@ -2605,3 +2607,100 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     ],
   },
 };
+
+export function assertPricePerformanceInvariants(
+  run: MetricInvariantRun,
+  report: ResearchReport,
+): void {
+  const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
+  const section = sections?.find(({ id }) => id === "price-performance");
+  expect(
+    section,
+    "equity runs, including fixtures with price history, require Price Performance",
+  ).toBeDefined();
+  expect(run.markdown).toContain("### Price Performance\n");
+  expect(section!.metrics.map(({ id }) => id)).toEqual([
+    "priceReturn1y",
+    "spyPriceReturn1y",
+    "priceReturn3y",
+    "spyPriceReturn3y",
+    "priceReturn5y",
+    "spyPriceReturn5y",
+  ]);
+  const unresolved = section!.metrics.some(({ status }) => status !== "value");
+  expect(report.dataGaps.some((gap) => gap.startsWith("price-performance: "))).toBe(unresolved);
+  const gaps = run.collectedSources.sourceGaps.filter(
+    ({ source }) => source === "price-performance",
+  );
+  expect(gaps).toHaveLength(unresolved ? 1 : 0);
+  if (unresolved) {
+    expect(gaps[0]).toMatchObject({ triage: "material", evidenceQualityImpact: "no-cap" });
+  }
+  const reportIds = new Set(report.sources.map(({ id }) => id));
+  const histories = run.collectedSources.rawSnapshots.filter(
+    ({ adapter }) => adapter === "yahoo-price-history",
+  );
+  const rawFor = (symbol: string) =>
+    histories.find(({ payload }) => {
+      if (!isRecord(payload) || !isRecord(payload.chart) || !Array.isArray(payload.chart.result)) {
+        return false;
+      }
+      const [result] = payload.chart.result;
+      return isRecord(result) && isRecord(result.meta) && result.meta.symbol === symbol;
+    });
+  for (const metric of section!.metrics) {
+    expect(metric.sourceIds.toSorted()).toEqual(
+      [...new Set(metric.inputs.flatMap(({ sourceIds }) => sourceIds))].toSorted(),
+    );
+    for (const id of metric.sourceIds) {
+      expect(reportIds.has(id), `${metric.id} cites ${id}`).toBe(true);
+    }
+    for (const input of metric.inputs) {
+      expect(input.artifact).toBe("priceHistory");
+      expect(input.key).toBeUndefined();
+      const raw = rawFor(input.symbol!);
+      expect(raw, `${metric.id} input resolves to raw Yahoo history`).toBeDefined();
+      const bars = splitAdjustedObservationsFromYahooChart(input.symbol!, raw!.payload);
+      const bar = bars.find(({ date }) => date === input.periodEnd);
+      expect(bar?.value).toBe(Number(input.value));
+      expect(input.sourceIds).toEqual([`price-history-${input.symbol!}`]);
+      expect(
+        classifyLatestSession(
+          readYahooRegularSession(raw!.payload),
+          input.periodEnd!,
+          raw!.fetchedAt,
+        ).status,
+      ).toBe("complete");
+    }
+    if (metric.status !== "value") {
+      continue;
+    }
+    expect(metric.inputs).toHaveLength(2);
+    const [start, end] = metric.inputs;
+    const years = Number(metric.id.match(/(\d)y$/u)?.[1]);
+    const anniversary = new Date(end!.periodEnd!);
+    anniversary.setUTCFullYear(anniversary.getUTCFullYear() - years);
+    expect(
+      Math.abs(Date.parse(start!.periodEnd!) - anniversary.getTime()) / 86_400_000,
+    ).toBeLessThanOrEqual(7);
+    expect(days(end!.periodEnd!, report.generatedAt.slice(0, 10))).toBeLessThanOrEqual(7);
+    expect(metric.periodEnd).toBe(end!.periodEnd);
+    expectClose(metric.value, Number(end!.value) / Number(start!.value) - 1, metric.id);
+    expect(metric.basis).toContain("price return, not total return");
+    expect(metric.basis).toContain("split-adjusted");
+    const counterpart = section!.metrics.find(
+      ({ id }) =>
+        id ===
+        (metric.id.startsWith("spy")
+          ? `priceReturn${String(years)}y`
+          : `spyPriceReturn${String(years)}y`),
+    );
+    expect(counterpart?.inputs.map(({ periodEnd }) => periodEnd)).toEqual([
+      start!.periodEnd,
+      end!.periodEnd,
+    ]);
+    if (metric.id.startsWith("spy")) {
+      expect(metric.label).toContain("SPY (S&P 500 proxy)");
+    }
+  }
+}

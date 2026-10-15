@@ -348,9 +348,6 @@ function historicalRunsForGapView(
   runs: HistoricalResearchContext["runs"],
   sourceGapView: SourceGapView,
 ): HistoricalResearchContext["runs"] {
-  if (sourceGapView === "all") {
-    return runs;
-  }
   let changed = false;
   const projectedRuns = runs.map((run) => {
     const dataGaps = run.dataGaps.filter((gap) => sourceGapVisibleForView(sourceGapView, gap));

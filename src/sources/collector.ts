@@ -1,3 +1,5 @@
+import { collectPriceHistory } from "./yahoo-price-history";
+import { pricePerformanceSection } from "./extended-evidence/price-performance";
 import { collectEquityEnrichment, type PeerUniverseSeam } from "./collector-equity-enrichment";
 
 import { isInstrumentCommand, type ResearchCommand } from "../cli/args";
@@ -498,11 +500,25 @@ export async function collectSources(
       : sanitizeInstrumentIdentityMetadata(rawIdentity, "instrument-identity");
   const resolvedInstrumentIdentity = sanitizedIdentity?.identity;
 
+  const priceHistoryResult = isEquityTicker
+    ? await collectPriceHistory(ctx, command.symbol)
+    : undefined;
+  const pricePerformance = isEquityTicker
+    ? pricePerformanceSection({
+        symbol: command.symbol,
+        asOf: ctx.fetchedAt,
+        ...(priceHistoryResult === undefined
+          ? {}
+          : { priceHistory: priceHistoryResult.priceHistory }),
+      })
+    : undefined;
+
   const collected = {
     rawSnapshots: [
       ...resolvedMarketResult.rawSnapshots,
       ...newsResult.rawSnapshots,
       ...deepExtendedResult.rawSnapshots,
+      ...(priceHistoryResult?.rawSnapshots ?? []),
       ...(enrichmentResult.valuationCompsResult?.rawSnapshots ?? []),
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
@@ -518,6 +534,7 @@ export async function collectSources(
     newsSources: newsResult.newsSources,
     extendedSources: [
       ...deepExtendedResult.sources,
+      ...(priceHistoryResult?.sources ?? []),
       ...(enrichmentResult.valuationCompsResult?.sources ?? []),
       ...enrichmentResult.valuationWorkbenchSources,
       ...enrichmentResult.earningsExtraSources,
@@ -590,8 +607,13 @@ export async function collectSources(
     ...(enrichmentResult.businessFrameworkResult.artifact !== undefined
       ? { businessFramework: enrichmentResult.businessFrameworkResult.artifact }
       : {}),
-    ...(enrichmentResult.metricSections !== undefined
-      ? { metricSections: enrichmentResult.metricSections }
+    ...(enrichmentResult.metricSections !== undefined || pricePerformance !== undefined
+      ? {
+          metricSections: [
+            ...(enrichmentResult.metricSections ?? []),
+            ...(pricePerformance === undefined ? [] : [pricePerformance.section]),
+          ],
+        }
       : {}),
     sourceGaps: [
       ...resolvedMarketResult.sourceGaps,
@@ -606,6 +628,7 @@ export async function collectSources(
       ...enrichmentResult.packetFailureGaps,
       ...enrichmentResult.financialStatementGaps,
       ...enrichmentResult.metricSectionGaps,
+      ...(pricePerformance?.sourceGaps ?? []),
       ...marketContextResult.sourceGaps,
       ...supplementalMarketResults.flatMap((result) => result.sourceGaps),
       ...(verifiedSnapshotResult?.sourceGaps ?? []),

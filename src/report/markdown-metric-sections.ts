@@ -5,7 +5,11 @@ import { readMetricSectionsExtra } from "./report-extras-contract";
 
 type MetricRow = NonNullable<ReturnType<typeof readMetricSectionsExtra>>[number]["metrics"][number];
 
-function metricLine(report: ResearchReport, metric: MetricRow): readonly string[] {
+function metricLine(
+  report: ResearchReport,
+  metric: MetricRow,
+  sectionId?: string,
+): readonly string[] {
   if (metric.label === undefined) {
     return [];
   }
@@ -20,7 +24,7 @@ function metricLine(report: ResearchReport, metric: MetricRow): readonly string[
   const detail = [
     ...(metric.periodEnd === undefined
       ? []
-      : [metricPeriodLabel(metric.periodEnd, metric.periodMonths)]),
+      : [metricPeriodLabel(metric.periodEnd, metric.periodMonths, sectionId)]),
     ...(metric.basis === undefined ? [] : [metric.basis]),
   ].join("; ");
   const refs = sourceRefs(citedSourceIds(report, metric));
@@ -38,7 +42,7 @@ export function renderMetricSections(report: ResearchReport): string {
         : [
             `## ${markdownText(section.title)}`,
             "",
-            ...section.metrics.flatMap((metric) => metricLine(report, metric)),
+            ...section.metrics.flatMap((metric) => metricLine(report, metric, section.id)),
             "",
           ],
     )

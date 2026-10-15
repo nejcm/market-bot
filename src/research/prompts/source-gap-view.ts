@@ -47,6 +47,13 @@ function historicalSourceGap(value: string): SourceGap | undefined {
 }
 
 export function sourceGapVisibleForView(view: SourceGapView, gap: SourceGap | string): boolean {
+  if (
+    typeof gap === "string"
+      ? gap.startsWith("price-performance: ")
+      : gap.source === "price-performance"
+  ) {
+    return false;
+  }
   if (view === "all") {
     return true;
   }
@@ -54,18 +61,18 @@ export function sourceGapVisibleForView(view: SourceGapView, gap: SourceGap | st
   return structuredGap === undefined || isWebGatherVisibleGap(structuredGap);
 }
 
-// Web Gather sees a narrowed Source Gap set; every other consumer, including
-// Report dataGaps, analytics, normalized/source-gaps.json, and the Console,
-// Reads CollectedSources directly and is unaffected. Absence stays a finding.
+// Prompt-only filtering; report and artifact readers retain every Source Gap.
 export function collectedSourcesForGapView(
   view: SourceGapView,
   collectedSources: CollectedSources,
 ): CollectedSources {
-  if (view === "all") {
-    return collectedSources;
-  }
   const keep = (gaps: readonly SourceGap[]) =>
     gaps.filter((gap) => sourceGapVisibleForView(view, gap));
+  if (view === "all") {
+    return collectedSources.sourceGaps.some((gap) => gap.source === "price-performance")
+      ? { ...collectedSources, sourceGaps: keep(collectedSources.sourceGaps) }
+      : collectedSources;
+  }
   return {
     ...collectedSources,
     sourceGaps: keep(collectedSources.sourceGaps),

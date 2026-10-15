@@ -717,6 +717,7 @@ describe("collectSources", () => {
       "capital-return",
       "operating-ratios",
       "valuation-workbench-unavailable",
+      "price-performance",
     ]);
     expect(
       result.metricSections?.find(({ id }) => id === "valuation-workbench-unavailable")?.metrics[0],

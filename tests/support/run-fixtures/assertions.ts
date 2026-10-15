@@ -1,4 +1,13 @@
-import { assertWorkbenchFixtureParity } from "../valuation-workbench-fixture-parity";
+import {
+  parseYahooChartOhlcv,
+  classifyLatestSession,
+  readYahooRegularSession,
+} from "../../../src/sources/yahoo";
+import { verifiedMarketSnapshotSourceId } from "../../../src/sources/verified-market-snapshot";
+import type {
+  ValuationFundamentalInput,
+  ValuationMetricKey,
+} from "../../../src/sources/extended-evidence/valuation-workbench-contract";
 import { expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -87,7 +96,7 @@ export async function assertInvariants(
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
-  await assertWorkbenchFixtureParity(result, meta, fixtureName);
+  assertValuationWorkbenchInvariants(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);
   assertFinancialLensMetricInvariants(result, report, fixtureName);
   assertOperatingRatioInvariants(result, report);
@@ -1946,3 +1955,653 @@ export function assertEstimatedEarningsSuppressionPath(
   expect(result.collectedSources.institutionalOwnership).toBeUndefined();
   expect(result.collectedSources.institutionalOwnershipSignal?.status).toBe("forbidden");
 }
+
+function assertValuationWorkbenchInvariants(
+  run: RunFixtureResult,
+  meta: FixtureMeta,
+  fixtureName: string,
+): void {
+  const { valuationWorkbench: workbench, financialStatements: statements } = run.collectedSources;
+  expect(
+    workbench,
+    "equity collection publishes a workbench even without statements",
+  ).toBeDefined();
+  const { observations } = workbench!.historicalMultiples;
+  const expected = EXPECTED_WORKBENCH_VALUES[fixtureName];
+  expect(expected, `${fixtureName} has pinned valuation values and statuses`).toBeDefined();
+  expect(
+    observations.map(({ basis, periodEnd, publicAt }) => `${basis}|${periodEnd}|${publicAt}`),
+  ).toEqual(Object.keys(expected!));
+  const sections = (run.collectedSources.metricSections ?? []).filter(({ id }) =>
+    id.startsWith("valuation-workbench-"),
+  );
+  expect(sections.map(({ id }) => id)).toEqual(
+    observations.length === 0
+      ? ["valuation-workbench-unavailable"]
+      : observations.map(
+          ({ basis, periodEnd, publicAt }) =>
+            `valuation-workbench-${basis}-${periodEnd}-${publicAt}`,
+        ),
+  );
+  expect(
+    (run.report.extras?.metricSections as MetricSectionsExtra | undefined)?.filter(({ id }) =>
+      id?.startsWith("valuation-workbench-"),
+    ),
+  ).toEqual(sections);
+  const gaps = run.collectedSources.sourceGaps.filter(({ source }) =>
+    source.startsWith("valuation-workbench-"),
+  );
+  expect(gaps).toHaveLength(
+    sections.filter(({ metrics }) => metrics.some(({ status }) => status !== "value")).length,
+  );
+  for (const section of sections) {
+    const unresolved = section.metrics.filter(({ status }) => status !== "value");
+    const gap = gaps.find(({ source }) => source === section.id);
+    expect(gap !== undefined).toBe(unresolved.length > 0);
+    if (gap !== undefined) {
+      expect(gap.triage).toBe(
+        unresolved.some(({ status, cause }) => status === "missing" && cause !== "not-filed")
+          ? "material"
+          : "diagnostic",
+      );
+      for (const metric of unresolved) {
+        expect(gap.message).toContain(metric.label);
+      }
+    }
+  }
+  if (observations.length === 0) {
+    expect(sections[0]?.metrics[0]?.status).toBe("missing");
+  }
+  const raw = run.collectedSources.rawSnapshots.find(
+    ({ adapter }) => adapter === "yahoo-verified-chart",
+  );
+  const parsed =
+    raw === undefined ? [] : parseYahooChartOhlcv(raw.payload, meta.now.slice(0, 10)).bars;
+  const last = parsed.at(-1);
+  const session =
+    raw === undefined || last === undefined
+      ? undefined
+      : classifyLatestSession(readYahooRegularSession(raw.payload), last.date, raw.fetchedAt);
+  const prices =
+    run.collectedSources.verifiedMarketSnapshot === undefined
+      ? []
+      : session?.status === "in-progress"
+        ? parsed.slice(0, -1)
+        : parsed;
+  const filedFact = (input: MetricInput): FinancialStatementFact => {
+    const series =
+      statements === undefined
+        ? undefined
+        : financialStatementSeriesByKey(statements, input.series as FinancialStatementSeriesKey);
+    const fact = [
+      ...(series?.annual ?? []),
+      ...(series?.interim ?? []),
+      ...Object.values(series?.ttm?.components ?? {}),
+    ].find(
+      (candidate) =>
+        candidate.periodKey === input.periodKey &&
+        candidate.periodType === input.periodType &&
+        candidate.value === input.value &&
+        candidate.periodStart === input.periodStart &&
+        candidate.periodEnd === input.periodEnd &&
+        candidate.unit === input.unit &&
+        (candidate.currency ?? undefined) === input.currency &&
+        JSON.stringify(candidate.sourceIds) === JSON.stringify(input.sourceIds),
+    );
+    expect(
+      fact,
+      `${fixtureName}.${input.series} resolves to the filed fact with full lineage`,
+    ).toBeDefined();
+    return fact!;
+  };
+  const fundamentalValue = (input: ValuationFundamentalInput): number => {
+    const lineage = input.lineage ?? [];
+    expect(lineage.length, "a filed fundamental retains its raw inputs").toBeGreaterThan(0);
+    const facts = lineage.map(filedFact);
+    expect(input.periodEnd).toBe(
+      facts
+        .map(({ periodEnd }) => periodEnd)
+        .toSorted()
+        .at(-1)!,
+    );
+    expect(input.currency).toBe(
+      input.derivation === "net income / diluted EPS" ? null : facts[0]!.currency,
+    );
+    expect(input.unit).toBe(
+      input.derivation === "net income / diluted EPS" ? "shares" : facts[0]!.unit,
+    );
+    expect(input.publicAt).toBe(
+      facts
+        .map(({ firstPublicAt }) => firstPublicAt)
+        .toSorted()
+        .at(-1)!,
+    );
+    expect(input.sourceIds.toSorted()).toEqual(
+      [...new Set(facts.flatMap(({ sourceIds }) => sourceIds))].toSorted(),
+    );
+    const valueOf = (series: string): number => {
+      const rows = lineage.flatMap((row, index) => (row.series === series ? [facts[index]!] : []));
+      if (rows.length === 1) {
+        return rows[0]!.value;
+      }
+      expect(rows).toHaveLength(3);
+      const annual = rows.find(({ periodType }) => periodType === "annual")!;
+      const interim = rows
+        .filter(({ periodType }) => periodType === "interim")
+        .toSorted((a, b) => a.periodEnd.localeCompare(b.periodEnd));
+      expect(interim).toHaveLength(2);
+      return annual.value + interim[1]!.value - interim[0]!.value;
+    };
+    const inputSeries = [...new Set(lineage.map(({ series }) => series!))];
+    return input.derivation === "operating cash flow - capital expenditure"
+      ? valueOf("operatingCashFlow") - valueOf("capitalExpenditure")
+      : input.derivation === "net income / diluted EPS"
+        ? valueOf("netIncome") / valueOf("dilutedEps")
+        : valueOf(inputSeries[0]!);
+  };
+  for (const [index, observation] of observations.entries()) {
+    const { basis, periodEnd, publicAt, inputs, metrics, price, fxConversion: fx } = observation;
+    const label = `${fixtureName}.${basis}.${periodEnd}.${publicAt}`;
+    expect(
+      WORKBENCH_METRICS.map((key) =>
+        metrics[key].status === "value"
+          ? metrics[key].value
+          : { status: metrics[key].status, reason: metrics[key].reason },
+      ),
+      label,
+    ).toEqual([...expected![`${basis}|${periodEnd}|${publicAt}`]!]);
+    expect(sections[index]?.metrics).toEqual(WORKBENCH_METRICS.map((key) => metrics[key]));
+    const selectedPrice =
+      workbench!.quoteCurrency === null
+        ? undefined
+        : prices
+            .filter(
+              ({ date, close }) =>
+                Number.isFinite(close) &&
+                close > 0 &&
+                days(publicAt, date) >= 0 &&
+                days(publicAt, date) <= 7,
+            )
+            .toSorted((a, b) => a.date.localeCompare(b.date))[0];
+    expect(price, `${label} uses the first eligible verified close`).toEqual(
+      selectedPrice === undefined
+        ? null
+        : {
+            close: selectedPrice.close,
+            sessionDate: selectedPrice.date,
+            currency: workbench!.quoteCurrency!,
+            sourceId: verifiedMarketSnapshotSourceId(workbench!.symbol),
+          },
+    );
+    for (const [key, fundamental] of Object.entries(inputs)) {
+      expectClose(
+        fundamental.value,
+        fundamentalValue(fundamental),
+        `${label}.${key} derives from filed facts`,
+      );
+      expect(fundamental.publicAt <= publicAt).toBe(true);
+      expect(fundamental.periodEnd <= periodEnd).toBe(true);
+      if (key !== "cash" && key !== "debt") {
+        expect(fundamental.periodEnd).toBe(periodEnd);
+      }
+    }
+    const observationSourceIds = [
+      ...Object.values(inputs).flatMap((input) => input.sourceIds),
+      ...(price === null ? [] : [price.sourceId]),
+      ...(fx === undefined ? [] : [fx.sourceId]),
+    ];
+    expect(observation.sourceIds.toSorted(), `${label} keeps all observation citations`).toEqual(
+      [...new Set(observationSourceIds)].toSorted(),
+    );
+    if (fx !== undefined) {
+      expect(fx.rateDate <= price!.sessionDate).toBe(true);
+    }
+    for (const key of WORKBENCH_METRICS) {
+      const metric = metrics[key];
+      expect(metric.sourceIds.toSorted()).toEqual(
+        [...new Set(metric.inputs.flatMap(({ sourceIds }) => sourceIds))].toSorted(),
+      );
+      const required =
+        key === "priceToEarnings"
+          ? [inputs.dilutedEps]
+          : [
+              key === "priceToFreeCashFlow" ? inputs.freeCashFlow : inputs.revenue,
+              inputs.dilutedShares,
+              ...(key === "enterpriseValueToRevenue" ? [inputs.cash, inputs.debt] : []),
+            ];
+      if (metric.status === "not-applicable") {
+        expect(metric.inputs).toEqual([]);
+        continue;
+      }
+      const requiredLineage = required.flatMap((input) => input?.lineage ?? []);
+      const partialFcfSources =
+        key === "priceToFreeCashFlow" && inputs.freeCashFlow === undefined
+          ? (["operatingCashFlow", "capitalExpenditure"] as const).flatMap((seriesKey) => {
+              const series = statements?.statements.cashFlowStatement[seriesKey];
+              return [...(series?.annual ?? []), ...(series?.interim ?? [])]
+                .filter(
+                  (fact) =>
+                    inputs.revenue?.lineage?.some(
+                      (anchor) =>
+                        anchor.periodKey === fact.periodKey &&
+                        anchor.periodType === fact.periodType,
+                    ) && fact.firstPublicAt <= publicAt,
+                )
+                .flatMap(({ sourceIds }) => sourceIds);
+            })
+          : [];
+      expect(
+        metric.sourceIds.toSorted(),
+        `${label}.${key} keeps only its required citations`,
+      ).toEqual(
+        [
+          ...new Set([
+            ...requiredLineage.flatMap(({ sourceIds }) => sourceIds),
+            ...partialFcfSources,
+            ...(price === null ? [] : [price.sourceId]),
+            ...(fx === undefined ? [] : [fx.sourceId]),
+          ]),
+        ].toSorted(),
+      );
+      expect(metric.inputs.filter(({ artifact }) => artifact === "statements")).toEqual(
+        expect.arrayContaining(requiredLineage),
+      );
+      for (const row of metric.inputs) {
+        if (row.artifact === "statements") {
+          filedFact(row);
+        } else if (row.artifact === "priceHistory") {
+          expect(row).toMatchObject({
+            value: price!.close,
+            periodEnd: price!.sessionDate,
+            currency: price!.currency,
+            sourceIds: [price!.sourceId],
+          });
+        } else {
+          expect(row.artifact).toBe("fx");
+          expect(row).toMatchObject({
+            value: fx!.rate,
+            periodEnd: fx!.rateDate,
+            sourceIds: [fx!.sourceId],
+          });
+        }
+      }
+      expect(metric.inputs.filter(({ artifact }) => artifact === "priceHistory")).toHaveLength(
+        price === null ? 0 : 1,
+      );
+      expect(metric.inputs.filter(({ artifact }) => artifact === "fx")).toHaveLength(
+        fx === undefined ? 0 : 1,
+      );
+      if (metric.status !== "value") {
+        continue;
+      }
+      expect(metric.periodEnd).toBe(periodEnd);
+      expect(metric.basis).toContain(
+        "first verified close within 7 calendar days on or after publicAt",
+      );
+      expect(metric.basis).toContain(`close ${price!.sessionDate} ${price!.currency}`);
+      const close = price!.close * (fx?.rate ?? 1);
+      const cap = close * (inputs.dilutedShares?.value ?? 1);
+      const numerator =
+        key === "priceToEarnings"
+          ? close
+          : key === "enterpriseValueToRevenue"
+            ? cap + inputs.debt!.value - inputs.cash!.value
+            : cap;
+      const denominator =
+        key === "priceToEarnings"
+          ? inputs.dilutedEps!.value
+          : key === "priceToFreeCashFlow"
+            ? inputs.freeCashFlow!.value
+            : inputs.revenue!.value;
+      expect(denominator).toBeGreaterThan(0);
+      expectClose(metric.value, numerator / denominator, `${label}.${key} arithmetic`);
+    }
+  }
+  expect(workbench!.sourceIds.toSorted(), `${fixtureName} keeps artifact citations`).toEqual(
+    [
+      ...new Set([
+        ...observations.flatMap(({ sourceIds }) => sourceIds),
+        ...(run.collectedSources.valuationComps?.sourceIds ?? []),
+      ]),
+    ].toSorted(),
+  );
+}
+
+const WORKBENCH_METRICS = [
+  "priceToEarnings",
+  "priceToSales",
+  "enterpriseValueToRevenue",
+  "priceToFreeCashFlow",
+] as const satisfies readonly ValuationMetricKey[];
+type WorkbenchValues = Readonly<
+  Record<
+    string,
+    readonly (
+      | number
+      | {
+          readonly status: "missing" | "not-meaningful" | "not-applicable";
+          readonly reason: string;
+        }
+    )[]
+  >
+>;
+const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unavailable" } as const;
+const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
+const MISSING_WORKBENCH_CURRENCY = {
+  status: "missing",
+  reason: "quote-currency-unavailable",
+} as const;
+const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
+const NEGATIVE_WORKBENCH_DENOMINATOR = {
+  status: "not-meaningful",
+  reason: "negative-denominator",
+} as const;
+const MIXED_WORKBENCH_BALANCE_SHEET = {
+  status: "missing",
+  reason: "mixed-period-balance-sheet",
+} as const;
+const MISSING_WORKBENCH_FCF = { status: "missing", reason: "free-cash-flow-unavailable" } as const;
+const DEPOSITORY_WORKBENCH_EV = {
+  status: "not-applicable",
+  reason: "deposit-funded issuer; enterprise value is not defined (SIC 6022)",
+} as const;
+const DEPOSITORY_WORKBENCH_FCF = {
+  status: "not-applicable",
+  reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
+} as const;
+const MISSING_WORKBENCH_FX = { status: "missing", reason: "fx-rate-unavailable" } as const;
+const AAPL_WORKBENCH_VALUES: WorkbenchValues = {
+  "annual|2023-09-30|2023-11-01": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_CASH,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2024-09-30|2024-11-01": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_CASH,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "annual|2025-09-30|2025-11-01": [
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_PRICE,
+    MISSING_WORKBENCH_CASH,
+    MISSING_WORKBENCH_PRICE,
+  ],
+  "ttm|2026-03-31|2026-05-01": [
+    28.499_999_999_999_996, 7.760_563_380_281_689, 7.854_460_093_896_712, 28.016_949_152_542_37,
+  ],
+};
+const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
+  "equity-aapl-brief": {},
+  "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
+  "equity-earnings-release-deep": {
+    "annual|2017-09-30|2019-10-31": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2018-09-29|2020-10-30": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2019-09-28|2020-10-30": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2020-09-26|2020-10-30": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2021-09-25|2021-10-29": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2022-09-24|2022-10-28": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2023-09-30|2023-11-03": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2024-09-28|2024-11-01": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "ttm|2025-06-28|2025-08-01": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "annual|2025-09-27|2025-10-31": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "ttm|2025-12-27|2026-01-30": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "ttm|2026-03-28|2026-05-01": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+    "ttm|2026-06-27|2026-07-31": [
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_CURRENCY,
+    ],
+  },
+  "equity-nbis-deep": {
+    "annual|2016-12-31|2017-03-22": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_CASH,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2017-12-31|2018-03-27": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2018-12-31|2019-04-19": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2019-12-31|2020-04-02": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2020-12-31|2021-04-01": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2021-12-31|2022-04-20": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_DEBT,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2022-12-31|2025-04-30": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2023-12-31|2026-04-30": [
+      212.661_531_888_521_64, 5230.731_450_141_013, 5380.404_919_528_768, 68.631_902_813_471_58,
+    ],
+    "annual|2024-12-31|2026-04-30": [
+      NEGATIVE_WORKBENCH_DENOMINATOR,
+      424.517_499_337_662_85,
+      MIXED_WORKBENCH_BALANCE_SHEET,
+      NEGATIVE_WORKBENCH_DENOMINATOR,
+    ],
+    "annual|2025-12-31|2026-04-30": [
+      418.878_774_931_936_56,
+      64.622_117_548_843_16,
+      65.424_495_804_788_8,
+      NEGATIVE_WORKBENCH_DENOMINATOR,
+    ],
+  },
+  "equity-fpi-quarterly": {
+    "annual|2023-12-31|2024-03-15": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2024-12-31|2025-03-15": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2025-12-31|2026-03-15": [
+      14.314_666_666_666_666,
+      7.873_066_666_666_668,
+      9.873_066_666_666_668,
+      MISSING_WORKBENCH_FCF,
+    ],
+    "ttm|2026-03-31|2026-05-10": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+    ],
+  },
+  "equity-fpi-ifrs-semiannual": {
+    "annual|2023-12-31|2024-03-15": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2024-12-31|2025-03-15": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+    ],
+    "annual|2025-12-31|2026-03-15": [
+      14.314_666_666_666_666,
+      7.873_066_666_666_668,
+      9.873_066_666_666_668,
+      MISSING_WORKBENCH_FCF,
+    ],
+  },
+  "equity-analysis-comprehensive": AAPL_WORKBENCH_VALUES,
+  "equity-analysis-estimated-suppressed": AAPL_WORKBENCH_VALUES,
+  "equity-web-fallback-deep": AAPL_WORKBENCH_VALUES,
+  "equity-depository-deep": {
+    "annual|2016-10-31|2018-11-27": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2017-10-31|2018-11-27": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2018-10-31|2018-11-27": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2019-10-31|2019-11-26": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2020-10-31|2020-12-01": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2021-10-31|2021-11-30": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2022-10-31|2022-11-29": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2023-10-31|2024-12-03": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2024-10-31|2024-12-03": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "ttm|2025-04-30|2025-05-27": [
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "ttm|2025-07-31|2025-08-26": [
+      MISSING_WORKBENCH_FX,
+      MISSING_WORKBENCH_FX,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "annual|2025-10-31|2025-12-02": [
+      17.419_753_543_283_562,
+      3.266_075_706_336_382,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+    "ttm|2026-01-31|2026-02-24": [
+      15.315_112_823_716_342,
+      3.651_616_010_368_668,
+      DEPOSITORY_WORKBENCH_EV,
+      DEPOSITORY_WORKBENCH_FCF,
+    ],
+  },
+};

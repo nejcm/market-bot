@@ -1,3 +1,7 @@
+import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
+import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { config, contextWithHistory } from "./support/research-context-helpers";
+import { sourceGapScopedReportText } from "../src/domain/source-gaps";
 import { describe, expect, test } from "bun:test";
 import { violatesResearchOnly } from "../src/domain/research-language";
 import { resolveMarketSnapshotPriceAsOf } from "../src/domain/market-data";
@@ -12,6 +16,7 @@ import type {
 import {
   buildValuationWorkbench,
   collectValuationWorkbench,
+  type BuildValuationWorkbenchInput,
 } from "../src/sources/extended-evidence/valuation-workbench";
 import {
   readValuationWorkbenchArtifact,
@@ -19,7 +24,7 @@ import {
 } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
 import { renderMarkdownReport } from "../src/report/markdown";
-import { researchReport, reverseDcfWorkbench } from "./support/fixtures";
+import { collectedSources, researchReport, reverseDcfWorkbench } from "./support/fixtures";
 
 const SOURCE_ID = "extended-sec-edgar-test-fundamentals";
 
@@ -1129,4 +1134,294 @@ describe("valuation workbench", () => {
       ],
     });
   });
+});
+
+const filedFact = (value: number, unit: string, instant = false) => ({
+  units: {
+    [unit]: [
+      {
+        val: value,
+        start: instant ? undefined : "2024-01-01",
+        end: "2024-12-31",
+        filed: "2025-02-15",
+        form: "10-K",
+        fy: 2024,
+        fp: "FY",
+        accn: "test-2024",
+      },
+    ],
+  },
+});
+
+function workbenchInput(): BuildValuationWorkbenchInput {
+  const filedStatements = deriveFinancialStatements(
+    {
+      facts: {
+        "us-gaap": {
+          Revenues: filedFact(1000, "USD"),
+          NetIncomeLoss: filedFact(100, "USD"),
+          EarningsPerShareDiluted: filedFact(10, "USD/shares"),
+          WeightedAverageNumberOfDilutedSharesOutstanding: filedFact(10, "shares"),
+          NetCashProvidedByUsedInOperatingActivities: filedFact(300, "USD"),
+          PaymentsToAcquirePropertyPlantAndEquipment: filedFact(100, "USD"),
+          CashAndCashEquivalentsAtCarryingValue: filedFact(50, "USD", true),
+          LongTermDebt: filedFact(100, "USD", true),
+        },
+      },
+    },
+    {
+      symbol: "TEST",
+      generatedAt: "2025-06-01T00:00:00.000Z",
+      analysisAsOf: "2025-06-01T00:00:00.000Z",
+      sourceId: "filed",
+    },
+  );
+  return {
+    symbol: "TEST",
+    generatedAt: filedStatements.generatedAt,
+    financialStatements: filedStatements,
+    priceHistory: [{ date: "2025-02-18", close: 20 }],
+    priceSourceId: "price",
+    quoteCurrency: "USD",
+  };
+}
+async function evaluateWorkbench(value: BuildValuationWorkbenchInput) {
+  return collectValuationWorkbench({
+    ...value,
+    fetchImpl: async () => {
+      throw new Error("network forbidden");
+    },
+  });
+}
+
+test("valuation rows retain R5 basis, filed fundamentals and metric-local citations", async () => {
+  const value = workbenchInput();
+  const filedStatements = structuredClone(value.financialStatements!);
+  Object.assign(filedStatements.statements.balanceSheet.cash.annual[0]!, {
+    sourceIds: ["cash-only"],
+  });
+  const result = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+  const observation = result.artifact.historicalMultiples.observations[0]!;
+  expect(observation.inputs).toMatchObject({
+    revenue: {
+      value: 1000,
+      periodEnd: "2024-12-31",
+      publicAt: "2025-02-15",
+      currency: "USD",
+      unit: "USD",
+      sourceIds: ["filed"],
+    },
+    dilutedEps: { value: 10, sourceIds: ["filed"] },
+    dilutedShares: { value: 10, sourceIds: ["filed"] },
+    cash: { value: 50, sourceIds: ["cash-only"] },
+    debt: { value: 100, sourceIds: ["filed"] },
+    freeCashFlow: {
+      value: 200,
+      sourceIds: ["filed"],
+      derivation: "operating cash flow - capital expenditure",
+    },
+  });
+  expect(observation.sourceIds.toSorted()).toEqual(["cash-only", "filed", "price"]);
+  expect(result.artifact.sourceIds.toSorted()).toEqual(["cash-only", "filed", "price"]);
+  for (const [key, expected] of Object.entries({
+    priceToEarnings: 2,
+    priceToSales: 0.2,
+    enterpriseValueToRevenue: 0.25,
+    priceToFreeCashFlow: 1,
+  })) {
+    const metric = observation.metrics[key as keyof typeof observation.metrics];
+    expect(metric).toMatchObject({ status: "value", value: expected, periodEnd: "2024-12-31" });
+    expect(metric.basis).toContain(
+      "first verified close within 7 calendar days on or after publicAt 2025-02-15; close 2025-02-18 USD",
+    );
+    expect(metric.sourceIds.toSorted()).toEqual(
+      key === "enterpriseValueToRevenue" ? ["cash-only", "filed", "price"] : ["filed", "price"],
+    );
+  }
+  expect(
+    observation.metrics.priceToFreeCashFlow.inputs.map(
+      ({ series: seriesKey, artifact }) => seriesKey ?? artifact,
+    ),
+  ).toEqual(["operatingCashFlow", "capitalExpenditure", "dilutedShares", "priceHistory"]);
+  expect(result.metricSections[0]?.metrics).toEqual(Object.values(observation.metrics));
+  expect(result.sourceGaps).toEqual([]);
+});
+
+test("annual valuation rejects the selected 13-month input without rejecting an unrelated fact", async () => {
+  const value = workbenchInput();
+  const filedStatements = structuredClone(value.financialStatements!);
+  const selected = filedStatements.statements.perShare.dilutedEps.annual[0]!;
+  Object.assign(selected, { periodStart: "2023-12-01" });
+  const rejected = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+  expect(rejected.artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
+    priceToEarnings: { status: "missing", reason: "annual input outside 350–380 days" },
+    priceToSales: { status: "value", value: 0.2 },
+    enterpriseValueToRevenue: { status: "value", value: 0.25 },
+    priceToFreeCashFlow: { status: "value", value: 1 },
+  });
+  Object.assign(selected, { periodStart: "2024-01-01" });
+  Object.assign(filedStatements.statements.perShare.dilutedEps, {
+    annual: [
+      selected,
+      { ...selected, value: 999, periodStart: "2023-12-01", periodKey: "duration:13|2024-12-31" },
+    ],
+  });
+  const accepted = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+  expect(accepted.artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
+    priceToEarnings: { status: "value", value: 2 },
+    priceToSales: { status: "value", value: 0.2 },
+    enterpriseValueToRevenue: { status: "value", value: 0.25 },
+    priceToFreeCashFlow: { status: "value", value: 1 },
+  });
+});
+
+test("known incompatible filed currency withholds valuation while unknown currency permits it", async () => {
+  const value = workbenchInput();
+  const filedStatements = structuredClone(value.financialStatements!);
+  const cash = filedStatements.statements.balanceSheet.cash.annual[0]!;
+  Object.assign(cash, { currency: "CAD", unit: "CAD" });
+  const changed = { ...value, financialStatements: filedStatements };
+  const result = await evaluateWorkbench(changed);
+  expect(result.artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
+    enterpriseValueToRevenue: { status: "missing", reason: "incompatible currency" },
+    priceToEarnings: { status: "value", value: 2 },
+    priceToSales: { status: "value", value: 0.2 },
+    priceToFreeCashFlow: { status: "value", value: 1 },
+  });
+  expect(result.sourceGaps[0]?.triage).toBe("material");
+  Object.assign(cash, { currency: null, unit: "USD" });
+  const accepted = await evaluateWorkbench(changed);
+  expect(accepted.artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
+    enterpriseValueToRevenue: { status: "value", value: 0.25 },
+    priceToEarnings: { status: "value", value: 2 },
+    priceToSales: { status: "value", value: 0.2 },
+    priceToFreeCashFlow: { status: "value", value: 1 },
+  });
+});
+
+test("absent valuation statements emit one missing section and material Source Gap", async () => {
+  const result = await evaluateWorkbench({
+    symbol: "TEST",
+    generatedAt: "2025-06-01T00:00:00.000Z",
+    priceHistory: [],
+  });
+  expect(result.artifact.historicalMultiples.observations).toEqual([]);
+  expect(result.metricSections).toHaveLength(1);
+  expect(result.metricSections[0]).toMatchObject({
+    id: "valuation-workbench-unavailable",
+    metrics: [{ id: "priceToFreeCashFlow", status: "missing" }],
+  });
+  expect(result.sourceGaps).toHaveLength(1);
+  expect(result.sourceGaps[0]).toMatchObject({
+    source: "valuation-workbench-unavailable",
+    triage: "material",
+  });
+});
+test("missing FCF partners propagate independently filed absence and keep available lineage", async () => {
+  const value = workbenchInput();
+  const filedStatements = structuredClone(value.financialStatements!);
+  Object.assign(filedStatements.statements.cashFlowStatement.capitalExpenditure, {
+    annual: [],
+    interim: [],
+  });
+  Object.assign(filedStatements, { unfiledSeries: ["capitalExpenditure"] });
+  const result = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+  const metric = result.artifact.historicalMultiples.observations[0]!.metrics.priceToFreeCashFlow;
+  expect(metric).toMatchObject({ status: "missing", cause: "not-filed" });
+  expect(metric.inputs.some(({ series: seriesKey }) => seriesKey === "operatingCashFlow")).toBe(
+    true,
+  );
+  expect(result.sourceGaps[0]?.triage).toBe("diagnostic");
+  Object.assign(filedStatements, { unfiledSeries: [] });
+  expect(
+    (await evaluateWorkbench({ ...value, financialStatements: filedStatements })).sourceGaps[0]
+      ?.triage,
+  ).toBe("material");
+});
+
+test("P/FCF keeps zero and negative denominators not meaningful and discloses its price basis", async () => {
+  for (const cashFlow of [100, 90]) {
+    const value = workbenchInput();
+    const filedStatements = structuredClone(value.financialStatements!);
+    Object.assign(filedStatements.statements.cashFlowStatement.operatingCashFlow.annual[0]!, {
+      value: cashFlow,
+    });
+    const result = await evaluateWorkbench({ ...value, financialStatements: filedStatements });
+    const metric = result.artifact.historicalMultiples.observations[0]!.metrics.priceToFreeCashFlow;
+    expect(metric).toMatchObject({
+      status: "not-meaningful",
+      reason: cashFlow === 100 ? "zero-denominator" : "negative-denominator",
+    });
+    expect(metric.basis).toContain("close 2025-02-18 USD");
+    expect(result.sourceGaps[0]?.triage).toBe("diagnostic");
+  }
+});
+
+test("non-positive denominators remain diagnostic despite incompatible filed currency", async () => {
+  for (const denominator of [0, -10]) {
+    const value = workbenchInput();
+    const filedStatements = structuredClone(value.financialStatements!);
+    Object.assign(filedStatements.statements.perShare.dilutedEps.annual[0]!, {
+      value: denominator,
+      currency: "CAD",
+      unit: "CAD/shares",
+    });
+    Object.assign(filedStatements.statements.incomeStatement.revenue.annual[0]!, {
+      value: denominator,
+    });
+    Object.assign(filedStatements.statements.balanceSheet.cash.annual[0]!, {
+      currency: "CAD",
+      unit: "CAD",
+    });
+    Object.assign(filedStatements.statements.cashFlowStatement.operatingCashFlow.annual[0]!, {
+      value: 100 + denominator,
+    });
+    Object.assign(filedStatements.statements.perShare.dilutedShares.annual[0]!, {
+      currency: "CAD",
+    });
+    const changed = { ...value, financialStatements: filedStatements };
+    const result = await evaluateWorkbench(changed);
+    for (const metric of Object.values(
+      result.artifact.historicalMultiples.observations[0]!.metrics,
+    )) {
+      expect(metric).toMatchObject({
+        status: "not-meaningful",
+        reason: denominator === 0 ? "zero-denominator" : "negative-denominator",
+      });
+    }
+    expect(result.sourceGaps).toHaveLength(1);
+    expect(result.sourceGaps[0]?.triage).toBe("diagnostic");
+  }
+});
+
+test("model payloads gain declared gaps while workbench metric values stay outside prompts", async () => {
+  const value = workbenchInput();
+  const result = await evaluateWorkbench({ ...value, priceHistory: [] });
+  const command = {
+    jobType: "equity",
+    assetClass: "equity",
+    depth: "deep",
+    symbol: "TEST",
+  } as const;
+  const sources = collectedSources({
+    valuationWorkbench: result.artifact,
+    metricSections: result.metricSections,
+    sourceGaps: result.sourceGaps,
+  });
+  for (const webSourceText of ["metadata", "profile"] as const) {
+    for (const sourceGapView of ["all", "web-gather"] as const) {
+      const payload = buildEvidencePayload(
+        { includePriorCalibration: false, sourceGapView, webSourceText },
+        command,
+        sources,
+        config,
+        contextWithHistory(command),
+      );
+      expect(payload.sourceGaps).toEqual(
+        expect.arrayContaining(result.sourceGaps.map(sourceGapScopedReportText)),
+      );
+      expect(payload).not.toHaveProperty("metricSections");
+      expect(payload).not.toHaveProperty("valuationWorkbench");
+    }
+  }
 });

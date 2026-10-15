@@ -99,14 +99,18 @@ export const CAP_FOLLOWER_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new
   "depreciationAndAmortization",
 ]);
 
-// Any concept the debt selection could read, so a borrower is never recorded as not filing debt.
-export function isDebtCandidateConcept(
+// Filed debt evidence includes concepts that are ineligible for value selection.
+export function isDebtPresenceConcept(
   taxonomy: FinancialStatementTaxonomy,
   concept: string,
 ): boolean {
   const debt = DEBT_CONCEPTS[taxonomy];
   return (
     concept === GROSS_PRINCIPAL_DEBT_CONCEPT ||
+    (taxonomy === "ifrs-full" &&
+      /(?:Borrowings|BondsIssued|NotesIssued|DebtSecuritiesIssued|NotesPayable|LoansPayable|BankOverdrafts|Debentures|FinanceLeaseLiabilities)(?:Current|Noncurrent)?$/u.test(
+        concept,
+      )) ||
     debt.unrecognizedBorrowing?.test(concept) === true ||
     [
       ...debt.totals,

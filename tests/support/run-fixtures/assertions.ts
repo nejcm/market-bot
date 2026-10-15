@@ -24,7 +24,7 @@ import type {
 import {
   conceptScope,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
-  isDebtCandidateConcept,
+  isDebtPresenceConcept,
   scopedLabel,
 } from "../../../src/sources/extended-evidence/financial-statement-definitions";
 import {
@@ -326,8 +326,17 @@ function rawFiledCount(
   const units = isRecord(root[concept]) ? root[concept].units : undefined;
   return (isRecord(units) ? Object.values(units) : [])
     .flatMap((values) => (Array.isArray(values) ? values : []))
-    .filter((fact) => !isRecord(fact) || typeof fact.filed !== "string" || fact.filed <= cutoff)
-    .length;
+    .filter((fact) => {
+      if (!isRecord(fact) || typeof fact.filed !== "string" || fact.filed <= cutoff) {
+        return true;
+      }
+      const date = new Date(`${fact.filed}T00:00:00.000Z`);
+      return (
+        !/^\d{4}-\d{2}-\d{2}$/u.test(fact.filed) ||
+        Number.isNaN(date.getTime()) ||
+        date.toISOString().slice(0, 10) !== fact.filed
+      );
+    }).length;
 }
 
 // A not-filed metric needs one of its own inputs unfiled (raw-checked) and no own input filed but filtered.
@@ -359,11 +368,11 @@ function assertNotFiledCause(
   const cutoff = statements.analysisAsOf.slice(0, 10);
   for (const { key, concepts } of FINANCIAL_STATEMENT_SERIES_DEFINITIONS) {
     for (const [taxonomy, names] of unfiled.includes(key) ? Object.entries(concepts) : []) {
-      const debtCandidates = Object.keys(isRecord(facts[taxonomy]) ? facts[taxonomy] : {}).filter(
+      const debtConcepts = Object.keys(isRecord(facts[taxonomy]) ? facts[taxonomy] : {}).filter(
         (concept) =>
-          key === "debt" && isDebtCandidateConcept(taxonomy as FinancialStatementTaxonomy, concept),
+          key === "debt" && isDebtPresenceConcept(taxonomy as FinancialStatementTaxonomy, concept),
       );
-      for (const concept of [...names, ...debtCandidates]) {
+      for (const concept of [...names, ...debtConcepts]) {
         expect(
           rawFiledCount(facts, taxonomy, concept, cutoff),
           `${label}: ${key} unfiled but ${taxonomy}:${concept} has facts`,

@@ -4,6 +4,7 @@ import { sourceGap, sourceGapReportText } from "../src/domain/source-gaps";
 import type { Source } from "../src/domain/sources";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import type { MetricContext } from "../src/sources/extended-evidence/metric-engine";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
 import { collectedSources, researchReport } from "./support/fixtures";
@@ -112,7 +113,7 @@ function evidenceSource(id: string): Source {
 }
 
 // Gaps follow the given metrics, so a forged status trips its own assertion, not the gap check.
-function invariantRun(ctx: MetricContext, metrics: readonly unknown[]) {
+function invariantRun(ctx: MetricContext, metrics: readonly unknown[], rawPayload?: Fact) {
   const { section } = operatingRatiosSection(ctx);
   const rows = metrics as readonly Record<string, unknown>[];
   const missing = rows.filter(({ status }) => status === "missing");
@@ -141,7 +142,25 @@ function invariantRun(ctx: MetricContext, metrics: readonly unknown[]) {
     assertOperatingRatioInvariants(
       {
         collectedSources: collectedSources({
-          financialStatements: ctx.statements!,
+          financialStatements:
+            rawPayload === undefined
+              ? ctx.statements!
+              : {
+                  ...ctx.statements!,
+                  sourceUrl: "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json",
+                },
+          ...(rawPayload === undefined
+            ? {}
+            : {
+                rawSnapshots: [
+                  {
+                    id: SOURCE_ID,
+                    adapter: "sec-companyfacts",
+                    fetchedAt: AS_OF,
+                    payload: rawPayload,
+                  },
+                ],
+              }),
           sourceGaps,
         }),
         markdown: renderMarkdownReport(report),
@@ -420,6 +439,74 @@ describe("operatingRatiosSection", () => {
       reason: "no stockholders' equity at the fiscal year end 2025-12-31",
     });
     expect(mixed.metric("roic").cause).toBeUndefined();
+  });
+
+  test("unselected IFRS debt stays filed and makes ROIC and Financial Strength gaps material", () => {
+    for (const [concept, debt] of [
+      ["BondsIssued", instant(() => 400, "EUR")],
+      [
+        "CurrentPortionOfLongtermBorrowings",
+        { units: { shares: [fact(400, 2010, { form: "6-K" })] } },
+      ],
+      ["BondsIssued", { units: { shares: [null] } }],
+      ["BondsIssued", { units: { shares: [{ filed: "invalid" }] } }],
+    ] as const) {
+      const concepts = {
+        Revenue: flow(() => 1000, "EUR"),
+        CashFlowsFromUsedInOperatingActivities: flow(() => 300, "EUR"),
+        PurchaseOfPropertyPlantAndEquipment: flow(() => 100, "EUR"),
+        ProfitLossFromOperatingActivities: flow(() => 200, "EUR"),
+        InterestExpense: flow(() => 40, "EUR"),
+        DepreciationAndAmortisationExpense: flow(() => 50, "EUR"),
+        IncomeTaxExpenseContinuingOperations: flow(() => 32, "EUR"),
+        ProfitLossBeforeTax: flow(() => 160, "EUR"),
+        Equity: instant(() => 700, "EUR"),
+        CashAndCashEquivalents: instant(() => 100, "EUR"),
+        [concept]: debt,
+      };
+      const ctx = context(concepts, {}, "ifrs-full");
+      const result = evaluate(ctx);
+      const payload = { cik: 1, facts: { "ifrs-full": concepts } };
+
+      expect(result.metric("roic")).toMatchObject({
+        status: "missing",
+        reason: "no debt at the fiscal year end 2025-12-31",
+      });
+      expect(result.metric("roic").cause).toBeUndefined();
+      expect(result.sourceGaps[0]?.triage).toBe("material");
+      expect(ctx.statements?.unfiledSeries).not.toContain("debt");
+      expect(ctx.statements?.statements.balanceSheet.debt.annual).toEqual([]);
+      expect(ctx.statements?.statements.balanceSheet.debt.interim).toEqual([]);
+      expect(invariantRun(ctx, result.section.metrics, payload)).not.toThrow();
+
+      const lens = financialLensMetrics(ctx);
+      for (const id of [
+        "debt",
+        "netDebt",
+        "debtToEquity",
+        "debtToMarketCap",
+        "netDebtToMarketCap",
+      ]) {
+        const metric = lens.lensMetrics["Financial Strength"].find((row) => row.id === id);
+        expect(metric, id).toMatchObject({ status: "missing" });
+        expect(metric?.cause, id).toBeUndefined();
+      }
+      expect(
+        lens.sourceGaps.find((gap) => gap.source === "financial-lens-financial-strength")?.triage,
+      ).toBe("material");
+
+      const forgedCtx = {
+        ...ctx,
+        statements: {
+          ...ctx.statements!,
+          unfiledSeries: [...(ctx.statements?.unfiledSeries ?? []), "debt" as const],
+        },
+      };
+      const forged = operatingRatiosSection(forgedCtx);
+      expect(invariantRun(forgedCtx, forged.section.metrics, payload)).toThrow(
+        `debt unfiled but ifrs-full:${concept} has facts`,
+      );
+    }
   });
 
   test("the fixture invariant re-derives values and rejects forged lineage or causes", () => {

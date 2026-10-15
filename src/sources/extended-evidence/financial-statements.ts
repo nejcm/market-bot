@@ -11,7 +11,7 @@ import {
 import {
   CAP_FOLLOWER_SERIES,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
-  isDebtCandidateConcept,
+  isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
@@ -576,7 +576,7 @@ function unfiledSeries(
     TAXONOMIES.every((taxonomy) =>
       definition.key === "debt"
         ? !Object.keys(taxonomyRoot(payload, taxonomy) ?? {}).some(
-            (concept) => isDebtCandidateConcept(taxonomy, concept) && filed(taxonomy, concept),
+            (concept) => isDebtPresenceConcept(taxonomy, concept) && filed(taxonomy, concept),
           )
         : !definition.concepts[taxonomy].some((concept) => filed(taxonomy, concept)),
     ),

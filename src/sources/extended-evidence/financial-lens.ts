@@ -1,31 +1,22 @@
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
+import type { SourceGap } from "../../domain/sources";
+import { sourceGap } from "../../domain/source-gaps";
+import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
+import { financialLensMetrics } from "./financial-lens-sections";
 import {
   itemByCategory,
   secFundamentalItem,
   tickerSnapshot,
   type FinancialLens,
-  type FinancialLensResult,
   type FinancialLensArtifact,
   type FinancialLensMetric,
   type FinancialLensName,
+  type FinancialLensResult,
 } from "./financial-lens-metrics";
-import {
-  applySubsequentFinancingCurrentness,
-  growthLens,
-  momentumLens,
-  qualityLens,
-  strengthLens,
-  valueLens,
-  type WithheldPayout,
-  type WithheldStrengthMetric,
-} from "./financial-lens-builders";
-import { SEC_FRESHNESS_DAYS } from "../../config/shared";
-import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
-
-import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
-import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
-import type { SourceGap } from "../../domain/sources";
-import { sourceGap } from "../../domain/source-gaps";
+import type { FinancialStatementsArtifact } from "./financial-statements-contract";
+import type { MetricContext, MetricResult, MetricSection } from "./metric-engine";
 import { formatLensValue } from "./value-format";
 import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { EquityReportingFreshness } from "./equity-analysis-completeness";
@@ -37,10 +28,29 @@ export type {
   FinancialLensPosture,
 } from "./financial-lens-metrics";
 
+export interface FinancialLensEvidenceResult extends FinancialLensResult {
+  readonly metricSections?: readonly MetricSection[];
+  readonly metricSectionGaps?: readonly SourceGap[];
+}
+
+const LENS_ORDER: readonly FinancialLensName[] = [
+  "Quality",
+  "Growth",
+  "Financial Strength",
+  "Value",
+  "Momentum",
+];
+
+function summarizeMetricValue(lensMetric: FinancialLensMetric): string {
+  return typeof lensMetric.value === "string"
+    ? lensMetric.value
+    : formatLensValue(lensMetric.value, lensMetric.unit, lensMetric.currency);
+}
+
 function summarizeLens(lens: FinancialLens): string {
   const metricText = lens.metrics
     .slice(0, 4)
-    .map((item) => `${item.label} ${formatValue(item)}`)
+    .map((item) => `${item.label} ${summarizeMetricValue(item)}`)
     .join(", ");
   const currentness =
     lens.currentStatus === "partial"
@@ -49,54 +59,10 @@ function summarizeLens(lens: FinancialLens): string {
   return `${lens.name} ${lens.posture}${metricText === "" ? "" : ` (${metricText})`}${currentness}`;
 }
 
-function formatValue(lensMetric: FinancialLensMetric): string {
-  if (typeof lensMetric.value === "string") {
-    return lensMetric.value;
-  }
-  return formatLensValue(lensMetric.value, lensMetric.unit, lensMetric.currency);
-}
-
 function financialLensGap(symbol: string, missing: readonly string[]): SourceGap {
   return sourceGap({
     source: "financial-lens",
     message: `Financial Lens Evidence partial for ${symbol}: missing ${missing.join(", ")}`,
-    provider: "market-bot",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
-}
-
-function nonCurrentStrengthDebtGap(
-  symbol: string,
-  withheld: readonly WithheldStrengthMetric[],
-  analysisAsOf: string,
-): SourceGap {
-  const periods = withheld
-    .map((entry) => `${entry.label} period end ${entry.periodEnd ?? "undated"}`)
-    .join(", ");
-  return sourceGap({
-    source: "financial-lens",
-    message: `Financial Strength for ${symbol} excludes non-current balance-sheet inputs at analysis cutoff ${analysisAsOf.slice(0, 10)}: ${periods} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff and ${String(MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS)} days of the newest balance-sheet period end`,
-    provider: "market-bot",
-    capability: "extended-evidence",
-    cause: "provider-data-missing",
-    evidenceQualityImpact: "no-cap",
-  });
-}
-
-function withheldPayoutGap(
-  symbol: string,
-  withheld: WithheldPayout,
-  analysisAsOf: string,
-): SourceGap {
-  const periodEnd = withheld.periodEnd ?? "undated";
-  return sourceGap({
-    source: "financial-lens",
-    message:
-      withheld.reason === "non-positive-income"
-        ? `SEC-derived payout ratio for ${symbol} withheld: net income for the period ending ${periodEnd} is zero or negative`
-        : `SEC-derived payout ratio for ${symbol} withheld at analysis cutoff ${analysisAsOf.slice(0, 10)}: period end ${periodEnd} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff`,
     provider: "market-bot",
     capability: "extended-evidence",
     cause: "provider-data-missing",
@@ -111,6 +77,47 @@ function postureMetricKey(name: FinancialLensName): string {
   return `${name.toLowerCase()}Posture`;
 }
 
+function metricRow(metric: MetricResult): FinancialLensMetric {
+  return {
+    key: metric.id,
+    label: metric.label,
+    value: metric.value as number | string,
+    unit: metric.unit,
+    sourceIds: metric.sourceIds,
+    ...(metric.currency !== undefined ? { currency: metric.currency } : {}),
+    ...(metric.periodEnd !== undefined ? { periodEnd: metric.periodEnd } : {}),
+    ...(metric.periodMonths !== undefined ? { periodMonths: metric.periodMonths } : {}),
+  };
+}
+
+function lensSourceIds(
+  name: FinancialLensName,
+  input: {
+    readonly secSourceIds: readonly string[];
+    readonly valuationSourceIds: readonly string[];
+    readonly yahooSourceIds: readonly string[];
+    readonly verifiedSourceIds: readonly string[];
+  },
+): readonly string[] {
+  switch (name) {
+    case "Quality":
+    case "Growth": {
+      return input.secSourceIds;
+    }
+    case "Financial Strength": {
+      return [
+        ...new Set([...input.secSourceIds, ...input.valuationSourceIds, ...input.yahooSourceIds]),
+      ];
+    }
+    case "Value": {
+      return [...new Set([...input.valuationSourceIds, ...input.yahooSourceIds])];
+    }
+    case "Momentum": {
+      return input.verifiedSourceIds;
+    }
+  }
+}
+
 export function addFinancialLensEvidence(
   command: ResearchCommand,
   marketSnapshots: readonly MarketSnapshot[],
@@ -119,24 +126,55 @@ export function addFinancialLensEvidence(
   generatedAt: string,
   subsequentFinancing?: SubsequentFinancingBridgeArtifact,
   freshness?: EquityReportingFreshness,
-): FinancialLensResult {
+  statements?: FinancialStatementsArtifact,
+): FinancialLensEvidenceResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
   }
 
   const secItem = secFundamentalItem(extendedEvidence);
   const valuationItem = itemByCategory(extendedEvidence, "valuation");
-  const yahooFundamentalsItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
+  const yahooItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
   const snapshot = tickerSnapshot(command, marketSnapshots);
-  const quoteCurrency = snapshot?.identity?.quoteCurrency ?? "USD";
-  const strength = strengthLens(secItem, generatedAt, valuationItem, yahooFundamentalsItem);
-  const lenses = [
-    qualityLens(secItem),
-    growthLens(secItem),
-    applySubsequentFinancingCurrentness(strength.lens, subsequentFinancing),
-    valueLens(valuationItem, secItem, yahooFundamentalsItem, snapshot),
-    momentumLens(verifiedMarketSnapshot, quoteCurrency),
-  ];
+  const ctx: MetricContext = {
+    symbol: command.symbol,
+    ...(statements !== undefined ? { statements } : {}),
+    ...(extendedEvidence !== undefined ? { evidence: extendedEvidence } : {}),
+    asOf: generatedAt,
+    ...(snapshot !== undefined ? { snapshot } : {}),
+    ...(verifiedMarketSnapshot !== undefined ? { verifiedSnapshot: verifiedMarketSnapshot } : {}),
+    ...(subsequentFinancing !== undefined ? { subsequentFinancing } : {}),
+  };
+  const metrics = financialLensMetrics(ctx);
+  const sourceIdsOf = {
+    secSourceIds: secItem?.sourceIds ?? [],
+    valuationSourceIds: valuationItem?.sourceIds ?? [],
+    yahooSourceIds: yahooItem?.sourceIds ?? [],
+    verifiedSourceIds:
+      verifiedMarketSnapshot === undefined
+        ? []
+        : [verifiedSnapshotSourceId(verifiedMarketSnapshot.symbol)],
+  };
+  const partial =
+    (subsequentFinancing?.events.filter((event) => !event.reconciled).length ?? 0) > 0;
+  const lenses: readonly FinancialLens[] = LENS_ORDER.map((name): FinancialLens => {
+    const lensMetrics = metrics.lensMetrics[name].flatMap((metric) =>
+      metric.status === "value" ? [metricRow(metric)] : [],
+    );
+    const sourceIds = lensSourceIds(name, sourceIdsOf);
+    return {
+      name,
+      posture: metrics.postures[name],
+      metrics: lensMetrics,
+      sourceIds,
+      ...(name === "Financial Strength" && partial
+        ? {
+            currentStatus: "partial" as const,
+            currentStatusReasonCodes: ["unreconciled-post-period-financing"],
+          }
+        : {}),
+    };
+  });
   const sourceIds = [
     ...new Set(lenses.flatMap((lens) => lens.sourceIds).filter((sourceId) => sourceId !== "")),
   ];
@@ -157,16 +195,20 @@ export function addFinancialLensEvidence(
         .at(-1) ?? generatedAt,
     metrics: {
       ...Object.fromEntries(
-        lenses.flatMap((lens) => [
-          [postureMetricKey(lens.name), lens.posture] as const,
-          ...lens.metrics.flatMap((metricValue) => [
-            [metricValue.key, metricValue.value] as const,
-            // Period ends travel beside their value, matching sec-edgar's `${key}PeriodEnd`
-            // Convention, so the model can date every lens figure it reads.
-            ...(metricValue.periodEnd === undefined
-              ? []
-              : [[`${metricValue.key}PeriodEnd`, metricValue.periodEnd] as const]),
-          ]),
+        LENS_ORDER.flatMap((name) => [
+          [postureMetricKey(name), metrics.postures[name]] as const,
+          ...metrics.lensMetrics[name].flatMap((metric) =>
+            metric.status === "value"
+              ? [
+                  [metric.id, metric.value] as const,
+                  // Period ends travel beside their value, matching sec-edgar's `${key}PeriodEnd`
+                  // Convention, so the model can date every lens figure it reads.
+                  ...(metric.periodEnd === undefined
+                    ? []
+                    : [[`${metric.id}PeriodEnd`, metric.periodEnd] as const]),
+                ]
+              : [],
+          ),
         ]),
       ),
       // Always-on reporting freshness: present whether or not a completeness gap fired.
@@ -194,15 +236,7 @@ export function addFinancialLensEvidence(
     ...(valuationItem === undefined ? ["valuation evidence"] : []),
     ...(verifiedMarketSnapshot === undefined ? ["verified market snapshot"] : []),
   ];
-  const gaps = [
-    ...(missing.length === 0 ? [] : [financialLensGap(command.symbol, missing)]),
-    ...(strength.withheld.length === 0
-      ? []
-      : [nonCurrentStrengthDebtGap(command.symbol, strength.withheld, generatedAt)]),
-    ...(strength.withheldPayout === undefined
-      ? []
-      : [withheldPayoutGap(command.symbol, strength.withheldPayout, generatedAt)]),
-  ];
+  const gaps = missing.length === 0 ? [] : [financialLensGap(command.symbol, missing)];
   const mergedEvidence: ExtendedEvidence = {
     instrument: extendedEvidence?.instrument ?? {
       symbol: command.symbol,
@@ -211,5 +245,11 @@ export function addFinancialLensEvidence(
     items: [...(extendedEvidence?.items ?? []), item],
     gaps: [...(extendedEvidence?.gaps ?? []), ...gaps],
   };
-  return { extendedEvidence: mergedEvidence, artifact, sourceGaps: gaps };
+  return {
+    extendedEvidence: mergedEvidence,
+    artifact,
+    sourceGaps: gaps,
+    ...(metrics.sections.length === 0 ? {} : { metricSections: metrics.sections }),
+    ...(metrics.sourceGaps.length === 0 ? {} : { metricSectionGaps: metrics.sourceGaps }),
+  };
 }

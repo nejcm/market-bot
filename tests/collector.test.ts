@@ -710,6 +710,10 @@ describe("collectSources", () => {
       "business-framework-growth",
       "business-framework-risk",
       "business-framework-valuation",
+      "financial-lens-quality",
+      "financial-lens-growth",
+      "financial-lens-financial-strength",
+      "financial-lens-value",
       "capital-return",
       "operating-ratios",
     ]);

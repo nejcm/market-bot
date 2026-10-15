@@ -1859,6 +1859,7 @@
             "value": -3681200000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
+            "currency": "USD",
             "periodEnd": "2025-12-31",
             "periodMonths": 12
           },
@@ -1950,6 +1951,7 @@
             "value": 3678100000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
+            "currency": "USD",
             "periodEnd": "2025-12-31"
           },
           "debt": {
@@ -1958,22 +1960,7 @@
             "value": 4103200000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31"
-          },
-          "netDebt": {
-            "key": "netDebt",
-            "label": "Net debt",
-            "value": 425100000,
-            "unit": "currency",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
-            "periodEnd": "2025-12-31"
-          },
-          "currentRatio": {
-            "key": "currentRatio",
-            "label": "Current ratio",
-            "value": 3.0837805995549155,
-            "unit": "ratio",
-            "sourceIds": ["offline-sec-companyfacts-nbis"],
+            "currency": "USD",
             "periodEnd": "2025-12-31"
           }
         }

@@ -22,6 +22,7 @@ export { formatDate, formatDateMinute, runLabel } from "./view-model-format";
 
 export {
   financialLensMetricTiles,
+  financialLensSectionTiles,
   financialLensStatTiles,
   valuationMetricTiles,
   type FinancialLensStatTile,

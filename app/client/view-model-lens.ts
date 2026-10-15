@@ -1,10 +1,16 @@
-import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
+import {
+  formatLensValue,
+  formatMetricValue,
+} from "../../src/sources/extended-evidence/value-format";
 import type {
   FinancialLensArtifact,
   FinancialLensMetric,
   FinancialLensName,
 } from "../../src/sources/extended-evidence/financial-lens";
+import { financialLensNameFromSectionId } from "../../src/sources/extended-evidence/financial-lens-sections";
+import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
+import { readRecord } from "./view-model-format";
 
 export interface ValuationMetricTile {
   readonly label: string;
@@ -162,7 +168,7 @@ function assessment(
 }
 
 function assessFinancialLensMetric(
-  metric: FinancialLensMetric,
+  metric: Pick<FinancialLensMetric, "key" | "value">,
 ): Pick<FinancialLensStatTile, "tone" | "assessment"> {
   const { key, value: rawValue } = metric;
   if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
@@ -305,7 +311,7 @@ const BALANCE_SHEET_LENS_METRICS = new Set([
 ]);
 
 function financialLensMetricCaption(
-  metric: FinancialLensMetric,
+  metric: Pick<FinancialLensMetric, "key" | "sourceIds" | "periodEnd" | "periodMonths">,
   marketSnapshots: readonly MarketSnapshot[],
 ): string | undefined {
   const source = financialLensSourceLabel(metric.sourceIds);
@@ -362,4 +368,46 @@ export function financialLensStatTiles(
       };
     }),
   );
+}
+
+// The tiles the report itself renders: the frozen Metric Sections, not the artifact's own rows.
+export function financialLensSectionTiles(
+  report: Record<string, unknown> | undefined,
+  marketSnapshots: readonly MarketSnapshot[] = [],
+): readonly FinancialLensStatTile[] {
+  const sections = readMetricSectionsExtra(readRecord(report?.extras)?.metricSections) ?? [];
+  return sections.flatMap((section) => {
+    const lens = section.id === undefined ? undefined : financialLensNameFromSectionId(section.id);
+    if (lens === undefined) {
+      return [];
+    }
+    return section.metrics.flatMap((metric): readonly FinancialLensStatTile[] => {
+      const value =
+        metric.status === "value"
+          ? formatMetricValue(metric.value, metric.unit, metric.currency)
+          : undefined;
+      if (metric.id === undefined || metric.label === undefined || value === undefined) {
+        return [];
+      }
+      const caption = financialLensMetricCaption(
+        {
+          key: metric.id,
+          sourceIds: metric.sourceIds,
+          ...(metric.periodEnd !== undefined ? { periodEnd: metric.periodEnd } : {}),
+          ...(metric.periodMonths !== undefined ? { periodMonths: metric.periodMonths } : {}),
+        },
+        marketSnapshots,
+      );
+      return [
+        {
+          key: metric.id,
+          lens,
+          label: metric.label,
+          value,
+          ...assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" }),
+          ...(caption !== undefined ? { caption } : {}),
+        },
+      ];
+    });
+  });
 }

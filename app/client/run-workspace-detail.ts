@@ -4,8 +4,16 @@ import type {
   FinancialLensName,
   FinancialLensPosture,
 } from "../../src/sources/extended-evidence/financial-lens";
+import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
+import { financialLensMetricSectionId } from "../../src/sources/extended-evidence/financial-lens-sections";
+import { readRecord } from "./view-model-format";
 import { projectEquityReader, type EquityReaderProjection } from "../../src/report/equity-reader";
-import { financialLensStatTiles, textItems, type FinancialLensStatTile } from "./view-model";
+import {
+  financialLensSectionTiles,
+  financialLensStatTiles,
+  textItems,
+  type FinancialLensStatTile,
+} from "./view-model";
 
 export interface RunWorkspaceTextItem {
   readonly text: string;
@@ -79,9 +87,15 @@ export function uniqueSourceIds(sourceIds: readonly string[]): readonly string[]
 export function financialLensGroupViews(
   detail: RunDetail,
 ): readonly RunWorkspaceFinancialLensGroup[] {
-  const financialLensStats = financialLensStatTiles(
+  const sectionTiles = financialLensSectionTiles(detail.report, detail.marketSnapshots ?? []);
+  const artifactTiles = financialLensStatTiles(
     detail.financialLenses,
     detail.marketSnapshots ?? [],
+  );
+  const sectionIds = new Set(
+    (readMetricSectionsExtra(readRecord(detail.report?.extras)?.metricSections) ?? []).map(
+      (section) => section.id,
+    ),
   );
   return (
     detail.financialLenses?.lenses.map(
@@ -89,7 +103,10 @@ export function financialLensGroupViews(
         lens: lens.name,
         posture: lens.posture,
         sourceIds: lens.sourceIds,
-        tiles: financialLensStats.filter((tile) => tile.lens === lens.name),
+        tiles: (sectionIds.has(financialLensMetricSectionId(lens.name))
+          ? sectionTiles
+          : artifactTiles
+        ).filter((tile) => tile.lens === lens.name),
       }),
     ) ?? []
   );

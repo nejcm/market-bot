@@ -5341,6 +5341,7 @@
             "value": 66987000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30",
             "periodMonths": 12
           },
@@ -5441,6 +5442,7 @@
             "value": 20935000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30"
           },
           "debt": {
@@ -5449,6 +5451,7 @@
             "value": 40294000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30"
           },
           "netDebt": {
@@ -5457,6 +5460,7 @@
             "value": 19359000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
             "periodEnd": "2026-06-30"
           },
           "currentRatio": {

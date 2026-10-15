@@ -27,7 +27,10 @@ import {
   isDebtCandidateConcept,
   scopedLabel,
 } from "../../../src/sources/extended-evidence/financial-statement-definitions";
-import { financialStatementSeriesByKey } from "../../../src/sources/extended-evidence/financial-statement-selection";
+import {
+  financialStatementSeriesByKey,
+  financialStatementPeriodMonths,
+} from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import type { FixtureMeta, RunFixtureResult } from ".";
 import { assertFinancialRunInvariants } from "./financial-invariants";
@@ -80,6 +83,7 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
   assertMetricSectionInvariants(result, report);
+  assertFinancialLensMetricInvariants(result, report);
   assertOperatingRatioInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
@@ -160,6 +164,7 @@ function resolveInput(
   input: MetricInput,
   label: string,
   annualFlowsOnly = true,
+  strictLineage = true,
 ): ResolvedInput | undefined {
   const {
     financialStatements,
@@ -215,6 +220,23 @@ function resolveInput(
       currency: fact.unit,
     };
     expect(isAnnualSpan(resolved), `${label} spans 350-380 days`).toBe(true);
+  } else if (input.artifact === "verifiedSnapshot") {
+    const snapshot = run.collectedSources.verifiedMarketSnapshot;
+    const value =
+      input.key === "latestClose"
+        ? snapshot?.ohlcv.close
+        : snapshot?.indicators?.[input.key as "sma50"];
+    const periodEnd = snapshot?.latestSessionDate;
+    resolved =
+      value === undefined || value === null
+        ? undefined
+        : { value, ...(periodEnd !== undefined ? { periodEnd } : {}) };
+  } else if (input.artifact === "subsequentFinancing") {
+    const bridge = run.collectedSources.subsequentFinancing;
+    resolved =
+      bridge === undefined
+        ? undefined
+        : { value: bridge.events.filter((event) => !event.reconciled).length };
   } else {
     const snapshot = marketSnapshots.find((candidate) => candidate.sourceId === input.sourceIds[0]);
     const currency = resolvedInstrumentIdentity?.quoteCurrency ?? snapshot?.identity?.quoteCurrency;
@@ -228,6 +250,10 @@ function resolveInput(
         : undefined;
   }
   expect(resolved, `${label} resolves in ${input.artifact}`).toBeDefined();
+  if (!strictLineage) {
+    expect(resolved?.value, `${label} matches its artifact value`).toEqual(input.value);
+    return resolved;
+  }
   const lineage: Partial<ResolvedInput> = {
     value: input.value,
     ...(["periodStart", "periodEnd", "periodKey", "periodType", "currency"] as const).reduce(
@@ -496,6 +522,232 @@ function assertSectionGapTriage(
           ? capitalReturnFiledFailure(run, String(metric.id), statements, filed)
           : frameworkFiledFailure(String(metric.id), statements, filed),
     );
+  }
+}
+
+const LENS_SECTION_TITLES: Readonly<Record<string, string>> = {
+  "financial-lens-quality": "Financial Lens: Quality",
+  "financial-lens-growth": "Financial Lens: Growth",
+  "financial-lens-financial-strength": "Financial Lens: Financial Strength",
+  "financial-lens-value": "Financial Lens: Value",
+  "financial-lens-momentum": "Financial Lens: Momentum",
+};
+
+// The lens reads the latest reported period, so its statement inputs are annual or interim by design.
+const LENS_METRIC_SERIES: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
+  grossMargin: ["grossProfit", "revenue"],
+  operatingMargin: ["operatingIncome", "revenue"],
+  netMargin: ["netIncome", "revenue"],
+  freeCashFlowProxy: ["operatingCashFlow", "capitalExpenditure"],
+  cashConversion: ["operatingCashFlow", "netIncome"],
+  roe: ["netIncome", "stockholdersEquity"],
+  roa: ["netIncome", "totalAssets"],
+  cash: ["cash"],
+  debt: ["debt"],
+  netDebt: ["debt", "cash"],
+  currentRatio: ["currentAssets", "currentLiabilities"],
+  debtToEquity: ["debt", "stockholdersEquity"],
+  debtToMarketCap: ["debt"],
+  netDebtToMarketCap: ["debt", "cash"],
+  payoutRatio: ["dividendsPaid", "netIncome"],
+};
+
+export function assertFinancialLensMetricInvariants(
+  run: MetricInvariantRun,
+  report: ResearchReport,
+): void {
+  const sections = (
+    (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? []
+  ).filter(({ id }) => id !== undefined && LENS_SECTION_TITLES[id] !== undefined);
+  const statements = run.collectedSources.financialStatements;
+  const filedFacts =
+    statements !== undefined &&
+    Object.values({
+      ...statements.statements.incomeStatement,
+      ...statements.statements.balanceSheet,
+      ...statements.statements.cashFlowStatement,
+    }).some((series) => series.annual.length + series.interim.length > 0);
+  if (filedFacts) {
+    expect(sections.length, "filed statements imply lens Metric Sections").toBeGreaterThan(0);
+  }
+  for (const [id, title] of Object.entries(LENS_SECTION_TITLES)) {
+    const section = sections.find((candidate) => candidate.id === id);
+    expect(
+      run.markdown.includes(`### ${title}\n`),
+      `${title} markdown follows its Metric Section`,
+    ).toBe(section !== undefined);
+    if (section === undefined) {
+      continue;
+    }
+    expect(section.metrics.length, `${id} carries metrics`).toBeGreaterThan(0);
+    const unresolved = section.metrics.filter(({ status }) => status !== "value");
+    expect(
+      report.dataGaps.some((gap) => gap.startsWith(`${id}: `)),
+      `${id} surfaces its section gap`,
+    ).toBe(unresolved.length > 0);
+    if (unresolved.some(({ status }) => status === "missing")) {
+      expect(
+        run.collectedSources.sourceGaps.find(({ source }) => source === id)?.triage,
+        `${id} gap is diagnostic only when every missing metric is not-filed`,
+      ).toBe(
+        unresolved
+          .filter(({ status }) => status === "missing")
+          .every(({ cause }) => cause === "not-filed")
+          ? "diagnostic"
+          : "material",
+      );
+    }
+  }
+  const reportSourceIds = new Set(report.sources.map(({ id }) => id));
+  for (const section of sections) {
+    const id = String(section.id);
+    for (const metric of section.metrics) {
+      const label = `${id}.${String(metric.id)}`;
+      for (const sourceId of metric.sourceIds) {
+        expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
+      }
+      for (const input of metric.inputs) {
+        resolveInput(run, input, `${label} ${input.label}`, false, input.artifact === "statements");
+      }
+      if (metric.status !== "value") {
+        continue;
+      }
+      expect(
+        (typeof metric.value === "number" && Number.isFinite(metric.value)) ||
+          (typeof metric.value === "string" && metric.value !== ""),
+        `${label} carries a finite number or non-empty text`,
+      ).toBe(true);
+      const metricId = String(metric.id);
+      const resolved = metric.inputs.map((input) =>
+        resolveInput(run, input, `${label} ${input.label}`, false, input.artifact === "statements"),
+      );
+      const statementFacts = resolved.filter(
+        (_fact, index) => metric.inputs[index]?.artifact === "statements",
+      );
+      if (statementFacts.length > 0) {
+        expect(metric.periodEnd, `${label} ends at its anchor period`).toBe(
+          statementFacts
+            .map((fact) => fact?.periodEnd ?? "")
+            .toSorted()
+            .at(-1),
+        );
+      }
+      const durations = statementFacts.filter((fact) => fact?.periodStart !== undefined);
+      // A YoY metric compares two adjacent periods of one series; every other join shares one period.
+      if (!metricId.endsWith("DeltaPercent")) {
+        expect(
+          new Set(durations.map((fact) => `${String(fact?.periodKey)}/${String(fact?.periodType)}`))
+            .size,
+          `${label} flow inputs join one period`,
+        ).toBeLessThanOrEqual(1);
+      }
+      const valueOf = (series: string): number =>
+        Number(resolved[metric.inputs.findIndex((input) => input.series === series)]?.value);
+      switch (metricId) {
+        case "grossMargin":
+        case "operatingMargin":
+        case "netMargin": {
+          const [numerator] = LENS_METRIC_SERIES[metricId] ?? [];
+          expectClose(metric.value, valueOf(String(numerator)) / valueOf("revenue"), label);
+          break;
+        }
+        case "freeCashFlowProxy": {
+          expectClose(
+            metric.value,
+            valueOf("operatingCashFlow") - Math.abs(valueOf("capitalExpenditure")),
+            label,
+          );
+          break;
+        }
+        case "netDebt":
+        case "netDebtToMarketCap": {
+          const onMarketCap = metricId === "netDebtToMarketCap" ? valueOf("marketCap") : undefined;
+          const netDebt = valueOf("debt") - valueOf("cash");
+          expectClose(
+            metric.value,
+            onMarketCap === undefined ? netDebt : netDebt / onMarketCap,
+            label,
+          );
+          break;
+        }
+        case "currentRatio": {
+          expectClose(
+            metric.value,
+            valueOf("currentAssets") / valueOf("currentLiabilities"),
+            label,
+          );
+          break;
+        }
+        case "debtToEquity": {
+          expectClose(metric.value, valueOf("debt") / valueOf("stockholdersEquity"), label);
+          break;
+        }
+        case "debtToMarketCap": {
+          expectClose(metric.value, valueOf("debt") / valueOf("marketCap"), label);
+          break;
+        }
+        case "payoutRatio": {
+          if (!metric.inputs.some(({ series }) => series === "dividendsPaid")) {
+            break;
+          }
+          expectClose(
+            metric.value,
+            Math.abs(valueOf("dividendsPaid")) / valueOf("netIncome"),
+            label,
+          );
+          break;
+        }
+        case "cashConversion": {
+          const incomeSeries = metric.inputs
+            .map(({ series }) => series)
+            .find((series) => series !== "operatingCashFlow");
+          expectClose(
+            metric.value,
+            valueOf("operatingCashFlow") / valueOf(String(incomeSeries)),
+            label,
+          );
+          break;
+        }
+        case "roe":
+        case "roa": {
+          const [numerator, denominator] = LENS_METRIC_SERIES[metricId] ?? [];
+          const incomeInput = metric.inputs.find((input) => input.series === numerator);
+          const incomeFact =
+            statements === undefined || incomeInput?.series === undefined
+              ? undefined
+              : financialStatementSeriesByKey(
+                  statements,
+                  incomeInput.series as FinancialStatementSeriesKey,
+                )
+                  ?.annual.concat(
+                    financialStatementSeriesByKey(
+                      statements,
+                      incomeInput.series as FinancialStatementSeriesKey,
+                    )?.interim ?? [],
+                  )
+                  .find((fact) => fact.periodKey === incomeInput.periodKey);
+          const months =
+            incomeFact === undefined ? undefined : financialStatementPeriodMonths(incomeFact);
+          expect(months, `${label} annualizes by net income's own period`).toBeGreaterThan(0);
+          const numeratorValue = valueOf(String(numerator));
+          const expected =
+            months === undefined
+              ? numeratorValue
+              : (numeratorValue * (12 / months)) / valueOf(String(denominator));
+          expectClose(metric.value, expected, label);
+          break;
+        }
+        default: {
+          if (metric.inputs.length !== 2 || !metricId.endsWith("DeltaPercent")) {
+            break;
+          }
+          const [prior, latest] = [Number(resolved[0]?.value), Number(resolved[1]?.value)];
+          const comparedSeries = metric.inputs.map((input) => input.series);
+          expect(comparedSeries[0], `${label} compares one series`).toBe(comparedSeries[1]);
+          expectClose(metric.value, ((latest - prior) / Math.abs(prior)) * 100, label);
+        }
+      }
+    }
   }
 }
 

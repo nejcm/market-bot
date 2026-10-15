@@ -474,6 +474,32 @@ export function verifyLensAllowanceProperties(
   if (member !== "metrics" || !isLensMetricKey(metricKey)) {
     return false;
   }
+  if (isRecord(difference.canonical) && difference.canonical.unit === "currency") {
+    const currencySeries: Partial<Record<LensMetricKey, FinancialStatementSeriesKey>> = {
+      cash: "cash",
+      debt: "debt",
+      netDebt: "debt",
+      freeCashFlowProxy: "operatingCashFlow",
+      consolidatedNetIncome: "consolidatedNetIncome",
+    };
+    const seriesKey = currencySeries[metricKey];
+    const series =
+      seriesKey === undefined
+        ? undefined
+        : financialStatementSeriesByKey(execution.artifact, seriesKey);
+    const metric = difference.canonical;
+    if (
+      series === undefined ||
+      !financialStatementFacts(series).some(
+        (fact) =>
+          fact.periodEnd === metric.periodEnd &&
+          fact.currency === metric.currency &&
+          sourceContainsFact(execution.input, fact),
+      )
+    ) {
+      return false;
+    }
+  }
   const relation = LENS_METRIC_RELATIONS[metricKey];
   switch (relation) {
     case "direct-leaf": {

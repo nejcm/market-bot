@@ -170,6 +170,8 @@ describe("static equity run fixtures", () => {
             result.collectedSources.verifiedMarketSnapshot,
             financialStatements.generatedAt,
             result.collectedSources.subsequentFinancing,
+            result.collectedSources.reportingFreshness,
+            financialStatements,
           ).artifact;
           expect(
             result.deepEquityEvidenceBundle?.derived.financialLenses,
@@ -242,9 +244,16 @@ describe("static equity run fixtures", () => {
     expect(appendix).toContain(
       "Interim ending 2026-03-31 (latest filed 2026-05-01) | 60.0B | 100.0B | —",
     );
+    const debtGap = String.raw`Debt/equity missing \(stockholders' equity not filed by the issuer\)`;
+    expect(
+      reader
+        ?.split("\n")
+        .find((line) => line.startsWith("- **Material:** financial-lens-financial-strength:")),
+    ).toContain(debtGap);
     expect(reader).not.toContain("Cash");
-    expect(reader).not.toContain("Debt");
+    expect(reader?.replace(debtGap, "")).not.toContain("Debt");
     expect(reader).not.toContain("Diluted shares");
+    expect(reader).not.toContain("60.0B | 100.0B");
     expect(reader).toContain("this is valuation context, not a target price.");
     expect(reader).toContain(
       "this is valuation context, not a target price. [market-yahoo-equity-aapl]",

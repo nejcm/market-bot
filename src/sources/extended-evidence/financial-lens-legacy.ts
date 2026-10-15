@@ -1,0 +1,211 @@
+import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
+import {
+  itemByCategory,
+  secFundamentalItem,
+  tickerSnapshot,
+  type FinancialLens,
+  type FinancialLensMetric,
+  type FinancialLensName,
+  type FinancialLensResult,
+  type FinancialLensArtifact,
+} from "./financial-lens-metrics";
+import {
+  growthLens,
+  momentumLens,
+  qualityLens,
+  strengthLens,
+  applySubsequentFinancingCurrentness,
+  valueLens,
+  type WithheldPayout,
+  type WithheldStrengthMetric,
+} from "./financial-lens-builders";
+import { SEC_FRESHNESS_DAYS } from "../../config/shared";
+import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
+
+import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
+import type { SourceGap } from "../../domain/sources";
+import { sourceGap } from "../../domain/source-gaps";
+import { formatLensValue } from "./value-format";
+import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
+import type { EquityReportingFreshness } from "./equity-analysis-completeness";
+
+// Frozen pre-Metric-Section lens builder, kept only as the accepted-difference gate's oracle.
+// Delete with the gate; it must not import the rebuilt lens module.
+
+function summarizeLens(lens: FinancialLens): string {
+  const metricText = lens.metrics
+    .slice(0, 4)
+    .map((item) => `${item.label} ${formatValue(item)}`)
+    .join(", ");
+  const currentness =
+    lens.currentStatus === "partial"
+      ? " [current status partial: unreconciled post-period financing]"
+      : "";
+  return `${lens.name} ${lens.posture}${metricText === "" ? "" : ` (${metricText})`}${currentness}`;
+}
+
+function formatValue(lensMetric: FinancialLensMetric): string {
+  if (typeof lensMetric.value === "string") {
+    return lensMetric.value;
+  }
+  return formatLensValue(lensMetric.value, lensMetric.unit, lensMetric.currency);
+}
+
+function financialLensGap(symbol: string, missing: readonly string[]): SourceGap {
+  return sourceGap({
+    source: "financial-lens",
+    message: `Financial Lens Evidence partial for ${symbol}: missing ${missing.join(", ")}`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+function nonCurrentStrengthDebtGap(
+  symbol: string,
+  withheld: readonly WithheldStrengthMetric[],
+  analysisAsOf: string,
+): SourceGap {
+  const periods = withheld
+    .map((entry) => `${entry.label} period end ${entry.periodEnd ?? "undated"}`)
+    .join(", ");
+  return sourceGap({
+    source: "financial-lens",
+    message: `Financial Strength for ${symbol} excludes non-current balance-sheet inputs at analysis cutoff ${analysisAsOf.slice(0, 10)}: ${periods} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff and ${String(MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS)} days of the newest balance-sheet period end`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+function withheldPayoutGap(
+  symbol: string,
+  withheld: WithheldPayout,
+  analysisAsOf: string,
+): SourceGap {
+  const periodEnd = withheld.periodEnd ?? "undated";
+  return sourceGap({
+    source: "financial-lens",
+    message:
+      withheld.reason === "non-positive-income"
+        ? `SEC-derived payout ratio for ${symbol} withheld: net income for the period ending ${periodEnd} is zero or negative`
+        : `SEC-derived payout ratio for ${symbol} withheld at analysis cutoff ${analysisAsOf.slice(0, 10)}: period end ${periodEnd} not within ${String(SEC_FRESHNESS_DAYS)} days before the cutoff`,
+    provider: "market-bot",
+    capability: "extended-evidence",
+    cause: "provider-data-missing",
+    evidenceQualityImpact: "no-cap",
+  });
+}
+
+function postureMetricKey(name: FinancialLensName): string {
+  if (name === "Financial Strength") {
+    return "financialStrengthPosture";
+  }
+  return `${name.toLowerCase()}Posture`;
+}
+
+export function legacyFinancialLensEvidence(
+  command: ResearchCommand,
+  marketSnapshots: readonly MarketSnapshot[],
+  extendedEvidence: ExtendedEvidence | undefined,
+  verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined,
+  generatedAt: string,
+  subsequentFinancing?: SubsequentFinancingBridgeArtifact,
+  freshness?: EquityReportingFreshness,
+): FinancialLensResult {
+  if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
+    return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
+  }
+
+  const secItem = secFundamentalItem(extendedEvidence);
+  const valuationItem = itemByCategory(extendedEvidence, "valuation");
+  const yahooFundamentalsItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
+  const snapshot = tickerSnapshot(command, marketSnapshots);
+  const quoteCurrency = snapshot?.identity?.quoteCurrency ?? "USD";
+  const strength = strengthLens(secItem, generatedAt, valuationItem, yahooFundamentalsItem);
+  const lenses = [
+    qualityLens(secItem),
+    growthLens(secItem),
+    applySubsequentFinancingCurrentness(strength.lens, subsequentFinancing),
+    valueLens(valuationItem, secItem, yahooFundamentalsItem, snapshot),
+    momentumLens(verifiedMarketSnapshot, quoteCurrency),
+  ];
+  const sourceIds = [
+    ...new Set(lenses.flatMap((lens) => lens.sourceIds).filter((sourceId) => sourceId !== "")),
+  ];
+  const item: ExtendedEvidenceItem = {
+    category: "financial-lens",
+    title: `${command.symbol} Financial Lens Evidence`,
+    summary: `Financial Lens Evidence: ${lenses.map((lens) => summarizeLens(lens)).join("; ")}.`,
+    sourceIds,
+    observedAt:
+      [
+        snapshot?.observedAt,
+        secItem?.observedAt,
+        valuationItem?.observedAt,
+        verifiedMarketSnapshot?.fetchedAt,
+      ]
+        .filter((value): value is string => value !== undefined)
+        .toSorted()
+        .at(-1) ?? generatedAt,
+    metrics: {
+      ...Object.fromEntries(
+        lenses.flatMap((lens) => [
+          [postureMetricKey(lens.name), lens.posture] as const,
+          ...lens.metrics.flatMap((metricValue) => [
+            [metricValue.key, metricValue.value] as const,
+            // Period ends travel beside their value, matching sec-edgar's `${key}PeriodEnd`
+            // Convention, so the model can date every lens figure it reads.
+            ...(metricValue.periodEnd === undefined
+              ? []
+              : [[`${metricValue.key}PeriodEnd`, metricValue.periodEnd] as const]),
+          ]),
+        ]),
+      ),
+      // Always-on reporting freshness: present whether or not a completeness gap fired.
+      ...(freshness === undefined
+        ? {}
+        : {
+            interimCadence: freshness.interimCadence,
+            latestReportedPeriodEnd: freshness.latestReportedPeriodEnd,
+            ...(freshness.latestDuePeriodEnd === undefined
+              ? {}
+              : { expectedDuePeriodEnd: freshness.latestDuePeriodEnd }),
+          }),
+    },
+    ...(secItem?.identity !== undefined ? { identity: secItem.identity } : {}),
+  };
+  const artifact: FinancialLensArtifact = {
+    version: 1,
+    generatedAt,
+    symbol: command.symbol.toUpperCase(),
+    lenses,
+    sourceIds,
+  };
+  const missing = [
+    ...(secItem === undefined ? ["SEC fundamentals"] : []),
+    ...(valuationItem === undefined ? ["valuation evidence"] : []),
+    ...(verifiedMarketSnapshot === undefined ? ["verified market snapshot"] : []),
+  ];
+  const gaps = [
+    ...(missing.length === 0 ? [] : [financialLensGap(command.symbol, missing)]),
+    ...(strength.withheld.length === 0
+      ? []
+      : [nonCurrentStrengthDebtGap(command.symbol, strength.withheld, generatedAt)]),
+    ...(strength.withheldPayout === undefined
+      ? []
+      : [withheldPayoutGap(command.symbol, strength.withheldPayout, generatedAt)]),
+  ];
+  const mergedEvidence: ExtendedEvidence = {
+    instrument: extendedEvidence?.instrument ?? {
+      symbol: command.symbol,
+      assetClass: command.assetClass,
+    },
+    items: [...(extendedEvidence?.items ?? []), item],
+    gaps: [...(extendedEvidence?.gaps ?? []), ...gaps],
+  };
+  return { extendedEvidence: mergedEvidence, artifact, sourceGaps: gaps };
+}

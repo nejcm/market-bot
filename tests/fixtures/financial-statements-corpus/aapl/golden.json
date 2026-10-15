@@ -1701,6 +1701,7 @@
             "value": 58000000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "currency": "USD",
             "periodEnd": "2026-03-31",
             "periodMonths": 6
           },
@@ -1783,6 +1784,7 @@
             "value": 60000000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           },
           "debt": {
@@ -1791,6 +1793,7 @@
             "value": 100000000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           },
           "netDebt": {
@@ -1799,6 +1802,7 @@
             "value": 40000000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-aapl"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           }
         }

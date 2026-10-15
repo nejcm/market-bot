@@ -1327,6 +1327,7 @@
             "value": 750000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-ifrs-semiannual"],
+            "currency": "USD",
             "periodEnd": "2025-12-31"
           },
           "debt": {
@@ -1335,6 +1336,7 @@
             "value": 3750000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-ifrs-semiannual"],
+            "currency": "USD",
             "periodEnd": "2025-12-31"
           },
           "netDebt": {
@@ -1343,6 +1345,7 @@
             "value": 3000000000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-fpi-ifrs-semiannual"],
+            "currency": "USD",
             "periodEnd": "2025-12-31"
           },
           "debtToEquity": {

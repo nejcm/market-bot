@@ -1,4 +1,5 @@
 import type { ExtendedEvidence, ExtendedEvidenceCategory } from "../../domain/evidence";
+import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market-data";
 import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/sources";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
@@ -7,6 +8,7 @@ import type {
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
+import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { LensValueUnit } from "./value-format";
 
 type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
@@ -16,7 +18,13 @@ type MetricMissingCause = "not-filed";
 export interface MetricInput {
   readonly label: string;
   readonly value: number | string;
-  readonly artifact: "statements" | "capitalOwnership" | "quote" | "evidence";
+  readonly artifact:
+    | "statements"
+    | "capitalOwnership"
+    | "quote"
+    | "evidence"
+    | "verifiedSnapshot"
+    | "subsequentFinancing";
   readonly series?: FinancialStatementSeriesKey | "stockBasedCompensation" | "marketCap";
   // Evidence inputs: the Extended Evidence item category and its metric key.
   readonly category?: ExtendedEvidenceCategory;
@@ -30,7 +38,7 @@ export interface MetricInput {
   readonly sourceIds: readonly string[];
 }
 
-interface MetricResult {
+export interface MetricResult {
   readonly id: string;
   readonly label: string;
   readonly unit: LensValueUnit;
@@ -65,6 +73,9 @@ export interface MetricContext {
   readonly depositorySic?: string;
   readonly evidence?: ExtendedEvidence;
   readonly asOf?: string;
+  readonly snapshot?: MarketSnapshot;
+  readonly verifiedSnapshot?: VerifiedMarketSnapshot;
+  readonly subsequentFinancing?: SubsequentFinancingBridgeArtifact;
 }
 
 // `basis` replaces the definition's when the selected inputs narrow it.

@@ -1569,8 +1569,15 @@ function selectedDebtPeriods(debtPeriodEnd: string, currentPeriodEnd = "2026-06-
   };
 }
 
-function strengthGap(result: ReturnType<typeof addFinancialLensEvidence>) {
-  return result.sourceGaps.find((gap) => gap.message.startsWith("Financial Strength for AAPL"));
+function strengthSection(result: ReturnType<typeof addFinancialLensEvidence>) {
+  return result.metricSections?.find(({ id }) => id === "financial-lens-financial-strength");
+}
+
+function strengthReason(
+  result: ReturnType<typeof addFinancialLensEvidence>,
+  metricId: string,
+): string | undefined {
+  return strengthSection(result)?.metrics.find(({ id }) => id === metricId)?.reason;
 }
 
 describe("addFinancialLensEvidence — Financial Strength debt currentness", () => {
@@ -1610,32 +1617,32 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       value: 20,
       periodEnd: "2025-06-30",
     });
-    expect(strengthGap(result)?.message).toBe(
-      "Financial Strength for AAPL excludes non-current balance-sheet inputs at analysis cutoff 2026-10-08: debt/equity period end 2025-06-30 not within 180 days before the cutoff and 92 days of the newest balance-sheet period end",
-    );
+    expect(strengthReason(result, "netDebt")).toBe("stale net debt as of 2025-06-30");
+    expect(strengthReason(result, "debtToEquity")).toBe("stale debt/equity as of 2025-06-30");
+    expect(
+      result.metricSectionGaps?.find(({ source }) => source === "financial-lens-financial-strength")
+        ?.triage,
+    ).toBe("material");
   });
 
-  test("selected historical net debt stays displayed but leaves no remaining criteria", () => {
+  test("historical net debt and debt/equity are withheld as stale", () => {
     const { currentRatioSelectedValue: _currentRatio, ...noCurrentRatio } = selectedDebtPeriods(
       "2025-06-30",
       "2025-06-30",
     );
     const result = strengthAt(cutoff, noCurrentRatio);
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
-    expect(metricByKey(result, "Financial Strength", "netDebt")).toMatchObject({
-      value: -15,
-      periodEnd: "2025-06-30",
-    });
-    expect(strengthGap(result)?.message).toContain(
-      "net debt period end 2025-06-30, debt/equity period end 2025-06-30 not within",
-    );
+    expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
+    expect(strengthReason(result, "netDebt")).toBe("stale net debt as of 2025-06-30");
+    expect(strengthReason(result, "debtToEquity")).toBe("stale debt/equity as of 2025-06-30");
   });
 
   test("fresh aligned balances keep net debt and debt/equity", () => {
     const result = strengthAt(cutoff, selectedDebtPeriods("2026-06-30"));
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-mixed");
     expect(metricByKey(result, "Financial Strength", "debtToEquity")?.value).toBe(0.4);
-    expect(strengthGap(result)).toBeUndefined();
+    expect(strengthSection(result)).toBeDefined();
+    expect(strengthReason(result, "netDebt")).toBeUndefined();
   });
 
   test.each([
@@ -1657,7 +1664,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       selectedDebtPeriods(debtPeriodEnd, currentPeriodEnd),
     );
     expect(lensByName(result, "Financial Strength")?.posture).toBe(posture);
-    expect(strengthGap(result) === undefined).toBe(current);
+    expect(strengthReason(result, "netDebt") === undefined).toBe(current);
   });
 
   test("quote-mixed debt ratios follow the 92-day rule (canonical)", () => {
@@ -1672,8 +1679,11 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     );
     expect(metricByKey(result, "Financial Strength", "debtToMarketCap")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "netDebtToMarketCap")).toBeUndefined();
-    expect(strengthGap(result)?.message).toContain(
-      "debt/market cap period end 2026-03-29, net debt/market cap period end 2026-03-29",
+    expect(strengthReason(result, "debtToMarketCap")).toBe(
+      "stale debtToMarketCap as of 2026-03-29",
+    );
+    expect(strengthReason(result, "netDebtToMarketCap")).toBe(
+      "stale netDebtToMarketCap as of 2026-03-29",
     );
     const valuation = addValuationEvidence(
       command,
@@ -1708,11 +1718,10 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       stockholdersEquityPeriodEnd: "2025-06-30",
     });
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
-    expect(metricByKey(result, "Financial Strength", "currentRatio")?.value).toBe(2);
+    expect(metricByKey(result, "Financial Strength", "currentRatio")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
-    expect(strengthGap(result)?.message).toContain(
-      "current ratio period end 2025-06-30, debt/equity period end 2025-06-30",
-    );
+    expect(strengthReason(result, "currentRatio")).toBe("stale current ratio as of 2025-06-30");
+    expect(strengthReason(result, "debtToEquity")).toBe("stale debt/equity as of 2025-06-30");
   });
 
   test("undated legacy debt cannot support posture", () => {
@@ -1733,8 +1742,10 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       "2026-07-01T00:00:00.000Z",
     );
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
-    expect(strengthGap(result)?.message).toContain(
-      "at analysis cutoff 2026-07-01: net debt period end undated, debt/equity period end undated",
+    expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
+    expect(strengthReason(result, "netDebt")).toBe("stale net debt as of an undated period");
+    expect(strengthReason(result, "debtToEquity")).toBe(
+      "stale debt/equity as of an undated period",
     );
   });
 
@@ -1767,15 +1778,11 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     );
     expect(metricByKey(result, "Financial Strength", "debtToMarketCap")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "netDebtToMarketCap")).toBeUndefined();
-    expect(metricByKey(result, "Financial Strength", "netDebt")).toMatchObject({
-      value: -15,
-      periodEnd: "2025-06-30",
-    });
+    expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(valuation.sourceGaps[0]?.message).toStartWith("Non-current SEC balance-sheet inputs");
-    expect(strengthGap(result)?.message).toContain(
-      "net debt period end 2025-06-30, current ratio period end 2025-06-30",
-    );
+    expect(strengthReason(result, "netDebt")).toBe("stale net debt as of 2025-06-30");
+    expect(strengthReason(result, "currentRatio")).toBe("stale current ratio as of 2025-06-30");
   });
 });
 
@@ -1868,7 +1875,9 @@ describe("buildYahooFundamentals", () => {
 });
 
 function payoutGap(result: ReturnType<typeof addFinancialLensEvidence>) {
-  return result.sourceGaps.find((gap) => gap.message.startsWith("SEC-derived payout ratio"));
+  return result.metricSections
+    ?.find(({ id }) => id === "financial-lens-financial-strength")
+    ?.metrics.find(({ id }) => id === "payoutRatio")?.reason;
 }
 
 describe("addFinancialLensEvidence — Financial Strength payout validity", () => {
@@ -1922,8 +1931,8 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
-    expect(payoutGap(result)?.message).toBe(
-      "SEC-derived payout ratio for AAPL withheld: net income for the period ending 2025-12-31 is zero or negative",
+    expect(payoutGap(result)).toBe(
+      "net income is zero or negative for the period ending 2025-12-31",
     );
   });
 
@@ -1947,18 +1956,14 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
-    expect(payoutGap(result)?.message).toBe(
-      "SEC-derived payout ratio for AAPL withheld at analysis cutoff 2026-06-30: period end 2025-12-31 not within 180 days before the cutoff",
-    );
+    expect(payoutGap(result)).toBe("stale payout ratio as of 2025-12-31");
   });
 
-  test("reports a stale loss period as non-current rather than non-positive-income", () => {
+  test("reports a stale loss period as stale rather than non-positive income", () => {
     const result = canonicalPayout(-20, "2026-08-15T00:00:00.000Z");
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
-    expect(payoutGap(result)?.message).toBe(
-      "SEC-derived payout ratio for AAPL withheld at analysis cutoff 2026-08-15: period end 2025-12-31 not within 180 days before the cutoff",
-    );
+    expect(payoutGap(result)).toBe("stale payout ratio as of 2025-12-31");
   });
 
   const legacyPayout = (overrides: Record<string, number | string>) =>
@@ -1978,8 +1983,8 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
     const result = legacyPayout({ netIncome: -18 });
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
-    expect(payoutGap(result)?.message).toBe(
-      "SEC-derived payout ratio for AAPL withheld: net income for the period ending 2026-03-28 is zero or negative",
+    expect(payoutGap(result)).toBe(
+      "net income is zero or negative for the period ending 2026-03-28",
     );
   });
 
@@ -1990,10 +1995,10 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
     });
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
-    expect(payoutGap(result)?.message).toContain("period end 2025-06-28 not within 180 days");
+    expect(payoutGap(result)).toBe("stale payout ratio as of 2025-06-28");
   });
 
-  test("reports a stale legacy loss period as non-current rather than non-positive-income", () => {
+  test("reports a stale legacy loss period as stale rather than non-positive income", () => {
     const result = legacyPayout({
       netIncome: -18,
       dividendsPaidPeriodEnd: "2025-06-28",
@@ -2001,6 +2006,6 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
     });
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
-    expect(payoutGap(result)?.message).toContain("period end 2025-06-28 not within 180 days");
+    expect(payoutGap(result)).toBe("stale payout ratio as of 2025-06-28");
   });
 });

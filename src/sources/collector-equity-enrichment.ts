@@ -16,7 +16,10 @@ import {
   deriveEquityReportingFreshness,
   type EquityReportingFreshness,
 } from "./extended-evidence/equity-analysis-completeness";
-import { addFinancialLensEvidence } from "./extended-evidence/financial-lens";
+import {
+  addFinancialLensEvidence,
+  type FinancialLensEvidenceResult,
+} from "./extended-evidence/financial-lens";
 import {
   cashConversionScopeGaps,
   withCanonicalFinancialLensInputs,
@@ -374,6 +377,7 @@ export async function collectEquityEnrichment(
     input.fetchedAt,
     subsequentFinancing,
     reportingFreshness,
+    financialStatements,
   );
   const businessFrameworkResult = addBusinessFrameworkEvidence(
     input.command,
@@ -457,7 +461,7 @@ export async function collectEquityEnrichment(
     capitalOwnership,
     financialLensResult,
     businessFrameworkResult,
-    ...metricSectionsOf(businessFrameworkResult, statementSections),
+    ...metricSectionsOf(businessFrameworkResult, financialLensResult, statementSections),
     ...earningsResult,
     packetFailureGaps: [],
   };
@@ -465,16 +469,19 @@ export async function collectEquityEnrichment(
 
 function metricSectionsOf(
   businessFrameworkResult: BusinessFrameworkResult,
+  financialLensResult: FinancialLensEvidenceResult,
   statementSections: readonly ReturnType<typeof capitalReturnSection>[],
 ): Pick<EquityEnrichmentResult, "metricSections" | "metricSectionGaps"> {
   const sections = [
     ...(businessFrameworkResult.metricSections ?? []),
+    ...(financialLensResult.metricSections ?? []),
     ...statementSections.map(({ section }) => section),
   ];
   return {
     metricSections: sections.length === 0 ? undefined : sections,
     metricSectionGaps: [
       ...(businessFrameworkResult.metricSectionGaps ?? []),
+      ...(financialLensResult.metricSectionGaps ?? []),
       ...statementSections.flatMap(({ sourceGaps }) => sourceGaps),
     ],
   };

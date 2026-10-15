@@ -9,6 +9,7 @@ export type LensValueUnit =
   | "ratio-percent"
   | "whole-percent"
   | "currency"
+  | "currency-per-share"
   | "number"
   | "text";
 
@@ -80,6 +81,12 @@ export function formatLensValue(value: number, unit: LensValueUnit, currency?: s
   }
   if (unit === "currency") {
     return formatCurrency(value, currency);
+  }
+  if (unit === "currency-per-share") {
+    const amount = clampRoundedZero(value, 2).toFixed(2);
+    const code = currency ?? "USD";
+    const symbol = CURRENCY_SYMBOLS[code];
+    return symbol === undefined ? `${code} ${amount}` : `${symbol}${amount}`;
   }
   return clampRoundedZero(value, 2).toFixed(2);
 }

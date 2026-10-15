@@ -514,6 +514,21 @@ describe("financial statement selection", () => {
           "ifrs-full": ["AdjustedWeightedAverageShares"],
         },
       },
+      {
+        key: "dividendsPerShare",
+        label: "Dividends per share",
+        statement: "perShare",
+        kind: "duration",
+        unitKind: "per-share",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": [
+            "CommonStockDividendsPerShareDeclared",
+            "CommonStockDividendsPerShareCashPaid",
+          ],
+          "ifrs-full": ["DividendsRecognisedAsDistributionsToOwnersPerShare"],
+        },
+      },
     ]);
   });
 

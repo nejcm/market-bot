@@ -856,7 +856,30 @@ export function incompleteFinancialStatementNotes(
   return notes;
 }
 
+function isDividendsPerShare(item: FinancialStatementSeries): boolean {
+  return item.key === "dividendsPerShare";
+}
+
+// Dividend declarations keep their own window so neither cadence displaces the other's periods.
 export function capFinancialStatementPeriods(series: readonly FinancialStatementSeries[]): {
+  readonly series: readonly FinancialStatementSeries[];
+  readonly notes: readonly FinancialStatementNote[];
+} {
+  const statements = capSharedPeriods(series.filter((item) => !isDividendsPerShare(item)));
+  const dividends = capSharedPeriods(series.filter(isDividendsPerShare));
+  const capped = new Map(
+    [...statements.series, ...dividends.series].map((item) => [item.key, item]),
+  );
+  return {
+    series: series.map((item) => capped.get(item.key)!),
+    notes: [
+      ...statements.notes,
+      ...dividends.notes.map((note) => ({ ...note, seriesKey: "dividendsPerShare" as const })),
+    ],
+  };
+}
+
+function capSharedPeriods(series: readonly FinancialStatementSeries[]): {
   readonly series: readonly FinancialStatementSeries[];
   readonly notes: readonly FinancialStatementNote[];
 } {

@@ -134,7 +134,9 @@ type MetricInvariantRun = Pick<
   "collectedSources" | "markdown" | "deepEquityEvidenceBundle"
 >;
 
-function isAnnualSpan(resolved: ResolvedInput | undefined): boolean {
+function isAnnualSpan(
+  resolved: Pick<ResolvedInput, "periodStart" | "periodEnd"> | undefined,
+): boolean {
   const span = days(resolved?.periodStart ?? "", resolved?.periodEnd ?? "");
   return span >= 350 && span <= 380;
 }
@@ -240,9 +242,10 @@ export function assertMetricSectionInvariants(
     ).toBe("material");
   }
   const reportSourceIds = new Set(report.sources.map(({ id }) => id));
-  const splitPeriodEnds = statements.omissionNotes
-    .filter((note) => note.code === "earlier-share-basis" && note.seriesKey === "dilutedShares")
-    .map((note) => note.periodKey?.split("|").at(-1) ?? "");
+  const splitPeriodEnds = (series: string) =>
+    statements.omissionNotes
+      .filter((note) => note.code === "earlier-share-basis" && note.seriesKey === series)
+      .map((note) => note.periodKey?.split("|").at(-1) ?? "");
   for (const metric of capitalReturn.metrics) {
     const label = `capital-return.${metric.id}`;
     for (const sourceId of metric.sourceIds) {
@@ -277,12 +280,12 @@ export function assertMetricSectionInvariants(
     const dividends = Math.abs(valueOf("dividendsPaid"));
     const repurchases = Math.abs(valueOf("shareRepurchases"));
     const freeCashFlow = valueOf("operatingCashFlow") - Math.abs(valueOf("capitalExpenditure"));
-    const endpointYears =
-      /^shareCountChange(\d)y$/u.exec(metric.id)?.[1] ??
-      (metric.id === "shareCountTrend" ? "3" : undefined);
+    const endpoint = /^(shareCountChange|dpsCagr)(\d)y$/u.exec(metric.id);
+    const endpointYears = endpoint?.[2] ?? (metric.id === "shareCountTrend" ? "3" : undefined);
     if (endpointYears !== undefined) {
       const [earlier, later] = statementFacts;
-      expect(metric.inputs.map(({ series }) => series)).toEqual(["dilutedShares", "dilutedShares"]);
+      const endpointSeries = endpoint?.[1] === "dpsCagr" ? "dividendsPerShare" : "dilutedShares";
+      expect(metric.inputs.map(({ series }) => series)).toEqual([endpointSeries, endpointSeries]);
       const earlierEnd = earlier?.periodEnd ?? "";
       const laterEnd = later?.periodEnd ?? "";
       expect(
@@ -291,15 +294,14 @@ export function assertMetricSectionInvariants(
       ).toBeLessThanOrEqual(15);
       expect(metric.periodEnd, `${label} ends at its later endpoint`).toBe(laterEnd);
       expect(
-        splitPeriodEnds.filter((end) => end >= earlierEnd && end <= laterEnd),
+        splitPeriodEnds(endpointSeries).filter((end) => end >= earlierEnd && end <= laterEnd),
         `${label} window has no earlier share basis`,
       ).toEqual([]);
-      if (metric.id !== "shareCountTrend") {
-        expectClose(
-          metric.value,
-          (later?.value ?? Number.NaN) / (earlier?.value ?? Number.NaN) - 1,
-          label,
-        );
+      const ratio = (later?.value ?? Number.NaN) / (earlier?.value ?? Number.NaN);
+      if (endpointSeries === "dividendsPerShare") {
+        expectClose(metric.value, ratio ** (1 / Number(endpointYears)) - 1, label);
+      } else if (metric.id !== "shareCountTrend") {
+        expectClose(metric.value, ratio - 1, label);
       }
     } else if (statementFacts.length > 0) {
       expect(metric.periodEnd, `${label} ends at its anchor FY`).toBe(statementFacts[0]?.periodEnd);
@@ -326,6 +328,22 @@ export function assertMetricSectionInvariants(
       case "shareholderYield": {
         joined();
         expectClose(metric.value, (dividends + repurchases) / marketCap, label);
+        break;
+      }
+      case "dpsLatestFy": {
+        expectClose(metric.value, valueOf("dividendsPerShare"), label);
+        break;
+      }
+      case "earliestDividendFyInHistory": {
+        const [earliest] = (
+          financialStatementSeriesByKey(statements, "dividendsPerShare")?.annual ?? []
+        )
+          .filter((fact) => fact.value > 0 && isAnnualSpan(fact))
+          .toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd));
+        expect(metric.value, `${label} names the earliest positive FY`).toBe(
+          `FY${String(earliest?.fiscalYear)}`,
+        );
+        expect(metric.periodEnd, `${label} ends at that FY`).toBe(earliest?.periodEnd);
         break;
       }
       default:

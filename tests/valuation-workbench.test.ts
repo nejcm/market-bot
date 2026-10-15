@@ -168,6 +168,7 @@ function statements(): FinancialStatementsArtifact {
         dilutedEps: series("dilutedEps", "perShare", [1, 1.2], 1.3, "USD/shares"),
         continuingDilutedEps: series("continuingDilutedEps", "perShare"),
         dilutedShares: series("dilutedShares", "perShare", [10, 10], undefined, "shares"),
+        dividendsPerShare: series("dividendsPerShare", "perShare"),
       },
     },
     validationNotes: [],

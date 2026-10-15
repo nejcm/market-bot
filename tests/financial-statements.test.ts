@@ -731,6 +731,200 @@ describe("canonical financial statements", () => {
     ]);
   });
 
+  test("prefers declared over cash-paid dividends per share on the same period", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(0.98, 2025)] },
+          CommonStockDividendsPerShareDeclared: { "USD/shares": [annual(1.04, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare).toMatchObject({
+      label: "Dividends per share",
+      statement: "perShare",
+      annual: [
+        {
+          value: 1.04,
+          concept: "CommonStockDividendsPerShareDeclared",
+          unit: "USD/shares",
+          currency: "USD",
+        },
+      ],
+    });
+  });
+
+  test("falls back to cash-paid dividends per share when nothing is declared", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(0.98, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 0.98, concept: "CommonStockDividendsPerShareCashPaid" }),
+    ]);
+  });
+
+  test("drops dividend-per-share declaration spans that are not statement periods", () => {
+    const declared = (periodStart: string, value: number) =>
+      fact({
+        value,
+        form: "10-K",
+        fiscalYear: 2025,
+        fiscalPeriod: "FY",
+        filedAt: "2026-02-15",
+        periodStart,
+        periodEnd: "2025-12-31",
+      });
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              declared("2025-01-01", 9.66),
+              declared("2025-10-01", 2.38),
+              declared("2025-12-01", 2.52),
+              fact({
+                value: 2.52,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodEnd: "2025-12-15",
+              }),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-03-01" },
+    );
+
+    const dividends = artifact.statements.perShare.dividendsPerShare;
+    expect(dividends.annual.map((item) => item.value)).toEqual([9.66]);
+    expect(dividends.interim.map((item) => [item.periodStart, item.value])).toEqual([
+      ["2025-10-01", 2.38],
+    ]);
+    expect(artifact.omissionNotes.filter((note) => note.code === "declaration-span")).toEqual([
+      expect.objectContaining({
+        seriesKey: "dividendsPerShare",
+        periodKey: "duration:1|2025-12-31",
+      }),
+    ]);
+
+    const spansOnly = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: { "USD/shares": [declared("2025-12-01", 2.52)] },
+        },
+      }),
+      { analysisAsOf: "2026-03-01" },
+    );
+    expect(financialStatementFacts(spansOnly.statements.perShare.dividendsPerShare)).toEqual([]);
+    expect(spansOnly.omissionNotes).toContainEqual(
+      expect.objectContaining({ code: "declaration-span", seriesKey: "dividendsPerShare" }),
+    );
+    expect(historyGapMessages(spansOnly)).toEqual([
+      expect.stringContaining("dividends per share has 1 non-zero declaration-date facts"),
+    ]);
+  });
+
+  test("ranks only year-length annual dividend-per-share bases, so a declared stub cannot win", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              fact({
+                value: 0.8,
+                form: "10-K",
+                fiscalYear: 2025,
+                fiscalPeriod: "FY",
+                filedAt: "2026-02-15",
+                periodStart: "2025-03-01",
+                periodEnd: "2025-12-31",
+              }),
+            ],
+          },
+          CommonStockDividendsPerShareCashPaid: { "USD/shares": [annual(0.98, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 0.98, concept: "CommonStockDividendsPerShareCashPaid" }),
+    ]);
+  });
+
+  test("keeps declared annual dividends per share over a newer interim-only cash-paid tag", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          CommonStockDividendsPerShareDeclared: { "USD/shares": [annual(1.04, 2025)] },
+          CommonStockDividendsPerShareCashPaid: {
+            "USD/shares": [
+              interim({
+                value: 0.26,
+                year: 2026,
+                endMonthDay: "03-31",
+                form: "10-Q",
+                fiscalPeriod: "Q1",
+              }),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2026-09-01" },
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 1.04, concept: "CommonStockDividendsPerShareDeclared" }),
+    ]);
+  });
+
+  test("selects IFRS dividends per share in the reporting currency only", () => {
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+          DividendsRecognisedAsDistributionsToOwnersPerShare: {
+            "EUR/shares": [annual(1.05, 2025, "20-F")],
+            "USD/shares": [annual(1.2, 2025, "20-F")],
+          },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare.annual).toEqual([
+      expect.objectContaining({ value: 1.05, unit: "EUR/shares", currency: "EUR" }),
+    ]);
+  });
+
+  test("leaves dividends per share empty when the issuer files no per-share dividend tag", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          PaymentsOfDividends: { USD: [annual(40, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.statements.perShare.dividendsPerShare).toMatchObject({
+      annual: [],
+      interim: [],
+    });
+  });
+
   describe("stale concept history", () => {
     const ytd = (value: number, year: number) =>
       interim({ value, year, endMonthDay: "06-30", form: "10-Q", fiscalPeriod: "Q2" });
@@ -993,6 +1187,105 @@ describe("canonical financial statements", () => {
         withCanonicalFinancialLensInputs(undefined, artifact).items[0]?.metrics
           ?.dilutedEpsDeltaPercent,
       ).toBeCloseTo(10);
+    });
+
+    test("declares never-refiled pre-split dividends per share on the earlier share basis", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: revenue,
+            EarningsPerShareDiluted: {
+              "USD/shares": [
+                fy(4, 2022, "2023-02-15"),
+                fy(4.5, 2023, "2024-02-15"),
+                fy(0.9, 2023, "2026-02-15"),
+                fy(5, 2024, "2025-02-15"),
+                fy(1, 2024, "2026-02-15"),
+                fy(1.2, 2025, "2026-02-15"),
+              ],
+            },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [
+                fy(100, 2022, "2023-02-15"),
+                fy(100, 2023, "2024-02-15"),
+                fy(500, 2023, "2026-02-15"),
+                fy(100, 2024, "2025-02-15"),
+                fy(500, 2024, "2026-02-15"),
+                fy(505, 2025, "2026-02-15"),
+              ],
+            },
+            CommonStockDividendsPerShareDeclared: {
+              "USD/shares": [
+                fy(2, 2022, "2023-02-15"),
+                fy(2, 2023, "2024-02-15"),
+                fy(0.4, 2023, "2026-02-15"),
+                fy(2.5, 2024, "2025-02-15"),
+                fy(0.5, 2024, "2026-02-15"),
+                fy(0.6, 2025, "2026-02-15"),
+              ],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+      expect(
+        artifact.omissionNotes
+          .filter((note) => note.code === "earlier-share-basis")
+          .map((note) => [note.seriesKey, note.periodKey]),
+      ).toEqual([
+        ["dilutedEps", "duration:12|2022-12-31"],
+        ["dilutedShares", "duration:12|2022-12-31"],
+        ["dividendsPerShare", "duration:12|2022-12-31"],
+      ]);
+      expect(
+        artifact.statements.perShare.dividendsPerShare.annual.map((item) => item.value),
+      ).toEqual([2, 0.4, 0.5, 0.6]);
+    });
+
+    test("keeps split protection when the restating filing also corrects dividends per share", () => {
+      const artifact = derive(
+        payload({
+          "us-gaap": {
+            Revenues: revenue,
+            EarningsPerShareDiluted: {
+              "USD/shares": [
+                fy(4, 2022, "2023-02-15"),
+                fy(5, 2024, "2025-02-15"),
+                fy(1, 2024, "2026-02-15"),
+                fy(1.2, 2025, "2026-02-15"),
+              ],
+            },
+            WeightedAverageNumberOfDilutedSharesOutstanding: {
+              shares: [
+                fy(100, 2022, "2023-02-15"),
+                fy(100, 2024, "2025-02-15"),
+                fy(500, 2024, "2026-02-15"),
+                fy(505, 2025, "2026-02-15"),
+              ],
+            },
+            CommonStockDividendsPerShareDeclared: {
+              "USD/shares": [
+                fy(2, 2022, "2023-02-15"),
+                fy(2.5, 2024, "2025-02-15"),
+                fy(0.6, 2024, "2026-02-15"),
+                fy(0.65, 2025, "2026-02-15"),
+              ],
+            },
+          },
+        }),
+        { analysisAsOf: "2026-09-01" },
+      );
+
+      expect(
+        artifact.omissionNotes
+          .filter((note) => note.code === "earlier-share-basis")
+          .map((note) => [note.seriesKey, note.periodKey]),
+      ).toEqual([
+        ["dilutedEps", "duration:12|2022-12-31"],
+        ["dilutedShares", "duration:12|2022-12-31"],
+        ["dividendsPerShare", "duration:12|2022-12-31"],
+      ]);
     });
 
     test("reads a per-share fact against the share count filed with it", () => {
@@ -1430,6 +1723,66 @@ describe("canonical financial statements", () => {
     expect(annualPeriods.has("2009-01-01|2009-12-31")).toBe(false);
     expect(annualPeriods.has("2010-01-01|2010-12-31")).toBe(false);
     expect(artifact.omissionNotes).toContainEqual(expect.objectContaining({ code: "history-cap" }));
+  });
+
+  test("caps per-share dividend periods apart from the statements' interim window", () => {
+    const quarter = (value: number, year: number, endMonth: number, startMonth = endMonth - 2) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: year,
+        fiscalPeriod: `Q${String(endMonth / 3)}`,
+        filedAt: `${String(year)}-${String(endMonth + 1).padStart(2, "0")}-20`,
+        periodStart: `${String(year)}-${String(startMonth).padStart(2, "0")}-01`,
+        periodEnd: `${String(year)}-${String(endMonth).padStart(2, "0")}-${endMonth === 6 || endMonth === 9 ? "30" : "31"}`,
+      });
+    const quarters = [2022, 2023, 2024, 2025].flatMap((year) =>
+      [3, 6, 9].map((month) => quarter(100, year, month)),
+    );
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(400, 2024), ...quarters] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [
+              ...quarters.map((item) => ({ ...item, val: 0.25 })),
+              quarter(0.5, 2025, 6, 1),
+              quarter(0.75, 2025, 9, 1),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2025-12-01T00:00:00.000Z" },
+    );
+    const { revenue } = artifact.statements.incomeStatement;
+    const { dividendsPerShare } = artifact.statements.perShare;
+
+    expect(revenue.interim).toHaveLength(12);
+    expect(dividendsPerShare.interim).toHaveLength(12);
+    expect(dividendsPerShare.interim.map((item) => item.value)).toEqual(
+      expect.arrayContaining([0.5, 0.75]),
+    );
+    expect(artifact.omissionNotes.filter((note) => note.code === "history-cap")).toEqual([
+      expect.objectContaining({ seriesKey: "dividendsPerShare" }),
+      expect.objectContaining({ seriesKey: "dividendsPerShare" }),
+    ]);
+  });
+
+  test("keeps dividends-per-share annual periods the statements do not carry", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(400, 2025)] },
+          CommonStockDividendsPerShareDeclared: {
+            "USD/shares": [annual(0.4, 2020), annual(0.6, 2025)],
+          },
+        },
+      }),
+    );
+
+    expect(
+      artifact.statements.perShare.dividendsPerShare.annual.map((item) => item.periodEnd),
+    ).toEqual(["2020-12-31", "2025-12-31"]);
   });
 
   test("does not treat different duration keys with the same end date as complete", () => {

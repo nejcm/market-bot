@@ -114,7 +114,8 @@ export type FinancialStatementSeriesKey =
   | "shareRepurchases"
   | "dilutedEps"
   | "continuingDilutedEps"
-  | "dilutedShares";
+  | "dilutedShares"
+  | "dividendsPerShare";
 
 export interface OriginalFiling {
   readonly value: number;
@@ -210,7 +211,8 @@ export interface FinancialStatementNote {
     | "stale-instant-series"
     | "stale-concept-history"
     | "mixed-share-basis"
-    | "earlier-share-basis";
+    | "earlier-share-basis"
+    | "declaration-span";
   readonly message: string;
   readonly seriesKey?: FinancialStatementSeriesKey;
   readonly periodKey?: string;
@@ -267,9 +269,14 @@ export interface FinancialStatementsArtifact {
       >
     >;
     readonly perShare: Readonly<
-      Record<"dilutedEps" | "continuingDilutedEps" | "dilutedShares", FinancialStatementSeries>
+      Record<
+        "dilutedEps" | "continuingDilutedEps" | "dilutedShares" | "dividendsPerShare",
+        FinancialStatementSeries
+      >
     >;
   };
+  // Any positive filed dividend per share or non-zero dividends paid; absent on pre-flag artifacts.
+  readonly dividendPaymentFiled?: boolean;
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
   readonly structuredFinancialGaps: readonly StructuredFinancialGap[];
@@ -298,6 +305,7 @@ const FINANCIAL_STATEMENT_SERIES_KEYS: readonly FinancialStatementSeriesKey[] = 
   "dilutedEps",
   "continuingDilutedEps",
   "dilutedShares",
+  "dividendsPerShare",
 ];
 
 // Artifacts written before a later series was added read it as empty, not as invalid.
@@ -315,6 +323,7 @@ const LATER_SERIES: Readonly<
     label: "Diluted EPS from continuing operations",
     statement: "perShare",
   },
+  dividendsPerShare: { label: "Dividends per share", statement: "perShare" },
 };
 
 function stringField(value: Readonly<Record<string, unknown>>, key: string): string | undefined {
@@ -593,6 +602,7 @@ export function readFinancialStatementsArtifact(
     !isRecord(value.statements) ||
     !Array.isArray(value.validationNotes) ||
     !Array.isArray(value.omissionNotes) ||
+    (value.dividendPaymentFiled !== undefined && typeof value.dividendPaymentFiled !== "boolean") ||
     !Array.isArray(value.structuredFinancialGaps)
   ) {
     return undefined;

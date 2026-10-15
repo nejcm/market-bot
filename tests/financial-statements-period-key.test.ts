@@ -241,7 +241,7 @@ describe("financial statement period keys", () => {
     expect(duplicateNotes(artifact)).toHaveLength(1);
   });
 
-  test("collapses six BNS-shaped duplicates from 107 annual inputs to 101 rows", () => {
+  test("collapses six BNS-shaped duplicates from 112 annual inputs to 106 rows", () => {
     const duplicatedSeries = new Set<FinancialStatementSeriesKey>([
       "revenue",
       "netIncome",
@@ -299,8 +299,8 @@ describe("financial statement period keys", () => {
       0,
     );
 
-    expect(inputRows).toBe(107);
-    expect(annualRows).toBe(101);
+    expect(inputRows).toBe(112);
+    expect(annualRows).toBe(106);
     expect(duplicateNotes(artifact)).toHaveLength(6);
   });
 });

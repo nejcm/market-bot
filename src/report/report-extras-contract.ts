@@ -187,6 +187,7 @@ const LENS_VALUE_UNITS: ReadonlySet<string> = new Set<LensValueUnit>([
   "ratio-percent",
   "whole-percent",
   "currency",
+  "currency-per-share",
   "number",
   "text",
 ]);

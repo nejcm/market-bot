@@ -46,6 +46,10 @@ function series(unit: string, valueFor: (year: number) => number | undefined): F
   };
 }
 
+function dps(year: number): number {
+  return 0.4 + 0.04 * (year - 2019);
+}
+
 function usGaap(overrides: Record<string, Fact | undefined> = {}): Record<string, Fact> {
   const concepts: Record<string, Fact | undefined> = {
     Revenues: series("USD", (year) => 1000 + year),
@@ -58,6 +62,7 @@ function usGaap(overrides: Record<string, Fact | undefined> = {}): Record<string
       (year) => 20_000 - 400 * (year - 2019),
     ),
     ShareBasedCompensation: series("USD", () => 25),
+    CommonStockDividendsPerShareDeclared: series("USD/shares", (year) => dps(year)),
     ...overrides,
   };
   return Object.fromEntries(
@@ -160,19 +165,53 @@ describe("capitalReturnSection", () => {
       "operatingCashFlow",
       "capitalExpenditure",
     ]);
+    expect(result.metric("dpsLatestFy")).toMatchObject({
+      status: "value",
+      unit: "currency-per-share",
+      currency: "USD",
+      periodEnd: "2025-12-31",
+      inputs: [{ series: "dividendsPerShare", unit: "USD/shares" }],
+    });
+    expect(result.metric("dpsLatestFy").value).toBeCloseTo(dps(2025), 12);
+    expect(result.metric("dpsCagr3y").value).toBeCloseTo(
+      (dps(2025) / dps(2022)) ** (1 / 3) - 1,
+      12,
+    );
+    expect(result.metric("dpsCagr5y").value).toBeCloseTo(
+      (dps(2025) / dps(2020)) ** (1 / 5) - 1,
+      12,
+    );
+    expect(result.metric("earliestDividendFyInHistory")).toMatchObject({
+      status: "value",
+      value: "FY2019",
+      periodEnd: "2019-12-31",
+    });
     expect(result.sourceGaps).toEqual([]);
   });
 
   test("GOOG-shaped dividend initiation: the latest FY anchors, earlier years do not matter", () => {
     const result = evaluate(
       context(
-        usGaap({ PaymentsOfDividends: series("USD", (year) => (year >= 2024 ? 30 : undefined)) }),
+        usGaap({
+          PaymentsOfDividends: series("USD", (year) => (year >= 2024 ? 30 : undefined)),
+          CommonStockDividendsPerShareDeclared: series("USD/shares", (year) =>
+            year >= 2024 ? 0.2 : undefined,
+          ),
+        }),
       ),
     );
 
     expect(result.metric("dividendsLatestFy")).toMatchObject({ status: "value", value: 30 });
     expect(result.metric("shareholderYield").value).toBeCloseTo(0.012, 12);
-    expect(result.sourceGaps).toEqual([]);
+    expect(result.metric("dpsLatestFy")).toMatchObject({ status: "value", value: 0.2 });
+    expect(result.metric("earliestDividendFyInHistory").value).toBe("FY2024");
+    expect(result.metric("dpsCagr3y")).toMatchObject({
+      status: "missing",
+      reason: "no annual dividends per share fact 3y before the fiscal year ending 2025-12-31",
+    });
+    expect(
+      result.section.metrics.filter(({ status }) => status !== "value").map(({ id }) => id),
+    ).toEqual(["dpsCagr3y", "dpsCagr5y"]);
   });
 
   test("buybacks-only issuer: absent dividends stay missing, never zero", () => {
@@ -205,6 +244,247 @@ describe("capitalReturnSection", () => {
     expect(result.metric("dividendsLatestFy")).toMatchObject({ status: "value", value: 0 });
     expect(result.metric("dividendYieldFiled")).toMatchObject({ status: "value", value: 0 });
     expect(result.section.metrics.some((metric) => metric.status === "not-applicable")).toBe(false);
+  });
+
+  test("R7(b): zero dividends paid never gates positive declared dividends per share", () => {
+    const result = evaluate(context(usGaap({ PaymentsOfDividends: series("USD", () => 0) })));
+
+    expect(result.metric("dividendsLatestFy")).toMatchObject({ status: "value", value: 0 });
+    for (const id of ["dpsLatestFy", "dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"]) {
+      expect(result.metric(id).status).toBe("value");
+    }
+  });
+
+  test("R7: zero paid after earlier positive payments is never not-applicable", () => {
+    const paidThenStopped = series("USD", (year) => (year <= 2022 ? 50 : 0));
+    const withoutPerShare = evaluate(
+      context(
+        usGaap({
+          PaymentsOfDividends: paidThenStopped,
+          CommonStockDividendsPerShareDeclared: undefined,
+        }),
+      ),
+    );
+    const withPerShare = evaluate(
+      context(
+        usGaap({
+          PaymentsOfDividends: paidThenStopped,
+          CommonStockDividendsPerShareDeclared: series("USD/shares", (year) =>
+            year <= 2022 ? 0.5 : 0,
+          ),
+        }),
+      ),
+    );
+
+    for (const id of ["dpsLatestFy", "dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"]) {
+      expect(withoutPerShare.metric(id)).toMatchObject({
+        status: "missing",
+        reason: "no year-aligned annual dividends per share fact",
+      });
+    }
+    expect(withPerShare.metric("dpsLatestFy")).toMatchObject({ status: "value", value: 0 });
+    expect(withPerShare.metric("dpsCagr3y")).toMatchObject({ status: "value", value: -1 });
+    expect(withPerShare.metric("earliestDividendFyInHistory").value).toBe("FY2019");
+    for (const result of [withoutPerShare, withPerShare]) {
+      expect(result.section.metrics.some(({ status }) => status === "not-applicable")).toBe(false);
+    }
+  });
+
+  test("R7(c): only an affirmed non-payer gets not-applicable dividend history", () => {
+    const zeroPaid = series("USD", () => 0);
+    const zeroPerShare = series("USD/shares", () => 0);
+    const history = ["dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"];
+    const nonPayer = evaluate(
+      context(
+        usGaap({
+          PaymentsOfDividends: zeroPaid,
+          CommonStockDividendsPerShareDeclared: zeroPerShare,
+        }),
+      ),
+    );
+    const statusesWith = (overrides: Record<string, Fact | undefined>) => {
+      const result = evaluate(
+        context(
+          usGaap({
+            PaymentsOfDividends: zeroPaid,
+            CommonStockDividendsPerShareDeclared: zeroPerShare,
+            ...overrides,
+          }),
+        ),
+      );
+      return history.map((id) => result.metric(id).status);
+    };
+
+    for (const id of history) {
+      expect(nonPayer.metric(id)).toMatchObject({
+        status: "not-applicable",
+        reason: "no dividend history in filed data",
+        inputs: [],
+      });
+    }
+    expect(nonPayer.metric("dpsLatestFy")).toMatchObject({ status: "value", value: 0 });
+    expect(nonPayer.metric("dividendsLatestFy")).toMatchObject({ status: "value", value: 0 });
+    expect(statusesWith({ CommonStockDividendsPerShareDeclared: undefined })).toEqual([
+      "missing",
+      "missing",
+      "missing",
+    ]);
+    expect(statusesWith({ PaymentsOfDividends: undefined })).toEqual([
+      "not-meaningful",
+      "not-meaningful",
+      "missing",
+    ]);
+    expect(
+      statusesWith({
+        PaymentsOfDividends: {
+          units: {
+            USD: [
+              ...YEARS.map((year) => fy(0, year)),
+              fy(15, 2026, {
+                start: "2026-01-01",
+                end: "2026-03-31",
+                fp: "Q1",
+                form: "10-Q",
+                filed: "2026-05-01",
+              }),
+            ],
+          },
+        },
+      }),
+    ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
+    for (const paid of [40, -40]) {
+      expect(
+        statusesWith({
+          PaymentsOfDividends: series("USD", (year) => (year === 2019 ? paid : 0)),
+        }),
+      ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
+    }
+    expect(
+      statusesWith({
+        PaymentsOfDividends: series("USD", (year) => (year <= 2020 ? 0 : undefined)),
+      }),
+    ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
+    expect(
+      statusesWith({
+        CommonStockDividendsPerShareDeclared: series("USD/shares", (year) =>
+          year <= 2020 ? 0 : undefined,
+        ),
+      }),
+    ).toEqual(["missing", "missing", "missing"]);
+    expect(
+      statusesWith({
+        CommonStockDividendsPerShareDeclared: {
+          units: {
+            "USD/shares": [
+              ...YEARS.map((year) => fy(0, year)),
+              fy(0.25, 2025, { start: "2025-12-01", end: "2025-12-31" }),
+            ],
+          },
+        },
+      }),
+    ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
+    expect(
+      statusesWith({
+        PaymentsOfDividends: {
+          units: {
+            USD: YEARS.map((year) =>
+              fy(0, year, { start: `${String(year - 1)}-07-01`, end: `${String(year)}-06-30` }),
+            ),
+          },
+        },
+      }),
+    ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
+  });
+
+  test("R7(c) rests on raw dividend evidence, not on the selected per-share series", () => {
+    const history = ["dpsCagr3y", "dpsCagr5y", "earliestDividendFyInHistory"];
+    const zeroPaid = series("USD", () => 0);
+    const stub = fy(0.8, 2025, { start: "2025-03-01" });
+    const statuses = (overrides: Record<string, Fact | undefined>) => {
+      const ctx = context(usGaap({ PaymentsOfDividends: zeroPaid, ...overrides }));
+      return history.map((id) => evaluate(ctx).metric(id).status);
+    };
+
+    expect(
+      statuses({
+        CommonStockDividendsPerShareDeclared: { units: { "USD/shares": [stub] } },
+        CommonStockDividendsPerShareCashPaid: series("USD/shares", () => 0),
+      }),
+    ).toEqual(["not-meaningful", "not-meaningful", "missing"]);
+    expect(
+      statuses({ CommonStockDividendsPerShareDeclared: { units: { "USD/shares": [stub] } } }),
+    ).not.toContain("not-applicable");
+
+    const nonPayer = context(
+      usGaap({
+        PaymentsOfDividends: zeroPaid,
+        CommonStockDividendsPerShareDeclared: series("USD/shares", () => 0),
+      }),
+    );
+    expect(nonPayer.statements?.dividendPaymentFiled).toBe(false);
+    const zeroDps = series("USD/shares", () => 0).units as Record<string, Fact[]>;
+    const withRawDps = (extra: Fact) =>
+      context(
+        usGaap({
+          PaymentsOfDividends: zeroPaid,
+          CommonStockDividendsPerShareDeclared: {
+            units: { "USD/shares": [...zeroDps["USD/shares"]!, extra] },
+          },
+        }),
+      );
+    const eightK = fy(0.5, 2025, { form: "8-K", start: "2025-11-01", end: "2025-11-30" });
+    const { fp: _fp, ...noFp } = fy(0.5, 2024, { start: "2024-12-01" });
+    for (const raw of [
+      eightK,
+      noFp,
+      { ...eightK, filed: "unknown" },
+      { ...eightK, filed: "2027-02-30" },
+      { ...eightK, filed: "2026-13-45" },
+    ]) {
+      const ctx = withRawDps(raw);
+      expect(ctx.statements?.dividendPaymentFiled).toBe(true);
+      expect(history.map((id) => evaluate(ctx).metric(id).status)).not.toContain("not-applicable");
+    }
+    expect(withRawDps({ ...eightK, filed: "2026-08-01" }).statements?.dividendPaymentFiled).toBe(
+      false,
+    );
+    const { dividendPaymentFiled: _unrecorded, ...preFlag } = nonPayer.statements!;
+    const historical = evaluate({ ...nonPayer, statements: preFlag });
+    for (const id of history) {
+      expect(historical.metric(id)).toMatchObject({
+        status: "missing",
+        reason: "dividend payment evidence is not recorded in this artifact",
+      });
+    }
+    const payer = context(usGaap());
+    const { dividendPaymentFiled: _payerFlag, ...payerPreFlag } = payer.statements!;
+    expect(evaluate({ ...payer, statements: payerPreFlag }).metric("dpsCagr3y").status).toBe(
+      "value",
+    );
+  });
+
+  test("a negative filed dividend per share is refused, never shown as its absolute value", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          CommonStockDividendsPerShareDeclared: series("USD/shares", (year) =>
+            year === 2025 ? -0.5 : dps(year),
+          ),
+        }),
+      ),
+    );
+
+    expect(result.metric("dpsLatestFy")).toMatchObject({
+      status: "not-meaningful",
+      reason: "latest dividends per share is negative",
+      periodEnd: "2025-12-31",
+      inputs: [{ value: -0.5 }],
+    });
+    expect(result.metric("dpsLatestFy").value).toBeUndefined();
+    expect(result.metric("dpsCagr3y")).toMatchObject({
+      status: "not-meaningful",
+      reason: "latest dividends per share is negative",
+    });
   });
 
   test("no taxonomy: every metric is missing and the section still exists", () => {
@@ -416,6 +696,12 @@ describe("capitalReturnSection", () => {
           periodKey: fact2023.periodKey,
           message: "test split",
         },
+        {
+          code: "earlier-share-basis",
+          seriesKey: "dividendsPerShare",
+          periodKey: fact2023.periodKey,
+          message: "test split",
+        },
       ],
     };
 
@@ -427,6 +713,13 @@ describe("capitalReturnSection", () => {
       reason: "diluted shares inside the window are on an earlier share basis",
     });
     expect(result.metric("shareCountTrend").status).toBe("not-meaningful");
+    expect(result.metric("dpsLatestFy").status).toBe("value");
+    expect(result.metric("dpsCagr3y")).toMatchObject({
+      status: "not-meaningful",
+      reason: "dividends per share inside the window are on an earlier share basis",
+      inputs: [{ periodEnd: "2022-12-31" }, { periodEnd: "2025-12-31" }],
+    });
+    expect(result.metric("earliestDividendFyInHistory").status).toBe("value");
   });
 
   test("currency mismatch: yields are missing, filed amounts keep their values", () => {
@@ -595,6 +888,12 @@ describe("Capital Return in report.json and report.md", () => {
     expect(run(forged("buybacksLatestFy", ({ value: _value, ...metric }) => metric))).toThrow(
       "finite number or non-empty text",
     );
+    expect(run(forged("dpsCagr3y", (metric) => ({ ...metric, value: 0.5 })))).toThrow(
+      "capital-return.dpsCagr3y",
+    );
+    expect(
+      run(forged("earliestDividendFyInHistory", (metric) => ({ ...metric, value: "FY2020" }))),
+    ).toThrow("names the earliest positive FY");
   });
 
   test("validates against report sources and rejects an unknown metric source id", () => {
@@ -620,6 +919,9 @@ describe("Capital Return in report.json and report.md", () => {
     );
     expect(markdown).toContain(
       "- Buyback yield: not available, reporting currency USD differs from quote currency EUR",
+    );
+    expect(markdown).toContain(
+      `- Dividends per share \\(latest FY\\): $0.64 (FY ending 2025-12-31; dividends declared per share, else cash paid per share, in the latest year-aligned fiscal year) [${SOURCE_ID}]`,
     );
     expect(markdown).toContain(`- [${SOURCE_ID}] ${SOURCE_ID}`);
     // The quote is cited only by the missing yields, which render a reason and no reference.

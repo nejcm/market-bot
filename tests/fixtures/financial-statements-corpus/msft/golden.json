@@ -3911,6 +3911,13 @@
         }
       ],
       "ttm": null
+    },
+    "dividendsPerShare": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
     }
   },
   "canonical": {

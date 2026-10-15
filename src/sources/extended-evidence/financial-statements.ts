@@ -22,6 +22,7 @@ import {
   detectFinancialStatementCadence,
   financialStatementPeriodKey,
   financialStatementPeriodMonths,
+  isYearAligned,
   financialStatementFacts,
   debtCandidateConcepts,
   incompleteDebtNote,
@@ -115,6 +116,7 @@ export interface FinancialStatementsDeriveInput {
 const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];
 const MIN_ANNUAL_DURATION_MONTHS = 10;
 const MAX_ANNUAL_DURATION_MONTHS = 14;
+const STATEMENT_DURATION_MONTHS = new Set([3, 6, 9, 12]);
 const DAY_MS = 86_400_000;
 const QUARTERLY_REPORTING_PERIOD_DAYS = 120;
 const SEMIANNUAL_REPORTING_PERIOD_DAYS = 200;
@@ -250,6 +252,32 @@ function factsForDefinition(
     return [];
   }
   const concepts = definition.concepts[taxonomy];
+  if (definition.key === "dividendsPerShare") {
+    // Declarations are annual-anchored; a newer interim cash-paid tag must not hide declared annual history.
+    const annualBasis = factsForLatestPeriodConcept(
+      taxonomy,
+      root,
+      concepts,
+      (fact) =>
+        eligible(fact) &&
+        fact.periodStart !== undefined &&
+        isYearAligned(fact.periodStart, fact.periodEnd) &&
+        periodType(fact, definition) === "annual",
+    );
+    const statementBasis =
+      annualBasis.length > 0
+        ? annualBasis
+        : factsForLatestPeriodConcept(
+            taxonomy,
+            root,
+            concepts,
+            (fact) => eligible(fact) && isStatementPeriod(fact, definition),
+          );
+    // Spans-only issuers still surface their declarations as omission evidence.
+    return statementBasis.length > 0
+      ? statementBasis
+      : factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
+  }
   if (definition.key !== "revenue") {
     return factsForLatestPeriodConcept(taxonomy, root, concepts, eligible);
   }
@@ -489,6 +517,46 @@ function allFactsForDefinition(
     : definition.concepts[taxonomy].flatMap((concept) => unitFacts(taxonomy, root, concept));
 }
 
+function isCalendarDate(value: string): boolean {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    /^\d{4}-\d{2}-\d{2}$/u.test(value) &&
+    !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+  );
+}
+
+// Raw, pre-selection evidence: span filtering, alias ranking and caps must not manufacture a non-payer.
+function dividendPaymentFiled(
+  payload: unknown,
+  taxonomy: FinancialStatementTaxonomy,
+  analysisAsOf: string,
+): boolean {
+  const root = taxonomyRoot(payload, taxonomy);
+  const cutoff = analysisAsOf.slice(0, 10);
+  const rawValues = (concept: string): readonly number[] => {
+    const units = isRecord(root?.[concept]) ? root[concept].units : undefined;
+    return (isRecord(units) ? Object.values(units) : [])
+      .flatMap((values) => (Array.isArray(values) ? values : []))
+      .flatMap((fact) => {
+        const value = isRecord(fact) ? readNumber(fact, "val") : undefined;
+        const filed = isRecord(fact) ? readString(fact, "filed") : undefined;
+        // Only point-in-time observability; form, fp and span eligibility must not hide payment evidence.
+        const futureFiling = filed !== undefined && isCalendarDate(filed) && filed > cutoff;
+        return value === undefined || futureFiling ? [] : [value];
+      });
+  };
+  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.some(
+    (definition) =>
+      (definition.key === "dividendsPerShare" || definition.key === "dividendsPaid") &&
+      definition.concepts[taxonomy].some((concept) =>
+        rawValues(concept).some((value) =>
+          definition.key === "dividendsPaid" ? value !== 0 : value > 0,
+        ),
+      ),
+  );
+}
+
 function isObservable(fact: ParsedFact, analysisAsOf: string): boolean {
   const cutoff = analysisAsOf.slice(0, 10);
   return fact.periodEnd <= cutoff && fact.filedAt <= cutoff;
@@ -635,6 +703,35 @@ function periodType(
     months <= MAX_ANNUAL_DURATION_MONTHS
     ? "annual"
     : "interim";
+}
+
+function isStatementPeriod(
+  fact: ParsedFact,
+  definition: FinancialStatementSeriesDefinition,
+): boolean {
+  return (
+    periodType(fact, definition) === "annual" ||
+    STATEMENT_DURATION_MONTHS.has(financialStatementPeriodMonths(fact) ?? -1)
+  );
+}
+
+// Dropped declaration-date spans stay visible so a non-zero one still counts as dividend history.
+function declarationSpanNotes(
+  spans: readonly ParsedFact[],
+  definition: FinancialStatementSeriesDefinition,
+): readonly FinancialStatementNote[] {
+  const declared = spans.filter((fact) => fact.value !== 0);
+  const latest = declared.toSorted((a, b) => a.periodEnd.localeCompare(b.periodEnd)).at(-1);
+  return latest === undefined
+    ? []
+    : [
+        {
+          code: "declaration-span",
+          seriesKey: definition.key,
+          periodKey: periodKey(latest),
+          message: `SEC ${definition.label.toLowerCase()} has ${String(declared.length)} non-zero declaration-date facts (latest ${periodKey(latest)}) omitted because their spans are not statement periods`,
+        },
+      ];
 }
 
 function periodKey(fact: ParsedFact): string {
@@ -1104,7 +1201,12 @@ function selectSeries(
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
   const debt =
     definition.key === "debt" ? factsForDebt(payload, taxonomy, definition, eligible) : undefined;
-  const facts = debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible);
+  const basis = debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible);
+  const declarationSpans =
+    definition.key === "dividendsPerShare"
+      ? basis.filter((fact) => !isStatementPeriod(fact, definition))
+      : [];
+  const facts = basis.filter((fact) => !declarationSpans.includes(fact));
   const selected = materializeBasis(
     facts,
     definition,
@@ -1119,6 +1221,7 @@ function selectSeries(
       omissionNotes: [
         ...selected.omissionNotes,
         ...staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible),
+        ...declarationSpanNotes(declarationSpans.filter(eligible), definition),
       ],
     };
   }
@@ -1325,10 +1428,16 @@ function instantSeriesOmissionNotes(
   return notes;
 }
 
-const SHARE_BASIS_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
+const SPLIT_EVIDENCE_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
   "dilutedEps",
   "continuingDilutedEps",
   "dilutedShares",
+]);
+
+// Dividend corrections do not corroborate or veto a split; its periods only receive the notes.
+const SHARE_BASIS_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
+  ...SPLIT_EVIDENCE_SERIES,
+  "dividendsPerShare",
 ]);
 
 // Thousand-fold restatements are unit-scale corrections, not share-basis changes.
@@ -1371,7 +1480,7 @@ function shareBasisChanges(
   series: readonly FinancialStatementSeries[],
 ): readonly ShareBasisChange[] {
   const byDate = new Map<string, ShareBasisRestatement[]>();
-  for (const item of series.filter((candidate) => SHARE_BASIS_SERIES.has(candidate.key))) {
+  for (const item of series.filter((candidate) => SPLIT_EVIDENCE_SERIES.has(candidate.key))) {
     for (const fact of financialStatementFacts(item)) {
       const original = fact.restatedFrom;
       if (original !== undefined && fact.value * original.value > 0) {
@@ -1558,6 +1667,7 @@ function seriesRecord(
       dilutedEps: get("dilutedEps"),
       continuingDilutedEps: get("continuingDilutedEps"),
       dilutedShares: get("dilutedShares"),
+      dividendsPerShare: get("dividendsPerShare"),
     },
   };
 }
@@ -1635,6 +1745,9 @@ export function deriveFinancialStatements(
     ...(equityStackSelection.equityStack !== undefined
       ? { equityStack: equityStackSelection.equityStack }
       : {}),
+    ...(taxonomy !== undefined
+      ? { dividendPaymentFiled: dividendPaymentFiled(payload, taxonomy, input.analysisAsOf) }
+      : {}),
     statements,
     validationNotes: [
       ...taxonomyNotes,
@@ -1685,7 +1798,12 @@ export function financialStatementsHistoryGaps(
   artifact: FinancialStatementsArtifact,
 ): readonly SourceGap[] {
   return artifact.omissionNotes
-    .filter((note) => note.code === "stale-concept-history" || note.code === "mixed-share-basis")
+    .filter(
+      (note) =>
+        note.code === "stale-concept-history" ||
+        note.code === "mixed-share-basis" ||
+        note.code === "declaration-span",
+    )
     .map((note) =>
       sourceGap({
         source: "sec-edgar",

@@ -23,7 +23,8 @@ type CapitalReturnSeries =
   | "shareRepurchases"
   | "operatingCashFlow"
   | "capitalExpenditure"
-  | "dilutedShares";
+  | "dilutedShares"
+  | "dividendsPerShare";
 
 type FiscalYearSeries = readonly [CapitalReturnSeries, ...CapitalReturnSeries[]];
 
@@ -33,6 +34,7 @@ const SERIES_LABELS: Readonly<Record<CapitalReturnSeries, string>> = {
   operatingCashFlow: "operating cash flow",
   capitalExpenditure: "capital expenditure",
   dilutedShares: "diluted shares",
+  dividendsPerShare: "dividends per share",
 };
 
 const DAY_MS = 86_400_000;
@@ -175,15 +177,29 @@ function daysBetween(start: string, end: string): number {
   return (Date.parse(end) - Date.parse(start)) / DAY_MS;
 }
 
-function shareCountChange(ctx: MetricContext, years: number): MetricOutcome {
-  const facts = eligibleAnnualFacts(ctx, "dilutedShares");
+type Endpoints =
+  | {
+      readonly prior: FinancialStatementFact;
+      readonly latest: FinancialStatementFact;
+      readonly inputs: readonly MetricInput[];
+    }
+  | { readonly outcome: MetricOutcome };
+
+// R6: a split inside the window makes the endpoints incomparable; they are refused, not adjusted.
+function annualEndpoints(
+  ctx: MetricContext,
+  key: "dilutedShares" | "dividendsPerShare",
+  years: number,
+): Endpoints {
+  const label = SERIES_LABELS[key];
+  const facts = eligibleAnnualFacts(ctx, key);
   const [latest] = facts;
   if (latest === undefined) {
-    return { status: "missing", reason: "no year-aligned annual diluted shares fact" };
+    return { outcome: { status: "missing", reason: `no year-aligned annual ${label} fact` } };
   }
-  const stale = staleAnchor(ctx, SERIES_LABELS.dilutedShares, latest.periodEnd);
+  const stale = staleAnchor(ctx, label, latest.periodEnd);
   if (stale !== undefined) {
-    return missingOutcome(stale, [latest], ["dilutedShares"]);
+    return { outcome: missingOutcome(stale, [latest], [key]) };
   }
   const prior = facts.find(
     (fact) =>
@@ -191,30 +207,39 @@ function shareCountChange(ctx: MetricContext, years: number): MetricOutcome {
       ENDPOINT_TOLERANCE_DAYS,
   );
   if (prior === undefined) {
-    return missingOutcome(
-      `no annual diluted shares fact ${String(years)}y before the fiscal year ending ${latest.periodEnd}`,
-      [latest],
-      ["dilutedShares"],
-    );
+    return {
+      outcome: missingOutcome(
+        `no annual ${label} fact ${String(years)}y before the fiscal year ending ${latest.periodEnd}`,
+        [latest],
+        [key],
+      ),
+    };
   }
-  const inputs = [statementInput(prior, "dilutedShares"), statementInput(latest, "dilutedShares")];
-  const series = financialStatementSeriesByKey(ctx.statements!, "dilutedShares")!;
+  const inputs = [statementInput(prior, key), statementInput(latest, key)];
+  const series = financialStatementSeriesByKey(ctx.statements!, key)!;
   const window = financialStatementFacts(series).filter(
     (fact) => fact.periodEnd >= prior.periodEnd && fact.periodEnd <= latest.periodEnd,
   );
-  // R6: a split inside the window makes the endpoints incomparable; they are refused, not adjusted.
   if (
-    touchesEarlierShareBasis(
-      window,
-      earlierShareBasisPeriods(ctx.statements!.omissionNotes, "dilutedShares"),
-    )
+    touchesEarlierShareBasis(window, earlierShareBasisPeriods(ctx.statements!.omissionNotes, key))
   ) {
     return {
-      status: "not-meaningful",
-      reason: "diluted shares inside the window are on an earlier share basis",
-      inputs,
+      outcome: {
+        status: "not-meaningful",
+        reason: `${label} inside the window are on an earlier share basis`,
+        inputs,
+      },
     };
   }
+  return { prior, latest, inputs };
+}
+
+function shareCountChange(ctx: MetricContext, years: number): MetricOutcome {
+  const endpoints = annualEndpoints(ctx, "dilutedShares", years);
+  if ("outcome" in endpoints) {
+    return endpoints.outcome;
+  }
+  const { prior, latest, inputs } = endpoints;
   if (prior.value <= 0) {
     return {
       status: "not-meaningful",
@@ -228,6 +253,97 @@ function shareCountChange(ctx: MetricContext, years: number): MetricOutcome {
     periodEnd: latest.periodEnd,
     inputs,
   };
+}
+
+function dividendsPerShareCagr(ctx: MetricContext, years: number): MetricOutcome {
+  const endpoints = annualEndpoints(ctx, "dividendsPerShare", years);
+  if ("outcome" in endpoints) {
+    return endpoints.outcome;
+  }
+  const { prior, latest, inputs } = endpoints;
+  if (prior.value <= 0 || latest.value < 0) {
+    return {
+      status: "not-meaningful",
+      reason:
+        prior.value <= 0
+          ? `dividends per share ${String(years)}y earlier is not positive`
+          : "latest dividends per share is negative",
+      inputs,
+    };
+  }
+  return {
+    status: "value",
+    value: (latest.value / prior.value) ** (1 / years) - 1,
+    periodEnd: latest.periodEnd,
+    inputs,
+  };
+}
+
+function earliestDividendFiscalYear(ctx: MetricContext): MetricOutcome {
+  const facts = eligibleAnnualFacts(ctx, "dividendsPerShare");
+  if (facts.length === 0) {
+    return { status: "missing", reason: "no year-aligned annual dividends per share fact" };
+  }
+  const earliest = facts.findLast((fact) => fact.value > 0);
+  if (earliest === undefined) {
+    return {
+      status: "missing",
+      reason: "no positive annual dividends per share fact in filed history",
+      inputs: [statementInput(facts[0]!, "dividendsPerShare")],
+    };
+  }
+  return {
+    status: "value",
+    value: `FY${String(earliest.fiscalYear)}`,
+    periodEnd: earliest.periodEnd,
+    inputs: [statementInput(earliest, "dividendsPerShare")],
+  };
+}
+
+function filedFacts(
+  ctx: MetricContext,
+  key: "dividendsPaid" | "dividendsPerShare",
+): readonly FinancialStatementFact[] {
+  const series =
+    ctx.statements === undefined ? undefined : financialStatementSeriesByKey(ctx.statements, key);
+  return series === undefined ? [] : financialStatementFacts(series);
+}
+
+function zeroDividendFacts(ctx: MetricContext): boolean {
+  const { missing } = fiscalYearFacts(ctx, ["dividendsPerShare", "dividendsPaid"]);
+  return (
+    missing === undefined &&
+    filedFacts(ctx, "dividendsPaid").every((fact) => fact.value === 0) &&
+    filedFacts(ctx, "dividendsPerShare").every((fact) => fact.value === 0)
+  );
+}
+
+// R7(c): only an affirmed non-payer, never one whose dividend facts are absent, stale or filtered out.
+function noDividendHistory(ctx: MetricContext): string | undefined {
+  return ctx.statements?.dividendPaymentFiled === false && zeroDividendFacts(ctx)
+    ? "no dividend history in filed data"
+    : undefined;
+}
+
+function unlessPaymentEvidenceUnknown(
+  compute: MetricDefinition["compute"],
+): MetricDefinition["compute"] {
+  return (ctx) =>
+    ctx.statements?.dividendPaymentFiled === undefined && zeroDividendFacts(ctx)
+      ? { status: "missing", reason: "dividend payment evidence is not recorded in this artifact" }
+      : compute(ctx);
+}
+
+function latestDividendsPerShare(ctx: MetricContext): MetricOutcome {
+  const outcome = latestFyAmount("dividendsPerShare")(ctx);
+  return outcome.status === "value" && (outcome.inputs[0]?.value ?? 0) < 0
+    ? {
+        status: "not-meaningful",
+        reason: "latest dividends per share is negative",
+        ...(outcome.periodEnd !== undefined ? { periodEnd: outcome.periodEnd } : {}),
+        inputs: outcome.inputs,
+      }
+    : outcome;
 }
 
 function shareCountTrend(ctx: MetricContext): MetricOutcome {
@@ -424,6 +540,33 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     basis: `latest FY dividends paid + share repurchases / ${FCF_BASIS}`,
     applicable: depositoryIssuer,
     compute: freeCashFlowRatio(["dividendsPaid", "shareRepurchases"]),
+  },
+  {
+    id: "dpsLatestFy",
+    label: "Dividends per share (latest FY)",
+    unit: "currency-per-share",
+    basis:
+      "dividends declared per share, else cash paid per share, in the latest year-aligned fiscal year",
+    compute: latestDividendsPerShare,
+  },
+  ...[3, 5].map(
+    (years): MetricDefinition => ({
+      id: `dpsCagr${String(years)}y`,
+      label: `Dividends per share growth (${String(years)}y CAGR)`,
+      unit: "ratio-percent",
+      basis: `compound annual change in dividends per share, latest fiscal year vs the fiscal year ${String(years)}y earlier`,
+      applicable: noDividendHistory,
+      compute: unlessPaymentEvidenceUnknown((ctx) => dividendsPerShareCagr(ctx, years)),
+    }),
+  ),
+  {
+    id: "earliestDividendFyInHistory",
+    label: "Earliest dividend year in filed history",
+    unit: "text",
+    basis:
+      "earliest year-aligned fiscal year with positive dividends per share among retained annual filings",
+    applicable: noDividendHistory,
+    compute: unlessPaymentEvidenceUnknown(earliestDividendFiscalYear),
   },
   {
     id: "sbcLatestFy",

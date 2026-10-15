@@ -2136,6 +2136,22 @@ describe("report artifact parsers", () => {
                 sourceIds: [],
               },
               {
+                label: "Dividends per share (latest FY)",
+                unit: "currency-per-share",
+                currency: "CHF",
+                status: "value",
+                value: 1.05,
+                sourceIds: [],
+              },
+              {
+                label: "Dividends per share (latest FY)",
+                unit: "currency-per-share",
+                currency: "USD",
+                status: "value",
+                value: 1234.5,
+                sourceIds: [],
+              },
+              {
                 label: "Dividend yield (filed)",
                 unit: "ratio-percent",
                 status: "missing",
@@ -2174,6 +2190,12 @@ describe("report artifact parsers", () => {
             value: "stable",
             sourceIds: [],
           },
+          ...["CHF 1.05", "$1234.50"].map((value) => ({
+            label: "Dividends per share (latest FY)",
+            status: "value",
+            value,
+            sourceIds: [],
+          })),
           {
             label: "Dividend yield (filed)",
             status: "missing",

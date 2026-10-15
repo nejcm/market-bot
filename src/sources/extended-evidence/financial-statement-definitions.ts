@@ -387,4 +387,16 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
         "ifrs-full": ["AdjustedWeightedAverageShares"],
       },
     },
+    {
+      key: "dividendsPerShare",
+      label: "Dividends per share",
+      statement: "perShare",
+      kind: "duration",
+      unitKind: "per-share",
+      deriveTtm: false,
+      concepts: {
+        "us-gaap": ["CommonStockDividendsPerShareDeclared", "CommonStockDividendsPerShareCashPaid"],
+        "ifrs-full": ["DividendsRecognisedAsDistributionsToOwnersPerShare"],
+      },
+    },
   ];

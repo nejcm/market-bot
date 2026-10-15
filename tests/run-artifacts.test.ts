@@ -510,6 +510,60 @@ describe("loadRunArtifact", () => {
     );
   });
 
+  test("reads dividends per share as empty from statements written before the series", async () => {
+    const preDividendsPerShare: unknown = await Bun.file(
+      new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
+    ).json();
+    const briefDir = join(tempRunsDir(), "pre-dps-brief");
+    await writeJson(join(briefDir, "report.json"), researchReport({ runId: "pre-dps-brief" }));
+    await writeJson(
+      join(briefDir, "normalized", "financial-statements.json"),
+      preDividendsPerShare,
+    );
+    const deepDir = join(tempRunsDir(), "pre-dps-deep");
+    await writeJson(
+      join(deepDir, RUN_ARTIFACT_FILES.report),
+      researchReport({
+        runId: "pre-dps-deep",
+        jobType: "equity",
+        assetClass: "equity",
+        symbol: "ASTS",
+        extras: { depth: "deep" },
+        sources: [
+          {
+            id: "extended-sec-edgar-asts-fundamentals",
+            title: "ASTS SEC fundamentals",
+            fetchedAt: "2026-06-01T00:00:00.000Z",
+            kind: "market-data",
+          },
+        ],
+      }),
+    );
+    const base = deepEquityEvidenceBundle();
+    await writeJson(
+      join(deepDir, RUN_ARTIFACT_FILES.evidenceBundle),
+      deepEquityEvidenceBundle({
+        derived: { ...base.derived, financialStatements: preDividendsPerShare as never },
+      }),
+    );
+
+    for (const runDir of [briefDir, deepDir]) {
+      const { artifact, status } = await loadRunArtifact(runDir);
+
+      expect(status.evidenceBundle).toBe(runDir === deepDir ? "ok" : undefined);
+      expect(artifact?.financialStatements?.statements.perShare.dividendsPerShare).toEqual({
+        key: "dividendsPerShare",
+        label: "Dividends per share",
+        statement: "perShare",
+        annual: [],
+        interim: [],
+      });
+      expect(
+        artifact?.financialStatements?.statements.incomeStatement.revenue.annual.length,
+      ).toBeGreaterThan(0);
+    }
+  });
+
   test("keeps historical reports readable without Phase 2 fields", async () => {
     const dataDir = tempRunsDir();
     const runDir = join(dataDir, "historical-report");

@@ -44,7 +44,7 @@ function fact(input: {
     accessionNumber: `${input.periodEnd}-${input.key}`,
     filedAt: input.filedAt,
     firstPublicAt: input.firstPublicAt ?? input.filedAt,
-    periodStart: `${String(Number(input.periodEnd.slice(0, 4)) - 1)}-01-01`,
+    periodStart: `${input.periodEnd.slice(0, 4)}-01-01`,
     periodEnd: input.periodEnd,
     fiscalYear: Number(input.periodEnd.slice(0, 4)),
     fiscalPeriod: periodType === "annual" ? "FY" : "Q1",
@@ -273,7 +273,7 @@ describe("valuation workbench", () => {
       { basis: "ttm", publicAt: "2025-05-01" },
     ]);
     expect(artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
-      enterpriseValueToRevenue: { status: "populated", value: 2.05 },
+      enterpriseValueToRevenue: { status: "value", value: 2.05 },
     });
   });
 
@@ -326,10 +326,10 @@ describe("valuation workbench", () => {
       ),
     ).toBe(true);
     expect(artifact.historicalMultiples.observations[0]?.metrics).toMatchObject({
-      priceToEarnings: { status: "populated", value: 20 },
-      priceToSales: { status: "populated", value: 2 },
-      enterpriseValueToRevenue: { status: "populated", value: 2.05 },
-      priceToFreeCashFlow: { status: "populated", value: 20 },
+      priceToEarnings: { status: "value", value: 20 },
+      priceToSales: { status: "value", value: 2 },
+      enterpriseValueToRevenue: { status: "value", value: 2.05 },
+      priceToFreeCashFlow: { status: "value", value: 20 },
     });
   });
 
@@ -338,7 +338,13 @@ describe("valuation workbench", () => {
     const result = await collectValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",
       symbol: "TEST",
-      financialStatements: { ...statements(), reportingCurrency: "CAD" },
+      financialStatements: JSON.parse(
+        JSON.stringify({ ...statements(), reportingCurrency: "CAD" }, (key, value: unknown) =>
+          (key === "currency" || key === "unit") && typeof value === "string"
+            ? value.replace("USD", "CAD")
+            : value,
+        ),
+      ) as FinancialStatementsArtifact,
       priceHistory: [
         { date: "2024-02-15", close: 20 },
         { date: "2025-02-18", close: 24 },
@@ -387,12 +393,16 @@ describe("valuation workbench", () => {
       pair: "USDCAD=X",
       sourceId: "market-yahoo-fx-usdcad",
     });
-    expect(observation?.metrics).toMatchObject({
-      priceToEarnings: { status: "populated", display: "28.00x" },
-      priceToSales: { status: "populated", display: "2.80x" },
-      enterpriseValueToRevenue: { status: "populated", display: "2.84x" },
-      priceToFreeCashFlow: { status: "populated", display: "28.00x" },
-    });
+    for (const [key, expected] of Object.entries({
+      priceToEarnings: 28,
+      priceToSales: 2.8,
+      enterpriseValueToRevenue: 2.841_666_666_666_666_3,
+      priceToFreeCashFlow: 28,
+    })) {
+      const metric = observation!.metrics[key as keyof NonNullable<typeof observation>["metrics"]];
+      expect(metric.status).toBe("value");
+      expect(metric.value).toBeCloseTo(expected, 10);
+    }
     expect(observation?.metrics.priceToEarnings.sourceIds).toContain("market-yahoo-fx-usdcad");
     expect(renderValuationWorkbenchMarkdown(artifact, researchReport())).toContain(
       "24.00 USD (2025-02-18; converted at USD/CAD 1.4000 on 2025-02-17)",
@@ -400,7 +410,9 @@ describe("valuation workbench", () => {
     expect(result.sources).toEqual([
       expect.objectContaining({ id: "market-yahoo-fx-usdcad", provider: "yahoo" }),
     ]);
-    expect(result.sourceGaps).toEqual([]);
+    expect(result.sourceGaps.every((gap) => gap.source.startsWith("valuation-workbench-"))).toBe(
+      true,
+    );
     expect(readValuationWorkbenchArtifact(artifact)).toEqual({
       ...artifact,
       readDiagnostics: { droppedObservationCount: 0, drops: [] },
@@ -411,7 +423,13 @@ describe("valuation workbench", () => {
     const result = await collectValuationWorkbench({
       generatedAt: "2025-06-01T00:00:00.000Z",
       symbol: "TEST",
-      financialStatements: { ...statements(), reportingCurrency: "CAD" },
+      financialStatements: JSON.parse(
+        JSON.stringify({ ...statements(), reportingCurrency: "CAD" }, (key, value: unknown) =>
+          (key === "currency" || key === "unit") && typeof value === "string"
+            ? value.replace("USD", "CAD")
+            : value,
+        ),
+      ) as FinancialStatementsArtifact,
       priceHistory: [{ date: "2025-02-18", close: 24 }],
       priceSourceId: "verified-snapshot-TEST",
       quoteCurrency: "USD",
@@ -429,10 +447,10 @@ describe("valuation workbench", () => {
 
     expect(observation?.fxConversion).toBeUndefined();
     expect(observation?.metrics).toMatchObject({
-      priceToEarnings: { status: "suppressed", reason: "fx-rate-unavailable" },
-      priceToSales: { status: "suppressed", reason: "fx-rate-unavailable" },
-      enterpriseValueToRevenue: { status: "suppressed", reason: "fx-rate-unavailable" },
-      priceToFreeCashFlow: { status: "suppressed", reason: "fx-rate-unavailable" },
+      priceToEarnings: { status: "missing", reason: "fx-rate-unavailable" },
+      priceToSales: { status: "missing", reason: "fx-rate-unavailable" },
+      enterpriseValueToRevenue: { status: "missing", reason: "fx-rate-unavailable" },
+      priceToFreeCashFlow: { status: "missing", reason: "fx-rate-unavailable" },
     });
     expect(observation?.metrics.priceToEarnings).not.toMatchObject({
       reason: "quote-reporting-currency-mismatch",
@@ -441,12 +459,14 @@ describe("valuation workbench", () => {
       "— (fx-rate-unavailable)",
     );
     expect(result.sources).toEqual([]);
-    expect(result.sourceGaps).toEqual([
-      expect.objectContaining({
-        source: "market-yahoo-fx-usdcad",
-        message: "Yahoo FX close unavailable for USDCAD=X on or before 2025-02-18",
-      }),
-    ]);
+    expect(result.sourceGaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "market-yahoo-fx-usdcad",
+          message: "Yahoo FX close unavailable for USDCAD=X on or before 2025-02-18",
+        }),
+      ]),
+    );
   });
 
   test("leaves same-currency workbench output byte-identical", async () => {
@@ -470,10 +490,10 @@ describe("valuation workbench", () => {
 
     expect(fetched).toBe(false);
     expect(JSON.stringify(result.artifact)).toBe(JSON.stringify(buildValuationWorkbench(input)));
-    expect({ sources: result.sources, sourceGaps: result.sourceGaps }).toEqual({
-      sources: [],
-      sourceGaps: [],
-    });
+    expect(result.sources).toEqual([]);
+    expect(result.sourceGaps.every((gap) => gap.source.startsWith("valuation-workbench-"))).toBe(
+      true,
+    );
   });
 
   test("declares EV/revenue inapplicable for a depository issuer while leaving other multiples computed", () => {
@@ -511,19 +531,17 @@ describe("valuation workbench", () => {
     // Depository verdict must override a computable number, not merely a missing one.
     expect(
       industrial.historicalMultiples.observations[0]?.metrics.enterpriseValueToRevenue,
-    ).toMatchObject({ status: "populated", value: 2.05 });
+    ).toMatchObject({ status: "value", value: 2.05 });
     expect(
       depository.historicalMultiples.observations.map(
         (item) => item.metrics.enterpriseValueToRevenue,
       ),
-    ).toEqual(
+    ).toMatchObject(
       depository.historicalMultiples.observations.map(() => ({
         status: "not-applicable",
-        display: "not applicable",
-        rule: expect.stringContaining("Enterprise value is not computed for depository issuers"),
-        inputs: { sic: "6022" },
-        rationale: "deposit-funded issuer; enterprise value is not defined",
-        sourceIds: expect.any(Array),
+        inputs: [],
+        sourceIds: [],
+        reason: "deposit-funded issuer; enterprise value is not defined (SIC 6022)",
       })),
     );
     // No EV cell renders a number, on any rendered row.
@@ -538,7 +556,7 @@ describe("valuation workbench", () => {
     // P/FCF follows the same capex verdict Financial Trends gives, so it must NOT stay computed.
     expect(
       industrial.historicalMultiples.observations[0]?.metrics.priceToFreeCashFlow,
-    ).toMatchObject({ status: "populated" });
+    ).toMatchObject({ status: "value" });
     expect(
       depository.historicalMultiples.observations.map(
         (item) => item.metrics.priceToFreeCashFlow.status,
@@ -546,7 +564,9 @@ describe("valuation workbench", () => {
     ).toEqual(depository.historicalMultiples.observations.map(() => "not-applicable"));
     expect(
       depository.historicalMultiples.observations[0]?.metrics.priceToFreeCashFlow,
-    ).toMatchObject({ rationale: "depository issuer; capex-based free cash flow is not defined" });
+    ).toMatchObject({
+      reason: "depository issuer; capex-based free cash flow is not defined (SIC 6022)",
+    });
     // Only the price-based multiples are untouched.
     for (const key of ["priceToEarnings", "priceToSales"] as const) {
       expect(depository.historicalMultiples.observations.map((item) => item.metrics[key])).toEqual(
@@ -634,7 +654,7 @@ describe("valuation workbench", () => {
         artifact.historicalMultiples.observations.find(
           (item) => item.basis === basis && item.periodEnd === periodEnd,
         )?.metrics.priceToFreeCashFlow,
-      ).toMatchObject({ status: "suppressed", reason: "free-cash-flow-unavailable" });
+      ).toMatchObject({ status: "missing", reason: "free-cash-flow-unavailable" });
     }
   });
 
@@ -694,12 +714,10 @@ describe("valuation workbench", () => {
 
     expect(observation?.metrics.priceToEarnings).toMatchObject({
       status: "not-meaningful",
-      display: "N/M",
       reason: "negative-denominator",
     });
     expect(observation?.metrics.priceToFreeCashFlow).toMatchObject({
       status: "not-meaningful",
-      display: "N/M",
       reason: "negative-denominator",
     });
   });
@@ -745,7 +763,7 @@ describe("valuation workbench", () => {
       ),
     ).not.toContain("not-applicable");
     expect(artifact.historicalMultiples.observations[0]?.metrics.priceToSales).toMatchObject({
-      status: "suppressed",
+      status: "missing",
       reason: "price-history-unavailable",
     });
   });
@@ -760,7 +778,17 @@ describe("valuation workbench", () => {
       quoteCurrency: "USD",
     });
 
-    const markdown = renderValuationWorkbenchMarkdown(artifact, researchReport());
+    const markdown = renderValuationWorkbenchMarkdown(
+      artifact,
+      researchReport({
+        sources: [SOURCE_ID, "verified-snapshot-TEST"].map((id) => ({
+          id,
+          title: id,
+          kind: "extended-evidence",
+          fetchedAt: artifact.generatedAt,
+        })),
+      }),
+    );
 
     expect(markdown).toContain("## Valuation Workbench");
     expect(markdown).toContain("first verified close within 7 calendar days on or after publicAt");
@@ -768,7 +796,8 @@ describe("valuation workbench", () => {
     expect(markdown).not.toContain("converted at");
     expect(markdown).toContain("Reporting currency: USD. Quote currency: USD.");
     expect(markdown).toContain("Peer comparison data is unavailable for this run.");
-    expect(markdown).not.toContain("| Sources");
+    expect(markdown).toContain("| P/FCF proxy | Sources");
+    expect(markdown).toContain(`| 20.00x | [${SOURCE_ID}] [verified-snapshot-TEST]`);
     expect(violatesResearchOnly(markdown)).toBeNull();
     expect(readValuationWorkbenchArtifact(artifact)).toEqual({
       ...artifact,

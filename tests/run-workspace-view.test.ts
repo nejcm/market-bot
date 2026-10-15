@@ -1795,7 +1795,7 @@ describe("run workspace view", () => {
           periodEnd: "2025-12-31",
           publicAt: "2026-02-01",
           price: "200.00 USD · 2026-02-02",
-          priceToEarnings: { status: "populated", display: "100.00x" },
+          priceToEarnings: { status: "value", display: "100.00x" },
         },
       ],
       peerSupportability: "screening-only",
@@ -1885,10 +1885,13 @@ describe("run workspace view", () => {
       throw new Error("valuation workbench fixture observation missing");
     }
     const noHistory = {
-      status: "suppressed" as const,
-      display: "—" as const,
+      status: "missing" as const,
+      id: "fixture",
+      label: "fixture",
+      unit: "ratio" as const,
+      basis: "fixture",
+      inputs: [],
       reason: "price-history-unavailable" as const,
-      detail: "No verified close is available within 7 calendar days on or after publicAt.",
       sourceIds: [],
     };
     const workbench = valuationWorkbench({
@@ -1924,10 +1927,13 @@ describe("run workspace view", () => {
       throw new Error("valuation workbench fixture observation missing");
     }
     const quoteMissing = {
-      status: "suppressed" as const,
-      display: "—" as const,
+      status: "missing" as const,
+      id: "fixture",
+      label: "fixture",
+      unit: "ratio" as const,
+      basis: "fixture",
+      inputs: [],
       reason: "quote-currency-unavailable" as const,
-      detail: "Quote currency is unavailable.",
       sourceIds: [],
     };
     const workbench = valuationWorkbench({
@@ -1952,7 +1958,7 @@ describe("run workspace view", () => {
 
     expect(view?.rows).toHaveLength(1);
     expect(view?.rows[0]?.price).toBe("—");
-    expect(view?.rows[0]?.priceToEarnings.status).toBe("suppressed");
+    expect(view?.rows[0]?.priceToEarnings.status).toBe("missing");
     expect(view?.unpricedPeriods).toEqual([]);
   });
 

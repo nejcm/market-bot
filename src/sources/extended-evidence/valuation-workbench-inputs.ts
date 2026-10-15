@@ -1,4 +1,6 @@
+import { statementInput } from "./metric-engine";
 import type {
+  FinancialStatementSeriesKey,
   FinancialStatementFact,
   FinancialStatementSeries,
   FinancialStatementTtm,
@@ -32,6 +34,8 @@ export interface ValuationPeriodInputs {
   readonly netIncome?: ValuationFundamentalInput;
   readonly dilutedEps?: ValuationFundamentalInput;
   readonly dilutedShares?: ValuationFundamentalInput;
+  readonly operatingCashFlow?: ValuationFundamentalInput;
+  readonly capitalExpenditure?: ValuationFundamentalInput;
   readonly freeCashFlow?: ValuationFundamentalInput;
   readonly cash?: ValuationFundamentalInput;
   readonly debt?: ValuationFundamentalInput;
@@ -54,6 +58,17 @@ function withScope(
   return { label: scopedLabel(label, scope), ...(scope !== undefined ? { scope } : {}) };
 }
 
+const INPUT_SERIES: Readonly<Record<string, FinancialStatementSeriesKey>> = {
+  Revenue: "revenue",
+  "Net income": "netIncome",
+  "Diluted EPS": "dilutedEps",
+  "Diluted weighted-average shares": "dilutedShares",
+  "Operating cash flow": "operatingCashFlow",
+  "Capital expenditure": "capitalExpenditure",
+  Cash: "cash",
+  Debt: "debt",
+};
+
 function factInput(
   label: string,
   fact: FinancialStatementFact,
@@ -71,6 +86,7 @@ function factInput(
     currency: fact.currency,
     unit: fact.unit,
     sourceIds: fact.sourceIds,
+    lineage: [statementInput(fact, INPUT_SERIES[label]!, label)],
   };
 }
 
@@ -87,6 +103,9 @@ function ttmInput(
     currency: ttm.currency,
     unit: ttm.unit,
     sourceIds: ttm.sourceIds,
+    lineage: Object.values(ttm.components).map((fact) =>
+      statementInput(fact, INPUT_SERIES[label]!, label),
+    ),
     derivation: ttm.formula,
   };
 }
@@ -114,6 +133,7 @@ function fcfInput(
     currency: operatingCashFlow.currency,
     unit: operatingCashFlow.unit,
     sourceIds: unique([...operatingCashFlow.sourceIds, ...capitalExpenditure.sourceIds]),
+    lineage: [...(operatingCashFlow.lineage ?? []), ...(capitalExpenditure.lineage ?? [])],
     derivation: "operating cash flow - capital expenditure",
   };
 }
@@ -143,6 +163,7 @@ function deriveShares(
     currency: null,
     unit: "shares",
     sourceIds: unique([...netIncome.sourceIds, ...dilutedEps.sourceIds]),
+    lineage: [...(netIncome.lineage ?? []), ...(dilutedEps.lineage ?? [])],
     derivation: "net income / diluted EPS",
   };
 }
@@ -250,6 +271,8 @@ function annualInputs(
     ...(netIncome !== undefined ? { netIncome } : {}),
     ...(dilutedEps !== undefined ? { dilutedEps } : {}),
     ...(dilutedShares !== undefined ? { dilutedShares } : {}),
+    ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
+    ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
     ...debtInput(artifact, debtFact, cashFact, publicAt),
@@ -349,6 +372,8 @@ function periodInputsFromTtm(
     ...(netIncome !== undefined ? { netIncome } : {}),
     ...(dilutedEps !== undefined ? { dilutedEps } : {}),
     ...(dilutedShares !== undefined ? { dilutedShares } : {}),
+    ...(operatingCashFlow !== undefined ? { operatingCashFlow } : {}),
+    ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
     ...debtInput(artifact, debtFact, cashFact, publicAt),
@@ -456,11 +481,13 @@ function uniquePeriodInputs(
 
 export function periodPublicAt(inputs: ValuationPeriodInputs): string {
   return latest(
-    Object.values(inputs).flatMap((input) =>
-      typeof input === "object" && input !== null && "publicAt" in input
-        ? [input.publicAt as string]
-        : [],
-    ),
+    Object.entries(inputs)
+      .filter(([key]) => key !== "operatingCashFlow" && key !== "capitalExpenditure")
+      .flatMap(([, input]) =>
+        typeof input === "object" && input !== null && "publicAt" in input
+          ? [input.publicAt as string]
+          : [],
+      ),
   );
 }
 

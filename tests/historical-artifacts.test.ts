@@ -8,6 +8,7 @@ import {
 import { readReverseDcfArtifact } from "../src/sources/extended-evidence/reverse-dcf";
 import { parseFinancialTableMappingOutput } from "../src/sources/extended-evidence/untagged-financial-table-validation";
 import { readValuationWorkbenchArtifact } from "../src/sources/extended-evidence/valuation-workbench-contract";
+import { hasNoPriceHistory } from "../src/report/valuation-workbench-markdown";
 
 // Lifts the frozen v1 facts to the current shape so the drop tests isolate one malformed field.
 function withFirstPublicAt(value: unknown): unknown {
@@ -209,7 +210,11 @@ describe("frozen historical artifacts", () => {
     ).json();
 
     expect(JSON.stringify(artifact).match(/quote-reporting-currency-mismatch/gu)).toHaveLength(9);
-    expect(readValuationWorkbenchArtifact(artifact)).toBeDefined();
+    const read = readValuationWorkbenchArtifact(artifact);
+    expect(read).toBeDefined();
+    const observation = read!.historicalMultiples.observations[0]!;
+    expect(observation.metrics.priceToEarnings.reason).toBe("price-history-unavailable");
+    expect(hasNoPriceHistory(observation)).toBe(true);
   });
 
   test("reads valuation workbench version 1 with a retired price-selection rule", async () => {

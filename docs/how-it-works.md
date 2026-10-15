@@ -370,7 +370,9 @@ Trade-action validation is context-aware: it rejects security-directed calls and
 
 `src/report/markdown.ts` renders the validated report into a readable `report.md` with summary, findings, cases, risks, catalysts, scenarios, predictions, data gaps, and sources.
 
-Equity reports render deterministic Metric Sections (the Business Framework sections, the Financial Lens lenses, then Capital Return, then Operating Ratios) from `report.extras.metricSections` in the appendix: each metric shows its formatted value, its period ("FY ending" or "N-month period ending"), basis and citations, or "not available" with its reason. The renderer never recomputes a value; source IDs on every metric are validated against `report.sources`.
+Equity reports render deterministic Metric Sections (the Business Framework sections, the Financial Lens lenses, then Capital Return, then Operating Ratios; Valuation Workbench observations use the dedicated historical table) from `report.extras.metricSections` in the appendix: each metric shows its formatted value, its period ("FY ending" or "N-month period ending"), basis and citations, or "not available" with its reason. The renderer never recomputes a value; source IDs on every metric are validated against `report.sources`.
+
+Valuation Workbench P/E, P/S, EV/revenue and P/FCF proxy use the metric engine and persist its statuses and input lineage. P/FCF declares the first verified close within seven days on or after public availability, plus any dated quote-to-reporting FX conversion. It reads raw inputs directly. Unresolved observations each add one Source Gap (material for unknown inputs, diagnostic for economic inapplicability or independently never-filed concepts); absent statements or periods add a missing workbench section. These gaps reach the model through the existing Source Gap payload; the historical metric values stay outside prompts.
 
 Historical Context and Market Spotlights render from `report.extras.historicalContext` and `report.extras.spotlights`. The renderer parses them defensively, escapes markdown text, and only includes item-level source references that exist in the final source list.
 

@@ -27,7 +27,7 @@ export function metricSectionsView(
 ): readonly MetricSectionView[] | undefined {
   const sections = readMetricSectionsExtra(readRecord(report?.extras)?.metricSections);
   return sections?.flatMap(({ id, title, metrics }): readonly MetricSectionView[] =>
-    title === undefined || title.trim() === ""
+    title === undefined || title.trim() === "" || id?.startsWith("valuation-workbench-")
       ? []
       : [
           {

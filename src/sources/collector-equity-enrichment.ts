@@ -461,7 +461,12 @@ export async function collectEquityEnrichment(
     capitalOwnership,
     financialLensResult,
     businessFrameworkResult,
-    ...metricSectionsOf(businessFrameworkResult, financialLensResult, statementSections),
+    ...metricSectionsOf(
+      businessFrameworkResult,
+      financialLensResult,
+      statementSections,
+      valuationWorkbenchResult.metricSections,
+    ),
     ...earningsResult,
     packetFailureGaps: [],
   };
@@ -471,11 +476,13 @@ function metricSectionsOf(
   businessFrameworkResult: BusinessFrameworkResult,
   financialLensResult: FinancialLensEvidenceResult,
   statementSections: readonly ReturnType<typeof capitalReturnSection>[],
+  workbenchSections: readonly MetricSection[],
 ): Pick<EquityEnrichmentResult, "metricSections" | "metricSectionGaps"> {
   const sections = [
     ...(businessFrameworkResult.metricSections ?? []),
     ...(financialLensResult.metricSections ?? []),
     ...statementSections.map(({ section }) => section),
+    ...workbenchSections,
   ];
   return {
     metricSections: sections.length === 0 ? undefined : sections,

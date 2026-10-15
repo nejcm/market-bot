@@ -49,7 +49,8 @@
             <th class="px-2.5 py-2 text-right font-semibold">P/E</th>
             <th class="px-2.5 py-2 text-right font-semibold">P/S</th>
             <th class="px-2.5 py-2 text-right font-semibold">EV/revenue</th>
-            <th class="px-2.5 py-2 text-right font-semibold">P/FCF</th>
+            <th class="px-2.5 py-2 text-right font-semibold">P/FCF proxy</th>
+            <th class="px-2.5 py-2 font-semibold">Sources</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-border font-mono text-[10px]">
@@ -61,7 +62,7 @@
               <td class="px-2.5 py-2">{row.price}</td>
               {#each [row.priceToEarnings, row.priceToSales, row.enterpriseValueToRevenue, row.priceToFreeCashFlow] as metric}
                 <td
-                  class="px-2.5 py-2 text-right {metric.status === 'populated'
+                  class="px-2.5 py-2 text-right {metric.status === 'value'
                     ? 'text-foreground'
                     : metric.status === 'not-meaningful'
                       ? 'text-[#8a6116]'
@@ -71,6 +72,7 @@
                   {metric.display}
                 </td>
               {/each}
+              <td class="px-2.5 py-2">{@render citeChips(row.sourceIds)}</td>
             </tr>
           {/each}
         </tbody>

@@ -1,3 +1,5 @@
+import type { MetricResult } from "../../src/sources/extended-evidence/metric-engine";
+import { valuationMetricDisplay } from "../../src/report/valuation-workbench-markdown";
 import type { RunDetail } from "../types";
 import type { MarketSnapshotPriceAsOf } from "../../src/domain/market-data";
 import type { EquityReaderValuationContext } from "../../src/report/equity-reader";
@@ -5,10 +7,7 @@ import type {
   PeerImpliedRange,
   ValuationCompsRow,
 } from "../../src/sources/extended-evidence/valuation-comps";
-import type {
-  ValuationMetricResult,
-  ValuationWorkbenchArtifact,
-} from "../../src/sources/extended-evidence/valuation-workbench-contract";
+import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evidence/valuation-workbench-contract";
 import type { ReverseDcfArtifact } from "../../src/sources/extended-evidence/reverse-dcf";
 import { formatLensValue, scaleCurrency } from "../../src/sources/extended-evidence/value-format";
 import { scopedLabel } from "../../src/sources/extended-evidence/financial-statement-definitions";
@@ -49,11 +48,12 @@ export type RunWorkspacePeerImpliedRangeView =
 
 interface RunWorkspaceValuationMetricCell {
   readonly display: string;
-  readonly status: ValuationMetricResult["status"];
+  readonly status: MetricResult["status"];
   readonly detail?: string;
 }
 
 interface RunWorkspaceHistoricalValuationRow {
+  readonly sourceIds: readonly string[];
   readonly basis: string;
   readonly periodEnd: string;
   readonly publicAt: string;
@@ -223,21 +223,16 @@ export function peerImpliedRangeFromProjection(
   };
 }
 
-function valuationMetricCell(metric: ValuationMetricResult): RunWorkspaceValuationMetricCell {
-  if (metric.status === "suppressed") {
-    return { display: metric.display, status: metric.status, detail: metric.detail };
-  }
-  if (metric.status === "not-applicable") {
-    return { display: metric.display, status: metric.status, detail: metric.rationale };
-  }
-  if (metric.status === "not-meaningful") {
-    return {
-      display: metric.display,
-      status: metric.status,
-      detail: metric.reason.replaceAll("-", " "),
-    };
-  }
-  return { display: metric.display, status: metric.status };
+function valuationMetricCell(metric: MetricResult): RunWorkspaceValuationMetricCell {
+  return {
+    display: valuationMetricDisplay(metric),
+    status: metric.status,
+    ...(metric.status === "value"
+      ? { detail: metric.basis }
+      : metric.reason === undefined
+        ? {}
+        : { detail: metric.reason }),
+  };
 }
 
 function valuationPeerRows(
@@ -291,6 +286,13 @@ export function valuationWorkbenchView(
           observation.price === null
             ? "—"
             : `${observation.price.close.toFixed(2)} ${observation.price.currency} · ${observation.price.sessionDate}`,
+        sourceIds: [
+          ...new Set(
+            Object.values(observation.metrics)
+              .filter(({ status }) => status === "value")
+              .flatMap(({ sourceIds }) => sourceIds),
+          ),
+        ],
         priceToEarnings: valuationMetricCell(observation.metrics.priceToEarnings),
         priceToSales: valuationMetricCell(observation.metrics.priceToSales),
         enterpriseValueToRevenue: valuationMetricCell(observation.metrics.enterpriseValueToRevenue),

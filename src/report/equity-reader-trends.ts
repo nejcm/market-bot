@@ -7,7 +7,7 @@ import type { ValuationMetricSuppressionReason } from "../sources/extended-evide
 import { conceptScope } from "../sources/extended-evidence/financial-statement-definitions";
 import { periodLabel } from "./equity-reader-statements";
 
-export function metricCell(
+function metricCell(
   metric:
     | { readonly status: "populated"; readonly display: string }
     | { readonly status: "not-meaningful"; readonly display: string }

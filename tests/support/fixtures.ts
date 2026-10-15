@@ -1,3 +1,4 @@
+import type { MetricResult } from "../../src/sources/extended-evidence/metric-engine";
 import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../src/domain/market-data";
 import type { Prediction } from "../../src/domain/prediction";
 import type { ResearchReport } from "../../src/domain/report";
@@ -8,10 +9,7 @@ import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import type { PredictionScore } from "../../src/scoring/types";
 import type { CollectedSources } from "../../src/sources/types";
 import type { DeepEquityEvidenceBundleV1 } from "../../src/deep-equity/types";
-import type {
-  ValuationMetricResult,
-  ValuationWorkbenchArtifact,
-} from "../../src/sources/extended-evidence/valuation-workbench-contract";
+import type { ValuationWorkbenchArtifact } from "../../src/sources/extended-evidence/valuation-workbench-contract";
 import {
   buildReverseDcf,
   type ReverseDcfArtifact,
@@ -198,18 +196,15 @@ export function deepEquityEvidenceBundle(
   };
 }
 
-function populatedValuationMetric(
-  value: number,
-  numerator: number,
-  denominator: number,
-): ValuationMetricResult {
+function valuationMetric(value: number): MetricResult {
   return {
-    status: "populated",
+    id: "fixture",
+    label: "fixture",
+    unit: "ratio",
+    basis: "fixture numerator / fixture denominator",
+    status: "value",
     value,
-    display: `${value.toFixed(2)}x`,
-    numerator,
-    denominator,
-    formula: "fixture numerator / fixture denominator",
+    inputs: [],
     sourceIds: ["sec-fixture", "verified-snapshot-AAPL"],
   };
 }
@@ -262,10 +257,10 @@ export function valuationWorkbench(
             debt: { ...input, label: "Debt", value: 10 },
           },
           metrics: {
-            priceToEarnings: populatedValuationMetric(100, 200, 2),
-            priceToSales: populatedValuationMetric(100, 10_000, 100),
-            enterpriseValueToRevenue: populatedValuationMetric(100.05, 10_005, 100),
-            priceToFreeCashFlow: populatedValuationMetric(1250, 10_000, 8),
+            priceToEarnings: valuationMetric(100),
+            priceToSales: valuationMetric(100),
+            enterpriseValueToRevenue: valuationMetric(100.05),
+            priceToFreeCashFlow: valuationMetric(1250),
           },
           sourceIds: ["sec-fixture", "verified-snapshot-AAPL"],
         },

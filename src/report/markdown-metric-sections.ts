@@ -33,7 +33,7 @@ export function renderMetricSections(report: ResearchReport): string {
   const sections = readMetricSectionsExtra(report.extras?.metricSections) ?? [];
   return sections
     .flatMap((section) =>
-      section.title === undefined
+      section.title === undefined || section.id?.startsWith("valuation-workbench-")
         ? []
         : [
             `## ${markdownText(section.title)}`,

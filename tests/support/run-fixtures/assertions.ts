@@ -1,3 +1,4 @@
+import { assertWorkbenchFixtureParity } from "../valuation-workbench-fixture-parity";
 import { expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -86,6 +87,7 @@ export async function assertInvariants(
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
+  await assertWorkbenchFixtureParity(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);
   assertFinancialLensMetricInvariants(result, report, fixtureName);
   assertOperatingRatioInvariants(result, report);
@@ -1683,7 +1685,7 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     expect(
       observation.metrics.enterpriseValueToRevenue,
       `${observation.basis} ${observation.periodEnd} EV/revenue`,
-    ).toMatchObject({ status: "not-applicable", display: "not applicable" });
+    ).toMatchObject({ status: "not-applicable" });
   }
 
   const pricedObservations = observations.filter((observation) => !hasNoPriceHistory(observation));
@@ -1770,12 +1772,13 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
     const dilutedShares = observation.inputs.dilutedShares?.value;
     expect(dilutedShares, `${label} diluted shares`).toBeGreaterThan(0);
     expect(observation.metrics.priceToEarnings, `${label} P/E`).toMatchObject({
-      status: "populated",
-      numerator: convertedClose,
+      status: "value",
+      value: convertedClose / (observation.inputs.dilutedEps?.value ?? Number.NaN),
     });
     expect(observation.metrics.priceToSales, `${label} P/S`).toMatchObject({
-      status: "populated",
-      numerator: convertedClose * (dilutedShares ?? 0),
+      status: "value",
+      value:
+        (convertedClose * (dilutedShares ?? 0)) / (observation.inputs.revenue?.value ?? Number.NaN),
     });
   }
 
@@ -1784,7 +1787,7 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
   );
   expect(fy2024?.publicAt, "FY2024 dates to its first filing").toBe("2024-12-03");
   expect(fy2024?.metrics.priceToEarnings).toMatchObject({
-    status: "suppressed",
+    status: "missing",
     reason: "price-history-unavailable",
   });
 
@@ -1806,13 +1809,18 @@ export function assertCurrencyConvertedValuation(result: RunFixtureResult): void
       `pinned ${pinned.periodEnd} quoted close`,
     );
     expectNear(
-      priceToEarnings?.status === "populated" ? priceToEarnings.numerator : undefined,
+      priceToEarnings?.status === "value"
+        ? Number(priceToEarnings.value) *
+            (match?.observation.inputs.dilutedEps?.value ?? Number.NaN)
+        : undefined,
       pinned.pe,
       CLOSE_TOLERANCE,
       `pinned ${pinned.periodEnd} converted close`,
     );
     expectNear(
-      priceToSales?.status === "populated" ? priceToSales.numerator : undefined,
+      priceToSales?.status === "value"
+        ? Number(priceToSales.value) * (match?.observation.inputs.revenue?.value ?? Number.NaN)
+        : undefined,
       pinned.ps,
       MARKET_CAP_TOLERANCE,
       `pinned ${pinned.periodEnd} converted market cap`,

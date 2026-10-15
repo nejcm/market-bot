@@ -716,7 +716,24 @@ describe("collectSources", () => {
       "financial-lens-value",
       "capital-return",
       "operating-ratios",
+      "valuation-workbench-unavailable",
     ]);
+    expect(
+      result.metricSections?.find(({ id }) => id === "valuation-workbench-unavailable")?.metrics[0],
+    ).toMatchObject({
+      status: "missing",
+      reason: "no annual or reconciled TTM valuation basis available",
+    });
+    expect(
+      result.sourceGaps.filter(({ source }) => source === "valuation-workbench-unavailable"),
+    ).toMatchObject([
+      { triage: "material", evidenceQualityImpact: "no-cap", provider: "market-bot" },
+    ]);
+    expect(
+      deterministicSourceGaps(command, result).filter((gap) =>
+        gap.startsWith("valuation-workbench-unavailable: "),
+      ),
+    ).toHaveLength(1);
     expect(
       result.metricSections
         ?.find((section) => section.id === "operating-ratios")

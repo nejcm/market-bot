@@ -19,6 +19,8 @@ export interface MetricInput {
   readonly label: string;
   readonly value: number | string;
   readonly artifact:
+    | "priceHistory"
+    | "fx"
     | "statements"
     | "capitalOwnership"
     | "quote"

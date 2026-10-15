@@ -8,9 +8,21 @@ import type {
 } from "../sources/extended-evidence/valuation-comps";
 import type { MarketSnapshotPriceAsOf } from "../domain/market-data";
 import type { ResearchReport } from "../domain/report";
-import { metricCell } from "./equity-reader-trends";
+import { formatMetricValue } from "../sources/extended-evidence/value-format";
+import type { MetricResult } from "../sources/extended-evidence/metric-engine";
+
 import { knownSourceIds, sourceRefs } from "./markdown-primitives";
 import { stringArrayValue } from "../guards";
+
+export function valuationMetricDisplay(metric: MetricResult): string {
+  return metric.status === "value"
+    ? (formatMetricValue(metric.value, metric.unit, metric.currency) ?? "—")
+    : metric.status === "not-meaningful"
+      ? "N/M"
+      : metric.status === "not-applicable"
+        ? `not applicable (${metric.reason?.replace(/ \(SIC \d+\)$/u, "") ?? "no reason"})`
+        : `— (${metric.reason ?? "no value"})`;
+}
 
 function cell(value: string): string {
   return value.replaceAll("|", String.raw`\|`).replaceAll("\n", " ");
@@ -29,7 +41,7 @@ export function hasNoPriceHistory(observation: HistoricalValuationObservation): 
   return (
     observation.price === null &&
     Object.values(observation.metrics).some(
-      (metric) => metric.status === "suppressed" && metric.reason === "price-history-unavailable",
+      (metric) => metric.status === "missing" && metric.reason === "price-history-unavailable",
     )
   );
 }
@@ -47,23 +59,36 @@ function unpricedPeriodsLine(
   return `- ${String(unpriced.length)} period${unpriced.length === 1 ? "" : "s"} without price history: ${periods}.`;
 }
 
-function historicalRow(observation: HistoricalValuationObservation): string {
+function historicalRow(
+  observation: HistoricalValuationObservation,
+  report: ResearchReport,
+): string {
   const price =
     observation.price === null
       ? "—"
       : `${observation.price.close.toFixed(2)} ${observation.price.currency} (${observation.price.sessionDate}${fxNote(observation)})`;
-  return [
+  return `${[
     observation.basis.toUpperCase(),
     observation.periodEnd,
     observation.publicAt,
     price,
-    metricCell(observation.metrics.priceToEarnings),
-    metricCell(observation.metrics.priceToSales),
-    metricCell(observation.metrics.enterpriseValueToRevenue),
-    metricCell(observation.metrics.priceToFreeCashFlow),
+    valuationMetricDisplay(observation.metrics.priceToEarnings),
+    valuationMetricDisplay(observation.metrics.priceToSales),
+    valuationMetricDisplay(observation.metrics.enterpriseValueToRevenue),
+    valuationMetricDisplay(observation.metrics.priceToFreeCashFlow),
   ]
     .map((value) => cell(value))
-    .join(" | ");
+    .join(" | ")} | ${
+    sourceRefs(
+      knownSourceIds(report, [
+        ...new Set(
+          Object.values(observation.metrics)
+            .filter(({ status }) => status === "value")
+            .flatMap(({ sourceIds }) => sourceIds),
+        ),
+      ]),
+    ) || "—"
+  }`;
 }
 
 function peerRole(row: ValuationCompsRow, targetSymbol: string): string {
@@ -225,9 +250,9 @@ export function renderValuationWorkbenchMarkdown(
       : renderableObservations.length === 0
         ? []
         : [
-            "Basis | Statement period | First public date | First eligible close | P/E | P/S | EV/revenue | P/FCF",
-            "--- | --- | --- | --- | ---: | ---: | ---: | ---:",
-            ...renderableObservations.map((observation) => historicalRow(observation)),
+            "Basis | Statement period | First public date | First eligible close | P/E | P/S | EV/revenue | P/FCF proxy | Sources",
+            "--- | --- | --- | --- | ---: | ---: | ---: | ---: | ---",
+            ...renderableObservations.map((observation) => historicalRow(observation, report)),
           ];
   const unpricedLine = unpricedPeriodsLine(observations);
   const scopeDisclosure = valuationScopeDisclosure(observations);

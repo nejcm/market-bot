@@ -148,6 +148,9 @@ function statements(): FinancialStatementsArtifact {
         netIncome: series("netIncome", "incomeStatement", [10, 12], 13),
         consolidatedNetIncome: series("consolidatedNetIncome", "incomeStatement"),
         continuingIncome: series("continuingIncome", "incomeStatement"),
+        interestExpense: series("interestExpense", "incomeStatement"),
+        incomeTaxExpense: series("incomeTaxExpense", "incomeStatement"),
+        pretaxIncome: series("pretaxIncome", "incomeStatement"),
       },
       balanceSheet: {
         cash: series("cash", "balanceSheet", [5, 6]),
@@ -161,6 +164,7 @@ function statements(): FinancialStatementsArtifact {
       cashFlowStatement: {
         operatingCashFlow: series("operatingCashFlow", "cashFlowStatement", [15, 18], 20),
         capitalExpenditure: series("capitalExpenditure", "cashFlowStatement", [5, 6], 7),
+        depreciationAndAmortization: series("depreciationAndAmortization", "cashFlowStatement"),
         dividendsPaid: series("dividendsPaid", "cashFlowStatement"),
         shareRepurchases: series("shareRepurchases", "cashFlowStatement"),
       },

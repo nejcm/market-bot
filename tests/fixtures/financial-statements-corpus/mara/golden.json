@@ -1112,6 +1112,27 @@
       "interim": [],
       "ttm": null
     },
+    "interestExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "incomeTaxExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "pretaxIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -2769,6 +2790,13 @@
           }
         }
       }
+    },
+    "depreciationAndAmortization": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
     },
     "dividendsPaid": {
       "selectedConcept": null,

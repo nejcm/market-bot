@@ -1,7 +1,8 @@
-import type {
-  FinancialStatementName,
-  FinancialStatementSeriesKey,
-  FinancialStatementTaxonomy,
+import {
+  GROSS_PRINCIPAL_DEBT_CONCEPT,
+  type FinancialStatementName,
+  type FinancialStatementSeriesKey,
+  type FinancialStatementTaxonomy,
 } from "./financial-statements-contract";
 
 type FinancialStatementConceptAliases = Readonly<
@@ -90,6 +91,37 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
   },
 };
 
+// Ratio inputs follow the core statements: they never displace a capped period or sway taxonomy and currency.
+export const CAP_FOLLOWER_SERIES: ReadonlySet<FinancialStatementSeriesKey> = new Set([
+  "interestExpense",
+  "incomeTaxExpense",
+  "pretaxIncome",
+  "depreciationAndAmortization",
+]);
+
+// Any concept the debt selection could read, so a borrower is never recorded as not filing debt.
+export function isDebtCandidateConcept(
+  taxonomy: FinancialStatementTaxonomy,
+  concept: string,
+): boolean {
+  const debt = DEBT_CONCEPTS[taxonomy];
+  return (
+    concept === GROSS_PRINCIPAL_DEBT_CONCEPT ||
+    debt.unrecognizedBorrowing?.test(concept) === true ||
+    [
+      ...debt.totals,
+      ...debt.current.generic,
+      ...debt.current.instruments.flat(),
+      ...debt.noncurrent.generic,
+      ...debt.noncurrent.instruments.flat(),
+      ...(debt.financeLeases === undefined
+        ? []
+        : [debt.financeLeases.total, ...debt.financeLeases.split]),
+      ...Object.entries(debt.umbrellas ?? {}).flat(2),
+    ].includes(concept)
+  );
+}
+
 const DAY_MS = 86_400_000;
 const REVENUE_CONCEPT_RECENCY_BUCKET_DAYS = 100;
 
@@ -114,6 +146,8 @@ const CONCEPT_SCOPES: Readonly<Record<string, string>> = {
   ProfitLossFromContinuingOperations: "continuing operations, including NCI",
   IncomeLossFromContinuingOperationsPerDilutedShare: CONTINUING_OPERATIONS_SCOPE,
   DilutedEarningsLossPerShareFromContinuingOperations: CONTINUING_OPERATIONS_SCOPE,
+  IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments:
+    "continuing operations, before equity-method income",
 };
 
 export function conceptScope(concept: string | undefined): string | undefined {
@@ -208,6 +242,45 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
           "ProfitLossFromContinuingOperationsAttributableToOwnersOfParent",
           "ProfitLossFromContinuingOperations",
         ],
+      },
+    },
+    {
+      key: "interestExpense",
+      label: "Interest expense",
+      statement: "incomeStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: false,
+      concepts: {
+        "us-gaap": ["InterestExpense", "InterestExpenseNonoperating", "InterestExpenseDebt"],
+        "ifrs-full": ["InterestExpense"],
+      },
+    },
+    {
+      key: "incomeTaxExpense",
+      label: "Income tax expense",
+      statement: "incomeStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: false,
+      concepts: {
+        "us-gaap": ["IncomeTaxExpenseBenefit"],
+        "ifrs-full": ["IncomeTaxExpenseContinuingOperations"],
+      },
+    },
+    {
+      key: "pretaxIncome",
+      label: "Pretax income from continuing operations",
+      statement: "incomeStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: false,
+      concepts: {
+        "us-gaap": [
+          "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+          "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+        ],
+        "ifrs-full": ["ProfitLossBeforeTax"],
       },
     },
     {
@@ -319,6 +392,18 @@ export const FINANCIAL_STATEMENT_SERIES_DEFINITIONS: readonly FinancialStatement
           "PaymentsToAcquireProductiveAssets",
         ],
         "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
+      },
+    },
+    {
+      key: "depreciationAndAmortization",
+      label: "Depreciation and amortization",
+      statement: "cashFlowStatement",
+      kind: "duration",
+      unitKind: "monetary",
+      deriveTtm: false,
+      concepts: {
+        "us-gaap": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
+        "ifrs-full": ["DepreciationAndAmortisationExpense"],
       },
     },
     {

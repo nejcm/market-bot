@@ -338,6 +338,45 @@ describe("financial statement selection", () => {
         },
       },
       {
+        key: "interestExpense",
+        label: "Interest expense",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["InterestExpense", "InterestExpenseNonoperating", "InterestExpenseDebt"],
+          "ifrs-full": ["InterestExpense"],
+        },
+      },
+      {
+        key: "incomeTaxExpense",
+        label: "Income tax expense",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["IncomeTaxExpenseBenefit"],
+          "ifrs-full": ["IncomeTaxExpenseContinuingOperations"],
+        },
+      },
+      {
+        key: "pretaxIncome",
+        label: "Pretax income from continuing operations",
+        statement: "incomeStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": [
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+          ],
+          "ifrs-full": ["ProfitLossBeforeTax"],
+        },
+      },
+      {
         key: "cash",
         label: "Cash and cash equivalents",
         statement: "balanceSheet",
@@ -446,6 +485,18 @@ describe("financial statement selection", () => {
             "PaymentsToAcquireProductiveAssets",
           ],
           "ifrs-full": ["PurchaseOfPropertyPlantAndEquipment"],
+        },
+      },
+      {
+        key: "depreciationAndAmortization",
+        label: "Depreciation and amortization",
+        statement: "cashFlowStatement",
+        kind: "duration",
+        unitKind: "monetary",
+        deriveTtm: false,
+        concepts: {
+          "us-gaap": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
+          "ifrs-full": ["DepreciationAndAmortisationExpense"],
         },
       },
       {

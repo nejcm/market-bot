@@ -19,8 +19,14 @@ import type {
   FinancialStatementFact,
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
+  FinancialStatementTaxonomy,
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
-import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "../../../src/sources/extended-evidence/financial-statement-definitions";
+import {
+  conceptScope,
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  isDebtCandidateConcept,
+  scopedLabel,
+} from "../../../src/sources/extended-evidence/financial-statement-definitions";
 import { financialStatementSeriesByKey } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import type { FixtureMeta, RunFixtureResult } from ".";
@@ -74,6 +80,7 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
   assertMetricSectionInvariants(result, report);
+  assertOperatingRatioInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
   for (const prediction of report.predictions) {
@@ -326,7 +333,11 @@ function assertNotFiledCause(
   const cutoff = statements.analysisAsOf.slice(0, 10);
   for (const { key, concepts } of FINANCIAL_STATEMENT_SERIES_DEFINITIONS) {
     for (const [taxonomy, names] of unfiled.includes(key) ? Object.entries(concepts) : []) {
-      for (const concept of names) {
+      const debtCandidates = Object.keys(isRecord(facts[taxonomy]) ? facts[taxonomy] : {}).filter(
+        (concept) =>
+          key === "debt" && isDebtCandidateConcept(taxonomy as FinancialStatementTaxonomy, concept),
+      );
+      for (const concept of [...names, ...debtCandidates]) {
         expect(
           rawFiledCount(facts, taxonomy, concept, cutoff),
           `${label}: ${key} unfiled but ${taxonomy}:${concept} has facts`,
@@ -636,6 +647,264 @@ export function assertMetricSectionInvariants(
       expect(quote.currency, `${label} quote currency matches reporting`).toBe(
         statementFacts[0]?.currency,
       );
+    }
+  }
+}
+
+const OPERATING_RATIO_INPUTS: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
+  freeCashFlowMargin: ["operatingCashFlow", "capitalExpenditure", "revenue"],
+  interestCoverage: ["operatingIncome", "interestExpense"],
+  ebitdaProxy: ["operatingIncome", "depreciationAndAmortization"],
+  effectiveTaxRate: ["incomeTaxExpense", "pretaxIncome"],
+  roic: [
+    "operatingIncome",
+    "incomeTaxExpense",
+    "pretaxIncome",
+    "stockholdersEquity",
+    "debt",
+    "cash",
+  ],
+};
+const INVESTED_CAPITAL = new Set<string>(["stockholdersEquity", "debt", "cash"]);
+const OPERATING_RATIO_DEPOSITORY = new Set(["freeCashFlowMargin", "interestCoverage", "roic"]);
+
+// R2 bounds re-checked over raw values; a not-meaningful metric must hit one, a value must not.
+function operatingRatioBound(
+  metricId: string,
+  valueOf: (key: string) => number | undefined,
+): string | undefined {
+  const below = (key: string, inclusive = true) => {
+    const value = valueOf(key);
+    return value !== undefined && (inclusive ? value <= 0 : value < 0);
+  };
+  const [tax, pretax] = [valueOf("incomeTaxExpense"), valueOf("pretaxIncome")];
+  const [equity, debt, cash] = [valueOf("stockholdersEquity"), valueOf("debt"), valueOf("cash")];
+  switch (metricId) {
+    case "freeCashFlowMargin": {
+      return below("revenue") ? "revenue not positive" : undefined;
+    }
+    case "interestCoverage": {
+      return below("interestExpense") ? "interest expense not positive" : undefined;
+    }
+    case "ebitdaProxy": {
+      return below("depreciationAndAmortization", false) ? "D&A negative" : undefined;
+    }
+    case "effectiveTaxRate": {
+      return below("pretaxIncome") ? "pretax income not positive" : undefined;
+    }
+    case "roic": {
+      if (below("pretaxIncome")) {
+        return "pretax income not positive";
+      }
+      if (tax !== undefined && pretax !== undefined && (tax / pretax < 0 || tax / pretax > 1)) {
+        return "effective tax rate outside 0-100%";
+      }
+      return equity !== undefined &&
+        debt !== undefined &&
+        cash !== undefined &&
+        equity + debt - cash <= 0
+        ? "invested capital not positive"
+        : undefined;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+function instantFact(
+  statements: FinancialStatementsArtifact,
+  key: FinancialStatementSeriesKey,
+  periodEnd: string,
+): FinancialStatementFact | undefined {
+  const series = financialStatementSeriesByKey(statements, key);
+  const matches = [...(series?.annual ?? []), ...(series?.interim ?? [])].filter(
+    (fact) => fact.periodKey === `instant|${periodEnd}`,
+  );
+  return matches.find((fact) => fact.periodType === "annual") ?? matches[0];
+}
+
+// Operating Ratios: flows join like Capital Return; filed instants sit at the anchor's own end.
+function operatingRatioFiledFailure(
+  run: MetricInvariantRun,
+  metricId: string,
+  statements: FinancialStatementsArtifact,
+  filed: readonly FinancialStatementSeriesKey[],
+  withBounds = true,
+): string | undefined {
+  const flows = filed.filter((key) => !INVESTED_CAPITAL.has(key));
+  const joinFailure = capitalReturnFiledFailure(run, metricId, statements, flows);
+  const [anchorKey] = flows;
+  if (joinFailure !== undefined || anchorKey === undefined) {
+    return joinFailure;
+  }
+  const anchor = annualFacts(statements, anchorKey)
+    .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd))
+    .at(0)!;
+  const facts = new Map(
+    filed.map((key) => [
+      key,
+      INVESTED_CAPITAL.has(key)
+        ? instantFact(statements, key, anchor.periodEnd)
+        : annualFacts(statements, key).find(
+            (fact) =>
+              fact.periodEnd === anchor.periodEnd && fact.periodStart === anchor.periodStart,
+          ),
+    ]),
+  );
+  const absent = filed.find((key) => facts.get(key) === undefined);
+  if (absent !== undefined) {
+    return `no ${absent} at ${anchor.periodEnd}`;
+  }
+  return withBounds
+    ? operatingRatioBound(metricId, (key) => facts.get(key as FinancialStatementSeriesKey)?.value)
+    : undefined;
+}
+
+export function assertOperatingRatioInvariants(
+  run: MetricInvariantRun,
+  report: ResearchReport,
+): void {
+  const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
+  const statements = run.collectedSources.financialStatements;
+  const section = sections?.find(({ id }) => id === "operating-ratios");
+  expect(section !== undefined, "statements imply an Operating Ratios Metric Section").toBe(
+    statements !== undefined,
+  );
+  expect(run.markdown.includes("### Operating Ratios\n")).toBe(section !== undefined);
+  if (section === undefined || statements === undefined) {
+    return;
+  }
+  expect(
+    report.dataGaps.some((gap) => gap.startsWith("operating-ratios: ")),
+    "an unresolved Operating Ratios metric must surface its section gap",
+  ).toBe(section.metrics.some(({ status }) => status !== "value"));
+  expect(
+    run.collectedSources.sourceGaps
+      .filter(({ source }) => source === "operating-ratios")
+      .every(({ evidenceQualityImpact }) => evidenceQualityImpact === "no-cap"),
+  ).toBe(true);
+  const missing = section.metrics.filter(({ status }) => status === "missing");
+  if (missing.length > 0) {
+    expect(
+      run.collectedSources.sourceGaps.find(({ source }) => source === "operating-ratios")?.triage,
+      "operating-ratios gap is diagnostic only when every missing metric is not-filed",
+    ).toBe(missing.every(({ cause }) => cause === "not-filed") ? "diagnostic" : "material");
+  }
+  expect(
+    section.metrics.map(({ id }) => id),
+    "operating-ratios carries every metric in order",
+  ).toEqual(Object.keys(OPERATING_RATIO_INPUTS));
+  const depositorySic = depositoryIssuerSic(run.collectedSources.extendedEvidence);
+  const reportSourceIds = new Set(report.sources.map(({ id }) => id));
+  for (const metric of section.metrics) {
+    const id = String(metric.id);
+    const label = `operating-ratios.${id}`;
+    const required = OPERATING_RATIO_INPUTS[id];
+    expect(required, `${label} is a known metric`).toBeDefined();
+    expect(
+      metric.status === "not-applicable",
+      `${label} is not-applicable iff the issuer is a depository`,
+    ).toBe(depositorySic !== undefined && OPERATING_RATIO_DEPOSITORY.has(id));
+    if (metric.status === "not-applicable") {
+      expect(metric.reason, `${label} names the depository SIC`).toContain(
+        `SIC ${String(depositorySic)}`,
+      );
+      expect(metric.inputs, `${label} has no inputs`).toEqual([]);
+      continue;
+    }
+    for (const sourceId of metric.sourceIds) {
+      expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
+    }
+    const resolved = metric.inputs.map((input) =>
+      resolveInput(run, input, `${label} ${input.label}`),
+    );
+    expect(
+      metric.inputs.every(({ series }) =>
+        required?.includes(series as FinancialStatementSeriesKey),
+      ),
+      `${label} reads only its own inputs`,
+    ).toBe(true);
+    const flows = resolved.filter((fact) => fact?.periodStart !== undefined);
+    const instants = resolved.filter((fact) => fact?.periodStart === undefined);
+    expect(
+      new Set(flows.map((fact) => `${fact?.periodKey}/${fact?.periodType}`)).size,
+      `${label} flow inputs join one period`,
+    ).toBeLessThanOrEqual(1);
+    const anchorEnd = flows[0]?.periodEnd;
+    for (const instant of instants) {
+      expect(instant?.periodKey, `${label} instants sit at the flow period end`).toBe(
+        `instant|${String(anchorEnd)}`,
+      );
+    }
+    if (anchorEnd !== undefined) {
+      expect(metric.periodEnd, `${label} ends at its anchor FY`).toBe(anchorEnd);
+    }
+    const valueOf = (key: string): number | undefined => {
+      const index = metric.inputs.findIndex(({ series }) => series === key);
+      return index === -1 ? undefined : Number(resolved[index]?.value);
+    };
+    const pretax = metric.inputs.find(({ series }) => series === "pretaxIncome");
+    const pretaxFact =
+      pretax === undefined
+        ? undefined
+        : financialStatementSeriesByKey(statements, "pretaxIncome")?.annual.find(
+            (fact) => fact.periodKey === pretax.periodKey,
+          );
+    const pretaxLabel = scopedLabel("pretax income", conceptScope(pretaxFact?.concept));
+    if (pretax !== undefined) {
+      expect(pretax.label, `${label} labels pretax income by its concept scope`).toBe(pretaxLabel);
+    }
+    expect(
+      metric.basis.endsWith(`; pretax income is ${pretaxLabel}`),
+      `${label} basis names the pretax scope`,
+    ).toBe(pretaxLabel !== "pretax income");
+    if (metric.cause === "not-filed") {
+      assertNotFiledCause(run, label, required, (artifact, filed) =>
+        operatingRatioFiledFailure(run, id, artifact, filed),
+      );
+    } else if (metric.status === "missing") {
+      const unfiled = new Set(statements.unfiledSeries ?? []);
+      expect(
+        operatingRatioFiledFailure(
+          run,
+          id,
+          statements,
+          (required ?? []).filter((key) => !unfiled.has(key)),
+          false,
+        ),
+        `${label} missing has a filed input that fails to resolve`,
+      ).toBeDefined();
+    }
+    if (metric.status === "not-meaningful") {
+      expect(
+        operatingRatioBound(id, valueOf),
+        `${label} not-meaningful hits a bound`,
+      ).toBeDefined();
+      continue;
+    }
+    if (metric.status !== "value") {
+      continue;
+    }
+    expect(
+      metric.inputs.map(({ series }) => series),
+      `${label} joins every input`,
+    ).toEqual([...(required ?? [])]);
+    expect(operatingRatioBound(id, valueOf), `${label} value passes its bounds`).toBeUndefined();
+    const at = (key: string): number => valueOf(key) ?? Number.NaN;
+    const expected = {
+      freeCashFlowMargin:
+        (at("operatingCashFlow") - Math.abs(at("capitalExpenditure"))) / at("revenue"),
+      interestCoverage: at("operatingIncome") / at("interestExpense"),
+      ebitdaProxy: at("operatingIncome") + at("depreciationAndAmortization"),
+      effectiveTaxRate: at("incomeTaxExpense") / at("pretaxIncome"),
+      roic:
+        (at("operatingIncome") * (1 - at("incomeTaxExpense") / at("pretaxIncome"))) /
+        (at("stockholdersEquity") + at("debt") - at("cash")),
+    }[id];
+    expectClose(metric.value, expected ?? Number.NaN, label);
+    if (metric.unit === "currency") {
+      expect(metric.currency, `${label} carries its filed currency`).toBe(flows[0]?.currency);
     }
   }
 }

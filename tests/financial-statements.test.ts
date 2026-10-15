@@ -683,6 +683,44 @@ describe("canonical financial statements", () => {
     );
   });
 
+  test("ratio-input series never sway the taxonomy election", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          NetIncomeLoss: { USD: [annual(100, 2025)] },
+          NetCashProvidedByUsedInOperatingActivities: { USD: [annual(200, 2025)] },
+        },
+        "ifrs-full": {
+          Revenue: { USD: [annual(1000, 2025, "20-F")] },
+          ProfitLoss: { USD: [annual(100, 2025, "20-F")] },
+          InterestExpense: { USD: [annual(40, 2025, "20-F")] },
+          IncomeTaxExpenseContinuingOperations: { USD: [annual(32, 2025, "20-F")] },
+          ProfitLossBeforeTax: { USD: [annual(160, 2025, "20-F")] },
+        },
+      }),
+    );
+
+    expect(artifact.taxonomy).toBe("us-gaap");
+  });
+
+  test("ratio-input series never sway the revenue-absent currency election", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          NetIncomeLoss: { USD: [annual(100, 2024)] },
+          InterestExpense: { EUR: [annual(40, 2025)] },
+          DepreciationDepletionAndAmortization: { EUR: [annual(50, 2025)] },
+        },
+      }),
+    );
+
+    expect(artifact.reportingCurrency).toBe("USD");
+    expect(artifact.statements.incomeStatement.netIncome.annual).toEqual([
+      expect.objectContaining({ value: 100 }),
+    ]);
+  });
+
   test("chooses the first standard concept eligible at the cutoff and reporting currency", () => {
     const artifact = derive(
       payload({
@@ -923,6 +961,97 @@ describe("canonical financial statements", () => {
       annual: [],
       interim: [],
     });
+  });
+
+  test("selects ratio-input series by us-gaap priority into their own statements", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          InterestExpense: { USD: [annual(40, 2025)] },
+          InterestExpenseNonoperating: { USD: [annual(41, 2025)] },
+          IncomeTaxExpenseBenefit: { USD: [annual(32, 2025)] },
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest:
+            {
+              USD: [annual(160, 2025)],
+            },
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments:
+            { USD: [annual(161, 2025)] },
+          DepreciationDepletionAndAmortization: { USD: [annual(50, 2025)] },
+          DepreciationAndAmortization: { USD: [annual(51, 2025)] },
+        },
+      }),
+    );
+    const { incomeStatement, cashFlowStatement } = artifact.statements;
+
+    expect(incomeStatement.interestExpense.annual).toEqual([
+      expect.objectContaining({ value: 40, concept: "InterestExpense" }),
+    ]);
+    expect(incomeStatement.incomeTaxExpense.annual).toEqual([
+      expect.objectContaining({ value: 32, concept: "IncomeTaxExpenseBenefit" }),
+    ]);
+    expect(incomeStatement.pretaxIncome).toMatchObject({
+      label: "Pretax income from continuing operations",
+      statement: "incomeStatement",
+      annual: [{ value: 160 }],
+    });
+    expect(cashFlowStatement.depreciationAndAmortization).toMatchObject({
+      statement: "cashFlowStatement",
+      annual: [{ value: 50, concept: "DepreciationDepletionAndAmortization" }],
+    });
+  });
+
+  test("falls back to the later ratio-input aliases when the first is not filed", () => {
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(1000, 2025)] },
+          InterestExpenseDebt: { USD: [annual(39, 2025)] },
+          IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments:
+            { USD: [annual(161, 2025)] },
+          DepreciationAndAmortization: { USD: [annual(51, 2025)] },
+        },
+      }),
+    );
+    const { incomeStatement, cashFlowStatement } = artifact.statements;
+
+    expect(incomeStatement.interestExpense.annual).toEqual([
+      expect.objectContaining({ value: 39, concept: "InterestExpenseDebt" }),
+    ]);
+    expect(incomeStatement.pretaxIncome.annual).toEqual([expect.objectContaining({ value: 161 })]);
+    expect(cashFlowStatement.depreciationAndAmortization.annual).toEqual([
+      expect.objectContaining({ value: 51, concept: "DepreciationAndAmortization" }),
+    ]);
+    expect(incomeStatement.incomeTaxExpense).toMatchObject({ annual: [], interim: [] });
+  });
+
+  test("selects IFRS ratio-input series in the reporting currency only", () => {
+    const both = (eur: number, usd: number) => ({
+      EUR: [annual(eur, 2025, "20-F")],
+      USD: [annual(usd, 2025, "20-F")],
+    });
+    const artifact = derive(
+      payload({
+        "ifrs-full": {
+          Revenue: { EUR: [annual(1000, 2025, "20-F")] },
+          InterestExpense: both(40, 44),
+          IncomeTaxExpenseContinuingOperations: both(32, 35),
+          ProfitLossBeforeTax: both(160, 176),
+          DepreciationAndAmortisationExpense: both(50, 55),
+        },
+      }),
+    );
+    const { incomeStatement, cashFlowStatement } = artifact.statements;
+
+    for (const series of [
+      incomeStatement.interestExpense,
+      incomeStatement.incomeTaxExpense,
+      incomeStatement.pretaxIncome,
+      cashFlowStatement.depreciationAndAmortization,
+    ]) {
+      expect(series.annual).toEqual([expect.objectContaining({ currency: "EUR" })]);
+    }
+    expect(incomeStatement.pretaxIncome.annual[0]?.value).toBe(160);
   });
 
   describe("stale concept history", () => {
@@ -1765,6 +1894,55 @@ describe("canonical financial statements", () => {
     expect(artifact.omissionNotes.filter((note) => note.code === "history-cap")).toEqual([
       expect.objectContaining({ seriesKey: "dividendsPerShare" }),
       expect.objectContaining({ seriesKey: "dividendsPerShare" }),
+    ]);
+  });
+
+  test("keeps ratio-input periods inside the statements' window without displacing one", () => {
+    const quarter = (value: number, year: number, endMonth: number, startMonth = endMonth - 2) =>
+      fact({
+        value,
+        form: "10-Q",
+        fiscalYear: year,
+        fiscalPeriod: `Q${String(endMonth / 3)}`,
+        filedAt: `${String(year)}-${String(endMonth + 1).padStart(2, "0")}-20`,
+        periodStart: `${String(year)}-${String(startMonth).padStart(2, "0")}-01`,
+        periodEnd: `${String(year)}-${String(endMonth).padStart(2, "0")}-${endMonth === 6 || endMonth === 9 ? "30" : "31"}`,
+      });
+    const quarters = [2022, 2023, 2024, 2025].flatMap((year) =>
+      [3, 6, 9].map((month) => quarter(100, year, month)),
+    );
+    const artifact = derive(
+      payload({
+        "us-gaap": {
+          Revenues: { USD: [annual(400, 2024), ...quarters] },
+          InterestExpense: {
+            USD: [
+              annual(9, 2020),
+              annual(10, 2024),
+              ...quarters.map((item) => ({ ...item, val: 5 })),
+              quarter(10, 2025, 6, 1),
+              quarter(15, 2025, 9, 1),
+            ],
+          },
+        },
+      }),
+      { analysisAsOf: "2025-12-01T00:00:00.000Z" },
+    );
+    const { revenue, interestExpense } = artifact.statements.incomeStatement;
+
+    expect(revenue.interim).toHaveLength(12);
+    expect(interestExpense.interim.map((item) => item.periodKey)).toEqual(
+      revenue.interim.map((item) => item.periodKey),
+    );
+    expect(interestExpense.annual.map((item) => item.periodEnd)).toEqual(["2024-12-31"]);
+    expect(
+      artifact.omissionNotes
+        .filter((note) => note.seriesKey === "interestExpense")
+        .map(({ code, periodKey }) => [code, periodKey]),
+    ).toEqual([
+      ["history-cap", "annual|duration:12|2020-12-31"],
+      ["history-cap", "interim|duration:6|2025-06-30"],
+      ["history-cap", "interim|duration:9|2025-09-30"],
     ]);
   });
 

@@ -336,6 +336,27 @@
       "interim": [],
       "ttm": null
     },
+    "interestExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "incomeTaxExpense": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
+    "pretaxIncome": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
+      "interim": [],
+      "ttm": null
+    },
     "cash": {
       "selectedConcept": "CashAndCashEquivalentsAtCarryingValue",
       "selectedFact": {
@@ -980,6 +1001,13 @@
           "unit": "USD"
         }
       ],
+      "interim": [],
+      "ttm": null
+    },
+    "depreciationAndAmortization": {
+      "selectedConcept": null,
+      "selectedFact": null,
+      "annual": [],
       "interim": [],
       "ttm": null
     },

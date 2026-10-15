@@ -510,7 +510,7 @@ describe("loadRunArtifact", () => {
     );
   });
 
-  test("reads dividends per share as empty from statements written before the series", async () => {
+  test("reads later series as empty, each in its own statement, from statements written before them", async () => {
     const preDividendsPerShare: unknown = await Bun.file(
       new URL("fixtures/artifacts/financial-statements-asts-readable-v1.json", import.meta.url),
     ).json();
@@ -561,6 +561,23 @@ describe("loadRunArtifact", () => {
       expect(
         artifact?.financialStatements?.statements.incomeStatement.revenue.annual.length,
       ).toBeGreaterThan(0);
+      const statements = artifact?.financialStatements?.statements;
+      for (const [statement, key] of [
+        ["incomeStatement", "interestExpense"],
+        ["incomeStatement", "incomeTaxExpense"],
+        ["incomeStatement", "pretaxIncome"],
+        ["cashFlowStatement", "depreciationAndAmortization"],
+      ] as const) {
+        expect(
+          (statements?.[statement] as Record<string, unknown> | undefined)?.[key],
+        ).toMatchObject({ key, statement, annual: [], interim: [] });
+      }
+      expect(Object.keys(statements?.perShare ?? {}).toSorted()).toEqual([
+        "continuingDilutedEps",
+        "dilutedEps",
+        "dilutedShares",
+        "dividendsPerShare",
+      ]);
     }
   });
 

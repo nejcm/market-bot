@@ -1,4 +1,5 @@
 import {
+  CAP_FOLLOWER_SERIES,
   DEBT_CONCEPTS,
   type DebtTaxonomyConcepts,
   type FinancialStatementSeriesDefinition,
@@ -865,7 +866,11 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
   readonly series: readonly FinancialStatementSeries[];
   readonly notes: readonly FinancialStatementNote[];
 } {
-  const statements = capSharedPeriods(series.filter((item) => !isDividendsPerShare(item)));
+  const nonDividend = series.filter((item) => !isDividendsPerShare(item));
+  const statements = capSharedPeriods(
+    nonDividend,
+    nonDividend.filter((item) => !CAP_FOLLOWER_SERIES.has(item.key)),
+  );
   const dividends = capSharedPeriods(series.filter(isDividendsPerShare));
   const capped = new Map(
     [...statements.series, ...dividends.series].map((item) => [item.key, item]),
@@ -879,7 +884,10 @@ export function capFinancialStatementPeriods(series: readonly FinancialStatement
   };
 }
 
-function capSharedPeriods(series: readonly FinancialStatementSeries[]): {
+function capSharedPeriods(
+  series: readonly FinancialStatementSeries[],
+  keySeries: readonly FinancialStatementSeries[] = series,
+): {
   readonly series: readonly FinancialStatementSeries[];
   readonly notes: readonly FinancialStatementNote[];
 } {
@@ -896,7 +904,7 @@ function capSharedPeriods(series: readonly FinancialStatementSeries[]): {
     const allowedByShape = { duration: new Set<string>(), instant: new Set<string>() };
     for (const shape of ["duration", "instant"] as const) {
       const periodFacts = new Map<string, FinancialStatementFact>();
-      for (const fact of series.flatMap((item) => item[period])) {
+      for (const fact of keySeries.flatMap((item) => item[period])) {
         if ((fact.periodStart === undefined ? "instant" : "duration") === shape) {
           periodFacts.set(fact.periodKey, fact);
         }
@@ -926,6 +934,19 @@ function capSharedPeriods(series: readonly FinancialStatementSeries[]): {
     const shape = fact.periodStart === undefined ? "instant" : "duration";
     return periods[shape].has(fact.periodKey);
   };
+  for (const item of series.filter((candidate) => !keySeries.includes(candidate))) {
+    for (const period of ["annual", "interim"] as const) {
+      const dropped = item[period].filter((fact) => !keep(period, fact));
+      for (const periodKey of new Set(dropped.map((fact) => fact.periodKey))) {
+        notes.push({
+          code: "history-cap",
+          seriesKey: item.key,
+          periodKey: `${period}|${periodKey}`,
+          message: `${item.label} ${period} period ${periodKey} omitted: the core statements do not retain it`,
+        });
+      }
+    }
+  }
   return {
     series: series.map((item) => ({
       ...item,

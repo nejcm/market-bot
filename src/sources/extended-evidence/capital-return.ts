@@ -2,6 +2,7 @@ import type {
   FinancialStatementFact,
   FinancialStatementSeriesKey,
 } from "./financial-statements-contract";
+import { conceptScope, scopedLabel } from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
   earlierShareBasisPeriods,
@@ -20,23 +21,41 @@ import {
   statementInput as metricStatementInput,
 } from "./metric-engine";
 
-type CapitalReturnSeries =
+export type JoinSeries =
   | "dividendsPaid"
   | "shareRepurchases"
   | "operatingCashFlow"
   | "capitalExpenditure"
   | "dilutedShares"
-  | "dividendsPerShare";
+  | "dividendsPerShare"
+  | "revenue"
+  | "operatingIncome"
+  | "interestExpense"
+  | "incomeTaxExpense"
+  | "pretaxIncome"
+  | "depreciationAndAmortization"
+  | "stockholdersEquity"
+  | "debt"
+  | "cash";
 
-type FiscalYearSeries = readonly [CapitalReturnSeries, ...CapitalReturnSeries[]];
+type FiscalYearSeries = readonly [JoinSeries, ...JoinSeries[]];
 
-const SERIES_LABELS: Readonly<Record<CapitalReturnSeries, string>> = {
+export const SERIES_LABELS: Readonly<Record<JoinSeries, string>> = {
   dividendsPaid: "dividends paid",
   shareRepurchases: "share repurchases",
   operatingCashFlow: "operating cash flow",
   capitalExpenditure: "capital expenditure",
   dilutedShares: "diluted shares",
   dividendsPerShare: "dividends per share",
+  revenue: "revenue",
+  operatingIncome: "operating income",
+  interestExpense: "interest expense",
+  incomeTaxExpense: "income tax expense",
+  pretaxIncome: "pretax income",
+  depreciationAndAmortization: "depreciation and amortization",
+  stockholdersEquity: "stockholders' equity",
+  debt: "debt",
+  cash: "cash and cash equivalents",
 };
 
 const DAY_MS = 86_400_000;
@@ -65,7 +84,7 @@ type FiscalYearSelection =
 
 function notFiledSelection(
   ctx: MetricContext,
-  key: CapitalReturnSeries,
+  key: JoinSeries,
   facts: readonly FinancialStatementFact[],
 ): MissingSelection | undefined {
   return seriesNotFiled(ctx, key)
@@ -89,8 +108,9 @@ function eligibleAnnualFacts(
     .toSorted(compareFinancialStatementFacts);
 }
 
-function statementInput(fact: FinancialStatementFact, key: CapitalReturnSeries): MetricInput {
-  return metricStatementInput(fact, key, SERIES_LABELS[key]);
+export function statementInput(fact: FinancialStatementFact, key: JoinSeries): MetricInput {
+  const scope = key === "pretaxIncome" ? conceptScope(fact.concept) : undefined;
+  return metricStatementInput(fact, key, scopedLabel(SERIES_LABELS[key], scope));
 }
 
 // Month-end period ends map to month-end due dates (June 30 -> October 31).
@@ -139,17 +159,17 @@ function fiscalYearFacts(ctx: MetricContext, keys: FiscalYearSeries): FiscalYear
   return { facts };
 }
 
-type Gate = (
+export type Gate = (
   ctx: MetricContext,
   facts: readonly FinancialStatementFact[],
-  keys: readonly CapitalReturnSeries[],
+  keys: readonly JoinSeries[],
 ) => MetricOutcome | undefined;
 
 const NO_GATE: Gate = () => undefined;
 
 // Unfiled inputs are wildcards: the filed ones still run the full anchor, join, freshness and gate path,
 // And any failure there wins; only a would-be value becomes not-filed.
-function joinedMetric(
+export function joinedMetric(
   keys: FiscalYearSeries,
   gate: Gate,
   compute: (ctx: MetricContext, facts: readonly FinancialStatementFact[]) => MetricOutcome,
@@ -183,7 +203,7 @@ function joinedMetric(
 
 function missingOutcome(
   { facts, missing: reason, cause }: MissingSelection,
-  keys: readonly CapitalReturnSeries[],
+  keys: readonly JoinSeries[],
   extraInputs: readonly MetricInput[] = [],
 ): MetricOutcome {
   const [anchor] = facts;
@@ -196,9 +216,9 @@ function missingOutcome(
   };
 }
 
-function inputsOf(
+export function inputsOf(
   facts: readonly FinancialStatementFact[],
-  keys: readonly CapitalReturnSeries[],
+  keys: readonly JoinSeries[],
 ): readonly MetricInput[] {
   return facts.map((fact, index) => statementInput(fact, keys[index]!));
 }
@@ -207,7 +227,7 @@ function absoluteSum(facts: readonly FinancialStatementFact[]): number {
   return facts.reduce((sum, fact) => sum + Math.abs(fact.value), 0);
 }
 
-function latestFyAmount(key: CapitalReturnSeries) {
+function latestFyAmount(key: JoinSeries) {
   return joinedMetric([key], NO_GATE, (_ctx, [fact]) => ({
     status: "value",
     value: Math.abs(fact!.value),
@@ -467,7 +487,7 @@ function marketCapYield(keys: FiscalYearSeries) {
 
 function freeCashFlowOf(
   facts: readonly FinancialStatementFact[],
-  keys: readonly CapitalReturnSeries[],
+  keys: readonly JoinSeries[],
 ): number | undefined {
   const operatingCashFlow = facts[keys.indexOf("operatingCashFlow")];
   const capitalExpenditure = facts[keys.indexOf("capitalExpenditure")];

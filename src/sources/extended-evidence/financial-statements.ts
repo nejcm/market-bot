@@ -9,7 +9,9 @@ import {
   type SecCompanyFactsResult,
 } from "./sec-edgar";
 import {
+  CAP_FOLLOWER_SERIES,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+  isDebtCandidateConcept,
   isRevenueConceptInRecencyBucket,
   type FinancialStatementSeriesDefinition,
 } from "./financial-statement-definitions";
@@ -563,20 +565,21 @@ function dividendPaymentFiled(
   );
 }
 
-// Any raw row, even malformed, counts as filed. Debt is also built from DEBT_CONCEPTS instruments.
+// Any raw row, even malformed, counts as filed.
 function unfiledSeries(
   payload: unknown,
   analysisAsOf: string,
 ): readonly FinancialStatementSeriesKey[] {
-  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
-    (definition) =>
-      definition.key !== "debt" &&
-      TAXONOMIES.every((taxonomy) =>
-        definition.concepts[taxonomy].every(
-          (concept) =>
-            rawConceptRows(taxonomyRoot(payload, taxonomy), concept, analysisAsOf).length === 0,
-        ),
-      ),
+  const filed = (taxonomy: FinancialStatementTaxonomy, concept: string) =>
+    rawConceptRows(taxonomyRoot(payload, taxonomy), concept, analysisAsOf).length > 0;
+  return FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter((definition) =>
+    TAXONOMIES.every((taxonomy) =>
+      definition.key === "debt"
+        ? !Object.keys(taxonomyRoot(payload, taxonomy) ?? {}).some(
+            (concept) => isDebtCandidateConcept(taxonomy, concept) && filed(taxonomy, concept),
+          )
+        : !definition.concepts[taxonomy].some((concept) => filed(taxonomy, concept)),
+    ),
   ).map((definition) => definition.key);
 }
 
@@ -585,19 +588,21 @@ function isObservable(fact: ParsedFact, analysisAsOf: string): boolean {
   return fact.periodEnd <= cutoff && fact.filedAt <= cutoff;
 }
 
+const ELECTING_DEFINITIONS = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
+  (definition) => !CAP_FOLLOWER_SERIES.has(definition.key),
+);
+
 function taxonomyScore(
   payload: unknown,
   taxonomy: FinancialStatementTaxonomy,
   analysisAsOf: string,
 ): readonly [number, string, number, number] {
-  const seriesFacts = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.map((definition) =>
+  const seriesFacts = ELECTING_DEFINITIONS.map((definition) =>
     allFactsForDefinition(payload, taxonomy, definition).filter((fact) =>
       isObservable(fact, analysisAsOf),
     ),
   );
-  const revenueIndex = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.findIndex(
-    (definition) => definition.key === "revenue",
-  );
+  const revenueIndex = ELECTING_DEFINITIONS.findIndex((definition) => definition.key === "revenue");
   if (revenueIndex === -1) {
     throw new Error("Financial statement definitions must include revenue");
   }
@@ -667,9 +672,7 @@ function selectReportingCurrency(
   const pool =
     revenueFacts.length > 0
       ? revenueFacts
-      : FINANCIAL_STATEMENT_SERIES_DEFINITIONS.filter(
-          (definition) => definition.unitKind === "monetary",
-        )
+      : ELECTING_DEFINITIONS.filter((definition) => definition.unitKind === "monetary")
           .flatMap((definition) => allFactsForDefinition(payload, taxonomy, definition))
           .filter((fact) => isObservable(fact, analysisAsOf));
   const byCurrency = new Map<string, ParsedFact[]>();
@@ -1314,7 +1317,7 @@ function filingHasStructuredFact(filing: SubmissionFiling, facts: readonly Parse
 
 function supportedSixKFacts(payload: unknown, analysisAsOf: string): readonly ParsedFact[] {
   return TAXONOMIES.flatMap((taxonomy) =>
-    FINANCIAL_STATEMENT_SERIES_DEFINITIONS.flatMap((definition) =>
+    ELECTING_DEFINITIONS.flatMap((definition) =>
       allFactsForDefinition(payload, taxonomy, definition),
     ),
   ).filter((fact) => fact.canonicalForm === "6-K" && isObservable(fact, analysisAsOf));
@@ -1670,6 +1673,9 @@ function seriesRecord(
       netIncome: get("netIncome"),
       consolidatedNetIncome: get("consolidatedNetIncome"),
       continuingIncome: get("continuingIncome"),
+      interestExpense: get("interestExpense"),
+      incomeTaxExpense: get("incomeTaxExpense"),
+      pretaxIncome: get("pretaxIncome"),
     },
     balanceSheet: {
       cash: get("cash"),
@@ -1683,6 +1689,7 @@ function seriesRecord(
     cashFlowStatement: {
       operatingCashFlow: get("operatingCashFlow"),
       capitalExpenditure: get("capitalExpenditure"),
+      depreciationAndAmortization: get("depreciationAndAmortization"),
       dividendsPaid: get("dividendsPaid"),
       shareRepurchases: get("shareRepurchases"),
     },

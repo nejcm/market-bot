@@ -665,7 +665,7 @@ describe("collectSources", () => {
     ).toHaveLength(1);
   });
 
-  test("carries the Capital Return Metric Section and its gap into deterministic source gaps", async () => {
+  test("carries the statement Metric Sections and their gaps into deterministic source gaps", async () => {
     const command = {
       jobType: "equity",
       assetClass: "equity",
@@ -711,7 +711,22 @@ describe("collectSources", () => {
       "business-framework-risk",
       "business-framework-valuation",
       "capital-return",
+      "operating-ratios",
     ]);
+    expect(
+      result.metricSections
+        ?.find((section) => section.id === "operating-ratios")
+        ?.metrics.find((m) => m.id === "effectiveTaxRate"),
+    ).toMatchObject({
+      status: "missing",
+      reason: "income tax expense and pretax income not filed by the issuer",
+      cause: "not-filed",
+    });
+    expect(
+      deterministicSourceGaps(command, result).filter((gap) =>
+        gap.startsWith("operating-ratios: Operating Ratios metrics for AAPL not computed: "),
+      ),
+    ).toHaveLength(1);
     expect(
       result.metricSections
         ?.find((section) => section.id === "capital-return")

@@ -67,7 +67,8 @@ export interface MetricContext {
   readonly asOf?: string;
 }
 
-export type MetricOutcome =
+// `basis` replaces the definition's when the selected inputs narrow it.
+export type MetricOutcome = (
   | {
       readonly status: "value";
       readonly value: number | string;
@@ -88,7 +89,8 @@ export type MetricOutcome =
       readonly reason: string;
       readonly periodEnd?: string;
       readonly inputs?: readonly MetricInput[];
-    };
+    }
+) & { readonly basis?: string };
 
 export function seriesNotFiled(ctx: MetricContext, key: FinancialStatementSeriesKey): boolean {
   return ctx.statements?.unfiledSeries?.includes(key) === true;

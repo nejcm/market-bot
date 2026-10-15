@@ -48,6 +48,7 @@ import {
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { capitalReturnSection } from "./extended-evidence/capital-return";
+import { operatingRatiosSection } from "./extended-evidence/operating-ratios";
 import type { MetricSection } from "./extended-evidence/metric-engine";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
@@ -382,20 +383,27 @@ export async function collectEquityEnrichment(
     input.fetchedAt,
     financialStatements,
   );
-  const capitalReturn =
+  const statementSections =
     financialStatements === undefined
-      ? undefined
-      : capitalReturnSection({
-          symbol: input.command.symbol,
-          statements: financialStatements,
-          ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
-          ...quoteContext(
-            input.command,
-            input.marketSnapshots,
-            identityResult?.identity?.quoteCurrency,
-          ),
-          ...(depositorySic !== undefined ? { depositorySic } : {}),
-        });
+      ? []
+      : [
+          capitalReturnSection({
+            symbol: input.command.symbol,
+            statements: financialStatements,
+            ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
+            ...quoteContext(
+              input.command,
+              input.marketSnapshots,
+              identityResult?.identity?.quoteCurrency,
+            ),
+            ...(depositorySic !== undefined ? { depositorySic } : {}),
+          }),
+          operatingRatiosSection({
+            symbol: input.command.symbol,
+            statements: financialStatements,
+            ...(depositorySic !== undefined ? { depositorySic } : {}),
+          }),
+        ];
   const valuationWorkbenchResult = await collectValuationWorkbench({
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
@@ -449,7 +457,7 @@ export async function collectEquityEnrichment(
     capitalOwnership,
     financialLensResult,
     businessFrameworkResult,
-    ...metricSectionsOf(businessFrameworkResult, capitalReturn),
+    ...metricSectionsOf(businessFrameworkResult, statementSections),
     ...earningsResult,
     packetFailureGaps: [],
   };
@@ -457,17 +465,17 @@ export async function collectEquityEnrichment(
 
 function metricSectionsOf(
   businessFrameworkResult: BusinessFrameworkResult,
-  capitalReturn: ReturnType<typeof capitalReturnSection> | undefined,
+  statementSections: readonly ReturnType<typeof capitalReturnSection>[],
 ): Pick<EquityEnrichmentResult, "metricSections" | "metricSectionGaps"> {
   const sections = [
     ...(businessFrameworkResult.metricSections ?? []),
-    ...(capitalReturn === undefined ? [] : [capitalReturn.section]),
+    ...statementSections.map(({ section }) => section),
   ];
   return {
     metricSections: sections.length === 0 ? undefined : sections,
     metricSectionGaps: [
       ...(businessFrameworkResult.metricSectionGaps ?? []),
-      ...(capitalReturn?.sourceGaps ?? []),
+      ...statementSections.flatMap(({ sourceGaps }) => sourceGaps),
     ],
   };
 }

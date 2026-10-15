@@ -91,7 +91,7 @@ SEC parser changes (`src/sources/extended-evidence/financial-*`, `sec-edgar.ts`,
 7. Console view model — `app/client/view-model-*.ts` and the run-workspace modules.
 8. Console component — `app/client/components/*.svelte`.
 9. Index projection — the `src/run-artifact-index-*` modules, if the field should be searchable.
-10. Tests — a unit test at the adapter seam, a fixture assertion if the field should be pinned, then `bun run check`, which replays every fixture in `EQUITY_RUN_FIXTURES` (`tests/support/run-fixtures/index.ts`) through `tests/equity-fixture/run.test.ts` and asserts its invariants (a new fixture must be added to that list).
+10. Tests — a unit test at the adapter seam, a fixture assertion if the field should be pinned, then `bun run check`, which replays every fixture listed in `tests/equity-fixture/run.test.ts` and asserts its invariants (a new fixture must be added to that list).
 
 **A new env var:** `src/config.ts` → `.env.example` → `docs/configuration.md` → the run profiles under `src/config/runs/profiles/` if it is run-type-scoped. All four.
 

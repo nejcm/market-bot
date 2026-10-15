@@ -16,7 +16,7 @@ import {
   renderValuationContext,
 } from "../src/report/markdown-equity-sections";
 import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
-import { growthLens, qualityLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { summaryLens } from "./support/financial-lens";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
 import {
   cashConversionScopeGaps,
@@ -108,9 +108,10 @@ function secItem(artifact: FinancialStatementsArtifact) {
 
 function lensMetric(artifact: FinancialStatementsArtifact, key: string) {
   const item = secItem(artifact);
-  return [...qualityLens(item).metrics, ...growthLens(item).metrics].find(
-    (metric) => metric.key === key,
-  );
+  return [
+    ...summaryLens(item, "Quality", undefined, artifact).metrics,
+    ...summaryLens(item, "Growth", undefined, artifact).metrics,
+  ].find((metric) => metric.key === key);
 }
 
 function yahoo(eps: number | null = 0.54, quoteCurrency: string | null = "USD"): MarketSnapshot {
@@ -136,11 +137,14 @@ describe("accounting scope", () => {
   test("divides continuing OCF by continuing income and keeps both scopes in growth", () => {
     const artifact = statements(clfd());
     const metrics = secItem(artifact).metrics!;
-    const labels = growthLens(secItem(artifact)).metrics.map((metric) => metric.label);
+    const labels = summaryLens(secItem(artifact), "Growth", undefined, artifact).metrics.map(
+      (metric) => metric.label,
+    );
 
     expect(metrics.cashConversionSelectedValue).toBeCloseTo(7_345_000 / 2_195_000, 6);
-    expect(lensMetric(artifact, "cashConversion")?.label).toBe(
-      "Cash conversion (continuing operations)",
+    expect(lensMetric(artifact, "cashConversion")?.value).toBeCloseTo(7_345_000 / 2_195_000, 6);
+    expect(artifact.statements.cashFlowStatement.operatingCashFlow.interim[0]?.concept).toBe(
+      CONTINUING_OCF,
     );
     expect(metrics).toMatchObject({
       continuingIncome: 2_195_000,

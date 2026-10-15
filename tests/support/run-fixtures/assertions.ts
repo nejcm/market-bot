@@ -59,7 +59,11 @@ export function assertProviderGapRestatementsDropped(result: RunFixtureResult): 
   expect(gaps).toContain("Issuer transcript unavailable.");
 }
 
-export async function assertInvariants(result: RunFixtureResult, meta: FixtureMeta): Promise<void> {
+export async function assertInvariants(
+  result: RunFixtureResult,
+  meta: FixtureMeta,
+  fixtureName: string,
+): Promise<void> {
   const { runDir } = result.artifacts;
   expect(await Bun.file(join(runDir, RUN_ARTIFACT_FILES.failure)).exists()).toBe(false);
   const loaded = await loadRunArtifact(runDir);
@@ -83,7 +87,7 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
   assertMetricSectionInvariants(result, report);
-  assertFinancialLensMetricInvariants(result, report);
+  assertFinancialLensMetricInvariants(result, report, fixtureName);
   assertOperatingRatioInvariants(result, report);
   assertBusinessFrameworkMetricInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
@@ -542,6 +546,40 @@ const LENS_SECTION_TITLES: Readonly<Record<string, string>> = {
   "financial-lens-momentum": "Financial Lens: Momentum",
 };
 
+const LENS_REQUIRED_METRICS: Readonly<Record<string, readonly string[]>> = {
+  Quality: [
+    "grossMargin",
+    "operatingMargin",
+    "netMargin",
+    "freeCashFlowProxy",
+    "cashConversion",
+    "roe",
+    "roa",
+  ],
+  Growth: [
+    "revenueDeltaPercent",
+    "grossProfitDeltaPercent",
+    "operatingIncomeDeltaPercent",
+    "netIncomeDeltaPercent",
+    "dilutedEpsDeltaPercent",
+    "continuingIncomeDeltaPercent",
+    "continuingDilutedEpsDeltaPercent",
+    "operatingCashFlowDeltaPercent",
+  ],
+  "Financial Strength": [
+    "cash",
+    "debt",
+    "netDebt",
+    "debtToMarketCap",
+    "netDebtToMarketCap",
+    "currentRatio",
+    "debtToEquity",
+    "payoutRatio",
+    "dividendYield",
+  ],
+  Value: ["pcfRatio"],
+};
+
 // The lens reads the latest reported period, so its statement inputs are annual or interim by design.
 const LENS_METRIC_SERIES: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
   grossMargin: ["grossProfit", "revenue"],
@@ -561,13 +599,187 @@ const LENS_METRIC_SERIES: Readonly<Record<string, readonly FinancialStatementSer
   payoutRatio: ["dividendsPaid", "netIncome"],
 };
 
+const AAPL_LENS_VALUES = {
+  grossMargin: 0.476_190_476_190_476_16,
+  operatingMargin: 0.333_333_333_333_333_3,
+  netMargin: 0.276_190_476_190_476_2,
+  freeCashFlowProxy: 58_000_000_000,
+  cashConversion: 1.120_689_655_172_413_7,
+  revenueDeltaPercent: 11.111_111_111_111_11,
+  grossProfitDeltaPercent: 13.636_363_636_363_635,
+  operatingIncomeDeltaPercent: 16.666_666_666_666_664,
+  netIncomeDeltaPercent: 16,
+  dilutedEpsDeltaPercent: 18.749_999_999_999_99,
+  operatingCashFlowDeltaPercent: 12.068_965_517_241_379,
+  cash: 60_000_000_000,
+  debt: 100_000_000_000,
+  netDebt: 40_000_000_000,
+  debtToMarketCap: 0.033_333_333_333_333_33,
+  netDebtToMarketCap: 0.013_333_333_333_333_334,
+  enterpriseValue: 3_040_000_000_000,
+  annualizedRevenue: 420_000_000_000,
+  evToAnnualizedRevenue: 7.238_095_238_095_238,
+  marketCapToAnnualizedRevenue: 7.142_857_142_857_143,
+  valuationSupportability: "supported",
+  peRatio: 31,
+  forwardPe: 28,
+  priceToBook: 45,
+  pcfRatio: 23.076_923_076_923_077,
+};
+
+const EXPECTED_LENS_VALUES: Readonly<Record<string, Readonly<Record<string, number | string>>>> = {
+  "equity-aapl-brief": {},
+  "equity-aapl-deep": AAPL_LENS_VALUES,
+  "equity-earnings-release-deep": {
+    grossMargin: 0.490_678_098_677_945,
+    operatingMargin: 0.336_022_088_226_656_8,
+    netMargin: 0.278_474_133_885_173_06,
+    freeCashFlowProxy: 110_197_000_000,
+    cashConversion: 1.153_078_924_544_666,
+    roe: 1.258_234_126_984_126_8,
+    roa: 0.352_980_262_620_042_8,
+    revenueDeltaPercent: 16.150_082_086_102_742,
+    grossProfitDeltaPercent: 21.736_347_541_876_615,
+    operatingIncomeDeltaPercent: 21.673_971_159_675_222,
+    netIncomeDeltaPercent: 20.013_247_539_742_62,
+    dilutedEpsDeltaPercent: 22.419_928_825_622_77,
+    operatingCashFlowDeltaPercent: 43.107_370_893_167_31,
+    cash: 39_544_000_000,
+    debt: 82_300_000_000,
+    netDebt: 42_756_000_000,
+    currentRatio: 1.003_294_804_655_585_8,
+    debtToEquity: 0.765_438_988_095_238_1,
+    payoutRatio: 0.116_080_580_304_344_4,
+  },
+  "equity-nbis-deep": {
+    operatingMargin: -1.154_586_636_466_591,
+    netMargin: 0.155_719_139_297_848_25,
+    freeCashFlowProxy: -3_681_200_000,
+    cashConversion: 4.664_242_424_242_424,
+    roe: 0.017_958_206_356_116_675,
+    roa: 0.006_636_847_778_868_277,
+    revenueDeltaPercent: 479.016_393_442_622_9,
+    operatingIncomeDeltaPercent: -53.078_078_078_078_07,
+    netIncomeDeltaPercent: 112.862_488_306_828_81,
+    dilutedEpsDeltaPercent: 114.473_684_210_526_33,
+    continuingIncomeDeltaPercent: 102.784_090_909_090_9,
+    continuingDilutedEpsDeltaPercent: 103.2,
+    operatingCashFlowDeltaPercent: 56.677_524_429_967_43,
+    cash: 3_678_100_000,
+    debt: 4_103_200_000,
+    payoutRatio: 0,
+    valuationCaveat:
+      "Revenue multiples are not a valid basis for this issuer; the peer set is size/sector-comparable only.",
+    evDateBasis: "EV mixes market cap (quote 2026-07-22) with cash/debt (balance sheet 2025-12-31)",
+    enterpriseValue: 57_628_361_440,
+    annualizedRevenue: 529_800_000,
+    evToAnnualizedRevenue: 108.773_804_152_510_38,
+    marketCapToAnnualizedRevenue: 107.971_425_896_564_74,
+    valuationSupportability: "not-meaningful",
+    peRatio: 87.325_584,
+    forwardPe: "-139.64x (negative earnings)",
+    epsForward: -1.613_41,
+    priceToBook: 7.968_733_3,
+    pcfRatio: 148.657_124_324_324_31,
+  },
+  "equity-fpi-quarterly": {
+    grossMargin: 0.85,
+    operatingMargin: 0.7,
+    netMargin: 0.55,
+    cashConversion: 1.090_909_090_909_090_8,
+    roe: 0.987_179_487_179_487_3,
+    roa: 0.592_307_692_307_692_4,
+    revenueDeltaPercent: 40,
+    grossProfitDeltaPercent: 40,
+    operatingIncomeDeltaPercent: 40,
+    netIncomeDeltaPercent: 40.000_000_000_000_02,
+    dilutedEpsDeltaPercent: 40.000_000_000_000_01,
+    operatingCashFlowDeltaPercent: 40,
+    cash: 780_000_000,
+    debt: 3_900_000_000,
+    netDebt: 3_120_000_000,
+    debtToMarketCap: 0.195,
+    netDebtToMarketCap: 0.156,
+    debtToEquity: 4.166_666_666_666_667,
+    enterpriseValue: 23_120_000_000,
+    annualizedRevenue: 1_680_000_000,
+    evToAnnualizedRevenue: 13.761_904_761_904_763,
+    marketCapToAnnualizedRevenue: 11.904_761_904_761_905,
+    valuationSupportability: "screening-only",
+    peRatio: 31,
+    forwardPe: 28,
+    priceToBook: 45,
+    pcfRatio: 19.841_269_841_269_842,
+  },
+  "equity-fpi-ifrs-semiannual": {
+    grossMargin: 0.85,
+    operatingMargin: 0.7,
+    netMargin: 0.55,
+    cashConversion: 1.090_909_090_909_090_8,
+    roe: 0.916_666_666_666_666_9,
+    roa: 0.55,
+    revenueDeltaPercent: 25,
+    grossProfitDeltaPercent: 25,
+    operatingIncomeDeltaPercent: 24.999_999_999_999_986,
+    netIncomeDeltaPercent: 25.000_000_000_000_018,
+    dilutedEpsDeltaPercent: 25,
+    operatingCashFlowDeltaPercent: 25,
+    cash: 750_000_000,
+    debt: 3_750_000_000,
+    netDebt: 3_000_000_000,
+    debtToMarketCap: 0.1875,
+    netDebtToMarketCap: 0.15,
+    debtToEquity: 4.166_666_666_666_667,
+    evDateBasis:
+      "EV mixes market cap (fetch time 2026-06-15) with cash/debt (balance sheet 2025-12-31)",
+    enterpriseValue: 23_000_000_000,
+    annualizedRevenue: 1_500_000_000,
+    evToAnnualizedRevenue: 15.333_333_333_333_334,
+    marketCapToAnnualizedRevenue: 13.333_333_333_333_334,
+    valuationSupportability: "screening-only",
+    peRatio: 31,
+    forwardPe: 28,
+    priceToBook: 45,
+    pcfRatio: 22.222_222_222_222_22,
+  },
+  "equity-analysis-comprehensive": AAPL_LENS_VALUES,
+  "equity-analysis-estimated-suppressed": AAPL_LENS_VALUES,
+  "equity-web-fallback-deep": AAPL_LENS_VALUES,
+  "equity-depository-deep": {
+    netMargin: 0.238_337_134_563_549_66,
+    cashConversion: 5.600_260_983_036_103,
+    roe: 0.103_300_307_789_085_85,
+    roa: 0.006_230_440_948_008_068,
+    revenueDeltaPercent: 2.923_602_219_376_867,
+    netIncomeDeltaPercent: 131.520_644_511_581_08,
+    dilutedEpsDeltaPercent: 162.121_212_121_212_1,
+    operatingCashFlowDeltaPercent: 171.968_736_797_634_14,
+    cash: 8_732_000_000,
+    payoutRatio: 0.846_153_846_153_846_1,
+    dividendYield: 3.57,
+    peRatio: 17.603_848,
+    forwardPe: 13.759_627,
+    priceToBook: 1.805_705_2,
+    pcfRatio: 2.166_909_186_485_437,
+  },
+};
+
 export function assertFinancialLensMetricInvariants(
   run: MetricInvariantRun,
   report: ResearchReport,
+  fixtureName: string,
 ): void {
   const sections = (
     (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? []
   ).filter(({ id }) => id !== undefined && LENS_SECTION_TITLES[id] !== undefined);
+  const pinnedValues = EXPECTED_LENS_VALUES[fixtureName];
+  expect(pinnedValues, `${fixtureName} has pinned lens values`).toBeDefined();
+  for (const [id, value] of Object.entries(pinnedValues!)) {
+    expect(
+      sections.flatMap((section) => section.metrics).find((row) => row.id === id),
+      `${fixtureName}.${id} retains its replayed value`,
+    ).toMatchObject({ status: "value", value });
+  }
   const statements = run.collectedSources.financialStatements;
   const filedFacts =
     statements !== undefined &&
@@ -581,12 +793,73 @@ export function assertFinancialLensMetricInvariants(
   }
   for (const [id, title] of Object.entries(LENS_SECTION_TITLES)) {
     const section = sections.find((candidate) => candidate.id === id);
+    const name = title.replace("Financial Lens: ", "");
+    const required = LENS_REQUIRED_METRICS[name] ?? [];
+    if (
+      statements !== undefined &&
+      required.some((metric) => {
+        const key =
+          metric === "pcfRatio"
+            ? "operatingCashFlow"
+            : metric.endsWith("DeltaPercent")
+              ? metric.replace("DeltaPercent", "")
+              : LENS_METRIC_SERIES[metric]?.[0];
+        const series =
+          key === undefined
+            ? undefined
+            : financialStatementSeriesByKey(statements, key as FinancialStatementSeriesKey);
+        return series !== undefined && series.annual.length + series.interim.length > 0;
+      })
+    ) {
+      expect(section, `${name} filed inputs require its Metric Section`).toBeDefined();
+    }
     expect(
       run.markdown.includes(`### ${title}\n`),
       `${title} markdown follows its Metric Section`,
     ).toBe(section !== undefined);
     if (section === undefined) {
       continue;
+    }
+    for (const metric of required) {
+      expect(
+        section.metrics.some(({ id: metricId }) => metricId === metric),
+        `${name}.${metric} remains present`,
+      ).toBe(true);
+    }
+    const projected = run.collectedSources.financialLenses?.lenses.find(
+      (lens) => lens.name === name,
+    );
+    expect(projected, `${name} has its artifact lens`).toBeDefined();
+    expect(
+      projected?.metrics.map(({ key }) => key),
+      `${name} projects every value row`,
+    ).toEqual(
+      section.metrics
+        .filter(({ status }) => status === "value")
+        .map(({ id: metricId }) => metricId),
+    );
+    const lensItem = run.collectedSources.extendedEvidence?.items.find(
+      ({ category }) => category === "financial-lens",
+    );
+
+    for (const row of projected?.metrics ?? []) {
+      expect(lensItem?.metrics?.[row.key], `${name}.${row.key} reaches Extended Evidence`).toEqual(
+        row.value,
+      );
+      expect(
+        lensItem?.metrics?.[`${row.key}PeriodEnd`],
+        `${name}.${row.key} retains its period`,
+      ).toBe(row.periodEnd);
+
+      expect(
+        section.metrics.find(({ id: metricId }) => metricId === row.key),
+        `${name}.${row.key} matches its projection`,
+      ).toMatchObject({
+        status: "value",
+        value: row.value,
+        sourceIds: [...row.sourceIds],
+        ...(row.periodEnd === undefined ? {} : { periodEnd: row.periodEnd }),
+      });
     }
     expect(section.metrics.length, `${id} carries metrics`).toBeGreaterThan(0);
     const unresolved = section.metrics.filter(({ status }) => status !== "value");
@@ -612,6 +885,10 @@ export function assertFinancialLensMetricInvariants(
     const id = String(section.id);
     for (const metric of section.metrics) {
       const label = `${id}.${String(metric.id)}`;
+      expect([...metric.sourceIds].toSorted(), `${label} retains every input citation`).toEqual(
+        [...new Set(metric.inputs.flatMap(({ sourceIds }) => sourceIds))].toSorted(),
+      );
+
       for (const sourceId of metric.sourceIds) {
         expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
       }

@@ -11,7 +11,7 @@ import {
   formatSecFundamentalsSummary,
   summarizeSecFundamentals,
 } from "../src/sources/extended-evidence/sec-edgar";
-import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { summaryLens } from "./support/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
 import { addValuationEvidence } from "../src/sources/extended-evidence/valuation";
 import { balanceSheetPeriodDivergence } from "../src/sources/extended-evidence/valuation-comps-support";
@@ -852,10 +852,11 @@ describe("SEC fundamentals prose dates older debt behind a newer incomplete inst
     expect(legacy?.summary).toContain(
       "debt 33500000 as of 2014-06-30; incomplete as of 2025-12-31",
     );
-    const lensDebt = strengthLens(
+    const lensDebt = summaryLens(
       secEvidenceFrom(legacy?.metrics).items[0],
+      "Financial Strength",
       ANALYSIS_AS_OF,
-    ).lens.metrics.find((metric) => metric.key === "debt");
+    ).metrics.find((metric) => metric.key === "debt");
     expect(lensDebt?.label).toBe("Debt as of 2014-06-30; incomplete as of 2025-12-31");
   });
 
@@ -881,9 +882,11 @@ describe("SEC fundamentals prose dates older debt behind a newer incomplete inst
     expect(legacy?.metrics.debtIncompletePeriodEnd).toBeUndefined();
     expect(legacy?.summary).toContain("debt 100");
     expect(
-      strengthLens(secEvidenceFrom(legacy?.metrics).items[0], ANALYSIS_AS_OF).lens.metrics.find(
-        (metric) => metric.key === "debt",
-      )?.label,
+      summaryLens(
+        secEvidenceFrom(legacy?.metrics).items[0],
+        "Financial Strength",
+        ANALYSIS_AS_OF,
+      ).metrics.find((metric) => metric.key === "debt")?.label,
     ).toBe("Debt");
   });
 });

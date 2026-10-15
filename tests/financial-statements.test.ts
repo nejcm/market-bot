@@ -14,7 +14,7 @@ import {
 } from "../app/client/run-workspace-financials";
 import { dedupeSourceGaps } from "../src/domain/source-gaps";
 import type { ExtendedEvidenceItem } from "../src/domain/evidence";
-import { strengthLens } from "../src/sources/extended-evidence/financial-lens-builders";
+import { summaryLens } from "./support/financial-lens";
 import {
   financialStatementFacts,
   latestFinancialStatementFact,
@@ -3767,7 +3767,7 @@ describe("canonical debt basis selection", () => {
 });
 
 function debtLabel(item: ExtendedEvidenceItem | undefined): string | undefined {
-  return strengthLens(item, "2026-08-15T00:00:00.000Z").lens.metrics.find(
+  return summaryLens(item, "Financial Strength", "2026-08-15T00:00:00.000Z").metrics.find(
     (metric) => metric.key === "debt",
   )?.label;
 }

@@ -76,17 +76,6 @@ export function hasCanonicalFinancialLensSelection(
   );
 }
 
-export function selectedFinancialLensDerivedMetric(
-  item: ExtendedEvidenceItem | undefined,
-  key: CanonicalDerivedMetricKey,
-  legacyFallback: number | undefined,
-): number | undefined {
-  if (hasCanonicalFinancialLensSelection(item)) {
-    return canonicalFinancialLensDerivedMetric(item, key)?.value;
-  }
-  return legacyFallback;
-}
-
 const FLOW_SERIES = [
   ["revenue", "revenue"],
   ["grossProfit", "grossProfit"],
@@ -250,7 +239,7 @@ function dividedBy(left: number, right: number): number | undefined {
   return right === 0 ? undefined : left / right;
 }
 
-export const PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY = "payoutRatioNonPositiveIncomePeriodEnd";
+const PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY = "payoutRatioNonPositiveIncomePeriodEnd";
 
 const COMMON_DERIVED_SERIES = [
   ["grossMargin", "grossProfit", "revenue", dividedBy],

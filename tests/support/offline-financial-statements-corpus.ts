@@ -1,4 +1,3 @@
-import type { ParityInput } from "./financial-lens-parity";
 import { isRecord } from "../../src/guards";
 import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../src/domain/evidence";
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
@@ -136,7 +135,6 @@ export interface OfflineCorpusExecution<
   readonly input: OfflineFinancialStatementInput<Fixture>;
   readonly artifact: FinancialStatementsArtifact;
   readonly canonicalFinancialLensInputCategories: readonly string[];
-  readonly financialLensParity: ParityInput;
   readonly projection: OfflineCorpusProjection<Fixture>;
   readonly differences: readonly OfflineCorpusDifference[];
 }
@@ -408,18 +406,6 @@ export function runOfflineFinancialStatementCorpus<Fixture extends string>(
   return {
     input,
     artifact,
-    financialLensParity: {
-      marketSnapshots: [],
-      financialStatements: artifact,
-      ...(canonicalLens.extendedEvidence !== undefined
-        ? { extendedEvidence: canonicalLens.extendedEvidence }
-        : {}),
-      ...(canonicalLens.artifact !== undefined ? { financialLenses: canonicalLens.artifact } : {}),
-      ...(canonicalLens.metricSections !== undefined
-        ? { metricSections: canonicalLens.metricSections }
-        : {}),
-      sourceGaps: canonicalLens.metricSectionGaps ?? [],
-    },
     canonicalFinancialLensInputCategories: canonicalFinancialLensEvidence.items.map(
       (item) => item.category,
     ),

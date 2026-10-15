@@ -75,7 +75,7 @@ describe("static equity run fixtures", () => {
       });
       runResults.push(result);
 
-      await assertInvariants(result, fixture.meta);
+      await assertInvariants(result, fixture.meta, name);
       expect([
         result.report.equityAnalysisCompleteness?.financialCoreStatus,
         result.report.equityAnalysisCompleteness?.coverageLevel,

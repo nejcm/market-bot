@@ -4,13 +4,7 @@ import type { ExtendedEvidence, ExtendedEvidenceItem } from "../../domain/eviden
 import type { MarketSnapshot, MarketSnapshotPriceAsOf } from "../../domain/market-data";
 import type { SourceGap } from "../../domain/sources";
 import { marketCapQuotePhrase } from "../../domain/market-data";
-import {
-  canonicalFinancialLensDerivedMetric,
-  type CanonicalDerivedMetricKey,
-  type SecFactMetricKey,
-  type SecMetricKey,
-} from "./financial-lens-canonical";
-import { scopedLabel } from "./financial-statement-definitions";
+import { type SecFactMetricKey, type SecMetricKey } from "./financial-lens-canonical";
 import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "./valuation-comps";
 import { readNumberMetric } from "./utils";
 import { formatPeRatio, type LensValueUnit } from "./value-format";
@@ -73,7 +67,7 @@ const SEC_KEYS: readonly SecFactMetricKey[] = [
 ] as const;
 
 // No trim guard, unlike utils.readStringMetric: SEC period-end strings pass through verbatim.
-export function readRawStringMetric(
+function readRawStringMetric(
   metrics: Readonly<Record<string, number | string>> | undefined,
   key: string,
 ): string | undefined {
@@ -81,10 +75,7 @@ export function readRawStringMetric(
   return typeof value === "string" ? value : undefined;
 }
 
-// Typed accessors for the sec-edgar item only: its keys are the compile-time union
-// Written by financial-lens-canonical.ts and sec-edgar.ts.
-// Untyped readers above stay string-keyed: valuation and Yahoo keys come elsewhere.
-export function readSecMetric(
+function readSecMetric(
   metrics: Readonly<Record<string, number | string>> | undefined,
   key: SecMetricKey,
 ): number | undefined {
@@ -96,13 +87,6 @@ function readSecStringMetric(
   key: SecMetricKey,
 ): string | undefined {
   return readRawStringMetric(metrics, key);
-}
-
-export function operatingCashFlowLabel(
-  item: ExtendedEvidenceItem | undefined,
-  label: string,
-): string {
-  return scopedLabel(label, secScope(item, "operatingCashFlow"));
 }
 
 export function secScope(
@@ -139,44 +123,6 @@ export function secFundamentalItem(
   );
 }
 
-export function ratio(
-  numerator: number | undefined,
-  denominator: number | undefined,
-): number | undefined {
-  return numerator !== undefined && denominator !== undefined && denominator !== 0
-    ? numerator / denominator
-    : undefined;
-}
-
-function crossPeriodRatioLabel(
-  label: string,
-  item: ExtendedEvidenceItem | undefined,
-  numeratorKey: SecFactMetricKey,
-  denominatorKey: SecFactMetricKey,
-  denominatorLabel: string,
-): string {
-  const numeratorEnd = readSecStringMetric(item?.metrics, `${numeratorKey}PeriodEnd`);
-  const denominatorEnd = readSecStringMetric(item?.metrics, `${denominatorKey}PeriodEnd`);
-  return numeratorEnd !== undefined &&
-    denominatorEnd !== undefined &&
-    numeratorEnd !== denominatorEnd
-    ? `${label} (${denominatorLabel} at ${denominatorEnd})`
-    : label;
-}
-
-export function selectedRatioLabel(
-  label: string,
-  item: ExtendedEvidenceItem | undefined,
-  selectedKey: CanonicalDerivedMetricKey,
-  numeratorKey: SecFactMetricKey,
-  denominatorKey: SecFactMetricKey,
-  denominatorLabel: string,
-): string {
-  return canonicalFinancialLensDerivedMetric(item, selectedKey) === undefined
-    ? crossPeriodRatioLabel(label, item, numeratorKey, denominatorKey, denominatorLabel)
-    : label;
-}
-
 // A P/E is "clean" (shown as a numeric multiple) only when it is a finite, positive
 // Ratio over positive earnings. Negative or non-computable P/Es render as annotated
 // Text via formatPeRatio instead of a bare multiple. See PE_NEGATIVE_CAVEAT rationale.
@@ -200,49 +146,7 @@ export function peMetricValue(
   return clean ? pe : formatPeRatio(pe, eps);
 }
 
-// Annualizes a flow-fact value by its own reporting-period length (months),
-// Matching valuation.ts revenue annualization. Undefined period -> already
-// Annual (factor 1); period > 0 -> 12/period. Used for ROE/ROA/PCF so a 9-month
-// 10-Q netIncome is scaled to a year before dividing by an instant balance, and
-// Crucially uses netIncome's own periodMonths, not revenue's. See plan revision 2.
-export function annualize(
-  value: number | undefined,
-  periodMonths: number | undefined,
-): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  const factor = periodMonths !== undefined && periodMonths > 0 ? 12 / periodMonths : 1;
-  return value * factor;
-}
-
-export function positive(value: number | undefined): boolean | undefined {
-  return value === undefined ? undefined : value > 0;
-}
-
-export function atOrBelow(value: number | undefined, threshold: number): boolean | undefined {
-  return value === undefined ? undefined : value <= threshold;
-}
-
-export function postureFrom(
-  values: readonly (boolean | undefined)[],
-  requiredCount = 1,
-): FinancialLensPosture {
-  const known = values.filter((value): value is boolean => value !== undefined);
-  if (known.length < requiredCount || known.length === 0) {
-    return "insufficient-data";
-  }
-  const supported = known.filter(Boolean).length;
-  if (supported === known.length) {
-    return "criteria-supported";
-  }
-  if (supported === 0) {
-    return "criteria-not-supported";
-  }
-  return "criteria-mixed";
-}
-
-export function metric(
+function metric(
   key: string,
   label: string,
   value: number | string | undefined,
@@ -263,26 +167,6 @@ export function secPeriod(
     ...(periodEnd !== undefined ? { periodEnd } : {}),
     ...(periodMonths !== undefined ? { periodMonths } : {}),
   };
-}
-
-export function selectedDerivedPeriod(
-  item: ExtendedEvidenceItem | undefined,
-  key: CanonicalDerivedMetricKey,
-  fallbackKey: SecFactMetricKey,
-): Pick<FinancialLensMetric, "periodEnd" | "periodMonths"> {
-  const selected = canonicalFinancialLensDerivedMetric(item, key);
-  return selected === undefined
-    ? secPeriod(item, fallbackKey)
-    : {
-        periodEnd: selected.periodEnd,
-        ...(selected.periodMonths !== undefined ? { periodMonths: selected.periodMonths } : {}),
-      };
-}
-
-export function observedPeriod(
-  observedAt: string | undefined,
-): Pick<FinancialLensMetric, "periodEnd"> {
-  return observedAt === undefined ? {} : { periodEnd: observedAt };
 }
 
 export function valuationDateBasisMetric(
@@ -322,8 +206,4 @@ export function valuationDateBasisMetric(
     valuationItem?.sourceIds ?? [],
     { periodEnd: balanceSheetPeriodEnd },
   );
-}
-
-export function percentChange(value: number | undefined): boolean | undefined {
-  return value === undefined ? undefined : value > 0;
 }

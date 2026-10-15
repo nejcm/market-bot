@@ -2,11 +2,6 @@ import { expect, test } from "bun:test";
 import { parseArgs, type InstrumentCommand } from "../src/cli/args";
 import type { ExtendedEvidence } from "../src/domain/evidence";
 import { addFinancialLensEvidence } from "../src/sources/extended-evidence/financial-lens";
-import {
-  financialLensParityDiffs,
-  expectFinancialLensParity,
-  type ParityInput,
-} from "./support/financial-lens-parity";
 import { marketSnapshot, verifiedMarketSnapshot } from "./support/fixtures";
 
 const command: InstrumentCommand = (() => {
@@ -98,14 +93,7 @@ function lens(input: ExtendedEvidence, generatedAt = AS_OF) {
     verifiedMarketSnapshot(),
     generatedAt,
   );
-  const parity: ParityInput = {
-    marketSnapshots: [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
-    verifiedMarketSnapshot: verifiedMarketSnapshot(),
-    ...(result.extendedEvidence !== undefined ? { extendedEvidence: result.extendedEvidence } : {}),
-    ...(result.artifact !== undefined ? { financialLenses: result.artifact } : {}),
-    ...(result.metricSections !== undefined ? { metricSections: result.metricSections } : {}),
-  };
-  return { result, parity };
+  return { result };
 }
 
 function strengthMetric(result: ReturnType<typeof lens>["result"], id: string) {
@@ -114,21 +102,9 @@ function strengthMetric(result: ReturnType<typeof lens>["result"], id: string) {
     ?.metrics.find((metric) => metric.id === id);
 }
 
-test("the rebuilt lens keeps every legacy projection when only the SEC summary exists", () => {
-  const { result, parity } = lens(evidence());
+test("the rebuilt lens keeps summary projections when only the SEC summary exists", () => {
+  const { result } = lens(evidence());
 
-  expect(financialLensParityDiffs(command, parity).map(({ key }) => key)).toEqual([
-    "lens.Financial Strength.netDebt.sourceIds",
-  ]);
-  expectFinancialLensParity("pre-statements", command, parity, [
-    {
-      fixture: "pre-statements",
-      key: "lens.Financial Strength.netDebt.sourceIds",
-      old: ["extended-sec-edgar-aapl-fundamentals", "market-yahoo-equity-aapl"],
-      new: ["extended-sec-edgar-aapl-fundamentals"],
-      class: "D7",
-    },
-  ]);
   expect(result.artifact?.lenses.map(({ name, posture }) => [name, posture])).toEqual([
     ["Quality", "criteria-supported"],
     ["Growth", "insufficient-data"],
@@ -141,7 +117,7 @@ test("the rebuilt lens keeps every legacy projection when only the SEC summary e
 });
 
 test("a stale summary balance sheet is withheld with a reason and a section gap", () => {
-  const { result, parity } = lens(
+  const { result } = lens(
     evidence({
       cashPeriodEnd: "2025-06-30",
       debtPeriodEnd: "2025-06-30",
@@ -163,20 +139,12 @@ test("a stale summary balance sheet is withheld with a reason and a section gap"
     ({ source }) => source === "financial-lens-financial-strength",
   );
   expect(strengthGap?.triage).toBe("material");
-  expect(
-    financialLensParityDiffs(command, parity)
-      .map(({ key }) => key)
-      .toSorted(),
-  ).toEqual([
-    "item.metrics.currentRatio",
-    "item.metrics.currentRatioPeriodEnd",
-    "item.metrics.netDebt",
-    "item.metrics.netDebtPeriodEnd",
-    "item.summary",
-    "lens.Financial Strength.currentRatio",
-    "lens.Financial Strength.netDebt",
-    "lens.Financial Strength.order",
-  ]);
+  const item = result.extendedEvidence?.items.find(({ category }) => category === "financial-lens");
+  for (const id of ["netDebt", "currentRatio"]) {
+    expect(item?.metrics?.[id]).toBeUndefined();
+    expect(item?.metrics?.[`${id}PeriodEnd`]).toBeUndefined();
+    expect(strengthGap?.message).toContain(id === "netDebt" ? "Net debt" : "Current ratio");
+  }
 });
 
 test("the extended evidence item drops a withheld metric instead of guessing a value", () => {

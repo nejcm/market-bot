@@ -3,13 +3,11 @@ import { type ExtendedEvidence } from "../domain/evidence";
 import { isMarketUpdateJobType } from "../domain/job-type";
 import {
   type MarketSnapshot,
-  type OhlcvBar,
   resolveMarketSnapshotPriceAsOf,
   type VerifiedMarketSnapshot,
 } from "../domain/market-data";
 import { type Source, type SourceGap } from "../domain/sources";
 import type { CollectContext, EarningsSetupCollected, FetchLike, RawSourceSnapshot } from "./types";
-import { verifiedMarketSnapshotSourceId } from "./verified-market-snapshot";
 import { deriveCanonicalInstrumentIdentity } from "./instrument-identity";
 import { isUsListing } from "./instrument-capability";
 import {
@@ -52,7 +50,7 @@ import type { FinancialStatementsArtifact } from "./extended-evidence/financial-
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { capitalReturnSection } from "./extended-evidence/capital-return";
 import { operatingRatiosSection } from "./extended-evidence/operating-ratios";
-import type { MetricSection } from "./extended-evidence/metric-engine";
+import type { MetricContext, MetricSection } from "./extended-evidence/metric-engine";
 import { addValuationEvidence } from "./extended-evidence/valuation";
 import { buildYahooFundamentals } from "./extended-evidence/yahoo-fundamentals";
 import {
@@ -151,7 +149,7 @@ interface EquityEnrichmentInput {
   readonly extendedEvidence: ExtendedEvidence | undefined;
   readonly extendedRawSnapshots: readonly RawSourceSnapshot[];
   readonly verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined;
-  readonly verifiedPriceHistory: readonly Pick<OhlcvBar, "date" | "close">[];
+  readonly priceHistory: MetricContext["priceHistory"];
   readonly fetchedAt: string;
   readonly context: CollectContext;
   readonly identityContext: CollectContext;
@@ -387,27 +385,27 @@ export async function collectEquityEnrichment(
     input.fetchedAt,
     financialStatements,
   );
-  const statementSections =
-    financialStatements === undefined
-      ? []
-      : [
-          capitalReturnSection({
-            symbol: input.command.symbol,
-            statements: financialStatements,
-            ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
-            ...quoteContext(
-              input.command,
-              input.marketSnapshots,
-              identityResult?.identity?.quoteCurrency,
-            ),
-            ...(depositorySic !== undefined ? { depositorySic } : {}),
-          }),
-          operatingRatiosSection({
-            symbol: input.command.symbol,
-            statements: financialStatements,
-            ...(depositorySic !== undefined ? { depositorySic } : {}),
-          }),
-        ];
+  const statementSections = [
+    capitalReturnSection({
+      symbol: input.command.symbol,
+      ...(financialStatements === undefined ? {} : { statements: financialStatements }),
+      ...(capitalOwnership !== undefined ? { capitalOwnership } : {}),
+      ...quoteContext(
+        input.command,
+        input.marketSnapshots,
+        identityResult?.identity?.quoteCurrency,
+      ),
+      ...(depositorySic !== undefined ? { depositorySic } : {}),
+    }),
+    operatingRatiosSection({
+      symbol: input.command.symbol,
+      ...(financialStatements === undefined ? {} : { statements: financialStatements }),
+      ...(depositorySic !== undefined ? { depositorySic } : {}),
+    }),
+  ];
+  const subjectSymbol = input.command.symbol;
+  const subjectHistory = input.priceHistory?.find(({ symbol }) => symbol === subjectSymbol);
+  const priceCurrency = subjectHistory?.currency ?? identityResult?.identity?.quoteCurrency;
   const valuationWorkbenchResult = await collectValuationWorkbench({
     generatedAt: input.fetchedAt,
     symbol: input.command.symbol,
@@ -415,13 +413,9 @@ export async function collectEquityEnrichment(
     ...(valuationCompsResult?.artifact !== undefined
       ? { valuationComps: valuationCompsResult.artifact }
       : {}),
-    priceHistory: input.verifiedPriceHistory,
-    ...(input.verifiedMarketSnapshot !== undefined
-      ? { priceSourceId: verifiedMarketSnapshotSourceId(input.command.symbol) }
-      : {}),
-    ...(identityResult?.identity?.quoteCurrency !== undefined
-      ? { quoteCurrency: identityResult.identity.quoteCurrency }
-      : {}),
+    priceHistory: subjectHistory?.bars ?? [],
+    ...(subjectHistory === undefined ? {} : { priceSourceId: subjectHistory.sourceId }),
+    ...(priceCurrency === undefined ? {} : { quoteCurrency: priceCurrency }),
     ...(businessFrameworkResult.extendedEvidence !== undefined
       ? { extendedEvidence: businessFrameworkResult.extendedEvidence }
       : {}),

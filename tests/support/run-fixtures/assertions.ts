@@ -1,10 +1,8 @@
 import {
-  parseYahooChartOhlcv,
   classifyLatestSession,
   readYahooRegularSession,
   splitAdjustedObservationsFromYahooChart,
 } from "../../../src/sources/yahoo";
-import { verifiedMarketSnapshotSourceId } from "../../../src/sources/verified-market-snapshot";
 import type {
   ValuationFundamentalInput,
   ValuationMetricKey,
@@ -333,6 +331,8 @@ const CAPITAL_RETURN_INPUTS: Readonly<Record<string, readonly FinancialStatement
 };
 
 const FRAMEWORK_INPUTS: Readonly<Record<string, readonly FinancialStatementSeriesKey[]>> = {
+  currentRatio: ["currentAssets", "currentLiabilities"],
+  debtToMarketCap: ["debt"],
   revenue: ["revenue"],
   grossProfit: ["grossProfit"],
   operatingIncome: ["operatingIncome"],
@@ -1068,15 +1068,20 @@ export function assertMetricSectionInvariants(
   const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
   const statements = run.collectedSources.financialStatements;
   const capitalReturn = sections?.find(({ id }) => id === "capital-return");
-  expect(capitalReturn !== undefined, "statements imply a Capital Return Metric Section").toBe(
-    statements !== undefined,
-  );
+  expect(capitalReturn, "every equity run declares Capital Return").toBeDefined();
   expect(run.markdown.includes("### Capital Return\n")).toBe(capitalReturn !== undefined);
   const bundle = run.deepEquityEvidenceBundle;
   if (bundle !== undefined) {
     expect(asWritten(bundle.derived.metricSections)).toEqual(asWritten(sections));
   }
-  if (capitalReturn === undefined || statements === undefined) {
+  if (statements === undefined) {
+    expect(capitalReturn?.metrics.some(({ status }) => status === "missing")).toBe(true);
+    expect(
+      run.collectedSources.sourceGaps.find(({ source }) => source === "capital-return")?.triage,
+    ).toBe("material");
+    return;
+  }
+  if (capitalReturn === undefined) {
     return;
   }
   const unresolved = capitalReturn.metrics.filter(({ status }) => status !== "value");
@@ -1330,11 +1335,16 @@ export function assertOperatingRatioInvariants(
   const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
   const statements = run.collectedSources.financialStatements;
   const section = sections?.find(({ id }) => id === "operating-ratios");
-  expect(section !== undefined, "statements imply an Operating Ratios Metric Section").toBe(
-    statements !== undefined,
-  );
+  expect(section, "every equity run declares Operating Ratios").toBeDefined();
   expect(run.markdown.includes("### Operating Ratios\n")).toBe(section !== undefined);
-  if (section === undefined || statements === undefined) {
+  if (statements === undefined) {
+    expect(section?.metrics.some(({ status }) => status === "missing")).toBe(true);
+    expect(
+      run.collectedSources.sourceGaps.find(({ source }) => source === "operating-ratios")?.triage,
+    ).toBe("material");
+    return;
+  }
+  if (section === undefined) {
     return;
   }
   expect(
@@ -1486,6 +1496,25 @@ export function assertBusinessFrameworkMetricInvariants(
   }
   const sections = (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? [];
   const reportSourceIds = new Set(report.sources.map(({ id }) => id));
+  const secMetrics = run.collectedSources.extendedEvidence?.items.find(
+    ({ category }) => category === "sec-edgar",
+  )?.metrics;
+  expect(
+    Object.keys(secMetrics ?? {}).filter((key) => /Selected|payoutRatioNonPositive/u.test(key)),
+  ).toEqual([]);
+  const lensStrength = sections.find(({ id }) => id === "financial-lens-financial-strength");
+  const frameworkRisk = sections.find(({ id }) => id === "business-framework-risk");
+  for (const id of ["currentRatio", "debtToMarketCap"]) {
+    if (lensStrength?.metrics.find((metric) => metric.id === id)?.cause === "not-filed") {
+      expect(frameworkRisk?.metrics.find((metric) => metric.id === id)?.cause).toBe("not-filed");
+    }
+  }
+  const phase = sections
+    .find(({ id }) => id === "business-framework-phase")
+    ?.metrics.find(({ id }) => id === "phase");
+  if (phase?.status === "value") {
+    expect(phase.sourceIds.length).toBeGreaterThan(0);
+  }
   for (const frameworkSection of framework.sections) {
     for (const id of frameworkSection.metricSectionIds) {
       const section = sections.find((candidate) => candidate.id === id);
@@ -2026,21 +2055,19 @@ function assertValuationWorkbenchInvariants(
     expect(sections[0]?.metrics[0]?.status).toBe("missing");
   }
   const raw = run.collectedSources.rawSnapshots.find(
-    ({ adapter }) => adapter === "yahoo-verified-chart",
+    ({ adapter, id }) => adapter === "yahoo-price-history" && id.endsWith(`-${workbench?.symbol}`),
   );
-  const parsed =
-    raw === undefined ? [] : parseYahooChartOhlcv(raw.payload, meta.now.slice(0, 10)).bars;
-  const last = parsed.at(-1);
-  const session =
-    raw === undefined || last === undefined
-      ? undefined
-      : classifyLatestSession(readYahooRegularSession(raw.payload), last.date, raw.fetchedAt);
   const prices =
-    run.collectedSources.verifiedMarketSnapshot === undefined
+    raw === undefined
       ? []
-      : session?.status === "in-progress"
-        ? parsed.slice(0, -1)
-        : parsed;
+      : splitAdjustedObservationsFromYahooChart(workbench!.symbol, raw.payload)
+          .filter(
+            ({ date }) =>
+              date <= meta.now.slice(0, 10) &&
+              classifyLatestSession(readYahooRegularSession(raw.payload), date, raw.fetchedAt)
+                .status === "complete",
+          )
+          .map(({ date, value }) => ({ date, close: value }));
   const filedFact = (input: MetricInput): FinancialStatementFact => {
     const series =
       statements === undefined
@@ -2143,7 +2170,7 @@ function assertValuationWorkbenchInvariants(
             close: selectedPrice.close,
             sessionDate: selectedPrice.date,
             currency: workbench!.quoteCurrency!,
-            sourceId: verifiedMarketSnapshotSourceId(workbench!.symbol),
+            sourceId: `price-history-${workbench!.symbol}`,
           },
     );
     for (const [key, fundamental] of Object.entries(inputs)) {
@@ -2300,10 +2327,6 @@ type WorkbenchValues = Readonly<
 >;
 const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unavailable" } as const;
 const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
-const MISSING_WORKBENCH_CURRENCY = {
-  status: "missing",
-  reason: "quote-currency-unavailable",
-} as const;
 const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
 const NEGATIVE_WORKBENCH_DENOMINATOR = {
   status: "not-meaningful",
@@ -2351,82 +2374,67 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-aapl-deep": AAPL_WORKBENCH_VALUES,
   "equity-earnings-release-deep": {
     "annual|2017-09-30|2019-10-31": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2018-09-29|2020-10-30": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2019-09-28|2020-10-30": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2020-09-26|2020-10-30": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2021-09-25|2021-10-29": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2022-09-24|2022-10-28": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_DEBT,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2023-09-30|2023-11-03": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
     ],
     "annual|2024-09-28|2024-11-01": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
+      MISSING_WORKBENCH_PRICE,
     ],
     "ttm|2025-06-28|2025-08-01": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      30.710_167_660_517_836, 7.461_377_657_598_557_5, 7.597_274_873_872_647, 31.698_675_926_725_97,
     ],
     "annual|2025-09-27|2025-10-31": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      36.242_626_691_312, 9.748_198_064_270_506, 9.879_743_307_577_783, 41.074_648_968_024_52,
     ],
     "ttm|2025-12-27|2026-01-30": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      32.845_571_010_927_61, 8.880_399_105_071_705, 8.979_529_763_425_258, 31.368_207_461_272_917,
     ],
     "ttm|2026-03-28|2026-05-01": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      33.915_256_010_706_73, 9.208_630_356_750_982, 9.290_873_479_898_584, 32.182_656_769_259_89,
     ],
     "ttm|2026-06-27|2026-07-31": [
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
-      MISSING_WORKBENCH_CURRENCY,
+      35.425_459_135_563_01, 9.784_017_596_279_83, 9.875_606_913_858_44, 33.416_038_910_092_25,
     ],
   },
   "equity-nbis-deep": {
@@ -2645,7 +2653,13 @@ export function assertPricePerformanceInvariants(
   );
   expect(gaps).toHaveLength(unresolved ? 1 : 0);
   if (unresolved) {
-    expect(gaps[0]).toMatchObject({ triage: "material", evidenceQualityImpact: "no-cap" });
+    const structural = section!.metrics
+      .filter(({ status }) => status === "missing")
+      .every(({ cause }) => cause === "insufficient-history");
+    expect(gaps[0]).toMatchObject({
+      triage: structural ? "diagnostic" : "material",
+      evidenceQualityImpact: "no-cap",
+    });
   }
   const reportIds = new Set(report.sources.map(({ id }) => id));
   const histories = run.collectedSources.rawSnapshots.filter(

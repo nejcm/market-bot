@@ -12,8 +12,8 @@ import type { SubsequentFinancingBridgeArtifact } from "./subsequent-financing";
 import type { LensValueUnit } from "./value-format";
 
 type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
-// `not-filed`: no raw fact under any alias of an input concept; omitted when that cannot be shown.
-type MetricMissingCause = "not-filed";
+// Structural absence is diagnostic; provider failures leave the cause unset.
+type MetricMissingCause = "not-filed" | "insufficient-history";
 
 export interface MetricInput {
   readonly label: string;
@@ -187,7 +187,9 @@ function sectionGap(
   unresolved: readonly MetricResult[],
 ): SourceGap {
   const missing = unresolved.filter((metric) => metric.status === "missing");
-  const material = missing.some((metric) => metric.cause !== "not-filed");
+  const material = missing.some(
+    (metric) => metric.cause !== "not-filed" && metric.cause !== "insufficient-history",
+  );
   const labelsByCause = new Map<string, string[]>();
   for (const metric of unresolved) {
     const cause = `${metric.status} (${metric.reason ?? "no reason"})`;

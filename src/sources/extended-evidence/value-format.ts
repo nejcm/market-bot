@@ -109,11 +109,31 @@ export function metricPeriodLabel(
   periodEnd: string,
   periodMonths?: number,
   sectionId?: string,
+  inputs: readonly {
+    readonly periodType?: string;
+    readonly periodStart?: string;
+    readonly periodEnd?: string;
+  }[] = [],
 ): string {
   if (sectionId === "price-performance") {
     return `Session ending ${periodEnd}`;
   }
-  return periodMonths === undefined || periodMonths === 12
+  const flows = inputs.filter(
+    (input) =>
+      input.periodStart !== undefined &&
+      (input.periodType === "annual" || input.periodType === "interim"),
+  );
+  if (flows.length === 0) {
+    return `As of ${periodEnd}`;
+  }
+  const annual = flows.every((input) => {
+    const days =
+      (Date.parse(input.periodEnd ?? "") - Date.parse(input.periodStart ?? "")) / 86_400_000;
+    return input.periodType === "annual" && days >= 350 && days <= 380;
+  });
+  return annual
     ? `FY ending ${periodEnd}`
-    : `${String(periodMonths)}-month period ending ${periodEnd}`;
+    : periodMonths === undefined
+      ? `Period ending ${periodEnd}`
+      : `${String(periodMonths)}-month period ending ${periodEnd}`;
 }

@@ -125,8 +125,12 @@ research boundaries without sharing persistence or scoring semantics.
   `evidence.metricReferences` and its narrative-reference instruction. Web Subject Profile and Web
   Gather do not receive the catalog. All Extended Evidence prompt projections remove repeated
   migrated Business Framework/Financial Lens restated summary values and numeric keys/period-end
-  keys; nonmigrated prose, phase, posture and freshness metadata remain. Raw statements, quotes,
-  other Extended Evidence, prediction grammar, artifacts and prior-stage output are unchanged.
+  keys; nonmigrated prose, phase, posture and freshness metadata remain. Amendment 2026-10-16:
+  canonical SEC Extended Evidence no longer produces `*SelectedValue`, `*SelectedPeriodEnd`,
+  `*SelectedPeriodMonths` or the payout non-positive-income marker. Migrated derived values enter
+  through metric references; the pre-statements lens fallback reads raw fact keys. This is an
+  approved model-input change. Raw statement facts, quotes and prediction grammar retain their
+  authority; no source-text exemption or research-only boundary changes.
 - Price Performance Source Gaps now reach synthesis and Historical Research Context like other
   section gaps, while Web Gather excludes gaps it cannot close. The same view predicate applies
   to top-level, Extended Evidence and Market Context gap lists.

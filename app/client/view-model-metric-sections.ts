@@ -49,7 +49,7 @@ export function metricSectionsView(
                   status,
                   ...(value !== undefined ? { value } : {}),
                   ...(periodEnd !== undefined
-                    ? { period: metricPeriodLabel(periodEnd, periodMonths, id) }
+                    ? { period: metricPeriodLabel(periodEnd, periodMonths, id, metric.inputs) }
                     : {}),
                   ...(basis !== undefined ? { basis } : {}),
                   ...(value === undefined ? { reason: reason ?? "no value" } : {}),

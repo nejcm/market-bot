@@ -562,7 +562,18 @@ function tableOfContentsFixture(summaryOverrides: Partial<RunSummary> = {}): Run
                 status: "value",
                 value: 0.025,
                 periodEnd: "2025-09-27",
-                inputs: [],
+                inputs: [
+                  {
+                    artifact: "statements",
+                    label: "share repurchases",
+                    value: 25,
+                    unit: "USD",
+                    periodType: "annual",
+                    periodStart: "2024-09-29",
+                    periodEnd: "2025-09-27",
+                    sourceIds: ["source-bull"],
+                  },
+                ],
                 sourceIds: ["source-bull"],
               },
               {

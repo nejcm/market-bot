@@ -198,6 +198,12 @@ without pretending the project has a global security master.
 - Metric Sections are a flat ordered list of pure definitions over one context, with no task graph:
   a metric reads raw inputs, never another metric's result. They persist in the deep bundle's
   `derived.metricSections` and are read through `report.extras.metricSections` in every layout.
+  Amendment 2026-10-16: Capital Return and Operating Ratios emit missing rows and section Source
+  Gaps when statements are unavailable. Structural `not-filed` and issuer `insufficient-history`
+  causes are diagnostic; other missing inputs remain material. A lifecycle phase needs cited
+  classification inputs to emit a value. The issuer Yahoo history request is shared by Price
+  Performance, the Valuation Workbench and the Verified Market Snapshot; the workbench and Price
+  Performance consume the same completed split-adjusted closes and source IDs.
 - A deep US-equity `SecTargetPacket` fetches target CIK mapping, company facts, and submissions once,
   then retains SIC plus eligible 10-K, newer 10-Q, and recent 8-K/6-K filing packets. Statement,
   history, lens, financing, ownership, valuation, and framework derivations consume the shared

@@ -8,6 +8,7 @@ import {
 
 const DAY_MS = 86_400_000;
 const ENDPOINT_TOLERANCE_DAYS = 7;
+const SHORT_HISTORY_TOLERANCE_DAYS = 14;
 const BENCHMARK = "SPY (S&P 500 proxy)";
 type History = NonNullable<MetricContext["priceHistory"]>[number];
 
@@ -81,9 +82,25 @@ function priceReturn(ctx: MetricContext, years: number, benchmark: boolean): Met
           Math.abs(Date.parse(b) - anniversary.getTime()) || a.localeCompare(b),
     );
   if (start === undefined) {
+    const firstSubject = eligible(subject!)
+      .map(({ date }) => date)
+      .toSorted()[0];
+    const shortHistory =
+      subject!.reason === undefined &&
+      spy!.reason === undefined &&
+      firstSubject !== undefined &&
+      Date.parse(firstSubject) > anniversary.getTime() + ENDPOINT_TOLERANCE_DAYS * DAY_MS &&
+      Date.parse(firstSubject) <= anniversary.getTime() + SHORT_HISTORY_TOLERANCE_DAYS * DAY_MS &&
+      eligible(spy!).some(
+        ({ date }) =>
+          Math.abs(Date.parse(date) - anniversary.getTime()) <= ENDPOINT_TOLERANCE_DAYS * DAY_MS,
+      );
     return {
       status: "missing",
-      reason: `no common completed session within ±7 days of the ${String(years)}-year anniversary`,
+      reason: shortHistory
+        ? `issuer price history begins ${firstSubject}, after the ${String(years)}-year anniversary`
+        : `no common completed session within ±7 days of the ${String(years)}-year anniversary`,
+      ...(shortHistory ? { cause: "insufficient-history" as const } : {}),
       periodEnd: end,
       inputs: [endInput],
     };

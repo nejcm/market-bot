@@ -328,11 +328,10 @@ describe("frozen-input eval replay", () => {
     );
     expect(base.status).toBe("completed");
     const priceHistoryMisses = [
-      "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000",
       "GET  https://query1.finance.yahoo.com/v8/finance/chart/SPY?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000",
     ];
     expect({ ...base.cassetteMisses, keys: base.cassetteMisses.keys.toSorted() }).toEqual({
-      count: 2,
+      count: 1,
       keys: priceHistoryMisses,
     });
     expect(base.runDir?.startsWith(join(root, "base", FIXTURE, "1", "runs"))).toBe(true);
@@ -360,14 +359,14 @@ describe("frozen-input eval replay", () => {
       fetchImpl: missingNews,
     });
     expect(next.status).toBe("completed");
-    expect(next.cassetteMisses.count).toBe(3);
+    expect(next.cassetteMisses.count).toBe(2);
     expect(next.cassetteMisses.keys).toEqual(expect.arrayContaining(priceHistoryMisses));
     expect(
       next.cassetteMisses.keys.some((key) => key.includes("finnhub.io/api/v1/company-news")),
     ).toBe(true);
 
     const metrics = await extractSampleMetrics(FIXTURE, "1", next.sampleDir);
-    expect(metrics.metrics.cassetteMisses).toBe(3);
+    expect(metrics.metrics.cassetteMisses).toBe(2);
     expect(metrics.metrics["sourceGaps.fetch-failed"]).toBeGreaterThan(0);
     expect(metrics.metrics["status.completed"]).toBe(1);
     expect(metrics.metrics["tokens.total"]).toBeGreaterThan(0);
@@ -383,7 +382,7 @@ describe("frozen-input eval replay", () => {
       await readEvalSummary(root, "next"),
     );
     expect(compare).toContain("| fixture | metric | base mean [range] | next mean [range] |");
-    expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 2 [2–2] | 3 [3–3] |`);
+    expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 1 [1–1] | 2 [2–2] |`);
     expect(compare).toMatch(/\| tokens\.total \| \d+ \[\d+–\d+\] \|/u);
   });
 

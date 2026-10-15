@@ -24,7 +24,7 @@ function metricLine(
   const detail = [
     ...(metric.periodEnd === undefined
       ? []
-      : [metricPeriodLabel(metric.periodEnd, metric.periodMonths, sectionId)]),
+      : [metricPeriodLabel(metric.periodEnd, metric.periodMonths, sectionId, metric.inputs)]),
     ...(metric.basis === undefined ? [] : [metric.basis]),
   ].join("; ");
   const refs = sourceRefs(citedSourceIds(report, metric));

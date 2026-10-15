@@ -97,7 +97,7 @@
       "headers": { "content-type": "application/json" },
       "body": "{\"sic\":\"3571\",\"sicDescription\":\"Electronic Computers\",\"filings\":{\"recent\":{\"form\":[],\"filingDate\":[]}}}"
     },
-    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=history&interval=1d&period1=1746921600&period2=1781568000": {
+    "GET  https://query1.finance.yahoo.com/v8/finance/chart/AAPL?events=div%2Csplits&interval=1d&period1=1622505600&period2=1781568000": {
       "status": 200,
       "headers": {
         "content-type": "application/json"

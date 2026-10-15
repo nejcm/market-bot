@@ -1,3 +1,8 @@
+import {
+  verifiedMarketSnapshotFromChart,
+  type VerifiedSnapshotResult,
+} from "./verified-market-snapshot";
+import { sourceGapWithContext } from "../domain/source-gaps";
 import type { Source } from "../domain/sources";
 import { isRecord, readString } from "../guards";
 import type { MetricContext } from "./extended-evidence/metric-engine";
@@ -18,6 +23,7 @@ export async function collectPriceHistory(
   symbol: string,
 ): Promise<{
   readonly priceHistory: NonNullable<MetricContext["priceHistory"]>;
+  readonly verifiedSnapshot: VerifiedSnapshotResult;
   readonly rawSnapshots: readonly RawSourceSnapshot[];
   readonly sources: readonly Source[];
 }> {
@@ -36,6 +42,14 @@ export async function collectPriceHistory(
       const sourceId = `price-history-${ticker}`;
       if (!isFetchJsonResult(fetched)) {
         return {
+          verifiedSnapshot: {
+            sourceGaps: [
+              sourceGapWithContext(
+                { ...fetched, source: "yahoo-verified-chart" },
+                { provider: "yahoo", capability: "market-data", evidenceQualityImpact: "core-cap" },
+              ),
+            ],
+          },
           history: {
             symbol: ticker,
             sourceId,
@@ -65,6 +79,24 @@ export async function collectPriceHistory(
       const returnedSymbol = isRecord(result?.meta) ? readString(result.meta, "symbol") : undefined;
       const mismatch = returnedSymbol !== undefined && returnedSymbol.toUpperCase() !== ticker;
       return {
+        verifiedSnapshot: mismatch
+          ? {
+              sourceGaps: [
+                sourceGapWithContext(
+                  {
+                    source: "yahoo-verified-chart",
+                    message: `Yahoo returned ${returnedSymbol} for ${ticker}`,
+                  },
+                  {
+                    provider: "yahoo",
+                    capability: "market-data",
+                    cause: "validation-failed",
+                    evidenceQualityImpact: "core-cap",
+                  },
+                ),
+              ],
+            }
+          : verifiedMarketSnapshotFromChart(fetched, ticker, to.toISOString().slice(0, 10)),
         history: {
           symbol: ticker,
           sourceId,
@@ -98,6 +130,7 @@ export async function collectPriceHistory(
   );
   return {
     priceHistory: results.map(({ history }) => history),
+    verifiedSnapshot: results[0]!.verifiedSnapshot,
     rawSnapshots: results.flatMap((result) =>
       result.rawSnapshot === undefined ? [] : [result.rawSnapshot],
     ),

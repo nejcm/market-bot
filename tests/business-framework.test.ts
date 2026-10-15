@@ -654,3 +654,33 @@ describe("business framework evidence", () => {
     expect(result.extendedEvidence).toBe(existing);
   });
 });
+
+test("pass-through risk metrics preserve never-filed causes", () => {
+  const input = evidence();
+  const withoutRiskValues = {
+    ...input,
+    items: input.items.map((item) =>
+      item.category === "financial-lens" ? { ...item, metrics: {} } : item,
+    ),
+  };
+  const result = framework(withoutRiskValues, AS_OF, statements({ Revenues: annual(94, 100) }));
+  for (const id of ["currentRatio", "debtToMarketCap"]) {
+    expect(metricOf(result, "business-framework-risk", id)).toMatchObject({
+      status: "missing",
+      cause: "not-filed",
+      reason: expect.stringContaining("not filed by the issuer"),
+    });
+  }
+  expect(gapOf(result, "business-framework-risk")?.triage).toBe("diagnostic");
+});
+
+test("phase with no classification inputs is missing rather than an uncited value", () => {
+  const result = framework({ items: [], gaps: [] }, AS_OF, null);
+  expect(metricOf(result, "business-framework-phase", "phase")).toMatchObject({
+    status: "missing",
+    reason: "no cited lifecycle classification inputs",
+  });
+  expect(gapOf(result, "business-framework-phase")?.message).toContain(
+    "no cited lifecycle classification inputs",
+  );
+});

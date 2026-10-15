@@ -419,6 +419,7 @@ describe("Price Performance Metric Section", () => {
     const empty = await collect(() => ({}));
     expect(evaluate(empty.priceHistory).sourceGaps).toHaveLength(1);
     const mismatch = await collect(() => chart("WRONG", DATES, [50, 75, 100, 120]));
+    expect(mismatch.verifiedSnapshot.snapshot).toBeUndefined();
     expect(evaluate(mismatch.priceHistory).section.metrics[0]).toMatchObject({
       status: "missing",
       reason: expect.stringContaining("Yahoo returned WRONG"),
@@ -467,3 +468,44 @@ describe("Price Performance Metric Section", () => {
     }
   });
 });
+
+test("truncated issuer history and benchmark gaps remain material", () => {
+  const subject = { ...history("TEST"), bars: history("TEST").bars.slice(2) };
+  const result = evaluate([subject, history("SPY")]);
+  expect(result.section.metrics[0]?.status).toBe("value");
+  for (const metric of result.section.metrics.slice(2)) {
+    expect(metric).toMatchObject({
+      status: "missing",
+      reason: expect.stringContaining("no common completed session"),
+    });
+    expect(metric).not.toHaveProperty("cause");
+  }
+  expect(result.sourceGaps[0]?.triage).toBe("material");
+  const shortSpy = { ...history("SPY"), bars: history("SPY").bars.slice(2) };
+  expect(evaluate([history("TEST"), shortSpy]).sourceGaps[0]?.triage).toBe("material");
+  expect(evaluate([subject, { ...shortSpy, reason: "fetch failed" }]).sourceGaps[0]?.triage).toBe(
+    "material",
+  );
+});
+
+test.each([
+  ["2021-07-31", "value", undefined],
+  ["2021-08-01", "missing", "diagnostic"],
+  ["2021-08-07", "missing", "diagnostic"],
+  ["2021-08-08", "missing", "material"],
+] as const)(
+  "issuer window starting %s uses bounded short-history triage",
+  (date, status, triage) => {
+    const subject = history("TEST");
+    const spy = history("SPY");
+    const result = evaluate([
+      { ...subject, bars: [{ ...subject.bars[0]!, date }, ...subject.bars.slice(1)] },
+      { ...spy, bars: [spy.bars[0]!, { ...spy.bars[0]!, date }, ...spy.bars.slice(1)] },
+    ]);
+    expect(result.section.metrics[4]?.status).toBe(status);
+    expect(result.sourceGaps[0]?.triage).toBe(triage);
+    for (const metric of result.section.metrics.slice(4)) {
+      expect(metric.cause).toBe(triage === "diagnostic" ? "insufficient-history" : undefined);
+    }
+  },
+);

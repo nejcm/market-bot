@@ -373,6 +373,14 @@ function evidenceValue(
 ) {
   return (ctx: MetricContext): MetricOutcome => {
     const found = evidenceInput(ctx, category, key, label, unit);
+    if (
+      found === undefined &&
+      category === "financial-lens" &&
+      key === "debtToMarketCap" &&
+      seriesNotFiled(ctx, "debt")
+    ) {
+      return { status: "missing", reason: "debt not filed by the issuer", cause: "not-filed" };
+    }
     return found === undefined
       ? { status: "missing", reason: `no ${category} ${label}` }
       : { status: "value", value: found.value, inputs: [found] };
@@ -458,7 +466,15 @@ function netIncomeYoyLabel(ctx: MetricContext): string {
 function currentRatio(ctx: MetricContext): MetricOutcome {
   const found = evidenceInput(ctx, "financial-lens", "currentRatio", "current ratio", "ratio");
   if (found === undefined) {
-    return { status: "missing", reason: "no financial-lens current ratio" };
+    const unfiled = ["currentAssets", "currentLiabilities"] as const;
+    const key = unfiled.find((series) => seriesNotFiled(ctx, series));
+    return key === undefined
+      ? { status: "missing", reason: "no financial-lens current ratio" }
+      : {
+          status: "missing",
+          reason: `${key === "currentAssets" ? "current assets" : "current liabilities"} not filed by the issuer`,
+          cause: "not-filed",
+        };
   }
   const periodEnd = readStringMetric(
     itemByCategory(ctx.evidence, "financial-lens")?.metrics,
@@ -542,7 +558,9 @@ function sectionDefinitions(
           "lifecycle rule over revenue, income and their YoY changes, dividends paid and dividend yield",
         compute: (context) => {
           const { classification, inputs } = phaseInputs(context);
-          return { status: "value", value: classifyBusinessLifecyclePhase(classification), inputs };
+          return inputs.some((input) => input.sourceIds.length > 0)
+            ? { status: "value", value: classifyBusinessLifecyclePhase(classification), inputs }
+            : { status: "missing", reason: "no cited lifecycle classification inputs", inputs };
         },
       },
       REVENUE_YOY,

@@ -160,6 +160,11 @@ export interface WebSubjectProfileExtraValue {
 }
 
 interface MetricResultValue {
+  readonly inputs: readonly {
+    readonly periodType?: string;
+    readonly periodStart?: string;
+    readonly periodEnd?: string;
+  }[];
   readonly id?: string;
   readonly label?: string;
   // Absent when the unit is not a LensValueUnit.
@@ -366,8 +371,14 @@ function readMetricResult(value: unknown): MetricResultValue | undefined {
     return undefined;
   }
   const { unit, value: raw } = value;
+  const inputs = Array.isArray(value.inputs)
+    ? value.inputs
+        .filter(isRecord)
+        .map((input) => optionalStrings(input, ["periodType", "periodStart", "periodEnd"]))
+    : [];
   const sourceIds = stringList(value);
   return {
+    inputs,
     ...optionalStrings(value, [
       "id",
       "label",

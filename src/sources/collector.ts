@@ -353,7 +353,7 @@ export async function collectSources(
     newsResult,
     extendedResult,
     marketContextResult,
-    verifiedSnapshotResult,
+    priceHistoryResult,
     representativeVerifiedSnapshotResults,
     secTargetPacketBase,
     deepSupplementalMarketResults,
@@ -362,9 +362,7 @@ export async function collectSources(
     newsAdapter.collect(newsContext),
     extendedEvidenceAdapter.collect(identityCtx),
     marketContextAdapter.collect(ctx),
-    isEquityTicker
-      ? collectVerifiedMarketSnapshot(ctx, command.symbol, ctx.fetchedAt.slice(0, 10))
-      : undefined,
+    isEquityTicker ? collectPriceHistory(ctx, command.symbol) : undefined,
     command.jobType === "research" &&
     command.assetClass === "equity" &&
     command.depth === "deep" &&
@@ -389,6 +387,7 @@ export async function collectSources(
         )
       : undefined,
   ]);
+  const verifiedSnapshotResult = priceHistoryResult?.verifiedSnapshot;
   const earningsEvent = isDeepEquity
     ? earningsEventFromExtendedSnapshots(command.symbol, extendedResult.rawSnapshots)
     : undefined;
@@ -463,7 +462,7 @@ export async function collectSources(
     extendedEvidence: deepExtendedResult.extendedEvidence,
     extendedRawSnapshots: deepExtendedResult.rawSnapshots,
     verifiedMarketSnapshot: verifiedSnapshotResult?.snapshot,
-    verifiedPriceHistory: verifiedSnapshotResult?.priceHistory ?? [],
+    priceHistory: priceHistoryResult?.priceHistory,
     fetchedAt: ctx.fetchedAt,
     context: ctx,
     identityContext: identityCtx,
@@ -500,9 +499,6 @@ export async function collectSources(
       : sanitizeInstrumentIdentityMetadata(rawIdentity, "instrument-identity");
   const resolvedInstrumentIdentity = sanitizedIdentity?.identity;
 
-  const priceHistoryResult = isEquityTicker
-    ? await collectPriceHistory(ctx, command.symbol)
-    : undefined;
   const pricePerformance = isEquityTicker
     ? pricePerformanceSection({
         symbol: command.symbol,
@@ -522,9 +518,6 @@ export async function collectSources(
       ...(enrichmentResult.valuationCompsResult?.rawSnapshots ?? []),
       ...marketContextResult.rawSnapshots,
       ...supplementalMarketResults.flatMap((result) => result.rawSnapshots),
-      ...(verifiedSnapshotResult?.rawSnapshot !== undefined
-        ? [verifiedSnapshotResult.rawSnapshot]
-        : []),
       ...representativeVerifiedSnapshotResults.flatMap((entry) =>
         entry.result.rawSnapshot === undefined ? [] : [entry.result.rawSnapshot],
       ),

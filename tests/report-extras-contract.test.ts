@@ -547,9 +547,17 @@ describe("metric sections extra", () => {
         id: "capital-return",
         title: "Capital Return",
         metrics: [
-          { label: "", status: "value", value: 1, sourceIds: ["sec"], sourceIdsComplete: true },
+          {
+            label: "",
+            status: "value",
+            value: 1,
+            inputs: [],
+            sourceIds: ["sec"],
+            sourceIdsComplete: true,
+          },
           {
             id: "unlabelled",
+            inputs: [],
             status: "value",
             value: 2,
             unit: "ratio",

@@ -8,12 +8,7 @@ import {
   scopedLabel,
   TOTAL_OPERATIONS_SCOPE,
 } from "./financial-statement-definitions";
-import {
-  canonicalFinancialLensDerivedMetric,
-  hasCanonicalFinancialLensSelection,
-  priorComparable,
-  type CanonicalDerivedMetricKey,
-} from "./financial-lens-canonical";
+import { priorComparable } from "./financial-lens-canonical";
 import {
   itemByCategory,
   peIsClean,
@@ -318,22 +313,8 @@ function evidenceOutcome(
       };
 }
 
-function summaryPeriod(
-  ctx: MetricContext,
-  fallback: LensSeries,
-  canonicalKey: CanonicalDerivedMetricKey | undefined,
-): MetricPeriod {
+function summaryPeriod(ctx: MetricContext, fallback: LensSeries): MetricPeriod {
   const item = secItem(ctx);
-  const selected =
-    canonicalKey === undefined
-      ? undefined
-      : canonicalFinancialLensDerivedMetric(item, canonicalKey);
-  if (selected !== undefined) {
-    return {
-      periodEnd: selected.periodEnd,
-      ...(selected.periodMonths !== undefined ? { periodMonths: selected.periodMonths } : {}),
-    };
-  }
   const periodEnd = readStringMetric(item?.metrics, `${fallback}PeriodEnd`);
   const periodMonths = readNumberMetric(item?.metrics, `${fallback}PeriodMonths`);
   return {
@@ -342,15 +323,10 @@ function summaryPeriod(
   };
 }
 
-function selectedSummaryValue(
-  ctx: MetricContext,
-  canonicalKey: CanonicalDerivedMetricKey,
-  fallback: number | undefined,
-): number | undefined {
-  const item = secItem(ctx);
-  return hasCanonicalFinancialLensSelection(item)
-    ? canonicalFinancialLensDerivedMetric(item, canonicalKey)?.value
-    : fallback;
+function summaryPeriodsMatch(ctx: MetricContext, left: string, right: string): boolean {
+  const metrics = secItem(ctx)?.metrics;
+  const periodEnd = readStringMetric(metrics, `${left}PeriodEnd`);
+  return periodEnd !== undefined && periodEnd === readStringMetric(metrics, `${right}PeriodEnd`);
 }
 
 function chosenInput(
@@ -363,15 +339,10 @@ function chosenInput(
   return value === undefined ? [] : [evidenceInput(item, key, label, "currency", value, period)];
 }
 
-const SUMMARY_STALENESS: Readonly<
-  Record<
-    string,
-    { readonly canonical?: CanonicalDerivedMetricKey; readonly series: readonly LensSeries[] }
-  >
-> = {
-  netDebt: { canonical: "netDebt", series: ["debt", "cash"] },
-  currentRatio: { canonical: "currentRatio", series: ["currentAssets", "currentLiabilities"] },
-  debtToEquity: { canonical: "debtToEquity", series: ["debt", "stockholdersEquity"] },
+const SUMMARY_STALENESS: Readonly<Record<string, { readonly series: readonly LensSeries[] }>> = {
+  netDebt: { series: ["debt", "cash"] },
+  currentRatio: { series: ["currentAssets", "currentLiabilities"] },
+  debtToEquity: { series: ["debt", "stockholdersEquity"] },
   debtToMarketCap: { series: ["debt"] },
   netDebtToMarketCap: { series: ["debt", "cash"] },
 };
@@ -386,14 +357,7 @@ function summaryCurrentness(
   if (spec === undefined || asOf === undefined) {
     return { current: false };
   }
-  const selected =
-    spec.canonical === undefined
-      ? undefined
-      : canonicalFinancialLensDerivedMetric(item, spec.canonical);
-  const periods =
-    selected !== undefined
-      ? [selected.periodEnd]
-      : spec.series.map((key) => readStringMetric(item?.metrics, `${key}PeriodEnd`));
+  const periods = spec.series.map((key) => readStringMetric(item?.metrics, `${key}PeriodEnd`));
   const staleIndex = periods.findIndex(
     (periodEnd) =>
       periodEnd === undefined || !isCurrentBalanceSheetPeriod(item?.metrics, periodEnd, asOf),
@@ -416,33 +380,24 @@ function evidenceGuardedNetDebt(ctx: MetricContext): number | undefined {
     : debt - cash;
 }
 
-function evidenceSelectedNetDebt(ctx: MetricContext): number | undefined {
-  return selectedSummaryValue(ctx, "netDebt", evidenceGuardedNetDebt(ctx));
-}
-
 function evidenceDisplayNetDebt(ctx: MetricContext): number | undefined {
   const valuationNetDebt = valuationItem(ctx)?.metrics?.netDebt;
   if (valuationNetDebt === MIXED_PERIOD_METRIC) {
     return undefined;
   }
-  return typeof valuationNetDebt === "number" ? valuationNetDebt : evidenceSelectedNetDebt(ctx);
+  return typeof valuationNetDebt === "number" ? valuationNetDebt : evidenceGuardedNetDebt(ctx);
 }
 
 function summaryValue(
   ctx: MetricContext,
   key: string,
-  canonicalKey: CanonicalDerivedMetricKey | undefined,
-  fallback: number | undefined,
+  value: number | undefined,
   label: string,
   unit: LensValueUnit,
   periodSeries: LensSeries,
 ): MetricOutcome {
   const item = secItem(ctx);
-  const value =
-    canonicalKey === undefined
-      ? readNumberMetric(item?.metrics, key)
-      : selectedSummaryValue(ctx, canonicalKey, fallback);
-  const period = summaryPeriod(ctx, periodSeries, canonicalKey);
+  const period = summaryPeriod(ctx, periodSeries);
   return value === undefined
     ? { status: "missing", reason: `no SEC ${label}` }
     : {
@@ -459,7 +414,6 @@ function marginDefinition(
   denominator: LensSeries,
   label: string,
 ): MetricDefinition {
-  const canonicalKey = id as CanonicalDerivedMetricKey;
   return {
     id,
     label,
@@ -469,10 +423,18 @@ function marginDefinition(
       if (ctx.statements === undefined) {
         const numeratorValue = readNumberMetric(secItem(ctx)?.metrics, numerator);
         const denominatorValue = readNumberMetric(secItem(ctx)?.metrics, denominator);
+        const numeratorEnd = readStringMetric(secItem(ctx)?.metrics, `${numerator}PeriodEnd`);
+        const denominatorEnd = readStringMetric(secItem(ctx)?.metrics, `${denominator}PeriodEnd`);
+        if (
+          numeratorEnd !== undefined &&
+          denominatorEnd !== undefined &&
+          numeratorEnd !== denominatorEnd
+        ) {
+          return { status: "missing", reason: `no same-period SEC ${label}` };
+        }
         return summaryValue(
           ctx,
           id,
-          canonicalKey,
           numeratorValue === undefined || denominatorValue === undefined || denominatorValue === 0
             ? undefined
             : numeratorValue / denominatorValue,
@@ -527,9 +489,11 @@ function freeCashFlowDefinition(): MetricDefinition {
       if (ctx.statements === undefined) {
         const operatingCashFlow = readNumberMetric(secItem(ctx)?.metrics, "operatingCashFlow");
         const capex = readNumberMetric(secItem(ctx)?.metrics, "capex");
+        if (!summaryPeriodsMatch(ctx, "operatingCashFlow", "capex")) {
+          return { status: "missing", reason: "no same-period SEC FCF proxy" };
+        }
         return summaryValue(
           ctx,
-          "freeCashFlowProxy",
           "freeCashFlowProxy",
           operatingCashFlow === undefined || capex === undefined
             ? undefined
@@ -576,9 +540,17 @@ function cashConversionDefinition(): MetricDefinition {
           secItem(ctx)?.metrics,
           continuing ? "continuingIncome" : "netIncome",
         );
+        if (
+          !summaryPeriodsMatch(
+            ctx,
+            "operatingCashFlow",
+            continuing ? "continuingIncome" : "netIncome",
+          )
+        ) {
+          return { status: "missing", reason: "no same-period SEC Cash conversion" };
+        }
         return summaryValue(
           ctx,
-          "cashConversion",
           "cashConversion",
           operatingCashFlow === undefined || income === undefined || income === 0
             ? undefined
@@ -623,9 +595,6 @@ function returnOnLabel(ctx: MetricContext, id: "roe" | "roa", denominator: LensS
     return label;
   }
   const item = secItem(ctx);
-  if (canonicalFinancialLensDerivedMetric(item, id) !== undefined) {
-    return label;
-  }
   const numeratorEnd = readStringMetric(item?.metrics, "netIncomePeriodEnd");
   const denominatorEnd = readStringMetric(
     item?.metrics,
@@ -663,7 +632,6 @@ function returnOnDefinition(
         const months = readNumberMetric(secItem(ctx)?.metrics, "netIncomePeriodMonths");
         return summaryValue(
           ctx,
-          id,
           id,
           netIncome === undefined || base === undefined || base === 0
             ? undefined
@@ -886,7 +854,7 @@ function yearOverYearDefinition(key: LensSeries, label: string): MetricDefinitio
       if (ctx.statements === undefined) {
         const item = secItem(ctx);
         const value = readNumberMetric(item?.metrics, `${key}DeltaPercent`);
-        const period = summaryPeriod(ctx, key, undefined);
+        const period = summaryPeriod(ctx, key);
         return value === undefined
           ? { status: "missing", reason: `no SEC ${SERIES_LABELS[key]} YoY` }
           : {
@@ -938,13 +906,7 @@ function instantDefinition(id: string, key: LensSeries, label: string): MetricDe
     basis: "latest reported balance-sheet instant",
     compute: (ctx) => {
       if (ctx.statements === undefined) {
-        return evidenceOutcome(
-          secItem(ctx),
-          key,
-          label,
-          "currency",
-          summaryPeriod(ctx, key, undefined),
-        );
+        return evidenceOutcome(secItem(ctx), key, label, "currency", summaryPeriod(ctx, key));
       }
       const fact = latestFact(ctx, key);
       if (fact === undefined) {
@@ -969,7 +931,7 @@ function netDebtDefinition(): MetricDefinition {
     basis: "debt less cash at one balance-sheet instant",
     compute: (ctx) => {
       if (ctx.statements === undefined) {
-        const period = summaryPeriod(ctx, "debt", "netDebt");
+        const period = summaryPeriod(ctx, "debt");
         const currentness = summaryCurrentness(ctx, "netDebt");
         const value = evidenceDisplayNetDebt(ctx);
         const item = secItem(ctx);
@@ -1050,16 +1012,16 @@ function currentRatioDefinition(): MetricDefinition {
       if (ctx.statements === undefined) {
         const currentAssets = readNumberMetric(secItem(ctx)?.metrics, "currentAssets");
         const currentLiabilities = readNumberMetric(secItem(ctx)?.metrics, "currentLiabilities");
-        const value = selectedSummaryValue(
-          ctx,
-          "currentRatio",
+        if (!summaryPeriodsMatch(ctx, "currentAssets", "currentLiabilities")) {
+          return { status: "missing", reason: "no same-period SEC current ratio" };
+        }
+        const value =
           currentAssets === undefined ||
-            currentLiabilities === undefined ||
-            currentLiabilities === 0
+          currentLiabilities === undefined ||
+          currentLiabilities === 0
             ? undefined
-            : currentAssets / currentLiabilities,
-        );
-        const period = summaryPeriod(ctx, "currentAssets", "currentRatio");
+            : currentAssets / currentLiabilities;
+        const period = summaryPeriod(ctx, "currentAssets");
         if (value === undefined) {
           return { status: "missing", reason: "no financial lens current ratio" };
         }
@@ -1130,12 +1092,12 @@ function debtToEquityDefinition(): MetricDefinition {
       if (ctx.statements === undefined) {
         const debt = readNumberMetric(secItem(ctx)?.metrics, "debt");
         const equity = readNumberMetric(secItem(ctx)?.metrics, "stockholdersEquity");
-        const value = selectedSummaryValue(
-          ctx,
-          "debtToEquity",
-          debt === undefined || equity === undefined || equity === 0 ? undefined : debt / equity,
-        );
-        const period = summaryPeriod(ctx, "debt", "debtToEquity");
+        if (!summaryPeriodsMatch(ctx, "debt", "stockholdersEquity")) {
+          return { status: "missing", reason: "no same-period SEC debt/equity" };
+        }
+        const value =
+          debt === undefined || equity === undefined || equity === 0 ? undefined : debt / equity;
+        const period = summaryPeriod(ctx, "debt");
         if (value === undefined) {
           return { status: "missing", reason: "no SEC debt/equity" };
         }
@@ -1233,7 +1195,7 @@ function marketLeverageDefinition(id: "debtToMarketCap" | "netDebtToMarketCap"):
       if (ctx.statements === undefined) {
         const item = valuationItem(ctx);
         const value = readNumberMetric(item?.metrics, id);
-        const period = summaryPeriod(ctx, "debt", undefined);
+        const period = summaryPeriod(ctx, "debt");
         if (value === undefined) {
           return { status: "missing", reason: `no valuation ${id}` };
         }
@@ -1361,20 +1323,22 @@ function payoutRatioDefinition(): MetricDefinition {
         const item = secItem(ctx);
         const dividendsPaid = readNumberMetric(item?.metrics, "dividendsPaid");
         const netIncome = readNumberMetric(item?.metrics, "netIncome");
-        // Without a canonical selection the loss period is net income's own reported end.
-        const nonPositiveIncomePeriodEnd = hasCanonicalFinancialLensSelection(item)
-          ? readStringMetric(item?.metrics, "payoutRatioNonPositiveIncomePeriodEnd")
-          : dividendsPaid !== undefined && netIncome !== undefined && netIncome <= 0
+        if (
+          dividendsPaid !== undefined &&
+          netIncome !== undefined &&
+          !summaryPeriodsMatch(ctx, "dividendsPaid", "netIncome")
+        ) {
+          return { status: "missing", reason: "no same-period SEC payout ratio" };
+        }
+        const nonPositiveIncomePeriodEnd =
+          dividendsPaid !== undefined && netIncome !== undefined && netIncome <= 0
             ? (readStringMetric(item?.metrics, "netIncomePeriodEnd") ?? "undated")
             : undefined;
-        const value = selectedSummaryValue(
-          ctx,
-          "payoutRatio",
+        const value =
           dividendsPaid === undefined || netIncome === undefined || netIncome <= 0
             ? undefined
-            : Math.abs(dividendsPaid) / netIncome,
-        );
-        const period = summaryPeriod(ctx, "dividendsPaid", "payoutRatio");
+            : Math.abs(dividendsPaid) / netIncome;
+        const period = summaryPeriod(ctx, "dividendsPaid");
         const stale =
           period.periodEnd !== undefined &&
           ctx.asOf !== undefined &&
@@ -1758,7 +1722,7 @@ function valueDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
           const months = readNumberMetric(item?.metrics, "operatingCashFlowPeriodMonths");
           const denominator =
             operatingCashFlow === undefined ? undefined : annualize(operatingCashFlow, months);
-          const period = summaryPeriod(context, "operatingCashFlow", undefined);
+          const period = summaryPeriod(context, "operatingCashFlow");
           return marketCap === undefined ||
             marketCap.value === undefined ||
             denominator === undefined ||
@@ -1981,7 +1945,7 @@ function strengthPosture(
     ctx.statements === undefined
       ? evidenceDisplayNetDebt(ctx) === undefined || !summaryCurrentness(ctx, "netDebt").current
         ? undefined
-        : meets(evidenceSelectedNetDebt(ctx), (value) => value <= 0)
+        : meets(evidenceGuardedNetDebt(ctx), (value) => value <= 0)
       : meets(valueOf(section, "netDebt"), (value) => value <= 0);
   return postureFrom([
     netDebtCriterion,

@@ -933,7 +933,7 @@ describe("financial lens artifact compatibility", () => {
     }
   });
 
-  test("keeps latest standalone facts while deriving ratios at pairwise common periods", () => {
+  test("keeps latest standalone facts and withholds ratios without latest-period partners", () => {
     const facts = {
       facts: {
         "us-gaap": {
@@ -997,10 +997,6 @@ describe("financial lens artifact compatibility", () => {
       currentAssets: 90,
       currentAssetsPeriodEnd: "2026-03-31",
       financialLensSelectionVersion: 1,
-      freeCashFlowProxySelectedValue: 15,
-      freeCashFlowProxySelectedPeriodEnd: "2024-12-31",
-      currentRatioSelectedValue: 2,
-      currentRatioSelectedPeriodEnd: "2025-12-31",
     });
 
     const result = addFinancialLensEvidence(
@@ -1009,19 +1005,23 @@ describe("financial lens artifact compatibility", () => {
       persistedCanonicalEvidence,
       verifiedSnapshot(),
       "2026-06-22T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
     );
     expect(metricByKey(result, "Financial Strength", "cash")).toMatchObject({
       value: 40,
       periodEnd: "2026-03-31",
     });
-    expect(metricByKey(result, "Financial Strength", "currentRatio")).toMatchObject({
-      value: 2,
-      periodEnd: "2025-12-31",
-    });
-    expect(metricByKey(result, "Quality", "freeCashFlowProxy")).toMatchObject({
-      value: 15,
-      periodEnd: "2024-12-31",
-    });
+    expect(metricByKey(result, "Financial Strength", "currentRatio")).toBeUndefined();
+    expect(metricByKey(result, "Quality", "freeCashFlowProxy")).toBeUndefined();
+    expect(
+      result.metricSectionGaps?.find(({ source }) => source === "financial-lens-quality")?.message,
+    ).toContain("no same-period capital expenditure");
+    expect(
+      result.metricSectionGaps?.find(({ source }) => source === "financial-lens-financial-strength")
+        ?.message,
+    ).toContain("no same-period current liabilities");
   });
 
   test("uses end-aligned canonical balance facts for ROE and ROA", () => {
@@ -1061,6 +1061,9 @@ describe("financial lens artifact compatibility", () => {
       withCanonicalFinancialLensInputs(undefined, artifact),
       undefined,
       "2026-06-22T00:00:00.000Z",
+      undefined,
+      undefined,
+      artifact,
     );
     const quality = result.artifact?.lenses.find((lens) => lens.name === "Quality");
 
@@ -1552,20 +1555,15 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
   });
 });
 
-// Canonical selection pins net debt and debt/equity to one period, cash/current ratio to another.
-function selectedDebtPeriods(debtPeriodEnd: string, currentPeriodEnd = "2026-06-30") {
+// Raw balances carry the periods used by currentness checks.
+function debtPeriods(debtPeriodEnd: string, currentPeriodEnd = "2026-06-30") {
   return {
-    financialLensSelectionVersion: 1,
-    cashPeriodEnd: currentPeriodEnd,
+    cashPeriodEnd: debtPeriodEnd,
     debtPeriodEnd,
-    stockholdersEquityPeriodEnd: currentPeriodEnd,
+    stockholdersEquityPeriodEnd: debtPeriodEnd,
+    currentAssets: 32,
     currentAssetsPeriodEnd: currentPeriodEnd,
-    netDebtSelectedValue: -15,
-    netDebtSelectedPeriodEnd: debtPeriodEnd,
-    debtToEquitySelectedValue: 0.4,
-    debtToEquitySelectedPeriodEnd: debtPeriodEnd,
-    currentRatioSelectedValue: 0.8,
-    currentRatioSelectedPeriodEnd: currentPeriodEnd,
+    currentLiabilitiesPeriodEnd: currentPeriodEnd,
   };
 }
 
@@ -1604,7 +1602,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       analysisAsOf,
     );
   test("year-old debt with withheld net debt cannot support posture (run f569559f shape)", () => {
-    const result = strengthAt(cutoff, selectedDebtPeriods("2025-06-30"), {
+    const result = strengthAt(cutoff, debtPeriods("2025-06-30"), {
       netDebt: MIXED_PERIOD_METRIC,
       cashPeriodEnd: "2026-06-30",
       debtPeriodEnd: "2025-06-30",
@@ -1626,10 +1624,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
   });
 
   test("historical net debt and debt/equity are withheld as stale", () => {
-    const { currentRatioSelectedValue: _currentRatio, ...noCurrentRatio } = selectedDebtPeriods(
-      "2025-06-30",
-      "2025-06-30",
-    );
+    const noCurrentRatio = debtPeriods("2025-06-30", "2025-06-30");
     const result = strengthAt(cutoff, noCurrentRatio);
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
@@ -1638,7 +1633,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
   });
 
   test("fresh aligned balances keep net debt and debt/equity", () => {
-    const result = strengthAt(cutoff, selectedDebtPeriods("2026-06-30"));
+    const result = strengthAt(cutoff, debtPeriods("2026-06-30"));
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-mixed");
     expect(metricByKey(result, "Financial Strength", "debtToEquity")?.value).toBe(0.4);
     expect(strengthSection(result)).toBeDefined();
@@ -1661,7 +1656,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     const analysisAsOf = currentPeriodEnd === "2026-06-30" ? "2026-07-01T00:00:00.000Z" : cutoff;
     const result = strengthAt(
       debtPeriodEnd === "2026-10-09" ? cutoff : analysisAsOf,
-      selectedDebtPeriods(debtPeriodEnd, currentPeriodEnd),
+      debtPeriods(debtPeriodEnd, currentPeriodEnd),
     );
     expect(lensByName(result, "Financial Strength")?.posture).toBe(posture);
     expect(strengthReason(result, "netDebt") === undefined).toBe(current);
@@ -1671,9 +1666,9 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     const result = strengthAt(
       "2026-07-01T00:00:00.000Z",
       {
-        ...selectedDebtPeriods("2026-03-29"),
+        ...debtPeriods("2026-03-29"),
         cashPeriodEnd: "2026-03-29",
-        currentRatioSelectedValue: 2,
+        currentAssets: 80,
       },
       { netDebt: -15, debtToMarketCap: 0.02, netDebtToMarketCap: -0.015 },
     );
@@ -1720,8 +1715,8 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
     expect(metricByKey(result, "Financial Strength", "currentRatio")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
-    expect(strengthReason(result, "currentRatio")).toBe("stale current ratio as of 2025-06-30");
-    expect(strengthReason(result, "debtToEquity")).toBe("stale debt/equity as of 2025-06-30");
+    expect(strengthReason(result, "currentRatio")).toBe("no same-period SEC current ratio");
+    expect(strengthReason(result, "debtToEquity")).toBe("no same-period SEC debt/equity");
   });
 
   test("undated legacy debt cannot support posture", () => {
@@ -1744,9 +1739,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
     expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
     expect(strengthReason(result, "netDebt")).toBe("stale net debt as of an undated period");
-    expect(strengthReason(result, "debtToEquity")).toBe(
-      "stale debt/equity as of an undated period",
-    );
+    expect(strengthReason(result, "debtToEquity")).toBe("no same-period SEC debt/equity");
   });
 
   test("brief path: producer and lens both withhold year-old debt without peer comps", () => {
@@ -1782,7 +1775,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
     expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(valuation.sourceGaps[0]?.message).toStartWith("Non-current SEC balance-sheet inputs");
     expect(strengthReason(result, "netDebt")).toBe("stale net debt as of 2025-06-30");
-    expect(strengthReason(result, "currentRatio")).toBe("stale current ratio as of 2025-06-30");
+    expect(strengthReason(result, "currentRatio")).toBe("no same-period SEC current ratio");
   });
 });
 

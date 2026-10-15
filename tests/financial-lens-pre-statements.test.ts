@@ -33,10 +33,12 @@ function evidence(overrides: Record<string, number | string> = {}): ExtendedEvid
           operatingIncome: 24,
           operatingIncomePeriodEnd: "2026-03-31",
           netIncome: 18,
+          dividendsPaid: 4.5,
+          dividendsPaidPeriodEnd: "2026-03-31",
+          stockholdersEquity: 50,
+          stockholdersEquityPeriodEnd: "2026-03-31",
           netIncomePeriodEnd: "2026-03-31",
           revenueDeltaPercent: 12,
-          grossMarginSelectedValue: 0.42,
-          grossMarginSelectedPeriodEnd: "2026-03-31",
           cash: 35,
           cashPeriodEnd: "2026-03-31",
           debt: 20,
@@ -45,14 +47,6 @@ function evidence(overrides: Record<string, number | string> = {}): ExtendedEvid
           currentAssetsPeriodEnd: "2026-03-31",
           currentLiabilities: 40,
           currentLiabilitiesPeriodEnd: "2026-03-31",
-          currentRatioSelectedValue: 2,
-          currentRatioSelectedPeriodEnd: "2026-03-31",
-          debtToEquitySelectedValue: 0.4,
-          debtToEquitySelectedPeriodEnd: "2026-03-31",
-          netDebtSelectedValue: -15,
-          netDebtSelectedPeriodEnd: "2026-03-31",
-          payoutRatioSelectedValue: 0.25,
-          payoutRatioSelectedPeriodEnd: "2026-03-31",
           ...overrides,
         },
       },
@@ -116,14 +110,61 @@ test("the rebuilt lens keeps summary projections when only the SEC summary exist
   expect(strengthMetric(result, "payoutRatio")).toMatchObject({ value: 0.25 });
 });
 
+test.each([
+  ["freeCashFlowProxy", "operatingCashFlow", "capex", 20, 5, 15, "FCF proxy"],
+  ["cashConversion", "operatingCashFlow", "netIncome", 20, 10, 2, "Cash conversion"],
+  ["cashConversion", "operatingCashFlow", "continuingIncome", 20, 10, 2, "Cash conversion"],
+  ["payoutRatio", "dividendsPaid", "netIncome", 5, 10, 0.5, "payout ratio"],
+  ["currentRatio", "currentAssets", "currentLiabilities", 20, 10, 2, "current ratio"],
+  ["debtToEquity", "debt", "stockholdersEquity", 20, 10, 2, "debt/equity"],
+] as const)(
+  "summary %s requires matching %s and %s periods",
+  (id, left, right, a, b, value, label) => {
+    const overrides = {
+      [left]: a,
+      [right]: b,
+      [`${left}PeriodEnd`]: "2026-03-31",
+      [`${right}PeriodEnd`]: "2026-03-31",
+      ...(right === "continuingIncome" ? { operatingCashFlowScope: "continuing operations" } : {}),
+    };
+    const metric = (input: ExtendedEvidence) =>
+      lens(input)
+        .result.metricSections?.flatMap(({ metrics }) => metrics)
+        .find((row) => row.id === id);
+    expect(metric(evidence(overrides))).toMatchObject({ status: "value", value });
+    for (const period of ["2025-12-31", undefined]) {
+      const input = evidence({ ...overrides, [`${right}PeriodEnd`]: period ?? "2026-03-31" });
+      if (period === undefined) {
+        delete input.items[0]!.metrics![`${right}PeriodEnd`];
+      }
+      const { result } = lens(input);
+      expect(
+        result.metricSections?.flatMap(({ metrics }) => metrics).find((row) => row.id === id),
+      ).toMatchObject({
+        status: "missing",
+        reason: `no same-period SEC ${label}`,
+      });
+      expect(
+        result.metricSectionGaps?.some(
+          ({ message, triage }) =>
+            triage === "material" && message.includes(`no same-period SEC ${label}`),
+        ),
+      ).toBe(true);
+      expect(
+        result.extendedEvidence?.items.find(({ category }) => category === "financial-lens")
+          ?.metrics?.[id],
+      ).toBeUndefined();
+    }
+  },
+);
+
 test("a stale summary balance sheet is withheld with a reason and a section gap", () => {
   const { result } = lens(
     evidence({
       cashPeriodEnd: "2025-06-30",
       debtPeriodEnd: "2025-06-30",
-      netDebtSelectedPeriodEnd: "2025-06-30",
-      currentRatioSelectedPeriodEnd: "2025-06-30",
-      debtToEquitySelectedPeriodEnd: "2025-06-30",
+      currentAssetsPeriodEnd: "2025-06-30",
+      currentLiabilitiesPeriodEnd: "2025-06-30",
     }),
   );
 
@@ -148,7 +189,7 @@ test("a stale summary balance sheet is withheld with a reason and a section gap"
 });
 
 test("the extended evidence item drops a withheld metric instead of guessing a value", () => {
-  const { result } = lens(evidence({ netDebtSelectedPeriodEnd: "2025-06-30" }));
+  const { result } = lens(evidence({ debtPeriodEnd: "2025-06-30" }));
   const item = result.extendedEvidence?.items.find(({ category }) => category === "financial-lens");
 
   expect(item?.metrics?.netDebt).toBeUndefined();

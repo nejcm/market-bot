@@ -25,7 +25,6 @@ import {
   financialStatementSeriesByKey,
   isYearAligned,
   latestCommonFinancialStatementFacts,
-  latestCommonFinancialStatementPeriodEndFacts,
   latestFinancialStatementFact,
   earlierShareBasisPeriods,
   touchesEarlierShareBasis,
@@ -35,41 +34,7 @@ import {
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION = 1;
 const CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY = "financialLensSelectionVersion";
 
-export interface CanonicalFinancialLensDerivedMetric {
-  readonly value: number;
-  readonly periodEnd: string;
-  readonly periodMonths?: number;
-}
-
-export function canonicalFinancialLensDerivedMetric(
-  item: ExtendedEvidenceItem | undefined,
-  key: CanonicalDerivedMetricKey,
-): CanonicalFinancialLensDerivedMetric | undefined {
-  if (!hasCanonicalFinancialLensSelection(item)) {
-    return;
-  }
-  const value = item?.metrics?.[`${key}SelectedValue`];
-  const periodEnd = item?.metrics?.[`${key}SelectedPeriodEnd`];
-  const periodMonths = item?.metrics?.[`${key}SelectedPeriodMonths`];
-  if (
-    typeof value !== "number" ||
-    !Number.isFinite(value) ||
-    typeof periodEnd !== "string" ||
-    (periodMonths !== undefined &&
-      (typeof periodMonths !== "number" || !Number.isFinite(periodMonths)))
-  ) {
-    return;
-  }
-  return {
-    value,
-    periodEnd,
-    ...(periodMonths !== undefined ? { periodMonths } : {}),
-  };
-}
-
-export function hasCanonicalFinancialLensSelection(
-  item: ExtendedEvidenceItem | undefined,
-): boolean {
+function hasCanonicalFinancialLensSelection(item: ExtendedEvidenceItem | undefined): boolean {
   return (
     item?.metrics?.[CANONICAL_FINANCIAL_LENS_SELECTION_VERSION_KEY] ===
     CANONICAL_FINANCIAL_LENS_SELECTION_VERSION
@@ -117,7 +82,6 @@ export type SecMetricKey =
   | `${SecFactMetricKey}Prior`
   | `${SecFactMetricKey}DeltaPercent`
   | `${SecFactMetricKey}Scope`
-  | `${CanonicalDerivedMetricKey}Selected${"Value" | "PeriodEnd" | "PeriodMonths"}`
   | "revenuePeriodEnd"
   | "financialLensSelectionVersion"
   | "sic"
@@ -181,97 +145,6 @@ function addFactMetrics(
   }
 }
 
-function addCommonDerivedMetric(
-  metrics: Record<string, CanonicalFinancialLensDerivedMetric>,
-  key: string,
-  left: FinancialStatementSeries | undefined,
-  right: FinancialStatementSeries | undefined,
-  derive: (left: number, right: number) => number | undefined,
-): void {
-  if (left === undefined || right === undefined) {
-    return;
-  }
-  const facts = latestCommonFinancialStatementFacts([left, right]);
-  if (facts === undefined) {
-    return;
-  }
-  const [leftFact, rightFact] = facts;
-  if (leftFact === undefined || rightFact === undefined) {
-    return;
-  }
-  const value = derive(leftFact.value, rightFact.value);
-  if (value === undefined || !Number.isFinite(value)) {
-    return;
-  }
-  const { periodEnd } = leftFact;
-  const months = financialStatementPeriodMonths(leftFact);
-  metrics[key] = {
-    value,
-    periodEnd,
-    ...(months !== undefined ? { periodMonths: months } : {}),
-  };
-}
-
-function addCommonPeriodEndDerivedMetric(
-  metrics: Record<string, CanonicalFinancialLensDerivedMetric>,
-  key: string,
-  left: FinancialStatementSeries | undefined,
-  right: FinancialStatementSeries | undefined,
-  derive: (left: FinancialStatementFact, right: FinancialStatementFact) => number | undefined,
-): void {
-  const facts = latestCommonFinancialStatementPeriodEndFacts([left, right]);
-  if (facts === undefined || facts[0] === undefined || facts[1] === undefined) {
-    return;
-  }
-  const value = derive(facts[0], facts[1]);
-  if (value === undefined || !Number.isFinite(value)) {
-    return;
-  }
-  const months = financialStatementPeriodMonths(facts[0]);
-  metrics[key] = {
-    value,
-    periodEnd: facts[0].periodEnd,
-    ...(months !== undefined ? { periodMonths: months } : {}),
-  };
-}
-
-function dividedBy(left: number, right: number): number | undefined {
-  return right === 0 ? undefined : left / right;
-}
-
-const PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY = "payoutRatioNonPositiveIncomePeriodEnd";
-
-const COMMON_DERIVED_SERIES = [
-  ["grossMargin", "grossProfit", "revenue", dividedBy],
-  ["operatingMargin", "operatingIncome", "revenue", dividedBy],
-  ["netMargin", "netIncome", "revenue", dividedBy],
-  [
-    "freeCashFlowProxy",
-    "operatingCashFlow",
-    "capex",
-    (left: number, right: number) => left - right,
-  ],
-  ["cashConversion", "operatingCashFlow", "netIncome", dividedBy],
-  ["netDebt", "debt", "cash", (left: number, right: number) => left - right],
-  ["currentRatio", "currentAssets", "currentLiabilities", dividedBy],
-  ["debtToEquity", "debt", "stockholdersEquity", dividedBy],
-  [
-    "payoutRatio",
-    "dividendsPaid",
-    "netIncome",
-    (left: number, right: number) => (right > 0 ? Math.abs(left) / right : undefined),
-  ],
-] as const;
-
-const PERIOD_END_DERIVED_SERIES = [
-  ["roe", "stockholdersEquity"],
-  ["roa", "assets"],
-] as const;
-
-export type CanonicalDerivedMetricKey =
-  | (typeof COMMON_DERIVED_SERIES)[number][0]
-  | (typeof PERIOD_END_DERIVED_SERIES)[number][0];
-
 // Cash conversion divides by income of the operating cash flow's own operations scope.
 function cashConversionIncomeKey(
   operatingCashFlow: FinancialStatementSeries,
@@ -315,8 +188,7 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
   readonly metrics: Record<string, number | string>;
 } {
   const metrics: Record<string, number | string> = {};
-  const derivedMetrics: Record<string, CanonicalFinancialLensDerivedMetric> = {};
-  const inputs = [...FLOW_SERIES, ...INSTANT_SERIES].map(([metricKey, seriesKey]) => {
+  [...FLOW_SERIES, ...INSTANT_SERIES].forEach(([metricKey, seriesKey]) => {
     const series = financialStatementSeriesByKey(artifact, seriesKey);
     if (series === undefined) {
       throw new Error(`Canonical financial statements are missing ${seriesKey}`);
@@ -340,7 +212,6 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
         earlierShareBasisPeriods(artifact.omissionNotes, seriesKey),
       );
     }
-    return [metricKey, series] as const;
   });
   for (const [continuingKey, totalKey] of Object.entries(TOTAL_COUNTERPARTS)) {
     if (metrics[continuingKey] !== undefined && metrics[`${totalKey}Scope`] === undefined) {
@@ -358,55 +229,6 @@ function canonicalMetrics(artifact: FinancialStatementsArtifact): {
       consolidatedNetIncomeFact,
       income.consolidatedNetIncome,
     );
-  }
-  const byMetric = new Map(inputs);
-  for (const [key, leftKey, rightKey, derive] of COMMON_DERIVED_SERIES) {
-    const left = byMetric.get(leftKey);
-    addCommonDerivedMetric(
-      derivedMetrics,
-      key,
-      left,
-      byMetric.get(
-        key === "cashConversion" && left !== undefined ? cashConversionIncomeKey(left) : rightKey,
-      ),
-      derive,
-    );
-  }
-  const payoutIncome = latestCommonFinancialStatementFacts([
-    byMetric.get("dividendsPaid"),
-    byMetric.get("netIncome"),
-  ])?.[1];
-  if (payoutIncome !== undefined && payoutIncome.value <= 0) {
-    metrics[PAYOUT_NON_POSITIVE_INCOME_PERIOD_END_KEY] = payoutIncome.periodEnd;
-  }
-  for (const [key, selected] of Object.entries(derivedMetrics)) {
-    metrics[`${key}SelectedValue`] = selected.value;
-    metrics[`${key}SelectedPeriodEnd`] = selected.periodEnd;
-    if (selected.periodMonths !== undefined) {
-      metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
-    }
-  }
-  for (const [key, denominatorKey] of PERIOD_END_DERIVED_SERIES) {
-    addCommonPeriodEndDerivedMetric(
-      derivedMetrics,
-      key,
-      byMetric.get("netIncome"),
-      byMetric.get(denominatorKey),
-      (netIncome, denominator) => {
-        const months = financialStatementPeriodMonths(netIncome);
-        return months === undefined || denominator.value === 0
-          ? undefined
-          : (netIncome.value * (12 / months)) / denominator.value;
-      },
-    );
-    const selected = derivedMetrics[key];
-    if (selected !== undefined) {
-      metrics[`${key}SelectedValue`] = selected.value;
-      metrics[`${key}SelectedPeriodEnd`] = selected.periodEnd;
-      if (selected.periodMonths !== undefined) {
-        metrics[`${key}SelectedPeriodMonths`] = selected.periodMonths;
-      }
-    }
   }
   const { debtPeriodEnd } = metrics;
   const [incompleteDebt] = artifact.omissionNotes

@@ -808,7 +808,7 @@ describe("collectSources", () => {
     );
 
     expect(result.financialStatements).toBeUndefined();
-    expect(result.metricSections?.map((section) => section.id)).not.toContain("capital-return");
+    expect(result.metricSections?.map((section) => section.id)).toContain("capital-return");
     expect(
       result.metricSections
         ?.find((section) => section.id === "business-framework-business")
@@ -818,7 +818,7 @@ describe("collectSources", () => {
       ["missing", "financial statements unavailable"],
       ["missing", "financial statements unavailable"],
     ]);
-    expect(result.sourceGaps.some((gap) => gap.source === "capital-return")).toBe(false);
+    expect(result.sourceGaps.some((gap) => gap.source === "capital-return")).toBe(true);
     expect(result.fundamentalHistory).toBeUndefined();
     expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
     expect(recordedRequests.filter((url) => url.includes("company_tickers.json"))).toHaveLength(2);
@@ -3704,4 +3704,96 @@ describe("researchNewsRelevanceTargets", () => {
 
     expect(targets).toHaveLength(0);
   });
+});
+
+test("missing statements still declare Capital Return and Operating Ratios", async () => {
+  const result = await collectSources(
+    { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    {
+      equityMoverLimit: 1,
+      cryptoMoverLimit: 1,
+      newsLimit: 1,
+      sourceTimeoutMs: 1000,
+      cacheDir: tempCacheDir(),
+    },
+    {
+      now: new Date("2026-07-15T00:00:00Z"),
+      fetchImpl: async (input) =>
+        jsonResponse(
+          String(input).includes("/v7/finance/quote")
+            ? { quoteResponse: { result: [collectorQuote("AAPL", 1000)] } }
+            : {},
+        ),
+    },
+  );
+  expect(result.financialStatements).toBeUndefined();
+  for (const id of ["capital-return", "operating-ratios"]) {
+    const section = result.metricSections?.find((row) => row.id === id);
+    expect(section?.metrics.length).toBeGreaterThan(0);
+    expect(section?.metrics.some(({ status }) => status === "missing")).toBe(true);
+    expect(result.sourceGaps.find(({ source }) => source === id)?.triage).toBe("material");
+  }
+});
+
+test("workbench consumes the same split-adjusted history as Price Performance without a technical snapshot", async () => {
+  const chartRequests: string[] = [];
+  const result = await collectSources(
+    { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+    {
+      equityMoverLimit: 1,
+      cryptoMoverLimit: 1,
+      newsLimit: 1,
+      sourceTimeoutMs: 1000,
+      cacheDir: tempCacheDir(),
+    },
+    {
+      now: new Date("2026-07-15T00:00:00Z"),
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.includes("/v7/finance/quote")) {
+          return jsonResponse({
+            quoteResponse: {
+              result: [{ ...collectorQuote("AAPL", 1_000_000_000), currency: "USD" }],
+            },
+          });
+        }
+        if (url.includes("company_tickers.json")) {
+          return jsonResponse({ "0": { cik_str: 1, ticker: "AAPL", title: "Apple Inc." } });
+        }
+        if (url.includes("companyfacts")) {
+          return jsonResponse(collectorBankSecPayload());
+        }
+        if (url.includes("/v8/finance/chart")) {
+          chartRequests.push(url);
+          const symbol = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
+          const timestamp = Date.parse("2026-02-16T00:00:00Z") / 1000;
+          return jsonResponse({
+            chart: {
+              result: [
+                {
+                  meta: { symbol, currency: "USD" },
+                  timestamp: [timestamp],
+                  events: { splits: {} },
+                  indicators: { quote: [{ close: [100] }] },
+                },
+              ],
+            },
+          });
+        }
+        return jsonResponse({});
+      },
+    },
+  );
+  expect(result.verifiedMarketSnapshot).toBeUndefined();
+  const observation = result.valuationWorkbench?.historicalMultiples.observations[0];
+  expect(observation?.price).toMatchObject({
+    close: 100,
+    sessionDate: "2026-02-16",
+    sourceId: "price-history-AAPL",
+    currency: "USD",
+  });
+  expect(chartRequests.filter((url) => new URL(url).pathname.endsWith("/AAPL"))).toHaveLength(1);
+  expect(
+    chartRequests.every((url) => new URL(url).searchParams.get("events") === "div,splits"),
+  ).toBe(true);
 });

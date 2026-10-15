@@ -545,7 +545,6 @@ describe("collectVerifiedMarketSnapshot", () => {
     expect(result.snapshot?.latestSessionDate).toBe("2024-03-19");
     expect(result.snapshot?.latestSessionStatus).toBeUndefined();
     expect(result.snapshot?.ohlcv.date).toBe("2024-03-19");
-    expect(result.priceHistory?.at(-1)?.date).toBe("2024-03-19");
     expect(result.snapshot?.recentCloses.at(-1)?.date).toBe("2024-03-19");
     expect(result.sourceGaps).toEqual([
       {
@@ -1162,9 +1161,9 @@ describe("collectSources — verified snapshot wiring", () => {
 
     expect(result.verifiedMarketSnapshot?.symbol).toBe("AAPL");
     expect(result.resolvedInstrumentIdentity?.displayName).toBe("Apple Inc.");
-    expect(
-      result.rawSnapshots.some((snapshot) => snapshot.adapter === "yahoo-verified-chart"),
-    ).toBe(true);
+    expect(result.rawSnapshots.some((snapshot) => snapshot.adapter === "yahoo-price-history")).toBe(
+      true,
+    );
   });
 
   test("daily equity run skips snapshot and identity entirely", async () => {

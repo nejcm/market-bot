@@ -2143,6 +2143,9 @@ describe("report artifact parsers", () => {
                 value: 0.42,
                 periodEnd: "2026-03-31",
                 periodMonths: 3,
+                inputs: [
+                  { periodType: "interim", periodStart: "2026-01-01", periodEnd: "2026-03-31" },
+                ],
                 sourceIds: ["sec"],
               },
               {
@@ -2196,6 +2199,9 @@ describe("report artifact parsers", () => {
                 status: "value",
                 value: 5_875_000_000,
                 periodEnd: "2025-10-31",
+                inputs: [
+                  { periodType: "annual", periodStart: "2024-11-01", periodEnd: "2025-10-31" },
+                ],
                 basis: "cash dividends paid",
                 sourceIds: ["sec"],
               },

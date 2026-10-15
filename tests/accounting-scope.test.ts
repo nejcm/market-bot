@@ -141,7 +141,6 @@ describe("accounting scope", () => {
       (metric) => metric.label,
     );
 
-    expect(metrics.cashConversionSelectedValue).toBeCloseTo(7_345_000 / 2_195_000, 6);
     expect(lensMetric(artifact, "cashConversion")?.value).toBeCloseTo(7_345_000 / 2_195_000, 6);
     expect(artifact.statements.cashFlowStatement.operatingCashFlow.interim[0]?.concept).toBe(
       CONTINUING_OCF,
@@ -181,9 +180,9 @@ describe("accounting scope", () => {
         },
       ],
     };
-    const metrics = secItem(statements(concepts)).metrics!;
+    const artifact = statements(concepts);
 
-    expect(metrics.roeSelectedValue).toBeCloseTo((1_858_000 * (12 / 9)) / 245_920_000, 8);
+    expect(lensMetric(artifact, "roe")?.value).toBeCloseTo((1_858_000 * (12 / 9)) / 245_920_000, 8);
   });
 
   test("states continuing income in the SEC fundamentals summary", () => {
@@ -209,7 +208,7 @@ describe("accounting scope", () => {
     const artifact = statements({ ...rest, [TOTAL_OCF]: ocf! });
     const metrics = secItem(artifact).metrics!;
 
-    expect(metrics.cashConversionSelectedValue).toBeCloseTo(7_345_000 / 1_858_000, 6);
+    expect(lensMetric(artifact, "cashConversion")?.value).toBeCloseTo(7_345_000 / 1_858_000, 6);
     expect(metrics.continuingIncome).toBeUndefined();
     expect(metrics.netIncomeScope).toBeUndefined();
     expect(lensMetric(artifact, "netIncomeDeltaPercent")?.label).toBe("Net income (attrib.) YoY");
@@ -221,7 +220,6 @@ describe("accounting scope", () => {
     const { [CONTINUING_NCI]: _income, ...concepts } = clfd();
     const artifact = statements(concepts);
 
-    expect(secItem(artifact).metrics?.cashConversionSelectedValue).toBeUndefined();
     expect(lensMetric(artifact, "cashConversion")).toBeUndefined();
     expect(cashConversionScopeGaps(artifact).map((gap) => gap.message)).toEqual([
       "SEC cash conversion withheld: operating cash flow is reported for continuing operations, and no income from continuing operations shares its period, currency, and unit",
@@ -236,7 +234,7 @@ describe("accounting scope", () => {
     const otherCurrency = statements(clfd(), { [CONTINUING_NCI]: "EUR" });
 
     for (const artifact of [quarterOnly, otherCurrency]) {
-      expect(secItem(artifact).metrics?.cashConversionSelectedValue).toBeUndefined();
+      expect(lensMetric(artifact, "cashConversion")).toBeUndefined();
       expect(cashConversionScopeGaps(artifact)).toHaveLength(1);
     }
   });
@@ -244,7 +242,7 @@ describe("accounting scope", () => {
   test("withholds a zero-denominator ratio without a scope gap", () => {
     const artifact = statements({ ...clfd(), [CONTINUING_NCI]: [fy25(1), ytdPrior(1), ytd(0)] });
 
-    expect(secItem(artifact).metrics?.cashConversionSelectedValue).toBeUndefined();
+    expect(lensMetric(artifact, "cashConversion")).toBeUndefined();
     expect(cashConversionScopeGaps(artifact)).toEqual([]);
   });
 
@@ -423,7 +421,7 @@ describe("accounting scope", () => {
       NetIncomeLoss: [row(3_000_000, "2026-04-01", "2026-06-30", "Q3", "2026-08-06")],
     });
 
-    expect(secItem(artifact).metrics?.cashConversionSelectedValue).toBeUndefined();
+    expect(lensMetric(artifact, "cashConversion")).toBeUndefined();
     expect(cashConversionScopeGaps(artifact).map((gap) => gap.message)).toEqual([
       "SEC cash conversion withheld: no net income shares the operating cash flow period, currency, and unit",
     ]);

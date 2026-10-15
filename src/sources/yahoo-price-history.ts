@@ -73,7 +73,12 @@ export async function collectPriceHistory(
           ...(mismatch
             ? { reason: `Yahoo returned ${returnedSymbol} for ${ticker}` }
             : adjusted.length === 0
-              ? { reason: "split-adjusted history unavailable: invalid closes or split metadata" }
+              ? {
+                  reason:
+                    Array.isArray(result?.timestamp) && result.timestamp.length > 0
+                      ? "split-adjusted history unavailable: invalid closes or split metadata"
+                      : "price history unavailable: no rows returned",
+                }
               : {}),
           ...(currency === undefined ? {} : { currency }),
         },

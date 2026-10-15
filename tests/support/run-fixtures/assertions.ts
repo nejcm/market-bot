@@ -21,6 +21,8 @@ import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
+import { renderMarkdownReport } from "../../../src/report/markdown";
+import { assertNoUnresolvedMetricReferences } from "../../../src/research/metric-references";
 import { hasNoPriceHistory } from "../../../src/report/valuation-workbench-markdown";
 import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
@@ -96,6 +98,15 @@ export async function assertInvariants(
     );
   }
   const report = validateResearchReport(persistedReport as ResearchReport);
+  assertNoUnresolvedMetricReferences(report, result.collectedSources);
+  const marketSnapshot = result.collectedSources.marketSnapshots.find(
+    (snapshot) =>
+      snapshot.assetClass === report.assetClass &&
+      snapshot.symbol.toUpperCase() === report.symbol?.toUpperCase(),
+  );
+  expect(result.markdown).toBe(
+    renderMarkdownReport(report, marketSnapshot, result.collectedSources),
+  );
   assertSafeReportLanguage(report);
   assertValuationWorkbenchInvariants(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);

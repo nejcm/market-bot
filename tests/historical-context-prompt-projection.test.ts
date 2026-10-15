@@ -85,23 +85,15 @@ describe("compactHistoricalContext", () => {
 
     expect(
       context.runs.every(
-        (run) =>
-          run.dataGaps.length === 8 &&
-          run.dataGaps.every((gap) => !gap.startsWith("price-performance: ")),
+        (run) => run.dataGaps.length === 8 && run.dataGaps[0]?.startsWith("price-performance: "),
       ),
     ).toBe(true);
-    for (const view of ["all", "web-gather"] as const) {
-      const changed = {
-        ...context,
-        runs: context.runs.map((run) => ({
-          ...run,
-          dataGaps: [...run.dataGaps, "price-performance: no completed price history"],
-        })),
-      };
-      expect(compactHistoricalContext(changed, view)).toEqual(
-        compactHistoricalContext(context, view),
-      );
-    }
+    const all = compactHistoricalContext(context, "all").runs as typeof context.runs;
+    const web = compactHistoricalContext(context, "web-gather").runs as typeof context.runs;
+    expect(all.every((run) => run.dataGaps[0]?.startsWith("price-performance: "))).toBe(true);
+    expect(
+      web.every((run) => run.dataGaps.every((gap) => !gap.startsWith("price-performance: "))),
+    ).toBe(true);
     const runs = compactHistoricalContext(context, "all").runs as readonly {
       readonly runId: string;
       readonly predictions: readonly { readonly id: string; readonly measurableAs: string }[];

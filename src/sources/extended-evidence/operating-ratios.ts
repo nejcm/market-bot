@@ -265,7 +265,6 @@ const OPERATING_RATIO_METRICS: readonly MetricDefinition[] = [
   },
 ];
 
-// Statement-derived operating ratios; values stay out of model prompts until a deliberate change.
 export function operatingRatiosSection(
   ctx: MetricContext,
 ): ReturnType<typeof evaluateMetricSection> {

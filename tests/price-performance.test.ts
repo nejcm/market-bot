@@ -324,6 +324,17 @@ describe("Price Performance Metric Section", () => {
     );
   });
 
+  test("distinguishes no returned history from invalid closes or split metadata", async () => {
+    for (const payload of [{ chart: { result: null } }, chart("TEST", [], [])]) {
+      const result = await collect(() => payload);
+      expect(result.priceHistory[0]?.reason).toBe("price history unavailable: no rows returned");
+    }
+    const result = await collect((symbol) => chart(symbol, DATES, [null, null, null, null]));
+    expect(result.priceHistory[0]?.reason).toBe(
+      "split-adjusted history unavailable: invalid closes or split metadata",
+    );
+  });
+
   test("declares missing history when split metadata is unavailable or ambiguous", async () => {
     const timestamp = Date.parse("2025-07-24") / 1000;
     const valid = { date: timestamp, numerator: 10, denominator: 1, splitRatio: "10:1" };
@@ -414,29 +425,36 @@ describe("Price Performance Metric Section", () => {
     });
   });
 
-  test("new metrics and gaps stay out of every prompt gap view while report readers retain them", () => {
+  test("exposes metrics and all nested section gaps to synthesis, retaining Web Gather filtering", () => {
     const { section, sourceGaps } = evaluate();
+    const existing = { source: "existing", message: "retained" };
     const collected = collectedSources({
       metricSections: [section],
-      sourceGaps: [...sourceGaps, { source: "existing", message: "retained" }],
+      sourceGaps: [...sourceGaps, existing],
+      extendedEvidence: { items: [], gaps: sourceGaps },
+      marketContext: { assetClass: "equity", items: [], gaps: sourceGaps },
     });
     for (const view of ["all", "web-gather"] as const) {
-      expect(collectedSourcesForGapView(view, collected).sourceGaps).toEqual([
-        { source: "existing", message: "retained" },
-      ]);
-      expect(sourceGapVisibleForView(view, sourceGapReportText(sourceGaps[0]!))).toBe(false);
-    }
-    const baseline = collectedSources({
-      sourceGaps: [{ source: "existing", message: "retained" }],
-    });
-    for (const webSourceText of ["metadata", "profile"] as const) {
-      for (const sourceGapView of ["all", "web-gather"] as const) {
-        const options = { includePriorCalibration: false, sourceGapView, webSourceText };
-        const context = { ...contextWithHistory(command), analysisAsOf: AS_OF };
-        expect(buildEvidencePayload(options, command, collected, config, context)).toEqual(
-          buildEvidencePayload(options, command, baseline, config, context),
-        );
-      }
+      const projected = collectedSourcesForGapView(view, collected);
+      expect(projected.sourceGaps).toEqual(view === "all" ? [...sourceGaps, existing] : [existing]);
+      expect(projected.extendedEvidence?.gaps).toEqual(view === "all" ? sourceGaps : []);
+      expect(projected.marketContext?.gaps).toEqual(view === "all" ? sourceGaps : []);
+      expect(sourceGapVisibleForView(view, sourceGapReportText(sourceGaps[0]!))).toBe(
+        view === "all",
+      );
+      const evidence = buildEvidencePayload(
+        { includePriorCalibration: false, sourceGapView: view, webSourceText: "metadata" },
+        command,
+        collected,
+        config,
+        { ...contextWithHistory(command), analysisAsOf: AS_OF },
+      );
+      expect(JSON.stringify(evidence).includes("{{metric:price-performance.priceReturn1y}}")).toBe(
+        view === "all",
+      );
+      expect(JSON.stringify(evidence.sourceGaps).includes("price-performance")).toBe(
+        view === "all",
+      );
     }
     expect(collected.sourceGaps).toHaveLength(2);
     const report = researchReport({ extras: { metricSections: [section] } });

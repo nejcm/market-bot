@@ -54,7 +54,11 @@ test.each([
       priorStages: [],
       maxPredictionReprompts: 0,
       runFinalSynthesis: async (_prior, reprompt) => {
-        expect(reprompt?.allowedSourceIds).toEqual(["market-aapl"]);
+        expect(reprompt?.allowedSourceIds).toEqual([
+          "market-aapl",
+          "price-history-AAPL",
+          "price-history-SPY",
+        ]);
         calls += 1;
         return {
           stage: "final-synthesis",

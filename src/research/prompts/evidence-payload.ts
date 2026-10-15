@@ -29,6 +29,7 @@ import {
   type SourceGapView,
 } from "./source-gap-view";
 import { isFreshWebSource, userSteeringField } from "./steering";
+import { metricReferenceEvidence, withoutRestatedMetricValues } from "./metric-references";
 
 function normalizedSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
@@ -79,7 +80,20 @@ const projectMarketContext: EvidenceProjector = (_options, _command, collectedSo
 
 const projectExtendedEvidence: EvidenceProjector = (_options, command, collectedSources) =>
   isInstrumentCommand(command) && collectedSources.extendedEvidence !== undefined
-    ? { extendedEvidence: collectedSources.extendedEvidence }
+    ? {
+        extendedEvidence: withoutRestatedMetricValues(
+          collectedSources.extendedEvidence,
+          collectedSources.metricSections ?? [],
+        ),
+      }
+    : {};
+
+const projectMetricReferences: EvidenceProjector = (options, command, collectedSources) =>
+  isInstrumentCommand(command) &&
+  command.assetClass === "equity" &&
+  options.sourceGapView === "all" &&
+  collectedSources.metricSections !== undefined
+    ? metricReferenceEvidence(collectedSources.metricSections)
     : {};
 
 const projectEarningsSetup: EvidenceProjector = (_options, command, collectedSources) =>
@@ -206,6 +220,7 @@ const projectWebSubjectProfile: EvidenceProjector = (_options, command, collecte
 const EVIDENCE_PROJECTORS: readonly EvidenceProjector[] = [
   projectMarketContext,
   projectExtendedEvidence,
+  projectMetricReferences,
   projectEarningsSetup,
   projectEarningsBasis,
   projectVerifiedMarketSnapshot,

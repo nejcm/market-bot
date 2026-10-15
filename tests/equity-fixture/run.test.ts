@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { parseArgs } from "../../src/cli/args";
 import type { ModelRequest } from "../../src/model/types";
 import {
@@ -25,6 +27,10 @@ import { validateResearchReport } from "../../src/report/schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
 import { addFinancialLensEvidence } from "../../src/sources/extended-evidence/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
+import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
+import { renderMarkdownReport } from "../../src/report/markdown";
+import { projectExtendedEvidenceReportExtras } from "../../src/research/extended-evidence-projections";
+import { newsSource } from "../support/fixtures";
 
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
@@ -50,6 +56,102 @@ afterEach(async () => {
   await Promise.all(runResults.splice(0).map((result) => result.cleanup()));
 });
 
+test.each(["{{ METRIC:operating-ratios.margin}}", "{{\nMeTrIc\t:\toperating-ratios.margin}}"])(
+  "fixture invariants reject raw tokens in persisted extras and markdown: %s",
+  async (token) => {
+    const fixture = await loadFixture("equity-aapl-brief");
+    const result = await runFixture(fixture.name, { llm: "replay" });
+    runResults.push(result);
+    for (const surface of ["extras", "markdown"] as const) {
+      const changed = {
+        ...result,
+        report:
+          surface === "extras"
+            ? {
+                ...result.report,
+                extras: {
+                  ...result.report.extras,
+                  earningsSetup: {
+                    expectationBar: [{ text: token, sourceIds: [result.report.sources[0]!.id] }],
+                  },
+                },
+              }
+            : result.report,
+        markdown: surface === "markdown" ? `${result.markdown}\n${token}` : result.markdown,
+      };
+      await writeFile(
+        join(result.artifacts.runDir, RUN_ARTIFACT_FILES.report),
+        JSON.stringify(changed.report),
+      );
+      await writeFile(
+        join(result.artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown),
+        changed.markdown,
+      );
+      await expect(assertInvariants(changed, fixture.meta, fixture.name)).rejects.toThrow();
+    }
+  },
+);
+
+test("fixture invariants preserve literal metric tokens in quoted evidence and collected profile digests", async () => {
+  const fixture = await loadFixture("equity-web-fallback-deep");
+  const result = await runFixture(fixture.name, { llm: "replay" });
+  runResults.push(result);
+  const token = "{{\nMeTrIc\t:operating-ratios.margin}}";
+  const source = newsSource({
+    id: "literal-token-source",
+    title: token,
+    summary: token,
+    snippet: token,
+  });
+  const profile = result.collectedSources.webSubjectProfile!;
+  expect(profile).toBeDefined();
+  const collected = {
+    ...result.collectedSources,
+    webSubjectProfile: {
+      ...profile,
+      subjectSummary: { ...profile.subjectSummary, answer: token },
+    },
+  };
+  const report = {
+    ...result.report,
+    extras: {
+      ...result.report.extras,
+      ...projectExtendedEvidenceReportExtras({
+        modelExtras: result.report.extras ?? {},
+        collectedSources: collected,
+      }),
+    },
+    sources: [...result.report.sources, source],
+    extendedEvidence: {
+      ...result.report.extendedEvidence,
+      gaps: result.report.extendedEvidence?.gaps ?? [],
+      items: [
+        ...(result.report.extendedEvidence?.items ?? []),
+        {
+          category: "sec-edgar" as const,
+          title: token,
+          summary: token,
+          sourceIds: [source.id],
+          observedAt: source.fetchedAt,
+        },
+      ],
+    },
+  };
+  const markdown = renderMarkdownReport(
+    report,
+    result.collectedSources.marketSnapshots.find(({ symbol }) => symbol === report.symbol),
+    result.collectedSources,
+  );
+  expect(markdown).toContain(token);
+  await writeFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.report), JSON.stringify(report));
+  await writeFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown), markdown);
+  await assertInvariants(
+    { ...result, report, markdown, collectedSources: collected },
+    fixture.meta,
+    fixture.name,
+  );
+});
+
 describe("static equity run fixtures", () => {
   for (const name of EQUITY_RUN_FIXTURES) {
     test(`${name} replays through the real equity pipeline`, async () => {
@@ -57,15 +159,98 @@ describe("static equity run fixtures", () => {
       const modelRequests: ModelRequest[] = [];
       const modelOutputs: string[] = [];
       const replayProvider = makeReplayProvider(fixture.llmCassette);
+      const injection: {
+        metric?: { reference: string; value: string; sourceIds: readonly string[] };
+      } = {};
       const result = await runFixture(name, {
         llm: "replay",
-        ...(CAPTURE_EARNINGS_FIXTURES.has(name)
+        ...(CAPTURE_EARNINGS_FIXTURES.has(name) || name === "equity-aapl-deep"
           ? {
               provider: {
                 name: replayProvider.name,
                 generate: async (request: ModelRequest) => {
                   modelRequests.push(request);
                   const response = await replayProvider.generate(request);
+                  const prompt = JSON.parse(request.messages[1]?.content ?? "{}");
+                  if (name === "equity-aapl-deep" && prompt.stage === "final-synthesis") {
+                    const catalog = prompt.evidence.metricReferences as readonly {
+                      id: string;
+                      metrics: readonly { id: string; unit: string }[];
+                    }[];
+                    expect(catalog.map(({ id }) => id)).toEqual(
+                      expect.arrayContaining([
+                        "capital-return",
+                        "operating-ratios",
+                        "price-performance",
+                      ]),
+                    );
+                    for (const item of prompt.evidence.extendedEvidence.items as readonly {
+                      category: string;
+                      summary: string;
+                      metrics?: Record<string, unknown>;
+                    }[]) {
+                      if (
+                        item.category !== "business-framework" &&
+                        item.category !== "financial-lens"
+                      ) {
+                        continue;
+                      }
+                      expect(item.summary).toContain("criteria-");
+                      if (item.category === "financial-lens") {
+                        expect(item.summary).toContain(
+                          "Latest close $217, SMA50 212.51, RSI14 52.73, MACD histogram 0.08",
+                        );
+                        expect(item.summary).not.toContain("Gross margin 47.6%");
+                      }
+                      for (const metric of catalog
+                        .filter(({ id }) => id.startsWith(`${item.category}-`))
+                        .flatMap(({ metrics }) => metrics)) {
+                        if (metric.unit === "text") {
+                          continue;
+                        }
+                        expect(item.metrics).not.toHaveProperty(metric.id);
+                        expect(item.metrics).not.toHaveProperty(`${metric.id}PeriodEnd`);
+                      }
+                    }
+                    injection.metric = prompt.evidence.metricReferences
+                      .flatMap(
+                        (section: {
+                          metrics: readonly {
+                            status: string;
+                            reference: string;
+                            value: string;
+                            sourceIds: readonly string[];
+                          }[];
+                        }) => section.metrics,
+                      )
+                      .find(
+                        (metric: {
+                          status: string;
+                          unit: string;
+                          value: unknown;
+                          sourceIds: readonly string[];
+                        }) =>
+                          metric.status === "value" &&
+                          metric.unit !== "text" &&
+                          typeof metric.value === "string" &&
+                          metric.sourceIds.length > 0,
+                      );
+                    expect(injection.metric).toBeDefined();
+                    const payload = JSON.parse(response.content);
+                    return {
+                      ...response,
+                      content: JSON.stringify({
+                        ...payload,
+                        keyFindings: [
+                          ...payload.keyFindings,
+                          {
+                            text: `Filed metric reference: ${injection.metric!.reference}.`,
+                            sourceIds: [],
+                          },
+                        ],
+                      }),
+                    };
+                  }
                   modelOutputs.push(response.content);
                   return response;
                 },
@@ -76,6 +261,14 @@ describe("static equity run fixtures", () => {
       runResults.push(result);
 
       await assertInvariants(result, fixture.meta, name);
+      const injectedMetric = injection.metric;
+      if (injectedMetric !== undefined) {
+        expect(result.report.keyFindings).toContainEqual({
+          text: `Filed metric reference: ${injectedMetric.value}.`,
+          sourceIds: injectedMetric.sourceIds,
+        });
+        expect(result.markdown).toContain(`Filed metric reference: ${injectedMetric.value}.`);
+      }
       expect([
         result.report.equityAnalysisCompleteness?.financialCoreStatus,
         result.report.equityAnalysisCompleteness?.coverageLevel,

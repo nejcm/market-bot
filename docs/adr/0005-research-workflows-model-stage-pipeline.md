@@ -12,7 +12,8 @@ incremental Run Chat provider streaming; amended 2026-07-23: gated untagged 6-K 
 amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and audit;
 amended 2026-08-02: untagged extractor evaluation and production execution policy;
 amended 2026-10-09: summary-sentence pruning; amended 2026-10-10: deterministic all-eligible
-Domain Playbook selection; amended 2026-10-10: completion pass removed per ADR 0003)
+Domain Playbook selection; amended 2026-10-10: completion pass removed per ADR 0003;
+amended 2026-10-16: deterministic metric references)
 
 ## Context
 
@@ -96,6 +97,43 @@ research boundaries without sharing persistence or scoring semantics.
   is adopted (2026-10-09): advisory-only telemetry let an uncited figure (CLFD's `$22 million`
   order) reach `report.md` while the audit flagged it, and the supported figure remains available
   in the cited finding or catalyst it summarized.
+
+### Metric references (2026-10-16)
+
+- Narrative claims use `{{metric:<section>.<id>}}` for collected Metric Section values.
+  Assembly adds the metric's `sourceIds` to the containing claim before relocation and citation
+  validation, then runs `assertSafeReportLanguage` on the authored prose with tokens intact.
+  Only after report validation does assembly substitute `formatMetricValue` output, including
+  unit and currency, and screens the resolved prose again inside the bounded report repair loop
+  because substitution can construct a blocked phrase. Numeric substitution is deterministic
+  assembly text under ADR 0001; no surrounding authored prose or new report field is exempted.
+  New reports persist resolved prose.
+- Tokens in model-quoted prose also resolve and receive citations to the metric's own filed
+  sources. This is accepted because those citations identify the resolved value's provenance;
+  source text itself is never transformed.
+- Unknown sections or IDs, non-`value` statuses, malformed references, empty/non-finite formatted
+  values, and metrics without citations reject the draft through the existing bounded report
+  repair loop. References are permitted in cited findings, cases, risks, catalysts, scenario names
+  and descriptions, Business Framework text, Earnings Setup bullets, and Spotlight rationales.
+  Summary remains qualitative; data gaps and Prediction expressions cannot contain references.
+- Phase 10 deliberately exposes Capital Return, all five Operating Ratios from Phase 6, and the six
+  issuer/SPY Price Performance metrics. Business Framework and Financial Lens metrics retain their
+  visibility through the same catalog; Valuation Workbench observations also become referencable.
+  Each catalog row carries section/metric ID, exact reference, label, status, formatted value only
+  when available, unit/currency, basis, period, reason/cause and source IDs, without raw input rows.
+- Evidence request, analysis/coverage-panel, critique and final synthesis (including repairs) receive
+  `evidence.metricReferences` and its narrative-reference instruction. Web Subject Profile and Web
+  Gather do not receive the catalog. All Extended Evidence prompt projections remove repeated
+  migrated Business Framework/Financial Lens restated summary values and numeric keys/period-end
+  keys; nonmigrated prose, phase, posture and freshness metadata remain. Raw statements, quotes,
+  other Extended Evidence, prediction grammar, artifacts and prior-stage output are unchanged.
+- Price Performance Source Gaps now reach synthesis and Historical Research Context like other
+  section gaps, while Web Gather excludes gaps it cannot close. The same view predicate applies
+  to top-level, Extended Evidence and Market Context gap lists.
+- Prompt hashes are refreshed deliberately. Stage/model-keyed cassettes do not prove prompt
+  behavior; a replay test injects a catalog reference into final-synthesis output and asserts the
+  persisted value/citations. A full-stage Frozen-Input Eval is planned across all equity fixtures
+  before any approved live batch; dry-run planning does not authorize spending.
 
 ### Market overview workflow
 

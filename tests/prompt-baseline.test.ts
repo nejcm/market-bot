@@ -30,6 +30,37 @@ function historicalDataGaps(key: string): readonly string[] {
 }
 
 describe("prompt baseline", () => {
+  test("metric catalog cases pin populated values, missing rows and stage visibility", () => {
+    for (const stage of [
+      "specialist-analysis",
+      "final-synthesis",
+      "web-gather",
+      "web-subject-profile",
+    ] as const) {
+      const sample = promptBaselineCases().find(
+        ({ key }) => key === `stage:${stage}:metric-references`,
+      )!;
+      const { evidence } = JSON.parse(sample.text);
+      if (stage === "web-gather" || stage === "web-subject-profile") {
+        expect(evidence.metricReferences).toBeUndefined();
+        expect(evidence.metricReferenceInstruction).toBeUndefined();
+      } else {
+        expect(evidence.metricReferences.map(({ id }: { id: string }) => id)).toEqual([
+          "capital-return",
+          "operating-ratios",
+          "price-performance",
+        ]);
+        expect(evidence.metricReferences[0].metrics[0]).toMatchObject({ status: "missing" });
+        expect(evidence.metricReferences[0].metrics[0]).not.toHaveProperty("value");
+        expect(evidence.metricReferences[2].metrics[0]).toMatchObject({
+          status: "value",
+          value: "8.3%",
+          reference: "{{metric:price-performance.priceReturn1y}}",
+        });
+        expect(evidence.metricReferences[2].metrics[0]).not.toHaveProperty("inputs");
+      }
+    }
+  });
   test("prompt hashes match the checked-in goldens", async () => {
     const hashes: Record<string, string> = {};
     for (const { key, text } of promptBaselineCases()) {

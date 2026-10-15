@@ -48,9 +48,10 @@ function historicalSourceGap(value: string): SourceGap | undefined {
 
 export function sourceGapVisibleForView(view: SourceGapView, gap: SourceGap | string): boolean {
   if (
-    typeof gap === "string"
+    view === "web-gather" &&
+    (typeof gap === "string"
       ? gap.startsWith("price-performance: ")
-      : gap.source === "price-performance"
+      : gap.source === "price-performance")
   ) {
     return false;
   }
@@ -66,13 +67,17 @@ export function collectedSourcesForGapView(
   view: SourceGapView,
   collectedSources: CollectedSources,
 ): CollectedSources {
+  if (
+    [
+      ...collectedSources.sourceGaps,
+      ...(collectedSources.extendedEvidence?.gaps ?? []),
+      ...(collectedSources.marketContext?.gaps ?? []),
+    ].every((gap) => sourceGapVisibleForView(view, gap))
+  ) {
+    return collectedSources;
+  }
   const keep = (gaps: readonly SourceGap[]) =>
     gaps.filter((gap) => sourceGapVisibleForView(view, gap));
-  if (view === "all") {
-    return collectedSources.sourceGaps.some((gap) => gap.source === "price-performance")
-      ? { ...collectedSources, sourceGaps: keep(collectedSources.sourceGaps) }
-      : collectedSources;
-  }
   return {
     ...collectedSources,
     sourceGaps: keep(collectedSources.sourceGaps),

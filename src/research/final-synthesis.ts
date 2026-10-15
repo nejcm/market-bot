@@ -504,9 +504,7 @@ async function runAndReadFinalSynthesis(
 ): Promise<FinalSynthesisState> {
   const output = await input.runFinalSynthesis(input.priorStages, {
     ...reprompt,
-    allowedSourceIds: [...input.knownSourceIds]
-      .filter((id) => !id.startsWith("price-history-"))
-      .toSorted(),
+    allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
   const payload = parseModelPayload(output.content);
   const predResult = readPredictions(

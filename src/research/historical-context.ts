@@ -445,9 +445,10 @@ function toRunContext(
     keyFindings: report.keyFindings.slice(0, 5),
     risks: report.risks.slice(0, 5),
     catalysts: report.catalysts.slice(0, 5),
-    dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps)
-      .filter((gap) => !gap.startsWith("price-performance: "))
-      .slice(0, 8),
+    dataGaps: predictionShortfallMaterialGaps(report.predictionShortfall, report.dataGaps).slice(
+      0,
+      8,
+    ),
     predictions: predictionSummaries(report, selected.artifact.scores),
     scoreSummary: scoreSummary(selected.artifact.scores),
     marketSnapshots: compactSnapshots(selected.artifact.snapshots, symbols),

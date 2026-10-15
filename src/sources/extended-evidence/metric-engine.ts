@@ -1,7 +1,9 @@
+import type { ExtendedEvidence, ExtendedEvidenceCategory } from "../../domain/evidence";
 import { sourceGap } from "../../domain/source-gaps";
 import type { SourceGap } from "../../domain/sources";
 import type { CapitalOwnershipArtifact } from "./capital-ownership";
 import type {
+  FinancialStatementFact,
   FinancialStatementSeriesKey,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
@@ -11,9 +13,12 @@ type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
 
 export interface MetricInput {
   readonly label: string;
-  readonly value: number;
-  readonly artifact: "statements" | "capitalOwnership" | "quote";
+  readonly value: number | string;
+  readonly artifact: "statements" | "capitalOwnership" | "quote" | "evidence";
   readonly series?: FinancialStatementSeriesKey | "stockBasedCompensation" | "marketCap";
+  // Evidence inputs: the Extended Evidence item category and its metric key.
+  readonly category?: ExtendedEvidenceCategory;
+  readonly key?: string;
   readonly periodType?: "annual" | "interim" | "instant";
   readonly periodStart?: string;
   readonly periodEnd?: string;
@@ -32,6 +37,7 @@ interface MetricResult {
   readonly value?: number | string;
   readonly currency?: string;
   readonly periodEnd?: string;
+  readonly periodMonths?: number;
   readonly reason?: string;
   readonly inputs: readonly MetricInput[];
   readonly sourceIds: readonly string[];
@@ -54,6 +60,8 @@ export interface MetricContext {
     readonly sourceId: string;
   };
   readonly depositorySic?: string;
+  readonly evidence?: ExtendedEvidence;
+  readonly asOf?: string;
 }
 
 export type MetricOutcome =
@@ -62,6 +70,7 @@ export type MetricOutcome =
       readonly value: number | string;
       readonly currency?: string;
       readonly periodEnd?: string;
+      readonly periodMonths?: number;
       readonly inputs: readonly MetricInput[];
     }
   | {
@@ -70,6 +79,26 @@ export type MetricOutcome =
       readonly periodEnd?: string;
       readonly inputs?: readonly MetricInput[];
     };
+
+export function statementInput(
+  fact: FinancialStatementFact,
+  series: FinancialStatementSeriesKey,
+  label: string,
+): MetricInput {
+  return {
+    label,
+    value: fact.value,
+    artifact: "statements",
+    series,
+    periodType: fact.periodType,
+    ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
+    periodEnd: fact.periodEnd,
+    periodKey: fact.periodKey,
+    unit: fact.unit,
+    ...(fact.currency !== null ? { currency: fact.currency } : {}),
+    sourceIds: fact.sourceIds,
+  };
+}
 
 // One metric: `applicable` names economic inapplicability only; absent or stale inputs are `missing` from `compute`.
 export interface MetricDefinition {

@@ -134,7 +134,7 @@ export type SecMetricKey =
   | "sic"
   | "sicDescription";
 
-function priorComparable(
+export function priorComparable(
   series: FinancialStatementSeries,
   selected: FinancialStatementFact,
   earlierShareBasis: ReadonlySet<string>,

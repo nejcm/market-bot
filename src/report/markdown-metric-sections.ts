@@ -1,5 +1,5 @@
 import type { ResearchReport } from "../domain/report";
-import { formatMetricValue } from "../sources/extended-evidence/value-format";
+import { formatMetricValue, metricPeriodLabel } from "../sources/extended-evidence/value-format";
 import { citedSourceIds, markdownText, sourceRefs } from "./markdown-primitives";
 import { readMetricSectionsExtra } from "./report-extras-contract";
 
@@ -18,7 +18,9 @@ function metricLine(report: ResearchReport, metric: MetricRow): readonly string[
     return [`- ${label}: not available, ${markdownText(metric.reason ?? "no value")}`];
   }
   const detail = [
-    ...(metric.periodEnd === undefined ? [] : [`FY ending ${metric.periodEnd}`]),
+    ...(metric.periodEnd === undefined
+      ? []
+      : [metricPeriodLabel(metric.periodEnd, metric.periodMonths)]),
     ...(metric.basis === undefined ? [] : [metric.basis]),
   ].join("; ");
   const refs = sourceRefs(citedSourceIds(report, metric));

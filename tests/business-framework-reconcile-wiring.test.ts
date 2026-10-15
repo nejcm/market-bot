@@ -59,7 +59,7 @@ function section(
     name,
     posture: "criteria-supported",
     summary: name,
-    metrics: [],
+    metricSectionIds: [],
     sourceIds: ["sec"],
     gaps,
   };

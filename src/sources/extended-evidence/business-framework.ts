@@ -4,13 +4,13 @@ import type { MarketSnapshot, VerifiedMarketSnapshot } from "../../domain/market
 import type { SourceGap } from "../../domain/sources";
 import { sourceGap } from "../../domain/source-gaps";
 import { verifiedSnapshotSourceId } from "../../research/verified-snapshot-contract";
-import { selectedFinancialLensDerivedMetric } from "./financial-lens-canonical";
-import { secFundamentalItem, secScope } from "./financial-lens-metrics";
-import { currentRatioIsCurrent } from "./financial-lens-builders";
-import { scopedLabel } from "./financial-statement-definitions";
-import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "./valuation-comps";
-import { readNumberMetric, readStringMetric } from "./utils";
-import { formatLensValue, type LensValueUnit } from "./value-format";
+import {
+  businessFrameworkMetrics,
+  businessFrameworkMetricSectionId,
+} from "./business-framework-metrics";
+import type { FinancialStatementsArtifact } from "./financial-statements-contract";
+import type { MetricSection } from "./metric-engine";
+import { formatMetricValue, type LensValueUnit } from "./value-format";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
@@ -67,7 +67,7 @@ export interface BusinessFrameworkSection {
   readonly name: BusinessFrameworkSectionName;
   readonly posture: BusinessFrameworkPosture;
   readonly summary: string;
-  readonly metrics: readonly BusinessFrameworkMetric[];
+  readonly metricSectionIds: readonly string[];
   readonly sourceIds: readonly string[];
   readonly gaps: readonly BusinessFrameworkGapValue[];
 }
@@ -78,7 +78,7 @@ export interface BusinessFrameworkReconciliation {
 }
 
 export interface BusinessFrameworkArtifact {
-  readonly version: 1 | 2;
+  readonly version: 1 | 2 | 3;
   readonly generatedAt: string;
   readonly symbol: string;
   readonly phase: BusinessLifecyclePhase;
@@ -92,17 +92,8 @@ interface BusinessFrameworkResult {
   readonly extendedEvidence?: ExtendedEvidence;
   readonly artifact?: BusinessFrameworkArtifact;
   readonly sourceGaps: readonly SourceGap[];
-}
-
-interface PhaseClassificationInput {
-  readonly revenueDeltaPercent?: number | undefined;
-  readonly operatingIncome?: number | undefined;
-  readonly operatingIncomeDeltaPercent?: number | undefined;
-  readonly netIncome?: number | undefined;
-  readonly netIncomeDeltaPercent?: number | undefined;
-  readonly dividendsPaid?: number | undefined;
-  readonly shareRepurchases?: number | undefined;
-  readonly dividendYield?: number | undefined;
+  readonly metricSections?: readonly MetricSection[];
+  readonly metricSectionGaps?: readonly SourceGap[];
 }
 
 const SECTION_ORDER = BUSINESS_FRAMEWORK_SECTION_NAMES;
@@ -206,61 +197,20 @@ function tickerSnapshot(
   );
 }
 
-function ratio(numerator: number | undefined, denominator: number | undefined): number | undefined {
-  return numerator !== undefined && denominator !== undefined && denominator !== 0
-    ? numerator / denominator
-    : undefined;
-}
-
-function positive(value: number | undefined): boolean | undefined {
-  return value === undefined ? undefined : value > 0;
-}
-
-function postureFrom(
-  values: readonly (boolean | undefined)[],
-  requiredCount = 1,
-): BusinessFrameworkPosture {
-  const known = values.filter((value): value is boolean => value !== undefined);
-  if (known.length < requiredCount || known.length === 0) {
-    return "insufficient-data";
-  }
-  const supported = known.filter(Boolean).length;
-  if (supported === known.length) {
-    return "criteria-supported";
-  }
-  if (supported === 0) {
-    return "criteria-not-supported";
-  }
-  return "criteria-mixed";
-}
-
-function metric(
-  key: string,
-  label: string,
-  value: number | string | undefined,
-  unit: BusinessFrameworkMetric["unit"],
-  sourceIds: readonly string[],
-  currency?: string,
-): readonly BusinessFrameworkMetric[] {
-  return value === undefined
-    ? []
-    : [{ key, label, value, unit, sourceIds, ...(currency !== undefined ? { currency } : {}) }];
-}
-
-function formatMetricValue(item: BusinessFrameworkMetric): string {
-  return typeof item.value === "string"
-    ? item.value
-    : formatLensValue(item.value, item.unit, item.currency);
-}
-
 function sectionSummary(
   name: BusinessFrameworkSectionName,
   posture: BusinessFrameworkPosture,
-  metrics: readonly BusinessFrameworkMetric[],
+  metricSection: MetricSection | undefined,
 ): string {
-  const metricText = metrics
+  const metricText = (metricSection?.metrics ?? [])
+    .flatMap((metric) => {
+      const value =
+        metric.status === "value"
+          ? formatMetricValue(metric.value, metric.unit, metric.currency)
+          : undefined;
+      return value === undefined ? [] : [`${metric.label} ${value}`];
+    })
     .slice(0, 3)
-    .map((item) => `${item.label} ${formatMetricValue(item)}`)
     .join(", ");
   if (name === "Phase") {
     return `Phase classification${metricText === "" ? "" : ` (${metricText})`}`;
@@ -268,56 +218,23 @@ function sectionSummary(
   return `${name} ${posture}${metricText === "" ? "" : ` (${metricText})`}`;
 }
 
-function hasCapitalReturn(input: PhaseClassificationInput): boolean {
-  return (
-    (input.dividendsPaid !== undefined && Math.abs(input.dividendsPaid) > 0) ||
-    (input.shareRepurchases !== undefined && Math.abs(input.shareRepurchases) > 0) ||
-    (input.dividendYield !== undefined && input.dividendYield > 0)
-  );
-}
-
-export function classifyBusinessLifecyclePhase(
-  input: PhaseClassificationInput,
-): BusinessLifecyclePhase {
-  if (
-    input.revenueDeltaPercent !== undefined &&
-    input.revenueDeltaPercent < 0 &&
-    (input.operatingIncomeDeltaPercent ?? input.netIncomeDeltaPercent ?? -1) < 0
-  ) {
-    return "decline";
-  }
-  if (input.revenueDeltaPercent !== undefined && input.revenueDeltaPercent >= 30) {
-    return "hyper-growth";
-  }
-  if (hasCapitalReturn(input) && (input.revenueDeltaPercent ?? 0) <= 15) {
-    return "capital-return";
-  }
-  if (
-    input.operatingIncome !== undefined &&
-    input.operatingIncome <= 0 &&
-    (input.netIncome === undefined || input.netIncome <= 0)
-  ) {
-    return "startup";
-  }
-  return "operating-leverage";
-}
-
-function section(
-  name: BusinessFrameworkSectionName,
-  posture: BusinessFrameworkPosture,
-  metrics: readonly BusinessFrameworkMetric[],
-  sourceIds: readonly string[],
-  gaps: readonly BusinessFrameworkGap[] = [],
-): BusinessFrameworkSection {
-  return {
-    name,
-    posture,
-    summary: sectionSummary(name, posture, metrics),
-    metrics,
-    sourceIds,
-    gaps,
-  };
-}
+const SECTION_GAPS: Readonly<
+  Record<BusinessFrameworkSectionName, readonly BusinessFrameworkGapCode[]>
+> = {
+  Business: [
+    "business-description",
+    "geographic-mix",
+    "segment-mix",
+    "customer-concentration",
+    "purchase-recurrence",
+  ],
+  Phase: [],
+  Moat: ["segment-mix", "customer-concentration", "purchase-recurrence", "pricing-power"],
+  Growth: ["company-kpis", "analyst-consensus"],
+  Management: ["management-track-record", "capital-allocation"],
+  Risk: ["risk-factors", "cyclicality"],
+  Valuation: [],
+};
 
 export function frameworkGaps(
   symbol: string,
@@ -354,6 +271,7 @@ export function addBusinessFrameworkEvidence(
   extendedEvidence: ExtendedEvidence | undefined,
   verifiedMarketSnapshot: VerifiedMarketSnapshot | undefined,
   generatedAt: string,
+  statements?: FinancialStatementsArtifact,
 ): BusinessFrameworkResult {
   if (!isInstrumentCommand(command) || command.assetClass !== "equity") {
     return { ...(extendedEvidence !== undefined ? { extendedEvidence } : {}), sourceGaps: [] };
@@ -364,276 +282,41 @@ export function addBusinessFrameworkEvidence(
   const yahooItem = itemByCategory(extendedEvidence, "yahoo-fundamentals");
   const financialLensItem = itemByCategory(extendedEvidence, "financial-lens");
   const snapshot = tickerSnapshot(command, marketSnapshots);
-  const quoteCurrency = snapshot?.identity?.quoteCurrency ?? "USD";
   const secSourceIds = secItem?.sourceIds ?? [];
   const yahooSourceIds = yahooItem?.sourceIds ?? [];
   const valuationSourceIds = valuationItem?.sourceIds ?? [];
+  const lensSourceIds = financialLensItem?.sourceIds ?? [];
   const verifiedSourceIds =
     verifiedMarketSnapshot === undefined
       ? []
       : [verifiedSnapshotSourceId(verifiedMarketSnapshot.symbol)];
-  const revenue = readNumberMetric(secItem?.metrics, "revenue");
-  const grossProfit = readNumberMetric(secItem?.metrics, "grossProfit");
-  const operatingIncome = readNumberMetric(secItem?.metrics, "operatingIncome");
-  const netIncome = readNumberMetric(secItem?.metrics, "netIncome");
-  const revenueDeltaPercent = readNumberMetric(secItem?.metrics, "revenueDeltaPercent");
-  const operatingIncomeDeltaPercent = readNumberMetric(
-    secItem?.metrics,
-    "operatingIncomeDeltaPercent",
-  );
-  const netIncomeDeltaPercent = readNumberMetric(secItem?.metrics, "netIncomeDeltaPercent");
-  const operatingCashFlowDeltaPercent = readNumberMetric(
-    secItem?.metrics,
-    "operatingCashFlowDeltaPercent",
-  );
-  const dividendsPaid = readNumberMetric(secItem?.metrics, "dividendsPaid");
-  const shareRepurchases = readNumberMetric(secItem?.metrics, "shareRepurchases");
-  const dividendYield = readNumberMetric(yahooItem?.metrics, "dividendYield");
-  const grossMargin = selectedFinancialLensDerivedMetric(
-    secItem,
-    "grossMargin",
-    ratio(grossProfit, revenue),
-  );
-  const operatingMargin = selectedFinancialLensDerivedMetric(
-    secItem,
-    "operatingMargin",
-    ratio(operatingIncome, revenue),
-  );
-  const currentRatio = readNumberMetric(financialLensItem?.metrics, "currentRatio");
-  const currentRatioPeriodEnd = readStringMetric(
-    financialLensItem?.metrics,
-    "currentRatioPeriodEnd",
-  );
-  const currentRatioEligible = currentRatioIsCurrent(
-    secFundamentalItem(extendedEvidence),
-    generatedAt,
-  );
-  const debtToMarketCap = readNumberMetric(financialLensItem?.metrics, "debtToMarketCap");
-  const hasCapitalReturnEvidence = hasCapitalReturn({
-    dividendsPaid,
-    shareRepurchases,
-    dividendYield,
+  const metrics = businessFrameworkMetrics({
+    symbol: command.symbol,
+    ...(statements !== undefined ? { statements } : {}),
+    ...(extendedEvidence !== undefined ? { evidence: extendedEvidence } : {}),
+    asOf: generatedAt,
   });
-  const valuationSupportability = valuationItem?.metrics?.valuationSupportability;
-  const valuationSupportabilityCriterion =
-    valuationSupportability === undefined || valuationSupportability === "not-meaningful"
-      ? undefined
-      : valuationSupportability === "supported";
-  const phase = classifyBusinessLifecyclePhase({
-    revenueDeltaPercent,
-    operatingIncome,
-    operatingIncomeDeltaPercent,
-    netIncome,
-    netIncomeDeltaPercent,
-    dividendsPaid,
-    shareRepurchases,
-    dividendYield,
+  const sectionSourceIds: Readonly<Record<BusinessFrameworkSectionName, readonly string[]>> = {
+    Business: secSourceIds,
+    Phase: [...new Set([...secSourceIds, ...yahooSourceIds])],
+    Moat: secSourceIds,
+    Growth: secSourceIds,
+    Management: [],
+    Risk: lensSourceIds,
+    Valuation: [...new Set([...valuationSourceIds, ...yahooSourceIds])],
+  };
+  const sections = SECTION_ORDER.map((name): BusinessFrameworkSection => {
+    const posture = metrics.postures[name];
+    const metricSection = metrics.sections[name];
+    return {
+      name,
+      posture,
+      summary: sectionSummary(name, posture, metricSection),
+      metricSectionIds: metricSection === undefined ? [] : [businessFrameworkMetricSectionId(name)],
+      sourceIds: sectionSourceIds[name],
+      gaps: qualitativeGaps(...SECTION_GAPS[name]),
+    };
   });
-  const sections = [
-    section(
-      "Business",
-      postureFrom(
-        [
-          revenue === undefined ? undefined : true,
-          grossProfit === undefined ? undefined : true,
-          operatingIncome === undefined ? undefined : true,
-        ],
-        2,
-      ),
-      [
-        ...metric("revenue", "Revenue", revenue, "currency", secSourceIds, quoteCurrency),
-        ...metric(
-          "grossProfit",
-          "Gross profit",
-          grossProfit,
-          "currency",
-          secSourceIds,
-          quoteCurrency,
-        ),
-        ...metric(
-          "operatingIncome",
-          "Operating income",
-          operatingIncome,
-          "currency",
-          secSourceIds,
-          quoteCurrency,
-        ),
-      ],
-      secSourceIds,
-      qualitativeGaps(
-        "business-description",
-        "geographic-mix",
-        "segment-mix",
-        "customer-concentration",
-        "purchase-recurrence",
-      ),
-    ),
-    section(
-      "Phase",
-      revenueDeltaPercent === undefined && !hasCapitalReturnEvidence
-        ? "insufficient-data"
-        : "criteria-supported",
-      [
-        ...metric("phase", "Phase", phase, "text", [...secSourceIds, ...yahooSourceIds]),
-        ...metric(
-          "revenueDeltaPercent",
-          "Revenue YoY",
-          revenueDeltaPercent,
-          "whole-percent",
-          secSourceIds,
-        ),
-        ...metric(
-          "dividendYield",
-          "Dividend yield",
-          dividendYield,
-          "whole-percent",
-          yahooSourceIds,
-        ),
-        ...metric(
-          "shareRepurchases",
-          "Share repurchases",
-          shareRepurchases,
-          "currency",
-          secSourceIds,
-          quoteCurrency,
-        ),
-      ],
-      [...new Set([...secSourceIds, ...yahooSourceIds])],
-    ),
-    section(
-      "Moat",
-      postureFrom([
-        grossMargin === undefined ? undefined : grossMargin >= 0.4,
-        operatingMargin === undefined ? undefined : operatingMargin > 0,
-      ]),
-      [
-        ...metric("grossMargin", "Gross margin", grossMargin, "ratio-percent", secSourceIds),
-        ...metric(
-          "operatingMargin",
-          "Operating margin",
-          operatingMargin,
-          "ratio-percent",
-          secSourceIds,
-        ),
-      ],
-      secSourceIds,
-      qualitativeGaps(
-        "segment-mix",
-        "customer-concentration",
-        "purchase-recurrence",
-        "pricing-power",
-      ),
-    ),
-    section(
-      "Growth",
-      postureFrom(
-        [
-          positive(revenueDeltaPercent),
-          positive(operatingIncomeDeltaPercent),
-          positive(netIncomeDeltaPercent),
-          positive(operatingCashFlowDeltaPercent),
-        ],
-        2,
-      ),
-      [
-        ...metric(
-          "revenueDeltaPercent",
-          "Revenue YoY",
-          revenueDeltaPercent,
-          "whole-percent",
-          secSourceIds,
-        ),
-        ...metric(
-          "operatingIncomeDeltaPercent",
-          "Operating income YoY",
-          operatingIncomeDeltaPercent,
-          "whole-percent",
-          secSourceIds,
-        ),
-        ...metric(
-          "netIncomeDeltaPercent",
-          scopedLabel("Net income YoY", secScope(secItem, "netIncome")),
-          netIncomeDeltaPercent,
-          "whole-percent",
-          secSourceIds,
-        ),
-      ],
-      secSourceIds,
-      qualitativeGaps("company-kpis", "analyst-consensus"),
-    ),
-    section(
-      "Management",
-      "insufficient-data",
-      [],
-      [],
-      qualitativeGaps("management-track-record", "capital-allocation"),
-    ),
-    section(
-      "Risk",
-      postureFrom([
-        currentRatio === undefined || !currentRatioEligible ? undefined : currentRatio >= 1,
-        debtToMarketCap === undefined ? undefined : debtToMarketCap <= 0.5,
-        revenueDeltaPercent === undefined ? undefined : revenueDeltaPercent >= 0,
-      ]),
-      [
-        ...metric(
-          "currentRatio",
-          currentRatioEligible
-            ? "Current ratio"
-            : `Current ratio (historical, ${currentRatioPeriodEnd ?? "undated"})`,
-          currentRatio,
-          "ratio",
-          financialLensItem?.sourceIds ?? [],
-        ),
-        ...metric(
-          "debtToMarketCap",
-          "Debt/market cap",
-          debtToMarketCap,
-          "ratio-percent",
-          financialLensItem?.sourceIds ?? [],
-        ),
-      ],
-      financialLensItem?.sourceIds ?? [],
-      qualitativeGaps("risk-factors", "cyclicality"),
-    ),
-    section(
-      "Valuation",
-      postureFrom([valuationSupportabilityCriterion]),
-      [
-        ...(valuationSupportability === "not-meaningful"
-          ? metric(
-              "valuationCaveat",
-              "Valuation caveat",
-              REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
-              "text",
-              valuationSourceIds,
-            )
-          : []),
-        ...metric(
-          "trailingPE",
-          "Trailing PE",
-          readNumberMetric(yahooItem?.metrics, "trailingPE"),
-          "ratio",
-          yahooSourceIds,
-        ),
-        ...metric(
-          "forwardPE",
-          "Forward PE",
-          readNumberMetric(yahooItem?.metrics, "forwardPE"),
-          "ratio",
-          yahooSourceIds,
-        ),
-        ...metric(
-          "evToAnnualizedRevenue",
-          "EV/revenue",
-          readNumberMetric(valuationItem?.metrics, "evToAnnualizedRevenue"),
-          "ratio",
-          valuationSourceIds,
-        ),
-      ],
-      [...new Set([...valuationSourceIds, ...yahooSourceIds])],
-    ),
-  ].toSorted((left, right) => SECTION_ORDER.indexOf(left.name) - SECTION_ORDER.indexOf(right.name));
   const sourceIds = [
     ...new Set(
       [
@@ -649,6 +332,7 @@ export function addBusinessFrameworkEvidence(
         .map((gap) => [typeof gap === "string" ? gap : gap.code, gap]),
     ).values(),
   ];
+  const { phase } = metrics;
   const item: ExtendedEvidenceItem = {
     category: "business-framework",
     title: `${command.symbol} Business Framework Evidence`,
@@ -674,7 +358,7 @@ export function addBusinessFrameworkEvidence(
     ...(secItem?.identity !== undefined ? { identity: secItem.identity } : {}),
   };
   const artifact: BusinessFrameworkArtifact = {
-    version: 2,
+    version: 3,
     generatedAt,
     symbol: command.symbol.toUpperCase(),
     phase,
@@ -691,5 +375,14 @@ export function addBusinessFrameworkEvidence(
     items: [...(extendedEvidence?.items ?? []), item],
     gaps: [...(extendedEvidence?.gaps ?? []), ...sourceGaps],
   };
-  return { extendedEvidence: mergedEvidence, artifact, sourceGaps };
+  return {
+    extendedEvidence: mergedEvidence,
+    artifact,
+    sourceGaps,
+    metricSections: SECTION_ORDER.flatMap((name) => {
+      const metricSection = metrics.sections[name];
+      return metricSection === undefined ? [] : [metricSection];
+    }),
+    metricSectionGaps: metrics.sourceGaps,
+  };
 }

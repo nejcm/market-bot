@@ -104,3 +104,9 @@ export function formatMetricValue(
     ? undefined
     : formatLensValue(value, unit, currency);
 }
+
+export function metricPeriodLabel(periodEnd: string, periodMonths?: number): string {
+  return periodMonths === undefined || periodMonths === 12
+    ? `FY ending ${periodEnd}`
+    : `${String(periodMonths)}-month period ending ${periodEnd}`;
+}

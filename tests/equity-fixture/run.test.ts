@@ -13,26 +13,18 @@ import {
   factForms,
   factTaxonomies,
 } from "../support/run-fixtures/assertions";
-import { loadFixture, runFixture, type RunFixtureResult } from "../support/run-fixtures";
+import {
+  EQUITY_RUN_FIXTURES,
+  loadFixture,
+  runFixture,
+  type RunFixtureResult,
+} from "../support/run-fixtures";
 import { makeReplayProvider } from "../support/run-fixtures/llm-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
 import { addFinancialLensEvidence } from "../../src/sources/extended-evidence/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
-
-const FIXTURES = [
-  "equity-aapl-brief",
-  "equity-aapl-deep",
-  "equity-earnings-release-deep",
-  "equity-nbis-deep",
-  "equity-fpi-quarterly",
-  "equity-fpi-ifrs-semiannual",
-  "equity-analysis-comprehensive",
-  "equity-analysis-estimated-suppressed",
-  "equity-web-fallback-deep",
-  "equity-depository-deep",
-] as const;
 
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
@@ -59,7 +51,7 @@ afterEach(async () => {
 });
 
 describe("static equity run fixtures", () => {
-  for (const name of FIXTURES) {
+  for (const name of EQUITY_RUN_FIXTURES) {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
       const modelRequests: ModelRequest[] = [];

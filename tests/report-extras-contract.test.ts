@@ -42,19 +42,39 @@ describe("business framework extra", () => {
     const sections = extra.sections as readonly Record<string, unknown>[];
     const parsed = readBusinessFrameworkExtra(extra);
     expect(parsed).toBeDefined();
-    expect(parsed?.version).toBe(2);
+    expect(parsed?.version).toBe(3);
     expect(parsed?.phase).toBe(extra.phase as string);
     expect(parsed?.sourceIds).toEqual(extra.sourceIds as readonly string[]);
     expect(parsed?.gaps).toEqual(extra.gaps as never);
     expect(parsed?.sections?.map((section) => section.name)).toEqual(
       sections.map((section) => section.name) as never,
     );
-    expect(parsed?.sections?.map((section) => section.metrics.length)).toEqual(
-      sections.map((section) => (section.metrics as readonly unknown[]).length),
+    expect(parsed?.sections?.map((section) => section.metricSectionIds)).toEqual(
+      sections.map((section) => section.metricSectionIds) as never,
     );
+    expect(parsed?.sections?.every((section) => section.metrics.length === 0)).toBe(true);
     expect(parsed?.sections?.map((section) => section.gaps)).toEqual(
       sections.map((section) => section.gaps) as never,
     );
+  });
+
+  test("reads a pre-Metric-Section framework's inline metrics and no section ids", () => {
+    const parsed = readBusinessFrameworkExtra({
+      version: 2,
+      phase: "capital-return",
+      sections: [
+        {
+          name: "Moat",
+          metrics: [
+            { key: "grossMargin", label: "Gross margin", value: 0.4, unit: "ratio-percent" },
+          ],
+        },
+        { name: "Growth", metricSectionIds: [] },
+      ],
+    });
+    expect(parsed?.sections?.[0]?.metricSectionIds).toBeUndefined();
+    expect(parsed?.sections?.[0]?.metrics).toHaveLength(1);
+    expect(parsed?.sections?.[1]?.metricSectionIds).toEqual([]);
   });
 
   test("keeps the reconciliation block when present", async () => {

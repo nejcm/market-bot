@@ -69,6 +69,7 @@ export async function assertInvariants(result: RunFixtureResult, meta: FixtureMe
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertSafeReportLanguage(report);
   assertMetricSectionInvariants(result, report);
+  assertBusinessFrameworkMetricInvariants(result, report);
   expect(report.reportIntegrity, "integrity audit pruned report content").toBe("high");
   for (const prediction of report.predictions) {
     expect(() => parseObservableExpression(prediction.measurableAs)).not.toThrow();
@@ -121,7 +122,7 @@ function expectClose(actual: unknown, expected: number, label: string): void {
 }
 
 interface ResolvedInput {
-  readonly value: number;
+  readonly value: number | string;
   readonly periodStart?: string;
   readonly periodEnd?: string;
   readonly periodKey?: string;
@@ -146,9 +147,15 @@ function resolveInput(
   run: MetricInvariantRun,
   input: MetricInput,
   label: string,
+  annualFlowsOnly = true,
 ): ResolvedInput | undefined {
-  const { financialStatements, capitalOwnership, marketSnapshots, resolvedInstrumentIdentity } =
-    run.collectedSources;
+  const {
+    financialStatements,
+    capitalOwnership,
+    marketSnapshots,
+    resolvedInstrumentIdentity,
+    extendedEvidence,
+  } = run.collectedSources;
   let resolved: ResolvedInput | undefined;
   if (input.artifact === "statements") {
     const series =
@@ -170,10 +177,19 @@ function resolveInput(
       periodType: fact.periodType,
       ...(fact.currency !== null ? { currency: fact.currency } : {}),
     };
-    if (fact?.periodKey.startsWith("duration:") === true) {
-      expect(fact.periodType, `${label} flow input is annual`).toBe("annual");
-      expect(isAnnualSpan(resolved), `${label} spans 350-380 days`).toBe(true);
+    if (fact?.periodStart !== undefined) {
+      if (annualFlowsOnly) {
+        expect(fact.periodType, `${label} flow input is annual`).toBe("annual");
+      }
+      if (fact.periodType === "annual") {
+        expect(isAnnualSpan(resolved), `${label} spans 350-380 days`).toBe(true);
+      }
     }
+  } else if (input.artifact === "evidence") {
+    const item = extendedEvidence?.items.find(({ category }) => category === input.category);
+    const value = item?.metrics?.[input.key ?? ""];
+    resolved = value === undefined ? undefined : { value };
+    expect(input.sourceIds, `${label} cites its evidence item`).toEqual(item?.sourceIds ?? []);
   } else if (input.artifact === "capitalOwnership") {
     const fact = capitalOwnership?.stockBasedCompensation.find(
       (candidate) =>
@@ -266,7 +282,7 @@ export function assertMetricSectionInvariants(
     expect(metric.periodEnd, `${label} carries its FY end`).toBeDefined();
     const resolvedOf = (series: string): ResolvedInput | undefined =>
       resolved[metric.inputs.findIndex((input) => input.series === series)];
-    const valueOf = (series: string): number => resolvedOf(series)?.value ?? Number.NaN;
+    const valueOf = (series: string): number => Number(resolvedOf(series)?.value ?? Number.NaN);
     const statementFacts = resolved.filter(
       (_fact, index) => metric.inputs[index]?.artifact === "statements",
     );
@@ -297,7 +313,7 @@ export function assertMetricSectionInvariants(
         splitPeriodEnds(endpointSeries).filter((end) => end >= earlierEnd && end <= laterEnd),
         `${label} window has no earlier share basis`,
       ).toEqual([]);
-      const ratio = (later?.value ?? Number.NaN) / (earlier?.value ?? Number.NaN);
+      const ratio = Number(later?.value ?? Number.NaN) / Number(earlier?.value ?? Number.NaN);
       if (endpointSeries === "dividendsPerShare") {
         expectClose(metric.value, ratio ** (1 / Number(endpointYears)) - 1, label);
       } else if (metric.id !== "shareCountTrend") {
@@ -353,6 +369,76 @@ export function assertMetricSectionInvariants(
       expect(quote.currency, `${label} quote currency matches reporting`).toBe(
         statementFacts[0]?.currency,
       );
+    }
+  }
+}
+
+const FRAMEWORK_RATIOS: Readonly<Record<string, readonly [string, string]>> = {
+  grossMargin: ["grossProfit", "revenue"],
+  operatingMargin: ["operatingIncome", "revenue"],
+};
+
+export function assertBusinessFrameworkMetricInvariants(
+  run: MetricInvariantRun,
+  report: ResearchReport,
+): void {
+  const framework = run.collectedSources.businessFramework;
+  if (framework === undefined) {
+    return;
+  }
+  const sections = (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? [];
+  const reportSourceIds = new Set(report.sources.map(({ id }) => id));
+  for (const frameworkSection of framework.sections) {
+    for (const id of frameworkSection.metricSectionIds) {
+      const section = sections.find((candidate) => candidate.id === id);
+      expect(section, `${frameworkSection.name} references Metric Section ${id}`).toBeDefined();
+      expect(run.markdown.includes(`### ${section?.title ?? id}\n`)).toBe(true);
+      const unresolved = section?.metrics.filter(({ status }) => status !== "value") ?? [];
+      expect(
+        report.dataGaps.some((gap) => gap.startsWith(`${id}: `)),
+        `${id} surfaces its section gap iff a metric is unresolved`,
+      ).toBe(unresolved.length > 0);
+      for (const metric of section?.metrics ?? []) {
+        const label = `${id}.${metric.id}`;
+        for (const sourceId of metric.sourceIds) {
+          expect(reportSourceIds.has(sourceId), `${label} cites ${sourceId}`).toBe(true);
+        }
+        const resolved = metric.inputs.map((input) =>
+          resolveInput(run, input, `${label} ${input.label}`, false),
+        );
+        if (metric.status !== "value" || typeof metric.value !== "number") {
+          continue;
+        }
+        const [first, second] = resolved.map((input) => Number(input?.value));
+        const ratio = FRAMEWORK_RATIOS[metric.id];
+        // SEC-summary pass-through (no statements): inputs name evidence keys and YoY is filed.
+        const passThrough = metric.inputs.every(({ artifact }) => artifact === "evidence");
+        if (ratio !== undefined) {
+          expect(metric.inputs.map(({ series, key }) => (passThrough ? key : series))).toEqual<
+            readonly (string | undefined)[]
+          >(ratio);
+          if (!passThrough) {
+            expect(resolved[0]?.periodKey, `${label} joins one period`).toBe(
+              resolved[1]?.periodKey,
+            );
+          }
+          expectClose(metric.value, (first ?? Number.NaN) / (second ?? Number.NaN), label);
+        } else if (metric.id.endsWith("DeltaPercent") && !passThrough) {
+          const prior = first ?? Number.NaN;
+          expectClose(
+            metric.value,
+            (((second ?? Number.NaN) - prior) / Math.abs(prior)) * 100,
+            label,
+          );
+        } else if (metric.id !== "phase") {
+          expectClose(metric.value, first ?? Number.NaN, label);
+        }
+        if (metric.inputs[0]?.artifact === "statements") {
+          expect(metric.periodEnd, `${label} ends at its anchor`).toBe(
+            resolved.at(-1)?.periodEnd ?? resolved[0]?.periodEnd,
+          );
+        }
+      }
     }
   }
 }
@@ -482,16 +568,17 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
     frameworkSections.length,
     "depository fixture must carry framework sections",
   ).toBeGreaterThan(0);
-  const valuationSection = frameworkSections.find((section) => section.name === "Valuation");
-  expect(valuationSection, "depository fixture must carry the Valuation framework").toBeDefined();
+  const valuationMetrics =
+    bundle?.derived.metricSections?.find(({ id }) => id === "business-framework-valuation")
+      ?.metrics ?? [];
   expect(
-    valuationSection?.metrics.length,
+    valuationMetrics.some(({ status }) => status === "value"),
     "Valuation framework must carry non-EV metrics",
-  ).toBeGreaterThan(0);
+  ).toBe(true);
   expect(
-    valuationSection?.metrics.find((metric) => metric.key === "evToAnnualizedRevenue"),
-    "Valuation framework must omit EV/revenue",
-  ).toBeUndefined();
+    valuationMetrics.find((metric) => metric.id === "evToAnnualizedRevenue")?.status,
+    "Valuation framework EV/revenue must be not-applicable",
+  ).toBe("not-applicable");
 
   const capitalReturn = bundle?.derived.metricSections?.find(({ id }) => id === "capital-return");
   for (const id of ["fcfPayoutRatio", "totalPayoutToFcf"]) {

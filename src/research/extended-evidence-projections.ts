@@ -62,7 +62,7 @@ function businessFrameworkExtra(
         name: section.name,
         posture: section.posture,
         summary: section.summary,
-        metrics: section.metrics,
+        metricSectionIds: section.metricSectionIds,
         sourceIds:
           modelSection !== undefined && modelSection.sourceIds.length > 0
             ? modelSection.sourceIds

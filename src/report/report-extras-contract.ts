@@ -108,6 +108,8 @@ interface BusinessFrameworkSectionValue {
   readonly sourceIds: readonly string[];
   readonly sourceIdsComplete: boolean;
   readonly gaps: readonly BusinessFrameworkExtraGap[];
+  // Undefined on artifacts older than per-section Metric Sections.
+  readonly metricSectionIds?: readonly string[];
   readonly metrics: readonly BusinessFrameworkMetric[];
 }
 
@@ -167,6 +169,7 @@ interface MetricResultValue {
   readonly value?: number | string;
   readonly currency?: string;
   readonly periodEnd?: string;
+  readonly periodMonths?: number;
   readonly reason?: string;
   readonly sourceIds: readonly string[];
   readonly sourceIdsComplete: boolean;
@@ -294,6 +297,9 @@ function readBusinessFrameworkSection(value: unknown): BusinessFrameworkSectionV
     sourceIds: sourceIds.values,
     sourceIdsComplete: sourceIds.complete,
     gaps: readBusinessFrameworkGaps(value.gaps),
+    ...(Array.isArray(value.metricSectionIds)
+      ? { metricSectionIds: stringsOf(value, "metricSectionIds") }
+      : {}),
     metrics: Array.isArray(value.metrics)
       ? value.metrics.flatMap((metric): readonly BusinessFrameworkMetric[] => {
           const parsed = readBusinessFrameworkMetric(metric);
@@ -374,6 +380,7 @@ function readMetricResult(value: unknown): MetricResultValue | undefined {
       ? { unit: unit as LensValueUnit }
       : {}),
     ...(typeof raw === "number" || typeof raw === "string" ? { value: raw } : {}),
+    ...(typeof value.periodMonths === "number" ? { periodMonths: value.periodMonths } : {}),
     sourceIds: sourceIds.values,
     sourceIdsComplete: sourceIds.complete,
   };

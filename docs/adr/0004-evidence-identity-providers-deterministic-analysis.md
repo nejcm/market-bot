@@ -515,8 +515,8 @@ without pretending the project has a global security master.
   92 days of the newest current balance-sheet period end. Canonical ratios check their paired
   selected period; the legacy fallback checks every input. Net debt and current ratio outside that
   window are unknown, not failed, so the remaining current criteria still decide the posture, and
-  Business Framework Risk applies the same current-ratio eligibility while labelling the historical
-  value with its date. Debt/equity, debt/market cap, and net debt/market cap are withheld when an
+  Business Framework Risk applies the same current-ratio eligibility; since its Metric Section
+  (amended 2026-10-15) a stale current ratio is `missing` with its date in the reason (R8). Debt/equity, debt/market cap, and net debt/market cap are withheld when an
   input is not current. Dated raw debt, cash, and historical net debt stay displayed, and the
   valuation and financial-lens producers each declare a no-cap Source Gap naming the withheld
   inputs and their period ends.

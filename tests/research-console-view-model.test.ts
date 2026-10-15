@@ -60,6 +60,18 @@ import { parseCalibrationContext } from "../src/research/calibration-context";
 import { buildCalibrationSummary, MIN_CALIBRATION_SAMPLE } from "../src/scoring/calibration";
 import { resolvedPair } from "./support/research-context-helpers";
 
+function frameworkSection(name: string, metricSectionIds?: readonly string[]) {
+  return {
+    name,
+    posture: "criteria-supported",
+    summary: `${name} summary.`,
+    ...(metricSectionIds !== undefined ? { metricSectionIds } : {}),
+    metrics: [{ key: "legacy", label: "Legacy", value: 1, unit: "ratio", sourceIds: [] }],
+    sourceIds: [],
+    gaps: [],
+  };
+}
+
 describe("research console app view model", () => {
   test("round-trips instrument routes with normalized symbols", () => {
     const pathname = instrumentPath("equity", "nvda");
@@ -2053,7 +2065,6 @@ describe("report artifact parsers", () => {
           text: "Model-authored framework text.",
           metrics: [
             {
-              key: "grossMargin",
               label: "Gross margin",
               value: "42.0%",
               sourceIds: ["report-source"],
@@ -2102,6 +2113,64 @@ describe("report artifact parsers", () => {
         extras: { businessFramework: { phase: "invalid", sections: [] } },
       }),
     ).toBeUndefined();
+  });
+
+  test("framework tiles come from referenced Metric Sections, value rows only", () => {
+    const view = businessFrameworkView({
+      extras: {
+        businessFramework: {
+          version: 3,
+          phase: "operating-leverage",
+          sections: [
+            frameworkSection("Moat", ["business-framework-moat"]),
+            frameworkSection("Growth", ["business-framework-unknown"]),
+            frameworkSection("Management", []),
+          ],
+          sourceIds: [],
+          gaps: [],
+        },
+        metricSections: [
+          {
+            id: "business-framework-moat",
+            title: "Business Framework: Moat",
+            metrics: [
+              {
+                label: "Gross margin",
+                unit: "ratio-percent",
+                status: "value",
+                value: 0.42,
+                periodEnd: "2026-03-31",
+                periodMonths: 3,
+                sourceIds: ["sec"],
+              },
+              {
+                label: "Operating margin",
+                unit: "ratio-percent",
+                status: "missing",
+                reason: "no interim operatingIncome fact",
+                sourceIds: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(view?.sections.map(({ name, metrics }) => ({ name, metrics }))).toEqual([
+      {
+        name: "Moat",
+        metrics: [
+          {
+            label: "Gross margin",
+            value: "42.0%",
+            period: "3-month period ending 2026-03-31",
+            sourceIds: ["sec"],
+          },
+        ],
+      },
+      { name: "Growth", metrics: [] },
+      { name: "Management", metrics: [] },
+    ]);
   });
 
   test("projects Metric Sections: absent stays absent, empty stays empty", () => {
@@ -2174,13 +2243,14 @@ describe("report artifact parsers", () => {
 
     expect(view).toEqual([
       {
+        id: "capital-return",
         title: "Capital Return",
         metrics: [
           {
             label: "Dividends paid (latest FY)",
             status: "value",
             value: "CAD 5.9B",
-            periodEnd: "2025-10-31",
+            period: "FY ending 2025-10-31",
             basis: "cash dividends paid",
             sourceIds: ["sec"],
           },

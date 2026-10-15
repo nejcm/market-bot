@@ -1,6 +1,5 @@
 import { formatLensValue } from "../../src/sources/extended-evidence/value-format";
 import type {
-  BusinessFrameworkArtifact,
   BusinessFrameworkMetric,
   BusinessFrameworkPosture,
   BusinessFrameworkSectionName,
@@ -20,6 +19,7 @@ import {
 import { readStringVerbatim } from "../../src/guards";
 import { readRecord } from "./view-model-format";
 import type { ValuationMetricTile } from "./view-model-lens";
+import { metricSectionsView, type MetricSectionView } from "./view-model-metric-sections";
 
 const BUSINESS_FRAMEWORK_SECTION_NAMES = [
   "Business",
@@ -59,7 +59,7 @@ function isBusinessFrameworkPosture(value: string): value is BusinessFrameworkPo
 }
 
 interface BusinessFrameworkMetricTile extends ValuationMetricTile {
-  readonly key: string;
+  readonly period?: string;
   readonly sourceIds: readonly string[];
 }
 
@@ -106,7 +106,6 @@ export interface WebSubjectProfileView {
 
 function businessFrameworkMetricTile(metric: BusinessFrameworkMetric): BusinessFrameworkMetricTile {
   return {
-    key: metric.key,
     label: metric.label,
     value:
       typeof metric.value === "string"
@@ -121,7 +120,24 @@ function businessFrameworkGapText(gap: BusinessFrameworkExtraGap): string {
   return typeof gap === "string" ? gap : gap.text;
 }
 
-function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | undefined {
+function referencedMetricTiles(
+  metricSectionIds: readonly string[],
+  metricSections: readonly MetricSectionView[],
+): readonly BusinessFrameworkMetricTile[] {
+  return metricSectionIds.flatMap((id) =>
+    (metricSections.find((section) => section.id === id)?.metrics ?? []).flatMap(
+      ({ label, value, period, sourceIds }): readonly BusinessFrameworkMetricTile[] =>
+        value === undefined
+          ? []
+          : [{ label, value, ...(period !== undefined ? { period } : {}), sourceIds }],
+    ),
+  );
+}
+
+function businessFrameworkFromValue(
+  value: unknown,
+  metricSections: readonly MetricSectionView[],
+): BusinessFrameworkView | undefined {
   const framework = readBusinessFrameworkExtra(value);
   if (framework === undefined) {
     return undefined;
@@ -150,7 +166,10 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
           posture,
           summary,
           ...(text !== undefined ? { text } : {}),
-          metrics: section.metrics.map(businessFrameworkMetricTile),
+          metrics:
+            section.metricSectionIds === undefined
+              ? section.metrics.map(businessFrameworkMetricTile)
+              : referencedMetricTiles(section.metricSectionIds, metricSections),
           sourceIds: section.sourceIds,
           gaps: section.gaps.map(businessFrameworkGapText),
         },
@@ -167,11 +186,13 @@ function businessFrameworkFromValue(value: unknown): BusinessFrameworkView | und
 
 export function businessFrameworkView(
   report: Record<string, unknown> | undefined,
-  artifact?: BusinessFrameworkArtifact,
+  artifact?: unknown,
 ): BusinessFrameworkView | undefined {
   const extras = readRecord(report?.extras);
+  const metricSections = metricSectionsView(report) ?? [];
   return (
-    businessFrameworkFromValue(extras?.businessFramework) ?? businessFrameworkFromValue(artifact)
+    businessFrameworkFromValue(extras?.businessFramework, metricSections) ??
+    businessFrameworkFromValue(artifact, metricSections)
   );
 }
 

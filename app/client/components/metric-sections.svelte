@@ -31,8 +31,8 @@
             <div class="mt-0.5 font-mono text-[12px] font-medium text-foreground">
               {metric.value}
             </div>
-            {#if metric.periodEnd !== undefined}
-              <div class="mt-1 font-mono text-[10px] text-[#8a8f96]">FY ending {metric.periodEnd}</div>
+            {#if metric.period !== undefined}
+              <div class="mt-1 font-mono text-[10px] text-[#8a8f96]">{metric.period}</div>
             {/if}
             {#if metric.basis !== undefined}
               <div class="mt-1 text-[11px] leading-normal text-[#5c6066]">{metric.basis}</div>

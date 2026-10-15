@@ -16,6 +16,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  statementInput as metricStatementInput,
 } from "./metric-engine";
 
 type CapitalReturnSeries =
@@ -69,19 +70,7 @@ function eligibleAnnualFacts(
 }
 
 function statementInput(fact: FinancialStatementFact, key: CapitalReturnSeries): MetricInput {
-  return {
-    label: SERIES_LABELS[key],
-    value: fact.value,
-    artifact: "statements",
-    series: key,
-    periodType: fact.periodType,
-    ...(fact.periodStart !== undefined ? { periodStart: fact.periodStart } : {}),
-    periodEnd: fact.periodEnd,
-    periodKey: fact.periodKey,
-    unit: fact.unit,
-    ...(fact.currency !== null ? { currency: fact.currency } : {}),
-    sourceIds: fact.sourceIds,
-  };
+  return metricStatementInput(fact, key, SERIES_LABELS[key]);
 }
 
 // Month-end period ends map to month-end due dates (June 30 -> October 31).
@@ -336,7 +325,8 @@ function unlessPaymentEvidenceUnknown(
 
 function latestDividendsPerShare(ctx: MetricContext): MetricOutcome {
   const outcome = latestFyAmount("dividendsPerShare")(ctx);
-  return outcome.status === "value" && (outcome.inputs[0]?.value ?? 0) < 0
+  const latest = outcome.status === "value" ? outcome.inputs[0]?.value : undefined;
+  return outcome.status === "value" && typeof latest === "number" && latest < 0
     ? {
         status: "not-meaningful",
         reason: "latest dividends per share is negative",

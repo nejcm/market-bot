@@ -370,7 +370,7 @@ Trade-action validation is context-aware: it rejects security-directed calls and
 
 `src/report/markdown.ts` renders the validated report into a readable `report.md` with summary, findings, cases, risks, catalysts, scenarios, predictions, data gaps, and sources.
 
-Equity reports render deterministic Metric Sections (Capital Return first) from `report.extras.metricSections` in the appendix: each metric shows its formatted value, fiscal-year end, basis and citations, or "not available" with its reason. The renderer never recomputes a value; source IDs on every metric are validated against `report.sources`.
+Equity reports render deterministic Metric Sections (the Business Framework sections, then Capital Return) from `report.extras.metricSections` in the appendix: each metric shows its formatted value, its period ("FY ending" or "N-month period ending"), basis and citations, or "not available" with its reason. The renderer never recomputes a value; source IDs on every metric are validated against `report.sources`.
 
 Historical Context and Market Spotlights render from `report.extras.historicalContext` and `report.extras.spotlights`. The renderer parses them defensively, escapes markdown text, and only includes item-level source references that exist in the final source list.
 

@@ -380,6 +380,7 @@ export async function collectEquityEnrichment(
     financialLensResult.extendedEvidence,
     input.verifiedMarketSnapshot,
     input.fetchedAt,
+    financialStatements,
   );
   const capitalReturn =
     financialStatements === undefined
@@ -448,10 +449,26 @@ export async function collectEquityEnrichment(
     capitalOwnership,
     financialLensResult,
     businessFrameworkResult,
-    metricSections: capitalReturn === undefined ? undefined : [capitalReturn.section],
-    metricSectionGaps: capitalReturn?.sourceGaps ?? [],
+    ...metricSectionsOf(businessFrameworkResult, capitalReturn),
     ...earningsResult,
     packetFailureGaps: [],
+  };
+}
+
+function metricSectionsOf(
+  businessFrameworkResult: BusinessFrameworkResult,
+  capitalReturn: ReturnType<typeof capitalReturnSection> | undefined,
+): Pick<EquityEnrichmentResult, "metricSections" | "metricSectionGaps"> {
+  const sections = [
+    ...(businessFrameworkResult.metricSections ?? []),
+    ...(capitalReturn === undefined ? [] : [capitalReturn.section]),
+  ];
+  return {
+    metricSections: sections.length === 0 ? undefined : sections,
+    metricSectionGaps: [
+      ...(businessFrameworkResult.metricSectionGaps ?? []),
+      ...(capitalReturn?.sourceGaps ?? []),
+    ],
   };
 }
 

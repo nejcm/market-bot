@@ -703,9 +703,19 @@ describe("collectSources", () => {
       { now: new Date("2026-07-15T00:00:00.000Z"), fetchImpl },
     );
 
-    expect(result.metricSections?.map((section) => section.id)).toEqual(["capital-return"]);
+    expect(result.metricSections?.map((section) => section.id)).toEqual([
+      "business-framework-business",
+      "business-framework-phase",
+      "business-framework-moat",
+      "business-framework-growth",
+      "business-framework-risk",
+      "business-framework-valuation",
+      "capital-return",
+    ]);
     expect(
-      result.metricSections?.[0]?.metrics.find((m) => m.id === "buybacksLatestFy"),
+      result.metricSections
+        ?.find((section) => section.id === "capital-return")
+        ?.metrics.find((m) => m.id === "buybacksLatestFy"),
     ).toMatchObject({
       status: "missing",
       reason: "no year-aligned annual share repurchases fact",
@@ -760,7 +770,16 @@ describe("collectSources", () => {
     );
 
     expect(result.financialStatements).toBeUndefined();
-    expect(result.metricSections).toBeUndefined();
+    expect(result.metricSections?.map((section) => section.id)).not.toContain("capital-return");
+    expect(
+      result.metricSections
+        ?.find((section) => section.id === "business-framework-business")
+        ?.metrics.map(({ status, reason }) => [status, reason]),
+    ).toEqual([
+      ["missing", "financial statements unavailable"],
+      ["missing", "financial statements unavailable"],
+      ["missing", "financial statements unavailable"],
+    ]);
     expect(result.sourceGaps.some((gap) => gap.source === "capital-return")).toBe(false);
     expect(result.fundamentalHistory).toBeUndefined();
     expect(legacyFundamentalHistory).toHaveBeenCalledTimes(1);
@@ -1226,9 +1245,9 @@ describe("collectSources", () => {
         .flatMap(({ metrics }) => metrics)
         .filter(({ key }) => key === "enterpriseValue" || key === "evToAnnualizedRevenue") ?? [];
     const businessFrameworkEvMetrics =
-      result.businessFramework?.sections
-        .flatMap(({ metrics }) => metrics)
-        .filter(({ key }) => key === "evToAnnualizedRevenue") ?? [];
+      result.metricSections
+        ?.flatMap(({ metrics }) => metrics)
+        .filter(({ id, status }) => id === "evToAnnualizedRevenue" && status === "value") ?? [];
 
     expect(evOperandCoercions).toBe(0);
     expect(valuationComps.gaps).toEqual([]);

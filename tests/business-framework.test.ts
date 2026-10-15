@@ -4,21 +4,84 @@ import type { ExtendedEvidence } from "../src/domain/evidence";
 import { classifyGap } from "../src/report/gap-triage";
 import {
   addBusinessFrameworkEvidence,
-  classifyBusinessLifecyclePhase,
   frameworkGapCode,
   frameworkGaps,
   QUALITATIVE_GAPS,
 } from "../src/sources/extended-evidence/business-framework";
-import { withCanonicalFinancialLensInputs } from "../src/sources/extended-evidence/financial-lens-canonical";
+import { classifyBusinessLifecyclePhase } from "../src/sources/extended-evidence/business-framework-metrics";
 import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
 import { REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT } from "../src/sources/extended-evidence/valuation-comps";
-import { marketSnapshot } from "./support/fixtures";
+import { renderMarkdownReport } from "../src/report/markdown";
+import type { MarketSnapshot } from "../src/domain/market-data";
+import { collectedSources, marketSnapshot, researchReport } from "./support/fixtures";
+import { assertBusinessFrameworkMetricInvariants } from "./support/run-fixtures/assertions";
 
 const command = { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "deep" } as const;
 
-function jsonRoundTrip<T>(value: T): T {
-  const serialized = JSON.stringify(value);
-  return JSON.parse(serialized) as T;
+const AS_OF = "2026-06-22T00:00:00.000Z";
+
+function fact(val: number, fy: number, start: string, end: string, form = "10-K") {
+  return {
+    val,
+    form,
+    fp: form === "10-K" ? "FY" : "Q1",
+    fy,
+    filed: form === "10-K" ? `${String(fy + 1)}-02-15` : `${String(fy)}-05-01`,
+    start,
+    end,
+  };
+}
+
+function annual(fy2024: number, fy2025: number) {
+  return {
+    units: {
+      USD: [
+        fact(fy2024, 2024, "2024-01-01", "2024-12-31"),
+        fact(fy2025, 2025, "2025-01-01", "2025-12-31"),
+      ],
+    },
+  };
+}
+
+function statements(concepts: Record<string, unknown>) {
+  return deriveFinancialStatements(
+    { facts: { "us-gaap": concepts } },
+    {
+      symbol: "AAPL",
+      generatedAt: AS_OF,
+      analysisAsOf: AS_OF,
+      sourceId: "extended-sec-edgar-aapl-fundamentals",
+    },
+  );
+}
+
+const ANNUAL_STATEMENTS = statements({
+  Revenues: annual(94.34, 100),
+  GrossProfit: annual(40, 45),
+  OperatingIncomeLoss: annual(22.2, 24),
+  NetIncomeLoss: annual(17.14, 18),
+  PaymentsOfDividends: annual(4, 5),
+});
+
+function framework(
+  existing: ExtendedEvidence = evidence(),
+  generatedAt = AS_OF,
+  financialStatements: ReturnType<typeof statements> | null = ANNUAL_STATEMENTS,
+) {
+  return addBusinessFrameworkEvidence(
+    command,
+    [marketSnapshot({ sourceId: "market-aapl" })],
+    existing,
+    undefined,
+    generatedAt,
+    financialStatements ?? undefined,
+  );
+}
+
+function metricOf(result: ReturnType<typeof framework>, sectionId: string, metricId: string) {
+  return result.metricSections
+    ?.find(({ id }) => id === sectionId)
+    ?.metrics.find(({ id }) => id === metricId);
 }
 
 function evidence(overrides: Partial<ExtendedEvidence> = {}): ExtendedEvidence {
@@ -230,155 +293,108 @@ describe("business framework evidence", () => {
 
   test("Risk counts the current ratio only while its balance-sheet period is current", () => {
     const risk = (generatedAt: string) =>
-      addBusinessFrameworkEvidence(
-        command,
-        [marketSnapshot({ sourceId: "market-aapl" })],
-        evidence(),
-        undefined,
-        generatedAt,
-      ).artifact?.sections.find((section) => section.name === "Risk");
+      framework(evidence(), generatedAt).artifact?.sections.find(({ name }) => name === "Risk");
 
-    expect(risk("2026-06-22T00:00:00.000Z")?.summary).toBe(
+    expect(risk(AS_OF)?.summary).toBe(
       "Risk criteria-supported (Current ratio 1.50x, Debt/market cap 10.0%)",
     );
-    const stale = risk("2026-12-01T00:00:00.000Z");
-    expect(stale?.metrics[0]?.label).toBe("Current ratio (historical, 2026-03-31)");
-    expect(stale?.posture).toBe("criteria-supported");
+    const staleAsOf = "2026-12-01T00:00:00.000Z";
+    expect(risk(staleAsOf)?.summary).toBe("Risk criteria-supported (Debt/market cap 10.0%)");
+    expect(
+      metricOf(framework(evidence(), staleAsOf), "business-framework-risk", "currentRatio"),
+    ).toMatchObject({ status: "missing", reason: "stale current ratio as of 2026-03-31" });
   });
 
-  test("derives seven neutral framework sections and a sidecar artifact", () => {
-    const result = addBusinessFrameworkEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-aapl" })],
-      evidence(),
-      undefined,
-      "2026-06-22T00:00:00.000Z",
-    );
+  test("derives seven framework sections, each backed by a Metric Section but Management", () => {
+    const result = framework();
 
+    expect(result.artifact?.version).toBe(3);
     expect(result.artifact?.phase).toBe("capital-return");
-    expect(result.artifact?.sections.map((section) => section.name)).toEqual([
-      "Business",
-      "Phase",
-      "Moat",
-      "Growth",
-      "Management",
-      "Risk",
-      "Valuation",
+    expect(
+      result.artifact?.sections.map(({ name, metricSectionIds }) => [name, metricSectionIds]),
+    ).toEqual([
+      ["Business", ["business-framework-business"]],
+      ["Phase", ["business-framework-phase"]],
+      ["Moat", ["business-framework-moat"]],
+      ["Growth", ["business-framework-growth"]],
+      ["Management", []],
+      ["Risk", ["business-framework-risk"]],
+      ["Valuation", ["business-framework-valuation"]],
+    ]);
+    expect(result.metricSections?.map(({ title }) => title)).toEqual([
+      "Business Framework: Business",
+      "Business Framework: Phase",
+      "Business Framework: Moat",
+      "Business Framework: Growth",
+      "Business Framework: Risk",
+      "Business Framework: Valuation",
     ]);
     expect(
       result.artifact?.sections.find((section) => section.name === "Management")?.posture,
     ).toBe("insufficient-data");
     expect(result.extendedEvidence?.items.at(-1)?.category).toBe("business-framework");
-    expect(result.extendedEvidence?.items.at(-1)?.metrics?.phase).toBe("capital-return");
+    expect(result.extendedEvidence?.items.at(-1)?.metrics).toEqual({
+      phase: "capital-return",
+      businessPosture: "criteria-supported",
+      phasePosture: "criteria-supported",
+      moatPosture: "criteria-supported",
+      growthPosture: "criteria-supported",
+      managementPosture: "insufficient-data",
+      riskPosture: "criteria-supported",
+      valuationPosture: "criteria-supported",
+    });
     expect(result.artifact?.sections.find((section) => section.name === "Phase")?.summary).toBe(
-      "Phase classification (Phase capital-return, Revenue YoY 6.0%, Share repurchases $10)",
+      "Phase classification (Phase capital-return, Revenue YoY 6.0%)",
     );
+    expect(metricOf(result, "business-framework-growth", "revenueDeltaPercent")).toMatchObject({
+      status: "value",
+      periodEnd: "2025-12-31",
+      periodMonths: 12,
+    });
     expect(result.sourceGaps).toHaveLength(12);
     expect(result.sourceGaps[0]).toEqual(
-      expect.objectContaining({
-        source: "business-framework",
-        evidenceQualityImpact: "no-cap",
-      }),
+      expect.objectContaining({ source: "business-framework", evidenceQualityImpact: "no-cap" }),
     );
   });
 
-  test("uses persisted common-period margins when standalone flow facts diverge", () => {
-    const artifact = deriveFinancialStatements(
-      {
-        facts: {
-          "us-gaap": {
-            Revenues: {
-              units: {
-                USD: [
-                  {
-                    val: 100,
-                    form: "10-K",
-                    fp: "FY",
-                    fy: 2025,
-                    filed: "2026-02-15",
-                    start: "2025-01-01",
-                    end: "2025-12-31",
-                  },
-                  {
-                    val: 30,
-                    form: "10-Q",
-                    fp: "Q1",
-                    fy: 2026,
-                    filed: "2026-05-01",
-                    start: "2026-01-01",
-                    end: "2026-03-31",
-                  },
-                ],
-              },
-            },
-            GrossProfit: {
-              units: {
-                USD: [
-                  {
-                    val: 45,
-                    form: "10-K",
-                    fp: "FY",
-                    fy: 2025,
-                    filed: "2026-02-15",
-                    start: "2025-01-01",
-                    end: "2025-12-31",
-                  },
-                ],
-              },
-            },
-            OperatingIncomeLoss: {
-              units: {
-                USD: [
-                  {
-                    val: 20,
-                    form: "10-K",
-                    fp: "FY",
-                    fy: 2025,
-                    filed: "2026-02-15",
-                    start: "2025-01-01",
-                    end: "2025-12-31",
-                  },
-                ],
-              },
-            },
+  test("anchors margins on the numerator period and keeps an interim latest fact's span", () => {
+    const result = framework(
+      evidence(),
+      AS_OF,
+      statements({
+        Revenues: {
+          units: {
+            USD: [
+              fact(100, 2025, "2025-01-01", "2025-12-31"),
+              fact(30, 2026, "2026-01-01", "2026-03-31", "10-Q"),
+            ],
           },
         },
-      },
-      {
-        symbol: "AAPL",
-        generatedAt: "2026-06-22T00:00:00.000Z",
-        analysisAsOf: "2026-06-22T00:00:00.000Z",
-        sourceId: "extended-sec-edgar-aapl-fundamentals",
-      },
-    );
-    const canonicalEvidence = jsonRoundTrip<ExtendedEvidence>(
-      withCanonicalFinancialLensInputs(undefined, artifact),
-    );
-    const secItem = canonicalEvidence.items.find((item) => item.category === "sec-edgar");
-
-    expect(secItem?.metrics).toMatchObject({
-      revenue: 30,
-      revenuePeriodEnd: "2026-03-31",
-      grossProfit: 45,
-      grossProfitPeriodEnd: "2025-12-31",
-      grossMarginSelectedValue: 0.45,
-      grossMarginSelectedPeriodEnd: "2025-12-31",
-      operatingMarginSelectedValue: 0.2,
-      operatingMarginSelectedPeriodEnd: "2025-12-31",
-    });
-
-    const result = addBusinessFrameworkEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-aapl" })],
-      canonicalEvidence,
-      undefined,
-      "2026-06-22T00:00:00.000Z",
+        GrossProfit: { units: { USD: [fact(45, 2025, "2025-01-01", "2025-12-31")] } },
+        OperatingIncomeLoss: { units: { USD: [fact(20, 2025, "2025-01-01", "2025-12-31")] } },
+      }),
     );
     const moat = result.artifact?.sections.find((section) => section.name === "Moat");
 
     expect(moat?.posture).toBe("criteria-supported");
-    expect(moat?.metrics.find((metric) => metric.key === "grossMargin")?.value).toBe(0.45);
-    expect(moat?.metrics.find((metric) => metric.key === "operatingMargin")?.value).toBe(0.2);
+    expect(metricOf(result, "business-framework-moat", "grossMargin")?.value).toBe(0.45);
+    expect(metricOf(result, "business-framework-moat", "operatingMargin")?.value).toBe(0.2);
+    expect(metricOf(result, "business-framework-business", "revenue")).toMatchObject({
+      value: 30,
+      periodEnd: "2026-03-31",
+      periodMonths: 3,
+    });
+    const markdown = renderMarkdownReport(
+      researchReport({
+        jobType: "equity",
+        symbol: "AAPL",
+        extras: { metricSections: result.metricSections },
+      }),
+    );
+    expect(markdown).toContain(
+      "### Business Framework: Business\n\n- Revenue: $30 (3-month period ending 2026-03-31;",
+    );
+    expect(markdown).toContain("- Gross margin: 45.0% (FY ending 2025-12-31;");
   });
 
   test("keeps lifecycle classification on parent-attributable net income", () => {
@@ -393,53 +409,174 @@ describe("business framework evidence", () => {
 
   test("renders not-meaningful revenue supportability as a Valuation-section caveat", () => {
     const baseEvidence = evidence();
-    const result = addBusinessFrameworkEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-aapl" })],
-      {
-        ...baseEvidence,
-        items: baseEvidence.items.map((item) =>
-          item.category === "valuation"
-            ? {
-                ...item,
-                metrics: {
-                  ...item.metrics,
-                  valuationSupportability: "not-meaningful",
-                },
-              }
-            : item,
-        ),
-      },
-      undefined,
-      "2026-06-22T00:00:00.000Z",
-    );
+    const result = framework({
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "valuation"
+          ? { ...item, metrics: { ...item.metrics, valuationSupportability: "not-meaningful" } }
+          : item,
+      ),
+    });
 
     const valuation = result.artifact?.sections.find((section) => section.name === "Valuation");
     expect(valuation?.posture).toBe("insufficient-data");
-    expect(valuation?.metrics[0]).toMatchObject({
-      key: "valuationCaveat",
-      value: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT,
-    });
+    expect(
+      result.metricSections?.find(({ id }) => id === "business-framework-valuation")?.metrics[0],
+    ).toMatchObject({ id: "valuationCaveat", value: REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT });
     expect(valuation?.summary).toContain(REVENUE_MULTIPLE_NOT_MEANINGFUL_CAVEAT);
   });
 
+  test("marks EV/revenue not-applicable for a depository issuer", () => {
+    const baseEvidence = evidence();
+    const result = framework({
+      ...baseEvidence,
+      items: baseEvidence.items.map((item) =>
+        item.category === "sec-edgar"
+          ? { ...item, metrics: { ...item.metrics, sic: "6021" } }
+          : item,
+      ),
+    });
+
+    expect(metricOf(result, "business-framework-valuation", "evToAnnualizedRevenue")?.status).toBe(
+      "not-applicable",
+    );
+  });
+
   test("discloses missing source coverage instead of guessing", () => {
-    const result = addBusinessFrameworkEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-aapl" })],
+    const result = framework(
       { instrument: { symbol: "AAPL", assetClass: "equity" }, items: [], gaps: [] },
-      undefined,
-      "2026-06-22T00:00:00.000Z",
+      AS_OF,
+      null,
     );
 
     expect(result.artifact?.sections).toHaveLength(7);
     expect(result.artifact?.sections.find((section) => section.name === "Business")?.posture).toBe(
       "insufficient-data",
     );
+    expect(metricOf(result, "business-framework-business", "revenue")).toMatchObject({
+      status: "missing",
+      reason: "financial statements unavailable",
+    });
+    expect(result.metricSectionGaps?.map(({ source, triage }) => [source, triage])).toEqual([
+      ["business-framework-business", "material"],
+      ["business-framework-phase", "material"],
+      ["business-framework-moat", "material"],
+      ["business-framework-growth", "material"],
+      ["business-framework-risk", "material"],
+      ["business-framework-valuation", "material"],
+    ]);
     expect(
       result.artifact?.gaps.map((gap) => (typeof gap === "string" ? gap : gap.text)).join(" "),
     ).toContain("Management track record");
     expect(result.sourceGaps[0]?.cause).toBe("provider-data-missing");
+  });
+
+  test("compares YoY only against a year-aligned prior annual fact", () => {
+    const yoy = (priorStart: string) =>
+      metricOf(
+        framework(
+          evidence(),
+          AS_OF,
+          statements({
+            Revenues: {
+              units: {
+                USD: [
+                  fact(90, 2024, priorStart, "2024-12-31"),
+                  fact(100, 2025, "2025-01-15", "2025-12-31"),
+                ],
+              },
+            },
+          }),
+        ),
+        "business-framework-growth",
+        "revenueDeltaPercent",
+      );
+
+    expect(yoy("2024-01-26")?.status).toBe("missing");
+    expect(yoy("2024-01-16")).toMatchObject({ status: "value" });
+  });
+
+  test("keeps SEC summary values and classification when statements are absent", () => {
+    const result = framework(evidence(), AS_OF, null);
+
+    expect(metricOf(result, "business-framework-business", "revenue")).toMatchObject({
+      status: "value",
+      value: 100,
+      currency: "USD",
+    });
+    expect(metricOf(result, "business-framework-moat", "grossMargin")?.value).toBeCloseTo(0.45);
+    expect(metricOf(result, "business-framework-growth", "revenueDeltaPercent")?.value).toBe(6);
+    expect(result.artifact?.phase).toBe("capital-return");
+    expect(
+      result.extendedEvidence?.items.find((item) => item.category === "business-framework")
+        ?.summary,
+    ).toContain(
+      "Business criteria-supported (Revenue $100, Gross profit $45, Operating income $24)",
+    );
+  });
+
+  test("SEC-only amounts carry the summary's USD unit, not a non-USD quote currency", () => {
+    const result = addBusinessFrameworkEvidence(
+      command,
+      [
+        marketSnapshot({
+          sourceId: "market-aapl",
+          identity: { quoteCurrency: "EUR" } as NonNullable<MarketSnapshot["identity"]>,
+        }),
+      ],
+      evidence(),
+      undefined,
+      AS_OF,
+    );
+
+    expect(metricOf(result, "business-framework-business", "revenue")?.currency).toBe("USD");
+    expect(metricOf(result, "business-framework-phase", "shareRepurchases")?.currency).toBe("USD");
+  });
+
+  test("fixture invariants accept SEC-summary pass-through metrics", () => {
+    const result = framework(evidence(), AS_OF, null);
+    const sections = result.metricSections ?? [];
+    const sourceIds = new Set(
+      sections.flatMap(({ metrics }) => metrics.flatMap((m) => m.sourceIds)),
+    );
+    const report = researchReport({
+      jobType: "equity",
+      symbol: "AAPL",
+      sources: [...sourceIds].map((id) => ({
+        id,
+        title: id,
+        fetchedAt: AS_OF,
+        kind: "extended-evidence",
+        assetClass: "equity",
+      })),
+      dataGaps: (result.metricSectionGaps ?? []).map((gap) => `${gap.source}: ${gap.message}`),
+      extras: { metricSections: sections },
+    });
+    const run = (metricSections: typeof sections) => () =>
+      assertBusinessFrameworkMetricInvariants(
+        {
+          collectedSources: collectedSources({
+            ...(result.artifact !== undefined ? { businessFramework: result.artifact } : {}),
+            ...(result.extendedEvidence !== undefined
+              ? { extendedEvidence: result.extendedEvidence }
+              : {}),
+          }),
+          markdown: renderMarkdownReport(report),
+        },
+        { ...report, extras: { metricSections } },
+      );
+    const forged = sections.map((section) => ({
+      ...section,
+      metrics: section.metrics.map((metric) =>
+        metric.id === "grossMargin" && metric.status === "value"
+          ? { ...metric, value: 0.5 }
+          : metric,
+      ),
+    }));
+
+    expect(metricOf(result, "business-framework-moat", "grossMargin")?.inputs).toHaveLength(2);
+    expect(run(sections)).not.toThrow();
+    expect(run(forged)).toThrow();
   });
 
   test("returns evidence unchanged for non-equity commands", () => {

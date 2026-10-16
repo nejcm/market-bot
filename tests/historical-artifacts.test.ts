@@ -32,7 +32,11 @@ describe("frozen historical artifacts", () => {
       new URL("fixtures/artifacts/capital-ownership-aapl-readable-v1.json", import.meta.url),
     ).json();
 
-    expect(readCapitalOwnershipArtifact(artifact)).toBeDefined();
+    const read = readCapitalOwnershipArtifact(artifact);
+    expect(read).toBeDefined();
+    for (const field of ["dilutedShares", "buybacks", "dividendsPaid"]) {
+      expect(read).not.toHaveProperty(field);
+    }
   });
 
   test("reads financial statements version 1, dating facts without firstPublicAt to filedAt", async () => {

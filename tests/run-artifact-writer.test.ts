@@ -485,10 +485,7 @@ describe("run artifact writer manifests", () => {
       version: 1,
       generatedAt: GENERATED_AT,
       symbol: "AAPL",
-      dilutedShares: [],
       stockBasedCompensation: [],
-      buybacks: [],
-      dividendsPaid: [],
       omissions: [],
     };
     const absent = buildResearchRunManifest(equityCommand, config, result());

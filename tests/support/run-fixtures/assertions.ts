@@ -151,6 +151,16 @@ export async function assertInvariants(
       asWritten(result.deepEquityEvidenceBundle),
     );
   }
+  const { capitalOwnership } = result.collectedSources;
+  if (capitalOwnership !== undefined) {
+    for (const field of ["dilutedShares", "buybacks", "dividendsPaid"]) {
+      expect(capitalOwnership).not.toHaveProperty(field);
+      expect(loaded.artifact?.capitalOwnership).not.toHaveProperty(field);
+    }
+    expect(loaded.artifact?.capitalOwnership?.stockBasedCompensation).toEqual(
+      capitalOwnership.stockBasedCompensation,
+    );
+  }
   const report = validateResearchReport(persistedReport as ResearchReport);
   assertNoUnresolvedMetricReferences(report, result.collectedSources);
   const marketSnapshot = result.collectedSources.marketSnapshots.find(

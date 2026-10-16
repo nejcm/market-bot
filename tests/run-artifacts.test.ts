@@ -467,10 +467,7 @@ describe("loadRunArtifact", () => {
       version: 1 as const,
       generatedAt: "2026-06-01T00:00:00.000Z",
       symbol: "FPI",
-      dilutedShares: [],
       stockBasedCompensation: [],
-      buybacks: [],
-      dividendsPaid: [],
       omissions: [
         { code: "diluted-share-history-missing", message: "Diluted-share history is missing" },
       ],

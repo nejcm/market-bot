@@ -42,10 +42,7 @@ export interface CapitalOwnershipArtifact {
   readonly version: 1;
   readonly generatedAt: string;
   readonly symbol: string;
-  readonly dilutedShares: readonly CapitalOwnershipPeriodFact[];
   readonly stockBasedCompensation: readonly CapitalOwnershipPeriodFact[];
-  readonly buybacks: readonly CapitalOwnershipPeriodFact[];
-  readonly dividendsPaid: readonly CapitalOwnershipPeriodFact[];
   readonly debtPrincipal?: {
     readonly current?: CapitalOwnershipFact;
     readonly noncurrent?: CapitalOwnershipFact;
@@ -70,26 +67,6 @@ const SBC_CONCEPTS: readonly ConceptDefinition[] = [
   { taxonomy: "us-gaap", concept: "ShareBasedCompensation" },
   { taxonomy: "us-gaap", concept: "AllocatedShareBasedCompensationExpense" },
   { taxonomy: "ifrs-full", concept: "ShareBasedPayment" },
-];
-
-const DILUTED_SHARE_CONCEPTS: readonly ConceptDefinition[] = [
-  { taxonomy: "us-gaap", concept: "WeightedAverageNumberOfDilutedSharesOutstanding" },
-  { taxonomy: "ifrs-full", concept: "AdjustedWeightedAverageShares" },
-];
-
-const BUYBACK_CONCEPTS: readonly ConceptDefinition[] = [
-  { taxonomy: "us-gaap", concept: "PaymentsForRepurchaseOfCommonStock" },
-  { taxonomy: "us-gaap", concept: "PaymentsForRepurchaseOfEquity" },
-  { taxonomy: "ifrs-full", concept: "PaymentsToAcquireOrRedeemEntitysShares" },
-];
-
-const DIVIDEND_CONCEPTS: readonly ConceptDefinition[] = [
-  { taxonomy: "us-gaap", concept: "PaymentsOfDividends" },
-  { taxonomy: "us-gaap", concept: "PaymentsOfDividendsCommonStock" },
-  { taxonomy: "us-gaap", concept: "PaymentsOfOrdinaryDividends" },
-  { taxonomy: "us-gaap", concept: "PaymentsForDividends" },
-  { taxonomy: "us-gaap", concept: "DividendsPaid" },
-  { taxonomy: "ifrs-full", concept: "DividendsPaidClassifiedAsFinancingActivities" },
 ];
 
 const CURRENT_DEBT_CONCEPTS: readonly ConceptDefinition[] = [
@@ -210,25 +187,13 @@ export function readCapitalOwnershipArtifact(
     return undefined;
   }
   const previous = readArtifactReadDiagnostics(value);
-  const dilutedShares = readPeriodFacts(
-    value.dilutedShares,
-    "capitalOwnership.dilutedShares.invalid",
-  );
   const stockBasedCompensation = readPeriodFacts(
     value.stockBasedCompensation,
     "capitalOwnership.stockBasedCompensation.invalid",
   );
-  const buybacks = readPeriodFacts(value.buybacks, "capitalOwnership.buybacks.invalid");
-  const dividendsPaid = readPeriodFacts(
-    value.dividendsPaid,
-    "capitalOwnership.dividendsPaid.invalid",
-  );
   if (
     previous === undefined ||
-    dilutedShares === undefined ||
     stockBasedCompensation === undefined ||
-    buybacks === undefined ||
-    dividendsPaid === undefined ||
     !Array.isArray(value.omissions)
   ) {
     return undefined;
@@ -248,10 +213,7 @@ export function readCapitalOwnershipArtifact(
       version: 1,
       generatedAt: value.generatedAt as string,
       symbol: value.symbol as string,
-      dilutedShares: dilutedShares.observations,
       stockBasedCompensation: stockBasedCompensation.observations,
-      buybacks: buybacks.observations,
-      dividendsPaid: dividendsPaid.observations,
       ...(isRecord(value.debtPrincipal)
         ? {
             debtPrincipal: value.debtPrincipal as NonNullable<
@@ -269,13 +231,7 @@ export function readCapitalOwnershipArtifact(
       omissions: omissions.observations,
     },
     previous,
-    [
-      ...dilutedShares.drops,
-      ...stockBasedCompensation.drops,
-      ...buybacks.drops,
-      ...dividendsPaid.drops,
-      ...omissions.drops,
-    ],
+    [...stockBasedCompensation.drops, ...omissions.drops],
   );
 }
 
@@ -406,33 +362,6 @@ export function deriveCapitalOwnershipArtifact(
 ): CapitalOwnershipArtifact {
   const currency = financialStatements.reportingCurrency;
   const { sourceId } = financialStatements;
-  const dilutedShares = annualConceptFacts(
-    payload,
-    DILUTED_SHARE_CONCEPTS,
-    "shares",
-    financialStatements.analysisAsOf,
-    sourceId,
-  );
-  const buybacks =
-    currency === undefined
-      ? []
-      : annualConceptFacts(
-          payload,
-          BUYBACK_CONCEPTS,
-          currency,
-          financialStatements.analysisAsOf,
-          sourceId,
-        );
-  const dividendsPaid =
-    currency === undefined
-      ? []
-      : annualConceptFacts(
-          payload,
-          DIVIDEND_CONCEPTS,
-          currency,
-          financialStatements.analysisAsOf,
-          sourceId,
-        );
   const stockBasedCompensation =
     currency === undefined
       ? []
@@ -477,27 +406,11 @@ export function deriveCapitalOwnershipArtifact(
           return fact === undefined ? [] : [{ bucket: definition.bucket, value: fact.value }];
         });
   const omissions = [
-    ...(dilutedShares.length === 0
-      ? [
-          {
-            code: "diluted-share-history-missing",
-            message: "Annual diluted-share history is missing",
-          },
-        ]
-      : []),
     ...(stockBasedCompensation.length === 0
       ? [
           {
             code: "sbc-history-missing",
             message: "Annual stock-based compensation history is missing",
-          },
-        ]
-      : []),
-    ...(buybacks.length === 0 && dividendsPaid.length === 0
-      ? [
-          {
-            code: "payout-evidence-missing",
-            message: "Filed buyback and dividend evidence is missing",
           },
         ]
       : []),
@@ -514,10 +427,7 @@ export function deriveCapitalOwnershipArtifact(
     version: 1,
     generatedAt: financialStatements.generatedAt,
     symbol: financialStatements.symbol,
-    dilutedShares,
     stockBasedCompensation,
-    buybacks,
-    dividendsPaid,
     ...(current !== undefined || noncurrent !== undefined || maturities.length > 0
       ? {
           debtPrincipal: {

@@ -34,6 +34,12 @@ const SUMMARY_FILE = "summary.json";
 const CASSETTE_MISS_PREFIX = "Fixture data cassette miss: ";
 const MAX_RAW_RESPONSE_CHARS = 20_000;
 const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
+// Older Bun releases (CI pins one) omit the "Name: message" header from error.stack.
+function errorStackWithMessage(error: Error, stack: string): string {
+  const header = `${error.name}: ${error.message}`;
+  return stack.startsWith(header) ? stack : `${header}\n${stack.replace(/^\w*Error\n/u, "")}`;
+}
 // Same predicate the final-synthesis language repair prompt uses to pick gate errors.
 const LANGUAGE_GATE_ERROR = "trade-action language";
 // AGENTS.md: a deep live equity run is ~438k tokens; synthetic cassettes record far less.
@@ -230,7 +236,7 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
       ? { error: runError instanceof Error ? runError.message : String(runError) }
       : {}),
     ...(runError instanceof Error && runError.stack !== undefined
-      ? { errorStack: runError.stack }
+      ? { errorStack: errorStackWithMessage(runError, runError.stack) }
       : {}),
     ...(runError !== undefined && rawResponseContent !== undefined ? { rawResponseContent } : {}),
   };

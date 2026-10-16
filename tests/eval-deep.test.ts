@@ -388,9 +388,15 @@ describe("frozen-input eval replay", () => {
     expect(compare).toMatch(/\| tokens\.total \| \d+ \[\d+–\d+\] \|/u);
   });
 
-  test.each([false, true])(
-    "persists a thrown error without a stale response (final synthesis only: %s)",
-    async (finalOnly) => {
+  test.each([
+    { finalOnly: false, error: new Error("model down") },
+    { finalOnly: true, error: new Error("model down") },
+    { finalOnly: true, error: new SyntaxError("provider response decode failed") },
+    { finalOnly: true, error: new Error("quota exceeded") },
+    { finalOnly: true, error: new Error("model stopped early") },
+  ])(
+    "persists $error without a stale response (final synthesis only: $finalOnly)",
+    async ({ finalOnly, error }) => {
       const root = await tempRoot();
       const fixture = await loadFixture(FIXTURE);
       const replay = makeReplayProvider(fixture.llmCassette);
@@ -405,17 +411,18 @@ describe("frozen-input eval replay", () => {
             name: "failing",
             generate: (request) =>
               !finalOnly || llmCassetteKey(request).startsWith("final-synthesis|")
-                ? Promise.reject(new Error("model down"))
+                ? Promise.reject(error)
                 : replay.generate(request),
           },
         }),
       );
       expect(failing.status).toBe("threw");
-      expect(failing.error).toContain("model down");
+      expect(failing.error).toBe(error.message);
       const record = JSON.parse(
         await readFile(join(failing.sampleDir, "eval-sample.json"), "utf8"),
       );
-      expect(record.errorStack).toContain("Error: model down");
+      expect(record.errorStack).toContain(`${error.name}: ${error.message}`);
+      expect(failing.runDir).toBeUndefined();
       expect(record.rawResponseContent).toBeUndefined();
       const metrics = await extractSampleMetrics(FIXTURE, "1", failing.sampleDir);
       expect(metrics.metrics[`status.${failing.status}`]).toBe(1);
@@ -423,11 +430,64 @@ describe("frozen-input eval replay", () => {
     },
   );
 
-  test("retains a truncated raw response when final synthesis throws while parsing JSON", async () => {
+  test.each(["trailing brace", "missing brace", "malformed repair reply"])(
+    "publishes a report after repairing final-synthesis JSON with a %s",
+    async (malformation) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture(FIXTURE);
+      const replay = makeReplayProvider(fixture.llmCassette);
+      const report = fixture.llmCassette.entries["final-synthesis|fixture-synthesis"]?.[0];
+      expect(report).toBeDefined();
+      const malformedAttempt = malformation === "malformed repair reply" ? 2 : 1;
+      const prompts: Record<string, unknown>[] = [];
+      const sample = await runEvalSample({
+        root,
+        label: "repaired-json",
+        fixture: FIXTURE,
+        sample: "1",
+        llm: "replay",
+        provider: {
+          name: replay.name,
+          generate: async (request) => {
+            if (!llmCassetteKey(request).startsWith("final-synthesis|")) {
+              return replay.generate(request);
+            }
+            prompts.push(JSON.parse(request.messages[1]?.content ?? "{}"));
+            const valid = report!;
+            let { content } = valid;
+            if (prompts.length === malformedAttempt) {
+              content =
+                malformation === "missing brace" ? valid.content.slice(0, -1) : `${valid.content}}`;
+            } else if (prompts.length < malformedAttempt) {
+              content = JSON.stringify({ ...JSON.parse(valid.content), summary: "Buy the dip." });
+            }
+            return { ...valid, content };
+          },
+        },
+      });
+
+      expect(sample.status).toBe("completed");
+      expect(prompts).toHaveLength(malformedAttempt + 1);
+      expect(prompts[malformedAttempt]?.reportValidationErrors).toEqual(
+        expect.arrayContaining([expect.stringContaining("JSON Parse error:")]),
+      );
+      expect(prompts[malformedAttempt]?.reportValidationErrors).toEqual(
+        expect.arrayContaining([expect.stringContaining("one complete JSON object")]),
+      );
+      expect(existsSync(join(sample.runDir!, "report.json"))).toBe(true);
+      expect(existsSync(join(sample.runDir!, "report.md"))).toBe(true);
+      const { metrics } = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
+      expect(metrics["repairs.reportValidation"]).toBe(1);
+      expect(metrics["repairs.predictionErrors"]).toBeUndefined();
+    },
+  );
+
+  test("exhausts report repairs and retains raw malformed final-synthesis replies", async () => {
     const root = await tempRoot();
     const fixture = await loadFixture(FIXTURE);
     const replay = makeReplayProvider(fixture.llmCassette);
-    const raw = `${JSON.stringify({ summary: "x".repeat(20_000) })}{}`;
+    const raw = `${JSON.stringify({ summary: "x".repeat(20_000) })}}`;
+    let finalCalls = 0;
     const sample = await runEvalSample({
       root,
       label: "invalid-json",
@@ -436,22 +496,68 @@ describe("frozen-input eval replay", () => {
       llm: "replay",
       provider: {
         name: replay.name,
-        generate: (request) =>
-          llmCassetteKey(request).startsWith("final-synthesis|")
-            ? Promise.resolve({ content: raw, tokenEstimate: 1 })
-            : replay.generate(request),
+        generate: async (request) => {
+          if (!llmCassetteKey(request).startsWith("final-synthesis|")) {
+            return replay.generate(request);
+          }
+          finalCalls += 1;
+          return { content: raw, tokenEstimate: 1 };
+        },
       },
     });
 
-    expect(sample.status).toBe("threw");
+    expect(sample.status).toBe("failed-final-synthesis");
+    expect(finalCalls).toBe(4);
     const record = JSON.parse(await readFile(join(sample.sampleDir, "eval-sample.json"), "utf8"));
-    expect(record.errorStack).toContain("SyntaxError:");
-    expect(record.errorStack).toContain("parseModelPayload");
+    expect(record.errorStack).toContain("FinalSynthesisRejectedError:");
+    expect(record.error).toContain("JSON Parse error:");
     expect(record.rawResponseContent).toBe(raw.slice(0, 20_000));
+    const failure = JSON.parse(await readFile(join(sample.runDir!, "failure.json"), "utf8"));
+    expect(failure.totalCalls).toBe(4);
+    expect(failure.reportRepairReprompts).toBe(3);
+    expect(existsSync(join(sample.runDir!, "report.json"))).toBe(false);
+    const stages = JSON.parse(await readFile(join(sample.runDir!, "stages.json"), "utf8")) as {
+      stage: string;
+      content: string;
+    }[];
+    expect(
+      stages.filter((stage) => stage.stage === "final-synthesis").map((stage) => stage.content),
+    ).toEqual([raw, raw, raw, raw]);
+    const { metrics } = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
+    expect(metrics["repairs.reportValidation"]).toBe(3);
+    expect(metrics["repairs.predictionErrors"]).toBeUndefined();
     const summary = await writeEvalSummary(root, "invalid-json");
     expect(formatEvalCompare(summary, await readEvalSummary(root, "invalid-json"))).toContain(
-      `| ${FIXTURE} | status.threw | 1 [1–1] | 1 [1–1] |`,
+      `| ${FIXTURE} | status.failed-final-synthesis | 1 [1–1] | 1 [1–1] |`,
     );
+  });
+
+  test("keeps a valid JSON non-object outside the parse-error repair boundary", async () => {
+    const root = await tempRoot();
+    const fixture = await loadFixture(FIXTURE);
+    const replay = makeReplayProvider(fixture.llmCassette);
+    let finalCalls = 0;
+    const sample = await runEvalSample({
+      root,
+      label: "invalid-shape",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+      provider: {
+        name: replay.name,
+        generate: async (request) => {
+          if (!llmCassetteKey(request).startsWith("final-synthesis|")) {
+            return replay.generate(request);
+          }
+          finalCalls += 1;
+          return { content: "[]", tokenEstimate: 1 };
+        },
+      },
+    });
+    expect(sample.status).toBe("threw");
+    expect(sample.error).toBe("Model report payload must be a JSON object");
+    expect(finalCalls).toBe(1);
+    expect(sample.runDir).toBeUndefined();
   });
 
   test("keeps retained Source Gaps of a failed final synthesis and marks report metrics unavailable", async () => {

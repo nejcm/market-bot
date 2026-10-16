@@ -47,6 +47,7 @@ interface FinalSynthesisState {
   readonly output: StageOutput;
   readonly payload: ModelReportPayload;
   readonly predResult: ReturnType<typeof readPredictions>;
+  readonly parseError?: SyntaxError;
 }
 
 interface SynthesisProgress {
@@ -506,7 +507,23 @@ async function runAndReadFinalSynthesis(
     ...reprompt,
     allowedSourceIds: [...input.knownSourceIds].toSorted(),
   });
-  const payload = parseModelPayload(output.content);
+  let payload: ModelReportPayload = {};
+  try {
+    payload = parseModelPayload(output.content);
+  } catch (error: unknown) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+    return {
+      output,
+      payload: {},
+      predResult: { predictions: [], errors: [], issues: [] },
+      parseError: new SyntaxError(
+        `Invalid final-synthesis JSON: ${error.message}. Return exactly one complete JSON object.`,
+        { cause: error },
+      ),
+    };
+  }
   const predResult = readPredictions(
     payload.predictions,
     input.knownSourceIds,
@@ -526,6 +543,9 @@ function buildReportWithRelocations(
   input: SynthesizeReportUntilValidInput,
   state: FinalSynthesisState,
 ): ReturnType<typeof assembleResearchReportWithRelocations> {
+  if (state.parseError !== undefined) {
+    throw state.parseError;
+  }
   return assembleResearchReportWithRelocations({
     runId: input.runId,
     generatedAt: input.generatedAt,

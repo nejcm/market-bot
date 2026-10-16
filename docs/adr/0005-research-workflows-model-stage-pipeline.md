@@ -13,7 +13,7 @@ amended 2026-07-30: final-synthesis source-ID repair, gap-claim relocation, and 
 amended 2026-08-02: untagged extractor evaluation and production execution policy;
 amended 2026-10-09: summary-sentence pruning; amended 2026-10-10: deterministic all-eligible
 Domain Playbook selection; amended 2026-10-10: completion pass removed per ADR 0003;
-amended 2026-10-16: deterministic metric references)
+amended 2026-10-16: deterministic metric references and malformed-JSON synthesis repair)
 
 ## Context
 
@@ -58,6 +58,10 @@ research boundaries without sharing persistence or scoring semantics.
   bounded to the twelve most recent distinct errors. Retry failure messages report the actual
   final-synthesis call count and count only genuine report-repair call sites as report-repair
   reprompts.
+- Malformed final-synthesis reply JSON enters that same bounded report-validation repair loop,
+  including malformed repair replies. Reprompts include the parser diagnostic and require one
+  complete JSON object; reply text is never trimmed or automatically repaired. Provider failures
+  remain outside this repair boundary.
 - Final synthesis ends once the report validates; a report below its prediction target is not sent
   back for more Predictions (ADR 0003). The distilled-context completion pass that did so was
   removed after it measured ~10% of deep-run tokens for ~0.6 accepted Predictions per run.

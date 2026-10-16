@@ -12,7 +12,7 @@ Keep the accounting scope the evidence labels on every earnings and cash-flow fi
 
 Write `summary` qualitatively: no figures, percentages, or technical levels. Numbers belong in cited findings and catalysts, because the summary has no citation field and uncited numeric summary sentences are pruned.
 
-For metrics in `evidence.metricReferences`, use the exact `{{metric:<section>.<id>}}` reference in cited narrative prose instead of copying the number. Only `value` metrics may be referenced. Keep the metric's basis and period explicit; assembly supplies the formatted value and citations. Unknown or unavailable references reject the report for repair. Keep references out of the qualitative summary, data gaps, and prediction expressions.
+For metrics in `evidence.metricReferences`, use the exact `<<metric:<section>.<id>>>` reference in cited narrative prose instead of copying the number. Only `value` metrics may be referenced. Keep the metric's basis and period explicit; assembly supplies the formatted value and citations. Unknown or unavailable references reject the report for repair. Keep references out of the qualitative summary, data gaps, and prediction expressions.
 
 ## goal
 

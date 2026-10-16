@@ -6,8 +6,8 @@ import type { ModelReportPayload } from "./report-assembly";
 import type { CollectedSources } from "../sources/types";
 import { collectedCodeAssembledExtraKeys } from "./extended-evidence-projections";
 
-const REFERENCE = /\{\{\s*metric\s*:\s*([^{}]+)\}\}/giu;
-const REFERENCE_START = /\{\{\s*metric\s*:/iu;
+const REFERENCE = /<<\s*metric\s*:\s*([^<>{}]+)>>/giu;
+const REFERENCE_START = /(?:<<|\{\{)\s*metric\s*:/iu;
 const CLAIM_FIELDS = new Set(["text", "name", "description", "rationale"]);
 
 function hasMetricReference(value: unknown): boolean {

@@ -474,7 +474,7 @@ Deterministic, ordered list of metrics evaluated once at collection from raw sta
 
 ## Metric Reference
 
-An exact `{{metric:<section>.<id>}}` token in cited model-authored narrative prose. Deterministic assembly merges the metric's source IDs into the claim, validates citations and research-only wording before substitution, then resolves the token with the Metric Section's unit/currency formatter. Unknown or unavailable metrics reject the draft for repair. Summary stays qualitative; data gaps and Prediction expressions cannot contain references. The prompt catalog exposes Capital Return, Operating Ratios, Price Performance and migrated section values without duplicating numeric Business Framework/Financial Lens summaries.
+An exact `<<metric:<section>.<id>>>` token in cited model-authored narrative prose. Deterministic assembly merges the metric's source IDs into the claim, validates citations and research-only wording before substitution, then resolves the token with the Metric Section's unit/currency formatter. Unknown or unavailable metrics reject the draft for repair. Summary stays qualitative; data gaps and Prediction expressions cannot contain references. The prompt catalog exposes Capital Return, Operating Ratios, Price Performance and migrated section values without duplicating numeric Business Framework/Financial Lens summaries.
 
 ## Price Performance
 

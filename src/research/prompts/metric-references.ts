@@ -9,7 +9,7 @@ export function metricReferenceEvidence(
     metricReferences: sections.map((section) => {
       const metrics = section.metrics.map(
         (metric): Record<string, unknown> => ({
-          reference: `{{metric:${section.id}.${metric.id}}}`,
+          reference: `<<metric:${section.id}.${metric.id}>>`,
           label: metric.label,
           status: metric.status,
           unit: metric.unit,
@@ -44,7 +44,7 @@ export function metricReferenceEvidence(
       };
     }),
     metricReferenceInstruction:
-      "Each metric inherits its section defaults; missing-metric reasons are declared in sourceGaps. For narrative claims about catalog metrics, copy the exact {{metric:<section>.<id>}} reference instead of restating or calculating its number. Use only status=value references; retain the label, basis and period in prose and cite sourceIds. Assembly formats values and adds their citations. Unknown, unavailable, malformed or unciteable references reject the report for repair. References belong only in cited findings, cases, risks, catalysts, scenarios, Business Framework text, Earnings Setup bullets or Spotlight rationales, never summary, dataGaps or prediction DSL.",
+      "Each metric inherits its section defaults; missing-metric reasons are declared in sourceGaps. For narrative claims about catalog metrics, copy the exact <<metric:<section>.<id>>> reference instead of restating or calculating its number. Use only status=value references; retain the label, basis and period in prose and cite sourceIds. Assembly formats values and adds their citations. Unknown, unavailable, malformed or unciteable references reject the report for repair. References belong only in cited findings, cases, risks, catalysts, scenarios, Business Framework text, Earnings Setup bullets or Spotlight rationales, never summary, dataGaps or prediction DSL.",
   };
 }
 

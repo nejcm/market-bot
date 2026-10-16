@@ -85,11 +85,11 @@ assembly text is outside report validation:
   free prose. Neither carries model wording the patterns could act on.
 
 Metric references (2026-10-16, ADR 0005) preserve this boundary: assembly validates the authored
-prose with `{{metric:<section>.<id>}}` intact, then substitutes only deterministic formatted metric
-values and screens the resolved prose again inside the bounded report repair loop: substitution can
-construct blocked phrases such as a percentage followed by "gap". Claim citations are merged before
-validation. No surrounding prose is exempted, and tokens cannot be used in the qualitative summary,
-data gaps, or Prediction expressions.
+prose with `<<metric:<section>.<id>>>` intact (legacy brace-delimited tokens are malformed), then
+substitutes only deterministic formatted metric values and screens the resolved prose again inside
+the bounded report repair loop: substitution can construct blocked phrases such as a percentage
+followed by "gap". Claim citations are merged before validation. No surrounding prose is exempted,
+and tokens cannot be used in the qualitative summary, data gaps, or Prediction expressions.
 
 The exempt list above is closed. Adding another exempt surface requires an amendment to this
 record, not a judgement call at the call site.

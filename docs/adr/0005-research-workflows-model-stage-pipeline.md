@@ -104,7 +104,8 @@ research boundaries without sharing persistence or scoring semantics.
 
 ### Metric references (2026-10-16)
 
-- Narrative claims use `{{metric:<section>.<id>}}` for collected Metric Section values.
+- Narrative claims use `<<metric:<section>.<id>>>` for collected Metric Section values.
+  Angle-bracket delimiters avoid JSON structural braces; legacy brace-delimited tokens are malformed.
   Assembly adds the metric's `sourceIds` to the containing claim before relocation and citation
   validation, then runs `assertSafeReportLanguage` on the authored prose with tokens intact.
   Only after report validation does assembly substitute `formatMetricValue` output, including

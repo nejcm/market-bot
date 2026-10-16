@@ -91,7 +91,7 @@ export function assertMetricPromptCatalog(
         expect(asWritten({ ...projected.defaults, ...projected.metrics[rowIndex] })).toEqual(
           asWritten({
             ...preserved,
-            reference: `{{metric:${section.id}.${id}}}`,
+            reference: `<<metric:${section.id}.${id}>>`,
             ...(metric.status === "value"
               ? { value: formatMetricValue(value, metric.unit, metric.currency) }
               : {}),

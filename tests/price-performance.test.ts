@@ -450,7 +450,7 @@ describe("Price Performance Metric Section", () => {
         config,
         { ...contextWithHistory(command), analysisAsOf: AS_OF },
       );
-      expect(JSON.stringify(evidence).includes("{{metric:price-performance.priceReturn1y}}")).toBe(
+      expect(JSON.stringify(evidence).includes("<<metric:price-performance.priceReturn1y>>")).toBe(
         view === "all",
       );
       expect(JSON.stringify(evidence.sourceGaps).includes("price-performance")).toBe(

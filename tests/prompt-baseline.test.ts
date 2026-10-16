@@ -55,7 +55,7 @@ describe("prompt baseline", () => {
         expect(evidence.metricReferences[2].metrics[0]).toMatchObject({
           status: "value",
           value: "8.3%",
-          reference: "{{metric:price-performance.priceReturn1y}}",
+          reference: "<<metric:price-performance.priceReturn1y>>",
         });
         expect(evidence.metricReferences[2].metrics[0]).not.toHaveProperty("inputs");
       }

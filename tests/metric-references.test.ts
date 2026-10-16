@@ -138,7 +138,7 @@ test("compact metric catalog preserves values, units, periods, statuses and cita
       } = produced.metrics[index]!;
       expect({ ...catalog[0]!.defaults, ...row }).toEqual({
         ...preserved,
-        reference: `{{metric:${produced.id}.${id}}}`,
+        reference: `<<metric:${produced.id}.${id}>>`,
         ...(preserved.status === "value"
           ? { value: formatMetricValue(value, preserved.unit, preserved.currency) }
           : {}),
@@ -169,21 +169,21 @@ test("assembly formats repeated metric references, merges citations, and publish
     input({
       keyFindings: [
         {
-          text: "FY margin {{metric:operating-ratios.margin}}; cash {{metric:operating-ratios.cash}}; coverage {{metric:operating-ratios.ratio}}; DPS {{metric:operating-ratios.dps}}; margin {{metric:operating-ratios.margin}}.",
+          text: "FY margin <<metric:operating-ratios.margin>>; cash <<metric:operating-ratios.cash>>; coverage <<metric:operating-ratios.ratio>>; DPS <<metric:operating-ratios.dps>>; margin <<metric:operating-ratios.margin>>.",
           sourceIds: ["market-aapl", "metric-source"],
         },
       ],
       scenarios: [
         {
           name: "Base",
-          description: "FY margin remains {{metric:operating-ratios.margin}}.",
+          description: "FY margin remains <<metric:operating-ratios.margin>>.",
           sourceIds: [],
         },
       ],
       extras: {
         earningsSetup: {
           expectationBar: [
-            { text: "FY margin {{metric:operating-ratios.margin}}.", sourceIds: [] },
+            { text: "FY margin <<metric:operating-ratios.margin>>.", sourceIds: [] },
           ],
         },
       },
@@ -195,9 +195,10 @@ test("assembly formats repeated metric references, merges citations, and publish
   });
   expect(report.scenarios[0]?.sourceIds).toEqual(["metric-source"]);
   expect(report.scenarios[0]?.description).toContain("12.5%");
-  expect(JSON.stringify(report)).not.toContain("{{metric:");
+  expect(JSON.stringify(report)).not.toContain("<<metric:");
   const markdown = renderMarkdownReport(report);
   expect(markdown).toContain("FY margin 12.5%");
+  expect(markdown).not.toContain("<<metric:");
   const entry = buildReportSearchEntries(report, [], "console").find(
     ({ section: reportSection }) => reportSection === "keyFindings",
   );
@@ -217,13 +218,15 @@ test("assembly formats repeated metric references, merges citations, and publish
     markdown,
   };
   expect(buildRunChatContext(detail)).toContain("FY margin 12.5%");
-  expect(JSON.stringify(buildRunWorkspaceView(detail))).toContain("FY margin 12.5%");
+  const workspace = JSON.stringify(buildRunWorkspaceView(detail));
+  expect(workspace).toContain("FY margin 12.5%");
+  expect(workspace).not.toContain("<<metric:");
 });
 
 test("references allow dots in a Valuation Workbench section's publication timestamp", () => {
   const dated = { ...section, id: "valuation-workbench-fy-2025-12-31-2026-02-01T00:00:00.000Z" };
   const report = assembleResearchReport(
-    input({ keyFindings: [{ text: `Margin {{metric:${dated.id}.margin}}.`, sourceIds: [] }] }, [
+    input({ keyFindings: [{ text: `Margin <<metric:${dated.id}.margin>>.`, sourceIds: [] }] }, [
       dated,
     ]),
   );
@@ -231,9 +234,9 @@ test("references allow dots in a Valuation Workbench section's publication times
 });
 
 test.each([
-  "{{Metric:operating-ratios.margin}}",
-  "{{ METRIC: operating-ratios.margin }}",
-  "{{\nMeTrIc :\toperating-ratios.margin\n}}",
+  "<<Metric:operating-ratios.margin>>",
+  "<< METRIC: operating-ratios.margin >>",
+  "<<\nMeTrIc :\toperating-ratios.margin\n>>",
 ])("resolves case and whitespace variant %s with canonical citations", (token) => {
   const report = assembleResearchReport(
     input({ keyFindings: [{ text: `FY margin ${token}.`, sourceIds: [] }] }),
@@ -249,7 +252,7 @@ test.each([
   }
 });
 
-test.each(["{{ METRIC:unknown.margin}}", "{{\nMetric:operating-ratios.margin}"])(
+test.each(["<< METRIC:unknown.margin>>", "<<\nMetric:operating-ratios.margin>"])(
   "rejects unknown and malformed variant %s",
   (token) => {
     expect(() =>
@@ -257,6 +260,27 @@ test.each(["{{ METRIC:unknown.margin}}", "{{\nMetric:operating-ratios.margin}"])
     ).toThrow(/Metric reference/iu);
   },
 );
+
+test.each([
+  "<<metric:operating-ratios.margin",
+  "<<metric:operating-ratios.margin}",
+  "<<metric:operating-ratios.<margin>>",
+  "{{metric:operating-ratios.margin}}",
+  "{{ METRIC : operating-ratios.margin }}",
+  "{{\nMeTrIc\t:operating-ratios.margin}",
+])("rejects malformed or legacy token %s across authored surfaces", (token) => {
+  expect(() =>
+    assembleResearchReport(input({ keyFindings: [{ text: token, sourceIds: [] }] })),
+  ).toThrow("Malformed metric reference");
+  for (const payload of [
+    { summary: token },
+    { dataGaps: [token] },
+    { predictions: [{ reasoning: token }] },
+    { extras: { notes: { nested: [token] } } },
+  ]) {
+    expect(() => assembleResearchReport(input(payload))).toThrow(/Metric reference/iu);
+  }
+});
 
 test.each([
   { reference: "foo", sectionId: "fo", metricId: "foo" },
@@ -272,7 +296,7 @@ test.each([
     };
     expect(() =>
       assembleResearchReport(
-        input({ keyFindings: [{ text: `{{metric:${reference}}}`, sourceIds: [] }] }, [collision]),
+        input({ keyFindings: [{ text: `<<metric:${reference}>>`, sourceIds: [] }] }, [collision]),
       ),
     ).toThrow(/Malformed metric reference/u);
   },
@@ -284,11 +308,11 @@ test.each([
   "operating-ratios.missing",
   "operating-ratios.meaningless",
   "operating-ratios.inapplicable",
-  "operating-ratios.margin}broken",
+  "operating-ratios.margin>broken",
 ])("rejects invalid or unavailable reference %s", (reference) => {
   expect(() =>
     assembleResearchReport(
-      input({ keyFindings: [{ text: `FY {{metric:${reference}}}.`, sourceIds: [] }] }),
+      input({ keyFindings: [{ text: `FY <<metric:${reference}>>.`, sourceIds: [] }] }),
     ),
   ).toThrow(/Metric reference|Malformed metric reference/u);
 });
@@ -299,16 +323,16 @@ test("rejects unciteable or unformattable values and references outside cited na
     expect(() =>
       assembleResearchReport(
         input(
-          { keyFindings: [{ text: "FY {{metric:operating-ratios.margin}}.", sourceIds: [] }] },
+          { keyFindings: [{ text: "FY <<metric:operating-ratios.margin>>.", sourceIds: [] }] },
           [changed],
         ),
       ),
     ).toThrow("unciteable");
   }
   for (const payload of [
-    { summary: "Margin {{metric:operating-ratios.margin}}." },
-    { dataGaps: ["Margin {{metric:operating-ratios.margin}}."] },
-    { predictions: [{ reasoning: "Margin {{metric:operating-ratios.margin}}." }] },
+    { summary: "Margin <<metric:operating-ratios.margin>>." },
+    { dataGaps: ["Margin <<metric:operating-ratios.margin>>."] },
+    { predictions: [{ reasoning: "Margin <<metric:operating-ratios.margin>>." }] },
   ]) {
     expect(() => assembleResearchReport(input(payload))).toThrow("require a cited narrative claim");
   }
@@ -316,7 +340,7 @@ test("rejects unciteable or unformattable values and references outside cited na
     assembleResearchReport(
       input({
         keyFindings: [
-          { text: "Buy the dip at {{metric:operating-ratios.margin}}.", sourceIds: [] },
+          { text: "Buy the dip at <<metric:operating-ratios.margin>>.", sourceIds: [] },
         ],
       }),
     ),
@@ -324,7 +348,7 @@ test("rejects unciteable or unformattable values and references outside cited na
   expect(() =>
     assembleResearchReport(
       input(
-        { keyFindings: [{ text: "Margin {{metric:operating-ratios.margin}}", sourceIds: [] }] },
+        { keyFindings: [{ text: "Margin <<metric:operating-ratios.margin>>", sourceIds: [] }] },
         [],
       ),
     ),
@@ -332,9 +356,9 @@ test("rejects unciteable or unformattable values and references outside cited na
 });
 
 test.each([
-  { draft: "FY margin {{metric:operating-ratios.unknown}}.", error: "Metric reference" },
-  { draft: "FY margin {{\nMETRIC:operating-ratios.unknown}}.", error: "Metric reference" },
-  { draft: "A {{metric:operating-ratios.margin}} gap remains.", error: "trade-action language" },
+  { draft: "FY margin <<metric:operating-ratios.unknown>>.", error: "Metric reference" },
+  { draft: "FY margin <<\nMETRIC:operating-ratios.unknown>>.", error: "Metric reference" },
+  { draft: "A <<metric:operating-ratios.margin>> gap remains.", error: "trade-action language" },
 ])("repairs rejected metric prose: $draft", async ({ draft, error }) => {
   const assembly = input({});
   let calls = 0;
@@ -355,7 +379,7 @@ test.each([
           ...assembly.payload,
           keyFindings: [
             {
-              text: calls === 1 ? draft : "FY margin {{metric:operating-ratios.margin}}.",
+              text: calls === 1 ? draft : "FY margin <<metric:operating-ratios.margin>>.",
               sourceIds: [],
             },
           ],
@@ -371,7 +395,7 @@ test.each([
 });
 
 test("assembly preserves literal metric tokens in quoted Sources and Extended Evidence", () => {
-  const token = "{{\nMeTrIc\t:operating-ratios.margin}}";
+  const token = "<<\nMeTrIc\t:operating-ratios.margin>>";
   const assembly = input({});
   const quotedSource = newsSource({
     id: "quoted-source",
@@ -402,7 +426,7 @@ test("assembly preserves literal metric tokens in quoted Sources and Extended Ev
 
 test("collected profile digest preserves literal metric tokens on the first synthesis call", async () => {
   const assembly = input({});
-  const token = "{{\nMeTrIc\t:operating-ratios.margin}}";
+  const token = "<<\nMeTrIc\t:operating-ratios.margin>>";
   const profileSource = newsSource({ id: "profile-source", kind: "web" });
   const produced = buildWebSubjectProfileEvidence({
     command,
@@ -481,7 +505,7 @@ test.each(["notes", "webSubjectProfile"])(
             ...assembly.payload,
             extras: {
               [key]: {
-                nested: [calls === 1 ? "{{\nMeTrIc\t:operating-ratios.margin}}" : "Filed margin."],
+                nested: [calls === 1 ? "<<\nMeTrIc\t:operating-ratios.margin>>" : "Filed margin."],
               },
             },
           }),

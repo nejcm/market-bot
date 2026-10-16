@@ -52,7 +52,7 @@ afterEach(async () => {
   await Promise.all(runResults.splice(0).map((result) => result.cleanup()));
 });
 
-test.each(["{{ METRIC:operating-ratios.margin}}", "{{\nMeTrIc\t:\toperating-ratios.margin}}"])(
+test.each(["<< METRIC:operating-ratios.margin>>", "<<\nMeTrIc\t:\toperating-ratios.margin>>"])(
   "fixture invariants reject raw tokens in persisted extras and markdown: %s",
   async (token) => {
     const fixture = await loadFixture("equity-aapl-brief");
@@ -88,11 +88,11 @@ test.each(["{{ METRIC:operating-ratios.margin}}", "{{\nMeTrIc\t:\toperating-rati
   },
 );
 
-test("fixture invariants preserve literal metric tokens in quoted evidence and collected profile digests", async () => {
+test("fixture invariants preserve quoted metric tokens and escape them in markdown", async () => {
   const fixture = await loadFixture("equity-web-fallback-deep");
   const result = await runFixture(fixture.name, { llm: "replay" });
   runResults.push(result);
-  const token = "{{\nMeTrIc\t:operating-ratios.margin}}";
+  const token = "<<\nMeTrIc\t:operating-ratios.margin>>";
   const source = newsSource({
     id: "literal-token-source",
     title: token,
@@ -138,7 +138,7 @@ test("fixture invariants preserve literal metric tokens in quoted evidence and c
     result.collectedSources.marketSnapshots.find(({ symbol }) => symbol === report.symbol),
     result.collectedSources,
   );
-  expect(markdown).toContain(token);
+  expect(markdown).toContain("&lt;&lt;\nMeTrIc\t:operating-ratios.margin&gt;&gt;");
   await writeFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.report), JSON.stringify(report));
   await writeFile(join(result.artifacts.runDir, RUN_ARTIFACT_FILES.reportMarkdown), markdown);
   await assertInvariants(

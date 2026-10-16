@@ -388,23 +388,70 @@ describe("frozen-input eval replay", () => {
     expect(compare).toMatch(/\| tokens\.total \| \d+ \[\d+–\d+\] \|/u);
   });
 
-  test("persists a sample record when the run throws", async () => {
+  test.each([false, true])(
+    "persists a thrown error without a stale response (final synthesis only: %s)",
+    async (finalOnly) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture(FIXTURE);
+      const replay = makeReplayProvider(fixture.llmCassette);
+      const failing = await withAmbientIndexEnv(() =>
+        runEvalSample({
+          root,
+          label: "broken",
+          fixture: FIXTURE,
+          sample: "1",
+          llm: "replay",
+          provider: {
+            name: "failing",
+            generate: (request) =>
+              !finalOnly || llmCassetteKey(request).startsWith("final-synthesis|")
+                ? Promise.reject(new Error("model down"))
+                : replay.generate(request),
+          },
+        }),
+      );
+      expect(failing.status).toBe("threw");
+      expect(failing.error).toContain("model down");
+      const record = JSON.parse(
+        await readFile(join(failing.sampleDir, "eval-sample.json"), "utf8"),
+      );
+      expect(record.errorStack).toContain("Error: model down");
+      expect(record.rawResponseContent).toBeUndefined();
+      const metrics = await extractSampleMetrics(FIXTURE, "1", failing.sampleDir);
+      expect(metrics.metrics[`status.${failing.status}`]).toBe(1);
+      expect(metrics.unavailable).toContain("sourceGaps");
+    },
+  );
+
+  test("retains a truncated raw response when final synthesis throws while parsing JSON", async () => {
     const root = await tempRoot();
-    const failing = await withAmbientIndexEnv(() =>
-      runEvalSample({
-        root,
-        label: "broken",
-        fixture: FIXTURE,
-        sample: "1",
-        llm: "replay",
-        provider: { name: "failing", generate: () => Promise.reject(new Error("model down")) },
-      }),
+    const fixture = await loadFixture(FIXTURE);
+    const replay = makeReplayProvider(fixture.llmCassette);
+    const raw = `${JSON.stringify({ summary: "x".repeat(20_000) })}{}`;
+    const sample = await runEvalSample({
+      root,
+      label: "invalid-json",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+      provider: {
+        name: replay.name,
+        generate: (request) =>
+          llmCassetteKey(request).startsWith("final-synthesis|")
+            ? Promise.resolve({ content: raw, tokenEstimate: 1 })
+            : replay.generate(request),
+      },
+    });
+
+    expect(sample.status).toBe("threw");
+    const record = JSON.parse(await readFile(join(sample.sampleDir, "eval-sample.json"), "utf8"));
+    expect(record.errorStack).toContain("SyntaxError:");
+    expect(record.errorStack).toContain("parseModelPayload");
+    expect(record.rawResponseContent).toBe(raw.slice(0, 20_000));
+    const summary = await writeEvalSummary(root, "invalid-json");
+    expect(formatEvalCompare(summary, await readEvalSummary(root, "invalid-json"))).toContain(
+      `| ${FIXTURE} | status.threw | 1 [1–1] | 1 [1–1] |`,
     );
-    expect(failing.status).toBe("threw");
-    expect(failing.error).toContain("model down");
-    const metrics = await extractSampleMetrics(FIXTURE, "1", failing.sampleDir);
-    expect(metrics.metrics[`status.${failing.status}`]).toBe(1);
-    expect(metrics.unavailable).toContain("sourceGaps");
   });
 
   test("keeps retained Source Gaps of a failed final synthesis and marks report metrics unavailable", async () => {

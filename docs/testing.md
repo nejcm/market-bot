@@ -167,6 +167,10 @@ With `--yes` this writes a run under `data/evals/replay-live-<timestamp>/<fixtur
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
+Offline replay also writes `eval-sample.json` and `summary.json` under its retained temporary root.
+Both scripts exit nonzero for any non-completed sample after writing diagnostics and the summary.
+Unused recorded responses alone do not fail a conditional replay.
+
 The replay command accepts exactly one fixture name and the optional `--live` flag (plus `--yes`).
 
 ## Frozen-input evals
@@ -181,10 +185,13 @@ MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equit
 ```
 
 `--live-stages final-synthesis` keeps final synthesis live and replays every upstream stage from
-the fixture's LLM cassette by stage name, so arms compare synthesis models on identical upstream
-outputs; replayed stage durations are zeroed in the live prompt so it is byte-identical across
-samples. A missing or exhausted upstream cassette entry throws, and because some stages swallow
-that error, any replay miss also refuses every later live call so the sample fails before spending.
+the fixture's LLM cassette by exact stage/model, falling back to stage alone only when exactly one
+model was recorded for that stage, so arms compare synthesis models on identical upstream outputs.
+Replayed stage durations are zeroed in the live prompt so it is byte-identical across samples.
+A missing, ambiguous, or exhausted model recording fails replay. Requests without a stage identity
+(including peer-universe proposal) are unsupported in strict replay. Both HTTP and model replay
+misses invalidate the sample even when production recovers, and prevent later live calls. Recorded
+HTTP failures such as a 403 remain valid replay inputs and produce ordinary Source Gaps.
 The estimate reserves the maximum final-synthesis call count (initial, prediction reprompts, report
 retries) at the larger of the biggest recorded synthesis call and ~50k tokens. Only recorded
 fixtures (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real
@@ -209,8 +216,9 @@ Yahoo news requests 8 items where the run cached 15, FRED, Marketaux, and Massiv
 misses. Its `meta.json` `note` records the same.
 
 Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
-sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, or
-`threw`) and every `Fixture data cassette miss` key in `eval-sample.json`, even when the run fails;
+sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, `threw`,
+`incomplete`, or `not-exercised`), HTTP/model replay miss keys, replayed/live call counts, and
+available consumed/unused response counts in `eval-sample.json`, even when the run fails.
 `summary.json` is rewritten after every sample, and a sample dir without a record counts as
 `incomplete`. A metric group a sample could not measure (no report on a failed run, no stages) is
 left out of that sample's mean and shows as `n=k/N`, so a failure never reads as an improvement.

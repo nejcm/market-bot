@@ -6,7 +6,7 @@ import type { FetchLike } from "../src/sources/types";
 import { runFixture, type FixtureMeta } from "../tests/support/run-fixtures";
 import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
 import {
-  makeFinalSynthesisLiveProvider,
+  makeReplayProvider,
   type LlmCassette,
   type LlmCassetteEntry,
 } from "../tests/support/run-fixtures/llm-cassette";
@@ -186,7 +186,7 @@ async function convert(name: string): Promise<void> {
   const result = await runFixture(name, {
     llm: "replay",
     fetchImpl: recorder.fetch,
-    provider: makeFinalSynthesisLiveProvider(llmCassette, {
+    provider: makeReplayProvider(llmCassette, {
       name: "recorded-final-synthesis",
       generate: async (request) => {
         const entry = recordedFinalSynthesis[finalSynthesisCalls];

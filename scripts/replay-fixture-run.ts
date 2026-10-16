@@ -1,5 +1,12 @@
-import { runFixture } from "../tests/support/run-fixtures";
-import { liveTokenEstimate, runEvalSample } from "../tests/support/run-fixtures/eval";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  EVALS_ROOT,
+  liveTokenEstimate,
+  runEvalSample,
+  runEvalBatch,
+} from "../tests/support/run-fixtures/eval";
 
 const args = process.argv.slice(2);
 const fixtureNames = args.filter((argument) => !argument.startsWith("--"));
@@ -21,13 +28,31 @@ if (live) {
     process.stdout.write("Nothing run. Re-run with --live --yes to spend.\n");
     process.exit(0);
   }
-  const label = `replay-live-${new Date().toISOString().replaceAll(/[:.]/gu, "-")}`;
-  const sample = await runEvalSample({ label, fixture: fixtureName, sample: "1", llm: "live" });
-  process.stdout.write(`${sample.runDir ?? sample.sampleDir}\n`);
-  if (sample.error !== undefined) {
-    throw new Error(sample.error);
-  }
-  process.exit(0);
 }
-const result = await runFixture(fixtureName, { llm: "replay", keepDataDir: true });
-process.stdout.write(`${result.artifacts.runDir}\n`);
+const root = live ? EVALS_ROOT : await mkdtemp(join(tmpdir(), `market-bot-${fixtureName}-`));
+const label = live ? `replay-live-${new Date().toISOString().replaceAll(/[:.]/gu, "-")}` : "replay";
+process.exitCode = await runEvalBatch({
+  root,
+  label,
+  fixtures: [fixtureName],
+  samples: 1,
+  runSample: async (fixture, sample) => {
+    const result = await runEvalSample({
+      root,
+      label,
+      fixture,
+      sample,
+      llm: live ? "live" : "replay",
+    });
+    process.stdout.write(`${result.runDir ?? result.sampleDir}\n`);
+    if (live) {
+      process.stderr.write(
+        `${result.status}: ${String(result.cassetteMisses.count)} HTTP cassette miss(es), ${String(result.modelReplayMisses.count)} model replay miss(es)\n`,
+      );
+    }
+    if (result.error !== undefined) {
+      process.stderr.write(`${result.error}\n`);
+    }
+    return result;
+  },
+});

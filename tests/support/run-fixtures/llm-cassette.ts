@@ -16,14 +16,16 @@ export interface LlmRecorder {
   readonly provider: ModelProvider;
 }
 
-function requestStage(request: ModelRequest): string {
+export function requestStage(request: ModelRequest): string {
   const user = request.messages.findLast((message) => message.role === "user")?.content;
   if (user === undefined) {
     return "unknown";
   }
   try {
     const parsed = JSON.parse(user) as { readonly stage?: unknown };
-    return typeof parsed.stage === "string" ? parsed.stage : "unknown";
+    return typeof parsed.stage === "string" && parsed.stage.trim().length > 0
+      ? parsed.stage
+      : "unknown";
   } catch {
     return "unknown";
   }
@@ -31,43 +33,6 @@ function requestStage(request: ModelRequest): string {
 
 export function llmCassetteKey(request: ModelRequest): string {
   return `${requestStage(request)}|${request.model}`;
-}
-
-function emptyResponseFor(stage: string): string {
-  if (stage === "evidence-request" || stage === "web-gather") {
-    return JSON.stringify({ requests: [] });
-  }
-  if (stage === "forecast-disagreement") {
-    return JSON.stringify({ predictions: [] });
-  }
-  return "{}";
-}
-
-export function makeReplayProvider(cassette: LlmCassette): ModelProvider {
-  const indexes = new Map<string, number>();
-  return {
-    name: "fixture-replay",
-    generate: async (request) => {
-      const key = llmCassetteKey(request);
-      const index = indexes.get(key) ?? 0;
-      indexes.set(key, index + 1);
-      const entries = cassette.entries[key] ?? [];
-      const entry = entries[index] ?? entries.at(-1);
-      if (entry !== undefined) {
-        if (index >= entries.length) {
-          process.stderr.write(`LLM cassette overflow for ${key}; replaying last entry\n`);
-        }
-        return entry;
-      }
-      const stage = key.split("|")[0] ?? "unknown";
-      process.stderr.write(`LLM cassette empty fallback for ${key}\n`);
-      return {
-        content: emptyResponseFor(stage),
-        tokenEstimate: 0,
-        costEstimateUsd: 0,
-      };
-    },
-  };
 }
 
 export const LIVE_STAGE = "final-synthesis";
@@ -92,41 +57,75 @@ function withoutStageDurations(request: ModelRequest): ModelRequest {
   };
 }
 
-// Upstream stages replay by stage alone because live model names differ from the recorded ones.
-// Stages may swallow a replay error, so any miss also blocks every later live call.
-export function makeFinalSynthesisLiveProvider(
-  cassette: LlmCassette,
-  live: ModelProvider,
-): ModelProvider {
+export class ModelReplayError extends Error {
+  readonly key: string;
+
+  constructor(key: string, message: string) {
+    super(message);
+    this.key = key;
+    this.name = "ModelReplayError";
+  }
+}
+
+export interface ReplayProvider extends ModelProvider {
+  readonly diagnostics: () => {
+    readonly consumedResponses: Readonly<Record<string, number>>;
+    readonly unusedResponses: Readonly<Record<string, number>>;
+  };
+}
+
+export function makeReplayProvider(cassette: LlmCassette, live?: ModelProvider): ReplayProvider {
   const indexes = new Map<string, number>();
-  let upstreamFailure: string | undefined;
-  const fail = (message: string): never => {
-    upstreamFailure ??= message;
-    throw new Error(message);
+  let replayFailure: string | undefined = undefined;
+  const fail = (key: string, message: string): never => {
+    replayFailure ??= message;
+    throw new ModelReplayError(key, message);
   };
   return {
-    name: `${live.name}+fixture-replay`,
+    ...live,
+    name: live === undefined ? "fixture-replay" : `${live.name}+fixture-replay`,
+    diagnostics: () => ({
+      consumedResponses: Object.fromEntries(indexes),
+      unusedResponses: Object.fromEntries(
+        Object.entries(cassette.entries)
+          .map(([key, entries]) => [key, entries.length - (indexes.get(key) ?? 0)] as const)
+          .filter(([, count]) => count > 0),
+      ),
+    }),
     generate: async (request) => {
       const stage = requestStage(request);
-      if (stage === LIVE_STAGE) {
-        if (upstreamFailure !== undefined) {
+      const exactKey = llmCassetteKey(request);
+      if (stage === "unknown") {
+        return fail(
+          exactKey,
+          `LLM cassette unsupported request without stage identity: ${exactKey}`,
+        );
+      }
+      if (live !== undefined && stage === LIVE_STAGE) {
+        if (replayFailure !== undefined) {
           throw new Error(
-            `Refusing live ${LIVE_STAGE} after upstream replay failure: ${upstreamFailure}`,
+            `Refusing live ${LIVE_STAGE} after upstream replay failure: ${replayFailure}`,
           );
         }
         return live.generate(withoutStageDurations(request));
       }
-      const keys = Object.keys(cassette.entries).filter((key) => key.startsWith(`${stage}|`));
+      const keys = Object.hasOwn(cassette.entries, exactKey)
+        ? [exactKey]
+        : Object.keys(cassette.entries).filter((key) => key.startsWith(`${stage}|`));
       const [key] = keys;
-      if (key === undefined || keys.length > 1) {
-        return fail(`LLM cassette has ${String(keys.length)} recorded models for stage ${stage}`);
+      if (key === undefined || keys.length !== 1) {
+        return fail(
+          exactKey,
+          `LLM cassette has ${String(keys.length)} recorded models for stage ${stage}: ${exactKey}`,
+        );
       }
-      const index = indexes.get(stage) ?? 0;
-      indexes.set(stage, index + 1);
-      return (
-        cassette.entries[key]?.[index] ??
-        fail(`LLM cassette miss for ${key} call ${String(index + 1)}`)
-      );
+      const index = indexes.get(key) ?? 0;
+      const entry = cassette.entries[key]?.[index];
+      if (entry === undefined) {
+        return fail(exactKey, `LLM cassette miss for ${key} call ${String(index + 1)}`);
+      }
+      indexes.set(key, index + 1);
+      return entry;
     },
   };
 }

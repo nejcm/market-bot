@@ -16,8 +16,8 @@ import {
   resolveResearchSubject,
 } from "../../../src/research/research-subject-identity";
 import { buildSourcePlan } from "../../../src/research/source-plan";
-import { makeReplayFetch, type DataCassette } from "./data-cassette";
-import { makeReplayProvider, type LlmCassette } from "./llm-cassette";
+import { countCassetteMisses, makeReplayFetch, type DataCassette } from "./data-cassette";
+import { makeReplayProvider, ModelReplayError, type LlmCassette } from "./llm-cassette";
 
 export interface FixtureMeta {
   readonly replayClassification: "clean" | "missing-source" | "incomplete";
@@ -261,15 +261,36 @@ export async function runFixture(
   const { dataDir: requestedDataDir } = resolvedOptions;
   const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
   const config = fixtureConfig(fixture.meta, dataDir, resolvedOptions.llm);
+  const httpMisses: string[] = [];
+  const modelMisses: string[] = [];
   const fetchImpl = observedFetch(
-    resolvedOptions.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
+    countCassetteMisses(
+      resolvedOptions.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
+      httpMisses,
+    ),
     resolvedOptions.onDataRequest,
   );
-  const provider =
+  const baseProvider =
     resolvedOptions.provider ??
     (resolvedOptions.llm === "replay"
       ? makeReplayProvider(fixture.llmCassette)
       : createProvider(config));
+  const provider: ModelProvider = {
+    ...baseProvider,
+    generate: async (request) => {
+      if (httpMisses.length > 0) {
+        throw new Error(`Refusing model call after HTTP replay failure: ${httpMisses[0]}`);
+      }
+      try {
+        return await baseProvider.generate(request);
+      } catch (error) {
+        if (error instanceof ModelReplayError) {
+          modelMisses.push(error.message);
+        }
+        throw error;
+      }
+    },
+  };
   const rawCommand = researchCommand(fixture.meta.argv);
   const resolvedSubject = resolveResearchSubject(rawCommand);
   const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
@@ -298,6 +319,9 @@ export async function runFixture(
     sourceFetchImpl: fetchImpl,
     sourceRetryDelaysMs: [],
   });
+  if (httpMisses.length > 0 || modelMisses.length > 0) {
+    throw new Error(`Fixture replay incomplete: ${[...httpMisses, ...modelMisses].join("; ")}`);
+  }
   return {
     ...result,
     dataDir,

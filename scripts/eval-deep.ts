@@ -7,7 +7,7 @@ import {
   liveTokenEstimate,
   readEvalSummary,
   runEvalSample,
-  writeEvalSummary,
+  runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
 import { LIVE_STAGE } from "../tests/support/run-fixtures/llm-cassette";
 
@@ -80,23 +80,23 @@ if (!values.yes) {
   process.exit(0);
 }
 
-for (const fixture of fixtures) {
-  for (let sample = 1; sample <= samples; sample += 1) {
-    // Sequential on purpose: each sample is a paid live run and source rate limits are per process.
-    // eslint-disable-next-line no-await-in-loop
+process.exitCode = await runEvalBatch({
+  root: EVALS_ROOT,
+  label,
+  fixtures,
+  samples,
+  runSample: async (fixture, sample) => {
     const result = await runEvalSample({
       label,
       fixture,
-      sample: String(sample),
+      sample,
       llm: "live",
       ...(liveStages !== undefined ? { liveStages } : {}),
     });
     process.stdout.write(
-      `${fixture}/${String(sample)}: ${result.status}, ${String(result.cassetteMisses.count)} cassette miss(es)${result.error !== undefined ? `, ${result.error}` : ""}\n`,
+      `${fixture}/${sample}: ${result.status}, ${String(result.cassetteMisses.count)} HTTP cassette miss(es), ${String(result.modelReplayMisses.count)} model replay miss(es)${result.error !== undefined ? `, ${result.error}` : ""}\n`,
     );
-    // Rewritten after every sample so an interrupted batch still leaves a comparable summary.
-    // eslint-disable-next-line no-await-in-loop
-    await writeEvalSummary(EVALS_ROOT, label);
-  }
-}
+    return result;
+  },
+});
 process.stdout.write(`${evalLabelDir(EVALS_ROOT, label)}/summary.json\n`);

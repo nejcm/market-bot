@@ -143,3 +143,16 @@ export function createRecordingFetch(baseFetch: FetchLike = fetch): DataCassette
     },
   };
 }
+
+export function countCassetteMisses(inner: FetchLike, keys: string[]): FetchLike {
+  return async (input, init) => {
+    try {
+      return await inner(input, init);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("Fixture data cassette miss: ")) {
+        keys.push(error.message.slice("Fixture data cassette miss: ".length));
+      }
+      throw error;
+    }
+  };
+}

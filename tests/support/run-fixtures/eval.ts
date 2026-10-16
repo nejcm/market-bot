@@ -19,19 +19,20 @@ import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { readSourceGaps } from "../../../src/run-artifact-report-reader";
 import { loadRunArtifact, type RunArtifact } from "../../../src/run-artifacts";
 import type { FetchLike } from "../../../src/sources/types";
-import { makeReplayFetch } from "./data-cassette";
+import { countCassetteMisses, makeReplayFetch } from "./data-cassette";
 import { createProvider } from "../../../src/model/factory";
 import { createLiveFixtureConfig, loadFixture, runFixture } from "./index";
 import {
   type LIVE_STAGE,
-  makeFinalSynthesisLiveProvider,
+  requestStage,
   makeReplayProvider,
+  ModelReplayError,
+  type ReplayProvider,
 } from "./llm-cassette";
 
 export const EVALS_ROOT = join(import.meta.dir, "../../../data/evals");
 const EVAL_SAMPLE_FILE = "eval-sample.json";
 const SUMMARY_FILE = "summary.json";
-const CASSETTE_MISS_PREFIX = "Fixture data cassette miss: ";
 const MAX_RAW_RESPONSE_CHARS = 20_000;
 const PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
@@ -53,6 +54,8 @@ const LIVE_SYNTHESIS_CALL_TOKENS = 50_000;
 const METRIC_GROUPS = [
   "durationMs",
   "cassetteMisses",
+  "modelReplayMisses",
+  "modelCalls",
   "tokens",
   "repairs",
   "predictions",
@@ -64,7 +67,12 @@ const METRIC_GROUPS = [
 ] as const;
 type MetricGroup = (typeof METRIC_GROUPS)[number];
 
-type EvalSampleStatus = "completed" | "failed-final-synthesis" | "threw";
+type EvalSampleStatus =
+  | "completed"
+  | "failed-final-synthesis"
+  | "threw"
+  | "incomplete"
+  | "not-exercised";
 
 interface EvalSampleRecord {
   readonly fixture: string;
@@ -73,6 +81,13 @@ interface EvalSampleRecord {
   readonly runDirName?: string;
   readonly durationMs: number;
   readonly cassetteMisses: { readonly count: number; readonly keys: readonly string[] };
+  readonly modelReplayMisses: {
+    readonly count: number;
+    readonly keys: readonly string[];
+    readonly errors: readonly string[];
+  };
+  readonly modelCalls: { readonly replayed: number; readonly live: number };
+  readonly responseUsage?: ReturnType<ReplayProvider["diagnostics"]>;
   readonly error?: string;
   readonly errorStack?: string;
   readonly rawResponseContent?: string;
@@ -81,8 +96,9 @@ interface EvalSampleRecord {
 interface EvalSampleMetrics {
   readonly fixture: string;
   readonly sample: string;
-  readonly status: EvalSampleStatus | "incomplete";
+  readonly status: EvalSampleStatus;
   readonly cassetteMissKeys: readonly string[];
+  readonly modelReplayMissKeys: readonly string[];
   readonly metrics: Readonly<Record<string, number>>;
   readonly unavailable: readonly MetricGroup[];
 }
@@ -129,19 +145,6 @@ export function evalSampleDir(
   return join(evalLabelDir(root, label), pathSegment(fixture), pathSegment(sample));
 }
 
-export function countCassetteMisses(inner: FetchLike, keys: string[]): FetchLike {
-  return async (input, init) => {
-    try {
-      return await inner(input, init);
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith(CASSETTE_MISS_PREFIX)) {
-        keys.push(error.message.slice(CASSETTE_MISS_PREFIX.length));
-      }
-      throw error;
-    }
-  };
-}
-
 function disableIndexAccess(): () => void {
   const saved = {
     MARKET_BOT_INDEX_DISABLE: process.env.MARKET_BOT_INDEX_DISABLE,
@@ -178,6 +181,11 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
   await mkdir(sampleDir);
   const dataDir = join(sampleDir, "runs");
   const missKeys: string[] = [];
+  const modelMissKeys: string[] = [];
+  const modelMissErrors: string[] = [];
+  let replayedCalls = 0;
+  let liveCalls = 0;
+  const replay: { provider?: ReplayProvider } = {};
   const fetchImpl = countCassetteMisses(
     input.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
     missKeys,
@@ -191,22 +199,52 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
       (input.llm === "replay" && input.liveStages === undefined
         ? makeReplayProvider(fixture.llmCassette)
         : createProvider(createLiveFixtureConfig(fixture.meta, dataDir)));
+    const countedLive: ModelProvider = {
+      ...baseProvider,
+      generate: (request) => {
+        if (missKeys.length > 0 || modelMissKeys.length > 0) {
+          throw new Error("Refusing live model call after replay failure");
+        }
+        liveCalls += 1;
+        return baseProvider.generate(request);
+      },
+    };
     const provider =
-      input.liveStages === undefined
-        ? baseProvider
-        : makeFinalSynthesisLiveProvider(fixture.llmCassette, baseProvider);
+      input.liveStages !== undefined
+        ? makeReplayProvider(fixture.llmCassette, countedLive)
+        : baseProvider;
+    const routedProvider =
+      input.liveStages === undefined && input.llm === "live" ? countedLive : provider;
+    if ("diagnostics" in provider && typeof provider.diagnostics === "function") {
+      replay.provider = provider as ReplayProvider;
+    }
     return runFixture(input.fixture, {
       llm: input.llm,
       dataDir,
       keepDataDir: true,
       fetchImpl,
       provider: {
-        ...provider,
+        ...routedProvider,
         generate: async (request) => {
           rawResponseContent = undefined;
-          const response = await provider.generate(request);
-          rawResponseContent = response.content.slice(0, MAX_RAW_RESPONSE_CHARS);
-          return response;
+          try {
+            const response = await routedProvider.generate(request);
+            if (
+              input.liveStages !== undefined
+                ? requestStage(request) !== input.liveStages
+                : input.llm === "replay"
+            ) {
+              replayedCalls += 1;
+            }
+            rawResponseContent = response.content.slice(0, MAX_RAW_RESPONSE_CHARS);
+            return response;
+          } catch (error) {
+            if (error instanceof ModelReplayError) {
+              modelMissKeys.push(error.key);
+              modelMissErrors.push(error.message);
+            }
+            throw error;
+          }
         },
       },
     });
@@ -225,6 +263,15 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
         ? "failed-final-synthesis"
         : "threw";
   }
+  if (missKeys.length > 0 || modelMissKeys.length > 0) {
+    status = "incomplete";
+  } else if (
+    runError === undefined &&
+    (input.llm === "live" || input.liveStages !== undefined) &&
+    liveCalls === 0
+  ) {
+    status = "not-exercised";
+  }
   const record: EvalSampleRecord = {
     fixture: input.fixture,
     sample: input.sample,
@@ -232,16 +279,50 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
     ...(runDirName !== undefined ? { runDirName } : {}),
     durationMs: Math.round(performance.now() - startedAt),
     cassetteMisses: { count: missKeys.length, keys: missKeys },
+    modelReplayMisses: {
+      count: modelMissKeys.length,
+      keys: modelMissKeys,
+      errors: modelMissErrors,
+    },
+    modelCalls: { replayed: replayedCalls, live: liveCalls },
+    ...(replay.provider !== undefined ? { responseUsage: replay.provider.diagnostics() } : {}),
     ...(runError !== undefined
       ? { error: runError instanceof Error ? runError.message : String(runError) }
       : {}),
     ...(runError instanceof Error && runError.stack !== undefined
       ? { errorStack: errorStackWithMessage(runError, runError.stack) }
       : {}),
-    ...(runError !== undefined && rawResponseContent !== undefined ? { rawResponseContent } : {}),
+    ...(runError !== undefined &&
+    missKeys.length === 0 &&
+    modelMissKeys.length === 0 &&
+    rawResponseContent !== undefined
+      ? { rawResponseContent }
+      : {}),
   };
   await writeFile(join(sampleDir, EVAL_SAMPLE_FILE), `${JSON.stringify(record, undefined, 2)}\n`);
   return { ...record, sampleDir, ...(runDir !== undefined ? { runDir } : {}) };
+}
+
+export async function runEvalBatch(input: {
+  readonly root: string;
+  readonly label: string;
+  readonly fixtures: readonly string[];
+  readonly samples: number;
+  readonly runSample: (fixture: string, sample: string) => Promise<EvalSampleResult>;
+}): Promise<0 | 1> {
+  let exitCode: 0 | 1 = 0;
+  for (const fixture of input.fixtures) {
+    for (let sample = 1; sample <= input.samples; sample += 1) {
+      // eslint-disable-next-line no-await-in-loop -- samples share process-level index overrides
+      const result = await input.runSample(fixture, String(sample));
+      if (result.status !== "completed") {
+        exitCode = 1;
+      }
+      // eslint-disable-next-line no-await-in-loop -- preserve a summary after every sample
+      await writeEvalSummary(input.root, input.label);
+    }
+  }
+  return exitCode;
 }
 
 function addCount(metrics: Record<string, number>, key: string, by = 1): void {
@@ -333,6 +414,7 @@ export async function extractSampleMetrics(
       sample,
       status: "incomplete",
       cassetteMissKeys: [],
+      modelReplayMissKeys: [],
       metrics: { "status.incomplete": 1 },
       unavailable: METRIC_GROUPS,
     };
@@ -341,8 +423,16 @@ export async function extractSampleMetrics(
     [`status.${record.status}`]: 1,
     durationMs: record.durationMs,
     cassetteMisses: record.cassetteMisses.count,
+    modelReplayMisses: record.modelReplayMisses.count,
+    "modelCalls.replayed": record.modelCalls.replayed,
+    "modelCalls.live": record.modelCalls.live,
   };
-  const available = new Set<MetricGroup>(["durationMs", "cassetteMisses"]);
+  const available = new Set<MetricGroup>([
+    "durationMs",
+    "cassetteMisses",
+    "modelReplayMisses",
+    "modelCalls",
+  ]);
   if (record.runDirName !== undefined) {
     const runDir = join(sampleDir, "runs", record.runDirName);
     const stages = await readJsonFile(join(runDir, RUN_ARTIFACT_FILES.stages));
@@ -374,6 +464,7 @@ export async function extractSampleMetrics(
     sample: record.sample,
     status: record.status,
     cassetteMissKeys: record.cassetteMisses.keys,
+    modelReplayMissKeys: record.modelReplayMisses.keys,
     metrics,
     unavailable: METRIC_GROUPS.filter((group) => !available.has(group)),
   };

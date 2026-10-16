@@ -23,8 +23,7 @@ import {
   type RunFixtureResult,
 } from "../support/run-fixtures";
 import { makeReplayProvider } from "../support/run-fixtures/llm-cassette";
-import { makeReplayFetch } from "../support/run-fixtures/data-cassette";
-import { countCassetteMisses } from "../support/run-fixtures/eval";
+import { countCassetteMisses, makeReplayFetch } from "../support/run-fixtures/data-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";

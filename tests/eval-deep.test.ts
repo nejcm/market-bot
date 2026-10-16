@@ -7,14 +7,9 @@ import { resolveConfig } from "../src/config";
 import { loadRunArtifact } from "../src/run-artifacts";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import { createLiveFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
-import { makeReplayFetch } from "./support/run-fixtures/data-cassette";
+import { countCassetteMisses, makeReplayFetch } from "./support/run-fixtures/data-cassette";
+import { llmCassetteKey, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 import {
-  llmCassetteKey,
-  makeFinalSynthesisLiveProvider,
-  makeReplayProvider,
-} from "./support/run-fixtures/llm-cassette";
-import {
-  countCassetteMisses,
   evalSampleDir,
   extractSampleMetrics,
   formatEvalCompare,
@@ -150,7 +145,7 @@ function stageRequest(stage: string, model: string): Parameters<ModelProvider["g
 describe("final-synthesis-only live provider", () => {
   test("replays upstream stages by stage, routes final synthesis live, and throws on misses", async () => {
     const liveModels: string[] = [];
-    const provider = makeFinalSynthesisLiveProvider(
+    const provider = makeReplayProvider(
       { entries: { "critique|recorded-quick": [{ content: '{"recorded":1}', tokenEstimate: 5 }] } },
       {
         name: "stub",
@@ -177,7 +172,7 @@ describe("final-synthesis-only live provider", () => {
   });
 
   test("throws instead of sending a live prompt it cannot freeze", async () => {
-    const provider = makeFinalSynthesisLiveProvider(
+    const provider = makeReplayProvider(
       { entries: {} },
       {
         name: "stub",
@@ -246,6 +241,11 @@ describe("final-synthesis-only live provider", () => {
           },
         });
         expect(result.status).toBe("completed");
+        expect(result.modelCalls.live).toBe(liveRequests.length);
+        expect(result.modelCalls.replayed).toBe(
+          fixtureName === "equity-earnings-release-deep" ? 5 : 4,
+        );
+        expect(result.modelReplayMisses.count).toBe(0);
         expect(liveRequests.length).toBeGreaterThan(0);
         expect(
           liveRequests.every((request) => llmCassetteKey(request).startsWith("final-synthesis|")),
@@ -283,7 +283,7 @@ describe("final-synthesis-only live provider", () => {
         llm: "replay",
         dataDir: join(root, "runs"),
         keepDataDir: true,
-        provider: makeFinalSynthesisLiveProvider(
+        provider: makeReplayProvider(
           { entries },
           {
             name: "stub",
@@ -394,6 +394,136 @@ describe("frozen-input eval replay", () => {
     expect(compare).toContain(`| ${FIXTURE} | cassetteMisses | 0 [0–0] | 0 [0–0] |`);
     expect(compare).toMatch(/\| tokens\.total \| \d+ \[\d+–\d+\] \|/u);
   });
+
+  test("offline defaults cannot touch ambient network or live models and report response usage", async () => {
+    const root = await tempRoot();
+    const savedFetch = globalThis.fetch;
+    const savedProvider = process.env.MARKET_BOT_PROVIDER;
+    let networkCalls = 0;
+    const rejectNetwork = () => {
+      networkCalls += 1;
+      throw new Error("default network must not be called");
+    };
+    globalThis.fetch = Object.assign(async () => rejectNetwork(), { preconnect: rejectNetwork });
+    process.env.MARKET_BOT_PROVIDER = "live-provider-must-not-be-created";
+    try {
+      const sample = await withAmbientIndexEnv(() =>
+        runEvalSample({
+          root,
+          label: "offline",
+          fixture: "equity-aapl-brief",
+          sample: "1",
+          llm: "replay",
+        }),
+      );
+      expect(sample.status).toBe("completed");
+      expect(sample.modelCalls).toEqual({ replayed: 3, live: 0 });
+      expect(sample.modelReplayMisses.count).toBe(0);
+      expect(
+        Object.values(sample.responseUsage!.consumedResponses).reduce((a, b) => a + b, 0),
+      ).toBe(3);
+      expect(networkCalls).toBe(0);
+    } finally {
+      globalThis.fetch = savedFetch;
+      if (savedProvider === undefined) {
+        delete process.env.MARKET_BOT_PROVIDER;
+      } else {
+        process.env.MARKET_BOT_PROVIDER = savedProvider;
+      }
+    }
+  });
+
+  test.each(["replay", "live", "final-synthesis"] as const)(
+    "caught HTTP misses invalidate %s samples and prevent subsequent live calls",
+    async (mode) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture(FIXTURE);
+      const entries = Object.fromEntries(
+        Object.entries(fixture.dataCassette.entries).filter(
+          ([key]) => !key.includes("company-news"),
+        ),
+      );
+      let liveCalls = 0;
+      const sample = await runEvalSample({
+        root,
+        label: mode,
+        fixture: fixture.name,
+        sample: "1",
+        llm: mode === "live" ? "live" : "replay",
+        ...(mode === "final-synthesis" ? { liveStages: "final-synthesis" as const } : {}),
+        ...(mode !== "replay"
+          ? {
+              provider: {
+                name: "fake-live",
+                generate: async () => {
+                  liveCalls += 1;
+                  throw new Error("live model must not be called after an HTTP miss");
+                },
+              },
+            }
+          : {}),
+        fetchImpl: makeReplayFetch({ entries }, fixture.dir),
+      });
+      expect(sample.status).toBe("incomplete");
+      expect(sample.error).toContain("Refusing model call after HTTP replay failure");
+      expect(sample.cassetteMisses.count).toBeGreaterThan(0);
+      expect(sample.cassetteMisses.keys.join("\n")).toContain("company-news");
+      expect(liveCalls).toBe(0);
+      expect(sample.modelCalls.live).toBe(0);
+      const summary = await writeEvalSummary(root, mode);
+      expect(summary.samples[0]?.status).toBe("incomplete");
+      expect(summary.samples[0]?.metrics.cassetteMisses).toBe(sample.cassetteMisses.count);
+    },
+  );
+
+  test.each([false, true])(
+    "reports a swallowed model replay miss (synthesis live: %s)",
+    async (synthesisLive) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture("equity-earnings-release-deep");
+      const entries = Object.fromEntries(
+        Object.entries(fixture.llmCassette.entries).filter(
+          ([key]) => !key.startsWith("web-subject-profile|"),
+        ),
+      );
+      let liveCalls = 0;
+      const sample = await runEvalSample({
+        root,
+        label: "model-miss",
+        fixture: fixture.name,
+        sample: "1",
+        llm: "replay",
+        provider: synthesisLive
+          ? makeReplayProvider(
+              { entries },
+              {
+                name: "fake-live",
+                generate: async () => {
+                  liveCalls += 1;
+                  throw new Error("must not spend");
+                },
+              },
+            )
+          : makeReplayProvider({ entries }),
+      });
+      expect(sample.status).toBe("incomplete");
+      if (!synthesisLive) {
+        expect(sample.runDir).toBeDefined();
+        expect(sample.error).toContain("Fixture replay incomplete");
+      }
+      expect(sample.cassetteMisses.count).toBe(0);
+      expect(sample.modelReplayMisses.keys).toEqual(["web-subject-profile|gpt-5.6-luna"]);
+      expect(sample.modelReplayMisses.errors[0]).toContain("0 recorded models");
+      expect(liveCalls).toBe(0);
+      const persisted = JSON.parse(
+        await readFile(join(sample.sampleDir, "eval-sample.json"), "utf8"),
+      );
+      expect(persisted.modelReplayMisses).toEqual(sample.modelReplayMisses);
+      const summary = await writeEvalSummary(root, "model-miss");
+      expect(summary.samples[0]?.modelReplayMissKeys).toEqual(sample.modelReplayMisses.keys);
+      expect(summary.samples[0]?.metrics.modelReplayMisses).toBe(1);
+    },
+  );
 
   test.each([
     { finalOnly: false, error: new Error("model down") },
@@ -645,6 +775,7 @@ describe("frozen-input eval replay", () => {
         sample: String(index + 1),
         status: "completed" as const,
         cassetteMissKeys: [],
+        modelReplayMissKeys: [],
         metrics: sampleMetrics,
         unavailable: [],
       })),

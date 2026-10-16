@@ -174,9 +174,14 @@ export const QUALITATIVE_GAPS = [
 ] as const satisfies readonly BusinessFrameworkGap[];
 
 function qualitativeGaps(
+  depth: ResearchCommand["depth"],
   ...codes: readonly BusinessFrameworkGapCode[]
 ): readonly BusinessFrameworkGap[] {
-  return QUALITATIVE_GAPS.filter((gap) => codes.includes(gap.code));
+  return QUALITATIVE_GAPS.filter((gap) => codes.includes(gap.code)).map((gap) =>
+    depth === "brief" && gap.code !== "analyst-consensus"
+      ? { ...gap, text: `${gap.text}; Web Subject Profile is excluded at brief depth` }
+      : gap,
+  );
 }
 
 function itemByCategory(
@@ -239,6 +244,7 @@ const SECTION_GAPS: Readonly<
 export function frameworkGaps(
   symbol: string,
   gaps: readonly BusinessFrameworkGapValue[],
+  depth: ResearchCommand["depth"] = "deep",
 ): readonly SourceGap[] {
   return gaps.map((gap) =>
     sourceGap({
@@ -246,7 +252,10 @@ export function frameworkGaps(
       message: `Business Framework partial for ${symbol}: ${typeof gap === "string" ? gap : `${gap.code}: ${gap.text}`}`,
       provider: "market-bot",
       capability: "extended-evidence",
-      cause: "provider-data-missing",
+      cause:
+        depth === "brief" && typeof gap !== "string" && gap.code !== "analyst-consensus"
+          ? "suppressed-by-design"
+          : "provider-data-missing",
       evidenceQualityImpact: "no-cap",
     }),
   );
@@ -314,7 +323,7 @@ export function addBusinessFrameworkEvidence(
       summary: sectionSummary(name, posture, metricSection),
       metricSectionIds: metricSection === undefined ? [] : [businessFrameworkMetricSectionId(name)],
       sourceIds: sectionSourceIds[name],
-      gaps: qualitativeGaps(...SECTION_GAPS[name]),
+      gaps: qualitativeGaps(command.depth, ...SECTION_GAPS[name]),
     };
   });
   const sourceIds = [
@@ -366,7 +375,7 @@ export function addBusinessFrameworkEvidence(
     sourceIds,
     gaps,
   };
-  const sourceGaps = frameworkGaps(command.symbol, gaps);
+  const sourceGaps = frameworkGaps(command.symbol, gaps, command.depth);
   const mergedEvidence: ExtendedEvidence = {
     instrument: extendedEvidence?.instrument ?? {
       symbol: command.symbol,

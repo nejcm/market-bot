@@ -361,6 +361,40 @@ describe("business framework evidence", () => {
     );
   });
 
+  test.each(["brief", "deep"] as const)(
+    "%s depth declares profile exclusions separately from unavailable analyst consensus",
+    (depth) => {
+      const result = addBusinessFrameworkEvidence(
+        { ...command, depth },
+        [],
+        undefined,
+        undefined,
+        AS_OF,
+      );
+      expect(result.sourceGaps).toHaveLength(12);
+      expect(result.extendedEvidence?.gaps).toEqual(result.sourceGaps);
+      for (const gap of result.sourceGaps) {
+        const excluded = depth === "brief" && frameworkGapCode(gap) !== "analyst-consensus";
+        expect(gap.cause).toBe(excluded ? "suppressed-by-design" : "provider-data-missing");
+        expect(gap.evidenceQualityImpact).toBe("no-cap");
+        expect(gap.message.includes("Web Subject Profile is excluded at brief depth")).toBe(
+          excluded,
+        );
+      }
+      expect(result.artifact?.gaps).toHaveLength(12);
+      for (const section of result.artifact!.sections) {
+        for (const gap of section.gaps) {
+          if (typeof gap === "string") {
+            throw new TypeError("Expected coded qualitative gap");
+          }
+          expect(gap.text.includes("Web Subject Profile is excluded at brief depth")).toBe(
+            depth === "brief" && gap.code !== "analyst-consensus",
+          );
+        }
+      }
+    },
+  );
+
   test("anchors margins on the numerator period and keeps an interim latest fact's span", () => {
     const result = framework(
       evidence(),

@@ -304,6 +304,23 @@ describe("static equity run fixtures", () => {
       }
       if (name === "equity-aapl-brief") {
         assertProviderGapRestatementsDropped(result);
+        const frameworkGaps = result.collectedSources.sourceGaps.filter(
+          ({ source }) => source === "business-framework",
+        );
+        expect(frameworkGaps).toHaveLength(12);
+        expect(frameworkGaps.filter(({ cause }) => cause === "suppressed-by-design")).toHaveLength(
+          11,
+        );
+        expect(frameworkGaps.filter(({ cause }) => cause === "provider-data-missing")).toEqual([
+          expect.objectContaining({ message: expect.stringContaining("analyst-consensus:") }),
+        ]);
+        for (const gap of frameworkGaps) {
+          if (gap.cause === "suppressed-by-design") {
+            expect(gap.message).toContain("Web Subject Profile is excluded at brief depth");
+          }
+          expect(result.report.dataGaps).toContain(`${gap.source}: ${gap.message}`);
+        }
+        expect(result.markdown).toContain("Web Subject Profile is excluded at brief depth");
       }
       if (name === "equity-depository-deep") {
         assertDepositoryEnterpriseValueAbsent(result);

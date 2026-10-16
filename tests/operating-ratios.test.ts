@@ -3,7 +3,16 @@ import { violatesResearchOnly } from "../src/domain/research-language";
 import { sourceGap, sourceGapReportText } from "../src/domain/source-gaps";
 import type { Source } from "../src/domain/sources";
 import { renderMarkdownReport } from "../src/report/markdown";
-import { deriveFinancialStatements } from "../src/sources/extended-evidence/financial-statements";
+import {
+  deriveFinancialStatements,
+  financialStatementsHistoryGaps,
+} from "../src/sources/extended-evidence/financial-statements";
+import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
+import { renderBalanceSheetAndShareCount } from "../src/report/markdown-equity-sections";
+import {
+  balanceSheetHistoryFromProjection,
+  financialPositionFromProjection,
+} from "../app/client/run-workspace-financials";
 import { financialLensMetrics } from "../src/sources/extended-evidence/financial-lens-sections";
 import type { MetricContext } from "../src/sources/extended-evidence/metric-engine";
 import { operatingRatiosSection } from "../src/sources/extended-evidence/operating-ratios";
@@ -280,6 +289,305 @@ describe("operatingRatiosSection", () => {
     expect(fallback.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 255 });
   });
 
+  test("Intel legacy D&A below depreciation uses the complete component sum", () => {
+    const periods = [
+      {
+        year: 2016,
+        start: "2015-12-27",
+        end: "2016-12-31",
+        total: 294,
+        depreciation: 6266,
+        amortization: 1524,
+      },
+      {
+        year: 2017,
+        start: "2017-01-01",
+        end: "2017-12-30",
+        total: 177,
+        depreciation: 6752,
+        amortization: 1377,
+      },
+      {
+        year: 2018,
+        start: "2017-12-31",
+        end: "2018-12-29",
+        total: 200,
+        depreciation: 7520,
+        amortization: 1565,
+      },
+      {
+        year: 2019,
+        start: "2018-12-30",
+        end: "2019-12-28",
+        total: 200,
+        depreciation: 9204,
+        amortization: 1622,
+      },
+    ];
+    const filed = (key: "total" | "depreciation" | "amortization") => ({
+      units: {
+        USD: periods.map(({ year, start, end, ...values }) =>
+          fact(values[key] * 1_000_000, year, { start, end }),
+        ),
+      },
+    });
+    const concepts = usGaap({
+      OperatingIncomeLoss: {
+        units: {
+          USD: periods.map(({ year, start, end }) => fact(200_000_000, year, { start, end })),
+        },
+      },
+      DepreciationDepletionAndAmortization: undefined,
+      DepreciationAndAmortization: filed("total"),
+      Depreciation: filed("depreciation"),
+      AmortizationOfIntangibleAssets: filed("amortization"),
+    });
+    const result = evaluate(context(concepts, {}, "us-gaap", "2020-07-23T00:00:00.000Z"));
+    const statements = result.ctx.statements!;
+    const series = statements.statements.cashFlowStatement.depreciationAndAmortization;
+    expect(series.annual.map(({ value }) => value)).toEqual([
+      7_790_000_000, 8_129_000_000, 9_085_000_000, 10_826_000_000,
+    ]);
+    expect(
+      series.annual.every(
+        ({ extractionMethod, composite }) =>
+          extractionMethod === "derived-sec-companyfacts" && composite?.components.length === 2,
+      ),
+    ).toBe(true);
+    expect(result.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 11_026_000_000 });
+    expect(result.metric("ebitdaProxy").basis).toContain("depreciation + intangible amortization");
+    expect(() => assertCompositeFactIntegrity(statements)).not.toThrow();
+    expect(
+      invariantRun(result.ctx, result.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
+    ).not.toThrow();
+    const first = series.annual[0]!;
+    const depreciation = first.composite!.components[0]!;
+    expect(() =>
+      assertCompositeFactIntegrity({
+        ...statements,
+        statements: {
+          ...statements.statements,
+          cashFlowStatement: {
+            ...statements.statements.cashFlowStatement,
+            depreciationAndAmortization: {
+              ...series,
+              annual: [
+                {
+                  ...first,
+                  value: depreciation.value,
+                  composite: { ...first.composite!, components: [depreciation] },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ).toThrow(/\[A8\].*complete depreciation/u);
+  });
+
+  test("combined D&A remains usable without components", () => {
+    const result = evaluate(context(usGaap()));
+    expect(result.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 250 });
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual.every(
+        ({ composite }) => composite === undefined,
+      ),
+    ).toBe(true);
+    expect(result.metric("ebitdaProxy").basis).not.toContain("intangible amortization");
+  });
+
+  test("Lantronix FY2021 D&A below amortization uses the full sum", () => {
+    const filed = (value: number) => ({
+      units: { USD: [fact(value, 2021, { start: "2020-07-01", end: "2021-06-30" })] },
+    });
+    const combinedOnly = usGaap({
+      Revenues: filed(100_000_000),
+      OperatingIncomeLoss: filed(200_000),
+      DepreciationDepletionAndAmortization: undefined,
+      DepreciationAndAmortization: filed(817_000),
+    });
+    const concepts = {
+      ...combinedOnly,
+      Depreciation: filed(817_000),
+      AmortizationOfIntangibleAssets: filed(3_094_000),
+    };
+    const result = evaluate(context(concepts, {}, "us-gaap", "2022-07-23T00:00:00.000Z"));
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: 3_911_000, extractionMethod: "derived-sec-companyfacts" }]);
+    expect(
+      invariantRun(result.ctx, result.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
+    ).not.toThrow();
+    const stale = evaluate(context(combinedOnly, {}, "us-gaap", "2022-07-23T00:00:00.000Z"));
+    expect(
+      invariantRun(stale.ctx, stale.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
+    ).toThrow(/D&A.*component/u);
+  });
+
+  test("D&A dominance uses the latest eligible filing for totals and components", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          DepreciationDepletionAndAmortization: {
+            units: { USD: [fact(1, 2025), fact(50, 2025, { filed: "2026-03-01" })] },
+          },
+          Depreciation: {
+            units: { USD: [fact(100, 2025), fact(40, 2025, { filed: "2026-03-01" })] },
+          },
+          AmortizationOfIntangibleAssets: flow(() => 50),
+        }),
+      ),
+    );
+    expect(result.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 250 });
+    expect(result.metric("ebitdaProxy").basis).not.toContain("intangible amortization");
+  });
+
+  test.each([
+    {
+      name: "Vertex FY2017",
+      year: 2017,
+      total: 61_397_000,
+      component: 61_400_000,
+      concept: "Depreciation",
+    },
+    {
+      name: "AST FY2023",
+      year: 2023,
+      total: 54_469_000,
+      component: 54_500_000,
+      concept: "Depreciation",
+    },
+    {
+      name: "exactly 1% below amortization",
+      year: 2023,
+      total: 54_450_000,
+      component: 55_000_000,
+      concept: "AmortizationOfIntangibleAssets",
+    },
+  ])("combined D&A tolerates rounding: $name", ({ year, total, component, concept }) => {
+    const concepts = usGaap({
+      Revenues: { units: { USD: [fact(100_000_000, year)] } },
+      OperatingIncomeLoss: { units: { USD: [fact(200_000, year)] } },
+      DepreciationDepletionAndAmortization: {
+        units: { USD: [fact(total, year)] },
+      },
+      [concept]: { units: { USD: [fact(component, year)] } },
+    });
+    const result = evaluate(
+      context(concepts, {}, "us-gaap", `${String(year + 1)}-07-23T00:00:00.000Z`),
+    );
+    const statements = result.ctx.statements!;
+    expect(
+      statements.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([{ value: total, extractionMethod: "sec-companyfacts" }]);
+    expect(
+      statements.omissionNotes.filter((note) => note.seriesKey === "depreciationAndAmortization"),
+    ).toEqual([]);
+    expect(() => assertCompositeFactIntegrity(statements)).not.toThrow();
+    expect(
+      invariantRun(result.ctx, result.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
+    ).not.toThrow();
+  });
+
+  test("an older component rejects a newer combined D&A more than 1% below it", () => {
+    const concepts = usGaap({
+      DepreciationDepletionAndAmortization: {
+        units: { USD: [fact(54_449_999, 2023, { filed: "2026-03-02" })] },
+      },
+      Depreciation: {
+        units: { USD: [fact(55_000_000, 2023, { filed: "2025-03-03" })] },
+      },
+      AmortizationOfIntangibleAssets: {
+        units: { USD: [fact(5_000_000, 2023, { filed: "2025-03-03" })] },
+      },
+    });
+    const result = evaluate(context(concepts));
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toMatchObject([
+      { value: 60_000_000, extractionMethod: "derived-sec-companyfacts", filedAt: "2025-03-03" },
+    ]);
+    expect(
+      invariantRun(result.ctx, result.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
+    ).not.toThrow();
+    const stale = evaluate(
+      context({
+        ...concepts,
+        Depreciation: undefined,
+        AmortizationOfIntangibleAssets: undefined,
+      }),
+    );
+    expect(
+      invariantRun(stale.ctx, stale.section.metrics, { cik: 1, facts: { "us-gaap": concepts } }),
+    ).toThrow(/D&A.*component/u);
+  });
+
+  test.each([
+    { name: "different start", overrides: { start: "2025-01-02" }, unit: "USD" },
+    { name: "different duration", overrides: { start: "2025-07-01" }, unit: "USD" },
+    { name: "different end", overrides: { end: "2025-12-30" }, unit: "USD" },
+    { name: "after cutoff", overrides: { filed: "2026-08-01" }, unit: "USD" },
+    { name: "different currency", overrides: {}, unit: "EUR" },
+  ])("combined D&A ignores depreciation with $name", ({ overrides, unit }) => {
+    const result = evaluate(
+      context(
+        usGaap({
+          DepreciationDepletionAndAmortization: flow(() => 1),
+          Depreciation: { units: { [unit]: [fact(40, 2025, overrides)] } },
+          AmortizationOfIntangibleAssets: flow(() => 0.1),
+        }),
+      ),
+    );
+    expect(result.metric("ebitdaProxy")).toMatchObject({ status: "value", value: 201 });
+    expect(result.metric("ebitdaProxy").basis).not.toContain("intangible amortization");
+  });
+
+  test("a rejected combined D&A never becomes a partial sum", () => {
+    const result = evaluate(
+      context(
+        usGaap({
+          DepreciationDepletionAndAmortization: flow(() => 1),
+          Depreciation: flow(() => 40),
+        }),
+      ),
+    );
+    expect(
+      result.ctx.statements!.statements.cashFlowStatement.depreciationAndAmortization.annual,
+    ).toEqual([]);
+    expect(result.metric("ebitdaProxy")).toMatchObject({ status: "missing" });
+    expect(result.metric("ebitdaProxy").cause).not.toBe("not-filed");
+    expect(result.metric("ebitdaProxy").value).toBeUndefined();
+    expect(invariantRun(result.ctx, result.section.metrics)).not.toThrow();
+    const statements = result.ctx.statements!;
+    const notes = statements.omissionNotes.filter(
+      (note) => note.seriesKey === "depreciationAndAmortization",
+    );
+    expect(notes).toEqual(
+      YEARS.map((year) => ({
+        code: "incomplete-composite-series",
+        seriesKey: "depreciationAndAmortization",
+        periodKey: `duration:12|${String(year)}-12-31`,
+        message: `SEC depreciation and amortization for ${String(year)}-01-01 to ${String(year)}-12-31 omitted: the combined fact is more than 1% below a same-period component and the matching component set is incomplete`,
+      })),
+    );
+    expect(financialStatementsHistoryGaps(statements).map(({ message }) => message)).toEqual(
+      notes.map(({ message }) => message),
+    );
+    const history = balanceSheetHistory(statements, AS_OF);
+    const position = financialPosition(statements, AS_OF);
+    expect(history?.notes).toEqual(expect.arrayContaining(notes));
+    expect(position?.notes).toEqual(expect.arrayContaining(notes));
+    expect(balanceSheetHistoryFromProjection(history)?.notes).toEqual(
+      expect.arrayContaining(notes),
+    );
+    expect(financialPositionFromProjection(position)?.notes).toEqual(expect.arrayContaining(notes));
+    const markdown = renderBalanceSheetAndShareCount(researchReport(), history);
+    for (const note of notes) {
+      expect(markdown).toContain(note.message);
+      expect(violatesResearchOnly(note.message)).toBeNull();
+    }
+  });
+
   test.each(["Depreciation", "AmortizationOfIntangibleAssets"])(
     "missing %s keeps the not-filed cause",
     (missing) => {
@@ -299,6 +607,11 @@ describe("operatingRatiosSection", () => {
         reason: "depreciation and amortization not filed by the issuer",
       });
       expect(result.metric("ebitdaProxy").value).toBeUndefined();
+      expect(
+        result.ctx.statements!.omissionNotes.filter(
+          (note) => note.seriesKey === "depreciationAndAmortization",
+        ),
+      ).toEqual([]);
     },
   );
 

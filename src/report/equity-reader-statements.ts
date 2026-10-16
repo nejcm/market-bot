@@ -87,6 +87,8 @@ function statementSurfaceNotes(
   return [...(artifact.omissionNotes ?? []), ...(artifact.validationNotes ?? [])].filter(
     (note) =>
       note.code === "stale-instant-series" ||
+      (note.code === "incomplete-composite-series" &&
+        note.seriesKey === "depreciationAndAmortization") ||
       (note.code === "mixed-share-basis" && note.seriesKey === "dilutedShares") ||
       ((note.code === "untagged-balance-sheet-series" ||
         note.code === "incomplete-composite-series") &&

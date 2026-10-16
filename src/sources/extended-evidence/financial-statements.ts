@@ -11,6 +11,7 @@ import {
 import {
   CAP_FOLLOWER_SERIES,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
+  DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   isDebtPresenceConcept,
   isRevenueConceptInRecencyBucket,
@@ -255,9 +256,6 @@ function factsForDefinition(
     return [];
   }
   const concepts = definition.concepts[taxonomy];
-  if (definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap") {
-    return factsForDepreciationAndAmortization(root, definition, eligible);
-  }
   if (definition.key === "dividendsPerShare") {
     // Declarations are annual-anchored; a newer interim cash-paid tag must not hide declared annual history.
     const annualBasis = factsForLatestPeriodConcept(
@@ -387,10 +385,14 @@ function withCompositeFirstPublicAt(
 }
 
 function factsForDepreciationAndAmortization(
-  root: Record<string, unknown>,
+  payload: unknown,
   definition: FinancialStatementSeriesDefinition,
   eligible: (fact: ParsedFact) => boolean,
-): readonly ParsedFact[] {
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+  const root = taxonomyRoot(payload, "us-gaap");
+  if (root === undefined) {
+    return { facts: [], notes: [] };
+  }
   const totals = definition.concepts["us-gaap"];
   const concepts = [...totals, ...DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flat()];
   const periods = new Map<string, ParsedFact[]>();
@@ -398,12 +400,15 @@ function factsForDepreciationAndAmortization(
     const key = `${fact.periodStart ?? "instant"}|${fact.periodEnd}|${fact.unit}|${periodType(fact, definition)}`;
     periods.set(key, [...(periods.get(key) ?? []), fact]);
   }
-  return [...periods.values()].flatMap((facts) => {
+  const notes: FinancialStatementNote[] = [];
+  const resolvedFacts = [...periods.values()].flatMap((facts) => {
     const candidates = facts.filter((fact) => eligible(fact));
-    const total = totals.find((concept) => candidates.some((fact) => fact.concept === concept));
-    if (total !== undefined) {
-      return facts.filter((fact) => fact.concept === total);
-    }
+    const totalConcept = totals.find((concept) =>
+      candidates.some((fact) => fact.concept === concept),
+    );
+    const [total] = candidates
+      .filter((fact) => fact.concept === totalConcept)
+      .toSorted(compareFinancialStatementFacts);
     const contributors = DEPRECIATION_AND_AMORTIZATION_COMPONENTS.flatMap((aliases) => {
       const concept = aliases.find((alias) => candidates.some((fact) => fact.concept === alias));
       const [selected] = candidates
@@ -411,17 +416,37 @@ function factsForDepreciationAndAmortization(
         .toSorted(compareFinancialStatementFacts);
       return selected === undefined ? [] : [selected];
     });
-    return contributors.length !== DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length
-      ? []
-      : [
-          withCompositeFirstPublicAt(
-            compositeFromContributors(contributors),
-            definition,
-            candidates,
-            new Set(),
-          ),
-        ];
+    if (
+      total !== undefined &&
+      !contributors.some(
+        (fact) =>
+          fact.value - total.value >
+          Math.abs(fact.value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
+      )
+    ) {
+      return facts.filter((fact) => fact.concept === totalConcept);
+    }
+    if (contributors.length !== DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length) {
+      if (total !== undefined) {
+        notes.push({
+          code: "incomplete-composite-series",
+          seriesKey: definition.key,
+          periodKey: periodKey(total),
+          message: `SEC depreciation and amortization for ${total.periodStart ?? "instant"} to ${total.periodEnd} omitted: the combined fact is more than 1% below a same-period component and the matching component set is incomplete`,
+        });
+      }
+      return [];
+    }
+    return [
+      withCompositeFirstPublicAt(
+        compositeFromContributors(contributors),
+        definition,
+        candidates,
+        new Set(),
+      ),
+    ];
   });
+  return { facts: resolvedFacts, notes };
 }
 
 function debtRestatements(
@@ -1277,7 +1302,14 @@ function selectSeries(
     isObservable(fact, input.analysisAsOf) && fact.unit === unit;
   const debt =
     definition.key === "debt" ? factsForDebt(payload, taxonomy, definition, eligible) : undefined;
-  const basis = debt?.facts ?? factsForDefinition(payload, taxonomy, definition, eligible);
+  const depreciationAndAmortization =
+    definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap"
+      ? factsForDepreciationAndAmortization(payload, definition, eligible)
+      : undefined;
+  const basis =
+    debt?.facts ??
+    depreciationAndAmortization?.facts ??
+    factsForDefinition(payload, taxonomy, definition, eligible);
   const declarationSpans =
     definition.key === "dividendsPerShare"
       ? basis.filter((fact) => !isStatementPeriod(fact, definition))
@@ -1296,6 +1328,7 @@ function selectSeries(
       ...selected,
       omissionNotes: [
         ...selected.omissionNotes,
+        ...(depreciationAndAmortization?.notes ?? []),
         ...staleConceptHistoryNotes(payload, taxonomy, definition, facts, eligible),
         ...declarationSpanNotes(declarationSpans.filter(eligible), definition),
       ],
@@ -1885,7 +1918,9 @@ export function financialStatementsHistoryGaps(
       (note) =>
         note.code === "stale-concept-history" ||
         note.code === "mixed-share-basis" ||
-        note.code === "declaration-span",
+        note.code === "declaration-span" ||
+        (note.code === "incomplete-composite-series" &&
+          note.seriesKey === "depreciationAndAmortization"),
     )
     .map((note) =>
       sourceGap({

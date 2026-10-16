@@ -24,6 +24,8 @@ export const DEPRECIATION_AND_AMORTIZATION_COMPONENTS: readonly (readonly string
   ["AmortizationOfIntangibleAssets"],
 ];
 
+export const DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE = 0.01;
+
 interface DebtSideConcepts {
   readonly generic: readonly string[];
   readonly instruments: readonly (readonly string[])[];

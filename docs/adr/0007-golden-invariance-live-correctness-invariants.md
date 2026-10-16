@@ -120,8 +120,14 @@ payload to its declared live version.
   tolerance, shared period end, and source-id closure) and is a live-run invariant in the
   A-series. Mutating a contributor without updating the fact value must fail.
 - Amendment 2026-10-16: D&A alone may mix direct and composite facts across periods, since its
-  combined concept wins per period and complete same-duration components provide the fallback.
-  A8 still re-derives every composite sum and checks period ends and source-id closure; the
+  combined concept wins per period unless smaller than either selected same-period, same-duration,
+  same-unit component by more than 1% of that component's absolute value. Complete components
+  provide the fallback; rejection with incomplete components emits a period-specific omission
+  note surfaced as a Source Gap and on Markdown/Research Console statement-note surfaces.
+  Fixture invariants check direct D&A against raw selected components at the cutoff with the
+  same 1% rounding tolerance. This selection tolerance does not relax A8's arithmetic identity
+  tolerance. A8 requires both component groups exactly
+  once, re-derives every composite sum, and checks period ends and source-id closure; the
   one-basis-per-series restriction remains for all other series.
 
 ## Implementation validation

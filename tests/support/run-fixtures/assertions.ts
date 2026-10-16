@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { resolveMarketSnapshotPriceAsOf } from "../../../src/domain/market-data";
 import { readEarningsForecastTelemetry } from "../../../src/forecast/earnings-eligibility";
 import { parseObservableExpression } from "../../../src/forecast/observable";
-import { isRecord } from "../../../src/guards";
+import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
@@ -26,20 +26,26 @@ import { RUN_ARTIFACT_FILES } from "../../../src/run-artifact-layout";
 import { loadRunArtifact } from "../../../src/run-artifacts";
 import { depositoryIssuerSic } from "../../../src/sources/extended-evidence/industry-classification";
 import type { MetricSectionsExtra } from "../../../src/report/report-extras-contract";
-import type {
-  FinancialStatementFact,
-  FinancialStatementSeriesKey,
-  FinancialStatementsArtifact,
-  FinancialStatementTaxonomy,
+import {
+  canonicalizeSecForm,
+  isAnnualReportForm,
+  readSecFactPeriodMetadata,
+  type FinancialStatementFact,
+  type FinancialStatementSeriesKey,
+  type FinancialStatementsArtifact,
+  type FinancialStatementTaxonomy,
 } from "../../../src/sources/extended-evidence/financial-statements-contract";
 import {
   conceptScope,
   DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
+  DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
   FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
   isDebtPresenceConcept,
   scopedLabel,
 } from "../../../src/sources/extended-evidence/financial-statement-definitions";
 import {
+  compareFinancialStatementFacts,
+  financialStatementFacts,
   financialStatementSeriesByKey,
   financialStatementPeriodMonths,
 } from "../../../src/sources/extended-evidence/financial-statement-selection";
@@ -480,6 +486,71 @@ function assertNotFiledCause(
           ),
           `${label}: D&A unfiled but every component has facts`,
         ).toBe(false);
+      }
+    }
+  }
+}
+
+function assertDirectDepreciationAndAmortization(run: MetricInvariantRun): void {
+  const statements = run.collectedSources.financialStatements;
+  const root = targetCompanyFacts(run)?.["us-gaap"];
+  if (statements === undefined || !isRecord(root)) {
+    return;
+  }
+  const cutoff = statements.analysisAsOf.slice(0, 10);
+  const series = statements.statements.cashFlowStatement.depreciationAndAmortization;
+  for (const fact of financialStatementFacts(series).filter(
+    (item) => item.taxonomy === "us-gaap" && item.composite === undefined,
+  )) {
+    const { periodStart } = fact;
+    if (periodStart === undefined) {
+      continue;
+    }
+    for (const aliases of DEPRECIATION_AND_AMORTIZATION_COMPONENTS) {
+      const components = aliases.map((concept) => {
+        const units = isRecord(root[concept]) ? root[concept].units : undefined;
+        const rows = isRecord(units) ? units[fact.unit] : undefined;
+        return (Array.isArray(rows) ? rows : []).flatMap((row) => {
+          if (!isRecord(row)) {
+            return [];
+          }
+          const value = readNumber(row, "val");
+          const period = readSecFactPeriodMetadata(row);
+          const form = canonicalizeSecForm(readString(row, "form") ?? "");
+          const months = financialStatementPeriodMonths(fact) ?? 0;
+          if (
+            value === undefined ||
+            period === undefined ||
+            form === undefined ||
+            row.start !== fact.periodStart ||
+            period.end !== fact.periodEnd ||
+            period.filed > cutoff ||
+            (isAnnualReportForm(form.canonicalForm) && months >= 10 && months <= 14) !==
+              (fact.periodType === "annual")
+          ) {
+            return [];
+          }
+          return [
+            {
+              value,
+              ...form,
+              periodStart,
+              periodEnd: period.end,
+              filedAt: period.filed,
+              accessionNumber: readString(row, "accn") ?? null,
+            },
+          ];
+        });
+      });
+      const [component] =
+        components.find((rows) => rows.length > 0)?.toSorted(compareFinancialStatementFacts) ?? [];
+      if (component !== undefined) {
+        expect(
+          component.value - fact.value,
+          `D&A ${fact.periodKey} must dominate each selected component within 1% rounding tolerance`,
+        ).toBeLessThanOrEqual(
+          Math.abs(component.value) * DEPRECIATION_AND_AMORTIZATION_COMPONENT_TOLERANCE,
+        );
       }
     }
   }
@@ -1407,6 +1478,7 @@ export function assertOperatingRatioInvariants(
   run: MetricInvariantRun,
   report: ResearchReport,
 ): void {
+  assertDirectDepreciationAndAmortization(run);
   const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
   const statements = run.collectedSources.financialStatements;
   const section = sections?.find(({ id }) => id === "operating-ratios");

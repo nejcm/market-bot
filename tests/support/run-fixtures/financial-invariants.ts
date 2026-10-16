@@ -40,6 +40,7 @@ import {
 } from "../../../src/sources/extended-evidence/fundamental-history";
 import {
   conceptScope,
+  DEPRECIATION_AND_AMORTIZATION_COMPONENTS,
   isContinuingScope,
 } from "../../../src/sources/extended-evidence/financial-statement-definitions";
 import { identityTolerance } from "../../../src/sources/extended-evidence/untagged-financial-table-validation";
@@ -427,6 +428,17 @@ export function assertCompositeFactIntegrity(
         `${series.key} ${fact.periodKey} carries composite contributors on a direct fact`,
         fact.periodEnd,
       );
+      if (series.key === "depreciationAndAmortization") {
+        check(
+          fact.composite.components.length === DEPRECIATION_AND_AMORTIZATION_COMPONENTS.length &&
+            DEPRECIATION_AND_AMORTIZATION_COMPONENTS.every((aliases) =>
+              fact.composite!.components.some(({ concept }) => aliases.includes(concept)),
+            ),
+          "A8",
+          `${series.key} ${fact.periodKey} requires complete depreciation and intangible amortization components`,
+          fact.periodEnd,
+        );
+      }
       const componentScale = fact.composite.components.map((component) => ({
         value: component.value,
         unitScale: fact.unitScale,

@@ -129,18 +129,22 @@ const missingCredentialAnalystRange = sourceGap({
 const analystConsensus = frameworkGaps(
   "AAPL",
   QUALITATIVE_GAPS.filter((gap) => gap.code === "analyst-consensus"),
+  "deep",
 )[0]!;
 const segmentMix = frameworkGaps(
   "AAPL",
   QUALITATIVE_GAPS.filter((gap) => gap.code === "segment-mix"),
+  "deep",
 )[0]!;
 const amdAnalystConsensus = frameworkGaps(
   "AMD",
   QUALITATIVE_GAPS.filter((gap) => gap.code === "analyst-consensus"),
+  "deep",
 )[0]!;
 const amdSegmentMix = frameworkGaps(
   "AMD",
   QUALITATIVE_GAPS.filter((gap) => gap.code === "segment-mix"),
+  "deep",
 )[0]!;
 const unsupportedEpsEstimate = sourceGap({
   source: "finnhub-eps-estimate",
@@ -516,7 +520,7 @@ describe("Web Gather Source Gap view", () => {
       payload(
         "web-gather",
         sourcesWithGaps([
-          ...frameworkGaps("AAPL", QUALITATIVE_GAPS),
+          ...frameworkGaps("AAPL", QUALITATIVE_GAPS, "deep"),
           secCompanyFacts,
           marketauxNews,
         ]),

@@ -244,7 +244,7 @@ const SECTION_GAPS: Readonly<
 export function frameworkGaps(
   symbol: string,
   gaps: readonly BusinessFrameworkGapValue[],
-  depth: ResearchCommand["depth"] = "deep",
+  depth: ResearchCommand["depth"],
 ): readonly SourceGap[] {
   return gaps.map((gap) =>
     sourceGap({

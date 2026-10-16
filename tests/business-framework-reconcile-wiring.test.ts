@@ -99,7 +99,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
   test("replaces the stale gap in source and extended evidence collections", () => {
     const artifact = framework([gap("segment-mix"), gap("analyst-consensus")]);
     const result = reconcileBusinessFrameworkEvidence(
-      bundle(artifact, frameworkGaps("AAPL", artifact.gaps)),
+      bundle(artifact, frameworkGaps("AAPL", artifact.gaps, "deep")),
     );
 
     expect(result.businessFramework?.gaps).toEqual([gap("analyst-consensus")]);
@@ -115,7 +115,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
   test("removes the gap from both collections when all present codes resolve", () => {
     const artifact = framework([gap("segment-mix")]);
     const result = reconcileBusinessFrameworkEvidence(
-      bundle(artifact, frameworkGaps("AAPL", artifact.gaps)),
+      bundle(artifact, frameworkGaps("AAPL", artifact.gaps, "deep")),
     );
 
     expect(result.sourceGaps.filter((entry) => entry.source === "business-framework")).toEqual([]);
@@ -136,7 +136,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
     };
     const artifact = framework([gap("segment-mix"), gap("analyst-consensus")]);
     const result = reconcileBusinessFrameworkEvidence(
-      bundle(artifact, frameworkGaps("AAPL", artifact.gaps), partialProfile),
+      bundle(artifact, frameworkGaps("AAPL", artifact.gaps, "deep"), partialProfile),
     );
 
     expect(result.businessFramework?.gaps).toEqual([gap("analyst-consensus")]);
@@ -144,7 +144,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
 
   test("a withheld profile answer leaves the mapped gap in Source Gaps", () => {
     const artifact = framework([gap("risk-factors")]);
-    const staleGaps = frameworkGaps("AAPL", artifact.gaps);
+    const staleGaps = frameworkGaps("AAPL", artifact.gaps, "deep");
     const base = profile();
     if (base.subjectKind !== "company") {
       throw new Error("expected company profile");
@@ -176,7 +176,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
 
   test("returns the original collection when no present code resolves", () => {
     const artifact = framework([gap("customer-concentration")]);
-    const staleGaps = frameworkGaps("AAPL", artifact.gaps);
+    const staleGaps = frameworkGaps("AAPL", artifact.gaps, "deep");
     const collected = bundle(artifact, staleGaps, profile({ answer: "Consumers", sourceIds: [] }));
 
     expect(reconcileBusinessFrameworkEvidence(collected)).toBe(collected);
@@ -188,7 +188,7 @@ describe("reconcileBusinessFrameworkEvidence wiring", () => {
       gap("customer-concentration"),
       gap("analyst-consensus"),
     ]);
-    const staleGaps = frameworkGaps("AAPL", artifact.gaps);
+    const staleGaps = frameworkGaps("AAPL", artifact.gaps, "deep");
     const otherGap: SourceGap = {
       source: "web-subject-profile",
       message: "profile freshness gap",

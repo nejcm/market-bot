@@ -156,19 +156,19 @@ describe("frameworkGaps", () => {
   const segmentMix = QUALITATIVE_GAPS.find((gap) => gap.code === "segment-mix")!;
 
   test("returns an empty list for no Business Framework gaps", () => {
-    expect(frameworkGaps("AAPL", [])).toEqual([]);
+    expect(frameworkGaps("AAPL", [], "deep")).toEqual([]);
   });
 
   test("renders one object-shaped gap with the stable message", () => {
     // This exact producer format is parsed by frameworkGapCode.
-    expect(frameworkGaps("AAPL", [analystConsensus])[0]?.message).toBe(
+    expect(frameworkGaps("AAPL", [analystConsensus], "deep")[0]?.message).toBe(
       "Business Framework partial for AAPL: analyst-consensus: Analyst consensus is not available from a provider-neutral authoritative capability",
     );
   });
 
   test("round-trips structured gap codes without interpreting legacy or unrelated gaps", () => {
     for (const expected of QUALITATIVE_GAPS) {
-      expect(frameworkGapCode(frameworkGaps("AAPL", [expected])[0]!)).toBe(expected.code);
+      expect(frameworkGapCode(frameworkGaps("AAPL", [expected], "deep")[0]!)).toBe(expected.code);
     }
     expect(frameworkGapCode(sourceGap({ source: "sec-edgar", message: "unavailable" }))).toBe(
       undefined,
@@ -181,11 +181,13 @@ describe("frameworkGaps", () => {
         }),
       ),
     ).toBe(undefined);
-    expect(frameworkGapCode(frameworkGaps("AAPL", ["legacy qualitative gap"])[0]!)).toBe(undefined);
+    expect(frameworkGapCode(frameworkGaps("AAPL", ["legacy qualitative gap"], "deep")[0]!)).toBe(
+      undefined,
+    );
   });
 
   test("renders multiple object-shaped gaps separately in input order", () => {
-    const gaps = frameworkGaps("AAPL", [segmentMix, analystConsensus]);
+    const gaps = frameworkGaps("AAPL", [segmentMix, analystConsensus], "deep");
 
     expect(gaps.map((gap) => gap.message)).toEqual([
       "Business Framework partial for AAPL: segment-mix: Segment mix is not available from current normalized sources",
@@ -195,14 +197,16 @@ describe("frameworkGaps", () => {
   });
 
   test("renders a legacy string-shaped gap without a code prefix", () => {
-    expect(frameworkGaps("AAPL", ["legacy qualitative gap"])[0]?.message).toBe(
+    expect(frameworkGaps("AAPL", ["legacy qualitative gap"], "deep")[0]?.message).toBe(
       "Business Framework partial for AAPL: legacy qualitative gap",
     );
   });
 
   test("renders mixed string and object-shaped gaps independently", () => {
     expect(
-      frameworkGaps("AAPL", ["legacy qualitative gap", segmentMix]).map((gap) => gap.message),
+      frameworkGaps("AAPL", ["legacy qualitative gap", segmentMix], "deep").map(
+        (gap) => gap.message,
+      ),
     ).toEqual([
       "Business Framework partial for AAPL: legacy qualitative gap",
       "Business Framework partial for AAPL: segment-mix: Segment mix is not available from current normalized sources",
@@ -210,7 +214,7 @@ describe("frameworkGaps", () => {
   });
 
   test("keeps Source Gap context identical across split gaps", () => {
-    for (const gap of frameworkGaps("AAPL", [segmentMix, analystConsensus])) {
+    for (const gap of frameworkGaps("AAPL", [segmentMix, analystConsensus], "deep")) {
       expect(gap).toMatchObject({
         source: "business-framework",
         provider: "market-bot",
@@ -239,11 +243,11 @@ describe("frameworkGaps", () => {
   });
 
   test("keeps all twelve Business Framework gaps after dedupe", () => {
-    expect(dedupeSourceGaps(frameworkGaps("AAPL", QUALITATIVE_GAPS))).toHaveLength(12);
+    expect(dedupeSourceGaps(frameworkGaps("AAPL", QUALITATIVE_GAPS, "deep"))).toHaveLength(12);
   });
 
   test("keeps structured and report-text triage material", () => {
-    const gap = frameworkGaps("AAPL", [analystConsensus])[0]!;
+    const gap = frameworkGaps("AAPL", [analystConsensus], "deep")[0]!;
 
     expect(classifyGap(gap)).toBe("material");
     expect(classifyGap(sourceGapScopedReportText(gap))).toBe("material");

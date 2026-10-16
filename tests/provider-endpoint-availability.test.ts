@@ -35,6 +35,7 @@ describe("provider endpoint availability", () => {
         snapshot("finnhub-analyst-range"),
         snapshot("finnhub-institutional-ownership"),
         snapshot("finnhub-insider-transactions"),
+        snapshot("massive-news"),
       ],
       [],
     );
@@ -67,6 +68,7 @@ describe("provider endpoint availability", () => {
       status: "available",
       evidence: ["finnhub-insider-transactions"],
     });
+    expect(result.massiveNews).toEqual({ status: "available", evidence: ["massive-news"] });
   });
 
   test("prefers observed requests over availability gaps", () => {
@@ -134,6 +136,20 @@ describe("provider endpoint availability", () => {
       evidence: [],
       reason: "No request or normalized availability gap for yahoo-ticker",
     });
+    expect(result.massiveNews).toEqual({
+      status: "unmeasured",
+      evidence: [],
+      reason: "No request or normalized availability gap for massive-news",
+    });
+  });
+
+  test("keeps Massive snapshot entitlement gaps separate from news availability", () => {
+    const result = deriveProviderEndpointAvailability(
+      [],
+      [gap("massive-supplemental-market", "unsupported-coverage", "current plan HTTP 403")],
+    );
+
+    expect(result.massiveNews?.status).toBe("unmeasured");
   });
 
   test("preserves the phase0 implied-move evidence label when the value is present", () => {

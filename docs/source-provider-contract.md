@@ -47,6 +47,7 @@ Massive satisfies this contract as a supplemental-only equity Source Provider:
 
 - `MARKET_BOT_MASSIVE_API_KEY` is documented in `docs/configuration.md`.
 - Missing credentials silently disable Massive because it is supplemental-only.
+- Equity analytics includes `providerEndpointAvailability.massiveNews`: observed news requests are `available`; an unconfigured provider is `unmeasured` without a Source Gap. Supplemental-market entitlement gaps do not change the news row.
 - Configured Massive failures emit `SourceGap`s for `massive-news` and `massive-supplemental-market` with `evidenceQualityImpact: "no-cap"`.
 - Massive maps equity news into `Source` and stock snapshots into `MarketSnapshot`.
 - Massive snapshot identity preserves the provider ticker as an Instrument Identity alias.

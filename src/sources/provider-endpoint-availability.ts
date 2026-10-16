@@ -66,6 +66,7 @@ const ENDPOINTS: Readonly<Record<string, EndpointDefinition>> = {
   },
   fredMacro: { adapters: ["fred-"], gapSources: ["fred-macro"] },
   marketauxNews: { adapters: ["marketaux-news"], gapSources: ["marketaux-news"] },
+  massiveNews: { adapters: ["massive-news"], gapSources: ["massive-news"] },
 };
 
 function availableEndpoint(evidence: readonly string[]): ProviderEndpointAvailability {

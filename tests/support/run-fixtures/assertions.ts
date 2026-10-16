@@ -156,6 +156,10 @@ export async function assertInvariants(
   expect(await persisted(RUN_ARTIFACT_FILES.analytics)).toEqual(asWritten(result.analytics));
   expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
   expect(result.trace).not.toHaveProperty("predictionReplacementAttempted");
+  expect(result.analytics.providerEndpointAvailability).toHaveProperty("massiveNews");
+  if (result.collectedSources.newsSources.some(({ provider }) => provider === "massive")) {
+    expect(result.analytics.providerEndpointAvailability?.massiveNews?.status).toBe("available");
+  }
   expect(await persisted(RUN_ARTIFACT_FILES.outcomes)).toEqual(asWritten(result.outcomes));
   if (result.deepEquityEvidenceBundle !== undefined) {
     expect(await persisted(RUN_ARTIFACT_FILES.evidenceBundle)).toEqual(

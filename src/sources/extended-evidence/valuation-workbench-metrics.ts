@@ -38,6 +38,7 @@ export function valuationMetricSection(input: {
   readonly symbol: string;
   readonly period: ValuationPeriodInputs;
   readonly price: ValuationPriceInput | null;
+  readonly outsidePriceHistoryWindow?: boolean;
   readonly reportingCurrency?: string | undefined;
   readonly quoteCurrency?: string | undefined;
   readonly depositorySic?: string | undefined;
@@ -152,7 +153,12 @@ export function valuationMetricSection(input: {
           return missing("quote-currency-unavailable");
         }
         if (price === null) {
-          return missing("price-history-unavailable");
+          return {
+            ...missing("price-history-unavailable"),
+            ...(input.outsidePriceHistoryWindow
+              ? { cause: "outside-price-history-window" as const }
+              : {}),
+          };
         }
         if (price.currency !== reportingCurrency && fx === undefined) {
           return missing("fx-rate-unavailable");

@@ -1889,47 +1889,51 @@ describe("run workspace view", () => {
     expect(view?.excludedPeerRows[0]?.sourceIds).toEqual([]);
   });
 
-  test("collapses missing-price-history observations out of the console rows", () => {
-    const base = valuationWorkbench();
-    const [observation] = base.historicalMultiples.observations;
-    if (observation === undefined) {
-      throw new Error("valuation workbench fixture observation missing");
-    }
-    const noHistory = {
-      status: "missing" as const,
-      id: "fixture",
-      label: "fixture",
-      unit: "ratio" as const,
-      basis: "fixture",
-      inputs: [],
-      reason: "price-history-unavailable" as const,
-      sourceIds: [],
-    };
-    const workbench = valuationWorkbench({
-      historicalMultiples: {
-        ...base.historicalMultiples,
-        observations: [
-          {
-            ...observation,
-            price: null,
-            metrics: {
-              priceToEarnings: noHistory,
-              priceToSales: noHistory,
-              enterpriseValueToRevenue: noHistory,
-              priceToFreeCashFlow: noHistory,
+  test.each([undefined, "outside-price-history-window"] as const)(
+    "collapses missing-price-history observations out of the console rows (cause %s)",
+    (cause) => {
+      const base = valuationWorkbench();
+      const [observation] = base.historicalMultiples.observations;
+      if (observation === undefined) {
+        throw new Error("valuation workbench fixture observation missing");
+      }
+      const noHistory = {
+        status: "missing" as const,
+        id: "fixture",
+        label: "fixture",
+        unit: "ratio" as const,
+        basis: "fixture",
+        inputs: [],
+        reason: "price-history-unavailable" as const,
+        ...(cause === undefined ? {} : { cause }),
+        sourceIds: [],
+      };
+      const workbench = valuationWorkbench({
+        historicalMultiples: {
+          ...base.historicalMultiples,
+          observations: [
+            {
+              ...observation,
+              price: null,
+              metrics: {
+                priceToEarnings: noHistory,
+                priceToSales: noHistory,
+                enterpriseValueToRevenue: noHistory,
+                priceToFreeCashFlow: noHistory,
+              },
             },
-          },
-          observation,
-        ],
-      },
-    });
+            observation,
+          ],
+        },
+      });
 
-    const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
+      const view = valuationWorkbenchView({ summary: summary(), valuationWorkbench: workbench });
 
-    expect(view?.rows).toHaveLength(1);
-    expect(view?.rows[0]?.price).toBe("200.00 USD · 2026-02-02");
-    expect(view?.unpricedPeriods).toEqual([`ANNUAL ${observation.periodEnd}`]);
-  });
+      expect(view?.rows).toHaveLength(1);
+      expect(view?.rows[0]?.price).toBe("200.00 USD · 2026-02-02");
+      expect(view?.unpricedPeriods).toEqual([`ANNUAL ${observation.periodEnd}`]);
+    },
+  );
 
   test("keeps missing-quote-currency observations in the console rows", () => {
     const base = valuationWorkbench();

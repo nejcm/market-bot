@@ -511,7 +511,11 @@ function validateMetricSectionsExtra(
     if (
       isRecord(metric) &&
       "cause" in metric &&
-      (metric.cause !== "not-filed" || metric.status !== "missing")
+      (typeof metric.cause !== "string" ||
+        !["not-filed", "insufficient-history", "outside-price-history-window"].includes(
+          metric.cause,
+        ) ||
+        metric.status !== "missing")
     ) {
       errors.push(
         `Metric Sections ${String(metric.id)} has cause ${JSON.stringify(metric.cause)} on a ${String(metric.status)} metric`,

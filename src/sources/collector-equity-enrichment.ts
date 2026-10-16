@@ -414,6 +414,9 @@ export async function collectEquityEnrichment(
       ? { valuationComps: valuationCompsResult.artifact }
       : {}),
     priceHistory: subjectHistory?.bars ?? [],
+    ...(subjectHistory?.requestedFrom === undefined
+      ? {}
+      : { priceHistoryRequestedFrom: subjectHistory.requestedFrom }),
     ...(subjectHistory === undefined ? {} : { priceSourceId: subjectHistory.sourceId }),
     ...(priceCurrency === undefined ? {} : { quoteCurrency: priceCurrency }),
     ...(businessFrameworkResult.extendedEvidence !== undefined

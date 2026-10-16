@@ -33,6 +33,7 @@ export interface BuildValuationWorkbenchInput {
   readonly financialStatements?: FinancialStatementsArtifact;
   readonly valuationComps?: ValuationCompsArtifact;
   readonly priceHistory: readonly Pick<OhlcvBar, "date" | "close">[];
+  readonly priceHistoryRequestedFrom?: string;
   readonly priceSourceId?: string;
   readonly quoteCurrency?: string;
   // Carried only to classify the issuer's industry; see depositoryIssuerSic.
@@ -114,6 +115,11 @@ function observation(
     symbol: input.symbol,
     period: periodInputs,
     price,
+    outsidePriceHistoryWindow:
+      input.priceHistoryRequestedFrom !== undefined &&
+      Date.parse(publicAt) + MAX_PRICE_ALIGNMENT_DAYS * DAY_MS <
+        Date.parse(input.priceHistoryRequestedFrom) &&
+      input.priceHistory.some(({ close }) => Number.isFinite(close) && close > 0),
     reportingCurrency,
     quoteCurrency: input.quoteCurrency,
     depositorySic,

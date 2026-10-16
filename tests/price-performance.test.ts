@@ -116,6 +116,15 @@ describe("Price Performance Metric Section", () => {
       "price-history-TEST",
       "price-history-SPY",
     ]);
+    expect(collected.priceHistory.map(({ requestedFrom }) => requestedFrom)).toEqual([
+      "2021-07-10",
+      "2021-07-10",
+    ]);
+    for (const source of collected.sources) {
+      expect(new URL(source.url!).searchParams.get("period1")).toBe(
+        String(Date.parse("2021-07-10") / 1000),
+      );
+    }
     const { section, sourceGaps } = evaluate(collected.priceHistory);
     expect(sourceGaps).toEqual([]);
     for (const [i, expected] of [0.2, 0.2, 0.6, 0.6, 1.4, 1.4].entries()) {

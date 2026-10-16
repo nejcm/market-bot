@@ -2100,7 +2100,12 @@ function assertValuationWorkbenchInvariants(
     expect(gap !== undefined).toBe(unresolved.length > 0);
     if (gap !== undefined) {
       expect(gap.triage).toBe(
-        unresolved.some(({ status, cause }) => status === "missing" && cause !== "not-filed")
+        unresolved.some(
+          ({ status, cause }) =>
+            status === "missing" &&
+            cause !== "not-filed" &&
+            cause !== "outside-price-history-window",
+        )
           ? "material"
           : "diagnostic",
       );
@@ -2126,6 +2131,15 @@ function assertValuationWorkbenchInvariants(
                 .status === "complete",
           )
           .map(({ date, value }) => ({ date, close: value }));
+  const historyUrl = run.report.sources.find(
+    ({ id }) => id === `price-history-${workbench!.symbol}`,
+  )?.url;
+  const requestedFrom =
+    historyUrl === undefined
+      ? undefined
+      : new Date(Number(new URL(historyUrl).searchParams.get("period1")) * 1000)
+          .toISOString()
+          .slice(0, 10);
   const filedFact = (input: MetricInput): FinancialStatementFact => {
     const series =
       statements === undefined
@@ -2256,6 +2270,15 @@ function assertValuationWorkbenchInvariants(
     }
     for (const key of WORKBENCH_METRICS) {
       const metric = metrics[key];
+      if (metric.status === "missing" && metric.reason === "price-history-unavailable") {
+        expect(metric.cause, `${label}.${key} classifies only proven out-of-window history`).toBe(
+          requestedFrom !== undefined &&
+            Date.parse(publicAt) + 7 * 86_400_000 < Date.parse(requestedFrom) &&
+            prices.length > 0
+            ? "outside-price-history-window"
+            : undefined,
+        );
+      }
       expect(metric.sourceIds.toSorted()).toEqual(
         [...new Set(metric.inputs.flatMap(({ sourceIds }) => sourceIds))].toSorted(),
       );

@@ -101,6 +101,7 @@ export async function collectPriceHistory(
           symbol: ticker,
           sourceId,
           priceMode: "split-adjusted-close" as const,
+          requestedFrom: from.toISOString().slice(0, 10),
           bars: mismatch ? [] : bars,
           ...(mismatch
             ? { reason: `Yahoo returned ${returnedSymbol} for ${ticker}` }

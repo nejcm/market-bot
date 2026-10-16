@@ -1210,7 +1210,7 @@ describe("Capital Return in report.json and report.md", () => {
     );
   });
 
-  test("a not-filed cause validates on a missing metric only", () => {
+  test("structural causes validate on missing metrics only", () => {
     const report = reportWith(context(usGaap({ PaymentsOfDividends: undefined })), [
       SOURCE_ID,
       QUOTE_SOURCE_ID,
@@ -1230,9 +1230,12 @@ describe("Capital Return in report.json and report.md", () => {
     });
 
     expect(() => validateResearchReport(report)).not.toThrow();
-    expect(() => validateResearchReport(forged("not-filed", "value"))).toThrow(
-      'buybacksLatestFy has cause "not-filed" on a value metric',
-    );
+    for (const cause of ["not-filed", "insufficient-history", "outside-price-history-window"]) {
+      expect(() => validateResearchReport(forged(cause, "missing"))).not.toThrow();
+      expect(() => validateResearchReport(forged(cause, "value"))).toThrow(
+        `buybacksLatestFy has cause "${cause}" on a value metric`,
+      );
+    }
     expect(() => validateResearchReport(forged("stale", "missing"))).toThrow(
       'has cause "stale" on a missing metric',
     );

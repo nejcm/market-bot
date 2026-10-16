@@ -22,7 +22,12 @@ import {
   readValuationWorkbenchArtifact,
   type ValuationWorkbenchArtifact,
 } from "../src/sources/extended-evidence/valuation-workbench-contract";
-import { renderValuationWorkbenchMarkdown } from "../src/report/valuation-workbench-markdown";
+import {
+  hasNoPriceHistory,
+  renderValuationWorkbenchMarkdown,
+} from "../src/report/valuation-workbench-markdown";
+import { validateResearchReport } from "../src/report/schema";
+import { collectPriceHistory } from "../src/sources/yahoo-price-history";
 import { renderMarkdownReport } from "../src/report/markdown";
 import { collectedSources, researchReport, reverseDcfWorkbench } from "./support/fixtures";
 
@@ -1193,6 +1198,128 @@ async function evaluateWorkbench(value: BuildValuationWorkbenchInput) {
     },
   });
 }
+
+test.each([
+  {
+    name: "before the requested window",
+    from: "2025-02-23",
+    bars: ["2025-03-01"],
+    structural: true,
+  },
+  {
+    name: "alignment window overlapping the requested start",
+    from: "2025-02-22",
+    bars: ["2025-03-01"],
+    structural: false,
+  },
+  {
+    name: "at the requested boundary without a bar",
+    from: "2025-02-15",
+    bars: ["2025-03-01"],
+    structural: false,
+  },
+  {
+    name: "inside the window before the first returned bar",
+    from: "2025-02-01",
+    bars: ["2025-03-01"],
+    structural: false,
+  },
+  {
+    name: "inside a history hole",
+    from: "2025-02-01",
+    bars: ["2025-02-01", "2025-03-01"],
+    structural: false,
+  },
+  { name: "history fetch failure", from: "2025-02-16", bars: [], structural: false },
+  { name: "unknown requested window", from: undefined, bars: ["2025-03-01"], structural: false },
+])("workbench price gaps: $name", async ({ from, bars, structural }) => {
+  const result = await evaluateWorkbench({
+    ...workbenchInput(),
+    ...(from === undefined ? {} : { priceHistoryRequestedFrom: from }),
+    priceHistory: bars.map((date) => ({ date, close: 20 })),
+  });
+  expect(result.artifact.historicalMultiples.observations).toHaveLength(1);
+  const observation = result.artifact.historicalMultiples.observations[0]!;
+  expect(observation.price).toBeNull();
+  for (const metric of Object.values(observation.metrics)) {
+    expect(metric).toMatchObject({ status: "missing", reason: "price-history-unavailable" });
+    expect(metric.cause).toBe(structural ? "outside-price-history-window" : undefined);
+    expect(metric.inputs.length).toBeGreaterThan(0);
+  }
+  expect(result.metricSections[0]?.metrics).toEqual(Object.values(observation.metrics));
+  expect(result.sourceGaps).toHaveLength(1);
+  expect(result.sourceGaps[0]?.triage).toBe(structural ? "diagnostic" : "material");
+  expect(hasNoPriceHistory(observation)).toBe(true);
+  expect(readValuationWorkbenchArtifact(result.artifact)?.historicalMultiples).toEqual(
+    result.artifact.historicalMultiples,
+  );
+  const report = researchReport({
+    predictions: [],
+    extras: { metricSections: result.metricSections },
+    sources: [
+      {
+        id: "filed",
+        title: "Filed inputs",
+        url: "https://example.com",
+        provider: "sec",
+        fetchedAt: result.artifact.generatedAt,
+        kind: "extended-evidence",
+      },
+    ],
+  });
+  expect(() => validateResearchReport(report)).not.toThrow();
+});
+
+test("failed price-history requests keep workbench gaps material", async () => {
+  const value = workbenchInput();
+  const { priceHistory } = await collectPriceHistory(
+    {
+      command: { jobType: "equity", assetClass: "equity", depth: "deep", symbol: "TEST" },
+      fetchedAt: "2031-06-01T00:00:00.000Z",
+      newsLimit: 0,
+      cryptoMoverLimit: 0,
+      request: {
+        json: async () => ({ source: "yahoo-price-history", message: "fetch failed" }),
+        text: async () => {
+          throw new Error("unexpected text request");
+        },
+      },
+    },
+    "TEST",
+  );
+  const history = priceHistory[0]!;
+  expect(history.reason).toBe("fetch failed");
+  const result = await evaluateWorkbench({
+    ...value,
+    priceHistory: history.bars,
+    priceSourceId: history.sourceId,
+    ...(history.requestedFrom === undefined
+      ? {}
+      : { priceHistoryRequestedFrom: history.requestedFrom }),
+  });
+  expect(result.sourceGaps[0]?.triage).toBe("material");
+  for (const metric of result.metricSections[0]!.metrics) {
+    expect(metric).toMatchObject({ status: "missing", reason: "price-history-unavailable" });
+    expect(metric.cause).toBeUndefined();
+  }
+});
+
+test("independent missing workbench inputs stay material outside the price window", async () => {
+  const value = workbenchInput();
+  const filedStatements = structuredClone(value.financialStatements!);
+  Object.assign(filedStatements.statements.balanceSheet.cash, { annual: [], interim: [] });
+  const result = await evaluateWorkbench({
+    ...value,
+    financialStatements: filedStatements,
+    priceHistoryRequestedFrom: "2025-03-01",
+    priceHistory: [{ date: "2025-03-01", close: 20 }],
+  });
+  expect(result.metricSections[0]?.metrics[0]?.cause).toBe("outside-price-history-window");
+  expect(
+    result.artifact.historicalMultiples.observations[0]?.metrics.enterpriseValueToRevenue,
+  ).toMatchObject({ status: "missing", reason: "cash-unavailable" });
+  expect(result.sourceGaps[0]?.triage).toBe("material");
+});
 
 test("valuation rows retain R5 basis, filed fundamentals and metric-local citations", async () => {
   const value = workbenchInput();

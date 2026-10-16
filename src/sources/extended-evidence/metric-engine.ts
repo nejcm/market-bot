@@ -13,7 +13,7 @@ import type { LensValueUnit } from "./value-format";
 
 type MetricStatus = "value" | "missing" | "not-meaningful" | "not-applicable";
 // Structural absence is diagnostic; provider failures leave the cause unset.
-type MetricMissingCause = "not-filed" | "insufficient-history";
+type MetricMissingCause = "not-filed" | "insufficient-history" | "outside-price-history-window";
 
 export interface MetricInput {
   readonly label: string;
@@ -78,6 +78,7 @@ export interface MetricContext {
     readonly sourceId: string;
     readonly currency?: string;
     readonly priceMode: "split-adjusted-close";
+    readonly requestedFrom?: string;
     readonly bars: readonly {
       readonly date: string;
       readonly close: number;
@@ -188,7 +189,10 @@ function sectionGap(
 ): SourceGap {
   const missing = unresolved.filter((metric) => metric.status === "missing");
   const material = missing.some(
-    (metric) => metric.cause !== "not-filed" && metric.cause !== "insufficient-history",
+    (metric) =>
+      metric.cause !== "not-filed" &&
+      metric.cause !== "insufficient-history" &&
+      metric.cause !== "outside-price-history-window",
   );
   const labelsByCause = new Map<string, string[]>();
   for (const metric of unresolved) {

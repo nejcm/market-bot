@@ -199,8 +199,11 @@ without pretending the project has a global security master.
   a metric reads raw inputs, never another metric's result. They persist in the deep bundle's
   `derived.metricSections` and are read through `report.extras.metricSections` in every layout.
   Amendment 2026-10-16: Capital Return and Operating Ratios emit missing rows and section Source
-  Gaps when statements are unavailable. Structural `not-filed` and issuer `insufficient-history`
-  causes are diagnostic; other missing inputs remain material. A lifecycle phase needs cited
+  Gaps when statements are unavailable. Structural `not-filed`, issuer `insufficient-history`,
+  and workbench `outside-price-history-window` causes are diagnostic; other missing inputs remain
+  material. The workbench uses the requested history start, requires usable returned closes, and
+  keeps `missing` / `price-history-unavailable`; missing bars inside the window and provider
+  failures stay material. Independent unresolved inputs keep their section material. A lifecycle phase needs cited
   classification inputs to emit a value. The issuer Yahoo history request is shared by Price
   Performance, the Valuation Workbench and the Verified Market Snapshot; the workbench and Price
   Performance consume the same completed split-adjusted closes and source IDs.

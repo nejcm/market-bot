@@ -58,6 +58,22 @@ Live runs cost real money and time — a deep equity run is ~12 minutes and ~438
 - **Never read or echo `.env`.** It holds live keys; `.env.example` has the names.
 - **Never kill a running CLI process.** The spend is already sunk; a killed run leaves only a hidden `data/.runs-<run-id>.partial` stage dir, never a run dir. Parallel runs are supported: run dirs publish whole, and score passes, calibration, index and history writes serialize on `data/shared-state.lock` (news-seen and learned-peer merges on their own `.lock` files). Source-provider rate limits are per process, so parallel runs double the request rate.
 
+### Fast iteration on real data
+
+Retest a change against saved run data instead of a fresh live run. Pick the narrowest tool that reaches the code you changed ([docs/testing.md](./docs/testing.md) has the full table):
+
+| Changed | Command | Cost |
+| --- | --- | --- |
+| Projection, report extras, Markdown renderer | `bun run scripts/rerun-report.ts <run-dir> --label <fresh>` — works on any past run | ms, offline |
+| Final-synthesis prompt or logic, post-synthesis audit | `bun run scripts/replay-stage.ts --input <run>/replay/final-synthesis-input.json --label <fresh>` — replays recorded model output, so it proves wiring, not model quality | <1 s, offline |
+| Parser, collection, normalization, any upstream stage | `bun run scripts/replay-fixture-run.ts <fixture-name \| <run>/replay>` — whole pipeline, strict cassettes | <1 s, offline |
+| Model quality of one stage | `bun run scripts/eval-deep.ts --fixtures <case> --live-stages <stage> --label <fresh>` (or `--input <file>` for synthesis) — only that stage is live; estimate first, `--yes` only with my approval | tokens for one stage |
+| Changed source request, or no capture exists | Fresh live run with `MARKET_BOT_CAPTURE_REPLAY=1` — costs a full run, then becomes a replay case | full run |
+
+- `<run>/replay/` exists only for runs made with `MARKET_BOT_CAPTURE_REPLAY=1`. Older runs support `rerun-report` only; they never stored request URLs or model identities.
+- Replay is strict: a missing or exhausted recording fails the sample and blocks later live calls. A miss after a parser or query change means the recorded request no longer matches — recapture, don't loosen replay.
+- Outputs go under `data/evals/<label>/` (fresh label each time) or a temp dir; original runs are never touched. Replays still don't replace `bun run check`.
+
 Always fine: `bun test`, `bun run check`, fixture replays without `--live`, `scripts/eval-deep.ts` / `replay-fixture-run.ts --live` without `--yes` (prints the plan only), `eval-deep.ts --compare`, reading anything under `data/runs/` or `data/evals/`.
 
 ## Data layout

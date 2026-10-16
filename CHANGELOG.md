@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0](https://github.com/nejcm/market-bot/compare/v1.3.0...v1.4.0) (2026-10-16)
+
+### Features
+
+- **replay:** iterate on real run data in seconds instead of 12-minute live runs (#105) ([4477fd4](https://github.com/nejcm/market-bot/commit/4477fd460cf364087bda190ffa3eaf30a627e4a4))
+
 ## [1.3.0](https://github.com/nejcm/market-bot/compare/v1.2.2...v1.3.0) (2026-10-16)
 
 ### Features

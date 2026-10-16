@@ -8,6 +8,7 @@ import {
   isMarketUpdateJobType,
   marketUpdateHorizonBucketOf,
   type AssetClass,
+  type Depth,
   type JobType,
 } from "../domain/job-type";
 import { type MarketSnapshot } from "../domain/market-data";
@@ -634,10 +635,10 @@ function comparableRunKey(run: HistoricalRunContext): string | undefined {
 function findForecastPersistenceBaseline(
   scan: ScanResult,
   report: ResearchReport,
+  depth: Depth,
 ): ForecastPersistenceBaseline | undefined {
   const key = comparableRunKeyWithoutDay(reportComparableKeyFields(report));
-  const depth = report.extras?.depth;
-  if (key === undefined || (depth !== "brief" && depth !== "deep")) {
+  if (key === undefined) {
     return undefined;
   }
   const currentMs = Date.parse(report.generatedAt);
@@ -892,14 +893,14 @@ export async function createHistoricalContextReader(
         buildHistoricalContext({ ...input, dataDir }, scan),
       ),
     findForecastPersistenceBaseline: (report) => {
+      const depth = report.extras?.depth;
+      if (depth !== "brief" && depth !== "deep") {
+        return undefined;
+      }
       const baseline = replayValueSync("forecast-persistence-baseline", () =>
-        findForecastPersistenceBaseline(scan, report),
+        findForecastPersistenceBaseline(scan, report, depth),
       );
-      return baseline !== undefined &&
-        (baseline.depth === "brief" || baseline.depth === "deep") &&
-        baseline.depth === report.extras?.depth
-        ? baseline
-        : undefined;
+      return baseline?.depth === depth ? baseline : undefined;
     },
   };
 }

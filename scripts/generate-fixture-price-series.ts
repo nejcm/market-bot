@@ -65,6 +65,7 @@ const FIXTURE_NAMES = [
 ] as const;
 const CHART_KEY_FRAGMENT = "/v8/finance/chart/";
 const SEED = 17;
+const BENCHMARK_SEED = 18;
 const DAILY_SIGMA = 0.0155;
 const TERMINAL_CLOSE = 216.6;
 const BAR_COUNT = 90;
@@ -118,8 +119,8 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function standardNormals(count: number): readonly number[] {
-  const random = mulberry32(SEED);
+function standardNormals(count: number, seed: number): readonly number[] {
+  const random = mulberry32(seed);
   return Array.from({ length: count }, () => {
     const u1 = Math.max(random(), NORMAL_U1_MIN);
     const u2 = random();
@@ -127,8 +128,8 @@ function standardNormals(count: number): readonly number[] {
   });
 }
 
-function generatePriceSeries(): PriceSeries {
-  const normals = standardNormals(BAR_COUNT * 2);
+function generatePriceSeries(seed: number): PriceSeries {
+  const normals = standardNormals(BAR_COUNT * 2, seed);
   // The normals[0] draw is intentionally unused because L[0] is fixed at zero; shifting indices changes every regenerated series.
   const logPath = [0];
   for (let index = 1; index < BAR_COUNT; index += 1) {
@@ -241,11 +242,16 @@ function assertAcceptance(series: PriceSeries, statistics: AcceptanceStatistics)
   );
 }
 
-function chartEntry(cassette: DataCassette, fixtureName: string): readonly [string, CassetteEntry] {
-  const matches = Object.entries(cassette.entries).filter(([key]) =>
-    key.includes(CHART_KEY_FRAGMENT),
+function chartEntry(
+  cassette: DataCassette,
+  fixtureName: string,
+  symbol: "issuer" | "SPY",
+): readonly [string, CassetteEntry] {
+  const matches = Object.entries(cassette.entries).filter(
+    ([key]) =>
+      key.includes(CHART_KEY_FRAGMENT) && key.includes("/chart/SPY?") === (symbol === "SPY"),
   );
-  invariant(matches.length === 1, `${fixtureName} must contain exactly one Yahoo chart entry`);
+  invariant(matches.length === 1, `${fixtureName} must contain exactly one ${symbol} chart entry`);
   const [match] = matches;
   invariant(match !== undefined, `${fixtureName} Yahoo chart entry is missing`);
   return match;
@@ -288,9 +294,15 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-const series = generatePriceSeries();
+const series = generatePriceSeries(SEED);
+const benchmarkSeries = generatePriceSeries(BENCHMARK_SEED);
 const statistics = acceptanceStatistics(series.close);
 assertAcceptance(series, statistics);
+assertAcceptance(benchmarkSeries, acceptanceStatistics(benchmarkSeries.close));
+invariant(
+  series.close.some((value, index) => value !== benchmarkSeries.close[index]),
+  "Benchmark price history must differ from the issuer history",
+);
 
 const fixtures = await Promise.all(
   FIXTURE_NAMES.map(async (fixtureName) => {
@@ -300,7 +312,7 @@ const fixtures = await Promise.all(
   }),
 );
 const sourceEntries = fixtures.map(({ fixtureName, cassette }) =>
-  chartEntry(cassette, fixtureName),
+  chartEntry(cassette, fixtureName, "issuer"),
 );
 const [sourceEntry] = sourceEntries;
 invariant(sourceEntry !== undefined, "At least one source chart entry is required");
@@ -309,25 +321,32 @@ invariant(
   sourceEntries.every(([, entry]) => entry.body === sourceBody),
   "Target fixture chart bodies must be identical before generation",
 );
-const body = generatedChartBody(sourceBody, series);
-
 await Promise.all(
   fixtures.map(async ({ fixtureName, path, raw, cassette }) => {
-    const [, existingEntry] = chartEntry(cassette, fixtureName);
-    const encodedExistingBody = JSON.stringify(existingEntry.body);
-    const encodedGeneratedBody = JSON.stringify(body);
-    const occurrences = raw.split(encodedExistingBody).length - 1;
-    invariant(
-      occurrences === 1,
-      `${fixtureName} chart body must occur exactly once in its cassette`,
-    );
-    await writeFile(path, raw.replace(encodedExistingBody, encodedGeneratedBody), "utf8");
+    let generatedRaw = raw;
+    for (const [symbol, prices] of [
+      ["issuer", series],
+      ["SPY", benchmarkSeries],
+    ] as const) {
+      const [, existingEntry] = chartEntry(cassette, fixtureName, symbol);
+      const encodedExistingBody = JSON.stringify(existingEntry.body);
+      invariant(
+        generatedRaw.split(encodedExistingBody).length - 1 === 1,
+        `${fixtureName} ${symbol} chart body must occur exactly once in its cassette`,
+      );
+      generatedRaw = generatedRaw.replace(
+        encodedExistingBody,
+        JSON.stringify(generatedChartBody(existingEntry.body, prices)),
+      );
+    }
+    await writeFile(path, generatedRaw, "utf8");
   }),
 );
 
 process.stdout.write(
   `${[
     `seed: ${String(SEED)}`,
+    `benchmark seed: ${String(BENCHMARK_SEED)}`,
     `annualized sigma: ${formatPercent(statistics.annualizedSigma)}`,
     `max single-session move: ${formatPercent(statistics.maxSingleSessionMove)}`,
     `5-session sigma: ${formatPercent(statistics.fiveSessionSigma)}`,

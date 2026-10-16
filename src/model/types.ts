@@ -20,6 +20,7 @@ export interface ModelParams {
 }
 
 export interface ModelRequest {
+  readonly stage?: string;
   readonly model: string;
   readonly messages: readonly ModelMessage[];
   readonly signal?: AbortSignal;

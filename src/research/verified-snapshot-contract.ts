@@ -1,5 +1,5 @@
 /**
- * Verified Market Snapshot report contract (ADR 0019).
+ * Verified Market Snapshot report contract (ADR 0004).
  *
  * Single home for everything Phase A.2 numeric verification must match:
  * the citeable Source ID, the report Source record, the prompt citation
@@ -60,7 +60,7 @@ export function forPrompt(snapshots: readonly MarketSnapshot[]): readonly Market
   );
 }
 
-/** Locked indicator key schema (ADR 0019). Phase A.2 matches these keys by name. */
+/** Locked indicator key schema (ADR 0004). Phase A.2 matches these keys by name. */
 export const INDICATOR_KEYS = [
   "ema10",
   "sma50",

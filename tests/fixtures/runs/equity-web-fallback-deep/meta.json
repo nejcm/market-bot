@@ -15,5 +15,6 @@
     "maxToolCalls": 5,
     "sourceBudget": 6
   },
-  "configuredProviders": ["exa", "finnhub", "firecrawl", "tradier"]
+  "configuredProviders": ["exa", "finnhub", "firecrawl", "tradier"],
+  "replayClassification": "missing-source"
 }

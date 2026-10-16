@@ -29,7 +29,7 @@ import {
   runSummaryMatchesFilters,
 } from "../src/run-artifact-projection";
 import { loadRunArtifact } from "../src/run-artifacts";
-import { RUN_ARTIFACT_FILES } from "../src/run-artifact-layout";
+import { RUN_ARTIFACT_FILES, isReplayCapturePath } from "../src/run-artifact-layout";
 import { isRecord, readNumber, readString, readStringArray } from "../src/guards";
 import { normalizePredictionShortfallReport } from "../src/report/prediction-shortfall";
 
@@ -256,7 +256,11 @@ function safeRunFilePath(
   }
 
   const normalizedPath = normalize(requestedPath).replace(/^([/\\])+/u, "");
-  if (normalizedPath === "." || normalizedPath.split(/[\\/]/u).includes("..")) {
+  if (
+    normalizedPath === "." ||
+    normalizedPath.split(/[\\/]/u).includes("..") ||
+    isReplayCapturePath(normalizedPath)
+  ) {
     return undefined;
   }
 
@@ -275,6 +279,9 @@ async function listArtifactFiles(runDir: string): Promise<readonly string[]> {
 
     for (const entry of entries) {
       const relativePath = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+      if (isReplayCapturePath(relativePath)) {
+        continue;
+      }
       const fullPath = join(dir, entry.name);
 
       if (entry.isDirectory()) {

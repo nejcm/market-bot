@@ -11,14 +11,15 @@ import {
   commandWithResolvedResearchSubject,
   resolveResearchSubject,
 } from "../src/research/research-subject-identity";
-import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
-import { createRecordingProvider } from "../tests/support/run-fixtures/llm-cassette";
+import { createRecordingFetch } from "../src/replay/data-cassette";
+import { createRecordingProvider } from "../src/replay/llm-cassette";
+import { assertNoSecretsInText } from "../src/replay/secret-scan";
 import {
   configuredFixtureProviders,
   createLiveFixtureConfig,
   type FixtureMeta,
 } from "../tests/support/run-fixtures";
-import { assertNoSecretsInText, knownSecretValues } from "./fixture-secret-scan";
+import { knownSecretValues } from "./fixture-secret-scan";
 
 function usage(): never {
   throw new Error(
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
     const configuredProviders = configuredFixtureProviders(liveConfig.sourceOptions);
     // Record under exactly the config replay rebuilds from meta.json, or the cassettes cannot replay.
     const meta: FixtureMeta & { readonly codeVersion: unknown } = {
+      replayClassification: "incomplete",
       now: now.toISOString(),
       argv,
       quickModel: liveConfig.quickModel,

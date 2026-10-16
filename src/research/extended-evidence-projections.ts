@@ -157,6 +157,10 @@ const EXTENDED_EVIDENCE_EXTRA_PROJECTORS: readonly ExtraProjector[] = [
   },
 ];
 
+export const EXTENDED_EVIDENCE_EXTRA_KEYS: ReadonlySet<string> = new Set(
+  EXTENDED_EVIDENCE_EXTRA_PROJECTORS.map((projector) => projector.key),
+);
+
 export const CODE_ASSEMBLED_EXTENDED_EVIDENCE_EXTRA_KEYS: ReadonlySet<string> = new Set(
   EXTENDED_EVIDENCE_EXTRA_PROJECTORS.flatMap((projector) =>
     projector.codeAssembledDigest === true ? [projector.key] : [],

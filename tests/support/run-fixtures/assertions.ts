@@ -1942,8 +1942,7 @@ export function assertDepositoryEnterpriseValueAbsent(result: RunFixtureResult):
   }
 }
 
-// BNS is the only recorded CAD-reporting, USD-quoted run; its real converted magnitudes are pinned as
-// An independent oracle (ADR 0007), loose enough for re-recording, tight enough to catch an inverted rate.
+// BNS conversions provide an independent oracle for inverted FX rates (ADR 0005).
 const CONVERTED_ROW = /converted at USD\/CAD /gu;
 const PINNED_CONVERSIONS = [
   { periodEnd: "2025-10-31", rate: 1.4, close: 70.55, pe: 98.77, ps: 123_264_963_232 },

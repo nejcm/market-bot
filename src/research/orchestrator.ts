@@ -1,3 +1,6 @@
+import { buildModelStageRequest } from "./model-stage-prompt";
+import { finalizeSynthesis } from "./finalize-synthesis";
+import { replayValue, captureSynthesisInput } from "../replay/session";
 import type { AppConfig } from "../config";
 import { readCodeVersion } from "../code-version";
 import { progress } from "../progress";
@@ -49,27 +52,22 @@ import {
   type PlaybookStage,
 } from "./playbooks";
 import { refreshCalibrationContext } from "./calibration-context";
-import { buildRecordedStageSteering, buildStagePrompt, type StageInput } from "./prompts";
 import { buildDepthProfileFromParams } from "./depth-profile";
 import type { ResearchContext } from "./research-context-types";
 import { buildSourceList } from "./report-assembly";
-import { rederivePredictionShortfallReportAfterPruning } from "../report/prediction-shortfall";
 import { validateResearchReport } from "../report/schema";
 import {
   runForecastDisagreement,
   type ForecastDisagreementArtifact,
   type ForecastDisagreementExtra,
 } from "./forecast-disagreement";
-import { reconcileEarningsForecastTelemetry } from "../forecast/earnings-eligibility";
-import { computeWebSourceUsage, runWebEvidencePhase } from "../web-evidence";
+import { runWebEvidencePhase } from "../web-evidence";
 import {
   loadAlphaWatchlistForSpotlights,
   type SpotlightCandidate,
   type SpotlightSelectionResult,
 } from "./spotlights";
 import { runMarketUpdatePhase } from "./market-update-phase";
-import { auditPostSynthesisReport } from "./post-synthesis-audit";
-import { auditReportIntegrity } from "./report-integrity-audit";
 import { normalizeCanonicalSourceGaps } from "./source-gap-normalization";
 import {
   currentIncompleteStatements,
@@ -206,46 +204,28 @@ async function runModelStage(
   const { job, collectedSources, context } = input;
   const priorStages = input.priorStages ?? [];
   const reprompt = input.reprompt ?? {};
-  const loaded = await loadStagePrompt(stage, job.command, job.config.promptDir);
-  const stageInput: StageInput = {
+  const { request, steering } = await buildModelStageRequest(stage, model, job.config.promptDir, {
     command: job.command,
     collectedSources,
-    config: job.config,
+    config: {
+      sourceOptions: {
+        equityMoverLimit: job.config.sourceOptions.equityMoverLimit,
+        cryptoMoverLimit: job.config.sourceOptions.cryptoMoverLimit,
+      },
+    },
     context,
-    loaded,
     priorStages,
     predictionRepromptErrors: reprompt.predictionErrors ?? [],
     reportValidationErrors: reprompt.reportValidationErrors ?? [],
     allowedSourceIds: reprompt.allowedSourceIds ?? [],
-  };
-  const prompt = buildStagePrompt(stage, stageInput);
+  });
   progress(`stage ${stage} → ${model}`);
   const startedAt = performance.now();
-  const modelParams =
-    stage === "final-synthesis"
-      ? context.runParams.synthesisModelParams
-      : context.runParams.quickModelParams;
-  const response = await job.provider.generate({
-    model,
-    ...(modelParams !== undefined ? { params: modelParams } : {}),
-    responseFormat: "json",
-    messages: [
-      {
-        role: "system",
-        content: withUntrustedModelInputRule(loaded.system),
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  });
+  const response = await job.provider.generate(request);
   const endedAt = performance.now();
   progress(
     `stage ${stage} done in ${((endedAt - startedAt) / 1000).toFixed(1)}s (~${String(response.tokenEstimate)} tok)`,
   );
-
-  const steering = buildRecordedStageSteering(stage, stageInput);
 
   return {
     stage,
@@ -484,7 +464,9 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   const generatedAt = now.toISOString();
   const completedAt = (): string => (input.endClock?.() ?? new Date()).toISOString();
   const runId = createRunId(now);
-  const calibrationContext = await refreshCalibrationContext(input.config.dataDir, now);
+  const calibrationContext = await replayValue("calibration", () =>
+    refreshCalibrationContext(input.config.dataDir, now),
+  );
   const runParams = resolveRunParams(command, input.config, input.runConfig);
   let { collectedSources } = input;
   const resolvedSubject = collectedSources.resolvedSubject ?? resolveResearchSubject(command);
@@ -710,18 +692,33 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
   progress("final synthesis");
   let synthesis: SynthesizeReportUntilValidResult;
   try {
-    synthesis = await synthesizeReportUntilValid({
+    const synthesisInput = {
       runId,
       generatedAt,
       command,
       collectedSources,
       context: playbookContext,
       sources,
-      knownSourceIds,
+      knownSourceIds: [...knownSourceIds],
       ...(equityAnalysisCompleteness !== undefined ? { equityAnalysisCompleteness } : {}),
-      ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
+      ...(allowedSubjects !== undefined ? { allowedSubjects: [...allowedSubjects] } : {}),
       priorStages: [...analysisOutputs, critiqueOutput],
       maxPredictionReprompts: MAX_PREDICTION_REPROMPTS,
+    };
+    captureSynthesisInput({
+      ...synthesisInput,
+      settings: {
+        sourceOptions: {
+          equityMoverLimit: input.config.sourceOptions.equityMoverLimit,
+          cryptoMoverLimit: input.config.sourceOptions.cryptoMoverLimit,
+        },
+      },
+    });
+    const { allowedSubjects: _savedSubjects, ...phaseInput } = synthesisInput;
+    synthesis = await synthesizeReportUntilValid({
+      ...phaseInput,
+      knownSourceIds,
+      ...(allowedSubjects !== undefined ? { allowedSubjects } : {}),
       runFinalSynthesis: (priorStages, reprompt) =>
         runModelStage("final-synthesis", runParams.synthesisModel, {
           job: jobInput,
@@ -807,25 +804,18 @@ export async function runResearchJob(input: RunResearchJobInput): Promise<RunRes
           sourceLedger: sourcePlanning.sourceLedger,
         })
       : undefined;
-  const postSynthesisWarnings = auditPostSynthesisReport(
-    synthesis.report,
-    computeWebSourceUsage(synthesis.report, collectedSources),
-  );
-  // Deterministic Report Integrity Audit: prune blocking violations from the
-  // Schema-valid synthesis output before forecast disagreement so pruned
-  // Predictions never reach challengers, persistence, or scoring.
-  const integrityAuditResult = auditReportIntegrity(synthesis.report, evidenceQualityAssessment);
-  const integrityAudit = {
-    ...integrityAuditResult,
-    report: rederivePredictionShortfallReportAfterPruning(integrityAuditResult.report),
-  };
-  const integrityReport = reconcileEarningsForecastTelemetry(integrityAudit.report);
+  // Prune before forecast disagreement so pruned Predictions never reach challengers.
+  const {
+    report: integrityReport,
+    postSynthesisWarnings,
+    integrityAudit,
+  } = finalizeSynthesis(synthesis, collectedSources, evidenceQualityAssessment);
   progress("forecast-disagreement phase");
   const forecastDisagreementPhase = await runForecastDisagreementPhase({
     jobInput,
     generatedAt,
     runParams,
-    report: validateResearchReport(integrityReport),
+    report: integrityReport,
   });
   const {
     report,

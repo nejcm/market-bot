@@ -2,6 +2,7 @@ import type { AppConfig } from "../config";
 import { resolveRunParams, type ResolvedRunParams } from "../config/runs";
 import type { ResearchCommand } from "../cli/args";
 import type { DepthProfile } from "./research-context-types";
+import type { StageSettings } from "./prompts/stage-envelope";
 
 export function buildDepthProfileFromParams(
   command: ResearchCommand,
@@ -26,7 +27,7 @@ export function buildDepthProfile(command: ResearchCommand, appConfig: AppConfig
 
 // Config-driven mover cap for the command's asset class. Shared so the orchestrator's
 // Market-update mover set matches the ranked movers handed to the model.
-export function moverLimitFor(command: ResearchCommand, config: AppConfig): number {
+export function moverLimitFor(command: ResearchCommand, config: StageSettings): number {
   return command.assetClass === "equity"
     ? config.sourceOptions.equityMoverLimit
     : config.sourceOptions.cryptoMoverLimit;

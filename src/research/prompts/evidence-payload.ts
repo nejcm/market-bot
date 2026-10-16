@@ -1,4 +1,4 @@
-import type { AppConfig } from "../../config";
+import type { StageSettings } from "./stage-envelope";
 import { isInstrumentCommand, type ResearchCommand } from "../../cli/args";
 import { rankMovers } from "../../movers/ranking";
 import type { VerifiedMarketSnapshot } from "../../domain/market-data";
@@ -249,7 +249,7 @@ export function buildEvidencePayload(
   options: EvidencePayloadOptions,
   command: ResearchCommand,
   allCollectedSources: CollectedSources,
-  config: AppConfig,
+  config: StageSettings,
   context: ResearchContext,
 ): Record<string, unknown> {
   // Single narrowing point: every projector below and the sourceGaps field at

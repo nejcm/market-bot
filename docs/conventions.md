@@ -27,7 +27,7 @@ and fixture recording.
 - Keep fixture harness helpers under `tests/support/run-fixtures/`; tests should only load fixtures,
   run them, and assert invariants.
 - Fixture replays assert invariants, never byte-exact output
-  ([ADR 0008](./adr/0008-replay-invariants-no-output-snapshots.md)). A behavior worth keeping gets
+  ([ADR 0005](./adr/0005-testing-and-replay.md)). A behavior worth keeping gets
   its own assertion.
 - Tests claiming to verify a producer/consumer contract must obtain producer-owned artifacts by
   calling the writer, not by hand-building an object literal matching the reader's expectations;

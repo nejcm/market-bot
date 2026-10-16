@@ -11,6 +11,11 @@
 export const NORMALIZED_DIR = "normalized";
 export const RAW_DIR = "raw";
 
+export function isReplayCapturePath(path: string): boolean {
+  const root = path.split(/[\\/]/u)[0] ?? "";
+  return root === "replay" || root === "capture-failure.json" || root.startsWith(".replay-");
+}
+
 // Canonical run-dir relative paths. One source of truth.
 // Values use forward slashes; node:path join accepts them on Windows too,
 // And the run-artifact index stores paths with forward slashes.

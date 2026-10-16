@@ -22,21 +22,24 @@ import {
   runFixture,
   type RunFixtureResult,
 } from "../support/run-fixtures";
-import { makeReplayProvider } from "../support/run-fixtures/llm-cassette";
+import { makeReplayProvider } from "../../src/replay/llm-cassette";
+import { countCassetteMisses, makeReplayFetch } from "../../src/replay/data-cassette";
 import { violatesResearchOnly } from "../../src/domain/research-language";
 import { validateResearchReport } from "../../src/report/schema";
 import { deriveFundamentalHistoryFromFinancialStatements } from "../../src/sources/extended-evidence/fundamental-history-canonical";
+import { deriveFinancialStatements } from "../../src/sources/extended-evidence/financial-statements";
 import { addFinancialLensEvidence } from "../../src/sources/extended-evidence/financial-lens";
 import { withCanonicalFinancialLensInputs } from "../../src/sources/extended-evidence/financial-lens-canonical";
 import { RUN_ARTIFACT_FILES } from "../../src/run-artifact-layout";
 import { renderMarkdownReport } from "../../src/report/markdown";
 import { projectExtendedEvidenceReportExtras } from "../../src/research/extended-evidence-projections";
 import { newsSource } from "../support/fixtures";
+import { splitAdjustedObservationsFromYahooChart } from "../../src/sources/yahoo";
 
 const EXPECTED_COMPLETENESS_GRADES = {
   "equity-aapl-brief": ["blocked", "limited"],
   "equity-aapl-deep": ["complete", "limited"],
-  "equity-earnings-release-deep": ["complete", "limited"],
+  "equity-earnings-release-deep": ["complete", "substantial"],
   "equity-nbis-deep": ["partial", "limited"],
   "equity-fpi-quarterly": ["complete", "limited"],
   "equity-fpi-ifrs-semiannual": ["complete", "limited"],
@@ -149,17 +152,29 @@ test("fixture invariants preserve quoted metric tokens and escape them in markdo
 });
 
 describe("static equity run fixtures", () => {
+  test("keeps the incomplete AMD recording outside the regression fixture roster", async () => {
+    const fixture = await loadFixture("equity-amd-deep");
+    expect(fixture.meta.replayClassification).toBe("incomplete");
+    expect(EQUITY_RUN_FIXTURES.some((name) => name === fixture.name)).toBe(false);
+  });
+
   for (const name of EQUITY_RUN_FIXTURES) {
     test(`${name} replays through the real equity pipeline`, async () => {
       const fixture = await loadFixture(name);
+      expect(fixture.meta.replayClassification).toMatch(/^(?:clean|missing-source)$/u);
       const modelRequests: ModelRequest[] = [];
       const modelOutputs: string[] = [];
+      const cassetteMisses: string[] = [];
       const replayProvider = makeReplayProvider(fixture.llmCassette);
       const injection: {
         metric?: { reference: string; value: string; sourceIds: readonly string[] };
       } = {};
       const result = await runFixture(name, {
         llm: "replay",
+        fetchImpl: countCassetteMisses(
+          makeReplayFetch(fixture.dataCassette, fixture.dir),
+          cassetteMisses,
+        ),
         provider: {
           name: replayProvider.name,
           generate: async (request: ModelRequest) => {
@@ -250,7 +265,25 @@ describe("static equity run fixtures", () => {
       });
       runResults.push(result);
 
+      expect(cassetteMisses, `${name} has unrecorded HTTP dependencies`).toEqual([]);
       await assertInvariants(result, fixture.meta, name);
+      const histories = result.collectedSources.rawSnapshots.filter(
+        ({ adapter }) => adapter === "yahoo-price-history",
+      );
+      const issuerHistory = histories.find(({ id }) => id.endsWith(`-${result.report.symbol}`));
+      const benchmarkHistory = histories.find(({ id }) => id.endsWith("-SPY"));
+      if (issuerHistory !== undefined && benchmarkHistory !== undefined) {
+        expect(
+          splitAdjustedObservationsFromYahooChart("SPY", benchmarkHistory.payload).map(
+            ({ value }) => value,
+          ),
+          `${name} benchmark price history must differ from the issuer history`,
+        ).not.toEqual(
+          splitAdjustedObservationsFromYahooChart(result.report.symbol!, issuerHistory.payload).map(
+            ({ value }) => value,
+          ),
+        );
+      }
       assertMetricPromptCatalog(result, fixture.meta, modelRequests);
       const injectedMetric = injection.metric;
       if (injectedMetric !== undefined) {
@@ -276,6 +309,20 @@ describe("static equity run fixtures", () => {
         assertDepositoryEnterpriseValueAbsent(result);
         assertCurrencyConvertedValuation(result);
         assertMarketRegimeRendered(result);
+      }
+      if (
+        ["equity-depository-deep", "equity-earnings-release-deep", "equity-nbis-deep"].includes(
+          name,
+        )
+      ) {
+        expect(result.collectedSources.sourceGaps).toContainEqual(
+          expect.objectContaining({
+            source: "yahoo-price-history",
+            symbol: "SPY",
+            cause: "fetch-failed",
+            message: expect.stringContaining("503"),
+          }),
+        );
       }
       if (name === "equity-fpi-quarterly") {
         expect(factTaxonomies(result)).toEqual(["us-gaap"]);
@@ -311,6 +358,13 @@ describe("static equity run fixtures", () => {
         expect(webSources.length).toBeGreaterThan(0);
         expect(webSources.every((source) => source.provider === "firecrawl")).toBe(true);
         expect(result.deepEquityEvidenceBundle?.evidence.webSubjectProfile).toBeDefined();
+        expect(result.analytics.providerEndpointAvailability).toMatchObject({
+          exaSearch: { status: "degraded" },
+          firecrawlSearch: { status: "available" },
+        });
+        expect(
+          result.collectedSources.sourceGaps.filter(({ source }) => source === "exa-search"),
+        ).toEqual([]);
       }
       if (fixture.meta.argv.includes("--deep")) {
         expect(result.deepEquityEvidenceBundle).toMatchObject({
@@ -365,6 +419,36 @@ describe("static equity run fixtures", () => {
       }
     });
   }
+
+  test("saved FPI companyfacts retain quarterly revenue and TTM through the parser and history projection", async () => {
+    const fixture = await loadFixture("equity-fpi-quarterly");
+    const entry = Object.entries(fixture.dataCassette.entries).find(([key]) =>
+      key.includes("/companyfacts/"),
+    )?.[1];
+    expect(entry?.status).toBe(200);
+    const statements = deriveFinancialStatements(JSON.parse(entry!.body), {
+      symbol: "FPIQ",
+      generatedAt: fixture.meta.now,
+      analysisAsOf: fixture.meta.now,
+      sourceId: "extended-sec-edgar-fpiq-fundamentals",
+    });
+    const { revenue } = statements.statements.incomeStatement;
+    expect(statements.interimCadence).toBe("quarterly");
+    expect(revenue.interim.at(-1)).toMatchObject({
+      value: 420_000_000,
+      form: "6-K",
+      periodStart: "2026-01-01",
+      periodEnd: "2026-03-31",
+      sourceIds: [statements.sourceId],
+    });
+    expect(revenue.ttm).toMatchObject({
+      value: 1_620_000_000,
+      formula: "FY + latest-YTD - prior-YTD",
+      sourceIds: [statements.sourceId],
+    });
+    const history = deriveFundamentalHistoryFromFinancialStatements(statements);
+    expect(history.series.revenue?.ttm?.value).toBe(1_620_000_000);
+  });
 
   test("deep equity markdown partitions the reader block from preserved appendix detail", async () => {
     const name = "equity-analysis-comprehensive";

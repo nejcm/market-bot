@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  canonicalRequestUrl,
   isAccessionDocumentRequest,
   makeCacheKeyForTest,
   pruneCache,
@@ -17,6 +18,10 @@ const yesterday = "2026-05-19";
 
 function makeNow(date: string): () => Date {
   return () => new Date(`${date}T12:00:00.000Z`);
+}
+
+function massiveNewsUrl(apiKey: string): string {
+  return `https://api.massive.com/v2/reference/news?apiKey=${apiKey}&limit=15&ticker=AAPL`;
 }
 
 function makeFetchResult(
@@ -69,6 +74,15 @@ afterEach(() => {
 });
 
 describe("withCache", () => {
+  test("cache keys ignore credential query values so a rotated credential reuses the same entry", async () => {
+    expect(await cacheKey(massiveNewsUrl("live-secret"), "massive-news")).toBe(
+      await cacheKey(massiveNewsUrl("fixture-token"), "massive-news"),
+    );
+    expect(canonicalRequestUrl(massiveNewsUrl("fixture-token"))).toBe(
+      "https://api.massive.com/v2/reference/news?limit=15&ticker=AAPL",
+    );
+  });
+
   test("miss calls inner and writes a cache file", async () => {
     let calls = 0;
     const inner = async () => {

@@ -1,6 +1,15 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, basename } from "node:path";
+import { withRunCapture } from "../../../src/replay/capture";
+import {
+  withReplaySession,
+  assertReplayStateComplete,
+  type ReplayState,
+} from "../../../src/replay/session";
+import { assertCaptureSettings, type CaptureSettings } from "../../../src/replay/settings";
+import { isRecord } from "../../../src/guards";
+import { readRecordedBody } from "../../../src/replay/body-file";
 import { parseArgs, type ResearchCommand } from "../../../src/cli/args";
 import { resolveConfig, type AppConfig } from "../../../src/config";
 import { createProvider } from "../../../src/model/factory";
@@ -16,10 +25,23 @@ import {
   resolveResearchSubject,
 } from "../../../src/research/research-subject-identity";
 import { buildSourcePlan } from "../../../src/research/source-plan";
-import { makeReplayFetch, type DataCassette } from "./data-cassette";
-import { makeReplayProvider, type LlmCassette } from "./llm-cassette";
+import {
+  countCassetteMisses,
+  makeReplayFetch,
+  type DataCassette,
+} from "../../../src/replay/data-cassette";
+import {
+  makeReplayProvider,
+  ModelReplayError,
+  type LlmCassette,
+} from "../../../src/replay/llm-cassette";
 
 export interface FixtureMeta {
+  readonly command?: ResearchCommand;
+  readonly captureVersion?: 1;
+  readonly settings?: CaptureSettings;
+  readonly retryDelaysMs?: readonly number[];
+  readonly replayClassification: "clean" | "missing-source" | "incomplete";
   readonly now: string;
   readonly argv: readonly string[];
   readonly quickModel?: string;
@@ -57,9 +79,12 @@ export interface LoadedFixture {
   readonly dataCassette: DataCassette;
   readonly llmCassette: LlmCassette;
   readonly meta: FixtureMeta;
+  readonly state?: ReplayState;
 }
 
 export interface RunFixtureOptions {
+  readonly capture?: boolean;
+  readonly pacing?: boolean;
   readonly llm: "replay" | "live";
   readonly keepDataDir?: boolean;
   readonly dataDir?: string;
@@ -102,14 +127,70 @@ function researchCommand(argv: readonly string[]): ResearchCommand {
   throw new Error(`Fixture command must be a research run: ${argv.join(" ")}`);
 }
 
+function isStateEntry(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.count === undefined ||
+      (typeof value.count === "number" && Number.isSafeInteger(value.count) && value.count > 0))
+  );
+}
+
 export async function loadFixture(name: string): Promise<LoadedFixture> {
-  const dir = join(FIXTURE_ROOT, name);
+  const dir = name.includes("/") ? resolve(name) : join(FIXTURE_ROOT, name);
+  const meta = await readJson<FixtureMeta>(join(dir, "meta.json"));
+  if (
+    meta.captureVersion !== undefined &&
+    (meta.captureVersion !== 1 || meta.settings === undefined || meta.command === undefined)
+  ) {
+    throw new Error("Invalid capture metadata/version");
+  }
+  const state =
+    meta.captureVersion === undefined
+      ? undefined
+      : await readJson<ReplayState>(join(dir, "state.json"));
+  if (
+    state !== undefined &&
+    (!isRecord(state) ||
+      !isRecord(state.values) ||
+      !Object.values(state.values).every(
+        (rows) => Array.isArray(rows) && rows.every((row) => isStateEntry(row)),
+      ))
+  ) {
+    throw new Error("Invalid capture state");
+  }
+  if (state !== undefined) {
+    await Promise.all(
+      Object.values(state.values).map(async (rows) => {
+        await Promise.all(
+          rows.map(async (row, index) => {
+            if ("bodyFile" in row) {
+              if (
+                typeof row.bodyFile !== "string" ||
+                !("sha256" in row) ||
+                typeof row.sha256 !== "string"
+              ) {
+                throw new Error("Invalid state body reference");
+              }
+              const value: unknown = JSON.parse(
+                await readRecordedBody(dir, row.bodyFile, row.sha256),
+              );
+              if (!isStateEntry(value)) {
+                throw new Error("Invalid state body");
+              }
+              rows[index] = value as ReplayState["values"][string][number];
+            }
+          }),
+        );
+      }),
+    );
+  }
   return {
-    name,
+    name: basename(dir),
     dir,
     dataCassette: await readJson<DataCassette>(join(dir, "data-cassette.json")),
     llmCassette: await readJson<LlmCassette>(join(dir, "llm-cassette.json")),
-    meta: await readJson<FixtureMeta>(join(dir, "meta.json")),
+    meta,
+    ...(state === undefined ? {} : { state }),
   };
 }
 
@@ -145,6 +226,25 @@ export function createFixtureConfig(meta: FixtureMeta, dataDir: string): AppConf
       ? (({ secUserAgent: _secUserAgent, ...rest }) => rest)(config.sourceOptions)
       : config.sourceOptions;
   const configuredProviders = new Set(meta.configuredProviders);
+  const { settings } = meta;
+  if (settings !== undefined) {
+    assertCaptureSettings(settings);
+    return {
+      ...config,
+      ...settings,
+      dataDir,
+      promptDir: config.promptDir,
+      captureReplay: false,
+      sourceOptions: {
+        ...config.sourceOptions,
+        ...settings.sourceOptions,
+        ...Object.fromEntries(settings.configuredProviders.map((key) => [key, "fixture-token"])),
+        cacheDir: join(dataDir, "..", "cache"),
+        newsSeenPath: join(dataDir, "..", "news-seen.json"),
+        peerUniverseLearnedPath: join(dataDir, "..", "peer-universe-learned.json"),
+      },
+    };
+  }
   return {
     ...config,
     sourceOptions: {
@@ -258,45 +358,114 @@ export async function runFixture(
   const resolvedOptions = options ?? { llm: "replay" };
   const fixture = await loadFixture(name);
   const { dataDir: requestedDataDir } = resolvedOptions;
-  const { dataDir, tempRoot } = await fixtureDataDir(name, requestedDataDir);
-  const config = fixtureConfig(fixture.meta, dataDir, resolvedOptions.llm);
+  const { dataDir, tempRoot } = await fixtureDataDir(fixture.name, requestedDataDir);
+  const config = {
+    ...fixtureConfig(fixture.meta, dataDir, resolvedOptions.llm),
+    captureReplay: resolvedOptions.capture === true,
+  };
+  const httpMisses: string[] = [];
+  const modelMisses: string[] = [];
   const fetchImpl = observedFetch(
-    resolvedOptions.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
+    countCassetteMisses(
+      resolvedOptions.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
+      httpMisses,
+    ),
     resolvedOptions.onDataRequest,
   );
-  const provider =
+  const baseProvider =
     resolvedOptions.provider ??
     (resolvedOptions.llm === "replay"
       ? makeReplayProvider(fixture.llmCassette)
       : createProvider(config));
-  const rawCommand = researchCommand(fixture.meta.argv);
+  const provider: ModelProvider = {
+    ...baseProvider,
+    generate: async (request) => {
+      assertReplayStateComplete();
+      if (httpMisses.length > 0) {
+        throw new Error(`Refusing model call after HTTP replay failure: ${httpMisses[0]}`);
+      }
+      try {
+        return await baseProvider.generate(request);
+      } catch (error) {
+        if (error instanceof ModelReplayError) {
+          modelMisses.push(error.message);
+        }
+        throw error;
+      }
+    },
+  };
+  const rawCommand = fixture.meta.command ?? researchCommand(fixture.meta.argv);
   const resolvedSubject = resolveResearchSubject(rawCommand);
   const command = commandWithResolvedResearchSubject(rawCommand, resolvedSubject);
   const now = new Date(fixture.meta.now);
   const sourcePlan = buildSourcePlan(command, now.toISOString(), resolvedSubject);
-  const collectedSources = await collectSources(command, config.sourceOptions, {
-    now,
-    fetchImpl,
-    retryDelaysMs: [],
-    ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
-    peerUniverse: {
-      provider,
-      model: config.quickModel,
-      cachePath:
-        config.sourceOptions.peerUniverseLearnedPath ?? join(dataDir, "..", "peer-universe.json"),
+  const failures: string[] = [];
+  const retryDelaysMs =
+    fixture.meta.retryDelaysMs ?? (fixture.state === undefined ? [] : undefined);
+  const run = () =>
+    withRunCapture(
+      {
+        command,
+        config,
+        provider,
+        now,
+        fetchImpl,
+        ...(retryDelaysMs === undefined ? {} : { retryDelaysMs }),
+      },
+      async (runtime) => {
+        const collectedSources = await collectSources(command, config.sourceOptions, {
+          now,
+          fetchImpl: runtime.fetchImpl,
+          ...(retryDelaysMs === undefined ? {} : { retryDelaysMs }),
+          ...(fixture.state !== undefined &&
+          command.jobType === "equity" &&
+          command.depth === "deep"
+            ? {
+                collectTradierTermStructure:
+                  config.sourceOptions.tradierApiToken !== undefined &&
+                  config.evidenceRequestOptions.maxRounds > 0 &&
+                  config.evidenceRequestOptions.maxToolCalls > 0 &&
+                  config.evidenceRequestOptions.sourceBudget > 0,
+              }
+            : {}),
+          ...(resolvedSubject !== undefined ? { resolvedSubject } : {}),
+          peerUniverse: {
+            provider: runtime.provider,
+            model: config.quickModel,
+            cachePath:
+              config.sourceOptions.peerUniverseLearnedPath ??
+              join(dataDir, "..", "peer-universe.json"),
+          },
+        });
+        const result = await persistResearchJob({
+          command,
+          config,
+          provider: runtime.provider,
+          collectedSources,
+          sourcePlan,
+          now,
+          endClock: () => now,
+          sourceFetchImpl: runtime.fetchImpl,
+          ...(retryDelaysMs === undefined ? {} : { sourceRetryDelaysMs: retryDelaysMs }),
+        });
+        return result;
+      },
+    );
+  const result = await withReplaySession(
+    {
+      mode: fixture.state === undefined ? "offline" : "replay",
+      state: fixture.state ?? { values: {} },
+      indexes: new Map(),
+      failures,
+      offline: resolvedOptions.pacing !== true,
     },
-  });
-  const result = await persistResearchJob({
-    command,
-    config,
-    provider,
-    collectedSources,
-    sourcePlan,
-    now,
-    endClock: () => now,
-    sourceFetchImpl: fetchImpl,
-    sourceRetryDelaysMs: [],
-  });
+    run,
+  );
+  if (httpMisses.length > 0 || modelMisses.length > 0 || failures.length > 0) {
+    throw new Error(
+      `Fixture replay incomplete: ${[...httpMisses, ...modelMisses, ...failures].join("; ")}`,
+    );
+  }
   return {
     ...result,
     dataDir,

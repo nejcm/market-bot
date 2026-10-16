@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { dataCassetteKey, type DataCassette } from "../tests/support/run-fixtures/data-cassette";
+import { dataCassetteKey, type DataCassette } from "../src/replay/data-cassette";
 import type { FixtureMeta } from "../tests/support/run-fixtures";
 
 interface CassetteEntry {
@@ -334,6 +334,7 @@ async function writeSyntheticFpi(profile: SyntheticFpiProfile): Promise<void> {
   const dir = join(FIXTURE_ROOT, profile.fixtureName);
   await mkdir(dir, { recursive: true });
   const meta: FixtureMeta = {
+    replayClassification: "incomplete",
     now: NOW,
     argv: ["equity", profile.symbol, "--deep"],
     quickModel: "fixture-quick",

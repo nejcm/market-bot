@@ -1,3 +1,4 @@
+import { replayValue } from "../replay/session";
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { writeFileAtomic } from "../artifacts";
@@ -231,17 +232,19 @@ function readEntry(value: unknown): PeerUniverseLearnedEntry | undefined {
 }
 
 async function readIndex(path: string): Promise<readonly PeerUniverseLearnedEntry[]> {
-  try {
-    const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed.entries) || parsed.version !== CACHE_VERSION) {
+  return replayValue("learned-peers", async () => {
+    try {
+      const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+      if (!isRecord(parsed) || !Array.isArray(parsed.entries) || parsed.version !== CACHE_VERSION) {
+        return [];
+      }
+      return parsed.entries
+        .map(readEntry)
+        .filter((e): e is PeerUniverseLearnedEntry => e !== undefined);
+    } catch {
       return [];
     }
-    return parsed.entries
-      .map(readEntry)
-      .filter((e): e is PeerUniverseLearnedEntry => e !== undefined);
-  } catch {
-    return [];
-  }
+  });
 }
 
 async function writeIndex(path: string, index: PeerUniverseLearnedIndex): Promise<void> {

@@ -4,7 +4,7 @@ import {
   dataCassetteKey,
   makeReplayFetch,
   type DataCassette,
-} from "./support/run-fixtures/data-cassette";
+} from "../src/replay/data-cassette";
 
 const QUOTE = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=BNS";
 

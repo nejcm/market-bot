@@ -1,3 +1,4 @@
+import { replayValue } from "../replay/session";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { isInstrumentJobType, type AssetClass } from "../domain/job-type";
@@ -155,18 +156,20 @@ export async function loadAlphaWatchlistForSpotlights(dataDir: string): Promise<
   readonly watchlist?: SpotlightAlphaWatchlist;
   readonly gap?: string;
 }> {
-  try {
-    const parsed = JSON.parse(await readFile(alphaWatchlistPath(dataDir), "utf8")) as unknown;
-    const watchlist = parseAlphaWatchlistForSpotlights(parsed);
-    return watchlist === undefined
-      ? { gap: "Malformed alpha-search watchlist ignored for spotlight enrichment" }
-      : { watchlist };
-  } catch (error) {
-    if (isRecord(error) && error.code === "ENOENT") {
-      return {};
+  return replayValue("alpha-watchlist", async () => {
+    try {
+      const parsed = JSON.parse(await readFile(alphaWatchlistPath(dataDir), "utf8")) as unknown;
+      const watchlist = parseAlphaWatchlistForSpotlights(parsed);
+      return watchlist === undefined
+        ? { gap: "Malformed alpha-search watchlist ignored for spotlight enrichment" }
+        : { watchlist };
+    } catch (error) {
+      if (isRecord(error) && error.code === "ENOENT") {
+        return {};
+      }
+      return { gap: "Unable to read alpha-search watchlist for spotlight enrichment" };
     }
-    return { gap: "Unable to read alpha-search watchlist for spotlight enrichment" };
-  }
+  });
 }
 
 function sourceIds(snapshot: MarketSnapshot): readonly string[] {

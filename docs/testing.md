@@ -15,6 +15,70 @@ bun run fmt:check
 bun run check            # fmt + lint + fmt:check + typecheck + knip + app:build + test:coverage
 ```
 
+## Choosing the iteration loop
+
+| Change to exercise                                       | Use                                                                                                                | Inputs and scope                                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Parser, calculation, small deterministic rule            | Module test                                                                                                        | Small saved provider input; fastest behavioral assertion                    |
+| Evidence projection, report extra or Markdown            | `scripts/rerun-report.ts <run-id-or-path> --label <fresh>`                                                         | Saved normalized evidence plus `report.json`; zero network/model            |
+| Final-synthesis prompt construction, retries or assembly | `scripts/replay-stage.ts --input <file> --label <fresh>`                                                           | Final-Synthesis Input; strict recorded responses, current prompts/playbooks |
+| Collection and downstream integration                    | `scripts/replay-fixture-run.ts <name-or-capture-directory>`                                                        | Whole pipeline, HTTP/model cassettes, isolated state, no pacing             |
+| Selected model behavior                                  | `scripts/eval-deep.ts --fixtures <case> --live-stages <stage> --label <fresh>` or `--input <file> --label <fresh>` | Estimate-only first; an approved batch uses the existing approval flag      |
+| Changed source request or unavailable recording          | Explicitly authorized fresh research run                                                                           | Fresh acquisition; enable capture for subsequent offline iteration          |
+
+`bun run check` remains the final verification gate. Replayed model responses prove wiring and
+contract behavior, not model quality after a prompt change.
+
+### Capturing a future authorized run
+
+Set `MARKET_BOT_CAPTURE_REPLAY=1` for an already-authorized research run. This adds no source/model
+calls. A successful capture publishes `<run>/replay/{meta,data-cassette,llm-cassette,state}.json`,
+`final-synthesis-input.json` and any large hashed bodies under `bodies/`. It records ordered HTTP
+failures and every model boundary, plus the actual consumed cache/news-seen/learned-peer/history,
+Calibration, profile-reuse, alpha and circuit state. Circuit decisions use per-host run-length
+sequences, retaining transitions and exact invocation counts without one state row per URL.
+The ordinary report stays unchanged.
+Configured SEC contact identities, local paths and credentials are redacted at recording boundaries;
+auth headers are excluded, with the existing
+fixture-secret scan as the publication gate. If capture fails, use the research report normally;
+`capture-failure.json` means no ready replay capture was published; handled failures remove only
+their own private staging directory and leave research artifacts intact. Partial capture directories
+are not supported cases. No capture is written with the flag off.
+
+```sh
+bun run scripts/replay-fixture-run.ts /absolute/run/replay
+bun run scripts/rerun-report.ts /absolute/run --label projection-case
+bun run scripts/replay-stage.ts --input /absolute/run/replay/final-synthesis-input.json --label synthesis-case
+bun run scripts/eval-deep.ts --input /absolute/run/replay/final-synthesis-input.json --label synthesis-eval
+```
+
+The final command prints an offline planning estimate and spends nothing without the existing
+approval flag. It reserves bounded synthesis repair attempts with 25% headroom; estimates are not
+provider cost caps. Tests inject fake providers and never invoke a spending script or approval flag.
+
+Direct scripts write only fresh `data/evals/<label>/` directories and reject live flags; they never
+refresh production Calibration/history/index/news-seen state. Their `eval-sample.json` declares
+partial scope, duration, call counts and errors. Stage replay also stores current requests,
+validated report/Markdown, synthesis attempts, audit diagnostics, token groups and semantic fact
+deltas against the captured baseline; failures exit nonzero. Direct-input eval summaries have
+phase-only scope; inspect their per-sample facts rather than the pipeline-only `--compare` view.
+Report Rerun recomputes projections/renderers from stored derived evidence, not the original
+collector calculations. Missing required normalized inputs fail; explicit null retains absence.
+Older runs without a complete Final-Synthesis Input cannot use direct stage replay. Direct replay
+supports only final synthesis, excludes challenger calls and does not fabricate trace/analytics
+for a completed run. Pipeline capture replay still includes recorded challengers.
+
+Captured cases can be passed as directories to `--fixtures` for pipeline eval. The harness restores
+captured effective settings with placeholder credentials and isolated paths. HTTP/model/state
+misses never enable network access and fail the sample even if production catches them. Large
+body paths and hashes are checked before use. New source queries may require a new capture.
+
+Offline wall times on 2026-10-16: `equity-aapl-deep` 14.145 s before harness pacing removal,
+0.170 s after; realistic `equity-depository-deep` 12.257 s before, 0.312 s after. These are single
+local measurements including Bun startup, not live-quality or provider-speed claims. The Console
+report/workspace is unchanged. Its artifact file browser and index file-list projection exclude
+capture directories, private partial captures and capture-failure markers through a shared filter.
+
 ## Unused-code gate
 
 `bun run knip` is the unused-code gate. It reports nothing today because the repo is clean on the
@@ -93,7 +157,7 @@ Each fixture contains:
 - `meta.json` — pinned run config, clock, command, and model settings.
 
 Replays assert invariants, not byte-exact output
-([ADR 0008](./adr/0008-replay-invariants-no-output-snapshots.md)). Every fixture in
+([ADR 0005](./adr/0005-testing-and-replay.md)). Every fixture in
 `tests/equity-fixture/run.test.ts` must complete with a readable `report.json` and no
 `failure.json`, persist exactly what the run generated (report, Markdown, analytics, outcomes,
 evidence bundle), validate the persisted report against the report schema, pass the research-language gate, resolve every
@@ -139,7 +203,7 @@ code that every check in this repo will pass. The `SecFilingForm` export in
 
 An automated mutation runner was considered and rejected. Its output is noisy by construction:
 equivalent mutants that change nothing observable read as failures, and a check that cries wolf gets
-suppressed. No mutation framework is added as a dependency either; [ADR 0002](./adr/0002-typescript-bun-orchestration.md)
+suppressed. No mutation framework is added as a dependency either; [ADR 0002](./adr/0002-platform-and-persistence.md)
 fixes this repo on Bun and oxc, which rules out the Node-based options. The manual version above is
 what actually found the real defects, and it takes minutes.
 
@@ -167,6 +231,10 @@ With `--yes` this writes a run under `data/evals/replay-live-<timestamp>/<fixtur
 as normal CLI runs, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Codex login depending on
 `MARKET_BOT_PROVIDER`. It does not refresh checked-in fixture cassettes.
 
+Offline replay also writes `eval-sample.json` and `summary.json` under its retained temporary root.
+Both scripts exit nonzero for any non-completed sample after writing diagnostics and the summary.
+Unused recorded responses alone do not fail a conditional replay.
+
 The replay command accepts exactly one fixture name and the optional `--live` flag (plus `--yes`).
 
 ## Frozen-input evals
@@ -180,15 +248,60 @@ bun run scripts/eval-deep.ts --compare base branch
 MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label <arm> --live-stages final-synthesis
 ```
 
-`--live-stages final-synthesis` keeps final synthesis live and replays every upstream stage from
-the fixture's LLM cassette by stage name, so arms compare synthesis models on identical upstream
-outputs; replayed stage durations are zeroed in the live prompt so it is byte-identical across
-samples. A missing or exhausted upstream cassette entry throws, and because some stages swallow
-that error, any replay miss also refuses every later live call so the sample fails before spending.
-The estimate reserves the maximum final-synthesis call count (initial, prediction reprompts, report
-retries) at the larger of the biggest recorded synthesis call and ~50k tokens. Only recorded
-fixtures (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real
-upstream outputs.
+`--live-stages <stage>` selects exactly one audited stage per batch. Supported names:
+`specialist-analysis`, `instrument-evidence-analysis`, `market-behavior-analysis`,
+`regime-context-analysis`, `mover-theme-analysis`, `critique`, `final-synthesis`,
+`web-gather`, `web-subject-profile`, `evidence-request`, `financial-table-mapping`,
+`forecast-disagreement`, and `spotlight-selection`. Unknown names, comma-separated lists,
+and peer-universe proposal are rejected before provider creation. Omitting the selector keeps
+the existing whole-live evaluation. No selector was added to `replay-fixture-run.ts`.
+
+For example, this invocation only plans a critique evaluation:
+
+```sh
+bun run scripts/eval-deep.ts --fixtures equity-depository-deep --label critique-arm --live-stages critique
+```
+
+The selected stage uses current production prompt construction and every invocation of that stage
+is live, including its phase-bounded loops/repairs and all challenger models for
+`forecast-disagreement`. Every other model call uses strict LLM Cassette replay by exact
+stage/model, falling back to stage alone only when exactly one model was recorded. A missing,
+ambiguous, or exhausted recording fails replay. Requests without a stage identity (including
+peer-universe proposal) remain unsupported. A skipped or disabled selected stage produces
+`not-exercised`, never successful stage evaluation.
+
+This is pipeline execution with selected-stage evaluation, not direct phase replay. When changing
+an upstream stage, downstream model reasoning stays recorded: a valid final report does not prove
+those models reasoned about the changed output. Deterministic consumers still execute. This scope
+is printed before spending and stored in `eval-sample.json`, `summary.json`, and compare output.
+`priorStages[].durationMs` is zeroed wherever that array exists; bespoke prompts without it retain
+their own shape. Final-synthesis prompts still require the array. The audited prompts need no
+other wall-clock-field freezing.
+
+Adaptive Web Gather/evidence evaluations are constrained to recorded source requests. Changed
+queries, URLs, or request bodies must match the Data Cassette. Unseen requests invalidate the
+sample and block subsequent model calls, even if production recovers; they never enable live
+source fetching. Recorded HTTP failures such as a 403 remain valid inputs and ordinary Source
+Gaps. Already-started concurrent calls are not cancelled.
+
+Before selected-stage spending, planning executes one strict offline pipeline preflight per
+fixture in disposable temporary state with index access disabled. It measures current selected
+prompt sizes (characters/4, an approximation) and counts reached calls. Strict preflight failures
+stop planning before live provider creation. The estimate reserves the phase's bounded attempts:
+seven for final synthesis, configured rounds for Web Gather/evidence loops, configured challenger
+count for Forecast Disagreement, one for other stages; observed calls provide a lower bound.
+Web Gather's configured rounds conservatively include its deep-equity parse retry. Per-call tokens
+are the largest of 50k, the largest recorded selected call, or measured maximum input plus largest
+recorded selected output, with another 25% headroom. This is a planning estimate, not a
+provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
+differ from preflight. A zero-call preflight is disclosed. Only recorded fixtures
+(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real upstream
+outputs; AMD remains incomplete as described below.
+
+The existing estimate-first workflow still applies: inspect the estimate, obtain explicit approval
+for that batch, then use the same invocation with `--yes`. No additional spending entry point was
+introduced. Selected offline tests require an injected fake provider and cannot construct an
+ambient live provider.
 
 `equity-amd-deep` is an eval-only fixture. Unlike the fixtures listed above, it is not replayed by
 `bun run check` and carries no invariant assertions because it fails invariant C15. Since
@@ -209,15 +322,24 @@ Yahoo news requests 8 items where the run cached 15, FRED, Marketaux, and Massiv
 misses. Its `meta.json` `note` records the same.
 
 Without `--yes` it prints the planned run count and token estimate and stops. An existing label or
-sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, or
-`threw`) and every `Fixture data cassette miss` key in `eval-sample.json`, even when the run fails;
+sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, `threw`,
+`incomplete`, or `not-exercised`), HTTP/model replay miss keys, replayed/live call counts, and
+available consumed/unused response counts in `eval-sample.json`, even when the run fails.
+The sample's `tokens.live` and `tokens.replayed`, exposed as `modelTokens.live` and
+`modelTokens.replayed` in comparisons, sum successful provider response token estimates at each
+boundary. Failed calls may have incurred usage unavailable to the harness; these totals are not
+billing records. Existing `tokens.total` and per-stage metrics describe persisted stages and mix
+live and replayed estimates.
 `summary.json` is rewritten after every sample, and a sample dir without a record counts as
 `incomplete`. A metric group a sample could not measure (no report on a failed run, no stages) is
 left out of that sample's mean and shows as `n=k/N`, so a failure never reads as an improvement.
 Synthetic fixtures (`equity-aapl-deep`, `equity-nbis-deep`, `equity-web-fallback-deep`) record tiny
 cassette token counts, so the estimate floors each run at the ~438k of a real deep run.
-`tests/eval-deep.test.ts` covers isolation, miss counting, compare output, and the final-synthesis-only
-live provider with replayed models.
+`tests/eval-deep.test.ts` covers isolation, replay failures, selected-stage routing/current prompts,
+unexercised stages, adaptive source misses, estimates, comparison scope, and final-synthesis repairs
+using injected fake live providers. Cassette tests cover every selectable identity, repeated calls,
+and bespoke prompts without `priorStages`. Tests never spawn spending scripts or approve a real
+entry point.
 
 ## Deep-equity presentation assertions
 
@@ -252,12 +374,13 @@ fixture until the recorder's secret scan passes and `bun run check` is green.
 
 ### Generated fixture price series
 
-`scripts/generate-fixture-price-series.ts` with `SEED = 17` owns the identical Yahoo chart bodies in
+`scripts/generate-fixture-price-series.ts` owns the shared issuer Yahoo chart bodies (`SEED = 17`)
+and distinct SPY benchmark bodies (`BENCHMARK_SEED = 18`) in
 `equity-aapl-brief`, `equity-aapl-deep`, `equity-analysis-comprehensive`,
-`equity-analysis-estimated-suppressed`, `equity-fpi-quarterly`, and
-`equity-fpi-ifrs-semiannual`. Do not re-record these chart entries independently: preserve the
-existing chart body when updating unrelated cassette data, and use the generator only for an
-intentional shared price-path change before replaying all six fixtures.
+`equity-analysis-estimated-suppressed`, `equity-fpi-quarterly`,
+`equity-fpi-ifrs-semiannual`, and `equity-web-fallback-deep`. Do not re-record these chart entries
+independently: preserve the existing chart bodies when updating unrelated cassette data, and use the generator only for an
+intentional shared price-path change before replaying all seven fixtures.
 
 ## Fixture maintenance rules
 

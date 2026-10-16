@@ -19,8 +19,7 @@ import {
   shouldCarryPostureLabel,
 } from "./post-synthesis-audit";
 
-// Report Integrity Audit (ADR 0005): prunes uncited numeric/technical findings, scenarios,
-// Predictions, and summary sentences, then grades; posture labels stay advisory.
+// ADR 0004: prune unsupported numeric/technical claims and grade; posture labels stay advisory.
 
 interface ReportIntegrityPrunedItem {
   readonly location: string;

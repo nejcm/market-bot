@@ -15,5 +15,6 @@
     "maxToolCalls": 0,
     "sourceBudget": 0
   },
-  "configuredProviders": ["finnhub", "tradier"]
+  "configuredProviders": ["finnhub", "tradier"],
+  "replayClassification": "missing-source"
 }

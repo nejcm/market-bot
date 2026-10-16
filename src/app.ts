@@ -1,3 +1,4 @@
+import { withRunCapture } from "./replay/capture";
 import { basename, join } from "node:path";
 import { commandBanner, isResearchCommand, parseArgs, type ResearchCommand } from "./cli/args";
 import { resolveConfig, type AppConfig, type SourceOptions } from "./config";
@@ -466,36 +467,51 @@ async function runStandardResearch(input: {
   readonly invokedAt: Date;
   readonly dependencies: RunCliDependencies;
 }) {
-  const sourcePlan = buildSourcePlan(
-    input.command,
-    input.invokedAt.toISOString(),
-    input.resolvedSubject,
-  );
-  const collectedSources = await (input.dependencies.collectSources ?? collectSources)(
-    input.command,
-    input.config.sourceOptions,
+  return withRunCapture(
     {
-      ...(input.resolvedSubject !== undefined ? { resolvedSubject: input.resolvedSubject } : {}),
-      peerUniverse: {
-        provider: input.provider,
-        model: input.config.quickModel,
-        cachePath:
-          input.config.sourceOptions.peerUniverseLearnedPath ??
-          `${input.config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
-        ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
-          ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
-          : {}),
-      },
+      command: input.command,
+      config: input.config,
+      provider: input.provider,
+      now: input.invokedAt,
+    },
+    async (runtime) => {
+      const sourcePlan = buildSourcePlan(
+        input.command,
+        input.invokedAt.toISOString(),
+        input.resolvedSubject,
+      );
+      const collectedSources = await (input.dependencies.collectSources ?? collectSources)(
+        input.command,
+        input.config.sourceOptions,
+        {
+          now: input.invokedAt,
+          fetchImpl: runtime.fetchImpl,
+          ...(input.resolvedSubject !== undefined
+            ? { resolvedSubject: input.resolvedSubject }
+            : {}),
+          peerUniverse: {
+            provider: runtime.provider,
+            model: input.config.quickModel,
+            cachePath:
+              input.config.sourceOptions.peerUniverseLearnedPath ??
+              `${input.config.dataDir.replace(/[\\/]runs$/u, "")}/peer-universe-learned.json`,
+            ...(input.config.sourceOptions.peerUniverseTtlDays !== undefined
+              ? { ttlDays: input.config.sourceOptions.peerUniverseTtlDays }
+              : {}),
+          },
+        },
+      );
+      return (input.dependencies.persistResearchJob ?? persistResearchJob)({
+        command: input.command,
+        config: input.config,
+        provider: runtime.provider,
+        collectedSources,
+        sourcePlan,
+        sourceFetchImpl: runtime.fetchImpl,
+        now: input.invokedAt,
+      });
     },
   );
-  return (input.dependencies.persistResearchJob ?? persistResearchJob)({
-    command: input.command,
-    config: input.config,
-    provider: input.provider,
-    collectedSources,
-    sourcePlan,
-    now: input.invokedAt,
-  });
 }
 
 function asResearchCommand(command: ReturnType<typeof parseArgs>): ResearchCommand {

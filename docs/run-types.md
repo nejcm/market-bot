@@ -206,7 +206,7 @@ Identical to `market-overview` except:
   artifacts into horizon buckets.
 - Horizon bucket is derived from the fixed horizon.
 
-This is the legacy alias path per ADR 0005 (market-overview fold).
+This is the legacy alias path per ADR 0004 (market-overview fold).
 
 ---
 
@@ -289,7 +289,7 @@ key). The web-gather audit records attempted providers, the served provider,
 and the fallback reason. Stage-1 gather also rejects `background` and `current-subject` searches
 that duplicate business-profile sections already covered by the deterministic SEC 10-K/10-Q
 packet unless a recency, corroboration, or explicit-gap rationale is given; `news` and `market`
-searches are exempt (see [ADR 0004](./adr/0004-evidence-identity-providers-deterministic-analysis.md)).
+searches are exempt (see [ADR 0004](./adr/0004-evidence-and-model-stage-pipeline.md)).
 
 ### Model Stages
 

@@ -11,7 +11,7 @@ import type { FetchLike } from "../src/sources/types";
 import { WEB_GATHER_DUPLICATE_REQUEST_REASON } from "../src/sources/web-gather-rejection-reasons";
 import { isCompanyProfileSecSource } from "../src/web-evidence/web-subject-profile";
 import { latestSecFilingDate } from "../src/web-evidence/web-subject-profile-reuse";
-import { makeReplayFetch } from "./support/run-fixtures/data-cassette";
+import { makeReplayFetch } from "../src/replay/data-cassette";
 import { createFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
 
 const NOW = new Date("2026-06-15T14:30:00.000Z");

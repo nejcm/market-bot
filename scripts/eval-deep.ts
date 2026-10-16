@@ -7,18 +7,25 @@ import {
   liveTokenEstimate,
   readEvalSummary,
   runEvalSample,
-  writeEvalSummary,
+  runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
-import { LIVE_STAGE } from "../tests/support/run-fixtures/llm-cassette";
+import { validateLiveStage } from "../src/replay/llm-cassette";
+import { estimateSynthesisFile, replaySynthesisFile } from "../src/replay/replay-synthesis";
+import { freshEvalDir, writeEvalJson } from "../src/replay/eval-output";
+import { createProvider } from "../src/model/factory";
+import { resolveConfig } from "../src/config";
+import { join } from "node:path";
 
 const USAGE =
-  "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages final-synthesis] [--yes]\n" +
+  "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
+  "       bun run scripts/eval-deep.ts --input <file> --label <name> [--samples N] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
   options: {
     fixtures: { type: "string" },
+    input: { type: "string" },
     samples: { type: "string", default: "2" },
     label: { type: "string" },
     compare: { type: "boolean", default: false },
@@ -27,6 +34,53 @@ const { values, positionals } = parseArgs({
   },
   allowPositionals: true,
 });
+
+if (values.input !== undefined) {
+  if (
+    values.fixtures !== undefined ||
+    values.compare ||
+    values.label === undefined ||
+    positionals.length > 0 ||
+    (values["live-stages"] !== undefined && values["live-stages"] !== "final-synthesis") ||
+    !Number.isInteger(Number(values.samples)) ||
+    Number(values.samples) < 1
+  ) {
+    throw new Error(USAGE);
+  }
+  const labelDir = evalLabelDir(EVALS_ROOT, values.label);
+  if (existsSync(labelDir)) {
+    throw new Error(`Eval label already exists: ${labelDir}`);
+  }
+  const estimate = await estimateSynthesisFile(values.input);
+  process.stdout.write(
+    `Final synthesis input: ${String(estimate.observedCalls)} recorded call(s), planning ${String(estimate.boundedCalls)} bounded calls/sample, ~${String(estimate.perRun * Number(values.samples))} tokens total with 25% headroom. Not a provider-enforced cost cap.\n`,
+  );
+  if (!values.yes) {
+    process.stdout.write("Nothing run. Re-run with --yes to spend.\n");
+    process.exit(0);
+  }
+  const dir = await freshEvalDir(values.label);
+  const config = resolveConfig(process.env, { validateAlphaSearchOptions: false });
+  const provider = createProvider(config);
+  const samples = [];
+  for (let sample = 1; sample <= Number(values.samples); sample += 1) {
+    samples.push(
+      // oxlint-disable-next-line no-await-in-loop -- each sample writes an isolated directory
+      await replaySynthesisFile({
+        input: values.input,
+        label: String(sample),
+        root: dir,
+        provider: {
+          ...provider,
+          generate: (request) => provider.generate({ ...request, model: config.synthesisModel }),
+        },
+      }),
+    );
+  }
+  await writeEvalJson(dir, "summary.json", { scope: "final-synthesis-only", samples });
+  process.stdout.write(`${join(dir, "summary.json")}\n`);
+  process.exit(samples.every((sample) => sample.status === "completed") ? 0 : 1);
+}
 
 if (values.compare) {
   const [base, next] = positionals;
@@ -49,29 +103,56 @@ if (
   label === undefined ||
   !Number.isInteger(samples) ||
   samples < 1 ||
-  positionals.length > 0 ||
-  (values["live-stages"] !== undefined && values["live-stages"] !== LIVE_STAGE)
+  positionals.length > 0
 ) {
   throw new Error(USAGE);
 }
-const liveStages = values["live-stages"] === undefined ? undefined : LIVE_STAGE;
+const liveStages =
+  values["live-stages"] === undefined ? undefined : validateLiveStage(values["live-stages"]);
 if (existsSync(evalLabelDir(EVALS_ROOT, label))) {
   throw new Error(
     `Eval label already exists; pick a new --label: ${evalLabelDir(EVALS_ROOT, label)}`,
   );
 }
 
-const estimates = await Promise.all(
-  fixtures.map((fixture) => liveTokenEstimate(fixture, liveStages)),
-);
+if (liveStages !== undefined) {
+  process.stdout.write(
+    `Selected stage: ${liveStages}; includes every loop/repair call within phase limits.\n`,
+  );
+  process.stdout.write(
+    "Other model outputs stay recorded; downstream reasoning is not reevaluated.\n",
+  );
+  process.stdout.write(
+    "Adaptive Web Gather/evidence requests must match the source cassette; an unseen request invalidates the sample and blocks subsequent model calls.\n",
+  );
+}
+const estimates = [];
+for (const fixture of fixtures) {
+  // oxlint-disable-next-line no-await-in-loop -- offline planning shares process-level index overrides
+  estimates.push(await liveTokenEstimate(fixture, liveStages));
+}
 let estimate = 0;
-for (const [index, { recorded, perRun }] of estimates.entries()) {
+for (const [
+  index,
+  { recorded, perRun, boundedCalls, observedCalls, maxInputTokens },
+] of estimates.entries()) {
   const fixture = fixtures[index]!;
   estimate += perRun * samples;
   process.stdout.write(
     `${fixture}: ${String(samples)} live-LLM run(s)${liveStages !== undefined ? ` (live stage: ${liveStages})` : ""}, recorded cassette ${String(recorded)} tokens, planning ${String(perRun)}/run\n`,
   );
+  if (boundedCalls !== undefined) {
+    process.stdout.write(
+      `  Offline preflight: ${String(observedCalls)} selected call(s), ~${String(maxInputTokens)} maximum input tokens (characters/4); planning ${String(boundedCalls)} bounded call(s) with 25% headroom.\n`,
+    );
+    if (observedCalls === 0) {
+      process.stdout.write("  Selected stage was not exercised in offline preflight.\n");
+    }
+  }
 }
+process.stdout.write(
+  "Planning estimates are not provider-enforced cost caps; live response token estimates are reported separately from replayed tokens.\n",
+);
 process.stdout.write(
   `Planned: ${String(fixtures.length * samples)} live-LLM run(s), ~${String(estimate)} tokens, into ${evalLabelDir(EVALS_ROOT, label)}\n`,
 );
@@ -80,23 +161,23 @@ if (!values.yes) {
   process.exit(0);
 }
 
-for (const fixture of fixtures) {
-  for (let sample = 1; sample <= samples; sample += 1) {
-    // Sequential on purpose: each sample is a paid live run and source rate limits are per process.
-    // eslint-disable-next-line no-await-in-loop
+process.exitCode = await runEvalBatch({
+  root: EVALS_ROOT,
+  label,
+  fixtures,
+  samples,
+  runSample: async (fixture, sample) => {
     const result = await runEvalSample({
       label,
       fixture,
-      sample: String(sample),
+      sample,
       llm: "live",
       ...(liveStages !== undefined ? { liveStages } : {}),
     });
     process.stdout.write(
-      `${fixture}/${String(sample)}: ${result.status}, ${String(result.cassetteMisses.count)} cassette miss(es)${result.error !== undefined ? `, ${result.error}` : ""}\n`,
+      `${fixture}/${sample}: ${result.status}, ${String(result.cassetteMisses.count)} HTTP cassette miss(es), ${String(result.modelReplayMisses.count)} model replay miss(es)${result.error !== undefined ? `, ${result.error}` : ""}\n`,
     );
-    // Rewritten after every sample so an interrupted batch still leaves a comparable summary.
-    // eslint-disable-next-line no-await-in-loop
-    await writeEvalSummary(EVALS_ROOT, label);
-  }
-}
+    return result;
+  },
+});
 process.stdout.write(`${evalLabelDir(EVALS_ROOT, label)}/summary.json\n`);

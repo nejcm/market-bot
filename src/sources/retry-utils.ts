@@ -1,9 +1,13 @@
 import type { SourceGapAttemptClassification } from "../domain/sources";
 import { SourceResponseTooLargeError } from "./response-size-error";
+import { isOfflineReplay } from "../replay/session";
 
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1000, 3000, 9000];
 
 export function sleep(ms: number): Promise<void> {
+  if (isOfflineReplay()) {
+    return Promise.resolve();
+  }
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });

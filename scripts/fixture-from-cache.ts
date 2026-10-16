@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { canonicalRequestUrl } from "../src/sources/cache";
 import type { FetchLike } from "../src/sources/types";
 import { runFixture, type FixtureMeta } from "../tests/support/run-fixtures";
-import { createRecordingFetch } from "../tests/support/run-fixtures/data-cassette";
+import { createRecordingFetch } from "../src/replay/data-cassette";
 import {
-  makeFinalSynthesisLiveProvider,
+  makeReplayProvider,
   type LlmCassette,
   type LlmCassetteEntry,
-} from "../tests/support/run-fixtures/llm-cassette";
+} from "../src/replay/llm-cassette";
 import { type CacheEntry, selectDateDirEntries } from "./fixture-cache-selection";
 
 const USAGE =
@@ -156,6 +156,7 @@ for (const stage of [...(await stageEntries(runId)), profileStage]) {
 const llmCassette: LlmCassette = { entries };
 
 const meta: FixtureMeta & { readonly note: string } = {
+  replayClassification: "incomplete",
   note: `Offline conversion of run ${runId} from data/cache, not a faithful replay: web-subject-profile output is borrowed from run ${profileRunId}, historical context and news-seen state are empty, and fixture config differs from the run (Yahoo news requests 8 items, not the cached 15; FRED, Marketaux and Massive are unconfigured, so Evidence Quality drops from high to medium). Finnhub endpoints that returned 403 were never cached and replay as cassette misses.`,
   now: trace.startedAt,
   argv: ["equity", trace.symbol, "--deep"],
@@ -185,7 +186,7 @@ async function convert(name: string): Promise<void> {
   const result = await runFixture(name, {
     llm: "replay",
     fetchImpl: recorder.fetch,
-    provider: makeFinalSynthesisLiveProvider(llmCassette, {
+    provider: makeReplayProvider(llmCassette, {
       name: "recorded-final-synthesis",
       generate: async (request) => {
         const entry = recordedFinalSynthesis[finalSynthesisCalls];

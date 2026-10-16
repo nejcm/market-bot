@@ -352,7 +352,7 @@ export function buildSourceList(
     (source) => !marketSourceIds.has(source.id),
   );
 
-  // Verified Market Snapshot — citeable Source for exact numeric technical claims (ADR 0019)
+  // Verified Market Snapshot — citeable Source for exact numeric technical claims (ADR 0004)
   const verifiedSnapshotSources: Source[] = [
     ...(isInstrumentCommand(command) && collectedSources.verifiedMarketSnapshot !== undefined
       ? [verifiedSnapshotSource(collectedSources.verifiedMarketSnapshot)]
@@ -844,7 +844,7 @@ export function assembleResearchReportWithRelocations(
       : undefined;
   const { equityAnalysisCompleteness } = input;
 
-  // Screen authored prose before substituting deterministic metric values (ADR 0005).
+  // Screen authored prose before substituting deterministic metric values (ADR 0004).
   const report = validateResearchReport({
     runId,
     jobType: command.jobType,

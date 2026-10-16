@@ -91,7 +91,7 @@ export function verifiedMarketSnapshotFromChart(
     .slice(0, 10);
   const parsedBars = parsed.bars.filter(({ date }) => date >= oldestDate);
   const { droppedBars } = parsed;
-  const { fetchedAt } = fetched.rawSnapshot;
+  const { fetchedAt, adapter } = fetched.rawSnapshot;
   const latestParsedBar = parsedBars.at(-1);
   const latestSession: LatestSessionVerdict =
     latestParsedBar === undefined
@@ -112,12 +112,13 @@ export function verifiedMarketSnapshotFromChart(
     return {
       rawSnapshot: fetched.rawSnapshot,
       sourceGaps: [
-        ...latestSessionGaps(symbol, latestSession, latestParsedBar?.date, fetchedAt, {
+        ...latestSessionGaps(adapter, symbol, latestSession, latestParsedBar?.date, fetchedAt, {
           kind: "no-snapshot",
           completedBarCount: bars.length,
         }),
         sourceGap({
-          source: ADAPTER_ID,
+          source: adapter,
+          symbol,
           message: `insufficient OHLCV bars for ${symbol}: got ${String(bars.length)}, need ≥${String(MIN_BARS_FOR_SNAPSHOT)}`,
           provider: "yahoo",
           capability: "market-data",
@@ -135,7 +136,7 @@ export function verifiedMarketSnapshotFromChart(
     .filter((dropped) => dropped.date > latestBar.date)
     .map((dropped) =>
       sourceGap({
-        source: ADAPTER_ID,
+        source: adapter,
         message: `Yahoo chart bar ${dropped.date} has missing or non-numeric fields: ${dropped.missingFields.join(", ")}; latest usable session is ${latestBar.date}`,
         symbol,
         provider: "yahoo",
@@ -163,7 +164,7 @@ export function verifiedMarketSnapshotFromChart(
     snapshot,
     rawSnapshot: fetched.rawSnapshot,
     sourceGaps: [
-      ...latestSessionGaps(symbol, latestSession, latestParsedBar?.date, fetchedAt, {
+      ...latestSessionGaps(adapter, symbol, latestSession, latestParsedBar?.date, fetchedAt, {
         kind: "anchored",
         latestCompletedDate: latestBar.date,
       }),
@@ -183,6 +184,7 @@ type LatestSessionOutcome =
   | { readonly kind: "no-snapshot"; readonly completedBarCount: number };
 
 function latestSessionGaps(
+  source: string,
   symbol: string,
   verdict: LatestSessionVerdict,
   latestBarDate: string | undefined,
@@ -205,7 +207,7 @@ function latestSessionGaps(
         : `it was dropped before indicators, leaving ${String(outcome.completedBarCount)} completed bars — below the ${String(MIN_BARS_FOR_SNAPSHOT)} required, so no snapshot was produced`;
     return [
       sourceGap({
-        source: ADAPTER_ID,
+        source,
         message: `Yahoo chart bar ${latestBarDate} was an in-progress session at fetch time ${fetchedAt} (regular session closes ${verdict.closesAt}); ${consequence}`,
         symbol,
         provider: "yahoo",
@@ -218,7 +220,7 @@ function latestSessionGaps(
   }
   return [
     sourceGap({
-      source: ADAPTER_ID,
+      source,
       message: `Yahoo chart bar ${latestBarDate} could not be verified as a completed session at fetch time ${fetchedAt} (${verdict.reason}); the bar is retained and may be an in-progress session`,
       symbol,
       provider: "yahoo",

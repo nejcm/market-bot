@@ -59,6 +59,7 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface ModelReportPayload {
+  readonly rawResponseContent?: string;
   readonly summary?: unknown;
   readonly keyFindings?: unknown;
   readonly bullCase?: unknown;

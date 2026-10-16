@@ -2839,6 +2839,9 @@ export function assertPricePerformanceInvariants(
   run: MetricInvariantRun,
   report: ResearchReport,
 ): void {
+  expect(
+    run.collectedSources.sourceGaps.filter(({ source }) => source === "yahoo-verified-chart"),
+  ).toEqual([]);
   const sections = report.extras?.metricSections as MetricSectionsExtra | undefined;
   const section = sections?.find(({ id }) => id === "price-performance");
   expect(

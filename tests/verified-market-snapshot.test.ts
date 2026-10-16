@@ -1204,7 +1204,7 @@ describe("collectSources — verified snapshot wiring", () => {
     expect(result.verifiedMarketSnapshot).toBeUndefined();
     expect(
       result.sourceGaps.some(
-        (gap) => gap.source === "yahoo-verified-chart" && gap.evidenceQualityImpact === "core-cap",
+        (gap) => gap.source === "yahoo-price-history" && gap.evidenceQualityImpact === "core-cap",
       ),
     ).toBe(true);
   });

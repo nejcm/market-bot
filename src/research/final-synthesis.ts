@@ -386,6 +386,7 @@ interface RepairedReport {
 // Unguarded: a persistent violation crashed the whole run. Recommendation-shaped subjects reliably
 // Draw reader-directed advice, so the crash point needs bounded, steered repairs.
 export const MAX_REPORT_VALIDATION_REPROMPTS = 2;
+const MAX_RAW_RESPONSE_CHARS = 20_000;
 
 // Recursive rather than a loop because each repair reprompt depends on the previous attempt's error;
 // The reduce/recursion form also keeps the awaits out of a bare for-loop (no-await-in-loop).
@@ -516,7 +517,7 @@ async function runAndReadFinalSynthesis(
     }
     return {
       output,
-      payload: {},
+      payload: { rawResponseContent: output.content.slice(0, MAX_RAW_RESPONSE_CHARS) },
       predResult: { predictions: [], errors: [], issues: [] },
       parseError: new SyntaxError(
         `Invalid final-synthesis JSON: ${error.message}. Return exactly one complete JSON object.`,

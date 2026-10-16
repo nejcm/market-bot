@@ -46,7 +46,8 @@ export async function collectPriceHistory(
         const gap = sourceGapWithContext(
           {
             ...fetched,
-            source: benchmark ? "yahoo-price-history" : "yahoo-verified-chart",
+            source: "yahoo-price-history",
+            symbol: ticker,
             message: benchmark ? `${ticker}: ${fetched.message}` : fetched.message,
           },
           {
@@ -94,7 +95,8 @@ export async function collectPriceHistory(
               sourceGaps: [
                 sourceGapWithContext(
                   {
-                    source: "yahoo-verified-chart",
+                    source: fetched.rawSnapshot.adapter,
+                    symbol: ticker,
                     message: `Yahoo returned ${returnedSymbol} for ${ticker}`,
                   },
                   {

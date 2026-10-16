@@ -512,6 +512,10 @@ describe("frozen-input eval replay", () => {
     expect(record.errorStack).toContain("FinalSynthesisRejectedError:");
     expect(record.error).toContain("JSON Parse error:");
     expect(record.rawResponseContent).toBe(raw.slice(0, 20_000));
+    const rejected = JSON.parse(
+      await readFile(join(sample.runDir!, "rejected-report.json"), "utf8"),
+    );
+    expect(rejected).toEqual({ rawResponseContent: record.rawResponseContent });
     const failure = JSON.parse(await readFile(join(sample.runDir!, "failure.json"), "utf8"));
     expect(failure.totalCalls).toBe(4);
     expect(failure.reportRepairReprompts).toBe(3);

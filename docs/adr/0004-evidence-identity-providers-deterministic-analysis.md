@@ -201,8 +201,10 @@ without pretending the project has a global security master.
   Amendment 2026-10-16: Capital Return and Operating Ratios emit missing rows and section Source
   Gaps when statements are unavailable. Structural `not-filed`, bounded issuer `insufficient-history`,
   and workbench `outside-price-history-window` causes are diagnostic; other missing inputs remain
-  material. Issuer `insufficient-history` applies only when returned completed history starts
-  8–14 calendar days after the anniversary; SPY rows also require benchmark coverage there. Later
+  material. Joined metrics in Capital Return and Operating Ratios keep `missing (not-filed)` when
+  an input is unfiled: absence is not zero, and imputing zero debt or buybacks can overstate or
+  understate the metric. Issuer `insufficient-history` applies only when returned completed history
+  starts 8–14 calendar days after the anniversary; SPY rows also require benchmark coverage there. Later
   starts remain material because a short response alone cannot establish listing age. Issuer returns
   use issuer sessions independently; SPY comparison rows require common completed sessions. Missing
   SPY history preserves issuer returns, and SPY fetch failures declare a Yahoo Source Gap.

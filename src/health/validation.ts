@@ -240,7 +240,10 @@ function classifyRoute(
    * not the catch-all "unclassified" one. Sole-cause only: mixed with any other gap the route keeps
    * the generic blocking classification.
    */
-  if (routeName === "yahoo-verified-chart" && routeSoleCause(route, "malformed-response")) {
+  if (
+    (routeName === "yahoo-verified-chart" || routeName === "yahoo-price-history") &&
+    routeSoleCause(route, "malformed-response")
+  ) {
     return {
       ...base,
       classification: "blocking",

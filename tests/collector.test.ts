@@ -601,7 +601,7 @@ describe("collectSources", () => {
     expect(result.extendedSources.map((source) => source.id)).toContain(
       "extended-sec-edgar-amd-fundamentals",
     );
-    expect(result.sourceGaps.map((gap) => gap.source)).toContain("yahoo-verified-chart");
+    expect(result.sourceGaps.map((gap) => gap.source)).toContain("yahoo-price-history");
     expect(
       result.extendedEvidence?.items.find((item) => item.category === "valuation")?.metrics,
     ).toMatchObject({

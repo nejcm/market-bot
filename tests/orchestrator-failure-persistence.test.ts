@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { readRunDetail, readRunFile } from "../app/artifacts";
 import type { InstrumentCommand } from "../src/cli/args";
 import type { ModelProvider } from "../src/model/types";
 import { FinalSynthesisRejectedError } from "../src/research/final-synthesis";
@@ -81,6 +82,28 @@ async function rejectAndCapture(
 }
 
 describe("Failed Run Artifact persistence", () => {
+  test.each([30, 20_001])(
+    "preserves a capped %i-character parse-rejected reply for readers",
+    async (length) => {
+      const dataDir = tempDataDir("market-bot-parse-rejected-run");
+      const raw = `{"summary":"${"x".repeat(length - 12)}`;
+      const error = await rejectAndCapture(dataDir, providerReturningFinal(raw));
+      const [runId] = await readdir(dataDir);
+      const runDir = join(dataDir, runId!);
+      const rejected = JSON.parse(await readFile(join(runDir, "rejected-report.json"), "utf8"));
+
+      expect(rejected).toEqual({ rawResponseContent: raw.slice(0, 20_000) });
+      expect(error.payload).toEqual(rejected);
+      expect(error.stageOutputs.at(-1)?.content).toBe(raw);
+      expect(error.reportValidationErrors.join(" ")).toContain("Invalid final-synthesis JSON");
+      const detail = await readRunDetail(dataDir, runId!);
+      expect(detail?.failure?.reportValidationErrors).toEqual(error.reportValidationErrors);
+      expect(detail?.summary.availableFiles).toContain("rejected-report.json");
+      const file = await readRunFile(dataDir, runId!, "rejected-report.json");
+      expect(JSON.parse(file!.content)).toEqual(rejected);
+    },
+  );
+
   test("persists rejected synthesis diagnostics without completed report files", async () => {
     const dataDir = tempDataDir("market-bot-failed-run");
     const error = await rejectAndCapture(

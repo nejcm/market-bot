@@ -19,6 +19,7 @@ import { config, contextWithHistory } from "./support/research-context-helpers";
 import { buildEvidencePayload } from "../src/research/prompts/evidence-payload";
 import { assertPricePerformanceInvariants } from "./support/run-fixtures/assertions";
 import { collectedSources, researchReport } from "./support/fixtures";
+import { assessSourcePlan, buildSourcePlan } from "../src/research/source-plan";
 
 const AS_OF = "2026-07-24T22:00:00.000Z";
 const command = {
@@ -104,6 +105,62 @@ async function collect(payloadFor: (symbol: string) => unknown, at = AS_OF) {
 }
 
 describe("Price Performance Metric Section", () => {
+  test("keeps shared chart gaps on the request adapter and the verified history lane", async () => {
+    const dates = Array.from({ length: 100 }, (_, i) =>
+      new Date(Date.parse(AS_OF) - (99 - i) * 86_400_000).toISOString().slice(0, 10),
+    );
+    const collected = await collect((symbol) =>
+      chart(
+        symbol,
+        dates,
+        dates.map(() => 100),
+        null,
+      ),
+    );
+    expect(collected.verifiedSnapshot.snapshot?.symbol).toBe("TEST");
+    expect(collected.verifiedSnapshot.sourceGaps).toMatchObject([
+      { source: collected.rawSnapshots[0]!.adapter, symbol: "TEST", cause: "malformed-response" },
+    ]);
+    const failed = await collect(() => {
+      throw new Error("synthetic chart failure");
+    });
+    expect(failed.verifiedSnapshot.sourceGaps).toMatchObject([
+      {
+        source: "yahoo-price-history",
+        symbol: "TEST",
+        cause: "fetch-failed",
+        evidenceQualityImpact: "core-cap",
+      },
+    ]);
+    for (const result of [collected, failed]) {
+      const plan = assessSourcePlan(
+        buildSourcePlan(command, AS_OF),
+        collectedSources({
+          ...(result.verifiedSnapshot.snapshot === undefined
+            ? {}
+            : { verifiedMarketSnapshot: result.verifiedSnapshot.snapshot }),
+          sourceGaps: [...result.sourceGaps, ...result.verifiedSnapshot.sourceGaps],
+        }),
+        AS_OF,
+      );
+      expect(
+        plan.evidenceLanes.lanes.find(({ lane }) => lane === "verified-price-history")?.gapText,
+      ).toEqual(
+        result.verifiedSnapshot.sourceGaps.map(({ source, message }) => `${source}: ${message}`),
+      );
+      expect(
+        plan.evidenceLanes.lanes
+          .find(({ lane }) => lane === "market-data")
+          ?.gapText.some((text) => text.includes("TEST")),
+      ).toBe(false);
+      if (result.sourceGaps.length > 0) {
+        expect(
+          plan.evidenceLanes.lanes.find(({ lane }) => lane === "market-data")?.gapText,
+        ).toEqual(result.sourceGaps.map(({ source, message }) => `${source}: ${message}`));
+      }
+    }
+  });
+
   test("uses price closes for six cumulative returns with common sessions and frozen reader values", async () => {
     const collected = await collect((symbol) =>
       chart(symbol, DATES, symbol === "SPY" ? [100, 120, 150, 180] : [50, 75, 100, 120]),

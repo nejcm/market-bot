@@ -154,6 +154,8 @@ export async function assertInvariants(
     result.markdown,
   );
   expect(await persisted(RUN_ARTIFACT_FILES.analytics)).toEqual(asWritten(result.analytics));
+  expect(result.analytics.predictions).not.toHaveProperty("replacementAttempted");
+  expect(result.trace).not.toHaveProperty("predictionReplacementAttempted");
   expect(await persisted(RUN_ARTIFACT_FILES.outcomes)).toEqual(asWritten(result.outcomes));
   if (result.deepEquityEvidenceBundle !== undefined) {
     expect(await persisted(RUN_ARTIFACT_FILES.evidenceBundle)).toEqual(

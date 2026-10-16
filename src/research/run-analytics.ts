@@ -147,8 +147,6 @@ export interface RunAnalytics {
     readonly retryErrorCount: number;
     readonly validationErrorCount: number;
     readonly trimWarningCount: number;
-    /** Legacy artifact compatibility. */
-    readonly replacementAttempted: boolean;
     readonly byKind: Readonly<Record<string, number>>;
     readonly horizonTradingDays: {
       readonly min?: number;
@@ -827,7 +825,6 @@ export function buildRunAnalytics(input: BuildRunAnalyticsInput): RunAnalytics {
       retryErrorCount: trace.predictionRetryErrors?.length ?? 0,
       validationErrorCount: trace.predictionErrors?.length ?? 0,
       trimWarningCount: trace.predictionTrimWarnings?.length ?? 0,
-      replacementAttempted: trace.predictionReplacementAttempted ?? false,
       byKind: countBy(report.predictions, (prediction) => prediction.kind),
       horizonTradingDays: horizonStats(
         report.predictions.map((prediction) => prediction.horizonTradingDays),

@@ -1,7 +1,7 @@
 import type { Source, SourceGap, SourceProviderAlias } from "../domain/sources";
 import { isInstrumentCommand } from "../cli/args";
 import { isRepeatFallbackGap, sourceGap } from "../domain/source-gaps";
-import { filterSeenNewsSources, newsSeenLane } from "./news-seen";
+import { filterSeenNewsSources, NEWS_SEEN_GRACE_MS, newsSeenLane } from "./news-seen";
 import { isNewsRelevant } from "./news-relevance";
 import { canonicalizeUrl, normalizeTitle } from "./news-utils";
 import { executeWebGatherTool } from "./web-gather-tools";
@@ -620,8 +620,9 @@ export function createMultiNewsAdapter(
             retentionDays: ctx.newsSeenRetentionDays,
             command: ctx.command,
             now: new Date(ctx.fetchedAt),
+            graceMs: NEWS_SEEN_GRACE_MS,
           })
-        : { newsSources: dedupedSources, sourceGaps: [] };
+        : { newsSources: dedupedSources, sourceGaps: [], graceExemptedNewsSourceCount: 0 };
     const relevantAfterSeenFilterCount = relevantNewsCount(filtered.newsSources, targets);
     const relevantKeep = keepRelevantSeenSources({
       command: ctx.command,
@@ -652,6 +653,7 @@ export function createMultiNewsAdapter(
         canonicalDedupedNewsSourceCount: dedupedSources.length,
         canonicalDuplicateNewsSourceCount: fetchedNewsSourceCount - dedupedSources.length,
         persistentSuppressedNewsSourceCount,
+        graceExemptedNewsSourceCount: filtered.graceExemptedNewsSourceCount,
         relevantBeforeSeenFilterCount,
         relevantSuppressedBySeenFilterCount: Math.max(
           0,

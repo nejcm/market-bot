@@ -37,6 +37,7 @@ function baseAnalytics(): RunAnalytics {
       canonicalDedupedNewsSourceCount: 0,
       canonicalDuplicateNewsSourceCount: 0,
       persistentSuppressedNewsSourceCount: 0,
+      graceExemptedNewsSourceCount: 0,
       relevantBeforeSeenFilterCount: 0,
       relevantSuppressedBySeenFilterCount: 0,
       relevantSelectedCount: 0,

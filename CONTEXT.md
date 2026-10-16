@@ -369,7 +369,11 @@ Fetched market, news, or reference item with an ID for claim citations.
 
 ## Relevant News Source
 
-News Source matching a News Relevance Target. If seen-dedupe removes all relevant instrument news while generic items remain, the newest relevant repeat is restored per instrument lane and disclosed as `repeat-fallback`.
+News Source matching a News Relevance Target. Same-day repeats stay visible through the Grace Window; if seen-dedupe removes all relevant instrument news while generic items remain, the newest relevant repeat is restored per instrument lane and disclosed as `repeat-fallback`.
+
+## Grace Window
+
+The 24 h exemption from seen-news suppression measured from an entry's `firstSeenAt`: a repeat first sighted less than 24 h before the run is not suppressed, so a same-day rerun of a lane still sees that day's news. Cross-day suppression stays: re-records keep the original `firstSeenAt`, so the exemption lapses 24 h after the first sighting.
 
 ## News Relevance Target
 

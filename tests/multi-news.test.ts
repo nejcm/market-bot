@@ -665,4 +665,74 @@ describe("multi-news", () => {
     expect(result.newsAnalytics?.relevantRepeatKeptCount).toBe(2);
     expect(result.sourceGaps.filter((gap) => gap.cause === "repeat-fallback")).toHaveLength(1);
   });
+
+  test("keeps a same-day lane rerun's selection visible through the grace window", async () => {
+    const newsSeenPath = tempSeenPath();
+    const relevant = {
+      ...source(
+        "a-relevant",
+        "provider-a",
+        "AAPL supplier demand rises",
+        "2026-06-01T11:00:00.000Z",
+      ),
+      url: "https://example.test/aapl-same-day",
+    };
+    const generic = {
+      ...source("b-generic", "provider-b", "Markets rise broadly", "2026-06-01T12:00:00.000Z"),
+      url: "https://example.test/generic-same-day",
+    };
+    const multi = createMultiNewsAdapter(
+      [adapter("provider-a", [relevant]), adapter("provider-b", [generic])],
+      ["provider-a", "provider-b"],
+    );
+
+    const first = await multi.collect({ ...context(), newsSeenPath, newsSeenRetentionDays: 30 });
+    await recordSeenNewsSources({
+      path: newsSeenPath,
+      retentionDays: 30,
+      command: { jobType: "equity", assetClass: "equity", symbol: "AAPL", depth: "brief" },
+      runId: "first-run",
+      seenAt: context().fetchedAt,
+      sources: first.newsSources,
+    });
+
+    const second = await multi.collect({
+      ...context(),
+      fetchedAt: "2026-06-01T00:30:00.000Z",
+      newsSeenPath,
+      newsSeenRetentionDays: 30,
+    });
+
+    expect(second.newsSources.map((item) => item.title)).toEqual(
+      first.newsSources.map((item) => item.title),
+    );
+    expect(second.newsAnalytics).toMatchObject({
+      graceExemptedNewsSourceCount: first.newsSources.length,
+      relevantSuppressedBySeenFilterCount: 0,
+      relevantRepeatKeptCount: 0,
+      repeatFallbackUsed: false,
+    });
+  });
+
+  test("skips the seen filter without an index and reports zero grace exemptions", async () => {
+    const multi = createMultiNewsAdapter(
+      [
+        adapter("provider-a", [
+          source("a", "provider-a", "AAPL update", "2026-06-01T11:00:00.000Z"),
+        ]),
+      ],
+      ["provider-a"],
+    );
+
+    const withPathOnly = await multi.collect({ ...context(), newsSeenPath: tempSeenPath() });
+    const withRetentionOnly = await multi.collect({ ...context(), newsSeenRetentionDays: 30 });
+
+    for (const result of [withPathOnly, withRetentionOnly]) {
+      expect(result.newsAnalytics).toMatchObject({
+        graceExemptedNewsSourceCount: 0,
+        persistentSuppressedNewsSourceCount: 0,
+        relevantSuppressedBySeenFilterCount: 0,
+      });
+    }
+  });
 });

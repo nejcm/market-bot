@@ -349,6 +349,7 @@ function newsDedupe(input: BuildRunAnalyticsInput): RunAnalytics["newsDedupe"] {
     canonicalDedupedNewsSourceCount: selectedNewsSources.length,
     canonicalDuplicateNewsSourceCount: selectedAliasDuplicates,
     persistentSuppressedNewsSourceCount: 0,
+    graceExemptedNewsSourceCount: 0,
     relevantBeforeSeenFilterCount: 0,
     relevantSuppressedBySeenFilterCount: 0,
     relevantSelectedCount: 0,

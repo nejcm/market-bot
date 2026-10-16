@@ -1,18 +1,18 @@
 import type { ResearchReport } from "../domain/report";
+import type { Depth } from "../domain/job-type";
 import { claimKey } from "../forecast/observable";
 
-// Compact prior-run projection the historical-context reader hands to
-// BuildForecastPersistence: just enough to compare claim identity and probability.
+// The historical reader validates depth before handing this compact projection to analytics.
 export interface ForecastPersistenceBaseline {
   readonly runId: string;
+  readonly depth: Depth;
   readonly predictions: readonly {
     readonly measurableAs: string;
     readonly probability: number;
   }[];
 }
 
-// Deterministic run-over-run forecast repetition telemetry vs the newest comparable
-// Prior run. Analytics-only: never a rejection gate, never model-prompt input.
+// Analytics-only: never a rejection gate or model-prompt input.
 export interface ForecastPersistence {
   readonly baselineRunId: string;
   readonly repeatedClaimCount: number;

@@ -153,7 +153,7 @@ Deep-run uncertainty signal summarizing configured challenger-model probability 
 
 ## Forecast Persistence Telemetry
 
-Per-run comparison with the newest comparable prior run, counting repeated canonical claims and unchanged probabilities, plus `changedProbabilityCount` and `maxAbsProbabilityDelta`. It is descriptive Cross-run Intelligence only.
+Per-run comparison with the newest comparable prior run of the same known depth, counting repeated canonical claims and unchanged probabilities, plus `changedProbabilityCount` and `maxAbsProbabilityDelta`. Omitted when no matching baseline exists or the current depth is unknown. It is descriptive Cross-run Intelligence only; Historical Research Context selection remains independent of depth.
 
 ## Forecast Event
 

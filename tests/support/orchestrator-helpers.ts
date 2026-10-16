@@ -142,6 +142,7 @@ export async function writeHistoricalRun(input: {
   readonly symbol?: string;
   readonly snapshots?: readonly MarketSnapshot[];
   readonly predictions?: readonly unknown[];
+  readonly depth?: "brief" | "deep";
 }): Promise<void> {
   const runDir = join(input.dataDir, input.runId);
   await mkdir(join(runDir, "normalized"), { recursive: true });
@@ -153,6 +154,7 @@ export async function writeHistoricalRun(input: {
       assetClass: "equity",
       ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
       generatedAt: input.generatedAt,
+      ...(input.depth !== undefined ? { extras: { depth: input.depth } } : {}),
       summary: `${input.runId} prior research summary.`,
       keyFindings: [{ text: "Prior sourced finding.", sourceIds: ["prior-source"] }],
       bullCase: [],

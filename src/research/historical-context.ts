@@ -630,15 +630,14 @@ function comparableRunKey(run: HistoricalRunContext): string | undefined {
     : [withoutDay, run.generatedAt.slice(0, 10)].join("|");
 }
 
-// Newest comparable prior run (same day-less comparable-run key, generatedAt strictly
-// Before the current run) regardless of prediction count — the deterministic baseline
-// For Forecast Persistence Telemetry. A zero-prediction baseline yields zero repeats.
+// Newest prior run with the same identity and known depth, including zero-prediction runs.
 function findForecastPersistenceBaseline(
   scan: ScanResult,
   report: ResearchReport,
 ): ForecastPersistenceBaseline | undefined {
   const key = comparableRunKeyWithoutDay(reportComparableKeyFields(report));
-  if (key === undefined) {
+  const depth = report.extras?.depth;
+  if (key === undefined || (depth !== "brief" && depth !== "deep")) {
     return undefined;
   }
   const currentMs = Date.parse(report.generatedAt);
@@ -650,6 +649,7 @@ function findForecastPersistenceBaseline(
       (artifact) =>
         artifact.report.runId !== report.runId &&
         generatedAtMs(artifact) < currentMs &&
+        artifact.report.extras?.depth === depth &&
         comparableRunKeyWithoutDay(reportComparableKeyFields(artifact.report)) === key,
     )
     .toSorted(sortNewest)
@@ -659,6 +659,7 @@ function findForecastPersistenceBaseline(
   }
   return {
     runId: baseline.report.runId,
+    depth,
     predictions: baseline.report.predictions.map((prediction) => ({
       measurableAs: prediction.measurableAs,
       probability: prediction.probability,
@@ -890,10 +891,16 @@ export async function createHistoricalContextReader(
       replayValue(`history:${JSON.stringify(input.spotlightSymbols ?? null)}`, async () =>
         buildHistoricalContext({ ...input, dataDir }, scan),
       ),
-    findForecastPersistenceBaseline: (report) =>
-      replayValueSync("forecast-persistence-baseline", () =>
+    findForecastPersistenceBaseline: (report) => {
+      const baseline = replayValueSync("forecast-persistence-baseline", () =>
         findForecastPersistenceBaseline(scan, report),
-      ),
+      );
+      return baseline !== undefined &&
+        (baseline.depth === "brief" || baseline.depth === "deep") &&
+        baseline.depth === report.extras?.depth
+        ? baseline
+        : undefined;
+    },
   };
 }
 

@@ -223,7 +223,7 @@ Secret-scrubbed canonical HTTP request-to-response map replayed beneath the cach
 
 ## LLM Cassette
 
-Ordered recorded `ModelProvider.generate` responses by stage/model. Replay matches the exact model first, then a unique recorded model for the stage; missing, ambiguous, exhausted, and unidentified stage requests fail. Unused responses alone do not fail replay. Regression mode uses it; eval mode bypasses it, except `--live-stages final-synthesis`, which replays upstream stages from it.
+Ordered recorded `ModelProvider.generate` responses by stage/model. Replay matches the exact model first, then a unique recorded model for the stage; missing, ambiguous, exhausted, and unidentified stage requests fail. Unused responses alone do not fail replay. Regression mode uses it; eval mode bypasses it, except `--live-stages <stage>`, which keeps one validated stage live and replays every other stage from it.
 
 ## Regression Mode
 
@@ -235,7 +235,7 @@ Fixture mode replaying Data Cassettes while calling the configured live model, k
 
 ## Frozen-Input Eval
 
-Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages final-synthesis` keeps only final synthesis live. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps. HTTP and model replay misses make the sample incomplete and block subsequent model spending; recorded provider failures remain valid inputs. Samples also record replayed/live call counts and available response-consumption diagnostics.
+Eval Mode batch (`scripts/eval-deep.ts`) running each fixture N times against the same Data Cassette and comparing fixed artifact-derived metrics between two labels. `--live-stages <stage>` keeps one validated stage live, including its phase-bounded loops/repairs; all other model reasoning stays recorded. This is selected-stage evaluation within pipeline execution, not direct phase replay. Selected-stage planning measures current prompt sizes in a strict offline preflight and adds bounded-attempt headroom; estimates are not provider-enforced cost caps. Writes only under `data/evals/<label>/`, so it never enters Calibration, the Run Artifact Index, or history; every Data Cassette miss is counted per sample and goes through existing `fetch-failed` handling, which a fallback or aggregation may close, so the count is the authoritative record, not the Source Gaps. HTTP and model replay misses make the sample incomplete and block subsequent model spending; recorded provider failures remain valid inputs. Samples also record replayed/live call counts, separate successful-response token estimates, evaluation scope and available response-consumption diagnostics. A selected stage with zero invocations is not exercised. Adaptive requests remain cassette-only.
 
 ## Run Artifact Index
 

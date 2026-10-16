@@ -3,12 +3,18 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseArgs } from "../src/cli/args";
+import { loadStagePrompt } from "../src/research/prompt-loader";
 import { resolveConfig } from "../src/config";
 import { loadRunArtifact } from "../src/run-artifacts";
 import type { ModelProvider, ModelRequest } from "../src/model/types";
 import { createLiveFixtureConfig, loadFixture, runFixture } from "./support/run-fixtures";
 import { countCassetteMisses, makeReplayFetch } from "./support/run-fixtures/data-cassette";
-import { llmCassetteKey, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+import {
+  llmCassetteKey,
+  makeReplayProvider,
+  type LiveStage,
+} from "./support/run-fixtures/llm-cassette";
 import {
   evalSampleDir,
   extractSampleMetrics,
@@ -199,7 +205,7 @@ describe("final-synthesis-only live provider", () => {
           label: "no-provider",
           fixture: "equity-depository-deep",
           sample: "1",
-          llm: "replay",
+          llm: "live",
           liveStages: "final-synthesis",
         }),
       );
@@ -267,9 +273,14 @@ describe("final-synthesis-only live provider", () => {
           (entry) => entry.tokenEstimate,
         ),
       );
-      expect(estimate.perRun).toBe(7 * perCall);
+      expect(estimate.boundedCalls).toBe(7);
+      expect(estimate.observedCalls).toBe(fixtureName === "equity-earnings-release-deep" ? 2 : 1);
+      expect(estimate.maxInputTokens).toBeGreaterThan(1000);
+      expect(estimate.perRun).toBeGreaterThanOrEqual(7 * perCall * 1.25);
     }
-    expect((await liveTokenEstimate("equity-nbis-deep", "final-synthesis")).perRun).toBe(350_000);
+    expect(
+      (await liveTokenEstimate("equity-nbis-deep", "final-synthesis")).perRun,
+    ).toBeGreaterThanOrEqual(437_500);
   });
 
   test("fails the run without a live call when an upstream stage swallows a replay miss", async () => {
@@ -296,6 +307,251 @@ describe("final-synthesis-only live provider", () => {
       }),
     ).rejects.toThrow("Refusing live final-synthesis after upstream replay failure");
     expect(liveCalls).toBe(0);
+  });
+});
+
+describe("selected-stage evaluation", () => {
+  test.each([
+    "specialist-analysis",
+    "instrument-evidence-analysis",
+    "critique",
+    "web-gather",
+    "web-subject-profile",
+  ] as const)(
+    "uses the current %s prompt, replays every other stage, and labels frozen downstream reasoning",
+    async (stage) => {
+      const root = await tempRoot();
+      const fixture = await loadFixture(FIXTURE);
+      const replay = makeReplayProvider(fixture.llmCassette);
+      const requests: ModelRequest[] = [];
+      const sample = await runEvalSample({
+        root,
+        label: stage,
+        fixture: FIXTURE,
+        sample: "1",
+        llm: "replay",
+        liveStages: stage,
+        provider: {
+          name: "fake-live",
+          generate: async (request) => {
+            requests.push(request);
+            const response = await replay.generate(request);
+            return {
+              ...response,
+              ...(stage === "critique"
+                ? {
+                    content: JSON.stringify({
+                      ...JSON.parse(response.content),
+                      selectedStageMarker: "changed critique",
+                    }),
+                  }
+                : {}),
+              tokenEstimate: 1234,
+            };
+          },
+        },
+      });
+      expect(sample.status).toBe("completed");
+      expect(requests).toHaveLength(1);
+      const request = requests[0]!;
+      expect(llmCassetteKey(request)).toBe(`${stage}|fixture-quick`);
+      const command = parseArgs(fixture.meta.argv);
+      if (command.jobType !== "equity") {
+        throw new Error("Expected equity fixture");
+      }
+      const loaded = await loadStagePrompt(stage, command);
+      const prompt = JSON.parse(request.messages.findLast(({ role }) => role === "user")!.content);
+      expect(request.messages.find(({ role }) => role === "system")!.content).toContain(
+        loaded.system,
+      );
+      expect(prompt.instruction).toContain(loaded.instruction);
+      expect(prompt.stageGoal).toBe(loaded.goal);
+      expect(sample.modelCalls).toEqual({ replayed: 6, live: 1 });
+      expect(sample.tokens.live).toBe(1234);
+      if (stage === "critique") {
+        const stages = JSON.parse(await readFile(join(sample.runDir!, "stages.json"), "utf8")) as {
+          stage: string;
+          content: string;
+        }[];
+        expect(stages.find((entry) => entry.stage === stage)?.content).toContain(
+          "changed critique",
+        );
+        const synthesis = JSON.parse(
+          stages.find((entry) => entry.stage === "final-synthesis")!.content,
+        );
+        const recorded = JSON.parse(
+          fixture.llmCassette.entries["final-synthesis|fixture-synthesis"]![0]!.content,
+        );
+        expect(synthesis.summary).toBe(recorded.summary);
+        expect(synthesis.selectedStageMarker).toBeUndefined();
+      }
+      const consumed = Object.entries(sample.responseUsage!.consumedResponses);
+      expect(consumed.every(([key]) => !key.startsWith(`${stage}|`))).toBe(true);
+      expect(consumed.reduce((sum, [, count]) => sum + count, 0)).toBe(6);
+      expect(sample.evaluation).toEqual({
+        liveStage: stage,
+        downstreamReasoning: "recorded",
+        sourceRequests: "cassette-only",
+      });
+      const persisted = JSON.parse(
+        await readFile(join(sample.sampleDir, "eval-sample.json"), "utf8"),
+      );
+      expect(persisted.evaluation).toEqual(sample.evaluation);
+      expect(persisted.tokens).toEqual(sample.tokens);
+      const metrics = await extractSampleMetrics(FIXTURE, "1", sample.sampleDir);
+      expect(metrics.metrics["modelTokens.live"]).toBe(1234);
+      expect(metrics.metrics["modelTokens.replayed"]).toBe(sample.tokens.replayed);
+      const summary = await writeEvalSummary(root, stage);
+      expect(summary.samples[0]?.evaluation).toEqual(sample.evaluation);
+      expect(formatEvalCompare(summary, summary)).toContain("other model reasoning stays recorded");
+    },
+  );
+
+  test("a conditional selected stage with no invocations is not exercised", async () => {
+    const root = await tempRoot();
+    const sample = await runEvalSample({
+      root,
+      label: "off",
+      fixture: "equity-aapl-brief",
+      sample: "1",
+      llm: "replay",
+      liveStages: "web-gather",
+      provider: {
+        name: "fake-live",
+        generate: async () => {
+          throw new Error("disabled stage called");
+        },
+      },
+    });
+    expect(sample.status).toBe("not-exercised");
+    expect(sample.modelCalls).toEqual({ replayed: 3, live: 0 });
+    expect(sample.tokens.live).toBe(0);
+    expect(sample.evaluation?.liveStage).toBe("web-gather");
+  });
+
+  test("rejects unsupported or multiple stages before any provider or output is created", async () => {
+    const root = await tempRoot();
+    for (const stage of ["unknown", "peer-universe-proposal", "critique,final-synthesis", ""]) {
+      await expect(
+        runEvalSample({
+          root,
+          label: "invalid",
+          fixture: "does-not-exist",
+          sample: "1",
+          llm: "live",
+          liveStages: stage as LiveStage,
+        }),
+      ).rejects.toThrow("Select exactly one supported live stage");
+    }
+    expect(existsSync(join(root, "invalid"))).toBe(false);
+    await expect(
+      runEvalSample({
+        root,
+        label: "offline",
+        fixture: "equity-aapl-brief",
+        sample: "1",
+        llm: "replay",
+        liveStages: "critique",
+      }),
+    ).rejects.toThrow("requires an injected provider");
+    expect(existsSync(join(root, "offline"))).toBe(false);
+  });
+
+  test("an adaptive Web Gather source miss invalidates the sample and prevents subsequent calls", async () => {
+    const root = await tempRoot();
+    const fixture = await loadFixture(FIXTURE);
+    const recordedFetch = makeReplayFetch(fixture.dataCassette, fixture.dir);
+    let calls = 0;
+    let missed = false;
+    let callsAfterMiss = 0;
+    const sample = await runEvalSample({
+      root,
+      label: "adaptive",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+      liveStages: "web-gather",
+      fetchImpl: async (input, init) => {
+        try {
+          return await recordedFetch(input, init);
+        } catch (error) {
+          missed = true;
+          throw error;
+        }
+      },
+      provider: {
+        name: "fake-live",
+        generate: async () => {
+          calls += 1;
+          if (missed) {
+            callsAfterMiss += 1;
+          }
+          return {
+            content: JSON.stringify({
+              requests: [
+                {
+                  tool: "web_search",
+                  args: {
+                    query: "AAPL previously unseen operating evidence",
+                    searchType: "background",
+                  },
+                  rationale: "Resolve AAPL business evidence",
+                },
+              ],
+            }),
+            tokenEstimate: 123,
+          };
+        },
+      },
+    });
+    expect(calls).toBe(1);
+    expect(callsAfterMiss).toBe(0);
+    expect(missed).toBe(true);
+    expect(sample.status).toBe("incomplete");
+    expect(sample.cassetteMisses.count).toBeGreaterThan(0);
+    expect(sample.modelCalls).toEqual({ live: 1, replayed: 0 });
+    expect(sample.error).toContain("Refusing model call after HTTP replay failure");
+  });
+
+  test("stage estimates measure current prompt input offline and reserve phase attempts with headroom", async () => {
+    const fixture = await loadFixture(FIXTURE);
+    const replay = makeReplayProvider(fixture.llmCassette);
+    const root = await tempRoot();
+    let inputTokens = 0;
+    const sample = await runEvalSample({
+      root,
+      label: "measure",
+      fixture: FIXTURE,
+      sample: "1",
+      llm: "replay",
+      liveStages: "critique",
+      provider: {
+        ...replay,
+        generate: (request) => {
+          if (llmCassetteKey(request).startsWith("critique|")) {
+            inputTokens = Math.ceil(
+              request.messages.reduce((sum, message) => sum + message.content.length, 0) / 4,
+            );
+          }
+          return replay.generate(request);
+        },
+      },
+    });
+    expect(sample.status).toBe("completed");
+    const estimate = await withAmbientIndexEnv(() => liveTokenEstimate(FIXTURE, "critique"));
+    expect(estimate.maxInputTokens).toBe(inputTokens);
+    expect(estimate.observedCalls).toBe(1);
+    expect(estimate.boundedCalls).toBe(1);
+    expect(estimate.perRun).toBeGreaterThanOrEqual(62_500);
+    expect(estimate.recorded).toBe(
+      fixture.llmCassette.entries["critique|fixture-quick"]![0]!.tokenEstimate,
+    );
+    const off = await liveTokenEstimate("equity-aapl-brief", "web-gather");
+    expect(off.observedCalls).toBe(0);
+    expect(off.perRun).toBe(0);
+    await expect(
+      liveTokenEstimate("does-not-exist", "critique,final-synthesis" as LiveStage),
+    ).rejects.toThrow("Select exactly one supported live stage");
   });
 });
 
@@ -433,7 +689,7 @@ describe("frozen-input eval replay", () => {
     }
   });
 
-  test.each(["replay", "live", "final-synthesis"] as const)(
+  test.each(["replay", "live", "final-synthesis", "critique", "web-gather"] as const)(
     "caught HTTP misses invalidate %s samples and prevent subsequent live calls",
     async (mode) => {
       const root = await tempRoot();
@@ -450,7 +706,7 @@ describe("frozen-input eval replay", () => {
         fixture: fixture.name,
         sample: "1",
         llm: mode === "live" ? "live" : "replay",
-        ...(mode === "final-synthesis" ? { liveStages: "final-synthesis" as const } : {}),
+        ...(mode !== "replay" && mode !== "live" ? { liveStages: mode } : {}),
         ...(mode !== "replay"
           ? {
               provider: {
@@ -583,6 +839,7 @@ describe("frozen-input eval replay", () => {
         fixture: FIXTURE,
         sample: "1",
         llm: "replay",
+        liveStages: "final-synthesis",
         provider: {
           name: replay.name,
           generate: async (request) => {
@@ -605,6 +862,9 @@ describe("frozen-input eval replay", () => {
 
       expect(sample.status).toBe("completed");
       expect(prompts).toHaveLength(malformedAttempt + 1);
+      expect(sample.modelCalls).toEqual({ live: malformedAttempt + 1, replayed: 6 });
+      expect(sample.tokens.live).toBeGreaterThan(0);
+      expect(sample.tokens.replayed).toBeGreaterThan(0);
       expect(prompts[malformedAttempt]?.reportValidationErrors).toEqual(
         expect.arrayContaining([expect.stringContaining("JSON Parse error:")]),
       );

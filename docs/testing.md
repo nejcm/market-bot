@@ -184,18 +184,60 @@ bun run scripts/eval-deep.ts --compare base branch
 MARKET_BOT_SYNTHESIS_MODEL=<model> bun run scripts/eval-deep.ts --fixtures equity-depository-deep,equity-earnings-release-deep --label <arm> --live-stages final-synthesis
 ```
 
-`--live-stages final-synthesis` keeps final synthesis live and replays every upstream stage from
-the fixture's LLM cassette by exact stage/model, falling back to stage alone only when exactly one
-model was recorded for that stage, so arms compare synthesis models on identical upstream outputs.
-Replayed stage durations are zeroed in the live prompt so it is byte-identical across samples.
-A missing, ambiguous, or exhausted model recording fails replay. Requests without a stage identity
-(including peer-universe proposal) are unsupported in strict replay. Both HTTP and model replay
-misses invalidate the sample even when production recovers, and prevent later live calls. Recorded
-HTTP failures such as a 403 remain valid replay inputs and produce ordinary Source Gaps.
-The estimate reserves the maximum final-synthesis call count (initial, prediction reprompts, report
-retries) at the larger of the biggest recorded synthesis call and ~50k tokens. Only recorded
-fixtures (`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real
-upstream outputs.
+`--live-stages <stage>` selects exactly one audited stage per batch. Supported names:
+`specialist-analysis`, `instrument-evidence-analysis`, `market-behavior-analysis`,
+`regime-context-analysis`, `mover-theme-analysis`, `critique`, `final-synthesis`,
+`web-gather`, `web-subject-profile`, `evidence-request`, `financial-table-mapping`,
+`forecast-disagreement`, and `spotlight-selection`. Unknown names, comma-separated lists,
+and peer-universe proposal are rejected before provider creation. Omitting the selector keeps
+the existing whole-live evaluation. No selector was added to `replay-fixture-run.ts`.
+
+For example, this invocation only plans a critique evaluation:
+
+```sh
+bun run scripts/eval-deep.ts --fixtures equity-depository-deep --label critique-arm --live-stages critique
+```
+
+The selected stage uses current production prompt construction and every invocation of that stage
+is live, including its phase-bounded loops/repairs and all challenger models for
+`forecast-disagreement`. Every other model call uses strict LLM Cassette replay by exact
+stage/model, falling back to stage alone only when exactly one model was recorded. A missing,
+ambiguous, or exhausted recording fails replay. Requests without a stage identity (including
+peer-universe proposal) remain unsupported. A skipped or disabled selected stage produces
+`not-exercised`, never successful stage evaluation.
+
+This is pipeline execution with selected-stage evaluation, not direct phase replay. When changing
+an upstream stage, downstream model reasoning stays recorded: a valid final report does not prove
+those models reasoned about the changed output. Deterministic consumers still execute. This scope
+is printed before spending and stored in `eval-sample.json`, `summary.json`, and compare output.
+`priorStages[].durationMs` is zeroed wherever that array exists; bespoke prompts without it retain
+their own shape. Final-synthesis prompts still require the array. The audited prompts need no
+other wall-clock-field freezing.
+
+Adaptive Web Gather/evidence evaluations are constrained to recorded source requests. Changed
+queries, URLs, or request bodies must match the Data Cassette. Unseen requests invalidate the
+sample and block subsequent model calls, even if production recovers; they never enable live
+source fetching. Recorded HTTP failures such as a 403 remain valid inputs and ordinary Source
+Gaps. Already-started concurrent calls are not cancelled.
+
+Before selected-stage spending, planning executes one strict offline pipeline preflight per
+fixture in disposable temporary state with index access disabled. It measures current selected
+prompt sizes (characters/4, an approximation) and counts reached calls. Strict preflight failures
+stop planning before live provider creation. The estimate reserves the phase's bounded attempts:
+seven for final synthesis, configured rounds for Web Gather/evidence loops, configured challenger
+count for Forecast Disagreement, one for other stages; observed calls provide a lower bound.
+Web Gather's configured rounds conservatively include its deep-equity parse retry. Per-call tokens
+are the largest of 50k, the largest recorded selected call, or measured maximum input plus largest
+recorded selected output, with another 25% headroom. This is a planning estimate, not a
+provider-enforced cost cap; changed adaptive paths, repairs, output lengths and tokenization can
+differ from preflight. A zero-call preflight is disclosed. Only recorded fixtures
+(`equity-depository-deep`, `equity-earnings-release-deep`, `equity-amd-deep`) carry real upstream
+outputs; AMD remains incomplete as described below.
+
+The existing estimate-first workflow still applies: inspect the estimate, obtain explicit approval
+for that batch, then use the same invocation with `--yes`. No additional spending entry point was
+introduced. Selected offline tests require an injected fake provider and cannot construct an
+ambient live provider.
 
 `equity-amd-deep` is an eval-only fixture. Unlike the fixtures listed above, it is not replayed by
 `bun run check` and carries no invariant assertions because it fails invariant C15. Since
@@ -219,13 +261,21 @@ Without `--yes` it prints the planned run count and token estimate and stops. An
 sample dir is refused. Each sample records its status (`completed`, `failed-final-synthesis`, `threw`,
 `incomplete`, or `not-exercised`), HTTP/model replay miss keys, replayed/live call counts, and
 available consumed/unused response counts in `eval-sample.json`, even when the run fails.
+The sample's `tokens.live` and `tokens.replayed`, exposed as `modelTokens.live` and
+`modelTokens.replayed` in comparisons, sum successful provider response token estimates at each
+boundary. Failed calls may have incurred usage unavailable to the harness; these totals are not
+billing records. Existing `tokens.total` and per-stage metrics describe persisted stages and mix
+live and replayed estimates.
 `summary.json` is rewritten after every sample, and a sample dir without a record counts as
 `incomplete`. A metric group a sample could not measure (no report on a failed run, no stages) is
 left out of that sample's mean and shows as `n=k/N`, so a failure never reads as an improvement.
 Synthetic fixtures (`equity-aapl-deep`, `equity-nbis-deep`, `equity-web-fallback-deep`) record tiny
 cassette token counts, so the estimate floors each run at the ~438k of a real deep run.
-`tests/eval-deep.test.ts` covers isolation, miss counting, compare output, and the final-synthesis-only
-live provider with replayed models.
+`tests/eval-deep.test.ts` covers isolation, replay failures, selected-stage routing/current prompts,
+unexercised stages, adaptive source misses, estimates, comparison scope, and final-synthesis repairs
+using injected fake live providers. Cassette tests cover every selectable identity, repeated calls,
+and bespoke prompts without `priorStages`. Tests never spawn spending scripts or approve a real
+entry point.
 
 ## Deep-equity presentation assertions
 

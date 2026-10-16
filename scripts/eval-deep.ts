@@ -9,10 +9,10 @@ import {
   runEvalSample,
   runEvalBatch,
 } from "../tests/support/run-fixtures/eval";
-import { LIVE_STAGE } from "../tests/support/run-fixtures/llm-cassette";
+import { validateLiveStage } from "../tests/support/run-fixtures/llm-cassette";
 
 const USAGE =
-  "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages final-synthesis] [--yes]\n" +
+  "Usage: bun run scripts/eval-deep.ts --fixtures a,b --label <name> [--samples N] [--live-stages <stage>] [--yes]\n" +
   "       bun run scripts/eval-deep.ts --compare <base-label> <new-label>";
 
 const { values, positionals } = parseArgs({
@@ -49,29 +49,56 @@ if (
   label === undefined ||
   !Number.isInteger(samples) ||
   samples < 1 ||
-  positionals.length > 0 ||
-  (values["live-stages"] !== undefined && values["live-stages"] !== LIVE_STAGE)
+  positionals.length > 0
 ) {
   throw new Error(USAGE);
 }
-const liveStages = values["live-stages"] === undefined ? undefined : LIVE_STAGE;
+const liveStages =
+  values["live-stages"] === undefined ? undefined : validateLiveStage(values["live-stages"]);
 if (existsSync(evalLabelDir(EVALS_ROOT, label))) {
   throw new Error(
     `Eval label already exists; pick a new --label: ${evalLabelDir(EVALS_ROOT, label)}`,
   );
 }
 
-const estimates = await Promise.all(
-  fixtures.map((fixture) => liveTokenEstimate(fixture, liveStages)),
-);
+if (liveStages !== undefined) {
+  process.stdout.write(
+    `Selected stage: ${liveStages}; includes every loop/repair call within phase limits.\n`,
+  );
+  process.stdout.write(
+    "Other model outputs stay recorded; downstream reasoning is not reevaluated.\n",
+  );
+  process.stdout.write(
+    "Adaptive Web Gather/evidence requests must match the source cassette; an unseen request invalidates the sample and blocks subsequent model calls.\n",
+  );
+}
+const estimates = [];
+for (const fixture of fixtures) {
+  // oxlint-disable-next-line no-await-in-loop -- offline planning shares process-level index overrides
+  estimates.push(await liveTokenEstimate(fixture, liveStages));
+}
 let estimate = 0;
-for (const [index, { recorded, perRun }] of estimates.entries()) {
+for (const [
+  index,
+  { recorded, perRun, boundedCalls, observedCalls, maxInputTokens },
+] of estimates.entries()) {
   const fixture = fixtures[index]!;
   estimate += perRun * samples;
   process.stdout.write(
     `${fixture}: ${String(samples)} live-LLM run(s)${liveStages !== undefined ? ` (live stage: ${liveStages})` : ""}, recorded cassette ${String(recorded)} tokens, planning ${String(perRun)}/run\n`,
   );
+  if (boundedCalls !== undefined) {
+    process.stdout.write(
+      `  Offline preflight: ${String(observedCalls)} selected call(s), ~${String(maxInputTokens)} maximum input tokens (characters/4); planning ${String(boundedCalls)} bounded call(s) with 25% headroom.\n`,
+    );
+    if (observedCalls === 0) {
+      process.stdout.write("  Selected stage was not exercised in offline preflight.\n");
+    }
+  }
 }
+process.stdout.write(
+  "Planning estimates are not provider-enforced cost caps; live response token estimates are reported separately from replayed tokens.\n",
+);
 process.stdout.write(
   `Planned: ${String(fixtures.length * samples)} live-LLM run(s), ~${String(estimate)} tokens, into ${evalLabelDir(EVALS_ROOT, label)}\n`,
 );

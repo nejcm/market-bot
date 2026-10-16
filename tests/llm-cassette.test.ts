@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { runForecastDisagreement } from "../src/research/forecast-disagreement";
 import { prediction, researchReport } from "./support/fixtures";
 import type { ModelRequest } from "../src/model/types";
-import { makeReplayProvider } from "./support/run-fixtures/llm-cassette";
+import { LIVE_STAGES, makeReplayProvider } from "./support/run-fixtures/llm-cassette";
 
 function request(stage: string, model: string): ModelRequest {
   return {
@@ -89,6 +89,58 @@ describe("strict LLM cassette replay", () => {
       "forecast-disagreement|b": 1,
     });
   });
+
+  test.each([...LIVE_STAGES])(
+    "routes every invocation of selected %s live, freezing only prior-stage durations",
+    async (stage) => {
+      const requests: ModelRequest[] = [];
+      const provider = makeReplayProvider(
+        { entries: { "critique|old": [first] } },
+        {
+          name: "fake-live",
+          generate: async (input) => {
+            requests.push(input);
+            return second;
+          },
+        },
+        stage,
+      );
+      const input: ModelRequest = {
+        model: "current",
+        messages: [
+          {
+            role: "user",
+            content: JSON.stringify({
+              stage,
+              instruction: "current prompt",
+              ...(stage === "final-synthesis" || stage === "critique"
+                ? { priorStages: [{ durationMs: 12, content: "recorded analysis" }] }
+                : {}),
+            }),
+          },
+        ],
+      };
+      await Promise.all([provider.generate(input), provider.generate(input)]);
+      expect(requests).toHaveLength(2);
+      for (const sent of requests) {
+        const prompt = JSON.parse(sent.messages[0]!.content);
+        expect(prompt.stage).toBe(stage);
+        expect(prompt.instruction).toBe("current prompt");
+        if ("priorStages" in prompt) {
+          expect(prompt.priorStages[0].durationMs).toBe(0);
+        } else {
+          expect(sent.messages).toEqual(input.messages);
+        }
+      }
+      expect(JSON.parse(input.messages[0]!.content).priorStages?.[0]?.durationMs).not.toBe(0);
+      expect(provider.diagnostics().consumedResponses).toEqual({});
+      await expect(provider.generate(request("missing-stage", "a"))).rejects.toThrow(
+        "0 recorded models",
+      );
+      await expect(provider.generate(input)).rejects.toThrow("Refusing live");
+      expect(requests).toHaveLength(2);
+    },
+  );
 
   test("rejects missing keys, empty sequences, and overflow without fabricating responses", async () => {
     const replay = makeReplayProvider({ entries: { "critique|a": [first], "web-gather|a": [] } });

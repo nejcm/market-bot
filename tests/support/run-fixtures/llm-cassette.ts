@@ -1,4 +1,5 @@
 import { isRecord } from "../../../src/guards";
+import type { StageLabel } from "../../../src/research/prompt-loader";
 import type { ModelProvider, ModelRequest } from "../../../src/model/types";
 
 export interface LlmCassetteEntry {
@@ -35,7 +36,35 @@ export function llmCassetteKey(request: ModelRequest): string {
   return `${requestStage(request)}|${request.model}`;
 }
 
-export const LIVE_STAGE = "final-synthesis";
+const LIVE_STAGE = "final-synthesis";
+
+export const LIVE_STAGES = [
+  "specialist-analysis",
+  "instrument-evidence-analysis",
+  "market-behavior-analysis",
+  "regime-context-analysis",
+  "mover-theme-analysis",
+  "critique",
+  LIVE_STAGE,
+  "web-gather",
+  "web-subject-profile",
+  "evidence-request",
+  "financial-table-mapping",
+  "forecast-disagreement",
+  "spotlight-selection",
+] as const satisfies readonly StageLabel[];
+
+export type LiveStage = (typeof LIVE_STAGES)[number];
+
+export function validateLiveStage(value: string): LiveStage {
+  const stage = LIVE_STAGES.find((candidate) => candidate === value);
+  if (stage === undefined) {
+    throw new Error(
+      `Select exactly one supported live stage: ${LIVE_STAGES.join(", ")}; got ${value}`,
+    );
+  }
+  return stage;
+}
 
 // Wall-clock stage durations ride in priorStages; zeroing them keeps live prompts identical across samples.
 function withoutStageDurations(request: ModelRequest): ModelRequest {
@@ -47,7 +76,10 @@ function withoutStageDurations(request: ModelRequest): ModelRequest {
       }
       const prompt = JSON.parse(message.content) as Record<string, unknown>;
       if (!Array.isArray(prompt.priorStages)) {
-        throw new TypeError(`${LIVE_STAGE} prompt has no priorStages array to freeze`);
+        if (requestStage(request) === LIVE_STAGE) {
+          throw new TypeError(`${LIVE_STAGE} prompt has no priorStages array to freeze`);
+        }
+        return message;
       }
       const priorStages: unknown[] = prompt.priorStages.map((stage: unknown) =>
         isRecord(stage) && "durationMs" in stage ? { ...stage, durationMs: 0 } : stage,
@@ -74,7 +106,12 @@ export interface ReplayProvider extends ModelProvider {
   };
 }
 
-export function makeReplayProvider(cassette: LlmCassette, live?: ModelProvider): ReplayProvider {
+export function makeReplayProvider(
+  cassette: LlmCassette,
+  live?: ModelProvider,
+  liveStage: LiveStage = LIVE_STAGE,
+): ReplayProvider {
+  validateLiveStage(liveStage);
   const indexes = new Map<string, number>();
   let replayFailure: string | undefined = undefined;
   const fail = (key: string, message: string): never => {
@@ -101,10 +138,10 @@ export function makeReplayProvider(cassette: LlmCassette, live?: ModelProvider):
           `LLM cassette unsupported request without stage identity: ${exactKey}`,
         );
       }
-      if (live !== undefined && stage === LIVE_STAGE) {
+      if (live !== undefined && stage === liveStage) {
         if (replayFailure !== undefined) {
           throw new Error(
-            `Refusing live ${LIVE_STAGE} after upstream replay failure: ${replayFailure}`,
+            `Refusing live ${liveStage} after upstream replay failure: ${replayFailure}`,
           );
         }
         return live.generate(withoutStageDurations(request));

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { PredictionKind } from "../../../src/domain/prediction";
 import type { SourceGap } from "../../../src/domain/sources";
@@ -21,9 +22,10 @@ import { loadRunArtifact, type RunArtifact } from "../../../src/run-artifacts";
 import type { FetchLike } from "../../../src/sources/types";
 import { countCassetteMisses, makeReplayFetch } from "./data-cassette";
 import { createProvider } from "../../../src/model/factory";
-import { createLiveFixtureConfig, loadFixture, runFixture } from "./index";
+import { createFixtureConfig, createLiveFixtureConfig, loadFixture, runFixture } from "./index";
 import {
-  type LIVE_STAGE,
+  type LiveStage,
+  validateLiveStage,
   requestStage,
   makeReplayProvider,
   ModelReplayError,
@@ -49,13 +51,14 @@ const LIVE_DEEP_RUN_TOKENS = 438_000;
 const MAX_FINAL_SYNTHESIS_CALLS =
   1 + MAX_PREDICTION_REPROMPTS + 2 + MAX_REPORT_VALIDATION_REPROMPTS;
 // Recorded deep fixtures spend ~37k–46k per synthesis call; synthetic cassettes record ~100.
-const LIVE_SYNTHESIS_CALL_TOKENS = 50_000;
+const LIVE_STAGE_CALL_TOKENS = 50_000;
 // Metric groups are keyed by the first dotted segment; an unavailable group is excluded from compare.
 const METRIC_GROUPS = [
   "durationMs",
   "cassetteMisses",
   "modelReplayMisses",
   "modelCalls",
+  "modelTokens",
   "tokens",
   "repairs",
   "predictions",
@@ -87,6 +90,12 @@ interface EvalSampleRecord {
     readonly errors: readonly string[];
   };
   readonly modelCalls: { readonly replayed: number; readonly live: number };
+  readonly tokens: { readonly replayed: number; readonly live: number };
+  readonly evaluation?: {
+    readonly liveStage: LiveStage;
+    readonly downstreamReasoning: "recorded";
+    readonly sourceRequests: "cassette-only";
+  };
   readonly responseUsage?: ReturnType<ReplayProvider["diagnostics"]>;
   readonly error?: string;
   readonly errorStack?: string;
@@ -97,6 +106,7 @@ interface EvalSampleMetrics {
   readonly fixture: string;
   readonly sample: string;
   readonly status: EvalSampleStatus;
+  readonly evaluation?: EvalSampleRecord["evaluation"];
   readonly cassetteMissKeys: readonly string[];
   readonly modelReplayMissKeys: readonly string[];
   readonly metrics: Readonly<Record<string, number>>;
@@ -116,7 +126,7 @@ export interface EvalSampleInput {
   readonly llm: "replay" | "live";
   readonly fetchImpl?: FetchLike;
   readonly provider?: ModelProvider;
-  readonly liveStages?: typeof LIVE_STAGE;
+  readonly liveStages?: LiveStage;
 }
 
 export interface EvalSampleResult extends EvalSampleRecord {
@@ -169,6 +179,12 @@ async function publishedRunDirName(dataDir: string): Promise<string | undefined>
 }
 
 export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleResult> {
+  if (input.liveStages !== undefined) {
+    validateLiveStage(input.liveStages);
+    if (input.llm === "replay" && input.provider === undefined) {
+      throw new Error("Selected offline evaluation requires an injected provider");
+    }
+  }
   const sampleDir = evalSampleDir(
     input.root ?? EVALS_ROOT,
     input.label,
@@ -185,6 +201,8 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
   const modelMissErrors: string[] = [];
   let replayedCalls = 0;
   let liveCalls = 0;
+  let replayedTokens = 0;
+  let liveTokens = 0;
   const replay: { provider?: ReplayProvider } = {};
   const fetchImpl = countCassetteMisses(
     input.fetchImpl ?? makeReplayFetch(fixture.dataCassette, fixture.dir),
@@ -201,17 +219,19 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
         : createProvider(createLiveFixtureConfig(fixture.meta, dataDir)));
     const countedLive: ModelProvider = {
       ...baseProvider,
-      generate: (request) => {
+      generate: async (request) => {
         if (missKeys.length > 0 || modelMissKeys.length > 0) {
           throw new Error("Refusing live model call after replay failure");
         }
         liveCalls += 1;
-        return baseProvider.generate(request);
+        const response = await baseProvider.generate(request);
+        liveTokens += response.tokenEstimate;
+        return response;
       },
     };
     const provider =
       input.liveStages !== undefined
-        ? makeReplayProvider(fixture.llmCassette, countedLive)
+        ? makeReplayProvider(fixture.llmCassette, countedLive, input.liveStages)
         : baseProvider;
     const routedProvider =
       input.liveStages === undefined && input.llm === "live" ? countedLive : provider;
@@ -235,6 +255,7 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
                 : input.llm === "replay"
             ) {
               replayedCalls += 1;
+              replayedTokens += response.tokenEstimate;
             }
             rawResponseContent = response.content.slice(0, MAX_RAW_RESPONSE_CHARS);
             return response;
@@ -285,6 +306,16 @@ export async function runEvalSample(input: EvalSampleInput): Promise<EvalSampleR
       errors: modelMissErrors,
     },
     modelCalls: { replayed: replayedCalls, live: liveCalls },
+    tokens: { replayed: replayedTokens, live: liveTokens },
+    ...(input.liveStages !== undefined
+      ? {
+          evaluation: {
+            liveStage: input.liveStages,
+            downstreamReasoning: "recorded" as const,
+            sourceRequests: "cassette-only" as const,
+          },
+        }
+      : {}),
     ...(replay.provider !== undefined ? { responseUsage: replay.provider.diagnostics() } : {}),
     ...(runError !== undefined
       ? { error: runError instanceof Error ? runError.message : String(runError) }
@@ -426,12 +457,15 @@ export async function extractSampleMetrics(
     modelReplayMisses: record.modelReplayMisses.count,
     "modelCalls.replayed": record.modelCalls.replayed,
     "modelCalls.live": record.modelCalls.live,
+    "modelTokens.replayed": record.tokens.replayed,
+    "modelTokens.live": record.tokens.live,
   };
   const available = new Set<MetricGroup>([
     "durationMs",
     "cassetteMisses",
     "modelReplayMisses",
     "modelCalls",
+    "modelTokens",
   ]);
   if (record.runDirName !== undefined) {
     const runDir = join(sampleDir, "runs", record.runDirName);
@@ -463,6 +497,7 @@ export async function extractSampleMetrics(
     fixture: record.fixture,
     sample: record.sample,
     status: record.status,
+    ...(record.evaluation !== undefined ? { evaluation: record.evaluation } : {}),
     cassetteMissKeys: record.cassetteMisses.keys,
     modelReplayMissKeys: record.modelReplayMisses.keys,
     metrics,
@@ -548,14 +583,34 @@ export function formatEvalCompare(base: EvalSummary, next: EvalSummary): string 
       );
     }
   }
-  return `${lines.join("\n")}\n`;
+  const selectedStages = [
+    ...new Set(
+      [...base.samples, ...next.samples].flatMap((sample) =>
+        sample.evaluation === undefined ? [] : [sample.evaluation.liveStage],
+      ),
+    ),
+  ];
+  const scope =
+    selectedStages.length === 0
+      ? ""
+      : `Selected-stage evaluation (${selectedStages.join(", ")}): other model reasoning stays recorded; source requests are cassette-only.\n\n`;
+  return `${scope}${lines.join("\n")}\n`;
 }
 
 export async function liveTokenEstimate(
   fixture: string,
-  liveStages?: typeof LIVE_STAGE,
-): Promise<{ readonly recorded: number; readonly perRun: number }> {
-  const { llmCassette } = await loadFixture(fixture);
+  liveStages?: LiveStage,
+): Promise<{
+  readonly recorded: number;
+  readonly perRun: number;
+  readonly boundedCalls?: number;
+  readonly observedCalls?: number;
+  readonly maxInputTokens?: number;
+}> {
+  if (liveStages !== undefined) {
+    validateLiveStage(liveStages);
+  }
+  const { llmCassette, meta } = await loadFixture(fixture);
   const entries = Object.entries(llmCassette.entries)
     .filter(([key]) => liveStages === undefined || key.startsWith(`${liveStages}|`))
     .flatMap(([, stageEntries]) => stageEntries);
@@ -563,9 +618,62 @@ export async function liveTokenEstimate(
   if (liveStages === undefined) {
     return { recorded, perRun: Math.max(recorded, LIVE_DEEP_RUN_TOKENS) };
   }
-  const perCall = Math.max(
-    LIVE_SYNTHESIS_CALL_TOKENS,
-    ...entries.map((entry) => entry.tokenEstimate),
+  const root = await mkdtemp(join(tmpdir(), "market-bot-eval-estimate-"));
+  const restoreEnv = disableIndexAccess();
+  let maxInputTokens = 0;
+  let observedCalls = 0;
+  try {
+    const replay = makeReplayProvider(llmCassette);
+    await runFixture(fixture, {
+      llm: "replay",
+      dataDir: join(root, "runs"),
+      provider: makeReplayProvider(
+        llmCassette,
+        {
+          name: "offline-prompt-measurement",
+          generate: (request) => {
+            observedCalls += 1;
+            maxInputTokens = Math.max(
+              maxInputTokens,
+              Math.ceil(
+                request.messages.reduce((sum, message) => sum + message.content.length, 0) / 4,
+              ),
+            );
+            return replay.generate(request);
+          },
+        },
+        liveStages,
+      ),
+    });
+  } finally {
+    restoreEnv();
+    await rm(root, { recursive: true, force: true });
+  }
+  const config = createFixtureConfig(meta, join(root, "runs"));
+  const boundedCalls =
+    liveStages === "final-synthesis"
+      ? MAX_FINAL_SYNTHESIS_CALLS
+      : liveStages === "web-gather"
+        ? config.webGatherOptions.maxRounds
+        : liveStages === "evidence-request"
+          ? config.evidenceRequestOptions.maxRounds
+          : liveStages === "forecast-disagreement"
+            ? (meta.challengerModels?.length ?? 0)
+            : 1;
+  const perCall = Math.ceil(
+    1.25 *
+      Math.max(
+        LIVE_STAGE_CALL_TOKENS,
+        maxInputTokens +
+          Math.max(0, ...entries.map((entry) => Math.ceil(entry.content.length / 4))),
+        ...entries.map((entry) => entry.tokenEstimate),
+      ),
   );
-  return { recorded, perRun: MAX_FINAL_SYNTHESIS_CALLS * perCall };
+  return {
+    recorded,
+    perRun: Math.max(boundedCalls, observedCalls) * perCall,
+    boundedCalls: Math.max(boundedCalls, observedCalls),
+    observedCalls,
+    maxInputTokens,
+  };
 }
